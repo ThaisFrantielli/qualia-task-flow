@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useTasks } from '../hooks/useTasks';
 import DashboardCard from '../components/DashboardCard';
 import { 
   CheckSquare, 
@@ -11,65 +12,95 @@ import {
 } from 'lucide-react';
 
 const Dashboard = () => {
-  // Mock data for dashboard
+  const { tasks, loading, error } = useTasks();
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Carregando dados...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600">Erro: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Calcular estatísticas
+  const totalTasks = tasks.length;
+  const inProgressTasks = tasks.filter(task => task.status === 'progress').length;
+  const completedTasks = tasks.filter(task => task.status === 'done').length;
+  const lateTasks = tasks.filter(task => task.status === 'late').length;
+
   const stats = [
     {
       title: 'Total de Tarefas',
-      value: 48,
+      value: totalTasks,
       subtitle: 'Tarefas ativas',
       icon: CheckSquare,
       color: 'primary' as const,
-      trend: { value: '12%', isPositive: true }
+      trend: { value: '100%', isPositive: true }
     },
     {
       title: 'Em Andamento',
-      value: 15,
+      value: inProgressTasks,
       subtitle: 'Sendo executadas',
       icon: Clock,
       color: 'secondary' as const,
-      trend: { value: '8%', isPositive: true }
+      trend: { value: `${totalTasks > 0 ? Math.round((inProgressTasks / totalTasks) * 100) : 0}%`, isPositive: true }
     },
     {
       title: 'Concluídas',
-      value: 23,
-      subtitle: 'Este mês',
+      value: completedTasks,
+      subtitle: 'Finalizadas',
       icon: TrendingUp,
       color: 'success' as const,
-      trend: { value: '15%', isPositive: true }
+      trend: { value: `${totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0}%`, isPositive: true }
     },
     {
       title: 'Atrasadas',
-      value: 5,
+      value: lateTasks,
       subtitle: 'Requer atenção',
       icon: AlertTriangle,
       color: 'warning' as const,
-      trend: { value: '3%', isPositive: false }
+      trend: { value: `${totalTasks > 0 ? Math.round((lateTasks / totalTasks) * 100) : 0}%`, isPositive: false }
     }
   ];
 
-  const recentTasks = [
-    {
-      id: '1',
-      title: 'Implementar sistema de notificações',
-      assignee: 'João Silva',
-      status: 'Em andamento',
-      dueDate: '2024-07-05'
-    },
-    {
-      id: '2',
-      title: 'Revisar documentação do projeto',
-      assignee: 'Maria Santos',
-      status: 'Concluída',
-      dueDate: '2024-07-03'
-    },
-    {
-      id: '3',
-      title: 'Testes de integração',
-      assignee: 'Pedro Costa',
-      status: 'A fazer',
-      dueDate: '2024-07-08'
+  // Tarefas recentes (últimas 5)
+  const recentTasks = tasks
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
+    .map(task => ({
+      id: task.id,
+      title: task.title,
+      assignee: task.assignee_name || 'Não atribuído',
+      status: task.status === 'done' ? 'Concluída' : 
+              task.status === 'progress' ? 'Em andamento' : 
+              task.status === 'late' ? 'Atrasada' : 'A fazer',
+      dueDate: task.due_date || new Date().toISOString().split('T')[0]
+    }));
+
+  // Performance da equipe (agrupado por responsável)
+  const teamPerformance = tasks.reduce((acc, task) => {
+    const assignee = task.assignee_name || 'Não atribuído';
+    if (!acc[assignee]) {
+      acc[assignee] = { total: 0, completed: 0 };
     }
-  ];
+    acc[assignee].total++;
+    if (task.status === 'done') {
+      acc[assignee].completed++;
+    }
+    return acc;
+  }, {} as Record<string, { total: number; completed: number }>);
 
   return (
     <div className="p-6 space-y-6">
@@ -122,6 +153,7 @@ const Dashboard = () => {
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                     task.status === 'Concluída' ? 'bg-green-100 text-green-800' :
                     task.status === 'Em andamento' ? 'bg-blue-100 text-blue-800' :
+                    task.status === 'Atrasada' ? 'bg-red-100 text-red-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {task.status}
@@ -136,59 +168,33 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl shadow-quality p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Desempenho da Equipe</h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">J</span>
+            {Object.entries(teamPerformance).slice(0, 5).map(([name, performance]) => {
+              const percentage = performance.total > 0 ? Math.round((performance.completed / performance.total) * 100) : 0;
+              const initial = name.charAt(0).toUpperCase();
+              
+              return (
+                <div key={name} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm font-medium">{initial}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{name}</p>
+                      <p className="text-sm text-gray-500">{performance.completed} tarefas concluídas</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="w-12 h-2 bg-gray-200 rounded-full">
+                      <div 
+                        className="h-2 bg-green-500 rounded-full" 
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-xs text-gray-500 mt-1">{percentage}%</span>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900">João Silva</p>
-                  <p className="text-sm text-gray-500">5 tarefas concluídas</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="w-12 h-2 bg-gray-200 rounded-full">
-                  <div className="w-10 h-2 bg-green-500 rounded-full"></div>
-                </div>
-                <span className="text-xs text-gray-500 mt-1">83%</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">M</span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Maria Santos</p>
-                  <p className="text-sm text-gray-500">3 tarefas concluídas</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="w-12 h-2 bg-gray-200 rounded-full">
-                  <div className="w-8 h-2 bg-blue-500 rounded-full"></div>
-                </div>
-                <span className="text-xs text-gray-500 mt-1">67%</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">P</span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Pedro Costa</p>
-                  <p className="text-sm text-gray-500">4 tarefas concluídas</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="w-12 h-2 bg-gray-200 rounded-full">
-                  <div className="w-10 h-2 bg-yellow-500 rounded-full"></div>
-                </div>
-                <span className="text-xs text-gray-500 mt-1">75%</span>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
