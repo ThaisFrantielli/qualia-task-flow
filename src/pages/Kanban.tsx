@@ -1,86 +1,105 @@
 
 import React from 'react';
+import { useTasks } from '../hooks/useTasks';
 import KanbanColumn from '../components/KanbanColumn';
 
 const Kanban = () => {
-  // Mock data for Kanban
-  const mockTasks = {
-    todo: [
-      {
-        id: '1',
-        title: 'Implementar autenticação Google',
-        description: 'Integrar sistema de login com Google OAuth',
-        status: 'todo' as const,
-        priority: 'high' as const,
-        assignee: { name: 'João Silva' },
-        dueDate: '05/07',
-        subtasks: { completed: 0, total: 3 },
-        comments: 2,
-        attachments: 1
+  const { tasks, loading, error, updateTaskStatus } = useTasks();
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Carregando tarefas...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600">Erro: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Organizar tarefas por status
+  const tasksByStatus = {
+    todo: tasks.filter(task => task.status === 'todo').map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || undefined,
+      status: task.status as 'todo' | 'progress' | 'done' | 'late',
+      priority: task.priority as 'low' | 'medium' | 'high',
+      assignee: {
+        name: task.assignee_name || 'Não atribuído',
+        avatar: task.assignee_avatar || undefined
       },
-      {
-        id: '2',
-        title: 'Criar documentação API',
-        status: 'todo' as const,
-        priority: 'medium' as const,
-        assignee: { name: 'Maria Santos' },
-        dueDate: '08/07',
-        comments: 0,
-        attachments: 0
-      }
-    ],
-    progress: [
-      {
-        id: '3',
-        title: 'Desenvolvimento do Dashboard',
-        description: 'Criar interface principal com estatísticas',
-        status: 'progress' as const,
-        priority: 'high' as const,
-        assignee: { name: 'Pedro Costa' },
-        dueDate: '06/07',
-        subtasks: { completed: 2, total: 5 },
-        comments: 5,
-        attachments: 2
-      }
-    ],
-    done: [
-      {
-        id: '4',
-        title: 'Setup inicial do projeto',
-        description: 'Configuração do ambiente e dependências',
-        status: 'done' as const,
-        priority: 'medium' as const,
-        assignee: { name: 'Ana Costa' },
-        dueDate: '01/07',
-        subtasks: { completed: 4, total: 4 },
-        comments: 1,
-        attachments: 0
+      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined,
+      subtasks: task.subtasks && task.subtasks.length > 0 ? {
+        completed: task.subtasks.filter(s => s.completed).length,
+        total: task.subtasks.length
+      } : undefined,
+      comments: task.comments?.length || 0,
+      attachments: task.attachments?.length || 0
+    })),
+    progress: tasks.filter(task => task.status === 'progress').map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || undefined,
+      status: task.status as 'todo' | 'progress' | 'done' | 'late',
+      priority: task.priority as 'low' | 'medium' | 'high',
+      assignee: {
+        name: task.assignee_name || 'Não atribuído',
+        avatar: task.assignee_avatar || undefined
       },
-      {
-        id: '5',
-        title: 'Design system',
-        status: 'done' as const,
-        priority: 'low' as const,
-        assignee: { name: 'Carlos Lima' },
-        dueDate: '02/07',
-        comments: 3,
-        attachments: 5
-      }
-    ],
-    late: [
-      {
-        id: '6',
-        title: 'Correção de bugs críticos',
-        description: 'Resolver problemas de performance',
-        status: 'late' as const,
-        priority: 'high' as const,
-        assignee: { name: 'Roberto Silva' },
-        dueDate: '03/07',
-        subtasks: { completed: 1, total: 3 },
-        comments: 8,
-        attachments: 1
-      }
-    ]
+      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined,
+      subtasks: task.subtasks && task.subtasks.length > 0 ? {
+        completed: task.subtasks.filter(s => s.completed).length,
+        total: task.subtasks.length
+      } : undefined,
+      comments: task.comments?.length || 0,
+      attachments: task.attachments?.length || 0
+    })),
+    done: tasks.filter(task => task.status === 'done').map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || undefined,
+      status: task.status as 'todo' | 'progress' | 'done' | 'late',
+      priority: task.priority as 'low' | 'medium' | 'high',
+      assignee: {
+        name: task.assignee_name || 'Não atribuído',
+        avatar: task.assignee_avatar || undefined
+      },
+      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined,
+      subtasks: task.subtasks && task.subtasks.length > 0 ? {
+        completed: task.subtasks.filter(s => s.completed).length,
+        total: task.subtasks.length
+      } : undefined,
+      comments: task.comments?.length || 0,
+      attachments: task.attachments?.length || 0
+    })),
+    late: tasks.filter(task => task.status === 'late').map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || undefined,
+      status: task.status as 'todo' | 'progress' | 'done' | 'late',
+      priority: task.priority as 'low' | 'medium' | 'high',
+      assignee: {
+        name: task.assignee_name || 'Não atribuído',
+        avatar: task.assignee_avatar || undefined
+      },
+      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined,
+      subtasks: task.subtasks && task.subtasks.length > 0 ? {
+        completed: task.subtasks.filter(s => s.completed).length,
+        total: task.subtasks.length
+      } : undefined,
+      comments: task.comments?.length || 0,
+      attachments: task.attachments?.length || 0
+    }))
   };
 
   return (
@@ -88,7 +107,7 @@ const Kanban = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Kanban Board</h1>
-        <p className="text-gray-600">Visualize e gerencie suas tarefas</p>
+        <p className="text-gray-600">Visualize e gerencie suas tarefas com dados reais</p>
       </div>
 
       {/* Kanban Board */}
@@ -96,25 +115,25 @@ const Kanban = () => {
         <KanbanColumn
           title="A Fazer"
           status="todo"
-          tasks={mockTasks.todo}
+          tasks={tasksByStatus.todo}
           color="bg-gray-400"
         />
         <KanbanColumn
           title="Em Andamento"
           status="progress"
-          tasks={mockTasks.progress}
+          tasks={tasksByStatus.progress}
           color="bg-blue-500"
         />
         <KanbanColumn
           title="Concluído"
           status="done"
-          tasks={mockTasks.done}
+          tasks={tasksByStatus.done}
           color="bg-green-500"
         />
         <KanbanColumn
           title="Atrasado"
           status="late"
-          tasks={mockTasks.late}
+          tasks={tasksByStatus.late}
           color="bg-red-500"
         />
       </div>
