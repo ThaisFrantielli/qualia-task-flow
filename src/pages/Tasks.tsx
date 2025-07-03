@@ -90,7 +90,7 @@ const Tasks = () => {
     setTaskDetailsOpen(true);
   };
 
-  const hasFilters = searchTerm || filterStatus !== 'all' || filterPriority !== 'all' || filterProject !== 'all';
+  const hasFilters = Boolean(searchTerm) || filterStatus !== 'all' || filterPriority !== 'all' || filterProject !== 'all';
 
   return (
     <div className="p-6 space-y-6">
