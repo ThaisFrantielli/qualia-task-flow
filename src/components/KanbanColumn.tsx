@@ -1,6 +1,7 @@
 
 import React from 'react';
 import TaskCard from './TaskCard';
+import { Plus } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -26,9 +27,18 @@ interface KanbanColumnProps {
   status: 'todo' | 'progress' | 'done' | 'late';
   tasks: Task[];
   color: string;
+  onAddTask?: () => void;
+  onTaskClick?: (task: Task) => void;
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, tasks, color }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ 
+  title, 
+  status, 
+  tasks, 
+  color, 
+  onAddTask,
+  onTaskClick 
+}) => {
   return (
     <div className="bg-gray-50 rounded-lg p-4 min-h-[600px] w-80">
       {/* Column Header */}
@@ -45,16 +55,23 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, tasks, color
       {/* Tasks */}
       <div className="space-y-3">
         {tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            {...task}
-          />
+          <div 
+            key={task.id} 
+            onClick={() => onTaskClick?.(task)}
+            className="cursor-pointer"
+          >
+            <TaskCard {...task} />
+          </div>
         ))}
       </div>
 
       {/* Add Task Button */}
-      <button className="w-full mt-4 p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors text-sm font-medium">
-        + Adicionar tarefa
+      <button 
+        onClick={onAddTask}
+        className="w-full mt-4 p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
+      >
+        <Plus className="w-4 h-4" />
+        <span>Adicionar tarefa</span>
       </button>
     </div>
   );
