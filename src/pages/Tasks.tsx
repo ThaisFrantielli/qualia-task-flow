@@ -1,15 +1,30 @@
-
 import React, { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { Filter, Plus, Search, Calendar, User, FolderOpen } from 'lucide-react';
 import TaskCard from '../components/TaskCard';
+import CreateTaskForm from '../components/CreateTaskForm';
+import CreateProjectForm from '../components/CreateProjectForm';
+import TaskDetailsModal from '../components/TaskDetailsModal';
+import { Button } from '@/components/ui/button';
+import type { Database } from '@/integrations/supabase/types';
+
+type Task = Database['public']['Tables']['tasks']['Row'] & {
+  project?: Database['public']['Tables']['projects']['Row'];
+  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
+  comments?: Database['public']['Tables']['comments']['Row'][];
+  attachments?: Database['public']['Tables']['attachments']['Row'][];
+};
 
 const Tasks = () => {
-  const { tasks, loading, error, updateTaskStatus } = useTasks();
+  const { tasks, loading, error, updateTaskStatus, refetch } = useTasks();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [groupBy, setGroupBy] = useState<'status' | 'project' | 'assignee'>('status');
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskDetailsOpen, setTaskDetailsOpen] = useState(false);
 
   if (loading) {
     return (
@@ -77,14 +92,9 @@ const Tasks = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      todo: 'bg-gray-100 text-gray-800',
-      progress: 'bg-blue-100 text-blue-800',
-      done: 'bg-green-100 text-green-800',
-      late: 'bg-red-100 text-red-800'
-    };
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setTaskDetailsOpen(true);
   };
 
   return (
@@ -95,10 +105,23 @@ const Tasks = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Lista de Tarefas</h1>
           <p className="text-gray-600">Visualize e gerencie todas as suas tarefas</p>
         </div>
-        <button className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center space-x-2">
-          <Plus className="w-4 h-4" />
-          <span>Nova Tarefa</span>
-        </button>
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setCreateProjectOpen(true)}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo Projeto</span>
+          </Button>
+          <Button 
+            onClick={() => setCreateTaskOpen(true)}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nova Tarefa</span>
+          </Button>
+        </div>
       </div>
 
       {/* Filtros e Busca */}
@@ -178,23 +201,24 @@ const Tasks = () => {
                 const subtasksTotal = task.subtasks?.length || 0;
                 
                 return (
-                  <TaskCard
-                    key={task.id}
-                    id={task.id}
-                    title={task.title}
-                    description={task.description || undefined}
-                    status={task.status as 'todo' | 'progress' | 'done' | 'late'}
-                    priority={task.priority as 'low' | 'medium' | 'high'}
-                    assignee={{
-                      name: task.assignee_name || 'Não atribuído',
-                      avatar: task.assignee_avatar || undefined
-                    }}
-                    dueDate={task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined}
-                    subtasks={subtasksTotal > 0 ? { completed: subtasksCompleted, total: subtasksTotal } : undefined}
-                    comments={task.comments?.length || 0}
-                    attachments={task.attachments?.length || 0}
-                    onStatusChange={(newStatus) => updateTaskStatus(task.id, newStatus)}
-                  />
+                  <div key={task.id} onClick={() => handleTaskClick(task)} className="cursor-pointer">
+                    <TaskCard
+                      id={task.id}
+                      title={task.title}
+                      description={task.description || undefined}
+                      status={task.status as 'todo' | 'progress' | 'done' | 'late'}
+                      priority={task.priority as 'low' | 'medium' | 'high'}
+                      assignee={{
+                        name: task.assignee_name || 'Não atribuído',
+                        avatar: task.assignee_avatar || undefined
+                      }}
+                      dueDate={task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined}
+                      subtasks={subtasksTotal > 0 ? { completed: subtasksCompleted, total: subtasksTotal } : undefined}
+                      comments={task.comments?.length || 0}
+                      attachments={task.attachments?.length || 0}
+                      onStatusChange={(newStatus) => updateTaskStatus(task.id, newStatus)}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -215,6 +239,25 @@ const Tasks = () => {
           </p>
         </div>
       )}
+
+      {/* Modals */}
+      <CreateTaskForm
+        open={createTaskOpen}
+        onOpenChange={setCreateTaskOpen}
+        onTaskCreated={refetch}
+      />
+
+      <CreateProjectForm
+        open={createProjectOpen}
+        onOpenChange={setCreateProjectOpen}
+        onProjectCreated={refetch}
+      />
+
+      <TaskDetailsModal
+        task={selectedTask}
+        open={taskDetailsOpen}
+        onOpenChange={setTaskDetailsOpen}
+      />
     </div>
   );
 };
