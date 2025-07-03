@@ -1,10 +1,22 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import KanbanColumn from '../components/KanbanColumn';
+import CreateTaskForm from '../components/CreateTaskForm';
+import TaskDetailsModal from '../components/TaskDetailsModal';
+import type { Database } from '@/integrations/supabase/types';
+
+type Task = Database['public']['Tables']['tasks']['Row'] & {
+  project?: Database['public']['Tables']['projects']['Row'];
+  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
+  comments?: Database['public']['Tables']['comments']['Row'][];
+  attachments?: Database['public']['Tables']['attachments']['Row'][];
+};
 
 const Kanban = () => {
-  const { tasks, loading, error, updateTaskStatus } = useTasks();
+  const { tasks, loading, error, updateTaskStatus, refetch } = useTasks();
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskDetailsOpen, setTaskDetailsOpen] = useState(false);
 
   if (loading) {
     return (
@@ -26,7 +38,6 @@ const Kanban = () => {
     );
   }
 
-  // Organizar tarefas por status
   const tasksByStatus = {
     todo: tasks.filter(task => task.status === 'todo').map(task => ({
       id: task.id,
@@ -56,7 +67,7 @@ const Kanban = () => {
         name: task.assignee_name || 'Não atribuído',
         avatar: task.assignee_avatar || undefined
       },
-      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined,
+      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateDate('pt-BR') : undefined,
       subtasks: task.subtasks && task.subtasks.length > 0 ? {
         completed: task.subtasks.filter(s => s.completed).length,
         total: task.subtasks.length
@@ -102,6 +113,15 @@ const Kanban = () => {
     }))
   };
 
+  const handleTaskClick = (taskData: any) => {
+    // Find the full task data from the original tasks array
+    const fullTask = tasks.find(t => t.id === taskData.id);
+    if (fullTask) {
+      setSelectedTask(fullTask);
+      setTaskDetailsOpen(true);
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -117,26 +137,47 @@ const Kanban = () => {
           status="todo"
           tasks={tasksByStatus.todo}
           color="bg-gray-400"
+          onAddTask={() => setCreateTaskOpen(true)}
+          onTaskClick={handleTaskClick}
         />
         <KanbanColumn
           title="Em Andamento"
           status="progress"
           tasks={tasksByStatus.progress}
           color="bg-blue-500"
+          onAddTask={() => setCreateTaskOpen(true)}
+          onTaskClick={handleTaskClick}
         />
         <KanbanColumn
           title="Concluído"
           status="done"
           tasks={tasksByStatus.done}
           color="bg-green-500"
+          onAddTask={() => setCreateTaskOpen(true)}
+          onTaskClick={handleTaskClick}
         />
         <KanbanColumn
           title="Atrasado"
           status="late"
           tasks={tasksByStatus.late}
           color="bg-red-500"
+          onAddTask={() => setCreateTaskOpen(true)}
+          onTaskClick={handleTaskClick}
         />
       </div>
+
+      {/* Modals */}
+      <CreateTaskForm
+        open={createTaskOpen}
+        onOpenChange={setCreateTaskOpen}
+        onTaskCreated={refetch}
+      />
+
+      <TaskDetailsModal
+        task={selectedTask}
+        open={taskDetailsOpen}
+        onOpenChange={setTaskDetailsOpen}
+      />
     </div>
   );
 };
