@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { useProjects } from '../hooks/useProjects';
@@ -22,6 +21,7 @@ const Reports = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterProject, setFilterProject] = useState('all');
+  const [filterAssignee, setFilterAssignee] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
   if (loading) {
@@ -44,11 +44,15 @@ const Reports = () => {
     );
   }
 
+  // Get unique assignees for filter
+  const uniqueAssignees = Array.from(new Set(tasks.map(task => task.assignee_name).filter(Boolean)));
+
   // Filtrar tarefas
   const filteredTasks = tasks.filter(task => {
     const matchesStatus = filterStatus === 'all' || task.status === filterStatus;
     const matchesPriority = filterPriority === 'all' || task.priority === filterPriority;
     const matchesProject = filterProject === 'all' || task.project_id === filterProject;
+    const matchesAssignee = filterAssignee === 'all' || task.assignee_name === filterAssignee;
     
     let matchesDate = true;
     if (dateRange.start && dateRange.end) {
@@ -58,7 +62,7 @@ const Reports = () => {
       matchesDate = taskDate >= startDate && taskDate <= endDate;
     }
     
-    return matchesStatus && matchesPriority && matchesProject && matchesDate;
+    return matchesStatus && matchesPriority && matchesProject && matchesAssignee && matchesDate;
   });
 
   // Estatísticas
@@ -137,7 +141,7 @@ const Reports = () => {
           <Filter className="w-5 h-5" />
           <span>Filtros</span>
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Filtro por Status */}
           <select
             value={filterStatus}
@@ -173,6 +177,20 @@ const Reports = () => {
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Novo filtro por Responsável */}
+          <select
+            value={filterAssignee}
+            onChange={(e) => setFilterAssignee(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          >
+            <option value="all">Todos os Responsáveis</option>
+            {uniqueAssignees.map((assignee) => (
+              <option key={assignee} value={assignee}>
+                {assignee}
               </option>
             ))}
           </select>
