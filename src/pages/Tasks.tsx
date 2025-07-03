@@ -9,6 +9,7 @@ import TaskDetailsModal from '../components/TaskDetailsModal';
 import TaskTable from '../components/TaskTable';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
+import { useProjects } from '../hooks/useProjects';
 import type { Database } from '@/integrations/supabase/types';
 
 type Task = Database['public']['Tables']['tasks']['Row'] & {
@@ -20,9 +21,11 @@ type Task = Database['public']['Tables']['tasks']['Row'] & {
 
 const Tasks = () => {
   const { tasks, loading, error, updateTaskStatus, refetch } = useTasks();
+  const { projects } = useProjects();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
+  const [filterProject, setFilterProject] = useState('all');
   const [groupBy, setGroupBy] = useState<'status' | 'project' | 'assignee'>('status');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
@@ -56,8 +59,9 @@ const Tasks = () => {
                          task.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || task.status === filterStatus;
     const matchesPriority = filterPriority === 'all' || task.priority === filterPriority;
+    const matchesProject = filterProject === 'all' || task.project_id === filterProject;
     
-    return matchesSearch && matchesStatus && matchesPriority;
+    return matchesSearch && matchesStatus && matchesPriority && matchesProject;
   });
 
   // Agrupar tarefas
@@ -130,7 +134,7 @@ const Tasks = () => {
 
       {/* Filtros e Busca */}
       <div className="bg-white rounded-xl shadow-quality p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Busca */}
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
@@ -166,6 +170,20 @@ const Tasks = () => {
             <option value="high">Alta</option>
             <option value="medium">Média</option>
             <option value="low">Baixa</option>
+          </select>
+
+          {/* Filtro por Projeto */}
+          <select
+            value={filterProject}
+            onChange={(e) => setFilterProject(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          >
+            <option value="all">Todos os Projetos</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
           </select>
 
           {/* Agrupar por */}
@@ -265,7 +283,7 @@ const Tasks = () => {
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa encontrada</h3>
           <p className="text-gray-500">
-            {searchTerm || filterStatus !== 'all' || filterPriority !== 'all'
+            {searchTerm || filterStatus !== 'all' || filterPriority !== 'all' || filterProject !== 'all'
               ? 'Tente ajustar os filtros para encontrar suas tarefas.'
               : 'Crie sua primeira tarefa para começar.'}
           </p>
