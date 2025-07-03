@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import KanbanColumn from '../components/KanbanColumn';
@@ -67,7 +68,7 @@ const Kanban = () => {
         name: task.assignee_name || 'Não atribuído',
         avatar: task.assignee_avatar || undefined
       },
-      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateDate('pt-BR') : undefined,
+      dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined,
       subtasks: task.subtasks && task.subtasks.length > 0 ? {
         completed: task.subtasks.filter(s => s.completed).length,
         total: task.subtasks.length
