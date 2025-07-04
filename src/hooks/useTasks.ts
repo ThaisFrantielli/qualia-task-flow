@@ -27,6 +27,7 @@ export const useTasks = () => {
           comments(*),
           attachments(*)
         `)
+        .eq('archived', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -37,10 +38,6 @@ export const useTasks = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
 
   const updateTaskStatus = async (taskId: string, status: string) => {
     try {
@@ -56,11 +53,64 @@ export const useTasks = () => {
     }
   };
 
+  const archiveTask = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ archived: true, updated_at: new Date().toISOString() })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      await fetchTasks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao arquivar tarefa');
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+      await fetchTasks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir tarefa');
+    }
+  };
+
+  const updateTaskDates = async (taskId: string, startDate?: string, endDate?: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ 
+          start_date: startDate || null, 
+          end_date: endDate || null, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      await fetchTasks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar datas da tarefa');
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
   return {
     tasks,
     loading,
     error,
     updateTaskStatus,
+    archiveTask,
+    deleteTask,
+    updateTaskDates,
     refetch: fetchTasks
   };
 };
