@@ -12,9 +12,17 @@ import Reports from "./pages/Reports";
 import Team from "./pages/Team";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
+import Calendar from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,6 +35,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/kanban" element={<Kanban />} />
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/calendar" element={<Calendar />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/team" element={<Team />} />
             <Route path="/notifications" element={<Notifications />} />

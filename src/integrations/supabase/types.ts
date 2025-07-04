@@ -44,6 +44,41 @@ export type Database = {
           },
         ]
       }
+      calendar_events: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          start_date: string
+          task_id: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          start_date: string
+          task_id?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          start_date?: string
+          task_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           author_name: string
@@ -72,6 +107,41 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_checklists: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: string
+          project_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_checklists_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -107,6 +177,7 @@ export type Database = {
         Row: {
           completed: boolean
           created_at: string
+          description: string | null
           id: string
           task_id: string
           title: string
@@ -114,6 +185,7 @@ export type Database = {
         Insert: {
           completed?: boolean
           created_at?: string
+          description?: string | null
           id?: string
           task_id: string
           title: string
@@ -121,6 +193,7 @@ export type Database = {
         Update: {
           completed?: boolean
           created_at?: string
+          description?: string | null
           id?: string
           task_id?: string
           title?: string
@@ -135,45 +208,92 @@ export type Database = {
           },
         ]
       }
+      task_delegations: {
+        Row: {
+          delegated_at: string
+          delegated_by: string
+          delegated_to: string
+          id: string
+          notes: string | null
+          status: string
+          task_id: string | null
+        }
+        Insert: {
+          delegated_at?: string
+          delegated_by: string
+          delegated_to: string
+          id?: string
+          notes?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Update: {
+          delegated_at?: string
+          delegated_by?: string
+          delegated_to?: string
+          id?: string
+          notes?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_delegations_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
+          archived: boolean
           assignee_avatar: string | null
           assignee_name: string | null
           created_at: string
           delegated_by: string | null
           description: string | null
           due_date: string | null
+          end_date: string | null
           id: string
           priority: string
           project_id: string | null
+          start_date: string | null
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          archived?: boolean
           assignee_avatar?: string | null
           assignee_name?: string | null
           created_at?: string
           delegated_by?: string | null
           description?: string | null
           due_date?: string | null
+          end_date?: string | null
           id?: string
           priority?: string
           project_id?: string | null
+          start_date?: string | null
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          archived?: boolean
           assignee_avatar?: string | null
           assignee_name?: string | null
           created_at?: string
           delegated_by?: string | null
           description?: string | null
           due_date?: string | null
+          end_date?: string | null
           id?: string
           priority?: string
           project_id?: string | null
+          start_date?: string | null
           status?: string
           title?: string
           updated_at?: string

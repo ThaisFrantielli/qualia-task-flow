@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
 
 interface TeamMember {
   id: string;
@@ -19,35 +20,107 @@ interface TeamMember {
 
 const Team = () => {
   const { tasks } = useTasks();
+  const { toast } = useToast();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [newMember, setNewMember] = useState({ name: '', email: '', role: 'Desenvolvedor' });
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
-  // Extract team members from tasks
-  const teamMembers: TeamMember[] = Array.from(
-    new Set(tasks.map(task => task.assignee_name).filter(Boolean))
-  ).map((name, index) => ({
-    id: `member-${index}`,
-    name: name!,
-    email: `${name!.toLowerCase().replace(/\s+/g, '.')}@company.com`,
-    role: index === 0 ? 'Team Lead' : index === 1 ? 'Senior Developer' : 'Desenvolvedor',
-    tasksCount: tasks.filter(task => task.assignee_name === name).length
-  }));
+  // Initialize team members from tasks
+  React.useEffect(() => {
+    const members: TeamMember[] = Array.from(
+      new Set(tasks.map(task => task.assignee_name).filter(Boolean))
+    ).map((name, index) => ({
+      id: `member-${index}`,
+      name: name!,
+      email: `${name!.toLowerCase().replace(/\s+/g, '.')}@company.com`,
+      role: index === 0 ? 'Team Lead' : index === 1 ? 'Senior Developer' : 'Desenvolvedor',
+      tasksCount: tasks.filter(task => task.assignee_name === name).length
+    }));
+    setTeamMembers(members);
+  }, [tasks]);
 
   const handleAddMember = () => {
-    // In a real app, this would create a new member in the database
-    console.log('Adding member:', newMember);
+    if (!newMember.name.trim() || !newMember.email.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Nome e email são obrigatórios.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const newTeamMember: TeamMember = {
+      id: `member-${Date.now()}`,
+      name: newMember.name,
+      email: newMember.email,
+      role: newMember.role,
+      tasksCount: 0
+    };
+
+    setTeamMembers([...teamMembers, newTeamMember]);
     setNewMember({ name: '', email: '', role: 'Desenvolvedor' });
     setIsAddMemberOpen(false);
+    
+    toast({
+      title: 'Sucesso!',
+      description: 'Membro adicionado à equipe.',
+    });
   };
 
   const handleEditMember = (member: TeamMember) => {
     setEditingMember(member);
+    setNewMember({ name: member.name, email: member.email, role: member.role });
+  };
+
+  const handleUpdateMember = () => {
+    if (!editingMember) return;
+    
+    if (!newMember.name.trim() || !newMember.email.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Nome e email são obrigatórios.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const updatedMembers = teamMembers.map(member =>
+      member.id === editingMember.id
+        ? { ...member, name: newMember.name, email: newMember.email, role: newMember.role }
+        : member
+    );
+
+    setTeamMembers(updatedMembers);
+    setEditingMember(null);
+    setNewMember({ name: '', email: '', role: 'Desenvolvedor' });
+    
+    toast({
+      title: 'Sucesso!',
+      description: 'Membro atualizado com sucesso.',
+    });
   };
 
   const handleDeleteMember = (memberId: string) => {
-    // In a real app, this would delete the member from the database
-    console.log('Deleting member:', memberId);
+    const member = teamMembers.find(m => m.id === memberId);
+    if (!member) return;
+
+    if (member.tasksCount > 0) {
+      toast({
+        title: 'Não é possível excluir',
+        description: 'Este membro possui tarefas atribuídas. Reatribua as tarefas antes de excluir.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const updatedMembers = teamMembers.filter(member => member.id !== memberId);
+    setTeamMembers(updatedMembers);
+    
+    toast({
+      title: 'Sucesso!',
+      description: 'Membro removido da equipe.',
+    });
   };
 
   const getInitials = (name: string) => {
@@ -218,6 +291,60 @@ const Team = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={!!editingMember} onOpenChange={(open) => !open && setEditingMember(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Membro</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do membro da equipe
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Nome</Label>
+              <Input
+                id="edit-name"
+                value={newMember.name}
+                onChange={(e) => setNewMember({ ...newMember, name: e.target.value })}
+                placeholder="Nome completo"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={newMember.email}
+                onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
+                placeholder="email@empresa.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Função</Label>
+              <select
+                id="edit-role"
+                value={newMember.role}
+                onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="Desenvolvedor">Desenvolvedor</option>
+                <option value="Senior Developer">Senior Developer</option>
+                <option value="Team Lead">Team Lead</option>
+                <option value="Designer">Designer</option>
+                <option value="QA">QA</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingMember(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateMember}>Salvar Alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
