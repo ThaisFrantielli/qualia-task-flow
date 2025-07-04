@@ -4,6 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, MessageCircle, Paperclip, Calendar, FolderOpen } from 'lucide-react';
+import TaskTags from './tasks/TaskTags';
+import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
 import type { Database } from '@/integrations/supabase/types';
 
 type Task = Database['public']['Tables']['tasks']['Row'] & {
@@ -37,6 +39,7 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
 
   const completedSubtasks = task.subtasks?.filter(s => s.completed).length || 0;
   const totalSubtasks = task.subtasks?.length || 0;
+  const taskTags = task.tags ? task.tags.split(',').filter(tag => tag.trim()) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -46,15 +49,35 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
         </DialogHeader>
         
         <div className="space-y-6">
-          {/* Status e Prioridade */}
-          <div className="flex gap-4">
+          {/* Status, Prioridade e Indicador de Atraso */}
+          <div className="flex gap-4 flex-wrap">
             <Badge className={statusMap[task.status as keyof typeof statusMap]?.color}>
               {statusMap[task.status as keyof typeof statusMap]?.label}
             </Badge>
             <Badge className={priorityMap[task.priority as keyof typeof priorityMap]?.color}>
               Prioridade: {priorityMap[task.priority as keyof typeof priorityMap]?.label}
             </Badge>
+            {task.due_date && (
+              <TaskOverdueIndicator dueDate={task.due_date} status={task.status} />
+            )}
           </div>
+
+          {/* Tags */}
+          {taskTags.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Tags</h3>
+              <TaskTags tags={taskTags} onTagsChange={() => {}} readOnly />
+            </div>
+          )}
+
+          {/* Horas Estimadas */}
+          {task.estimated_hours && (
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-gray-500" />
+              <span className="text-sm text-gray-600">Horas estimadas:</span>
+              <span className="font-medium">{task.estimated_hours}h</span>
+            </div>
+          )}
 
           {/* Descrição */}
           {task.description && (
@@ -83,16 +106,28 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
             )}
           </div>
 
-          {/* Data de Entrega */}
-          {task.due_date && (
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Data de Entrega:</span>
-              <span className="font-medium">
-                {new Date(task.due_date).toLocaleDateString('pt-BR')}
-              </span>
-            </div>
-          )}
+          {/* Datas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {task.start_date && (
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Data de Início:</span>
+                <span className="font-medium">
+                  {new Date(task.start_date).toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+            )}
+            
+            {task.due_date && (
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Data de Entrega:</span>
+                <span className="font-medium">
+                  {new Date(task.due_date).toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* Subtarefas */}
           {totalSubtasks > 0 && (
@@ -181,7 +216,7 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
             </div>
           )}
 
-          {/* Datas */}
+          {/* Datas de Criação e Atualização */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500 border-t pt-4">
             <div>
               <Clock className="w-4 h-4 inline mr-1" />
