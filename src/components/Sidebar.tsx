@@ -9,13 +9,15 @@ import {
   Settings,
   Users,
   Bell,
-  LogOut
+  LogOut,
+  Calendar
 } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Kanban', url: '/kanban', icon: KanbanSquare },
   { title: 'Lista de Tarefas', url: '/tasks', icon: List },
+  { title: 'Calendário', url: '/calendar', icon: Calendar },
   { title: 'Relatórios', url: '/reports', icon: FileText },
   { title: 'Equipe', url: '/team', icon: Users },
   { title: 'Notificações', url: '/notifications', icon: Bell },
