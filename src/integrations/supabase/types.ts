@@ -256,11 +256,13 @@ export type Database = {
           description: string | null
           due_date: string | null
           end_date: string | null
+          estimated_hours: number | null
           id: string
           priority: string
           project_id: string | null
           start_date: string | null
           status: string
+          tags: string | null
           title: string
           updated_at: string
         }
@@ -273,11 +275,13 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           end_date?: string | null
+          estimated_hours?: number | null
           id?: string
           priority?: string
           project_id?: string | null
           start_date?: string | null
           status?: string
+          tags?: string | null
           title: string
           updated_at?: string
         }
@@ -290,11 +294,13 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           end_date?: string | null
+          estimated_hours?: number | null
           id?: string
           priority?: string
           project_id?: string | null
           start_date?: string | null
           status?: string
+          tags?: string | null
           title?: string
           updated_at?: string
         }
