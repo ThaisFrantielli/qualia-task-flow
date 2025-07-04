@@ -1,6 +1,8 @@
 
 import React from 'react';
 import { Clock, User, MessageCircle, Paperclip } from 'lucide-react';
+import TaskTags from './tasks/TaskTags';
+import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
 
 interface TaskCardProps {
   id: string;
@@ -13,6 +15,8 @@ interface TaskCardProps {
     avatar?: string;
   };
   dueDate?: string;
+  tags?: string[];
+  estimatedHours?: number;
   subtasks?: {
     completed: number;
     total: number;
@@ -20,6 +24,7 @@ interface TaskCardProps {
   comments?: number;
   attachments?: number;
   onStatusChange?: (newStatus: string) => void;
+  onTagsChange?: (tags: string[]) => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -29,10 +34,13 @@ const TaskCard: React.FC<TaskCardProps> = ({
   priority,
   assignee,
   dueDate,
+  tags = [],
+  estimatedHours,
   subtasks,
   comments,
   attachments,
-  onStatusChange
+  onStatusChange,
+  onTagsChange
 }) => {
   const statusColors = {
     todo: 'border-l-gray-400',
@@ -52,14 +60,42 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
         <h3 className="font-semibold text-gray-900 text-sm leading-tight">{title}</h3>
-        <span className={`text-xs px-2 py-1 rounded-full font-medium ${priorityColors[priority]}`}>
-          {priority === 'low' ? 'Baixa' : priority === 'medium' ? 'Média' : 'Alta'}
-        </span>
+        <div className="flex gap-2">
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${priorityColors[priority]}`}>
+            {priority === 'low' ? 'Baixa' : priority === 'medium' ? 'Média' : 'Alta'}
+          </span>
+        </div>
       </div>
 
       {/* Description */}
       {description && (
         <p className="text-gray-600 text-sm mb-3 line-clamp-2">{description}</p>
+      )}
+
+      {/* Tags */}
+      {tags.length > 0 && (
+        <div className="mb-3">
+          <TaskTags 
+            tags={tags} 
+            onTagsChange={onTagsChange || (() => {})} 
+            readOnly={!onTagsChange}
+          />
+        </div>
+      )}
+
+      {/* Overdue Indicator */}
+      {dueDate && (
+        <div className="mb-3">
+          <TaskOverdueIndicator dueDate={dueDate} status={status} size="sm" />
+        </div>
+      )}
+
+      {/* Estimated Hours */}
+      {estimatedHours && (
+        <div className="mb-3 text-xs text-gray-600">
+          <Clock className="w-3 h-3 inline mr-1" />
+          {estimatedHours}h estimadas
+        </div>
       )}
 
       {/* Progress Bar for Subtasks */}
@@ -114,7 +150,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
         {dueDate && (
           <div className="flex items-center space-x-1">
             <Clock className="w-3 h-3" />
-            <span>{dueDate}</span>
+            <span>{new Date(dueDate).toLocaleDateString('pt-BR')}</span>
           </div>
         )}
       </div>
