@@ -1,13 +1,14 @@
+
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../hooks/useTasks';
-import { Search, Filter, Plus, Users, Archive, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import TaskTable from '../components/TaskTable';
 import TaskDetailsModal from '../components/TaskDetailsModal';
 import CreateTaskForm from '../components/CreateTaskForm';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import TasksFilters from '../components/tasks/TasksFilters';
+import TasksEmptyState from '../components/tasks/TasksEmptyState';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -19,14 +20,17 @@ type Task = Database['public']['Tables']['tasks']['Row'] & {
 };
 
 const Tasks = () => {
-  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks();
+  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask, getTasksByPeriod, isTaskOverdue, refetch } = useTasks();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [periodFilter, setPeriodFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState('all');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
+  const [focusMode, setFocusMode] = useState(false);
 
   // Get unique assignees for filter
   const uniqueAssignees = useMemo(() => {
@@ -39,17 +43,48 @@ const Tasks = () => {
     return Array.from(assignees);
   }, [tasks]);
 
+  // Get unique tags for filter
+  const uniqueTags = useMemo(() => {
+    const tags = new Set<string>();
+    tasks.forEach(task => {
+      if (task.tags) {
+        task.tags.split(',').forEach(tag => {
+          if (tag.trim()) tags.add(tag.trim());
+        });
+      }
+    });
+    return Array.from(tags);
+  }, [tasks]);
+
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
+    let filtered = tasks;
+
+    // Aplicar filtro por período primeiro
+    if (periodFilter !== 'all') {
+      filtered = getTasksByPeriod(periodFilter as any);
+    }
+
+    // Modo foco - apenas tarefas do usuário atual para hoje
+    if (focusMode) {
+      const today = new Date().toDateString();
+      filtered = filtered.filter(task => {
+        const dueDate = task.due_date ? new Date(task.due_date).toDateString() : null;
+        return dueDate === today && task.assignee_name === 'Usuário Atual'; // Substituir por usuário real
+      });
+    }
+
+    // Aplicar outros filtros
+    return filtered.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
       const matchesAssignee = assigneeFilter === 'all' || task.assignee_name === assigneeFilter;
+      const matchesTag = tagFilter === 'all' || (task.tags && task.tags.includes(tagFilter));
       
-      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
+      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag;
     });
-  }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter]);
+  }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, focusMode, getTasksByPeriod]);
 
   const groupedTasks = useMemo(() => {
     const groups: { [key: string]: Task[] } = {
@@ -106,12 +141,25 @@ const Tasks = () => {
     }
   };
 
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setPriorityFilter('all');
+    setAssigneeFilter('all');
+    setPeriodFilter('all');
+    setTagFilter('all');
+    setFocusMode(false);
+  };
+
   // Check if any filters are applied
   const hasFilters = Boolean(
     searchTerm ||
     statusFilter !== 'all' ||
     priorityFilter !== 'all' ||
-    assigneeFilter !== 'all'
+    assigneeFilter !== 'all' ||
+    periodFilter !== 'all' ||
+    tagFilter !== 'all' ||
+    focusMode
   );
 
   if (loading) {
@@ -130,8 +178,15 @@ const Tasks = () => {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Tarefas</h1>
-          <p className="text-gray-600">Gerencie e acompanhe suas tarefas</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {focusMode ? 'Modo Foco - Minhas Tarefas' : 'Tarefas'}
+          </h1>
+          <p className="text-gray-600">
+            {focusMode 
+              ? 'Foque nas suas tarefas de hoje' 
+              : 'Gerencie e acompanhe suas tarefas'
+            }
+          </p>
         </div>
         <div className="flex space-x-2">
           <Button onClick={() => setIsCreateModalOpen(true)}>
@@ -142,80 +197,36 @@ const Tasks = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-quality p-4">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Buscar tarefas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="todo">A Fazer</SelectItem>
-              <SelectItem value="progress">Em Progresso</SelectItem>
-              <SelectItem value="done">Concluído</SelectItem>
-              <SelectItem value="late">Atrasado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Prioridade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="low">Baixa</SelectItem>
-              <SelectItem value="medium">Média</SelectItem>
-              <SelectItem value="high">Alta</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-            <SelectTrigger className="w-[150px]">
-              <Users className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {uniqueAssignees.map(assignee => (
-                <SelectItem key={assignee} value={assignee}>{assignee}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-            >
-              Lista
-            </Button>
-            <Button
-              variant={viewMode === 'grouped' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('grouped')}
-            >
-              Agrupar
-            </Button>
-          </div>
-        </div>
-      </div>
+      <TasksFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        priorityFilter={priorityFilter}
+        setPriorityFilter={setPriorityFilter}
+        assigneeFilter={assigneeFilter}
+        setAssigneeFilter={setAssigneeFilter}
+        periodFilter={periodFilter}
+        setPeriodFilter={setPeriodFilter}
+        tagFilter={tagFilter}
+        setTagFilter={setTagFilter}
+        uniqueAssignees={uniqueAssignees}
+        uniqueTags={uniqueTags}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        focusMode={focusMode}
+        setFocusMode={setFocusMode}
+      />
 
       {/* Results */}
-      {viewMode === 'list' ? (
+      {filteredTasks.length === 0 ? (
+        <TasksEmptyState
+          hasFilters={hasFilters}
+          focusMode={focusMode}
+          onCreateTask={() => setIsCreateModalOpen(true)}
+          onClearFilters={clearAllFilters}
+        />
+      ) : viewMode === 'list' ? (
         <TaskTable 
           tasks={filteredTasks} 
           onTaskClick={handleTaskClick}
@@ -250,30 +261,6 @@ const Tasks = () => {
               )}
             </Card>
           ))}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {filteredTasks.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <Search className="w-16 h-16 mx-auto" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {hasFilters ? 'Nenhuma tarefa encontrada' : 'Nenhuma tarefa criada'}
-          </h3>
-          <p className="text-gray-500 mb-4">
-            {hasFilters 
-              ? 'Tente ajustar os filtros para encontrar o que procura.'
-              : 'Comece criando sua primeira tarefa.'
-            }
-          </p>
-          {!hasFilters && (
-            <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Criar primeira tarefa
-            </Button>
-          )}
         </div>
       )}
 
