@@ -21,9 +21,17 @@ interface TaskTableProps {
   tasks: Task[];
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: string, status: string) => void;
+  onArchiveTask?: (taskId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
-const TaskTable: React.FC<TaskTableProps> = ({ tasks, onTaskClick, onStatusChange }) => {
+const TaskTable: React.FC<TaskTableProps> = ({ 
+  tasks, 
+  onTaskClick, 
+  onStatusChange, 
+  onArchiveTask, 
+  onDeleteTask 
+}) => {
   return (
     <div className="bg-white rounded-xl shadow-quality overflow-hidden">
       <Table>
@@ -46,6 +54,8 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onTaskClick, onStatusChang
               task={task}
               onTaskClick={onTaskClick}
               onStatusChange={onStatusChange}
+              onArchiveTask={onArchiveTask}
+              onDeleteTask={onDeleteTask}
             />
           ))}
         </TableBody>
