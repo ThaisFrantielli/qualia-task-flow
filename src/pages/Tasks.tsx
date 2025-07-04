@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { Search, Filter, Plus, Users, Archive, Trash2 } from 'lucide-react';
@@ -20,7 +19,7 @@ type Task = Database['public']['Tables']['tasks']['Row'] & {
 };
 
 const Tasks = () => {
-  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask } = useTasks();
+  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -282,6 +281,7 @@ const Tasks = () => {
       <CreateTaskForm 
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
+        onTaskCreated={refetch}
       />
       
       {selectedTask && (

@@ -10,7 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, MessageCircle, Paperclip, CheckCircle2 } from 'lucide-react';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Calendar, MessageCircle, Paperclip, CheckCircle2, MoreHorizontal, Archive, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { Database } from '@/integrations/supabase/types';
 
 type Task = Database['public']['Tables']['tasks']['Row'] & {
@@ -24,9 +31,17 @@ interface TaskTableRowProps {
   task: Task;
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: string, status: string) => void;
+  onArchiveTask?: (taskId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
-const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, onTaskClick, onStatusChange }) => {
+const TaskTableRow: React.FC<TaskTableRowProps> = ({ 
+  task, 
+  onTaskClick, 
+  onStatusChange, 
+  onArchiveTask, 
+  onDeleteTask 
+}) => {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800';
@@ -156,22 +171,57 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, onTaskClick, onStatus
         )}
       </TableCell>
       <TableCell>
-        <Select
-          value={task.status}
-          onValueChange={(value) => {
-            onStatusChange(task.id, value);
-          }}
-        >
-          <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todo">A Fazer</SelectItem>
-            <SelectItem value="progress">Em Andamento</SelectItem>
-            <SelectItem value="done">Concluído</SelectItem>
-            <SelectItem value="late">Atrasado</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center space-x-2">
+          <Select
+            value={task.status}
+            onValueChange={(value) => {
+              onStatusChange(task.id, value);
+            }}
+          >
+            <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todo">A Fazer</SelectItem>
+              <SelectItem value="progress">Em Andamento</SelectItem>
+              <SelectItem value="done">Concluído</SelectItem>
+              <SelectItem value="late">Atrasado</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {(onArchiveTask || onDeleteTask) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {onArchiveTask && (
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onArchiveTask(task.id);
+                  }}>
+                    <Archive className="w-4 h-4 mr-2" />
+                    Arquivar
+                  </DropdownMenuItem>
+                )}
+                {onDeleteTask && (
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteTask(task.id);
+                    }}
+                    className="text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
