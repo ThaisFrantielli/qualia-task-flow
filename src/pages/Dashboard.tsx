@@ -1,203 +1,281 @@
 
 import React from 'react';
-import { useTasks } from '../hooks/useTasks';
-import DashboardCard from '../components/DashboardCard';
-import { 
-  CheckSquare, 
-  Clock, 
-  Users, 
-  TrendingUp,
-  AlertTriangle,
-  Calendar
-} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Calendar, CheckCircle, Clock, AlertTriangle, TrendingUp, Users, Target } from 'lucide-react';
+import { useTasks } from '@/hooks/useTasks';
+import { useProjects } from '@/hooks/useProjects';
+import ProductivityMetrics from '@/components/dashboard/ProductivityMetrics';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
-  const { tasks, loading, error } = useTasks();
+  const { tasks, loading: tasksLoading } = useTasks();
+  const { projects, loading: projectsLoading } = useProjects();
 
-  if (loading) {
+  if (tasksLoading || projectsLoading) {
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Carregando dados...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">Erro: {error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Calcular estatísticas
+  // Calculate statistics
   const totalTasks = tasks.length;
-  const inProgressTasks = tasks.filter(task => task.status === 'progress').length;
   const completedTasks = tasks.filter(task => task.status === 'done').length;
-  const lateTasks = tasks.filter(task => task.status === 'late').length;
+  const inProgressTasks = tasks.filter(task => task.status === 'progress').length;
+  const overdueTasks = tasks.filter(task => {
+    if (!task.due_date || task.status === 'done') return false;
+    return new Date(task.due_date) < new Date();
+  }).length;
 
-  const stats = [
-    {
-      title: 'Total de Tarefas',
-      value: totalTasks,
-      subtitle: 'Tarefas ativas',
-      icon: CheckSquare,
-      color: 'primary' as const,
-      trend: { value: '100%', isPositive: true }
-    },
-    {
-      title: 'Em Andamento',
-      value: inProgressTasks,
-      subtitle: 'Sendo executadas',
-      icon: Clock,
-      color: 'secondary' as const,
-      trend: { value: `${totalTasks > 0 ? Math.round((inProgressTasks / totalTasks) * 100) : 0}%`, isPositive: true }
-    },
-    {
-      title: 'Concluídas',
-      value: completedTasks,
-      subtitle: 'Finalizadas',
-      icon: TrendingUp,
-      color: 'success' as const,
-      trend: { value: `${totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0}%`, isPositive: true }
-    },
-    {
-      title: 'Atrasadas',
-      value: lateTasks,
-      subtitle: 'Requer atenção',
-      icon: AlertTriangle,
-      color: 'warning' as const,
-      trend: { value: `${totalTasks > 0 ? Math.round((lateTasks / totalTasks) * 100) : 0}%`, isPositive: false }
-    }
-  ];
+  const totalProjects = projects.length;
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Tarefas recentes (últimas 5)
+  // Recent tasks
   const recentTasks = tasks
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5)
-    .map(task => ({
-      id: task.id,
-      title: task.title,
-      assignee: task.assignee_name || 'Não atribuído',
-      status: task.status === 'done' ? 'Concluída' : 
-              task.status === 'progress' ? 'Em andamento' : 
-              task.status === 'late' ? 'Atrasada' : 'A fazer',
-      dueDate: task.due_date || new Date().toISOString().split('T')[0]
-    }));
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, 5);
 
-  // Performance da equipe (agrupado por responsável)
-  const teamPerformance = tasks.reduce((acc, task) => {
-    const assignee = task.assignee_name || 'Não atribuído';
-    if (!acc[assignee]) {
-      acc[assignee] = { total: 0, completed: 0 };
+  // Upcoming deadlines
+  const upcomingDeadlines = tasks
+    .filter(task => task.due_date && task.status !== 'done')
+    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+    .slice(0, 5);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'todo':
+        return 'bg-gray-100 text-gray-800';
+      case 'progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'done':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
-    acc[assignee].total++;
-    if (task.status === 'done') {
-      acc[assignee].completed++;
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
-    return acc;
-  }, {} as Record<string, { total: number; completed: number }>);
+  };
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Visão geral das suas tarefas e projetos</p>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Visão geral da sua produtividade</p>
         </div>
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          <Calendar className="w-4 h-4" />
-          <span>{new Date().toLocaleDateString('pt-BR', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}</span>
+        <div className="flex space-x-2">
+          <Link to="/tasks">
+            <Button variant="outline">Ver Todas as Tarefas</Button>
+          </Link>
+          <Link to="/reports">
+            <Button>Relatórios</Button>
+          </Link>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <DashboardCard key={index} {...stat} />
-        ))}
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="productivity">Produtividade</TabsTrigger>
+        </TabsList>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Tasks */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-quality p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Tarefas Recentes</h2>
-          <div className="space-y-4">
-            {recentTasks.map((task) => (
-              <div key={task.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900 mb-1">{task.title}</h3>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
-                    <span className="flex items-center space-x-1">
-                      <Users className="w-4 h-4" />
-                      <span>{task.assignee}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
-                    </span>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    task.status === 'Concluída' ? 'bg-green-100 text-green-800' :
-                    task.status === 'Em andamento' ? 'bg-blue-100 text-blue-800' :
-                    task.status === 'Atrasada' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {task.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+        <TabsContent value="overview" className="space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Tarefas</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalTasks}</div>
+                <p className="text-xs text-muted-foreground">
+                  +2 desde ontem
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tarefas Concluídas</CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{completedTasks}</div>
+                <p className="text-xs text-muted-foreground">
+                  {completionRate}% de conclusão
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Em Progresso</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{inProgressTasks}</div>
+                <p className="text-xs text-muted-foreground">
+                  Tarefas ativas
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Atrasadas</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{overdueTasks}</div>
+                <p className="text-xs text-muted-foreground">
+                  Precisam de atenção
+                </p>
+              </CardContent>
+            </Card>
           </div>
-        </div>
 
-        {/* Team Performance */}
-        <div className="bg-white rounded-xl shadow-quality p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Desempenho da Equipe</h2>
-          <div className="space-y-4">
-            {Object.entries(teamPerformance).slice(0, 5).map(([name, performance]) => {
-              const percentage = performance.total > 0 ? Math.round((performance.completed / performance.total) * 100) : 0;
-              const initial = name.charAt(0).toUpperCase();
-              
-              return (
-                <div key={name} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">{initial}</span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{name}</p>
-                      <p className="text-sm text-gray-500">{performance.completed} tarefas concluídas</p>
-                    </div>
+          {/* Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Recent Tasks */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Tarefas Recentes</CardTitle>
+                <CardDescription>Últimas atualizações nas suas tarefas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentTasks.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Nenhuma tarefa encontrada</p>
+                ) : (
+                  <div className="space-y-3">
+                    {recentTasks.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">{task.title}</h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Atualizado em {formatDate(task.updated_at)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getPriorityColor(task.priority)}>
+                            {task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+                          </Badge>
+                          <Badge className={getStatusColor(task.status)}>
+                            {task.status === 'todo' ? 'A Fazer' : task.status === 'progress' ? 'Progresso' : 'Concluído'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-right">
-                    <div className="w-12 h-2 bg-gray-200 rounded-full">
-                      <div 
-                        className="h-2 bg-green-500 rounded-full" 
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-xs text-gray-500 mt-1">{percentage}%</span>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Upcoming Deadlines */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Próximos Prazos</CardTitle>
+                <CardDescription>Tarefas com prazo se aproximando</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {upcomingDeadlines.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Nenhum prazo próximo</p>
+                ) : (
+                  <div className="space-y-3">
+                    {upcomingDeadlines.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">{task.title}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Calendar className="w-3 h-3 text-gray-500" />
+                            <span className="text-xs text-gray-500">
+                              Prazo: {formatDate(task.due_date!)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getPriorityColor(task.priority)}>
+                            {task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      </div>
+
+          {/* Projects Overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Projetos ({totalProjects})
+              </CardTitle>
+              <CardDescription>Status dos seus projetos ativos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {projects.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Nenhum projeto encontrado</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {projects.map((project) => {
+                    const projectTasks = tasks.filter(task => task.project_id === project.id);
+                    const completedProjectTasks = projectTasks.filter(task => task.status === 'done').length;
+                    const projectCompletion = projectTasks.length > 0 ? Math.round((completedProjectTasks / projectTasks.length) * 100) : 0;
+                    
+                    return (
+                      <div key={project.id} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-medium">{project.name}</h3>
+                          <Badge variant="secondary">{projectCompletion}%</Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {projectTasks.length} tarefas
+                        </p>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${projectCompletion}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="productivity">
+          <ProductivityMetrics />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

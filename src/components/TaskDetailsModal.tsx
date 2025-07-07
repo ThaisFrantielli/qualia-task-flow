@@ -1,239 +1,258 @@
 
-import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import { X, Calendar, User, Tag, Clock, Paperclip, Users, MessageSquare, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, User, MessageCircle, Paperclip, Calendar, FolderOpen } from 'lucide-react';
-import TaskTags from './tasks/TaskTags';
-import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTasks } from '@/hooks/useTasks';
+import TaskAttachments from './task/TaskAttachments';
+import TaskHistory from './task/TaskHistory';
+import TaskDelegation from './task/TaskDelegation';
+import MentionComments from './comments/MentionComments';
 import type { Database } from '@/integrations/supabase/types';
 
 type Task = Database['public']['Tables']['tasks']['Row'] & {
   project?: Database['public']['Tables']['projects']['Row'];
-  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
+  subtasks?: Database['public']['Tables']['subtasks']['Row'][];  
   comments?: Database['public']['Tables']['comments']['Row'][];
   attachments?: Database['public']['Tables']['attachments']['Row'][];
 };
 
 interface TaskDetailsModalProps {
-  task: Task | null;
+  task: Task;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenChange }) => {
-  if (!task) return null;
+  const { updateTaskTags, updateTaskEstimatedHours } = useTasks();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTask, setEditedTask] = useState(task);
 
-  const statusMap = {
-    todo: { label: 'A Fazer', color: 'bg-gray-100 text-gray-800' },
-    progress: { label: 'Em Andamento', color: 'bg-blue-100 text-blue-800' },
-    done: { label: 'Concluído', color: 'bg-green-100 text-green-800' },
-    late: { label: 'Atrasado', color: 'bg-red-100 text-red-800' },
+  const handleSave = async () => {
+    try {
+      // Update tags if changed
+      if (editedTask.tags !== task.tags) {
+        const tags = editedTask.tags ? editedTask.tags.split(',').map(tag => tag.trim()) : [];
+        await updateTaskTags(task.id, tags);
+      }
+
+      // Update estimated hours if changed
+      if (editedTask.estimated_hours !== task.estimated_hours) {
+        await updateTaskEstimatedHours(task.id, editedTask.estimated_hours || undefined);
+      }
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Erro ao salvar alterações:', error);
+    }
   };
 
-  const priorityMap = {
-    low: { label: 'Baixa', color: 'bg-green-100 text-green-800' },
-    medium: { label: 'Média', color: 'bg-yellow-100 text-yellow-800' },
-    high: { label: 'Alta', color: 'bg-red-100 text-red-800' },
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const completedSubtasks = task.subtasks?.filter(s => s.completed).length || 0;
-  const totalSubtasks = task.subtasks?.length || 0;
-  const taskTags = task.tags ? task.tags.split(',').filter(tag => tag.trim()) : [];
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'todo':
+        return 'bg-gray-100 text-gray-800';
+      case 'progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'done':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const taskTags = task.tags ? task.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">{task.title}</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span className="text-xl font-semibold">{task.title}</span>
+            <div className="flex items-center gap-2">
+              <Badge className={getPriorityColor(task.priority)}>
+                {task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+              </Badge>
+              <Badge className={getStatusColor(task.status)}>
+                {task.status === 'todo' ? 'A Fazer' : task.status === 'progress' ? 'Em Progresso' : 'Concluído'}
+              </Badge>
+            </div>
+          </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-6">
-          {/* Status, Prioridade e Indicador de Atraso */}
-          <div className="flex gap-4 flex-wrap">
-            <Badge className={statusMap[task.status as keyof typeof statusMap]?.color}>
-              {statusMap[task.status as keyof typeof statusMap]?.label}
-            </Badge>
-            <Badge className={priorityMap[task.priority as keyof typeof priorityMap]?.color}>
-              Prioridade: {priorityMap[task.priority as keyof typeof priorityMap]?.label}
-            </Badge>
-            {task.due_date && (
-              <TaskOverdueIndicator dueDate={task.due_date} status={task.status} />
-            )}
-          </div>
 
-          {/* Tags */}
-          {taskTags.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Tags</h3>
-              <TaskTags tags={taskTags} onTagsChange={() => {}} readOnly />
-            </div>
-          )}
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="details">Detalhes</TabsTrigger>
+            <TabsTrigger value="attachments">Anexos</TabsTrigger>
+            <TabsTrigger value="comments">Comentários</TabsTrigger>
+            <TabsTrigger value="delegation">Delegação</TabsTrigger>
+            <TabsTrigger value="history">Histórico</TabsTrigger>
+          </TabsList>
 
-          {/* Horas Estimadas */}
-          {task.estimated_hours && (
-            <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Horas estimadas:</span>
-              <span className="font-medium">{task.estimated_hours}h</span>
-            </div>
-          )}
+          <TabsContent value="details" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Informações da Tarefa</CardTitle>
+                  <Button
+                    variant={isEditing ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+                  >
+                    {isEditing ? 'Salvar' : 'Editar'}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Título</Label>
+                    <Input
+                      value={isEditing ? editedTask.title : task.title}
+                      onChange={(e) => setEditedTask({...editedTask, title: e.target.value})}
+                      readOnly={!isEditing}
+                    />
+                  </div>
+                  <div>
+                    <Label>Projeto</Label>
+                    <Input
+                      value={task.project?.name || 'Sem projeto'}
+                      readOnly
+                    />
+                  </div>
+                </div>
 
-          {/* Descrição */}
-          {task.description && (
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Descrição</h3>
-              <p className="text-gray-600">{task.description}</p>
-            </div>
-          )}
-
-          {/* Informações do Projeto e Responsável */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {task.project && (
-              <div className="flex items-center space-x-2">
-                <FolderOpen className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600">Projeto:</span>
-                <span className="font-medium">{task.project.name}</span>
-              </div>
-            )}
-            
-            {task.assignee_name && (
-              <div className="flex items-center space-x-2">
-                <User className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600">Responsável:</span>
-                <span className="font-medium">{task.assignee_name}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Datas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {task.start_date && (
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600">Data de Início:</span>
-                <span className="font-medium">
-                  {new Date(task.start_date).toLocaleDateString('pt-BR')}
-                </span>
-              </div>
-            )}
-            
-            {task.due_date && (
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600">Data de Entrega:</span>
-                <span className="font-medium">
-                  {new Date(task.due_date).toLocaleDateString('pt-BR')}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Subtarefas */}
-          {totalSubtasks > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-900">
-                  Subtarefas ({completedSubtasks}/{totalSubtasks})
-                </h3>
-                <div className="w-32 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0}%` }}
+                <div>
+                  <Label>Descrição</Label>
+                  <Textarea
+                    value={isEditing ? (editedTask.description || '') : (task.description || '')}
+                    onChange={(e) => setEditedTask({...editedTask, description: e.target.value})}
+                    readOnly={!isEditing}
+                    rows={3}
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                {task.subtasks?.map((subtask) => (
-                  <div key={subtask.id} className="flex items-center space-x-2">
-                    <input 
-                      type="checkbox" 
-                      checked={subtask.completed}
-                      readOnly
-                      className="rounded"
-                    />
-                    <span className={subtask.completed ? 'line-through text-gray-500' : ''}>
-                      {subtask.title}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* Comentários */}
-          {task.comments && task.comments.length > 0 && (
-            <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <MessageCircle className="w-4 h-4 text-gray-500" />
-                <h3 className="font-semibold text-gray-900">
-                  Comentários ({task.comments.length})
-                </h3>
-              </div>
-              <div className="space-y-3">
-                {task.comments.slice(0, 3).map((comment) => (
-                  <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-sm">{comment.author_name}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(comment.created_at).toLocaleDateString('pt-BR')}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Data de Início</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Calendar className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">
+                        {task.start_date ? formatDate(task.start_date) : 'Não definida'}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{comment.content}</p>
                   </div>
-                ))}
-                {task.comments.length > 3 && (
-                  <p className="text-sm text-gray-500">
-                    e mais {task.comments.length - 3} comentários...
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Anexos */}
-          {task.attachments && task.attachments.length > 0 && (
-            <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <Paperclip className="w-4 h-4 text-gray-500" />
-                <h3 className="font-semibold text-gray-900">
-                  Anexos ({task.attachments.length})
-                </h3>
-              </div>
-              <div className="space-y-2">
-                {task.attachments.map((attachment) => (
-                  <div key={attachment.id} className="flex items-center space-x-2 text-sm">
-                    <Paperclip className="w-3 h-3 text-gray-400" />
-                    <span>{attachment.filename}</span>
-                    {attachment.file_size && (
-                      <span className="text-gray-500">
-                        ({(attachment.file_size / 1024).toFixed(1)} KB)
+                  <div>
+                    <Label>Data de Término</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Calendar className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">
+                        {task.due_date ? formatDate(task.due_date) : 'Não definida'}
                       </span>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Responsável</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <User className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">
+                        {task.assignee_name || 'Não atribuído'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Tags</Label>
+                    {isEditing ? (
+                      <Input
+                        value={editedTask.tags || ''}
+                        onChange={(e) => setEditedTask({...editedTask, tags: e.target.value})}
+                        placeholder="Separar tags com vírgula"
+                      />
+                    ) : (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {taskTags.length > 0 ? (
+                          taskTags.map((tag, index) => (
+                            <Badge key={index} variant="secondary">
+                              <Tag className="w-3 h-3 mr-1" />
+                              {tag}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-gray-500">Nenhuma tag</span>
+                        )}
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div>
+                    <Label>Horas Estimadas</Label>
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        value={editedTask.estimated_hours || ''}
+                        onChange={(e) => setEditedTask({...editedTask, estimated_hours: parseInt(e.target.value) || null})}
+                        placeholder="Horas estimadas"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm">
+                          {task.estimated_hours ? `${task.estimated_hours}h` : 'Não definido'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-          {/* Datas de Criação e Atualização */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500 border-t pt-4">
-            <div>
-              <Clock className="w-4 h-4 inline mr-1" />
-              Criado em: {new Date(task.created_at).toLocaleDateString('pt-BR')}
-            </div>
-            <div>
-              <Clock className="w-4 h-4 inline mr-1" />
-              Atualizado em: {new Date(task.updated_at).toLocaleDateString('pt-BR')}
-            </div>
-          </div>
-        </div>
+                <div className="text-xs text-gray-500 mt-4">
+                  Criado em: {formatDate(task.created_at)} | 
+                  Última atualização: {formatDate(task.updated_at)}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <div className="flex justify-end pt-4">
-          <Button onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-        </div>
+          <TabsContent value="attachments">
+            <TaskAttachments taskId={task.id} />
+          </TabsContent>
+
+          <TabsContent value="comments">
+            <MentionComments taskId={task.id} />
+          </TabsContent>
+
+          <TabsContent value="delegation">
+            <TaskDelegation taskId={task.id} />
+          </TabsContent>
+
+          <TabsContent value="history">
+            <TaskHistory taskId={task.id} />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
