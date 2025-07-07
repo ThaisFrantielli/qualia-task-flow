@@ -24,6 +24,8 @@ interface TasksFiltersProps {
   setViewMode: (mode: 'list' | 'grouped') => void;
   focusMode: boolean;
   setFocusMode: (focus: boolean) => void;
+  groupBy: 'status' | 'project' | 'assignee';
+  setGroupBy: (groupBy: 'status' | 'project' | 'assignee') => void;
 }
 
 const TasksFilters: React.FC<TasksFiltersProps> = ({
@@ -44,7 +46,9 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
   viewMode,
   setViewMode,
   focusMode,
-  setFocusMode
+  setFocusMode,
+  groupBy,
+  setGroupBy
 }) => {
   return (
     <div className="bg-white rounded-xl shadow-sm p-4 space-y-4">
@@ -185,6 +189,20 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             Modo Foco
           </Button>
         </div>
+
+        {/* Agrupar Por - Só aparece quando em modo agrupado */}
+        {viewMode === 'grouped' && (
+          <Select value={groupBy} onValueChange={setGroupBy}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Agrupar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="status">Status</SelectItem>
+              <SelectItem value="project">Projeto</SelectItem>
+              <SelectItem value="assignee">Responsável</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   );
