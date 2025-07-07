@@ -42,7 +42,7 @@ const TasksGroupedView: React.FC<TasksGroupedViewProps> = ({
   return (
     <div className="space-y-6">
       {Object.entries(groupedTasks).map(([groupKey, groupTasks]) => (
-        <div key={groupKey} className="bg-white rounded-xl shadow-quality p-6">
+        <div key={groupKey} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               {groupBy === 'status' && <Filter className="w-5 h-5 text-gray-500" />}
