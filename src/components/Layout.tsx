@@ -11,7 +11,7 @@ const Layout = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 toolbar">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h2 className="text-xl font-semibold text-gray-800">TaskMaster Pro</h2>
@@ -19,7 +19,7 @@ const Layout = () => {
             <div className="flex items-center space-x-4">
               <NotificationCenter />
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">U</span>
                 </div>
                 <span className="text-sm font-medium text-gray-700">Usuário</span>
@@ -29,7 +29,7 @@ const Layout = () => {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-gray-50">
           <Outlet />
         </main>
       </div>

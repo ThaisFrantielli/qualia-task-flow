@@ -8,6 +8,7 @@ import TaskDetailsModal from '../components/TaskDetailsModal';
 import CreateTaskForm from '../components/CreateTaskForm';
 import TasksFilters from '../components/tasks/TasksFilters';
 import TasksEmptyState from '../components/tasks/TasksEmptyState';
+import TasksGroupedView from '../components/tasks/TasksGroupedView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
@@ -30,6 +31,7 @@ const Tasks = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
+  const [groupBy, setGroupBy] = useState<'status' | 'project' | 'assignee'>('status');
   const [focusMode, setFocusMode] = useState(false);
 
   // Get unique assignees for filter
@@ -87,21 +89,33 @@ const Tasks = () => {
   }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, focusMode, getTasksByPeriod]);
 
   const groupedTasks = useMemo(() => {
-    const groups: { [key: string]: Task[] } = {
-      'todo': [],
-      'progress': [],
-      'done': [],
-      'late': []
-    };
+    const groups: { [key: string]: Task[] } = {};
     
     filteredTasks.forEach(task => {
-      if (groups[task.status]) {
-        groups[task.status].push(task);
+      let groupKey = '';
+      
+      switch (groupBy) {
+        case 'status':
+          groupKey = task.status;
+          break;
+        case 'project':
+          groupKey = task.project?.name || 'Sem Projeto';
+          break;
+        case 'assignee':
+          groupKey = task.assignee_name || 'Não Atribuído';
+          break;
+        default:
+          groupKey = task.status;
       }
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(task);
     });
     
     return groups;
-  }, [filteredTasks]);
+  }, [filteredTasks, groupBy]);
 
   const getStatusLabel = (status: string) => {
     const labels = {
@@ -174,7 +188,7 @@ const Tasks = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -189,7 +203,7 @@ const Tasks = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button onClick={() => setIsCreateModalOpen(true)} className="custom-button">
             <Plus className="w-4 h-4 mr-2" />
             Nova Tarefa
           </Button>
@@ -216,6 +230,8 @@ const Tasks = () => {
         setViewMode={setViewMode}
         focusMode={focusMode}
         setFocusMode={setFocusMode}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
       />
 
       {/* Results */}
@@ -227,41 +243,22 @@ const Tasks = () => {
           onClearFilters={clearAllFilters}
         />
       ) : viewMode === 'list' ? (
-        <TaskTable 
-          tasks={filteredTasks} 
-          onTaskClick={handleTaskClick}
-          onStatusChange={handleStatusChange}
-          onArchiveTask={handleArchiveTask}
-          onDeleteTask={handleDeleteTask}
-        />
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedTasks).map(([status, statusTasks]) => (
-            <Card key={status}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Badge className={getStatusColor(status)}>
-                      {getStatusLabel(status)}
-                    </Badge>
-                    <span className="text-lg">{statusTasks.length} tarefas</span>
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              {statusTasks.length > 0 && (
-                <CardContent>
-                  <TaskTable 
-                    tasks={statusTasks} 
-                    onTaskClick={handleTaskClick}
-                    onStatusChange={handleStatusChange}
-                    onArchiveTask={handleArchiveTask}
-                    onDeleteTask={handleDeleteTask}
-                  />
-                </CardContent>
-              )}
-            </Card>
-          ))}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <TaskTable 
+            tasks={filteredTasks} 
+            onTaskClick={handleTaskClick}
+            onStatusChange={handleStatusChange}
+            onArchiveTask={handleArchiveTask}
+            onDeleteTask={handleDeleteTask}
+          />
         </div>
+      ) : (
+        <TasksGroupedView
+          groupedTasks={groupedTasks}
+          groupBy={groupBy}
+          onTaskClick={handleTaskClick}
+          updateTaskStatus={handleStatusChange}
+        />
       )}
 
       {/* Modals */}
