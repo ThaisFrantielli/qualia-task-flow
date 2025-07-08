@@ -9,6 +9,7 @@ import CreateTaskForm from '../components/CreateTaskForm';
 import TasksFilters from '../components/tasks/TasksFilters';
 import TasksEmptyState from '../components/tasks/TasksEmptyState';
 import TasksGroupedView from '../components/tasks/TasksGroupedView';
+import ProjectsView from '../components/projects/ProjectsView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
@@ -30,7 +31,7 @@ const Tasks = () => {
   const [tagFilter, setTagFilter] = useState('all');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'grouped' | 'projects'>('list');
   const [groupBy, setGroupBy] = useState<'status' | 'project' | 'assignee'>('status');
   const [focusMode, setFocusMode] = useState(false);
 
@@ -252,6 +253,10 @@ const Tasks = () => {
             onDeleteTask={handleDeleteTask}
           />
         </div>
+      ) : viewMode === 'projects' ? (
+        <ProjectsView
+          onTaskClick={handleTaskClick}
+        />
       ) : (
         <TasksGroupedView
           groupedTasks={groupedTasks}
