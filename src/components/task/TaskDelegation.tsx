@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { Users, Send, Clock } from 'lucide-react';
+import { Users, Send, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useTaskDelegations } from '@/hooks/useTaskDelegations';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TaskDelegationProps {
   taskId: string;
@@ -37,6 +38,22 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId }) => {
         delegated_to: selectedUser,
         notes: notes.trim()
       });
+      
+      // Criar notificação para o destinatário
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: selectedUser, // Em produção, usar ID real
+          title: 'Nova tarefa delegada',
+          message: `Uma tarefa foi delegada para você: ${notes.trim()}`,
+          type: 'delegation',
+          task_id: taskId,
+          data: { delegated_by: 'Usuário Atual' }
+        });
+
+      if (notificationError) {
+        console.error('Erro ao criar notificação:', notificationError);
+      }
       
       setSelectedUser('');
       setNotes('');
