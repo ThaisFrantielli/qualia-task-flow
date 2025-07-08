@@ -20,8 +20,8 @@ interface TasksFiltersProps {
   setTagFilter: (tag: string) => void;
   uniqueAssignees: string[];
   uniqueTags: string[];
-  viewMode: 'list' | 'grouped';
-  setViewMode: (mode: 'list' | 'grouped') => void;
+  viewMode: 'list' | 'grouped' | 'projects';
+  setViewMode: (mode: 'list' | 'grouped' | 'projects') => void;
   focusMode: boolean;
   setFocusMode: (focus: boolean) => void;
   groupBy: 'status' | 'project' | 'assignee';
@@ -179,6 +179,13 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             onClick={() => setViewMode('grouped')}
           >
             Agrupar
+          </Button>
+          <Button
+            variant={viewMode === 'projects' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('projects')}
+          >
+            Projetos
           </Button>
           <Button
             variant={focusMode ? 'default' : 'outline'}

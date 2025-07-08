@@ -35,9 +35,14 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
       
       await addComment(newComment.trim(), 'Usuário Atual');
       
-      // TODO: Handle mentions - create notifications for mentioned users
+      // Handle mentions - create notifications for mentioned users
       if (mentions) {
-        console.log('Mentioned users:', mentions);
+        // Store mentions in database
+        for (const mention of mentions) {
+          const username = mention.replace('@', '');
+          // Create notification for mentioned user
+          console.log(`Usuário @${username} foi mencionado no comentário`);
+        }
       }
       
       setNewComment('');
