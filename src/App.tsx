@@ -8,6 +8,7 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Kanban from "./pages/Kanban";
 import Tasks from "./pages/Tasks";
+import Projects from "./pages/Projects";
 import Reports from "./pages/Reports";
 import Team from "./pages/Team";
 import Notifications from "./pages/Notifications";
@@ -35,6 +36,7 @@ const App = () => (
             <Route index element={<Dashboard />} />
             <Route path="kanban" element={<Kanban />} />
             <Route path="tasks" element={<Tasks />} />
+            <Route path="projects" element={<Projects />} />
             <Route path="calendar" element={<Calendar />} />
             <Route path="reports" element={<Reports />} />
             <Route path="team" element={<Team />} />
