@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, FolderOpen, Calendar, Users, Clock, Target, Palette } from 'lucide-react';
+import { ChevronDown, ChevronRight, FolderOpen, Calendar, Users, Clock, Target, Palette, Plus, Search, Filter, MoreHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { CreateProjectTrigger } from '@/components/CreateProjectForm';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import type { Database } from '@/integrations/supabase/types';
@@ -20,10 +22,25 @@ type Task = Database['public']['Tables']['tasks']['Row'] & {
 type Project = Database['public']['Tables']['projects']['Row'];
 
 const Projects = () => {
-  const { tasks, loading: tasksLoading } = useTasks();
-  const { projects, loading: projectsLoading } = useProjects();
+  const { tasks, loading: tasksLoading, refetch: refetchTasks } = useTasks();
+  const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  const handleProjectCreated = () => {
+    refetchProjects();
+    refetchTasks();
+  };
+
+  const toggleProject = (projectId: string) => {
+    const newExpanded = new Set(expandedProjects);
+    if (newExpanded.has(projectId)) {
+      newExpanded.delete(projectId);
+    } else {
+      newExpanded.add(projectId);
+    }
+    setExpandedProjects(newExpanded);
+  };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Não definida';
@@ -62,6 +79,50 @@ const Projects = () => {
     return assignees;
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'todo':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'progress':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'done':
+        return 'bg-green-100 text-green-800 border-green-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 text-red-800 border-red-300';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'low':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      'todo': 'A Fazer',
+      'progress': 'Em Progresso',
+      'done': 'Concluído'
+    };
+    return labels[status] || status;
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    const labels: { [key: string]: string } = {
+      'high': 'Alta',
+      'medium': 'Média',
+      'low': 'Baixa'
+    };
+    return labels[priority] || priority;
+  };
+
   const filteredProjects = projects.filter(project =>
     project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -93,10 +154,7 @@ const Projects = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Projeto
-          </Button>
+          <CreateProjectTrigger onProjectCreated={handleProjectCreated} />
         </div>
       </div>
 
@@ -117,11 +175,11 @@ const Projects = () => {
         </Button>
       </div>
 
-      {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Projects List */}
+      <div className="space-y-4">
         {/* Projeto "Sem Projeto" se existirem tarefas não categorizadas */}
         {hasTasksWithoutProject && (
-          <ProjectCard
+          <ProjectListItem
             project={{
               id: 'sem-projeto',
               name: 'Sem Projeto',
@@ -133,19 +191,31 @@ const Projects = () => {
             stats={getProjectStats(null)}
             assignees={getUniqueAssignees(null)}
             tasks={tasksWithoutProject}
-            onSelect={() => setSelectedProject('sem-projeto')}
+            isExpanded={expandedProjects.has('sem-projeto')}
+            onToggle={() => toggleProject('sem-projeto')}
+            getStatusColor={getStatusColor}
+            getPriorityColor={getPriorityColor}
+            getStatusLabel={getStatusLabel}
+            getPriorityLabel={getPriorityLabel}
+            formatDate={formatDate}
           />
         )}
         
         {/* Projetos regulares */}
         {filteredProjects.map((project) => (
-          <ProjectCard
+          <ProjectListItem
             key={project.id}
             project={project}
             stats={getProjectStats(project.id)}
             assignees={getUniqueAssignees(project.id)}
             tasks={tasks.filter(task => task.project_id === project.id)}
-            onSelect={() => setSelectedProject(project.id)}
+            isExpanded={expandedProjects.has(project.id)}
+            onToggle={() => toggleProject(project.id)}
+            getStatusColor={getStatusColor}
+            getPriorityColor={getPriorityColor}
+            getStatusLabel={getStatusLabel}
+            getPriorityLabel={getPriorityLabel}
+            formatDate={formatDate}
           />
         ))}
       </div>
@@ -157,17 +227,14 @@ const Projects = () => {
           <p className="text-muted-foreground mb-4">
             {searchTerm ? 'Nenhum projeto corresponde à sua busca.' : 'Você ainda não criou nenhum projeto.'}
           </p>
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <Plus className="w-4 h-4 mr-2" />
-            Criar Primeiro Projeto
-          </Button>
+          <CreateProjectTrigger onProjectCreated={handleProjectCreated} />
         </div>
       )}
     </div>
   );
 };
 
-interface ProjectCardProps {
+interface ProjectListItemProps {
   project: Project & { id: string };
   stats: {
     total: number;
@@ -178,144 +245,197 @@ interface ProjectCardProps {
   };
   assignees: { name: string; avatar: string | null }[];
   tasks: Task[];
-  onSelect: () => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+  getStatusColor: (status: string) => string;
+  getPriorityColor: (priority: string) => string;
+  getStatusLabel: (status: string) => string;
+  getPriorityLabel: (priority: string) => string;
+  formatDate: (date: string | null) => string;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, stats, assignees, tasks, onSelect }) => {
+const ProjectListItem: React.FC<ProjectListItemProps> = ({
+  project,
+  stats,
+  assignees,
+  tasks,
+  isExpanded,
+  onToggle,
+  getStatusColor,
+  getPriorityColor,
+  getStatusLabel,
+  getPriorityLabel,
+  formatDate,
+}) => {
   const progressPercentage = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
   
   const nearestDeadline = tasks
     .filter(task => task.due_date && task.status !== 'done')
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())[0];
 
-  const getProgressColor = () => {
-    if (progressPercentage >= 80) return 'bg-green-500';
-    if (progressPercentage >= 50) return 'bg-blue-500';
-    if (progressPercentage >= 25) return 'bg-yellow-500';
-    return 'bg-gray-400';
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Não definida';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
-
   return (
-    <Card className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-1 bg-card border-border" onClick={onSelect}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-3 flex-1">
-            <div
-              className="w-4 h-4 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
-              style={{ backgroundColor: project.color || '#6b7280' }}
-            />
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-lg font-semibold text-card-foreground truncate">
-                {project.name}
-              </CardTitle>
-              {project.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-            </div>
-          </div>
-          <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground shrink-0 ml-2">
-            {stats.total} {stats.total === 1 ? 'tarefa' : 'tarefas'}
-          </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        {/* Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Progresso</span>
-            <span className="font-medium text-card-foreground">{progressPercentage}%</span>
-          </div>
-          <Progress value={progressPercentage} className="h-2">
-            <div 
-              className={`h-full ${getProgressColor()} transition-all duration-300 rounded-full`}
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </Progress>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="space-y-1">
-            <div className="text-lg font-semibold text-green-600">{stats.completed}</div>
-            <div className="text-xs text-muted-foreground">Feitas</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-lg font-semibold text-blue-600">{stats.inProgress}</div>
-            <div className="text-xs text-muted-foreground">Em Progresso</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-lg font-semibold text-gray-600">{stats.todo}</div>
-            <div className="text-xs text-muted-foreground">A Fazer</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-lg font-semibold text-red-600">{stats.overdue}</div>
-            <div className="text-xs text-muted-foreground">Atrasadas</div>
-          </div>
-        </div>
-
-        {/* Team and Deadline */}
-        <div className="space-y-3 border-t border-border pt-3">
-          {/* Team Members */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Equipe</span>
-            </div>
-            <div className="flex -space-x-2">
-              {assignees.slice(0, 3).map((assignee, index) => (
-                <Avatar key={index} className="w-6 h-6 ring-2 ring-white">
-                  <AvatarImage src={assignee.avatar || undefined} />
-                  <AvatarFallback className="text-xs bg-muted text-muted-foreground">
-                    {assignee.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-              {assignees.length > 3 && (
-                <div className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs flex items-center justify-center ring-2 ring-white">
-                  +{assignees.length - 3}
+    <Card className="bg-card border-border">
+      <Collapsible open={isExpanded} onOpenChange={onToggle}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3 flex-1">
+                <div className="flex items-center space-x-2">
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <div
+                    className="w-4 h-4 rounded-full flex-shrink-0 ring-2 ring-white shadow-sm"
+                    style={{ backgroundColor: project.color || '#6b7280' }}
+                  />
+                  <FolderOpen className="w-5 h-5 text-muted-foreground" />
                 </div>
-              )}
-              {assignees.length === 0 && (
-                <span className="text-xs text-muted-foreground">Não atribuído</span>
-              )}
-            </div>
-          </div>
-
-          {/* Nearest Deadline */}
-          {nearestDeadline && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Próximo prazo</span>
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-lg font-semibold text-card-foreground">
+                    {project.name}
+                  </CardTitle>
+                  {project.description && (
+                    <p className="text-sm text-muted-foreground mt-1">{project.description}</p>
+                  )}
+                </div>
               </div>
-              <span className="text-sm font-medium text-card-foreground">
-                {formatDate(nearestDeadline.due_date)}
-              </span>
-            </div>
-          )}
+              
+              <div className="flex items-center space-x-4 text-sm">
+                {/* Stats */}
+                <div className="flex items-center space-x-3">
+                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    {stats.completed} concluídas
+                  </Badge>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    {stats.inProgress} em progresso
+                  </Badge>
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+                    {stats.todo} pendentes
+                  </Badge>
+                  {stats.overdue > 0 && (
+                    <Badge variant="secondary" className="bg-red-100 text-red-800">
+                      {stats.overdue} atrasadas
+                    </Badge>
+                  )}
+                </div>
 
-          {/* Total Estimated Hours */}
-          {tasks.some(task => task.estimated_hours) && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Estimativa</span>
+                {/* Progress */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-muted-foreground">{progressPercentage}%</span>
+                  <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Team */}
+                <div className="flex -space-x-2">
+                  {assignees.slice(0, 3).map((assignee, index) => (
+                    <Avatar key={index} className="w-6 h-6 ring-2 ring-white">
+                      <AvatarImage src={assignee.avatar || undefined} />
+                      <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+                        {assignee.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                  {assignees.length > 3 && (
+                    <div className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs flex items-center justify-center ring-2 ring-white">
+                      +{assignees.length - 3}
+                    </div>
+                  )}
+                </div>
+
+                <Badge variant="outline" className="text-xs">
+                  {stats.total} {stats.total === 1 ? 'tarefa' : 'tarefas'}
+                </Badge>
               </div>
-              <span className="text-sm font-medium text-card-foreground">
-                {tasks.reduce((sum, task) => sum + (task.estimated_hours || 0), 0)}h
-              </span>
             </div>
-          )}
-        </div>
-      </CardContent>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              {tasks.map((task) => (
+                <div 
+                  key={task.id}
+                  className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h4 className="font-medium text-card-foreground">{task.title}</h4>
+                        <Badge className={`text-xs ${getStatusColor(task.status)}`}>
+                          {getStatusLabel(task.status)}
+                        </Badge>
+                        <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
+                          {getPriorityLabel(task.priority)}
+                        </Badge>
+                      </div>
+                      
+                      {task.description && (
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                          {task.description}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                        {task.assignee_name && (
+                          <div className="flex items-center space-x-1">
+                            <Avatar className="w-5 h-5">
+                              <AvatarImage src={task.assignee_avatar || undefined} />
+                              <AvatarFallback className="text-xs bg-muted">
+                                {task.assignee_name.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{task.assignee_name}</span>
+                          </div>
+                        )}
+                        
+                        {task.due_date && (
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Vence: {formatDate(task.due_date)}</span>
+                          </div>
+                        )}
+                        
+                        {task.estimated_hours && (
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{task.estimated_hours}h estimadas</span>
+                          </div>
+                        )}
+                        
+                        {task.subtasks && task.subtasks.length > 0 && (
+                          <div className="flex items-center space-x-1">
+                            <span>
+                              {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtarefas
+                            </span>
+                          </div>
+                        )}
+                        
+                        {task.comments && task.comments.length > 0 && (
+                          <div className="flex items-center space-x-1">
+                            <span>{task.comments.length} comentários</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <Button variant="ghost" size="sm" className="ml-2">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 };
