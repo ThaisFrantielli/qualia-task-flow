@@ -10,13 +10,15 @@ import {
   Users,
   Bell,
   LogOut,
-  Calendar
+  Calendar,
+  FolderOpen
 } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Kanban', url: '/kanban', icon: KanbanSquare },
   { title: 'Lista de Tarefas', url: '/tasks', icon: List },
+  { title: 'Projetos', url: '/projects', icon: FolderOpen },
   { title: 'Calendário', url: '/calendar', icon: Calendar },
   { title: 'Relatórios', url: '/reports', icon: FileText },
   { title: 'Equipe', url: '/team', icon: Users },
