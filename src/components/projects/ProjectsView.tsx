@@ -9,6 +9,7 @@ import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import type { Database } from '@/integrations/supabase/types';
 
+// Tipagem para uma Tarefa (mantida do seu código original)
 type Task = Database['public']['Tables']['tasks']['Row'] & {
   project?: Database['public']['Tables']['projects']['Row'];
   subtasks?: Database['public']['Tables']['subtasks']['Row'][];
@@ -35,24 +36,12 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     setExpandedProjects(newExpanded);
   };
 
+  // Funções auxiliares (mantidas do seu código original)
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Não definida';
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'todo':
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-      case 'progress':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'done':
-        return 'bg-green-100 text-green-800 border-green-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
-  };
-
+  
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high':
@@ -65,16 +54,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
-
-  const getStatusLabel = (status: string) => {
-    const labels: { [key: string]: string } = {
-      'todo': 'A Fazer',
-      'progress': 'Em Progresso',
-      'done': 'Concluído'
-    };
-    return labels[status] || status;
-  };
-
+  
   const getPriorityLabel = (priority: string) => {
     const labels: { [key: string]: string } = {
       'high': 'Alta',
@@ -84,7 +64,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     return labels[priority] || priority;
   };
 
-  // Group tasks by project
+  // Agrupa tarefas por projeto (mantido do seu código original)
   const tasksByProject = tasks.reduce((acc: { [key: string]: Task[] }, task) => {
     const projectKey = task.project_id || 'sem-projeto';
     if (!acc[projectKey]) {
@@ -94,7 +74,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     return acc;
   }, {});
 
-  // Get project info for a project key
+  // Obtém informações do projeto (mantido do seu código original)
   const getProjectInfo = (projectKey: string) => {
     if (projectKey === 'sem-projeto') {
       return { name: 'Sem Projeto', color: '#6b7280', description: 'Tarefas não atribuídas a projetos' };
@@ -103,6 +83,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     return project || { name: 'Projeto Desconhecido', color: '#6b7280', description: '' };
   };
 
+  // Tela de carregamento
   if (tasksLoading || projectsLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -114,131 +95,119 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     );
   }
 
+  // Renderização principal do componente
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {Object.entries(tasksByProject).map(([projectKey, projectTasks]) => {
         const projectInfo = getProjectInfo(projectKey);
         const isExpanded = expandedProjects.has(projectKey);
-        
+
+        // --- Lógica de Progresso e contadores ---
+        const completed = projectTasks.filter(t => t.status === 'done').length;
+        const inProgress = projectTasks.filter(t => t.status === 'progress').length;
+        const todo = projectTasks.filter(t => t.status === 'todo').length;
+        // const overdue = projectTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done').length;
+        const totalTasks = projectTasks.length;
+        const progressPercent = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
+
         return (
-          <Card key={projectKey} className="overflow-hidden">
-            <Collapsible>
+          <Collapsible key={projectKey} open={isExpanded} onOpenChange={() => toggleProject(projectKey)}>
+            <div className="bg-card text-card-foreground rounded-lg border">
+              {/* O NOVO HEADER DO PROJETO (Card Clicável) */}
               <CollapsibleTrigger asChild>
-                <CardHeader 
-                  className="cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => toggleProject(projectKey)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div 
-                        className="w-4 h-4 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: projectInfo.color }}
-                      />
-                      <FolderOpen className="w-5 h-5 text-gray-500" />
-                      <div>
-                        <CardTitle className="text-lg font-semibold text-gray-900">
-                          {projectInfo.name}
-                        </CardTitle>
-                        {projectInfo.description && (
-                          <p className="text-sm text-gray-600 mt-1">{projectInfo.description}</p>
-                        )}
-                      </div>
+                <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div 
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: projectInfo.color || '#6b7280' }}
+                  />
+                  
+                  <div className="flex-grow">
+                    <h3 className="font-semibold">{projectInfo.name}</h3>
+                  </div>
+
+                  {/* Indicadores Rápidos */}
+                  <div className="hidden md:flex items-center gap-3 text-sm text-muted-foreground">
+                    <span title="Concluídas">✅ {completed}</span>
+                    <span title="Em Progresso">🔄 {inProgress}</span>
+                    <span title="Pendentes">🕒 {todo}</span>
+                    {/* <span className="text-red-500" title="Atrasadas">🔴 {overdue}</span> */}
+                  </div>
+
+                  {/* Barra de Progresso */}
+                  <div className="w-40 hidden lg:block">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-muted-foreground">Progresso</span>
+                      <span className="text-sm font-medium">{progressPercent}%</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                        {projectTasks.length} {projectTasks.length === 1 ? 'tarefa' : 'tarefas'}
-                      </Badge>
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-500" />
-                      )}
+                    <div className="w-full bg-muted rounded-full h-1.5">
+                      <div className="bg-primary h-1.5 rounded-full" style={{ width: `${progressPercent}%` }}></div>
                     </div>
                   </div>
-                </CardHeader>
+
+                  {/* Avatares */}
+                  <div className="flex -space-x-2">
+                    <Avatar className="h-6 w-6 border-2 border-background"><AvatarFallback>A</AvatarFallback></Avatar>
+                    <Avatar className="h-6 w-6 border-2 border-background"><AvatarFallback>B</AvatarFallback></Avatar>
+                  </div>
+                  
+                  {/* Ícone de Expandir */}
+                  {isExpanded ? (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
               </CollapsibleTrigger>
               
+              {/* A NOVA LISTA DE TAREFAS DETALHADA */}
               <CollapsibleContent>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {projectTasks.map((task) => (
-                      <div 
-                        key={task.id}
-                        className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                        onClick={() => onTaskClick(task)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h4 className="font-medium text-gray-900">{task.title}</h4>
-                              <Badge className={`text-xs ${getStatusColor(task.status)}`}>
-                                {getStatusLabel(task.status)}
-                              </Badge>
-                              <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-                                {getPriorityLabel(task.priority)}
-                              </Badge>
+                <div className="border-t">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left font-medium text-muted-foreground p-2 w-8"></th>
+                        <th className="text-left font-medium text-muted-foreground p-2">Tarefa</th>
+                        <th className="text-left font-medium text-muted-foreground p-2">Responsável</th>
+                        <th className="text-left font-medium text-muted-foreground p-2">Prazo</th>
+                        <th className="text-left font-medium text-muted-foreground p-2">Prioridade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projectTasks.map((task) => (
+                        <tr 
+                          key={task.id} 
+                          className="border-b last:border-b-0 hover:bg-muted/50 cursor-pointer"
+                          onClick={() => onTaskClick(task)}
+                        >
+                          <td className="p-2 align-middle">
+                             <input type="checkbox" checked={task.status === 'done'} readOnly className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary"/>
+                          </td>
+                          <td className="p-2 align-middle font-medium">{task.title}</td>
+                          <td className="p-2 align-middle">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage src={task.assignee_avatar || undefined} />
+                                <AvatarFallback className="text-xs">
+                                  {task.assignee_name ? task.assignee_name.charAt(0).toUpperCase() : '?'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span>{task.assignee_name || 'N/A'}</span>
                             </div>
-                            
-                            {task.description && (
-                              <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                                {task.description}
-                              </p>
-                            )}
-                            
-                            <div className="flex items-center space-x-4 text-xs text-gray-500">
-                              {task.assignee_name && (
-                                <div className="flex items-center space-x-1">
-                                  <Avatar className="w-6 h-6">
-                                    <AvatarImage src={task.assignee_avatar || undefined} />
-                                    <AvatarFallback className="text-xs bg-gray-200">
-                                      {task.assignee_name.charAt(0).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span>{task.assignee_name}</span>
-                                </div>
-                              )}
-                              
-                              {task.due_date && (
-                                <div className="flex items-center space-x-1">
-                                  <Calendar className="w-3 h-3" />
-                                  <span>Vence: {formatDate(task.due_date)}</span>
-                                </div>
-                              )}
-                              
-                              {task.estimated_hours && (
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="w-3 h-3" />
-                                  <span>{task.estimated_hours}h estimadas</span>
-                                </div>
-                              )}
-                              
-                              {task.subtasks && task.subtasks.length > 0 && (
-                                <div className="flex items-center space-x-1">
-                                  <span>
-                                    {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtarefas
-                                  </span>
-                                </div>
-                              )}
-                              
-                              {task.comments && task.comments.length > 0 && (
-                                <div className="flex items-center space-x-1">
-                                  <span>{task.comments.length} comentários</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <Button variant="ghost" size="sm" className="ml-2">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
+                          </td>
+                          <td className="p-2 align-middle text-muted-foreground">{formatDate(task.due_date)}</td>
+                          <td className="p-2 align-middle">
+                            <Badge variant="outline" className={getPriorityColor(task.priority)}>
+                              {getPriorityLabel(task.priority)}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CollapsibleContent>
-            </Collapsible>
-          </Card>
+            </div>
+          </Collapsible>
         );
       })}
     </div>
