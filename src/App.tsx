@@ -1,54 +1,45 @@
+// src/App.tsx
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Layout from "./components/Layout";
-import Dashboard from "./pages/Dashboard";
-import Kanban from "./pages/Kanban";
-import Tasks from "./pages/Tasks";
-import Projects from "./pages/Projects";
-import Reports from "./pages/Reports";
-import Team from "./pages/Team";
-import Notifications from "./pages/Notifications";
-import Settings from "./pages/Settings";
-import Calendar from "./pages/Calendar";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+// Importe suas páginas
+import Dashboard from './pages/Dashboard';
+import Kanban from './pages/Kanban';
+import Tasks from './pages/Tasks';
+import Projects from './pages/Projects';
+// ... importe todas as suas páginas
+import LoginPage from './pages/Login';
+import SignupPage from './pages/Signup';
+import NotFound from './pages/NotFound';
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="kanban" element={<Kanban />} />
-            <Route path="tasks" element={<Tasks />} />
-            <Route path="projects" element={<Projects />} />
-            <Route path="calendar" element={<Calendar />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="team" element={<Team />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="settings" element={<Settings />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+// Importe o componente de rota protegida e seu layout principal
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout'; // Vamos criar este layout a seguir
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Rotas Públicas */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+
+        {/* Rotas Protegidas */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/kanban" element={<Kanban />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/projects" element={<Projects />} />
+            {/* Adicione aqui todas as outras rotas que devem ser protegidas */}
           </Route>
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        </Route>
+
+        {/* Rota para páginas não encontradas */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
 export default App;
