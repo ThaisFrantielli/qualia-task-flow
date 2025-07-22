@@ -41,8 +41,11 @@ import {
 // };
 
 const Tasks = () => {
-  // Verificando quais funções são retornadas por useTasks (baseado na análise anterior)
-  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks();
+  // Estado para controlar o filtro de arquivamento
+  const [archiveStatusFilter, setArchiveStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
+
+  // Incluindo o estado 'error' do hook useTasks e passando o filtro de arquivamento
+  const { tasks, loading, error, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks(undefined, archiveStatusFilter);
 
   const [searchTerm, setSearchTerm] = useState('');
   // Ajustando a tipagem para permitir 'all'
@@ -94,55 +97,60 @@ const Tasks = () => {
   }, [tasks]);
 
 
-  const filteredTasks = useMemo(() => {
-    let filtered = tasks;
+  // REMOVENDO O useMemo filteredTasks, POIS O FILTRO AGORA ESTÁ NO HOOK useTasks
+  // const filteredTasks = useMemo(() => {
+  //   let filtered = tasks;
 
-    // Removendo getTasksByPeriod, pois não está no retorno do hook analisado
-    // Se essa funcionalidade for necessária, precisa ser adicionada ao hook ou implementada aqui
-    // if (periodFilter !== 'all') {
-    //   filtered = getTasksByPeriod(periodFilter as any);
-    // }
+  //   // Removendo getTasksByPeriod, pois não está no retorno do hook analisado
+  //   // Se essa funcionalidade for necessária, precisa ser adicionada ao hook ou implementada aqui
+  //   // if (periodFilter !== 'all') {
+  //   //   filtered = getTasksByPeriod(periodFilter as any);
+  //   // }
 
-    // Modo foco - apenas tarefas do usuário atual para hoje
-    if (focusMode) {
-      const today = new Date().toDateString();
-      filtered = filtered.filter(task => {
-        const dueDate = task.due_date ? new Date(task.due_date).toDateString() : null;
-        // TODO: Substituir 'Usuário Atual' pela lógica de usuário real
-        return dueDate === today && task.assignee_name === 'Usuário Atual';
-      });
-    }
+  //   // Modo foco - apenas tarefas do usuário atual para hoje
+  //   if (focusMode) {
+  //     const today = new Date().toDateString();
+  //     filtered = filtered.filter(task => {
+  //       const dueDate = task.due_date ? new Date(task.due_date).toDateString() : null;
+  //       // TODO: Substituir 'Usuário Atual' pela lógica de usuário real
+  //       return dueDate === today && task.assignee_name === 'Usuário Atual';
+  //     });
+  //   }
 
 
-    // Aplicar outros filtros
-    return filtered.filter(task => {
-      const matchesSearch = searchTerm === '' || 
-                            task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
+  //   // Aplicar outros filtros
+  //   return filtered.filter(task => {
+  //     const matchesSearch = searchTerm === '' || 
+  //                           task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //                          (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-      const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
+  //     const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+  //     const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
       
-      // Ajustando a lógica do filtro de responsável para incluir 'Não Atribuído'
-      const matchesAssignee = assigneeFilter === 'all' || 
-                              (assigneeFilter === 'Não Atribuído' && !task.assignee_name) ||
-                              task.assignee_name === assigneeFilter;
+  //     // Ajustando a lógica do filtro de responsável para incluir 'Não Atribuído'
+  //     const matchesAssignee = assigneeFilter === 'all' || 
+  //                             (assigneeFilter === 'Não Atribuído' && !task.assignee_name) ||
+  //                             task.assignee_name === assigneeFilter;
       
-      // Ajustando a lógica do filtro de tags
-      const matchesTag = tagFilter === 'all' || 
-                         (task.tags && task.tags.split(',').map(tag => tag.trim()).includes(tagFilter));
+  //     // Ajustando a lógica do filtro de tags
+  //     const matchesTag = tagFilter === 'all' || 
+  //                        (task.tags && task.tags.split(',').map(tag => tag.trim()).includes(tagFilter));
       
-      // Removendo a condição de isTaskOverdue, pois a função não está disponível aqui
-      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag; // && (isTaskOverdue ? isTaskOverdue(task) : true);
-    });
-    // Removendo getTasksByPeriod do array de dependências, pois a função não está disponível
-  }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, focusMode /*, getTasksByPeriod, isTaskOverdue*/]);
+  //     // Removendo a condição de isTaskOverdue, pois a função não está disponível aqui
+  //     // ADICIONANDO A CONDIÇÃO PARA EXCLUIR TAREFAS ARQUIVADAS
+  //     const isNotArchived = !task.archived;
+
+  //     return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag && isNotArchived;
+  //   });
+  //   // Removendo getTasksByPeriod do array de dependências, pois a função não está disponível
+  // }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, focusMode /*, getTasksByPeriod, isTaskOverdue*/]);
 
 
   const groupedTasks = useMemo(() => {
     const groups: { [key: string]: Task[] } = {};
     
-    filteredTasks.forEach(task => {
+    // USANDO tasks DIRETAMENTE (JÁ FILTRADO PELO HOOK)
+    tasks.forEach(task => {
       let groupKey = '';
       
       switch (groupBy) {
@@ -168,8 +176,9 @@ const Tasks = () => {
       groups[groupKey].push(task);
     });
     
+    // Removendo filteredTasks do array de dependências
     return groups;
-  }, [filteredTasks, groupBy]);
+  }, [tasks, groupBy]);
 
   // Removendo funções de UI que provavelmente estão em TaskTableRow ou similar
   // const getStatusLabel = (status: string) => { ... };
@@ -198,6 +207,7 @@ const Tasks = () => {
   };
 
   const handleArchiveTask = async (taskId: string) => {
+    console.log("Chamando handleArchiveTask em Tasks.tsx para a tarefa: ", taskId);
     try {
       await archiveTask(taskId);
       toast({
@@ -212,7 +222,7 @@ const Tasks = () => {
         variant: 'destructive',
       });
     }
-  };
+};
 
   // Função para abrir o modal de confirmação
   const handleDeleteClick = (taskId: string) => {
@@ -251,6 +261,7 @@ const Tasks = () => {
     setPeriodFilter('all');
     setTagFilter('all');
     setFocusMode(false);
+    setArchiveStatusFilter('active'); // Resetar filtro de arquivamento
   };
 
   // Check if any filters are applied
@@ -261,7 +272,8 @@ const Tasks = () => {
     assigneeFilter !== 'all' ||
     periodFilter !== 'all' ||
     tagFilter !== 'all' ||
-    focusMode
+    focusMode ||
+    archiveStatusFilter !== 'active' // Incluir filtro de arquivamento na verificação
   );
 
   if (loading) {
@@ -270,6 +282,21 @@ const Tasks = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-gray-600">Carregando tarefas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Adicionar verificação de erro
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Tarefas</h2>
+          <p className="text-gray-600">Não foi possível carregar suas tarefas. Por favor, tente novamente mais tarde.</p>
+          <Button onClick={refetch} className="mt-4">
+            Tentar Novamente
+          </Button>
         </div>
       </div>
     );
@@ -320,10 +347,13 @@ const Tasks = () => {
         setFocusMode={setFocusMode}
         groupBy={groupBy}
         setGroupBy={setGroupBy}
+        // Passar props relacionadas ao filtro de arquivamento
+        archiveStatusFilter={archiveStatusFilter}
+        setArchiveStatusFilter={setArchiveStatusFilter}
       />
 
       {/* Results */}
-      {filteredTasks.length === 0 ? (
+      {tasks.length === 0 ? (
         <TasksEmptyState
           hasFilters={hasFilters}
           focusMode={focusMode}
@@ -333,11 +363,11 @@ const Tasks = () => {
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <TaskTable
-            tasks={filteredTasks}
+            tasks={tasks} // USANDO tasks DIRETAMENTE (JÁ FILTRADO PELO HOOK)
             onTaskClick={handleTaskClick}
             onStatusChange={handleStatusChange}
             onArchiveTask={handleArchiveTask}
-            onDeleteTask={handleDeleteClick} // Usar a nova função para abrir o modal
+            onDeleteTask={handleDeleteClick}
           />
         </div>
       ) : (

@@ -83,18 +83,53 @@ export type Database = {
       task_delegations: {
           Row: {
               // ...
+              task_id: string;
+              delegated_by_id: string | null;
+              delegated_to_id: string | null;
+              delegated_by: string | null;
+              delegated_to: string | null;
+              status: string | null;
+              notes: string | null;
           };
           Insert: {
               task_id: string;
-              delegated_by_id?: string; // Para usar IDs no futuro
-              delegated_to_id?: string;
-              // Usando os campos de texto atuais
-              delegated_by?: string;
-              delegated_to?: string;
-              status?: string;
+              delegated_by_id?: string | null;
+              delegated_to_id?: string | null;
+              delegated_by?: string | null;
+              delegated_to?: string | null;
+              status?: string | null;
               notes?: string | null;
           }
       }
+      // Adicionando definições para subtasks, comments e attachments
+      subtasks: {
+        Row: {
+          id: string;
+          created_at: string;
+          task_id: string;
+          title: string;
+          completed: boolean;
+        };
+      };
+      comments: {
+        Row: {
+          id: string;
+          created_at: string;
+          task_id: string;
+          user_id: string;
+          content: string;
+        };
+      };
+      attachments: {
+        Row: {
+          id: string;
+          created_at: string;
+          task_id: string;
+          file_name: string;
+          file_url: string;
+          uploaded_by_id: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -107,6 +142,10 @@ export type Database = {
 
 // Nossos tipos de App, agora derivados da nossa definição manual e única
 export type Project = Database['public']['Tables']['projects']['Row'];
+// Atualizando o tipo Task para incluir as propriedades opcionais
 export type Task = Database['public']['Tables']['tasks']['Row'] & {
     project?: Partial<Project>;
+    subtasks?: Database['public']['Tables']['subtasks']['Row'][];
+    comments?: Database['public']['Tables']['comments']['Row'][];
+    attachments?: Database['public']['Tables']['attachments']['Row'][];
 };
