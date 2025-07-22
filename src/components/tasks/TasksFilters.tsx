@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, Users, Calendar, AlertTriangle } from 'lucide-react';
+import { Search, Filter, Users, Calendar, AlertTriangle, Archive } from 'lucide-react';
 
 interface TasksFiltersProps {
   searchTerm: string;
@@ -26,6 +26,9 @@ interface TasksFiltersProps {
   setFocusMode: (focus: boolean) => void;
   groupBy: 'status' | 'project' | 'assignee';
   setGroupBy: (groupBy: 'status' | 'project' | 'assignee') => void;
+  // Nova prop para o filtro de arquivamento
+  archiveStatusFilter: 'active' | 'archived' | 'all';
+  setArchiveStatusFilter: (filter: 'active' | 'archived' | 'all') => void;
 }
 
 const TasksFilters: React.FC<TasksFiltersProps> = ({
@@ -48,7 +51,10 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
   focusMode,
   setFocusMode,
   groupBy,
-  setGroupBy
+  setGroupBy,
+  // Receber props relacionadas ao filtro de arquivamento
+  archiveStatusFilter,
+  setArchiveStatusFilter
 }) => {
   return (
     <div className="bg-white rounded-xl shadow-sm p-4 space-y-4">
@@ -161,6 +167,19 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             {uniqueTags.map(tag => (
               <SelectItem key={tag} value={tag}>{tag}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        {/* NOVO: Filtro por Status de Arquivamento */}
+        <Select value={archiveStatusFilter} onValueChange={setArchiveStatusFilter}>
+          <SelectTrigger className="w-[150px]">
+            <Archive className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="Arquivamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Ativas</SelectItem>
+            <SelectItem value="archived">Arquivadas</SelectItem>
+            <SelectItem value="all">Todas</SelectItem>
           </SelectContent>
         </Select>
 

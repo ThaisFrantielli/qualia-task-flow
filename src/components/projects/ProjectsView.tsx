@@ -7,15 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database, Task } from '@/types'; // Alterado o import para @/types
 
-// Tipagem para uma Tarefa (mantida do seu código original)
-type Task = Database['public']['Tables']['tasks']['Row'] & {
-  project?: Database['public']['Tables']['projects']['Row'];
-  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
-  comments?: Database['public']['Tables']['comments']['Row'][];
-  attachments?: Database['public']['Tables']['attachments']['Row'][];
-};
+// Removida a redefinição local do tipo Task
 
 interface ProjectsViewProps {
   onTaskClick: (task: Task) => void;
@@ -36,13 +30,13 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     setExpandedProjects(newExpanded);
   };
 
-  // Funções auxiliares (mantidas do seu código original)
+  // Funções auxiliares
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Não definida';
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
-  
-  const getPriorityColor = (priority: string) => {
+
+  const getPriorityColor = (priority: string | null) => {
     switch (priority) {
       case 'high':
         return 'bg-red-100 text-red-800 border-red-300';
@@ -54,17 +48,17 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
-  
-  const getPriorityLabel = (priority: string) => {
+
+  const getPriorityLabel = (priority: string | null) => {
     const labels: { [key: string]: string } = {
       'high': 'Alta',
       'medium': 'Média',
       'low': 'Baixa'
     };
-    return labels[priority] || priority;
+    return labels[priority || 'default'] || priority || 'Desconhecida';
   };
 
-  // Agrupa tarefas por projeto (mantido do seu código original)
+  // Agrupa tarefas por projeto
   const tasksByProject = tasks.reduce((acc: { [key: string]: Task[] }, task) => {
     const projectKey = task.project_id || 'sem-projeto';
     if (!acc[projectKey]) {
@@ -74,7 +68,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     return acc;
   }, {});
 
-  // Obtém informações do projeto (mantido do seu código original)
+  // Obtém informações do projeto
   const getProjectInfo = (projectKey: string) => {
     if (projectKey === 'sem-projeto') {
       return { name: 'Sem Projeto', color: '#6b7280', description: 'Tarefas não atribuídas a projetos' };
@@ -116,11 +110,11 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
               {/* O NOVO HEADER DO PROJETO (Card Clicável) */}
               <CollapsibleTrigger asChild>
                 <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div 
+                  <div
                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: projectInfo.color || '#6b7280' }}
                   />
-                  
+
                   <div className="flex-grow">
                     <h3 className="font-semibold">{projectInfo.name}</h3>
                   </div>
@@ -149,7 +143,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
                     <Avatar className="h-6 w-6 border-2 border-background"><AvatarFallback>A</AvatarFallback></Avatar>
                     <Avatar className="h-6 w-6 border-2 border-background"><AvatarFallback>B</AvatarFallback></Avatar>
                   </div>
-                  
+
                   {/* Ícone de Expandir */}
                   {isExpanded ? (
                     <ChevronDown className="w-5 h-5 text-muted-foreground" />
@@ -158,7 +152,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
                   )}
                 </div>
               </CollapsibleTrigger>
-              
+
               {/* A NOVA LISTA DE TAREFAS DETALHADA */}
               <CollapsibleContent>
                 <div className="border-t">
@@ -174,8 +168,8 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
                     </thead>
                     <tbody>
                       {projectTasks.map((task) => (
-                        <tr 
-                          key={task.id} 
+                        <tr
+                          key={task.id}
                           className="border-b last:border-b-0 hover:bg-muted/50 cursor-pointer"
                           onClick={() => onTaskClick(task)}
                         >
@@ -186,7 +180,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
                           <td className="p-2 align-middle">
                             <div className="flex items-center gap-2">
                               <Avatar className="h-6 w-6">
-                                <AvatarImage src={task.assignee_avatar || undefined} />
+                                <AvatarImage src={task.assignee_avatar ?? undefined} />
                                 <AvatarFallback className="text-xs">
                                   {task.assignee_name ? task.assignee_name.charAt(0).toUpperCase() : '?'}
                                 </AvatarFallback>
