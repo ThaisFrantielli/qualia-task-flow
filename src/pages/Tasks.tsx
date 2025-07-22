@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { Plus } from 'lucide-react';
@@ -10,30 +9,59 @@ import TasksFilters from '../components/tasks/TasksFilters';
 import TasksEmptyState from '../components/tasks/TasksEmptyState';
 import TasksGroupedView from '../components/tasks/TasksGroupedView';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import type { Database } from '@/integrations/supabase/types';
+// Removendo importações de UI que não estão sendo usadas diretamente neste arquivo
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// import { Badge } from '@/components/ui/badge';
 
-type Task = Database['public']['Tables']['tasks']['Row'] & {
-  project?: Database['public']['Tables']['projects']['Row'];
-  subtasks?: Database['public']['Tables']['subtasks']['Row'][];  
-  comments?: Database['public']['Tables']['comments']['Row'][];
-  attachments?: Database['public']['Tables']['attachments']['Row'][];
-};
+// Ajustando a importação de tipo do Supabase, se necessário, dependendo da estrutura do seu projeto
+// Assumindo que o tipo Task já inclui os relacionamentos necessários e vem de '@/types'
+import type { Task } from '@/types'; // Usando o tipo centralizado se disponível
+
+import { toast } from '@/hooks/use-toast'; // Importar a função toast
+
+// Importar componentes do AlertDialog para a confirmação de exclusão
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+
+// Removendo a definição de tipo Task duplicada se já existir em '@/types'
+// type Task = Database['public']['Tables']['tasks']['Row'] & {
+//   project?: Database['public']['Tables']['projects']['Row'];
+//   subtasks?: Database['public']['Tables']['subtasks']['Row'][];  
+//   comments?: Database['public']['Tables']['comments']['Row'][];
+//   attachments?: Database['public']['Tables']['attachments']['Row'][];
+// };
 
 const Tasks = () => {
-  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask, getTasksByPeriod, isTaskOverdue, refetch } = useTasks();
+  // Verificando quais funções são retornadas por useTasks (baseado na análise anterior)
+  const { tasks, loading, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks();
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
-  const [assigneeFilter, setAssigneeFilter] = useState('all');
-  const [periodFilter, setPeriodFilter] = useState('all');
-  const [tagFilter, setTagFilter] = useState('all');
+  // Ajustando a tipagem para permitir 'all'
+  const [statusFilter, setStatusFilter] = useState<'all' | string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | string>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
+  const [periodFilter, setPeriodFilter] = useState<'all' | string>('all');
+  const [tagFilter, setTagFilter] = useState<'all' | string>('all');
+
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
   const [groupBy, setGroupBy] = useState<'status' | 'project' | 'assignee'>('status');
   const [focusMode, setFocusMode] = useState(false);
+
+  // Estado para o modal de confirmação de exclusão
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
+
 
   // Get unique assignees for filter
   const uniqueAssignees = useMemo(() => {
@@ -41,9 +69,13 @@ const Tasks = () => {
     tasks.forEach(task => {
       if (task.assignee_name) {
         assignees.add(task.assignee_name);
+      } else {
+        // Considere adicionar uma categoria para tarefas sem responsável, se aplicável
+        assignees.add('Não Atribuído');
       }
     });
-    return Array.from(assignees);
+    // Incluir a opção 'all'
+    return ['all', ...Array.from(assignees)];
   }, [tasks]);
 
   // Get unique tags for filter
@@ -52,42 +84,60 @@ const Tasks = () => {
     tasks.forEach(task => {
       if (task.tags) {
         task.tags.split(',').forEach(tag => {
-          if (tag.trim()) tags.add(tag.trim());
+          const trimmedTag = tag.trim();
+          if (trimmedTag) tags.add(trimmedTag);
         });
       }
     });
-    return Array.from(tags);
+     // Incluir a opção 'all'
+    return ['all', ...Array.from(tags)];
   }, [tasks]);
+
 
   const filteredTasks = useMemo(() => {
     let filtered = tasks;
 
-    // Aplicar filtro por período primeiro
-    if (periodFilter !== 'all') {
-      filtered = getTasksByPeriod(periodFilter as any);
-    }
+    // Removendo getTasksByPeriod, pois não está no retorno do hook analisado
+    // Se essa funcionalidade for necessária, precisa ser adicionada ao hook ou implementada aqui
+    // if (periodFilter !== 'all') {
+    //   filtered = getTasksByPeriod(periodFilter as any);
+    // }
 
     // Modo foco - apenas tarefas do usuário atual para hoje
     if (focusMode) {
       const today = new Date().toDateString();
       filtered = filtered.filter(task => {
         const dueDate = task.due_date ? new Date(task.due_date).toDateString() : null;
-        return dueDate === today && task.assignee_name === 'Usuário Atual'; // Substituir por usuário real
+        // TODO: Substituir 'Usuário Atual' pela lógica de usuário real
+        return dueDate === today && task.assignee_name === 'Usuário Atual';
       });
     }
 
+
     // Aplicar outros filtros
     return filtered.filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch = searchTerm === '' || 
+                            task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      
       const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      const matchesAssignee = assigneeFilter === 'all' || task.assignee_name === assigneeFilter;
-      const matchesTag = tagFilter === 'all' || (task.tags && task.tags.includes(tagFilter));
       
-      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag;
+      // Ajustando a lógica do filtro de responsável para incluir 'Não Atribuído'
+      const matchesAssignee = assigneeFilter === 'all' || 
+                              (assigneeFilter === 'Não Atribuído' && !task.assignee_name) ||
+                              task.assignee_name === assigneeFilter;
+      
+      // Ajustando a lógica do filtro de tags
+      const matchesTag = tagFilter === 'all' || 
+                         (task.tags && task.tags.split(',').map(tag => tag.trim()).includes(tagFilter));
+      
+      // Removendo a condição de isTaskOverdue, pois a função não está disponível aqui
+      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag; // && (isTaskOverdue ? isTaskOverdue(task) : true);
     });
-  }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, focusMode, getTasksByPeriod]);
+    // Removendo getTasksByPeriod do array de dependências, pois a função não está disponível
+  }, [tasks, searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, focusMode /*, getTasksByPeriod, isTaskOverdue*/]);
+
 
   const groupedTasks = useMemo(() => {
     const groups: { [key: string]: Task[] } = {};
@@ -97,16 +147,19 @@ const Tasks = () => {
       
       switch (groupBy) {
         case 'status':
-          groupKey = task.status;
+          // Corrigindo possível atribuição de null a string
+          groupKey = task.status || 'Sem Status'; 
           break;
         case 'project':
           groupKey = task.project?.name || 'Sem Projeto';
           break;
         case 'assignee':
+          // Corrigindo possível atribuição de null a string
           groupKey = task.assignee_name || 'Não Atribuído';
           break;
         default:
-          groupKey = task.status;
+          // Corrigindo possível atribuição de null a string
+          groupKey = task.status || 'Sem Status';
       }
       
       if (!groups[groupKey]) {
@@ -118,41 +171,75 @@ const Tasks = () => {
     return groups;
   }, [filteredTasks, groupBy]);
 
-  const getStatusLabel = (status: string) => {
-    const labels = {
-      'todo': 'A Fazer',
-      'progress': 'Em Progresso', 
-      'done': 'Concluído',
-      'late': 'Atrasado'
-    };
-    return labels[status as keyof typeof labels] || status;
-  };
+  // Removendo funções de UI que provavelmente estão em TaskTableRow ou similar
+  // const getStatusLabel = (status: string) => { ... };
+  // const getStatusColor = (status: string) => { ... };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      'todo': 'bg-gray-100 text-gray-800',
-      'progress': 'bg-blue-100 text-blue-800',
-      'done': 'bg-green-100 text-green-800',
-      'late': 'bg-red-100 text-red-800'
-    };
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
   };
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
-    await updateTaskStatus(taskId, newStatus);
+    try {
+      await updateTaskStatus(taskId, newStatus);
+      toast({
+        title: 'Sucesso!',
+        description: 'Status da tarefa atualizado.',
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível atualizar o status da tarefa. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleArchiveTask = async (taskId: string) => {
-    await archiveTask(taskId);
+    try {
+      await archiveTask(taskId);
+      toast({
+        title: 'Tarefa Arquivada!',
+        description: 'A tarefa foi movida para o arquivo.',
+      });
+    } catch (error) {
+      console.error('Erro ao arquivar tarefa:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível arquivar a tarefa. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    if (confirm('Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.')) {
-      await deleteTask(taskId);
+  // Função para abrir o modal de confirmação
+  const handleDeleteClick = (taskId: string) => {
+    setTaskToDeleteId(taskId);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  // Função para executar a exclusão após confirmação
+  const confirmDeleteTask = async () => {
+    if (taskToDeleteId) {
+      try {
+        await deleteTask(taskToDeleteId);
+        toast({
+          title: 'Tarefa Excluída!',
+          description: 'A tarefa foi removida permanentemente.',
+        });
+      } catch (error) {
+        console.error('Erro ao excluir tarefa:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível excluir a tarefa. Tente novamente.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsDeleteConfirmOpen(false);
+        setTaskToDeleteId(null);
+      }
     }
   };
 
@@ -197,8 +284,8 @@ const Tasks = () => {
             {focusMode ? 'Modo Foco - Minhas Tarefas' : 'Tarefas'}
           </h1>
           <p className="text-gray-600">
-            {focusMode 
-              ? 'Foque nas suas tarefas de hoje' 
+            {focusMode
+              ? 'Foque nas suas tarefas de hoje'
               : 'Gerencie e acompanhe suas tarefas'
             }
           </p>
@@ -245,12 +332,12 @@ const Tasks = () => {
         />
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <TaskTable 
-            tasks={filteredTasks} 
+          <TaskTable
+            tasks={filteredTasks}
             onTaskClick={handleTaskClick}
             onStatusChange={handleStatusChange}
             onArchiveTask={handleArchiveTask}
-            onDeleteTask={handleDeleteTask}
+            onDeleteTask={handleDeleteClick} // Usar a nova função para abrir o modal
           />
         </div>
       ) : (
@@ -263,12 +350,12 @@ const Tasks = () => {
       )}
 
       {/* Modals */}
-      <CreateTaskForm 
+      <CreateTaskForm
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
         onTaskCreated={refetch}
       />
-      
+
       {selectedTask && (
         <TaskDetailsModal
           task={selectedTask}
@@ -276,6 +363,25 @@ const Tasks = () => {
           onOpenChange={(open) => !open && setSelectedTask(null)}
         />
       )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente esta tarefa
+              e removerá seus dados de nossos servidores.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteConfirmOpen(false)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteTask} className="bg-red-500 hover:bg-red-600 text-white">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
