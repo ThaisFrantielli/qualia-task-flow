@@ -1,31 +1,23 @@
-
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Calendar, MessageCircle, Paperclip, CheckCircle2, MoreHorizontal, Archive, Trash2 } from 'lucide-react';
+import { Calendar, MessageCircle, Paperclip, CheckCircle2, MoreHorizontal, Archive, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Database } from '@/integrations/supabase/types';
-
-type Task = Database['public']['Tables']['tasks']['Row'] & {
-  project?: Database['public']['Tables']['projects']['Row'];
-  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
-  comments?: Database['public']['Tables']['comments']['Row'][];
-  attachments?: Database['public']['Tables']['attachments']['Row'][];
-};
+import type { Database, Task } from '@/types';
 
 interface TaskTableRowProps {
   task: Task;
@@ -33,16 +25,18 @@ interface TaskTableRowProps {
   onStatusChange: (taskId: string, status: string) => void;
   onArchiveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
+  isLoading: boolean;
 }
 
-const TaskTableRow: React.FC<TaskTableRowProps> = ({ 
-  task, 
-  onTaskClick, 
-  onStatusChange, 
-  onArchiveTask, 
-  onDeleteTask 
+const TaskTableRow: React.FC<TaskTableRowProps> = ({
+  task,
+  onTaskClick,
+  onStatusChange,
+  onArchiveTask,
+  onDeleteTask,
+  isLoading,
 }) => {
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string | null) => {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800';
       case 'medium': return 'bg-yellow-100 text-yellow-800';
@@ -51,7 +45,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'todo': return 'bg-gray-100 text-gray-800';
       case 'progress': return 'bg-blue-100 text-blue-800';
@@ -61,22 +55,22 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string | null) => {
     switch (status) {
       case 'todo': return 'A Fazer';
       case 'progress': return 'Em Andamento';
       case 'done': return 'Concluído';
       case 'late': return 'Atrasado';
-      default: return status;
+      default: return status || 'Desconhecido';
     }
   };
 
-  const getPriorityLabel = (priority: string) => {
+  const getPriorityLabel = (priority: string | null) => {
     switch (priority) {
       case 'high': return 'Alta';
       case 'medium': return 'Média';
       case 'low': return 'Baixa';
-      default: return priority;
+      default: return priority || 'Desconhecida';
     }
   };
 
@@ -84,7 +78,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
   const subtasksTotal = task.subtasks?.length || 0;
 
   return (
-    <TableRow 
+    <TableRow
       className="cursor-pointer hover:bg-gray-50"
       onClick={() => onTaskClick(task)}
     >
@@ -113,9 +107,16 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
         </div>
       </TableCell>
       <TableCell>
-        <Badge className={getStatusColor(task.status)}>
-          {getStatusLabel(task.status)}
-        </Badge>
+        {isLoading ? (
+          <div className="flex items-center">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <span>Atualizando...</span>
+          </div>
+        ) : (
+          <Badge className={getStatusColor(task.status)}>
+            {getStatusLabel(task.status)}
+          </Badge>
+        )}
       </TableCell>
       <TableCell>
         <Badge className={getPriorityColor(task.priority)}>
@@ -125,7 +126,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       <TableCell>
         <div className="flex items-center space-x-2">
           <Avatar className="w-6 h-6">
-            <AvatarImage src={task.assignee_avatar || undefined} />
+            <AvatarImage src={task.assignee_avatar ?? undefined} />
             <AvatarFallback className="text-xs">
               {task.assignee_name?.split(' ').map(n => n[0]).join('') || 'NA'}
             </AvatarFallback>
@@ -160,7 +161,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
               </span>
             </div>
             <div className="w-16 bg-gray-200 rounded-full h-1.5">
-              <div 
+              <div
                 className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
                 style={{ width: `${(subtasksCompleted / subtasksTotal) * 100}%` }}
               />
@@ -173,10 +174,11 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       <TableCell>
         <div className="flex items-center space-x-2">
           <Select
-            value={task.status}
+            value={task.status ?? ''}
             onValueChange={(value) => {
               onStatusChange(task.id, value);
             }}
+            disabled={isLoading}
           >
             <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
               <SelectValue />
@@ -188,7 +190,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
               <SelectItem value="late">Atrasado</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {(onArchiveTask || onDeleteTask) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -200,6 +202,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
                 {onArchiveTask && (
                   <DropdownMenuItem onClick={(e) => {
                     e.stopPropagation();
+                    console.log("Botão Arquivar clicado em TaskTableRow para a tarefa: ", task.id);
                     onArchiveTask(task.id);
                   }}>
                     <Archive className="w-4 h-4 mr-2" />
@@ -207,7 +210,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
                   </DropdownMenuItem>
                 )}
                 {onDeleteTask && (
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteTask(task.id);
