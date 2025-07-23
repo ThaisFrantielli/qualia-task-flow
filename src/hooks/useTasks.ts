@@ -150,8 +150,8 @@ export const useTasks = (periodFilter: string = 'all', archiveStatusFilter: 'act
     try {
       const { error } = await supabase
         .from('tasks')
-        .delete()}
-    .eq('id', taskId);
+        .delete()
+        .eq('id', taskId);
 
       if (error) throw error;
       fetchTasks(); // Recarrega a lista
@@ -174,4 +174,4 @@ export const useTasks = (periodFilter: string = 'all', archiveStatusFilter: 'act
     refetch: fetchTasks,
     updateTask
   };
-;
+};
