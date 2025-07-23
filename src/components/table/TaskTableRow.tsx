@@ -15,8 +15,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Calendar, MessageCircle, Paperclip, CheckCircle2, MoreHorizontal, Archive, Trash2, Loader2 } from 'lucide-react';
+import { Calendar, MessageCircle, Paperclip, CheckCircle2, MoreHorizontal, Archive, Trash2, Loader2, Edit } from 'lucide-react'; // Importe o ícone Edit
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox'; // Importe o componente Checkbox
 import type { Database, Task } from '@/types';
 
 interface TaskTableRowProps {
@@ -77,32 +78,45 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
   const subtasksCompleted = task.subtasks?.filter(s => s.completed).length || 0;
   const subtasksTotal = task.subtasks?.length || 0;
 
+  const handleCheckboxChange = (checked: boolean) => {
+    const newStatus = checked ? 'done' : 'todo'; // Assume 'todo' se desmarcar
+    onStatusChange(task.id, newStatus);
+  };
+
   return (
     <TableRow
       className="cursor-pointer hover:bg-gray-50"
-      onClick={() => onTaskClick(task)}
+      // Remove o onClick direto da linha para evitar conflito com o checkbox/botões
+      // onClick={() => onTaskClick(task)}
     >
-      <TableCell>
-        <div>
-          <div className="font-medium text-gray-900 mb-1">{task.title}</div>
-          {task.description && (
-            <div className="text-sm text-gray-500 line-clamp-2">
-              {task.description}
+      <TableCell className="w-[300px]">
+        <div className="flex items-center space-x-3"> {/* Adiciona flexbox para alinhar checkbox e texto */}
+          <Checkbox
+            checked={task.status === 'done'}
+            onCheckedChange={handleCheckboxChange}
+            onClick={(e) => e.stopPropagation()} // Impede que o clique no checkbox propague para a linha
+          />
+          <div>
+            <div className="font-medium text-gray-900 mb-1">{task.title}</div>
+            {task.description && (
+              <div className="text-sm text-gray-500 line-clamp-2">
+                {task.description}
+              </div>
+            )}
+            <div className="flex items-center space-x-4 mt-2">
+              {task.comments && task.comments.length > 0 && (
+                <div className="flex items-center space-x-1 text-xs text-gray-500">
+                  <MessageCircle className="w-3 h-3" />
+                  <span>{task.comments.length}</span>
+                </div>
+              )}
+              {task.attachments && task.attachments.length > 0 && (
+                <div className="flex items-center space-x-1 text-xs text-gray-500">
+                  <Paperclip className="w-3 h-3" />
+                  <span>{task.attachments.length}</span>
+                </div>
+              )}
             </div>
-          )}
-          <div className="flex items-center space-x-4 mt-2">
-            {task.comments && task.comments.length > 0 && (
-              <div className="flex items-center space-x-1 text-xs text-gray-500">
-                <MessageCircle className="w-3 h-3" />
-                <span>{task.comments.length}</span>
-              </div>
-            )}
-            {task.attachments && task.attachments.length > 0 && (
-              <div className="flex items-center space-x-1 text-xs text-gray-500">
-                <Paperclip className="w-3 h-3" />
-                <span>{task.attachments.length}</span>
-              </div>
-            )}
           </div>
         </div>
       </TableCell>
@@ -113,9 +127,24 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
             <span>Atualizando...</span>
           </div>
         ) : (
-          <Badge className={getStatusColor(task.status)}>
-            {getStatusLabel(task.status)}
-          </Badge>
+          // Mantém o Select para mudança de status para outros estados além de concluído/a fazer
+          <Select
+            value={task.status ?? ''}
+            onValueChange={(value) => {
+              onStatusChange(task.id, value);
+            }}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todo">A Fazer</SelectItem>
+              <SelectItem value="progress">Em Andamento</SelectItem>
+              <SelectItem value="done">Concluído</SelectItem>
+              <SelectItem value="late">Atrasado</SelectItem>
+            </SelectContent>
+          </Select>
         )}
       </TableCell>
       <TableCell>
@@ -171,60 +200,53 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
           <span className="text-xs text-gray-400">Sem subtarefas</span>
         )}
       </TableCell>
-      <TableCell>
-        <div className="flex items-center space-x-2">
-          <Select
-            value={task.status ?? ''}
-            onValueChange={(value) => {
-              onStatusChange(task.id, value);
-            }}
-            disabled={isLoading}
-          >
-            <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todo">A Fazer</SelectItem>
-              <SelectItem value="progress">Em Andamento</SelectItem>
-              <SelectItem value="done">Concluído</SelectItem>
-              <SelectItem value="late">Atrasado</SelectItem>
-            </SelectContent>
-          </Select>
+      <TableCell className="flex items-center space-x-2"> {/* Adiciona flexbox para alinhar os ícones */}
+        {/* Ícone de Editar */}
+        <Button variant="ghost" size="sm" onClick={(e) => {
+          e.stopPropagation(); // Impede que o clique propague para a linha
+          onTaskClick(task); // Chama a função de clique na tarefa para abrir detalhes/edição
+        }}>
+          <Edit className="w-4 h-4" />
+        </Button>
 
-          {(onArchiveTask || onDeleteTask) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {onArchiveTask && (
-                  <DropdownMenuItem onClick={(e) => {
-                    e.stopPropagation();
-                    console.log("Botão Arquivar clicado em TaskTableRow para a tarefa: ", task.id);
-                    onArchiveTask(task.id);
-                  }}>
-                    <Archive className="w-4 h-4 mr-2" />
-                    Arquivar
-                  </DropdownMenuItem>
-                )}
-                {onDeleteTask && (
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteTask(task.id);
-                    }}
-                    className="text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Excluir
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+        {/* Ícone de Deletar */}
+        {onDeleteTask && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation(); // Impede que o clique propague para a linha
+              onDeleteTask(task.id);
+            }}
+            className="text-red-600 hover:bg-red-100" // Adiciona hover visual
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+
+        {/* DropdownMenu para Arquivar e outras futuras ações */}
+        {(onArchiveTask) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {onArchiveTask && (
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  console.log("Botão Arquivar clicado em TaskTableRow para a tarefa: ", task.id);
+                  onArchiveTask(task.id);
+                }}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  Arquivar
+                </DropdownMenuItem>
+              )}
+               {/* Outras ações podem ser adicionadas aqui no futuro */}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </TableCell>
     </TableRow>
   );
