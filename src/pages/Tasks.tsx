@@ -8,11 +8,7 @@ import CreateTaskForm from '../components/CreateTaskForm';
 import TasksFilters from '../components/tasks/TasksFilters';
 import TasksEmptyState from '../components/tasks/TasksEmptyState';
 import TasksGroupedView from '../components/tasks/TasksGroupedView';
-
-import type { Task } from '@/types';
-
 import { toast } from '@/hooks/use-toast';
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,11 +19,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
 import { Badge } from '@/components/ui/badge';
 
+import type { Task } from '@/types';
+
 const Tasks = () => {
-  // Estados
   const [archiveStatusFilter, setArchiveStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | string>('all');
@@ -43,10 +39,11 @@ const Tasks = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
-  // Hook de Tarefas (agora recebe archiveStatusFilter)
-  const { tasks, loading, error, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks(periodFilter, archiveStatusFilter);
+  const { tasks, loading, error, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks(
+    focusMode ? 'today' : periodFilter,
+    archiveStatusFilter
+  );
 
-  // useMemos para filtros únicos e filtros ativos
   const uniqueAssignees = useMemo(() => {
     const assignees = new Set<string>();
     tasks.forEach(task => {
@@ -72,84 +69,56 @@ const Tasks = () => {
     return ['all', ...Array.from(tags)];
   }, [tasks]);
 
+  const overdueCount = useMemo(() => tasks.filter(t => 
+    t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done'
+  ).length, [tasks]);
+
   const activeFilters = useMemo(() => {
     const filters = [];
 
     if (searchTerm) {
-      filters.push({
-        label: `Busca: "${searchTerm}"`, 
-        onRemove: () => setSearchTerm('')
-      });
+      filters.push({ label: `Busca: "${searchTerm}"`, onRemove: () => setSearchTerm('') });
     }
-
     if (statusFilter !== 'all') {
       const statusLabel = statusFilter === 'todo' ? 'A Fazer' :
                           statusFilter === 'progress' ? 'Em Andamento' :
-                          statusFilter === 'done' ? 'Concluído' :
-                          statusFilter === 'late' ? 'Atrasado' : statusFilter;
-
-      filters.push({
-        label: `Status: ${statusLabel}`,
-        onRemove: () => setStatusFilter('all')
-      });
+                          statusFilter === 'done' ? 'Concluído' : statusFilter;
+      filters.push({ label: `Status: ${statusLabel}`, onRemove: () => setStatusFilter('all') });
     }
-
     if (priorityFilter !== 'all') {
-       const priorityLabel = priorityFilter === 'low' ? 'Baixa' :
-                             priorityFilter === 'medium' ? 'Média' :
-                             priorityFilter === 'high' ? 'Alta' : priorityFilter;
-
-      filters.push({
-        label: `Prioridade: ${priorityLabel}`,
-        onRemove: () => setPriorityFilter('all')
-      });
+      const priorityLabel = priorityFilter === 'low' ? 'Baixa' :
+                            priorityFilter === 'medium' ? 'Média' :
+                            priorityFilter === 'high' ? 'Alta' : priorityFilter;
+      filters.push({ label: `Prioridade: ${priorityLabel}`, onRemove: () => setPriorityFilter('all') });
     }
-
     if (assigneeFilter !== 'all') {
-        const assigneeLabel = assigneeFilter === 'Não Atribuído' ? assigneeFilter : (uniqueAssignees.find(a => a === assigneeFilter) || assigneeFilter);
-        filters.push({
-          label: `Responsável: ${assigneeLabel}`,
-          onRemove: () => setAssigneeFilter('all')
-        });
+      const assigneeLabel = assigneeFilter === 'Não Atribuído' ? assigneeFilter : (uniqueAssignees.find(a => a === assigneeFilter) || assigneeFilter);
+      filters.push({ label: `Responsável: ${assigneeLabel}`, onRemove: () => setAssigneeFilter('all') });
     }
-
     if (periodFilter !== 'all') {
-        const periodLabel = periodFilter === 'today' ? 'Hoje' :
+      const periodLabel = periodFilter === 'today' ? 'Hoje' :
                           periodFilter === 'week' ? 'Esta Semana' :
                           periodFilter === 'month' ? 'Este Mês' :
                           periodFilter === 'year' ? 'Este Ano' :
                           periodFilter === 'overdue' ? 'Atrasadas' : periodFilter;
-
-        filters.push({
-          label: `Período: ${periodLabel}`,
-          onRemove: () => setPeriodFilter('all')
-        });
+      filters.push({ label: `Período: ${periodLabel}`, onRemove: () => setPeriodFilter('all') });
     }
-
     if (tagFilter !== 'all') {
-       const tagLabel = uniqueTags.find(t => t === tagFilter) || tagFilter;
-       filters.push({
-         label: `Tag: ${tagLabel}`,
-         onRemove: () => setTagFilter('all')
-       });
+      const tagLabel = uniqueTags.find(t => t === tagFilter) || tagFilter;
+      filters.push({ label: `Tag: ${tagLabel}`, onRemove: () => setTagFilter('all') });
     }
-
     if (archiveStatusFilter !== 'active') {
       const archiveLabel = archiveStatusFilter === 'archived' ? 'Tarefas Arquivadas' : 'Todas Tarefas';
-      filters.push({
-        label: `Visualizando: ${archiveLabel}`,
-        onRemove: () => setArchiveStatusFilter('active')
-      });
+      filters.push({ label: `Visualizando: ${archiveLabel}`, onRemove: () => setArchiveStatusFilter('active') });
     }
-
     if (focusMode) {
-      filters.push({
-        label: 'Modo Foco: Tarefas de Hoje',
-        onRemove: () => setFocusMode(false)})
+      filters.push({ label: 'Modo Foco: Tarefas de Hoje', onRemove: () => setFocusMode(false) });
     }
-
+    if (overdueCount > 0) {
+      filters.push({ label: `Atrasadas: ${overdueCount}`, onRemove: () => setPeriodFilter('all') });
+    }
     return filters;
-  }, [searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, archiveStatusFilter, focusMode, uniqueAssignees, uniqueTags]);
+  }, [searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, archiveStatusFilter, focusMode, uniqueAssignees, uniqueTags, overdueCount]);
 
   const groupedTasks = useMemo(() => {
     const groups: { [key: string]: Task[] } = {};
@@ -165,54 +134,31 @@ const Tasks = () => {
         case 'assignee':
           groupKey = task.assignee_name || 'Não Atribuído';
           break;
-        default:
-          groupKey = task.status || 'Sem Status';
       }
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
+      if (!groups[groupKey]) groups[groupKey] = [];
       groups[groupKey].push(task);
     });
     return groups;
   }, [tasks, groupBy]);
 
-  // Funções de handler
-  const handleTaskClick = (task: Task) => {
-    setSelectedTask(task);
-  };
-
+  const handleTaskClick = (task: Task) => setSelectedTask(task);
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
       await updateTaskStatus(taskId, newStatus);
-      toast({
-        title: 'Sucesso!',
-        description: 'Status da tarefa atualizado.',
-      });
+      toast({ title: 'Sucesso!', description: 'Status da tarefa atualizado.' });
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível atualizar o status da tarefa. Tente novamente.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o status da tarefa. Tente novamente.', variant: 'destructive' });
     }
   };
 
   const handleArchiveTask = async (taskId: string) => {
-    console.log("Chamando handleArchiveTask em Tasks.tsx para a tarefa: ", taskId);
     try {
       await archiveTask(taskId);
-      toast({
-        title: 'Tarefa Arquivada!',
-        description: 'A tarefa foi movida para o arquivo.',
-      });
+      toast({ title: 'Tarefa Arquivada!', description: 'A tarefa foi movida para o arquivo.' });
     } catch (error) {
       console.error('Erro ao arquivar tarefa:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível arquivar a tarefa. Tente novamente.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Não foi possível arquivar a tarefa. Tente novamente.', variant: 'destructive' });
     }
   };
 
@@ -222,20 +168,13 @@ const Tasks = () => {
   };
 
   const confirmDeleteTask = async () => {
-    if (taskToDeleteId) {
+    if (taskToDeleteId && tasks.find(t => t.id === taskToDeleteId)) {
       try {
         await deleteTask(taskToDeleteId);
-        toast({
-          title: 'Tarefa Excluída!',
-          description: 'A tarefa foi removida permanentemente.',
-        });
+        toast({ title: 'Tarefa Excluída!', description: 'A tarefa foi removida permanentemente.' });
       } catch (error) {
         console.error('Erro ao excluir tarefa:', error);
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível excluir a tarefa. Tente novamente.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Erro', description: 'Não foi possível excluir a tarefa. Tente novamente.', variant: 'destructive' });
       } finally {
         setIsDeleteConfirmOpen(false);
         setTaskToDeleteId(null);
@@ -254,7 +193,6 @@ const Tasks = () => {
     setArchiveStatusFilter('active');
   };
 
-  // Check if any filters are applied (excluindo o filtro de arquivamento padrão)
   const hasFilters = Boolean(
     searchTerm ||
     statusFilter !== 'all' ||
@@ -266,7 +204,6 @@ const Tasks = () => {
     archiveStatusFilter !== 'active'
   );
 
-  // Renderização
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -284,21 +221,18 @@ const Tasks = () => {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Tarefas</h2>
           <p className="text-gray-600">Não foi possível carregar suas tarefas. Por favor, tente novamente mais tarde.</p>
-          <Button onClick={refetch} className="mt-4">
-            Tentar Novamente
-          </Button>
+          <Button onClick={refetch} className="mt-4">Recarregar</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-space-y-6 bg-gray-50 min-h-screen">
-      {/* Header */}
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {focusMode ? 'Modo Foco - Minhas Tarefas' : 'Tarefas'}
+            {focusMode ? `Modo Foco - Minhas Tarefas (${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})` : 'Tarefas'}
           </h1>
           <p className="text-gray-600">
             {focusMode ? 'Foque nas suas tarefas de hoje' : 'Gerencie e acompanhe suas tarefas'}
@@ -312,7 +246,6 @@ const Tasks = () => {
         </div>
       </div>
 
-      {/* Filters */}
       <TasksFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -338,7 +271,6 @@ const Tasks = () => {
         setArchiveStatusFilter={setArchiveStatusFilter}
       />
 
-      {/* Indicadores de Filtros Aplicados */}
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center mt-4">
           <span className="text-sm font-medium text-gray-700">Filtros Aplicados:</span>
@@ -350,15 +282,12 @@ const Tasks = () => {
               </svg>
             </Badge>
           ))}
-          {activeFilters.length > 0 && (
-             <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-sm text-gray-600 hover:text-gray-900 p-1">
-               Limpar Todos
-             </Button>
-           )}
+          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-sm text-gray-600 hover:text-gray-900 p-1">
+            Limpar Todos
+          </Button>
         </div>
       )}
 
-      {/* Results */}
       {tasks.length === 0 && hasFilters ? (
         <TasksEmptyState
           hasFilters={hasFilters}
@@ -367,12 +296,12 @@ const Tasks = () => {
           onClearFilters={clearAllFilters}
         />
       ) : tasks.length === 0 && !hasFilters ? (
-         <TasksEmptyState
-           hasFilters={hasFilters}
-           focusMode={focusMode}
-           onCreateTask={() => setIsCreateModalOpen(true)}
-           onClearFilters={clearAllFilters}
-         />
+        <TasksEmptyState
+          hasFilters={hasFilters}
+          focusMode={focusMode}
+          onCreateTask={() => setIsCreateModalOpen(true)}
+          onClearFilters={clearAllFilters}
+        />
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <TaskTable
@@ -392,7 +321,6 @@ const Tasks = () => {
         />
       )}
 
-      {/* Modals */}
       <CreateTaskForm
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
@@ -407,7 +335,6 @@ const Tasks = () => {
         />
       )}
 
-      {/* Modal de Confirmação de Exclusão */}
       <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
