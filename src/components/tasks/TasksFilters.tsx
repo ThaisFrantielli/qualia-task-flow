@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -101,6 +100,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
         </Button>
       </div>
 
+      {/* Grupo de Filtros de Categoria */}
       <div className="flex flex-wrap gap-4 items-center">
         {/* Busca */}
         <div className="flex-1 min-w-[200px]">
@@ -117,9 +117,16 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
         
         {/* Filtro por Status */}
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
+          {/* Ajuste de largura aqui */} 
+          <SelectTrigger className="w-[180px]">
             <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Status" />
+            <SelectValue>
+              {statusFilter === 'all' ? 'Status: Todos' :
+               statusFilter === 'todo' ? 'Status: A Fazer' :
+               statusFilter === 'progress' ? 'Status: Em Progresso' :
+               statusFilter === 'done' ? 'Status: Concluído' :
+               statusFilter === 'late' ? 'Status: Atrasado' : 'Status'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
@@ -132,8 +139,15 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
         {/* Filtro por Prioridade */}
         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Prioridade" />
+          {/* Ajuste de largura aqui */} 
+          <SelectTrigger className="w-[180px]">
+            {/* Não há ícone padrão para prioridade, manter apenas o texto ou adicionar um */} 
+            <SelectValue>
+               {priorityFilter === 'all' ? 'Prioridade: Todas' :
+                priorityFilter === 'low' ? 'Prioridade: Baixa' :
+                priorityFilter === 'medium' ? 'Prioridade: Média' :
+                priorityFilter === 'high' ? 'Prioridade: Alta' : 'Prioridade'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
@@ -143,11 +157,14 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </SelectContent>
         </Select>
 
-        {/* Filtro por Responsável */}
+        {/* Filtro por Responsável */} 
         <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-          <SelectTrigger className="w-[150px]">
+          {/* Ajuste de largura aqui */} 
+          <SelectTrigger className="w-[180px]">
             <Users className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Responsável" />
+            <SelectValue>
+               {assigneeFilter === 'all' ? 'Todos' : assigneeFilter === 'Não Atribuído' ? 'Não Atribuído' : (uniqueAssignees.find(a => a === assigneeFilter) || assigneeFilter)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
@@ -159,8 +176,11 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
         {/* Filtro por Tags */}
         <Select value={tagFilter} onValueChange={setTagFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Tags" />
+          {/* Ajuste de largura aqui */} 
+          <SelectTrigger className="w-[180px]">
+            <SelectValue>
+               {tagFilter === 'all' ? 'Todas' : (uniqueTags.find(t => t === tagFilter) || tagFilter)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
@@ -170,11 +190,14 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </SelectContent>
         </Select>
 
-        {/* NOVO: Filtro por Status de Arquivamento */}
+        {/* Filtro por Status de Arquivamento */}
         <Select value={archiveStatusFilter} onValueChange={setArchiveStatusFilter}>
-          <SelectTrigger className="w-[150px]">
+          {/* Ajuste de largura aqui */} 
+          <SelectTrigger className="w-[180px]">
             <Archive className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Arquivamento" />
+             <SelectValue>
+              {archiveStatusFilter === 'all' ? 'Todas' : archiveStatusFilter === 'active' ? 'Ativas' : 'Arquivadas'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Ativas</SelectItem>
@@ -182,46 +205,50 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             <SelectItem value="all">Todas</SelectItem>
           </SelectContent>
         </Select>
+      </div>
 
-        {/* Controles de Visualização */}
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-          >
-            Lista
-          </Button>
-          <Button
-            variant={viewMode === 'grouped' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('grouped')}
-          >
-            Agrupar
-          </Button>
-          <Button
-            variant={focusMode ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFocusMode(!focusMode)}
-            className="flex items-center gap-2"
-          >
-            Modo Foco
-          </Button>
-        </div>
+      {/* Grupo de Controles de Visualização */}
+      <div className="flex flex-wrap gap-4 items-center">
+         {/* Controles de Visualização (Lista, Agrupar, Modo Foco) */} 
+         <div className="flex gap-2">
+           <Button
+             variant={viewMode === 'list' ? 'default' : 'outline'}
+             size="sm"
+             onClick={() => setViewMode('list')}
+           >
+             Lista
+           </Button>
+           <Button
+             variant={viewMode === 'grouped' ? 'default' : 'outline'}
+             size="sm"
+             onClick={() => setViewMode('grouped')}
+           >
+             Agrupar
+           </Button>
+           <Button
+             variant={focusMode ? 'default' : 'outline'}
+             size="sm"
+             onClick={() => setFocusMode(!focusMode)}
+             className="flex items-center gap-2"
+           >
+             Modo Foco
+           </Button>
+         </div>
 
-        {/* Agrupar Por - Só aparece quando em modo agrupado */}
-        {viewMode === 'grouped' && (
-          <Select value={groupBy} onValueChange={setGroupBy}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Agrupar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="status">Status</SelectItem>
-              <SelectItem value="project">Projeto</SelectItem>
-              <SelectItem value="assignee">Responsável</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
+         {/* Agrupar Por - Só aparece quando em modo agrupado */}
+         {viewMode === 'grouped' && (
+           <Select value={groupBy} onValueChange={setGroupBy}>
+             {/* Ajuste de largura aqui */} 
+             <SelectTrigger className="w-[180px]">
+               <SelectValue placeholder="Agrupar por" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="status">Status</SelectItem>
+               <SelectItem value="project">Projeto</SelectItem>
+               <SelectItem value="assignee">Responsável</SelectItem>
+             </SelectContent>
+           </Select>
+         )}
       </div>
     </div>
   );
