@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../hooks/useTasks';
-import { Plus } from 'lucide-react';
+import { Plus, Target } from 'lucide-react'; // Importar Target para o Modo Foco
 import { Button } from '@/components/ui/button';
 import TaskTable from '../components/TaskTable';
 import TaskDetailsModal from '../components/TaskDetailsModal';
@@ -229,7 +229,7 @@ const Tasks = () => {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {focusMode ? `Modo Foco - Minhas Tarefas (${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})` : 'Tarefas'}
@@ -239,9 +239,17 @@ const Tasks = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button onClick={() => setIsCreateModalOpen(true)} className="custom-button">
+          <Button onClick={() => setIsCreateModalOpen(true)} className="custom-button flex items-center">
             <Plus className="w-4 h-4 mr-2" />
             Nova Tarefa
+          </Button>
+           <Button
+            variant={focusMode ? 'default' : 'outline'}
+            onClick={() => setFocusMode(!focusMode)}
+            className={`flex items-center ${focusMode ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : ''}`}
+          >
+            <Target className="w-4 h-4 mr-2" />
+            Modo Foco
           </Button>
         </div>
       </div>

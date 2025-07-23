@@ -15,15 +15,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { 
-  MessageCircle, 
-  Paperclip, 
-  CheckCircle2, 
-  MoreHorizontal, 
-  Archive, 
-  Trash2, 
-  Loader2, 
-  Edit, 
+import {
+  MessageCircle,
+  Paperclip,
+  CheckCircle2,
+  MoreHorizontal,
+  Archive,
+  Trash2,
+  Loader2,
+  Edit,
   AlertTriangle, // Ícone para atraso
   Clock, // Ícone para prazo
   Circle // Ícone genérico para progresso/status sem subtarefas
@@ -117,206 +117,198 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
   };
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <TableRow
-            className="cursor-pointer hover:bg-gray-50"
-            onClick={() => onTaskClick(task)}
-          >
-            <TableCell className="w-[300px]">
-              <div className="flex items-center space-x-3">
-                <Checkbox
-                  checked={task.status === 'done'}
-                  onCheckedChange={handleCheckboxChange}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900 mb-1">{task.title}</div>
-                  {task.description && (
-                    <div className="text-sm text-gray-500 line-clamp-2">
-                      {task.description}
-                    </div>
-                  )}
-                  <div className="flex items-center space-x-4 mt-2">
-                    {isOverdue && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <AlertTriangle className="w-3 h-3 text-red-500" />
-                        </TooltipTrigger>
-                        <TooltipContent>Atrasada</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {isRecentlyCompleted && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <CheckCircle2 className="w-3 h-3 text-green-500" />
-                        </TooltipTrigger>
-                        <TooltipContent>Concluída Recentemente</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {task.comments && task.comments.length > 0 && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center space-x-1 text-xs text-gray-500">
-                            <MessageCircle className="w-3 h-3" />
-                            <span>{task.comments.length}</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>{`Comentários: ${task.comments.length}`}</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {task.attachments && task.attachments.length > 0 && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center space-x-1 text-xs text-gray-500">
-                            <Paperclip className="w-3 h-3" />
-                            <span>{task.attachments.length}</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>{`Anexos: ${task.attachments.length}`}</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {!isOverdue && task.due_date && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Clock className="w-3 h-3 text-gray-500" />
-                        </TooltipTrigger>
-                        <TooltipContent>{`Prazo: ${formatDate(task.due_date)}`}</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </div>
+    <TableRow
+      className="cursor-pointer hover:bg-gray-50"
+      onClick={() => onTaskClick(task)}
+    >
+      <TableCell className="w-[300px]">
+        <div className="flex items-center space-x-3">
+          <Checkbox
+            checked={task.status === 'done'}
+            onCheckedChange={handleCheckboxChange}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="flex-1">
+            <div className="font-medium text-gray-900 mb-1">{task.title}</div>
+            {task.description && (
+              <div className="text-sm text-gray-500 line-clamp-2">
+                {task.description}
               </div>
-            </TableCell>
-            <TableCell>
-              {isLoading ? (
-                <div className="flex items-center">
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  <span>Atualizando...</span>
-                </div>
-              ) : (
-                <Select
-                  value={task.status ?? ''}
-                  onValueChange={(value) => {
-                    onStatusChange(task.id, value);
-                  }}
-                  disabled={isLoading || task.status === 'done' || task.status === 'late'}
-                >
-                  <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todo">A Fazer</SelectItem>
-                    <SelectItem value="progress">Em Andamento</SelectItem>
-                  </SelectContent>
-                </Select>
+            )}
+            <div className="flex items-center space-x-4 mt-2">
+              {isOverdue && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <AlertTriangle className="w-3 h-3 text-red-500" />
+                    </TooltipTrigger>
+                    <TooltipContent>Atrasada</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
-            </TableCell>
-            <TableCell>
-              <Badge className={getPriorityColor(task.priority)}>
-                {getPriorityLabel(task.priority)}
-              </Badge>
-            </TableCell>
-            <TableCell>
-              <div className="flex items-center space-x-2">
-                <Avatar className="w-6 h-6">
-                  <AvatarImage src={task.assignee_avatar ?? undefined} />
-                  <AvatarFallback className="text-xs">
-                    {task.assignee_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'NA'}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm text-gray-700">
-                  {task.assignee_name || 'Não atribuído'}
-                </span>
-              </div>
-            </TableCell>
-            <TableCell>
-              <span className="text-sm text-gray-700">
-                {task.project?.name || 'Sem projeto'}
-              </span>
-            </TableCell>
-            <TableCell>
-              {/* Célula de prazo vazia, já que o ícone está na primeira célula */}
-            </TableCell>
-            <TableCell>
-              {subtasksTotal > 0 ? (
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle2 className="w-3 h-3 text-green-500" />
-                    <span className="text-xs text-gray-600">
-                      {subtasksCompleted}/{subtasksTotal}
-                    </span>
-                  </div>
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div
-                      className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${subtaskProgress}%` }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className={`flex items-center space-x-1 text-xs ${getStatusColor(task.status)}`}>
-                  <Circle className="w-3 h-3 fill-current" />
-                  <span>{getStatusLabel(task.status)}</span>
-                </div>
+              {isRecentlyCompleted && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    </TooltipTrigger>
+                    <TooltipContent>Concluída Recentemente</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
-            </TableCell>
-            <TableCell className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm" onClick={(e) => {
-                e.stopPropagation();
-                onTaskClick(task);
-              }}>
-                <Edit className="w-4 h-4" />
-              </Button>
-              {onDeleteTask && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteTask(task.id);
-                  }}
-                  className="text-red-600 hover:bg-red-100"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+              {task.comments && task.comments.length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center space-x-1 text-xs text-gray-500">
+                        <MessageCircle className="w-3 h-3" />
+                        <span>{task.comments.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{`Comentários: ${task.comments.length}`}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
-              {onArchiveTask && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={(e) => {
-                      e.stopPropagation();
-                      onArchiveTask(task.id);
-                    }}>
-                      <Archive className="w-4 h-4 mr-2" />
-                      Arquivar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {task.attachments && task.attachments.length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center space-x-1 text-xs text-gray-500">
+                        <Paperclip className="w-3 h-3" />
+                        <span>{task.attachments.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{`Anexos: ${task.attachments.length}`}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
-            </TableCell>
-          </TableRow>
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="p-2 text-sm">
-            <p className="font-medium mb-1">{task.title}</p>
-            {task.description && <p className="text-gray-600 mb-1">{task.description}</p>}
-            <p className="text-gray-500 text-xs">Criada em: {formatDate(task.created_at)}</p>
-            {task.due_date && <p className="text-gray-500 text-xs">Prazo: {formatDate(task.due_date)}</p>}
-            {task.delegated_by && <p className="text-gray-500 text-xs">Delegada por: {task.delegated_by}</p>}
-            {task.project?.name && <p className="text-gray-500 text-xs">Projeto: {task.project.name}</p>}
-            {task.comments && task.comments.length > 0 && <p className="text-gray-500 text-xs">Comentários: {task.comments.length}</p>}
-            {task.attachments && task.attachments.length > 0 && <p className="text-gray-500 text-xs">Anexos: {task.attachments.length}</p>}
+              {!isOverdue && task.due_date && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Clock className="w-3 h-3 text-gray-500" />
+                    </TooltipTrigger>
+                    <TooltipContent>{`Prazo: ${formatDate(task.due_date)}`}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
           </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </div>
+      </TableCell>
+      <TableCell>
+        {isLoading ? (
+          <div className="flex items-center">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <span>Atualizando...</span>
+          </div>
+        ) : (
+          <Select
+            value={task.status ?? ''}
+            onValueChange={(value) => {
+              onStatusChange(task.id, value);
+            }}
+            disabled={isLoading || task.status === 'done' || task.status === 'late'}
+          >
+            <SelectTrigger className="w-32 h-8 text-xs" onClick={(e) => e.stopPropagation()}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todo">A Fazer</SelectItem>
+              <SelectItem value="progress">Em Andamento</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </TableCell>
+      <TableCell>
+        <Badge className={getPriorityColor(task.priority)}>
+          {getPriorityLabel(task.priority)}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center space-x-2">
+          <Avatar className="w-6 h-6">
+            <AvatarImage src={task.assignee_avatar ?? undefined} />
+            <AvatarFallback className="text-xs">
+              {task.assignee_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'NA'}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-sm text-gray-700">
+            {task.assignee_name || 'Não atribuído'}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <span className="text-sm text-gray-700">
+          {task.project?.name || 'Sem projeto'}
+        </span>
+      </TableCell>
+      <TableCell>
+        {/* Célula de prazo vazia, já que o ícone está na primeira célula */}
+      </TableCell>
+      <TableCell>
+        {subtasksTotal > 0 ? (
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1">
+              <CheckCircle2 className="w-3 h-3 text-green-500" />
+              <span className="text-xs text-gray-600">
+                {subtasksCompleted}/{subtasksTotal}
+              </span>
+            </div>
+            <div className="w-16 bg-gray-200 rounded-full h-1.5">
+              <div
+                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${subtaskProgress}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className={`flex items-center space-x-1 text-xs ${getStatusColor(task.status)}`}>
+            <Circle className="w-3 h-3 fill-current" />
+            <span>{getStatusLabel(task.status)}</span>
+          </div>
+        )}
+      </TableCell>
+      <TableCell className="flex items-center space-x-2">
+        <Button variant="ghost" size="sm" onClick={(e) => {
+          e.stopPropagation();
+          onTaskClick(task);
+        }}>
+          <Edit className="w-4 h-4" />
+        </Button>
+        {onDeleteTask && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteTask(task.id);
+            }}
+            className="text-red-600 hover:bg-red-100"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+        {onArchiveTask && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={(e) => {
+                e.stopPropagation();
+                onArchiveTask(task.id);
+              }}>
+                <Archive className="w-4 h-4 mr-2" />
+                Arquivar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </TableCell>
+    </TableRow>
   );
 };
 
