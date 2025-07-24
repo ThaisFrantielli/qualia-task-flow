@@ -1,118 +1,34 @@
+// src/pages/Notifications.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Check, Trash2, Clock, AlertCircle, Info, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-interface Notification {
-  id: string;
-  type: 'info' | 'warning' | 'success' | 'error';
-  title: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-  actionRequired?: boolean;
-}
+import { useNotifications } from '@/hooks/useNotifications';
+import type { Notification } from '@/types'; // Import the Notification type
 
 const Notifications = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'warning',
-      title: 'Tarefa com prazo próximo',
-      message: 'A tarefa "Implementar sistema de login" vence em 2 dias.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      read: false,
-      actionRequired: true
-    },
-    {
-      id: '2',
-      type: 'success',
-      title: 'Tarefa concluída',
-      message: 'João Silva marcou a tarefa "Design da homepage" como concluída.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      read: false
-    },
-    {
-      id: '3',
-      type: 'info',
-      title: 'Nova tarefa atribuída',
-      message: 'Você foi atribuído à tarefa "Revisar código do backend".',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4),
-      read: true
-    },
-    {
-      id: '4',
-      type: 'error',
-      title: 'Tarefa atrasada',
-      message: 'A tarefa "Configurar servidor de produção" está atrasada há 1 dia.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      read: false,
-      actionRequired: true
-    },
-    {
-      id: '5',
-      type: 'info',
-      title: 'Comentário adicionado',
-      message: 'Maria Santos adicionou um comentário na tarefa "Teste de integração".',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48),
-      read: true
+  const { notifications, loading, error, markAsRead, markAllAsRead, deleteNotification, clearAllNotifications, refetch } = useNotifications(); // Include clearAllNotifications
+
+  useEffect(() => {
+    if (refetch) {
+      refetch();
     }
-  ]);
+  }, [refetch]);
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notif => ({ ...notif, read: true }))
-    );
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
-  };
-
-  const clearAllNotifications = () => {
-    setNotifications([]);
-  };
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'warning':
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
-      case 'error':
-        return <AlertCircle className="w-5 h-5 text-red-500" />;
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      default:
-        return <Info className="w-5 h-5 text-blue-500" />;
-    }
-  };
-
-  const getBadgeVariant = (type: string) => {
-    switch (type) {
-      case 'warning':
-        return 'secondary';
-      case 'error':
-        return 'destructive';
-      case 'success':
-        return 'default';
-      default:
-        return 'outline';
-    }
-  };
-
-  const formatTimestamp = (timestamp: Date) => {
+  // Function to format timestamp (using created_at)
+  const formatTimestamp = (timestamp: string) => { // Expecting string from DB
     const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
+    const time = new Date(timestamp); // Convert string to Date
+
+    if (isNaN(time.getTime())) {
+      return 'Data inválida';
+    }
+
+    const diff = now.getTime() - time.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -126,8 +42,80 @@ const Notifications = () => {
     }
   };
 
+  // Helper function to determine if a notification requires action
+  // Based on your original code, you had actionRequired.
+  // Since the column doesn't exist, we need another way to determine this.
+  // For now, let's assume notifications of type 'warning' or 'error' require action.
+  // ADJUST THIS LOGIC based on how you truly determine if a notification requires action.
+  const requiresAction = (notification: Notification): boolean => {
+      return notification.type === 'warning' || notification.type === 'error';
+      // Or maybe check a specific field in the 'data' JSONB column?
+      // return notification.data?.requires_action === true; // Example if data has a requires_action field
+  };
+
+
+  // Calculate unread and action required notifications based on actual data
   const unreadNotifications = notifications.filter(n => !n.read);
-  const actionRequiredNotifications = notifications.filter(n => n.actionRequired && !n.read);
+  // Use the requiresAction helper
+  const actionRequiredNotifications = notifications.filter(n => requiresAction(n) && !n.read);
+
+
+  // ... (keep getNotificationIcon and getBadgeVariant functions as they were) ...
+   const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'warning':
+        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'info':
+        return <Info className="w-5 h-5 text-blue-500" />;
+      default:
+        return <Info className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  const getBadgeVariant = (type: string) => {
+    switch (type) {
+      case 'warning':
+        return 'secondary';
+      case 'error':
+        return 'destructive';
+      case 'success':
+        return 'default';
+      case 'info':
+        return 'outline';
+      default:
+        return 'secondary';
+    }
+  };
+
+
+  // Render loading or error state
+  if (loading) {
+    return (
+       <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando notificações...</p>
+          </div>
+        </div>
+    );
+  }
+
+  if (error) {
+     return (
+       <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Notificações</h2>
+            <p className="text-gray-600">{error}</p>
+            {refetch && <Button onClick={refetch} className="mt-4">Tentar Novamente</Button>}
+          </div>
+        </div>
+    );
+  }
+
 
   return (
     <div className="p-6 space-y-6">
@@ -138,11 +126,12 @@ const Notifications = () => {
           <p className="text-gray-600">Acompanhe atualizações e ações necessárias</p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={markAllAsRead}>
+           {/* Botões usam as funções do hook */}
+          <Button variant="outline" onClick={markAllAsRead} disabled={notifications.length === 0}>
             <Check className="w-4 h-4 mr-2" />
             Marcar todas como lidas
           </Button>
-          <Button variant="outline" onClick={clearAllNotifications}>
+          <Button variant="outline" onClick={clearAllNotifications} disabled={notifications.length === 0}> {/* Use clearAllNotifications from hook */}
             <Trash2 className="w-4 h-4 mr-2" />
             Limpar todas
           </Button>
@@ -165,6 +154,7 @@ const Notifications = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Não Lidas</CardTitle>
+             {/* Usar ícone apropriado, talvez um olho ou um ponto */}
             <AlertCircle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
@@ -176,6 +166,7 @@ const Notifications = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ação Necessária</CardTitle>
+             {/* Usar ícone apropriado, talvez um alerta */}
             <Clock className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
@@ -185,7 +176,7 @@ const Notifications = () => {
         </Card>
       </div>
 
-      {/* Notifications */}
+      {/* Notifications List */}
       <Tabs defaultValue="all" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="all">Todas ({notifications.length})</TabsTrigger>
@@ -193,6 +184,7 @@ const Notifications = () => {
           <TabsTrigger value="action">Ação Necessária ({actionRequiredNotifications.length})</TabsTrigger>
         </TabsList>
 
+        {/* Aba Todas */}
         <TabsContent value="all" className="space-y-4">
           {notifications.length === 0 ? (
             <div className="text-center py-8">
@@ -210,7 +202,8 @@ const Notifications = () => {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <CardTitle className="text-base">{notification.title}</CardTitle>
-                          {notification.actionRequired && (
+                           {/* Usar o helper requiresAction */}
+                          {requiresAction(notification) && (
                             <Badge variant="destructive" className="text-xs">
                               Ação necessária
                             </Badge>
@@ -228,8 +221,9 @@ const Notifications = () => {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-gray-500">
-                        {formatTimestamp(notification.timestamp)}
+                        {formatTimestamp(notification.created_at)} {/* Use created_at */}
                       </span>
+                      {/* Botão Marcar como Lida usa a função do hook */}
                       {!notification.read && (
                         <Button
                           variant="ghost"
@@ -239,10 +233,11 @@ const Notifications = () => {
                           <Check className="w-4 h-4" />
                         </Button>
                       )}
+                      {/* Botão Excluir usa a função do hook */}
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={() => deleteNotification(notification.id)} // Use deleteNotification from hook
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -254,6 +249,7 @@ const Notifications = () => {
           )}
         </TabsContent>
 
+        {/* Aba Não Lidas */}
         <TabsContent value="unread" className="space-y-4">
           {unreadNotifications.length === 0 ? (
             <div className="text-center py-8">
@@ -272,7 +268,8 @@ const Notifications = () => {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <CardTitle className="text-base">{notification.title}</CardTitle>
-                          {notification.actionRequired && (
+                           {/* Usar o helper requiresAction */}
+                          {requiresAction(notification) && (
                             <Badge variant="destructive" className="text-xs">
                               Ação necessária
                             </Badge>
@@ -288,7 +285,7 @@ const Notifications = () => {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-gray-500">
-                        {formatTimestamp(notification.timestamp)}
+                        {formatTimestamp(notification.created_at)} {/* Use created_at */}
                       </span>
                       <Button
                         variant="ghost"
@@ -300,7 +297,7 @@ const Notifications = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={() => deleteNotification(notification.id)} // Use deleteNotification
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -312,6 +309,7 @@ const Notifications = () => {
           )}
         </TabsContent>
 
+         {/* Aba Ação Necessária */}
         <TabsContent value="action" className="space-y-4">
           {actionRequiredNotifications.length === 0 ? (
             <div className="text-center py-8">
@@ -322,7 +320,7 @@ const Notifications = () => {
           ) : (
             actionRequiredNotifications.map((notification) => (
               <Card key={notification.id} className="border-l-4 border-l-red-500">
-                {/* Same notification card content */}
+                {/* Mesmíssimo conteúdo do Card de Notificação */}
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
@@ -333,9 +331,12 @@ const Notifications = () => {
                           <Badge variant="destructive" className="text-xs">
                             Ação necessária
                           </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            Nova
-                          </Badge>
+                          {/* Manter badge "Nova" apenas se a notificação for nova E não lida */}
+                          {!notification.read && (
+                              <Badge variant="secondary" className="text-xs">
+                                Nova
+                              </Badge>
+                          )}
                         </div>
                         <CardDescription className="text-sm text-gray-600 mt-1">
                           {notification.message}
@@ -344,19 +345,23 @@ const Notifications = () => {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-gray-500">
-                        {formatTimestamp(notification.timestamp)}
+                        {formatTimestamp(notification.created_at)} {/* Use created_at */}
                       </span>
+                       {/* Botão Marcar como Lida usa a função do hook */}
+                      {!notification.read && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => markAsRead(notification.id)}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {/* Botão Excluir usa a função do hook */}
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => markAsRead(notification.id)}
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={() => deleteNotification(notification.id)} // Use deleteNotification
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

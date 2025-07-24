@@ -1,5 +1,3 @@
-// src/App.tsx
-
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 // Importe suas páginas
@@ -11,6 +9,8 @@ import Projects from './pages/Projects';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
 import NotFound from './pages/NotFound';
+import SettingsPage from './pages/Settings'; // <-- Importe o componente Settings
+import NotificationsPage from './pages/Notifications'; // <-- Importe a página de Notificações
 
 // Importe o componente de rota protegida e seu layout principal
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -31,6 +31,10 @@ function App() {
             <Route path="/kanban" element={<Kanban />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/projects" element={<Projects />} />
+            {/* Adicione a rota /settings aqui dentro das rotas protegidas */}
+            <Route path="/settings" element={<SettingsPage />} /> {/* <-- Nova rota para Configurações */}
+            {/* Adicione a rota /notifications aqui dentro das rotas protegidas */}
+            <Route path="/notifications" element={<NotificationsPage />} /> {/* <-- Rota para Notificações */}
             {/* Adicione aqui todas as outras rotas que devem ser protegidas */}
           </Route>
         </Route>
