@@ -6,6 +6,12 @@ import { useAuth } from '@/contexts/AuthContext';
 export const useTasks = (
   periodFilter: string = 'all',
   archiveStatusFilter: 'active' | 'archived' | 'all' = 'active',
+  projectFilter: string = 'all', // Add projectFilter parameter
+  assigneeFilter: string = 'all', // Add assigneeFilter parameter
+  statusFilter: string = 'all', // Add statusFilter parameter
+  priorityFilter: string = 'all', // Add priorityFilter parameter
+  searchTerm: string = '', // Add searchTerm parameter
+  tagFilter: string = 'all', // Add tagFilter parameter
   myTasksFilter: boolean = false,
   recentlyCompletedFilter: boolean = false,
   delegatedByMeFilter: boolean = false,
@@ -23,7 +29,20 @@ export const useTasks = (
       return;
     }
 
-    console.log('Fetching tasks at:', new Date().toISOString());
+    console.log('Fetching tasks with filters:', {
+      periodFilter,
+      archiveStatusFilter,
+      projectFilter, // Log projectFilter
+      assigneeFilter,
+      statusFilter,
+      priorityFilter,
+      searchTerm,
+      tagFilter,
+      myTasksFilter,
+      recentlyCompletedFilter,
+      delegatedByMeFilter,
+    });
+
     try {
       setLoading(true);
       setError(null);
@@ -71,6 +90,40 @@ export const useTasks = (
         query = query.eq('archived', true);
       }
 
+      // Apply project filter
+      if (projectFilter !== 'all') {
+        query = query.eq('project_id', projectFilter);
+      }
+
+      // Apply assignee filter
+       if (assigneeFilter !== 'all') {
+           query = query.eq('assignee_id', assigneeFilter);
+       }
+
+      // Apply status filter
+       if (statusFilter !== 'all') {
+           query = query.eq('status', statusFilter);
+       }
+
+      // Apply priority filter
+       if (priorityFilter !== 'all') {
+           query = query.eq('priority', priorityFilter);
+       }
+
+      // Apply search term filter
+       if (searchTerm) {
+           query = query.or(
+               `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+               // Add other searchable fields here if needed
+           );
+       }
+
+      // Apply tag filter (assuming tags are stored as a comma-separated string or similar)
+       if (tagFilter !== 'all') {
+           query = query.like('tags', `%{${tagFilter}}%`); // Adjust based on how tags are stored
+       }
+
+
       if (myTasksFilter && user?.id) {
         query = query.eq('assignee_id', user.id);
       }
@@ -94,7 +147,7 @@ export const useTasks = (
     } finally {
       setLoading(false);
     }
-  }, [periodFilter, archiveStatusFilter, myTasksFilter, recentlyCompletedFilter, delegatedByMeFilter, user, limit]);
+  }, [periodFilter, archiveStatusFilter, projectFilter, assigneeFilter, statusFilter, priorityFilter, searchTerm, tagFilter, myTasksFilter, recentlyCompletedFilter, delegatedByMeFilter, user, limit]);
 
   useEffect(() => {
     fetchTasks();
