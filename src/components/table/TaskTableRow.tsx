@@ -16,17 +16,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  MessageCircle,
-  Paperclip,
   CheckCircle2,
   MoreHorizontal,
   Archive,
   Trash2,
   Loader2,
   Edit,
-  AlertTriangle, // Ícone para atraso
-  Clock, // Ícone para prazo
-  Circle // Ícone genérico para progresso/status sem subtarefas
+  AlertTriangle,
+  Clock,
+  Circle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -37,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import type { Task } from '@/types';
+import type { Task } from '@/types'; // Importa Task de src/types/index.ts
 
 interface TaskTableRowProps {
   task: Task;
@@ -46,10 +44,9 @@ interface TaskTableRowProps {
   onArchiveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
   isLoading: boolean;
-  // Nova prop para edição inline de prioridade e responsável
   onPriorityChange: (taskId: string, priority: string) => void;
-  onAssigneeChange: (taskId: string, assigneeId: string | null) => void; // Assumindo que assigneeId é um string ou null
-  availableAssignees: { id: string; name: string; avatar_url?: string | null }[]; // Lista de usuários disponíveis
+  onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
+  availableAssignees: { id: string; name: string; avatar_url?: string | null }[];
 }
 
 const TaskTableRow: React.FC<TaskTableRowProps> = ({
@@ -127,7 +124,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
 
   return (
     <TableRow
-      className="cursor-pointer hover:bg-gray-50"
+      className={`cursor-pointer hover:bg-gray-50 ${task.archived === true ? 'opacity-50' : ''}`}
       onClick={() => onTaskClick(task)}
     >
       <TableCell className="w-[300px]">
@@ -216,14 +213,14 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
          ) : (
           <Select
             value={task.assignee_id ?? ''} // Usar assignee_id para o Select
-            onValueChange={(value) => onAssigneeChange(task.id, value === '' ? null : value)} // Passar null se 'Não atribuído' for selecionado
+            onValueChange={(value) => onAssigneeChange(task.id, value === '' ? null : value)} // Passar null se '' for selecionado
             disabled={isLoading}
           >
             <SelectTrigger className="w-40 h-8 text-xs">
               <SelectValue placeholder="Selecionar responsável" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Não atribuído</SelectItem>
+              {/* Removido SelectItem com value="" */}
               {availableAssignees.map(assignee => (
                 <SelectItem key={assignee.id} value={assignee.id}>
                    <div className="flex items-center space-x-2">
