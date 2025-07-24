@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, Users, Calendar, AlertTriangle, Archive } from 'lucide-react';
+import { Search, Filter, Users, Calendar, AlertTriangle, Archive, ChevronDown } from 'lucide-react'; // Importar ChevronDown para o ícone do select
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Importar tipos
@@ -23,9 +23,9 @@ interface TasksFiltersProps {
   setTagFilter: (tag: string) => void;
   projectFilter: string;
   setProjectFilter: (project: string) => void;
-  availableAssignees: User[];
-  uniqueTags: string[];
-  uniqueProjects: Project[];
+  availableAssignees: User[] | null; // Pode ser null
+  uniqueTags: string[] | null; // Pode ser null
+  uniqueProjects: Project[] | null; // Pode ser null
   viewMode: 'list' | 'grouped';
   setViewMode: (mode: 'list' | 'grouped') => void;
   focusMode: boolean;
@@ -70,6 +70,33 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
   onClearFilters // Destructure onClearFilters
 }) => {
 
+  const getPriorityIndicator = (priority: string) => {
+    switch (priority) {
+      case 'low':
+        return <span className="w-2 h-2 rounded-full bg-green-500"></span>;
+      case 'medium':
+        return <span className="w-2 h-2 rounded-full bg-yellow-500"></span>;
+      case 'high':
+        return <span className="w-2 h-2 rounded-full bg-red-500"></span>;
+      default:
+        return null;
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case 'low':
+        return 'Baixa';
+      case 'medium':
+        return 'Média';
+      case 'high':
+        return 'Alta';
+      default:
+        return 'Prioridade';
+    }
+  };
+
+
   return (
     <TooltipProvider>
       <div className="bg-white rounded-lg shadow-sm p-4 space-y-4 border border-gray-200">
@@ -86,13 +113,14 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
               <SelectValue>
                 {statusFilter === 'all' ? 'Todos status' :
                  statusFilter === 'todo' ? 'Status: A Fazer' :
                  statusFilter === 'progress' ? 'Status: Em Progresso' :
                  statusFilter === 'done' ? 'Status: Concluído' : 'Status'}
               </SelectValue>
+               <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos status</SelectItem>
@@ -103,24 +131,37 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </Select>
 
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
               <SelectValue>
-                {priorityFilter === 'all' ? 'Todas prioridades' :
-                 priorityFilter === 'low' ? 'Prioridade: Baixa' :
-                 priorityFilter === 'medium' ? 'Prioridade: Média' :
-                 priorityFilter === 'high' ? 'Prioridade: Alta' : 'Prioridade'}
+                <div className="flex items-center gap-2">
+                   {priorityFilter !== 'all' && getPriorityIndicator(priorityFilter)}
+                   {priorityFilter === 'all' ? 'Todas prioridades' : getPriorityLabel(priorityFilter)}
+                </div>
               </SelectValue>
+               <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas prioridades</SelectItem>
-              <SelectItem value="low">Baixa</SelectItem>
-              <SelectItem value="medium">Média</SelectItem>
-              <SelectItem value="high">Alta</SelectItem>
+              <SelectItem value="low">
+                <span className="flex items-center">
+                  <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span> Baixa
+                </span>
+              </SelectItem>
+              <SelectItem value="medium">
+                <span className="flex items-center">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></span> Média
+                </span>
+              </SelectItem>
+              <SelectItem value="high">
+                <span className="flex items-center">
+                  <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span> Alta
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
 
            <Select value={periodFilter} onValueChange={setPeriodFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
               <SelectValue>
                 {periodFilter === 'all' ? 'Todos períodos' :
                  periodFilter === 'today' ? 'Período: Hoje' :
@@ -129,6 +170,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
                  periodFilter === 'year' ? 'Período: Este Ano' :
                  periodFilter === 'overdue' ? 'Período: Atrasadas' : 'Período'}
               </SelectValue>
+              <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos períodos</SelectItem>
@@ -146,18 +188,21 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
            {/* Filtro de Responsável visível */}
            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
-              <Users className="w-4 h-4 mr-2" />
-              <SelectValue>
-                {/* Usar full_name para exibir */}
-                {assigneeFilter === 'all' ? 'Todos responsáveis' : (availableAssignees.find(a => a.id === assigneeFilter)?.full_name || assigneeFilter)}
-              </SelectValue>
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                 <Users className="w-4 h-4" />{/* Ícone antes do texto */}
+                <SelectValue>
+                  {/* Usar full_name para exibir */}
+                  {assigneeFilter === 'all' ? 'Todos responsáveis' : (availableAssignees?.find(a => a.id === assigneeFilter)?.full_name || assigneeFilter)}
+                </SelectValue>
+              </div>
+               <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               {/* Usar id para o valor, full_name para o texto */}
               <SelectItem value="all">Todos responsáveis</SelectItem>
-              <SelectItem value="">Não atribuído</SelectItem>
-              {availableAssignees.filter(a => a.id !== '' && a.id !== 'all').map(assignee => (
+              {/* <SelectItem value="">Não atribuído</SelectItem> Removido item com valor vazio*/}
+              {availableAssignees && availableAssignees.filter(a => a.id !== '' && a.id !== 'all').map(assignee => (
                 <SelectItem key={assignee.id} value={assignee.id}>{assignee.full_name}</SelectItem>
               ))}
             </SelectContent>
@@ -165,15 +210,18 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
            {/* Filtro de Projeto visível */}
            <Select value={projectFilter} onValueChange={setProjectFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
-               {/* Ícone para projeto - adicionar se houver um ícone relevante */}
-              <SelectValue>
-                {projectFilter === 'all' ? 'Todos projetos' : (uniqueProjects.find(p => p.id === projectFilter)?.name || projectFilter)}
-              </SelectValue>
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
+               <div className="flex items-center gap-2">
+                  {/* Adicionar ícone para projeto se houver um relevante */}
+                 <SelectValue>
+                   {projectFilter === 'all' ? 'Todos projetos' : (uniqueProjects?.find(p => p.id === projectFilter)?.name || projectFilter)}
+                 </SelectValue>
+               </div>
+               <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
                <SelectItem value="all">Todos projetos</SelectItem>
-              {uniqueProjects.filter(p => p.id !== 'all').map(project => (
+              {uniqueProjects && uniqueProjects.filter(p => p.id !== 'all').map(project => (
                  <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
               ))}
             </SelectContent>
@@ -181,14 +229,15 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
            {/* Filtro de Tag */}
            <Select value={tagFilter} onValueChange={setTagFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
               <SelectValue>
-                {tagFilter === 'all' ? 'Todas tags' : (uniqueTags.find(t => t === tagFilter) || tagFilter)}
+                {tagFilter === 'all' ? 'Todas tags' : (uniqueTags?.find(t => t === tagFilter) || tagFilter)}
               </SelectValue>
+              <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas tags</SelectItem>
-              {uniqueTags.map(tag => (
+              {uniqueTags && uniqueTags.map(tag => (
                 <SelectItem key={tag} value={tag}>{tag}</SelectItem>
               ))}
             </SelectContent>
@@ -196,10 +245,11 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
           {/* Filtros de Visualização, Agrupar por, Arquivados */}
            <Select value={viewMode} onValueChange={(value: "list" | "grouped") => setViewMode(value)}>
-            <SelectTrigger className="w-full md:w-[180px]">
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
               <SelectValue>
                  {viewMode === 'list' ? 'Visualização em Lista' : 'Visualização Agrupada'}
               </SelectValue>
+              <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="list">Visualização em Lista</SelectItem>
@@ -209,8 +259,9 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
 
           {viewMode === 'grouped' && (
             <Select value={groupBy} onValueChange={(value: "status" | "project" | "assignee") => setGroupBy(value)}>
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
                 <SelectValue placeholder="Agrupar por" />
+                <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="status">Status</SelectItem>
@@ -221,11 +272,14 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           )}
 
           <Select value={archiveStatusFilter} onValueChange={setArchiveStatusFilter}>
-            <SelectTrigger className="w-full md:w-[180px]">
-              <Archive className="w-4 h-4 mr-2" />
-              <SelectValue>
-                {archiveStatusFilter === 'all' ? 'Todas Tarefas' : archiveStatusFilter === 'active' ? 'Tarefas Ativas' : 'Tarefas Arquivadas'}
-              </SelectValue>
+            <SelectTrigger className="w-full md:w-[180px] flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                 <Archive className="w-4 h-4" />{/* Ícone antes do texto */}
+                <SelectValue>
+                  {archiveStatusFilter === 'all' ? 'Todas Tarefas' : archiveStatusFilter === 'active' ? 'Tarefas Ativas' : 'Tarefas Arquivadas'}
+                </SelectValue>
+              </div>
+              <ChevronDown className="h-4 w-4 opacity-50" />{/* Adicionar ícone ao trigger */}
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="active">Tarefas Ativas</SelectItem>
@@ -287,5 +341,4 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
     </TooltipProvider>
   );
 };
-
 export default TasksFilters;

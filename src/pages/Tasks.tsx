@@ -44,6 +44,7 @@ const Tasks = () => {
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
   // Fetch projects and users
+  // availableAssignees pode ser null, verificar o uso
   const { projects: uniqueProjects, loading: loadingProjects, error: projectsError } = useProjects();
   const { users: availableAssignees, loading: loadingUsers, error: usersError } = useUsers();
 
@@ -94,14 +95,16 @@ const Tasks = () => {
       filters.push({ label: `Prioridade: ${priorityLabel}`, onRemove: () => setPriorityFilter('all') });
     }
     // Modificado para usar o nome do assignee do objeto availableAssignees
+    // Verificar se availableAssignees não é null antes de find
     if (assigneeFilter !== 'all') {
-      const assigneeObj = availableAssignees.find(a => a.id === assigneeFilter);
+      const assigneeObj = availableAssignees?.find(a => a.id === assigneeFilter); // Adicionado ?. aqui
       const assigneeLabel = assigneeObj ? assigneeObj.full_name : assigneeFilter;
       filters.push({ label: `Responsável: ${assigneeLabel}`, onRemove: () => setAssigneeFilter('all') });
     }
      // Adicionar filtro de projeto aos filtros ativos
     if (projectFilter !== 'all') {
-        const projectObj = uniqueProjects.find(p => p.id === projectFilter);
+        // Verificar se uniqueProjects não é null antes de find
+        const projectObj = uniqueProjects?.find(p => p.id === projectFilter); // Adicionado ?. aqui
         const projectLabel = projectObj ? projectObj.name : projectFilter;
         filters.push({ label: `Projeto: ${projectLabel}`, onRemove: () => setProjectFilter('all') });
     }
@@ -136,11 +139,12 @@ const Tasks = () => {
           groupKey = task.status || 'Sem Status';
           break;
         case 'project':
-          groupKey = task.project?.name || 'Sem Projeto';
+          // Usar o nome do projeto para agrupar, lidando com projeto nulo
+          groupKey = task.project?.name || 'Sem Projeto'; // Adicionado ?. aqui
           break;
         case 'assignee':
-          // Usar o nome do assignee para agrupar visualmente
-          const assignee = availableAssignees.find(a => a.id === task.assignee_id);
+          // Usar o nome do assignee para agrupar, lidando com availableAssignees nulo e assignee nulo
+          const assignee = availableAssignees?.find(a => a.id === task.assignee_id); // Adicionado ?. aqui
           groupKey = assignee ? assignee.full_name || 'Não atribuído' : task.assignee_name || 'Não atribuído';
           break;
       }
@@ -203,8 +207,8 @@ const Tasks = () => {
     try {
       await archiveTask(taskId);
       toast({ title: 'Tarefa Arquivada!', description: 'A tarefa foi movida para o arquivo.' });
-    } catch (error) {
-      console.error('Erro ao arquivar tarefa:', error);
+    } catch (err: any) {
+      console.error('Erro ao arquivar tarefa:', err);
       toast({ title: 'Erro', description: 'Não foi possível arquivar a tarefa. Tente novamente.', variant: 'destructive' });
     }
   };
@@ -264,6 +268,7 @@ const Tasks = () => {
         setStatusFilter={setStatusFilter}
         priorityFilter={priorityFilter}
         setPriorityFilter={setPriorityFilter}
+        // Passando availableAssignees para TasksFilters, lidando com null
         assigneeFilter={assigneeFilter}
         setAssigneeFilter={setAssigneeFilter}
         periodFilter={periodFilter}
@@ -272,7 +277,7 @@ const Tasks = () => {
         setTagFilter={setTagFilter}
         projectFilter={projectFilter} // Pass projectFilter
         setProjectFilter={setProjectFilter} // Pass setProjectFilter
-        availableAssignees={availableAssignees} // Pass availableAssignees
+        availableAssignees={availableAssignees || []} // Passando array vazio se for null
         uniqueProjects={uniqueProjects} // Pass uniqueProjects
         uniqueTags={uniqueTags} // Pass uniqueTags
         viewMode={viewMode}
@@ -315,7 +320,7 @@ const Tasks = () => {
           onClearFilters={clearAllFilters}
         />
       )}
-
+n
        {!loading && !loadingProjects && !loadingUsers && !error && !projectsError && !usersError && tasks.length === 0 && !hasFilters && (
          <TasksEmptyState
           hasFilters={hasFilters}
@@ -331,13 +336,14 @@ const Tasks = () => {
           <TaskTable
             tasks={tasks}
             onTaskClick={handleTaskClick}
-            onStatusChange={handleStatusChange}
             onArchiveTask={handleArchiveTask}
             onDeleteTask={handleDeleteClick}
-            // Passando props para edição inline
             onPriorityChange={handlePriorityChange}
-            onAssigneeChange={handleAssigneeChange}
-            availableAssignees={availableAssignees} // Passando a lista de responsáveis
+            // Removida a prop onAssigneeChange
+            // onAssigneeChange={handleAssigneeChange}
+            // Removida a prop availableAssignees
+            // availableAssignees={availableAssignees || []}
+            isLoading={loading}
           />
         </div>
       )}
@@ -348,10 +354,8 @@ const Tasks = () => {
           groupBy={groupBy}
           onTaskClick={handleTaskClick}
           updateTaskStatus={handleStatusChange}
-          // TODO: Passar props para edição inline na visualização agrupada se aplicável
-          onPriorityChange={handlePriorityChange}
           onAssigneeChange={handleAssigneeChange}
-          availableAssignees={availableAssignees}
+          availableAssignees={availableAssignees} // Passando availableAssignees (pode ser null)
         />
       )}
 
@@ -366,7 +370,12 @@ const Tasks = () => {
         <TaskDetailsModal
           task={selectedTask}
           open={!!selectedTask}
-          onOpenChange={(open) => !open && setSelectedTask(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedTask(null);
+              refetch(); // Chama refetch() quando o modal for fechado
+            }
+          }}
         />
       )}
 

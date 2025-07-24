@@ -1,27 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../integrations/supabase/client';
-import { User } from '../types'; // Importa User de src/types/index.ts
+import { User } from '../types'; // Importe o tipo User
 
 export const useUsers = () => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles') // Corrigido de 'users' para 'profiles'
-          .select('id, full_name, avatar_url'); // Selecionando id, full_name e avatar_url conforme a definição de User em src/types/index.ts
-
-        if (error) {
-          throw error;
-        }
-
-        setUsers(data || []);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
+      let { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email'); // Adicionado 'email'
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        console.error('Error fetching users:', error);
+      } else {
+        setUsers(data as User[] | null); // Garantindo que o tipo seja User[] ou null
         setLoading(false);
       }
     };

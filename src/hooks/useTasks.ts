@@ -23,6 +23,7 @@ export const useTasks = (
   const { user } = useAuth();
 
   const fetchTasks = useCallback(async () => {
+    console.log('fetchTasks called'); // Log adicionado aqui
     if (!user) {
       setTasks([]);
       setLoading(false);
@@ -32,7 +33,7 @@ export const useTasks = (
     console.log('Fetching tasks with filters:', {
       periodFilter,
       archiveStatusFilter,
-      projectFilter, // Log projectFilter
+      projectFilter,
       assigneeFilter,
       statusFilter,
       priorityFilter,
@@ -170,15 +171,32 @@ export const useTasks = (
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     try {
       const updatesWithTimestamp = { ...updates, updated_at: new Date().toISOString() };
+
+      // Filtrar propriedades com valor null, exceto aquelas explicitamente permitidas por Supabase
+      const filteredUpdates: { [key: string]: any } = {};
+      // Usar asserção de tipo para permitir acesso por string key
+      const updatesWithTimestampAsRecord = updatesWithTimestamp as Record<string, any>;
+
+      for (const key in updatesWithTimestampAsRecord) {
+        // Você precisaria saber quais campos não aceitam null na sua tabela/API do Supabase
+        // Por enquanto, vamos filtrar todos os campos que são explicitamente null no payload de atualização
+        if (updatesWithTimestampAsRecord[key] !== null) {
+           filteredUpdates[key] = updatesWithTimestampAsRecord[key];
+        }
+      }
+
       const { data, error } = await supabase
         .from('tasks')
-        .update(updatesWithTimestamp)
+        .update(filteredUpdates) // Usar o objeto filtrado
         .eq('id', taskId)
         .select()
         .single();
+
       if (error) throw error;
-      setTasks(currentTasks => currentTasks.map(t => t.id === taskId ? data : t));
-      return data;
+      
+      fetchTasks(); // Chama fetchTasks após uma atualização bem-sucedida
+
+      return data; // Ainda retorna os dados atualizados
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);
       throw error;
