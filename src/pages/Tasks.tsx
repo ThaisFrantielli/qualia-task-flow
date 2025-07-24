@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { useProjects } from '../hooks/useProjects'; // Import useProjects hook
+import { useUsers } from '../hooks/useUsers'; // Importar hook para buscar usuários
 import { Plus, Target } from 'lucide-react'; // Importar Target para o Modo Foco
 import { Button } from '@/components/ui/button';
 import TaskTable from '../components/TaskTable';
@@ -23,8 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 import type { Task, Project, User } from '@/types'; // Importar tipos Project e User
-// TODO: Importar hook para buscar usuários (se não for useTasks)
-// import { useUsers } from '../hooks/useUsers';
+import { supabase } from '../integrations/supabase/client'; // Importar supabase client
 
 const Tasks = () => {
   const [archiveStatusFilter, setArchiveStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
@@ -43,11 +43,9 @@ const Tasks = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
-  // Fetch projects using the new hook
+  // Fetch projects and users
   const { projects: uniqueProjects, loading: loadingProjects, error: projectsError } = useProjects();
-
-  // TODO: Implementar busca real de usuários
-  const availableAssignees: User[] = []; // Placeholder for real assignees
+  const { users: availableAssignees, loading: loadingUsers, error: usersError } = useUsers();
 
   const { tasks, loading, error, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks(
     focusMode ? 'today' : periodFilter,
@@ -82,7 +80,7 @@ const Tasks = () => {
 
     if (searchTerm) {
       filters.push({ label: `Busca: "${searchTerm}"`, onRemove: () => setSearchTerm('') });
-    })
+    }
     if (statusFilter !== 'all') {
       const statusLabel = statusFilter === 'todo' ? 'A Fazer' :
                           statusFilter === 'progress' ? 'Em Andamento' :
@@ -156,17 +154,39 @@ const Tasks = () => {
 
   // Funções para edição inline (chamarão a API para atualizar a tarefa)
   const handlePriorityChange = async (taskId: string, newPriority: string) => {
-      // TODO: Implementar chamada real à API para atualizar prioridade da tarefa
-      console.log(`Atualizar tarefa ${taskId} com nova prioridade: ${newPriority}`);
-       toast({ title: 'Sucesso!', description: 'Prioridade da tarefa atualizada.' });
-        // Após sucesso da API, refetch ou atualizar estado local
+      try {
+        const { error } = await supabase
+          .from('tasks') // Assuming your tasks table is named 'tasks'
+          .update({ priority: newPriority })
+          .eq('id', taskId);
+
+        if (error) {
+          throw error;
+        }
+        toast({ title: 'Sucesso!', description: 'Prioridade da tarefa atualizada.' });
+        refetch(); // Refetch tasks to update the UI
+      } catch (error) {
+        console.error('Erro ao atualizar prioridade:', error);
+        toast({ title: 'Erro', description: 'Não foi possível atualizar a prioridade da tarefa. Tente novamente.', variant: 'destructive' });
+      }
   };
 
    const handleAssigneeChange = async (taskId: string, newAssigneeId: string | null) => {
-      // TODO: Implementar chamada real à API para atualizar responsável da tarefa
-      console.log(`Atualizar tarefa ${taskId} com novo responsável ID: ${newAssigneeId}`);
-      toast({ title: 'Sucesso!', description: 'Responsável da tarefa atualizado.' });
-      // Após sucesso da API, refetch ou atualizar estado local
+      try {
+        const { error } = await supabase
+          .from('tasks') // Assuming your tasks table is named 'tasks'
+          .update({ assignee_id: newAssigneeId })
+          .eq('id', taskId);
+
+        if (error) {
+          throw error;
+        }
+        toast({ title: 'Sucesso!', description: 'Responsável da tarefa atualizado.' });
+        refetch(); // Refetch tasks to update the UI
+      } catch (error) {
+        console.error('Erro ao atualizar responsável:', error);
+        toast({ title: 'Erro', description: 'Não foi possível atualizar o responsável da tarefa. Tente novamente.', variant: 'destructive' });
+      }
    };
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
@@ -268,7 +288,7 @@ const Tasks = () => {
         onClearFilters={clearAllFilters}
       />
 
-      {loading || loadingProjects && (
+      {(loading || loadingProjects || loadingUsers) && (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -277,17 +297,17 @@ const Tasks = () => {
         </div>
       )}
 
-      {(error || projectsError) && !loading && !loadingProjects && (
+      {(error || projectsError || usersError) && !loading && !loadingProjects && !loadingUsers && (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Tarefas</h2>
-            <p className="text-gray-600">Não foi possível carregar suas tarefas. Por favor, tente novamente mais tarde.</p>
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Dados</h2>
+            <p className="text-gray-600">Não foi possível carregar os dados. Por favor, tente novamente mais tarde.</p>
             <Button onClick={refetch} className="mt-4">Recarregar</Button>
           </div>
         </div>
       )}
 
-      {!loading && !loadingProjects && !error && !projectsError && tasks.length === 0 && hasFilters && (
+      {!loading && !loadingProjects && !loadingUsers && !error && !projectsError && !usersError && tasks.length === 0 && hasFilters && (
          <TasksEmptyState
           hasFilters={hasFilters}
           focusMode={focusMode}
@@ -296,7 +316,7 @@ const Tasks = () => {
         />
       )}
 
-       {!loading && !loadingProjects && !error && !projectsError && tasks.length === 0 && !hasFilters && (
+       {!loading && !loadingProjects && !loadingUsers && !error && !projectsError && !usersError && tasks.length === 0 && !hasFilters && (
          <TasksEmptyState
           hasFilters={hasFilters}
           focusMode={focusMode}
@@ -305,7 +325,7 @@ const Tasks = () => {
         />
       )}
 
-      {!loading && !loadingProjects && !error && !projectsError && tasks.length > 0 && viewMode === 'list' && (
+      {!loading && !loadingProjects && !loadingUsers && !error && !projectsError && !usersError && tasks.length > 0 && viewMode === 'list' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           {/* TODO: Passar o estado de seleção de tarefas para TaskTable */}
           <TaskTable
@@ -315,23 +335,23 @@ const Tasks = () => {
             onArchiveTask={handleArchiveTask}
             onDeleteTask={handleDeleteClick}
             // Passando props para edição inline
-            onPriorityChange={handlePriorityChange} // TODO: Implementar handlePriorityChange real
-            onAssigneeChange={handleAssigneeChange} // TODO: Implementar handleAssigneeChange real
+            onPriorityChange={handlePriorityChange}
+            onAssigneeChange={handleAssigneeChange}
             availableAssignees={availableAssignees} // Passando a lista de responsáveis
           />
         </div>
       )}
 
-      {!loading && !loadingProjects && !error && !projectsError && tasks.length > 0 && viewMode === 'grouped' && (
+      {!loading && !loadingProjects && !loadingUsers && !error && !projectsError && !usersError && tasks.length > 0 && viewMode === 'grouped' && (
         <TasksGroupedView
           groupedTasks={groupedTasks}
           groupBy={groupBy}
           onTaskClick={handleTaskClick}
           updateTaskStatus={handleStatusChange}
           // TODO: Passar props para edição inline na visualização agrupada se aplicável
-          // onPriorityChange={handlePriorityChange}
-          // onAssigneeChange={handleAssigneeChange}
-          // availableAssignees={availableAssignees}
+          onPriorityChange={handlePriorityChange}
+          onAssigneeChange={handleAssigneeChange}
+          availableAssignees={availableAssignees}
         />
       )}
 
