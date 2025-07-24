@@ -33,39 +33,34 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+}
+ from "@/components/ui/tooltip";
 
-import type { Task } from '@/types'; // Importa Task de src/types/index.ts
+import type { Task, User } from '@/types';
 
 interface TaskTableRowProps {
   task: Task;
   onTaskClick: (task: Task) => void;
-  onStatusChange: (taskId: string, status: string) => void;
   onArchiveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
   isLoading: boolean;
   onPriorityChange: (taskId: string, priority: string) => void;
-  onAssigneeChange: (taskId: string, assigneeId: string | null) => void;
-  availableAssignees: { id: string; name: string; avatar_url?: string | null }[];
 }
 
 const TaskTableRow: React.FC<TaskTableRowProps> = ({
   task,
   onTaskClick,
-  onStatusChange,
   onArchiveTask,
   onDeleteTask,
   isLoading,
   onPriorityChange,
-  onAssigneeChange,
-  availableAssignees,
 }) => {
   const getPriorityColor = (priority: string | null) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'high': return 'text-red-600';
+      case 'medium': return 'text-yellow-600';
+      case 'low': return 'text-green-600';
+      default: return 'text-gray-500';
     }
   };
 
@@ -98,7 +93,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
     }
   };
 
-  const subtasksCompleted = task.subtasks?.filter(s => s.completed).length || 0;
+  const subtasksCompleted = task.subtasks?.filter(s => s?.completed).length || 0;
   const subtasksTotal = task.subtasks?.length || 0;
   const subtaskProgress = subtasksTotal > 0 ? (subtasksCompleted / subtasksTotal) * 100 : 0;
 
@@ -119,7 +114,17 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
 
   const handleCheckboxChange = (checked: boolean) => {
     const newStatus = checked ? 'done' : 'todo';
-    onStatusChange(task.id, newStatus);
+    // Como a coluna de status foi removida, ainda precisamos atualizar o status quando o checkbox é clicado
+    // onStatusChange(task.id, newStatus); // Removido, já que onStatusChange foi removido da interface
+  };
+
+  const renderPriorityIcon = (priority: string | null) => {
+    switch (priority) {
+      case 'high': return <span className={`${getPriorityColor(priority)} text-lg`}>&#x2757;</span>; // Símbolo de ponto de exclamação
+      case 'medium': return <span className={`${getPriorityColor(priority)} text-lg`}>&#x26A0;&#xFE0F;</span>; // Símbolo de aviso
+      case 'low': return <span className={`${getPriorityColor(priority)} text-lg`}>&#x1F53D;</span>; // Triângulo para baixo
+      default: return <span className={`${getPriorityColor(priority)} text-lg`}>&#9675;</span>; // Círculo para desconhecido/padrão
+    }
   };
 
   return (
@@ -127,6 +132,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       className={`cursor-pointer hover:bg-gray-50 ${task.archived === true ? 'opacity-50' : ''}`}
       onClick={() => onTaskClick(task)}
     >
+      {/* Célula de Tarefa */}
       <TableCell className="w-[300px]">
         <div className="flex items-center space-x-3">
           <Checkbox
@@ -143,108 +149,34 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
             )}
           </div>
         </div>
-      </TableCell>
+      </TableCell>{/* Remove o espaço em branco */}
 
-      {/* Célula de Status com destaque e Select */}
-      <TableCell className={`font-medium ${getStatusColorClass(task.status)}`}>
-        {isLoading ? (
-          <div className="flex items-center">
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            <span>Atualizando...</span>
-          </div>
-        ) : (
-          <Select
-            value={task.status ?? ''}
-            onValueChange={(value) => {
-              onStatusChange(task.id, value);
-            }}
-            disabled={isLoading}
-          >
-            <SelectTrigger className={`w-32 h-8 text-xs ${getStatusColorClass(task.status).replace('text-', 'border-')}`}> {/* Exemplo: cor da borda */}
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todo">A Fazer</SelectItem>
-              <SelectItem value="progress">Em Andamento</SelectItem>
-              <SelectItem value="done">Concluído</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-      </TableCell>
-
-      {/* Célula de Prioridade com Select para edição inline */}
+      {/* Célula de Responsável - Apenas Avatar */}
       <TableCell>
-        {isLoading ? (
-           <Badge className={getPriorityColor(task.priority)}>
-             {getPriorityLabel(task.priority)}
-           </Badge>
-         ) : (
-          <Select
-            value={task.priority ?? ''}
-            onValueChange={(value) => onPriorityChange(task.id, value)}
-            disabled={isLoading}
-          >
-            <SelectTrigger className={`w-24 h-8 text-xs ${getPriorityColor(task.priority)}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Baixa</SelectItem>
-              <SelectItem value="medium">Média</SelectItem>
-              <SelectItem value="high">Alta</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-      </TableCell>
-
-      {/* Célula de Responsável com Select para edição inline */}
-      <TableCell>
-        {isLoading ? (
-           <div className="flex items-center space-x-2">
-             <Avatar className="w-6 h-6">
-               <AvatarImage src={task.assignee_avatar ?? undefined} />
-               <AvatarFallback className="text-xs">
-                 {task.assignee_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'NA'}
-               </AvatarFallback>
-             </Avatar>
-             <span className="text-sm text-gray-700">
-               {task.assignee_name || 'Não atribuído'}
-             </span>
-           </div>
-         ) : (
-          <Select
-            value={task.assignee_id ?? ''} // Usar assignee_id para o Select
-            onValueChange={(value) => onAssigneeChange(task.id, value === '' ? null : value)} // Passar null se '' for selecionado
-            disabled={isLoading}
-          >
-            <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue placeholder="Selecionar responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Removido SelectItem com value="" */}
-              {availableAssignees.map(assignee => (
-                <SelectItem key={assignee.id} value={assignee.id}>
-                   <div className="flex items-center space-x-2">
-                     <Avatar className="w-6 h-6">
-                       <AvatarImage src={assignee.avatar_url ?? undefined} />
-                       <AvatarFallback className="text-xs">
-                         {assignee.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'NA'}
-                       </AvatarFallback>
-                     </Avatar>
-                     <span>{assignee.name}</span>
-                   </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </TableCell>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                 <Avatar className="w-8 h-8">
+                   <AvatarImage src={task.assignee_avatar ?? undefined} />
+                   <AvatarFallback className="text-xs">
+                     {task.assignee_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'NA'}
+                   </AvatarFallback>
+                 </Avatar>
+              </TooltipTrigger>
+              {/* Exibir o nome do responsável no tooltip */}
+              <TooltipContent>
+                {task.assignee_name || 'Não atribuído'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+      </TableCell>{/* Remove o espaço em branco */}
 
       {/* Célula de Projeto */}
       <TableCell>
         <span className="text-sm text-gray-700">
           {task.project?.name || 'Sem projeto'}
         </span>
-      </TableCell>
+      </TableCell>{/* Remove o espaço em branco */}
 
       {/* Célula de Prazo com destaque e indicador de atraso */}
       <TableCell className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
@@ -275,7 +207,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
                 </TooltipProvider>
               )}
         </div>
-      </TableCell>
+      </TableCell>{/* Remove o espaço em branco */}
 
       {/* Célula de Progresso */}
       <TableCell className="font-medium text-gray-700">
@@ -298,7 +230,23 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
             <span>{getStatusLabel(task.status)}</span>
           </div>
         )}
-      </TableCell>
+      </TableCell>{/* Remove o espaço em branco */}
+      
+      {/* Célula de Prioridade com símbolo e Tooltip - Movida para depois de Progresso */}
+      <TableCell>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center w-6 h-6">
+                 {renderPriorityIcon(task.priority)}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {getPriorityLabel(task.priority)}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </TableCell>{/* Remove o espaço em branco */}
 
       {/* Célula de Ações */}
       <TableCell className="flex items-center space-x-2">
