@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../hooks/useTasks';
+import { useProjects } from '../hooks/useProjects'; // Import useProjects hook
 import { Plus, Target } from 'lucide-react'; // Importar Target para o Modo Foco
 import { Button } from '@/components/ui/button';
 import TaskTable from '../components/TaskTable';
@@ -22,8 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 import type { Task, Project, User } from '@/types'; // Importar tipos Project e User
-// TODO: Importar hook para buscar projetos e usuários (se não for useTasks)
-// import { useProjects } from '../hooks/useProjects';
+// TODO: Importar hook para buscar usuários (se não for useTasks)
 // import { useUsers } from '../hooks/useUsers';
 
 const Tasks = () => {
@@ -43,47 +43,22 @@ const Tasks = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
-  // TODO: Modificar useTasks para aceitar todos os parâmetros de filtro e aplicá-los na consulta
+  // Fetch projects using the new hook
+  const { projects: uniqueProjects, loading: loadingProjects, error: projectsError } = useProjects();
+
+  // TODO: Implementar busca real de usuários
+  const availableAssignees: User[] = []; // Placeholder for real assignees
+
   const { tasks, loading, error, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks(
     focusMode ? 'today' : periodFilter,
     archiveStatusFilter,
-    // Incluir os outros filtros aqui:
-    // projectFilter,
-    // assigneeFilter,
-    // statusFilter,
-    // priorityFilter,
-    // searchTerm,
-    // tagFilter
+    projectFilter,
+    assigneeFilter,
+    statusFilter,
+    priorityFilter,
+    searchTerm,
+    tagFilter
   );
-
-  // TODO: Implementar busca real de usuários para popular availableAssignees
-  // Substituir este mock por uma chamada real à API ou hook de usuários
-  const availableAssignees: User[] = useMemo(() => {
-      const assigneesFromTasks = new Set<string>();
-      tasks.forEach(task => {
-        if (task.assignee_name && task.assignee_id) {
-           assigneesFromTasks.add(JSON.stringify({ id: task.assignee_id, full_name: task.assignee_name, avatar_url: task.assignee_avatar }));
-        } else if (task.assignee_name) { // Caso não tenha ID ainda, usar nome como fallback temporário
-           assigneesFromTasks.add(JSON.stringify({ id: task.assignee_name, full_name: task.assignee_name }));
-        }
-      });
-      const assigneeList = Array.from(assigneesFromTasks).map(item => JSON.parse(item));
-       // Adicionar um item 'Não Atribuído' com id vazio
-      return [{ id: '', full_name: 'Não atribuído' }, ...assigneeList];
-  }, [tasks]); // Dependência de tasks temporária, deve depender dos dados reais de usuários
-
-  // TODO: Implementar busca real de projetos para popular uniqueProjects
-   // Substituir este mock por uma chamada real à API ou hook de projetos
-   const uniqueProjects: Project[] = useMemo(() => {
-       const projectsFromTasks = new Set<string>();
-       tasks.forEach(task => {
-           if (task.project?.id && task.project?.name) {
-               projectsFromTasks.add(JSON.stringify({ id: task.project.id, name: task.project.name, created_at: '', updated_at: '', description: null, color: null, user_id: null })); // Incluir outros campos necessários do tipo Project
-           }
-       });
-       const projectList = Array.from(projectsFromTasks).map(item => JSON.parse(item));
-      return [{ id: 'all', name: 'Todos Projetos', created_at: '', updated_at: '', description: null, color: null, user_id: null }, ...projectList]; // Incluir outros campos no item 'Todos Projetos'
-   }, [tasks]); // Dependência de tasks temporária, deve depender dos dados reais de projetos
 
   const uniqueTags = useMemo(() => {
     const tags = new Set<string>();
@@ -107,7 +82,7 @@ const Tasks = () => {
 
     if (searchTerm) {
       filters.push({ label: `Busca: "${searchTerm}"`, onRemove: () => setSearchTerm('') });
-    }
+    })
     if (statusFilter !== 'all') {
       const statusLabel = statusFilter === 'todo' ? 'A Fazer' :
                           statusFilter === 'progress' ? 'Em Andamento' :
@@ -258,15 +233,51 @@ const Tasks = () => {
     archiveStatusFilter !== 'active'
   );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+  return (
+    <div className="container mx-auto py-8">
+      <h1 className="text-3xl font-bold mb-6">Minhas Tarefas</h1>
+
+      <TasksFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        priorityFilter={priorityFilter}
+        setPriorityFilter={setPriorityFilter}
+        assigneeFilter={assigneeFilter}
+        setAssigneeFilter={setAssigneeFilter}
+        periodFilter={periodFilter}
+        setPeriodFilter={setPeriodFilter}
+        tagFilter={tagFilter}
+        setTagFilter={setTagFilter}
+        projectFilter={projectFilter} // Pass projectFilter
+        setProjectFilter={setProjectFilter} // Pass setProjectFilter
+        availableAssignees={availableAssignees} // Pass availableAssignees
+        uniqueProjects={uniqueProjects} // Pass uniqueProjects
+        uniqueTags={uniqueTags} // Pass uniqueTags
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
+        focusMode={focusMode}
+        setFocusMode={setFocusMode}
+        archiveStatusFilter={archiveStatusFilter}
+        setArchiveStatusFilter={setArchiveStatusFilter}
+        overdueCount={overdueCount}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+      />
+
+      {loading || loadingProjects && (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-gray-600">Carregando tarefas...</p>
           </div>
         </div>
-      ) : error ? (
+      )}
+
+      {(error || projectsError) && !loading && !loadingProjects && (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Tarefas</h2>
@@ -274,21 +285,27 @@ const Tasks = () => {
             <Button onClick={refetch} className="mt-4">Recarregar</Button>
           </div>
         </div>
-      ) : tasks.length === 0 && hasFilters ? (
-        <TasksEmptyState
+      )}
+
+      {!loading && !loadingProjects && !error && !projectsError && tasks.length === 0 && hasFilters && (
+         <TasksEmptyState
           hasFilters={hasFilters}
           focusMode={focusMode}
           onCreateTask={() => setIsCreateModalOpen(true)}
           onClearFilters={clearAllFilters}
         />
-      ) : tasks.length === 0 && !hasFilters ? (
-        <TasksEmptyState
+      )}
+
+       {!loading && !loadingProjects && !error && !projectsError && tasks.length === 0 && !hasFilters && (
+         <TasksEmptyState
           hasFilters={hasFilters}
           focusMode={focusMode}
           onCreateTask={() => setIsCreateModalOpen(true)}
           onClearFilters={clearAllFilters}
         />
-      ) : viewMode === 'list' ? (
+      )}
+
+      {!loading && !loadingProjects && !error && !projectsError && tasks.length > 0 && viewMode === 'list' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           {/* TODO: Passar o estado de seleção de tarefas para TaskTable */}
           <TaskTable
@@ -303,7 +320,9 @@ const Tasks = () => {
             availableAssignees={availableAssignees} // Passando a lista de responsáveis
           />
         </div>
-      ) : (
+      )}
+
+      {!loading && !loadingProjects && !error && !projectsError && tasks.length > 0 && viewMode === 'grouped' && (
         <TasksGroupedView
           groupedTasks={groupedTasks}
           groupBy={groupBy}
