@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../integrations/supabase/client'; // Assuming you have a supabase client instance
-import { User } from '../types'; // Assuming you have a User type defined
+import { supabase } from '../integrations/supabase/client';
+import { User } from '../types'; // Importa User de src/types/index.ts
 
 export const useUsers = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -11,8 +11,8 @@ export const useUsers = () => {
     const fetchUsers = async () => {
       try {
         const { data, error } = await supabase
-          .from('users') // Assuming your user table is named 'users'
-          .select('id, full_name'); // Select the fields you need
+          .from('profiles') // Corrigido de 'users' para 'profiles'
+          .select('id, full_name, avatar_url'); // Selecionando id, full_name e avatar_url conforme a definição de User em src/types/index.ts
 
         if (error) {
           throw error;

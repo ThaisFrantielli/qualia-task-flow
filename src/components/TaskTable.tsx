@@ -8,14 +8,17 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import TaskTableRow from './table/TaskTableRow';
-import type { Database } from '@/integrations/supabase/types';
+// import type { Database } from '@/integrations/supabase/types'; // Removida esta importação
+import type { Task } from '@/types'; // Mantida apenas a importação de Task de src/types/index.ts
 
-type Task = Database['public']['Tables']['tasks']['Row'] & {
-  project?: Database['public']['Tables']['projects']['Row'];
-  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
-  comments?: Database['public']['Tables']['comments']['Row'][];
-  attachments?: Database['public']['Tables']['attachments']['Row'][];
-};
+// A definição de Task será importada de src/types/index.ts agora
+// Removida a definição manual local de Task:
+// type Task = Database['public']['Tables']['tasks']['Row'] & {
+//   project?: Database['public']['Tables']['projects']['Row'];
+//   subtasks?: Database['public']['Tables']['subtasks']['Row'][];
+//   comments?: Database['public']['Tables']['comments']['Row'][];
+//   attachments?: Database['public']['Tables']['attachments']['Row'][];
+// };
 
 interface TaskTableProps {
   tasks: Task[];
@@ -23,23 +26,32 @@ interface TaskTableProps {
   onStatusChange: (taskId: string, status: string) => void;
   onArchiveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
-  onPriorityChange: (taskId: string, newPriority: string) => Promise<void>; // Added onPriorityChange
-  onAssigneeChange: (taskId: string, newAssigneeId: string | null) => Promise<void>; // Added onAssigneeChange
-  availableAssignees: { id: string; full_name: string | null; avatar_url?: string | null }[]; // Added availableAssignees
-  isLoading: boolean; // Added isLoading
+  onPriorityChange: (taskId: string, newPriority: string) => Promise<void>;
+  onAssigneeChange: (taskId: string, newAssigneeId: string | null) => Promise<void>;
+  // O tipo de availableAssignees pode precisar ser ajustado para ser compatível com src/types/index.ts se User tiver full_name
+  availableAssignees: { id: string; full_name: string | null; avatar_url?: string | null }[]; 
+  isLoading: boolean;
 }
 
-const TaskTable: React.FC<TaskTableProps> = ({ 
-  tasks, 
-  onTaskClick, 
-  onStatusChange, 
-  onArchiveTask, 
+const TaskTable: React.FC<TaskTableProps> = ({
+  tasks,
+  onTaskClick,
+  onStatusChange,
+  onArchiveTask,
   onDeleteTask,
-  onPriorityChange, // Destructure onPriorityChange
-  onAssigneeChange, // Destructure onAssigneeChange
-  availableAssignees, // Destructure availableAssignees
-  isLoading // Destructure isLoading
+  onPriorityChange,
+  onAssigneeChange,
+  availableAssignees,
+  isLoading
 }) => {
+  // Transform availableAssignees to match the type expected by TaskTableRow (que agora usa o tipo de index.ts)
+  // O tipo esperado por TaskTableRow para availableAssignees é { id: string; name: string; avatar_url?: string | null }[]
+  const formattedAssignees = availableAssignees.map(assignee => ({
+    id: assignee.id,
+    name: assignee.full_name || '', // Mapeia full_name para name
+    avatar_url: assignee.avatar_url,
+  }));
+
   return (
     <div className="bg-white rounded-xl shadow-quality overflow-hidden">
       <Table>
@@ -64,10 +76,10 @@ const TaskTable: React.FC<TaskTableProps> = ({
               onStatusChange={onStatusChange}
               onArchiveTask={onArchiveTask}
               onDeleteTask={onDeleteTask}
-              onPriorityChange={onPriorityChange} // Pass down onPriorityChange
-              onAssigneeChange={onAssigneeChange} // Pass down onAssigneeChange
-              availableAssignees={availableAssignees} // Pass down availableAssignees
-              isLoading={isLoading} // Pass down isLoading
+              onPriorityChange={onPriorityChange}
+              onAssigneeChange={onAssigneeChange}
+              availableAssignees={formattedAssignees} // Passa o array transformado
+              isLoading={isLoading} // Passa o array transformado
             />
           ))}
         </TableBody>
