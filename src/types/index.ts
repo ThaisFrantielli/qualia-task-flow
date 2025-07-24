@@ -57,7 +57,7 @@ export type Database = {
           status?: string | null;
           priority?: string | null;
           due_date?: string | null;
-          assignee_id?: string | null; // <-- Permitindo a atualização
+          assignee_id?: string | null;
         };
       };
       // Defina outras tabelas aqui se precisar
@@ -79,7 +79,7 @@ export type Database = {
             avatar_url: string | null;
             email: string | null;
           }
-      };
+      }
       task_delegations: {
           Row: {
               // ...
@@ -142,6 +142,7 @@ export type Database = {
 
 // Nossos tipos de App, agora derivados da nossa definição manual e única
 export type Project = Database['public']['Tables']['projects']['Row'];
+export type User = Database['public']['Tables']['profiles']['Row']; // Exportar o tipo User
 // Atualizando o tipo Task para incluir as propriedades opcionais
 export type Task = Database['public']['Tables']['tasks']['Row'] & {
     project?: Partial<Project>;

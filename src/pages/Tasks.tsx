@@ -21,7 +21,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 
-import type { Task } from '@/types';
+import type { Task, Project, User } from '@/types'; // Importar tipos Project e User
+// TODO: Importar hook para buscar projetos e usuários (se não for useTasks)
+// import { useProjects } from '../hooks/useProjects';
+// import { useUsers } from '../hooks/useUsers';
 
 const Tasks = () => {
   const [archiveStatusFilter, setArchiveStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
@@ -31,6 +34,7 @@ const Tasks = () => {
   const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
   const [periodFilter, setPeriodFilter] = useState<'all' | string>('all');
   const [tagFilter, setTagFilter] = useState<'all' | string>('all');
+  const [projectFilter, setProjectFilter] = useState<'all' | string>('all'); // Novo estado para filtro de projeto
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
@@ -39,22 +43,47 @@ const Tasks = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
 
+  // TODO: Modificar useTasks para aceitar todos os parâmetros de filtro e aplicá-los na consulta
   const { tasks, loading, error, updateTaskStatus, archiveTask, deleteTask, refetch } = useTasks(
     focusMode ? 'today' : periodFilter,
-    archiveStatusFilter
+    archiveStatusFilter,
+    // Incluir os outros filtros aqui:
+    // projectFilter,
+    // assigneeFilter,
+    // statusFilter,
+    // priorityFilter,
+    // searchTerm,
+    // tagFilter
   );
 
-  const uniqueAssignees = useMemo(() => {
-    const assignees = new Set<string>();
-    tasks.forEach(task => {
-      if (task.assignee_name) {
-        assignees.add(task.assignee_name);
-      } else {
-        assignees.add('Não Atribuído');
-      }
-    });
-    return ['all', ...Array.from(assignees)];
-  }, [tasks]);
+  // TODO: Implementar busca real de usuários para popular availableAssignees
+  // Substituir este mock por uma chamada real à API ou hook de usuários
+  const availableAssignees: User[] = useMemo(() => {
+      const assigneesFromTasks = new Set<string>();
+      tasks.forEach(task => {
+        if (task.assignee_name && task.assignee_id) {
+           assigneesFromTasks.add(JSON.stringify({ id: task.assignee_id, full_name: task.assignee_name, avatar_url: task.assignee_avatar }));
+        } else if (task.assignee_name) { // Caso não tenha ID ainda, usar nome como fallback temporário
+           assigneesFromTasks.add(JSON.stringify({ id: task.assignee_name, full_name: task.assignee_name }));
+        }
+      });
+      const assigneeList = Array.from(assigneesFromTasks).map(item => JSON.parse(item));
+       // Adicionar um item 'Não Atribuído' com id vazio
+      return [{ id: '', full_name: 'Não atribuído' }, ...assigneeList];
+  }, [tasks]); // Dependência de tasks temporária, deve depender dos dados reais de usuários
+
+  // TODO: Implementar busca real de projetos para popular uniqueProjects
+   // Substituir este mock por uma chamada real à API ou hook de projetos
+   const uniqueProjects: Project[] = useMemo(() => {
+       const projectsFromTasks = new Set<string>();
+       tasks.forEach(task => {
+           if (task.project?.id && task.project?.name) {
+               projectsFromTasks.add(JSON.stringify({ id: task.project.id, name: task.project.name, created_at: '', updated_at: '', description: null, color: null, user_id: null })); // Incluir outros campos necessários do tipo Project
+           }
+       });
+       const projectList = Array.from(projectsFromTasks).map(item => JSON.parse(item));
+      return [{ id: 'all', name: 'Todos Projetos', created_at: '', updated_at: '', description: null, color: null, user_id: null }, ...projectList]; // Incluir outros campos no item 'Todos Projetos'
+   }, [tasks]); // Dependência de tasks temporária, deve depender dos dados reais de projetos
 
   const uniqueTags = useMemo(() => {
     const tags = new Set<string>();
@@ -91,9 +120,17 @@ const Tasks = () => {
                             priorityFilter === 'high' ? 'Alta' : priorityFilter;
       filters.push({ label: `Prioridade: ${priorityLabel}`, onRemove: () => setPriorityFilter('all') });
     }
+    // Modificado para usar o nome do assignee do objeto availableAssignees
     if (assigneeFilter !== 'all') {
-      const assigneeLabel = assigneeFilter === 'Não Atribuído' ? assigneeFilter : (uniqueAssignees.find(a => a === assigneeFilter) || assigneeFilter);
+      const assigneeObj = availableAssignees.find(a => a.id === assigneeFilter);
+      const assigneeLabel = assigneeObj ? assigneeObj.full_name : assigneeFilter;
       filters.push({ label: `Responsável: ${assigneeLabel}`, onRemove: () => setAssigneeFilter('all') });
+    }
+     // Adicionar filtro de projeto aos filtros ativos
+    if (projectFilter !== 'all') {
+        const projectObj = uniqueProjects.find(p => p.id === projectFilter);
+        const projectLabel = projectObj ? projectObj.name : projectFilter;
+        filters.push({ label: `Projeto: ${projectLabel}`, onRemove: () => setProjectFilter('all') });
     }
     if (periodFilter !== 'all') {
       const periodLabel = periodFilter === 'today' ? 'Hoje' :
@@ -114,11 +151,8 @@ const Tasks = () => {
     if (focusMode) {
       filters.push({ label: 'Modo Foco: Tarefas de Hoje', onRemove: () => setFocusMode(false) });
     }
-    if (overdueCount > 0) {
-      filters.push({ label: `Atrasadas: ${overdueCount}`, onRemove: () => setPeriodFilter('all') });
-    }
     return filters;
-  }, [searchTerm, statusFilter, priorityFilter, assigneeFilter, periodFilter, tagFilter, archiveStatusFilter, focusMode, uniqueAssignees, uniqueTags, overdueCount]);
+  }, [searchTerm, statusFilter, priorityFilter, assigneeFilter, projectFilter, periodFilter, tagFilter, archiveStatusFilter, focusMode, availableAssignees, uniqueProjects, uniqueTags]);
 
   const groupedTasks = useMemo(() => {
     const groups: { [key: string]: Task[] } = {};
@@ -132,16 +166,34 @@ const Tasks = () => {
           groupKey = task.project?.name || 'Sem Projeto';
           break;
         case 'assignee':
-          groupKey = task.assignee_name || 'Não Atribuído';
+          // Usar o nome do assignee para agrupar visualmente
+          const assignee = availableAssignees.find(a => a.id === task.assignee_id);
+          groupKey = assignee ? assignee.full_name || 'Não atribuído' : task.assignee_name || 'Não atribuído';
           break;
       }
       if (!groups[groupKey]) groups[groupKey] = [];
       groups[groupKey].push(task);
     });
     return groups;
-  }, [tasks, groupBy]);
+  }, [tasks, groupBy, availableAssignees]); // Adicionar availableAssignees como dependência
 
   const handleTaskClick = (task: Task) => setSelectedTask(task);
+
+  // Funções para edição inline (chamarão a API para atualizar a tarefa)
+  const handlePriorityChange = async (taskId: string, newPriority: string) => {
+      // TODO: Implementar chamada real à API para atualizar prioridade da tarefa
+      console.log(`Atualizar tarefa ${taskId} com nova prioridade: ${newPriority}`);
+       toast({ title: 'Sucesso!', description: 'Prioridade da tarefa atualizada.' });
+        // Após sucesso da API, refetch ou atualizar estado local
+  };
+
+   const handleAssigneeChange = async (taskId: string, newAssigneeId: string | null) => {
+      // TODO: Implementar chamada real à API para atualizar responsável da tarefa
+      console.log(`Atualizar tarefa ${taskId} com novo responsável ID: ${newAssigneeId}`);
+      toast({ title: 'Sucesso!', description: 'Responsável da tarefa atualizado.' });
+      // Após sucesso da API, refetch ou atualizar estado local
+   };
+
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
       await updateTaskStatus(taskId, newStatus);
@@ -189,6 +241,7 @@ const Tasks = () => {
     setAssigneeFilter('all');
     setPeriodFilter('all');
     setTagFilter('all');
+    setProjectFilter('all'); // Limpar filtro de projeto
     setFocusMode(false);
     setArchiveStatusFilter('active');
   };
@@ -200,6 +253,7 @@ const Tasks = () => {
     assigneeFilter !== 'all' ||
     periodFilter !== 'all' ||
     tagFilter !== 'all' ||
+    projectFilter !== 'all' || // Incluir projectFilter na verificação
     focusMode ||
     archiveStatusFilter !== 'active'
   );
@@ -209,94 +263,18 @@ const Tasks = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando tarefas...</p>
+            <p className="text-gray-600">Carregando tarefas...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Tarefas</h2>
-          <p className="text-gray-600">Não foi possível carregar suas tarefas. Por favor, tente novamente mais tarde.</p>
-          <Button onClick={refetch} className="mt-4">Recarregar</Button>
+      ) : error ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Tarefas</h2>
+            <p className="text-gray-600">Não foi possível carregar suas tarefas. Por favor, tente novamente mais tarde.</p>
+            <Button onClick={refetch} className="mt-4">Recarregar</Button>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {focusMode ? `Modo Foco - Minhas Tarefas (${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})` : 'Tarefas'}
-          </h1>
-          <p className="text-gray-600">
-            {focusMode ? 'Foque nas suas tarefas de hoje' : 'Gerencie e acompanhe suas tarefas'}
-          </p>
-        </div>
-        <div className="flex space-x-2">
-          <Button onClick={() => setIsCreateModalOpen(true)} className="custom-button flex items-center">
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Tarefa
-          </Button>
-           <Button
-            variant={focusMode ? 'default' : 'outline'}
-            onClick={() => setFocusMode(!focusMode)}
-            className={`flex items-center ${focusMode ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : ''}`}
-          >
-            <Target className="w-4 h-4 mr-2" />
-            Modo Foco
-          </Button>
-        </div>
-      </div>
-
-      <TasksFilters
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        priorityFilter={priorityFilter}
-        setPriorityFilter={setPriorityFilter}
-        assigneeFilter={assigneeFilter}
-        setAssigneeFilter={setAssigneeFilter}
-        periodFilter={periodFilter}
-        setPeriodFilter={setPeriodFilter}
-        tagFilter={tagFilter}
-        setTagFilter={setTagFilter}
-        uniqueAssignees={uniqueAssignees}
-        uniqueTags={uniqueTags}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        focusMode={focusMode}
-        setFocusMode={setFocusMode}
-        groupBy={groupBy}
-        setGroupBy={setGroupBy}
-        archiveStatusFilter={archiveStatusFilter}
-        setArchiveStatusFilter={setArchiveStatusFilter}
-      />
-
-      {activeFilters.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center mt-4">
-          <span className="text-sm font-medium text-gray-700">Filtros Aplicados:</span>
-          {activeFilters.map((filter, index) => (
-            <Badge key={index} variant="secondary" className="flex items-center gap-1 cursor-pointer" onClick={filter.onRemove}>
-              {filter.label}
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </Badge>
-          ))}
-          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-sm text-gray-600 hover:text-gray-900 p-1">
-            Limpar Todos
-          </Button>
-        </div>
-      )}
-
-      {tasks.length === 0 && hasFilters ? (
+      ) : tasks.length === 0 && hasFilters ? (
         <TasksEmptyState
           hasFilters={hasFilters}
           focusMode={focusMode}
@@ -312,12 +290,17 @@ const Tasks = () => {
         />
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* TODO: Passar o estado de seleção de tarefas para TaskTable */}
           <TaskTable
             tasks={tasks}
             onTaskClick={handleTaskClick}
             onStatusChange={handleStatusChange}
             onArchiveTask={handleArchiveTask}
             onDeleteTask={handleDeleteClick}
+            // Passando props para edição inline
+            onPriorityChange={handlePriorityChange} // TODO: Implementar handlePriorityChange real
+            onAssigneeChange={handleAssigneeChange} // TODO: Implementar handleAssigneeChange real
+            availableAssignees={availableAssignees} // Passando a lista de responsáveis
           />
         </div>
       ) : (
@@ -326,9 +309,14 @@ const Tasks = () => {
           groupBy={groupBy}
           onTaskClick={handleTaskClick}
           updateTaskStatus={handleStatusChange}
+          // TODO: Passar props para edição inline na visualização agrupada se aplicável
+          // onPriorityChange={handlePriorityChange}
+          // onAssigneeChange={handleAssigneeChange}
+          // availableAssignees={availableAssignees}
         />
       )}
 
+      {/* Modais */}
       <CreateTaskForm
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
