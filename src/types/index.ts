@@ -130,6 +130,43 @@ export type Database = {
           uploaded_by_id: string;
         };
       };
+      // Adicionar a definição da tabela notifications
+      notifications: {
+        Row: {
+          id: string;
+          created_at: string; // Coluna de timestamp
+          user_id: string; // Usuário que recebe a notificação
+          task_id: string | null; // Opcional, se a notificação for sobre uma tarefa
+          type: string; // Tipo da notificação (info, warning, success, error, etc.)
+          title: string;
+          message: string;
+          read: boolean;
+          action_required: boolean | null; // Verifique o nome exato da coluna no seu DB
+          data: Json | null; // Coluna jsonb para dados adicionais
+        };
+        Insert: {
+           id?: string;
+           created_at?: string;
+           user_id: string;
+           task_id?: string | null;
+           type: string;
+           title: string;
+           message: string;
+           read?: boolean;
+           action_required?: boolean | null;
+           data?: Json | null;
+        };
+        Update: {
+           user_id?: string;
+           task_id?: string | null;
+           type?: string;
+           title?: string;
+           message?: string;
+           read?: boolean;
+           action_required?: boolean | null;
+           data?: Json | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -140,13 +177,57 @@ export type Database = {
   };
 };
 
-// Nossos tipos de App, agora derivados da nossa definição manual e única
+// ===============================
+// Nossos Tipos de App (Derivados da Database e adicionando tipos de retorno de hooks, etc.)
+// ===============================
+
 export type Project = Database['public']['Tables']['projects']['Row'];
 export type User = Database['public']['Tables']['profiles']['Row']; // Exportar o tipo User
-// Atualizando o tipo Task para incluir as propriedades opcionais
+// Atualizando o tipo Task para incluir as propriedades opcionais (JOINs)
 export type Task = Database['public']['Tables']['tasks']['Row'] & {
     project?: Partial<Project>;
     subtasks?: Database['public']['Tables']['subtasks']['Row'][];
-    comments?: Database['public']['Tables']['comments']['Row'][];
-    attachments?: Database['public']['Tables']['attachments']['Row'][];
+    comments?: Database['public']['Tables']['comments']['Row'][]; // Usar o tipo Comment
+    attachments?: Database['public']['Tables']['attachments']['Row'][]; // Usar o tipo Attachment
 };
+
+// Tipo para uma linha da tabela de comentários
+export type Comment = Database['public']['Tables']['comments']['Row'];
+// Tipo para uma linha da tabela de anexos
+export type Attachment = Database['public']['Tables']['attachments']['Row'];
+// Tipo para uma linha da tabela de subtasks
+export type Subtask = Database['public']['Tables']['subtasks']['Row'];
+
+// Tipo para uma linha da tabela de notificações (usado no frontend)
+// Usamos 'created_at' conforme o banco de dados
+// Usamos 'action_required' conforme o banco de dados
+export type Notification = Database['public']['Tables']['notifications']['Row'];
+
+// Interface para o que o hook useNotifications deve retornar
+export interface UseNotificationsReturn {
+  notifications: Notification[]; // Array de notificações tipadas
+  loading: boolean; // Estado de carregamento
+  error: string | null; // Mensagem de erro ou null
+  // Funções de ação tipadas (assumindo que são assíncronas)
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  clearAllNotifications: () => Promise<void>;
+  refetch: () => Promise<void>; // Função para recarregar notificações
+  // unreadCount: number; // Opcional: pode ser calculado na página
+  // createNotification: (notificationData: Database['public']['Tables']['notifications']['Insert']) => Promise<void>; // Incluído se o hook criar notificações
+}
+
+// ===============================
+// Outros Tipos (Adicione aqui outros tipos globais se necessário)
+// ===============================
+
+// Exemplo: Tipo para o contexto de autenticação
+// export interface AuthContextType {
+//   user: User | null;
+//   session: any | null; // Substituir any pelo tipo de sessão do Supabase
+//   loading: boolean;
+//   signIn: (credentials: any) => Promise<any>; // Ajustar tipos
+//   signUp: (credentials: any) => Promise<any>; // Ajustar tipos
+//   signOut: () => Promise<any>; // Ajustar tipos
+// }
