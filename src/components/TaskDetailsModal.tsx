@@ -25,7 +25,7 @@ import { useTaskHistory } from '@/hooks/useTaskHistory';
 import { useProfiles } from '@/hooks/useProfiles';
 import { formatDate, getStatusLabel, getPriorityLabel, isOverdue } from '@/lib/utils';
 import type { Task } from '@/types';
-import { useToast } from '@/hooks/use-toast'; // <-- IMPORTAÇÃO CORRIGIDA AQUI
+import { useToast } from '@/hooks/use-toast';
 
 interface TaskDetailsModalProps {
   task: Task | null;
@@ -41,12 +41,12 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState<Task | null>(task);
-  const [isSaving, setIsSaving] = useState(false); // Mantém isSaving, remove setSaving
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setEditedTask(task);
     setIsEditing(false);
-  }, [task]);
+  }, [task, open]);
 
   if (!task || !editedTask) return null;
 
@@ -54,22 +54,22 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
     if (refetchTasks) refetchTasks();
     if (refetchHistory) refetchHistory();
   };
-  
+
   const handleInputChange = (field: keyof Task, value: any) => {
     setEditedTask(prev => prev ? { ...prev, [field]: value } : null);
   };
-  
+
   const handleCancelEdit = () => {
     setEditedTask(task);
     setIsEditing(false);
   };
-  
+
   const handleSave = async () => {
     if (!updateTask) {
         toast({ title: "Erro", description: "Função de atualização não implementada.", variant: "destructive" });
         return;
     }
-    
+
     setIsSaving(true);
     try {
       const updatePayload: Partial<Task> = {
@@ -80,8 +80,9 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
         assignee_id: editedTask.assignee_id,
         start_date: editedTask.start_date,
         due_date: editedTask.due_date,
+        priority: editedTask.priority,
       };
-      
+
       await updateTask(task.id, updatePayload);
       toast({ title: "Sucesso!", description: "Tarefa atualizada." });
       setIsEditing(false);
@@ -89,7 +90,7 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
     } catch (error) {
       toast({ title: "Erro", description: "Não foi possível salvar a tarefa.", variant: "destructive" });
     } finally {
-      setIsSaving(false); // Usa isSaving
+      setIsSaving(false);
     }
   };
 
@@ -107,7 +108,20 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
               <DialogTitle className="text-2xl font-semibold">{task.title}</DialogTitle>
             )}
             <div className="flex items-center gap-2">
+              {isEditing ? (
+                 <Select onValueChange={(value) => handleInputChange('priority', value)} value={editedTask.priority || ''}>
+                    <SelectTrigger className="w-[120px]">
+                       <SelectValue placeholder="Prioridade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                       <SelectItem value="low">Baixa</SelectItem>
+                       <SelectItem value="medium">Média</SelectItem>
+                       <SelectItem value="high">Alta</SelectItem>
+                    </SelectContent>
+                 </Select>
+              ) : (
                 <Badge>{getPriorityLabel(task.priority)}</Badge>
+              )}
                 <Badge variant="outline">{getStatusLabel(task.status)}</Badge>
                 {isOverdue(task) && (
                     <Badge variant="destructive" className="flex items-center gap-1">
@@ -171,20 +185,44 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ task, open, onOpenC
                               <div className="space-y-1">
                                   <Label className="text-muted-foreground">Data de Início</Label>
                                   {isEditing ? (
-                                      <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><Calendar className="mr-2 h-4 w-4" />{editedTask.start_date ? formatDate(editedTask.start_date) : <span>Escolha uma data</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><CalendarComponent mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d?.toISOString().split('T')[0])} initialFocus /></PopoverContent></Popover>
+                                      <Popover>
+                                          <PopoverTrigger asChild>
+                                              <Button variant="outline" className="w-full justify-start text-left font-normal"><Calendar className="mr-2 h-4 w-4" />{editedTask.start_date ? formatDate(editedTask.start_date) : <span>Escolha uma data</span>}</Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0">
+                                              <CalendarComponent mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d?.toISOString().split('T')[0])} initialFocus />
+                                          </PopoverContent>
+                                      </Popover>
                                   ) : (<p className="pt-2">{formatDate(task.start_date)}</p>)}
                               </div>
                                <div className="space-y-1">
                                   <Label className="text-muted-foreground">Prazo</Label>
                                   {isEditing ? (
-                                      <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal"><Calendar className="mr-2 h-4 w-4" />{editedTask.due_date ? formatDate(editedTask.due_date) : <span>Escolha uma data</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><CalendarComponent mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d?.toISOString().split('T')[0])} initialFocus /></PopoverContent></Popover>
+                                      <Popover>
+                                          <PopoverTrigger asChild>
+                                              <Button variant="outline" className="w-full justify-start text-left font-normal"><Calendar className="mr-2 h-4 w-4" />{editedTask.due_date ? formatDate(editedTask.due_date) : <span>Escolha uma data</span>}</Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0">
+                                              <CalendarComponent mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d?.toISOString().split('T')[0])} initialFocus />
+                                          </PopoverContent>
+                                      </Popover>
                                   ) : (<p className="pt-2">{formatDate(task.due_date)}</p>)}
                               </div>
                                <div className="space-y-1">
-                                  <Label className="text-muted-foreground">Horas Estimadas</Label>{isEditing ? (<Input type="number" value={editedTask.estimated_hours || ''} onChange={(e) => handleInputChange('estimated_hours', parseInt(e.target.value) || null)} />) : (<div className="flex items-center gap-2 pt-2"><Clock className="w-4 h-4" /><p>{task.estimated_hours ? `${task.estimated_hours}h` : 'N/D'}</p></div>)}
+                                  <Label className="text-muted-foreground">Horas Estimadas</Label>
+                                  {isEditing ? (
+                                      <Input type="number" value={editedTask.estimated_hours || ''} onChange={(e) => handleInputChange('estimated_hours', parseInt(e.target.value) || null)} />
+                                  ) : (
+                                      <div className="flex items-center gap-2 pt-2"><Clock className="w-4 h-4" /><p>{task.estimated_hours ? `${task.estimated_hours}h` : 'N/D'}</p></div>
+                                  )}
                               </div>
                                <div className="space-y-1 sm:col-span-2">
-                                  <Label className="text-muted-foreground">Tags</Label>{isEditing ? (<Input value={editedTask.tags || ''} onChange={(e) => handleInputChange('tags', e.target.value)} placeholder="design, frontend, bug" />) : (<div className="flex flex-wrap gap-2 pt-1">{taskTags.length > 0 ? taskTags.map(tag => <Badge key={tag} variant="secondary" className="flex items-center gap-1"><Tag className="w-3 h-3" />{tag}</Badge>) : <p className="text-sm text-muted-foreground">Nenhuma tag</p>}</div>)}
+                                  <Label className="text-muted-foreground">Tags</Label>
+                                  {isEditing ? (
+                                      <Input value={editedTask.tags || ''} onChange={(e) => handleInputChange('tags', e.target.value)} placeholder="design, frontend, bug" />
+                                  ) : (
+                                      <div className="flex flex-wrap gap-2 pt-1">{taskTags.length > 0 ? taskTags.map(tag => <Badge key={tag} variant="secondary" className="flex items-center gap-1"><Tag className="w-3 h-3" />{tag}</Badge>) : <p className="text-sm text-muted-foreground">Nenhuma tag</p>}</div>
+                                  )}
                               </div>
                           </div>
                           <div className="text-xs text-gray-500 mt-4">Criado em: {formatDate(task.created_at)} | Última atualização: {formatDate(task.updated_at)}</div>
