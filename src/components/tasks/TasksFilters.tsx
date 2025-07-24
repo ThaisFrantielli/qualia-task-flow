@@ -22,10 +22,10 @@ interface TasksFiltersProps {
   tagFilter: string;
   setTagFilter: (tag: string) => void;
   projectFilter: string;
-  setProjectFilter: (project: string) => void; // Adicionar setProjectFilter
-  availableAssignees: User[]; // Usar o tipo User
+  setProjectFilter: (project: string) => void;
+  availableAssignees: User[];
   uniqueTags: string[];
-  uniqueProjects: Project[]; // Usar o tipo Project
+  uniqueProjects: Project[];
   viewMode: 'list' | 'grouped';
   setViewMode: (mode: 'list' | 'grouped') => void;
   focusMode: boolean;
@@ -34,6 +34,9 @@ interface TasksFiltersProps {
   setGroupBy: (groupBy: 'status' | 'project' | 'assignee') => void;
   archiveStatusFilter: 'active' | 'archived' | 'all';
   setArchiveStatusFilter: (filter: 'active' | 'archived' | 'all') => void;
+  overdueCount: number; // Added overdueCount
+  hasFilters: boolean; // Added hasFilters
+  onClearFilters: () => void; // Added onClearFilters
 }
 
 const TasksFilters: React.FC<TasksFiltersProps> = ({
@@ -61,7 +64,10 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
   groupBy,
   setGroupBy,
   archiveStatusFilter,
-  setArchiveStatusFilter
+  setArchiveStatusFilter,
+  overdueCount, // Destructure overdueCount
+  hasFilters, // Destructure hasFilters
+  onClearFilters // Destructure onClearFilters
 }) => {
 
   return (
@@ -235,7 +241,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             <TooltipTrigger asChild>
               <Button
                 variant={periodFilter === 'today' ? 'default' : 'outline'}
-                size="sm"
+                size="sm'
                 onClick={() => setPeriodFilter('today')}
                 className="flex items-center gap-2"
               >
@@ -247,21 +253,21 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </Tooltip>
           <Button
             variant={periodFilter === 'week' ? 'default' : 'outline'}
-            size="sm"
+            size="sm'
             onClick={() => setPeriodFilter('week')}
           >
             Esta Semana
           </Button>
           <Button
             variant={periodFilter === 'month' ? 'default' : 'outline'}
-            size="sm"
+            size="sm'
             onClick={() => setPeriodFilter('month')}
           >
             Este Mês
           </Button>
           <Button
             variant={periodFilter === 'overdue' ? 'destructive' : 'outline'}
-            size="sm"
+            size="sm'
             onClick={() => setPeriodFilter('overdue')}
             className="flex items-center gap-2"
           >
@@ -270,7 +276,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </Button>
           <Button
             variant={periodFilter === 'all' ? 'default' : 'outline'}
-            size="sm"
+            size="sm'
             onClick={() => setPeriodFilter('all')}
           >
             Todas

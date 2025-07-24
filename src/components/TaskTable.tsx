@@ -23,6 +23,10 @@ interface TaskTableProps {
   onStatusChange: (taskId: string, status: string) => void;
   onArchiveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
+  onPriorityChange: (taskId: string, newPriority: string) => Promise<void>; // Added onPriorityChange
+  onAssigneeChange: (taskId: string, newAssigneeId: string | null) => Promise<void>; // Added onAssigneeChange
+  availableAssignees: { id: string; full_name: string | null; avatar_url?: string | null }[]; // Added availableAssignees
+  isLoading: boolean; // Added isLoading
 }
 
 const TaskTable: React.FC<TaskTableProps> = ({ 
@@ -30,7 +34,11 @@ const TaskTable: React.FC<TaskTableProps> = ({
   onTaskClick, 
   onStatusChange, 
   onArchiveTask, 
-  onDeleteTask 
+  onDeleteTask,
+  onPriorityChange, // Destructure onPriorityChange
+  onAssigneeChange, // Destructure onAssigneeChange
+  availableAssignees, // Destructure availableAssignees
+  isLoading // Destructure isLoading
 }) => {
   return (
     <div className="bg-white rounded-xl shadow-quality overflow-hidden">
@@ -56,6 +64,10 @@ const TaskTable: React.FC<TaskTableProps> = ({
               onStatusChange={onStatusChange}
               onArchiveTask={onArchiveTask}
               onDeleteTask={onDeleteTask}
+              onPriorityChange={onPriorityChange} // Pass down onPriorityChange
+              onAssigneeChange={onAssigneeChange} // Pass down onAssigneeChange
+              availableAssignees={availableAssignees} // Pass down availableAssignees
+              isLoading={isLoading} // Pass down isLoading
             />
           ))}
         </TableBody>
