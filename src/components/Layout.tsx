@@ -1,39 +1,43 @@
+// src/components/Layout.tsx
 
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import NotificationCenter from './notifications/NotificationCenter';
+
+// --- CAMINHOS DE IMPORTAÇÃO CORRIGIDOS ---
+// Como Layout.tsx e Sidebar.tsx estão na mesma pasta (components), o caminho é './'
+import Sidebar from './Sidebar'; 
+// A pasta 'notifications' é uma subpasta de 'components', então o caminho é './'
+import NotificationCenter from './notifications/NotificationCenter'; 
+// ------------------------------------------
+
 import { Toaster } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext'; // O alias '@/` geralmente aponta para 'src/', então este deve estar correto
 
 const Layout = () => {
+  // Pegar o usuário do contexto
+  const { user } = useAuth();
+
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
+    <div className="flex h-screen bg-gray-50/50">
+      {/* Passar o usuário como 'prop' para a Sidebar */}
+      <Sidebar user={user} />
+      
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-300 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h2 className="text-xl font-semibold text-gray-900">TaskMaster Pro</h2>
-            </div>
+        {/* Header simplificado */}
+        <header className="bg-white shadow-sm border-b border-gray-200 z-10">
+          <div className="flex items-center justify-end h-16 px-6">
             <div className="flex items-center space-x-4">
               <NotificationCenter />
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">U</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">Usuário</span>
-              </div>
             </div>
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        {/* Conteúdo Principal da Página */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto">
           <Outlet />
         </main>
       </div>
-      <Toaster position="top-right" />
+      <Toaster position="top-right" richColors />
     </div>
   );
 };
