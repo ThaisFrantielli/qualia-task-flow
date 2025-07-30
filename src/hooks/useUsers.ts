@@ -1,27 +1,47 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../integrations/supabase/client';
-import { User } from '../types'; // Importe o tipo User
+// src/hooks/useUsers.ts
+
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import type { UserProfile } from '@/types'; // Usando o tipo UserProfile que definimos
 
 export const useUsers = () => {
-  const [users, setUsers] = useState<User[] | null>(null);
+  // 1. INICIE O ESTADO COM UM ARRAY VAZIO
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      let { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email'); // Adicionado 'email'
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        console.error('Error fetching users:', error);
-      } else {
-        setUsers(data as User[] | null); // Garantindo que o tipo seja User[] ou null
-        setLoading(false);
-      }
-    };
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data, error: fetchError } = await supabase
+        .from('profiles') // Sua tabela de perfis/usuários
+        .select('*')
+        .order('full_name', { ascending: true });
 
-    fetchUsers();
+      if (fetchError) throw new Error(fetchError.message);
+      
+      // 2. SE 'data' FOR NULO, setUsers VAI RECEBER UM ARRAY VAZIO
+      setUsers(data || []);
+
+    } catch (err: any) {
+      console.error('Erro ao buscar usuários:', err);
+      setError(`Erro ao buscar usuários: ${err.message}`);
+      setUsers([]); // 3. EM CASO DE ERRO, TAMBÉM GARANTA UM ARRAY VAZIO
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { users, loading, error };
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  return {
+    users,
+    loading,
+    error,
+    refetch: fetchUsers,
+  };
 };

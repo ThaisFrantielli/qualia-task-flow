@@ -1,7 +1,10 @@
 // src/types/index.ts
 
-// Vamos definir a estrutura da 'Database' manualmente aqui.
-// Isso substitui a necessidade de gerar tipos com a CLI do Supabase.
+// ===============================
+// Definições do Banco de Dados (Estrutura Bruta)
+// ===============================
+
+// Tipo genérico para colunas JSONB
 export type Json =
   | string
   | number
@@ -10,10 +13,11 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Definição completa da estrutura do seu banco de dados
 export type Database = {
   public: {
     Tables: {
-      // Definição completa da tabela 'tasks'
+      // Tabela 'tasks'
       tasks: {
         Row: {
           id: string;
@@ -26,7 +30,7 @@ export type Database = {
           due_date: string | null;
           project_id: string | null;
           user_id: string | null;
-          assignee_id: string | null; // <-- A coluna que precisamos
+          assignee_id: string | null;
           assignee_name: string | null;
           assignee_avatar: string | null;
           archived: boolean | null;
@@ -35,199 +39,116 @@ export type Database = {
           start_date: string | null;
           end_date: string | null;
           delegated_by: string | null;
+          section: string | null;
+          atendimento_id: number | null;
         };
-        Insert: {
-          // Tipos para criar uma nova tarefa
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-          title: string;
-          description?: string | null;
-          status?: string | null;
-          priority?: string | null;
-          due_date?: string | null;
-          project_id?: string | null;
-          user_id: string; // user_id é obrigatório na criação
-          assignee_id?: string | null;
-        };
-        Update: {
-          // Tipos para atualizar uma tarefa
-          title?: string;
-          description?: string | null;
-          status?: string | null;
-          priority?: string | null;
-          due_date?: string | null;
-          assignee_id?: string | null;
-        };
+        Insert: { /* Adicione os campos de inserção se necessário */ };
+        Update: { /* Adicione os campos de atualização se necessário */ };
       };
-      // Defina outras tabelas aqui se precisar
-      projects: {
+
+      // Tabela 'atendimentos'
+      atendimentos: {
         Row: {
-          id: string;
+          id: number;
           created_at: string;
           updated_at: string;
-          name: string;
-          description: string | null;
-          color: string | null;
-          user_id: string | null;
-        };
-      };
-      profiles: {
-          Row: {
-            id: string;
-            full_name: string | null;
-            avatar_url: string | null;
-            email: string | null;
-          }
-      }
-      task_delegations: {
-          Row: {
-              // ...
-              task_id: string;
-              delegated_by_id: string | null;
-              delegated_to_id: string | null;
-              delegated_by: string | null;
-              delegated_to: string | null;
-              status: string | null;
-              notes: string | null;
-          };
-          Insert: {
-              task_id: string;
-              delegated_by_id?: string | null;
-              delegated_to_id?: string | null;
-              delegated_by?: string | null;
-              delegated_to?: string | null;
-              status?: string | null;
-              notes?: string | null;
-          }
-      }
-      // Adicionando definições para subtasks, comments e attachments
-      subtasks: {
-        Row: {
-          id: string;
-          created_at: string;
-          task_id: string;
-          title: string;
-          completed: boolean;
-        };
-      };
-      comments: {
-        Row: {
-          id: string;
-          created_at: string;
-          task_id: string;
-          user_id: string;
-          content: string;
-        };
-      };
-      attachments: {
-        Row: {
-          id: string;
-          created_at: string;
-          task_id: string;
-          file_name: string;
-          file_url: string;
-          uploaded_by_id: string;
-        };
-      };
-      // Adicionar a definição da tabela notifications
-      notifications: {
-        Row: {
-          id: string;
-          created_at: string; // Coluna de timestamp
-          user_id: string; // Usuário que recebe a notificação
-          task_id: string | null; // Opcional, se a notificação for sobre uma tarefa
-          type: string; // Tipo da notificação (info, warning, success, error, etc.)
-          title: string;
-          message: string;
-          read: boolean;
-          action_required: boolean | null; // Verifique o nome exato da coluna no seu DB
-          data: Json | null; // Coluna jsonb para dados adicionais
+          client_name: string | null;
+          client_phone: string | null;
+          client_email: string | null;
+          status: 'Solicitação' | 'Em Análise' | 'Resolvido' | null;
+          summary: string | null;
+          initial_message: string | null;
+          assignee_id: string | null;
+          department: string | null;
+          reason: string | null;
+          license_plate: string | null;
+          resolution_details: string | null;
+          final_analysis: string | null;
+          lead_source: string | null;
+          contact_start_time: string | null;
+          contact_end_time: string | null;
+          proposal_sent_date: string | null;
+          contract_signed_date: string | null;
+          adjustment_index: string | null;
+          notes: string | null;
+          contact_person: string | null;
+          first_response_at: string | null; 
+          resolved_at: string | null;
         };
         Insert: {
-           id?: string;
-           created_at?: string;
-           user_id: string;
-           task_id?: string | null;
-           type: string;
-           title: string;
-           message: string;
-           read?: boolean;
-           action_required?: boolean | null;
-           data?: Json | null;
+          id?: number;
+          client_name?: string | null;
+          contact_person?: string | null;
+          client_phone?: string | null;
+          client_email?: string | null;
+          status?: 'Solicitação' | 'Em Análise' | 'Resolvido' | null;
+          summary?: string | null;
+          initial_message?: string | null;
+          assignee_id?: string | null;
+          department?: string | null;
+          reason?: string | null;
         };
         Update: {
-           user_id?: string;
-           task_id?: string | null;
-           type?: string;
-           title?: string;
-           message?: string;
-           read?: boolean;
-           action_required?: boolean | null;
-           data?: Json | null;
+          client_name?: string | null;
+          status?: 'Solicitação' | 'Em Análise' | 'Resolvido' | null;
+          summary?: string | null;
+          assignee_id?: string | null;
+          department?: string | null;
+          reason?: string | null;
+          resolution_details?: string | null;
+          final_analysis?: string | null;
         };
       };
+
+      // Outras tabelas...
+      projects: { Row: { id: string; name: string; description: string | null; color: string | null; created_at: string; updated_at: string; user_id: string | null; } };
+      profiles: { Row: { id: string; full_name: string | null; avatar_url: string | null; email: string | null; funcao: string | null; nivelAcesso: 'Usuário' | 'Supervisão' | 'Gestão' | 'Admin' | null; permissoes: Json | null; } };
+      notifications: { Row: { id: string; created_at: string; user_id: string; task_id: string | null; type: string; title: string; message: string; read: boolean; action_required: boolean | null; data: Json | null; } };
+      comments: { Row: { id: string; created_at: string; task_id: string; user_id: string; content: string; } };
+      attachments: { Row: { id: string; created_at: string; task_id: string; file_name: string; file_url: string; uploaded_by_id: string; } };
+      subtasks: { Row: { id: string; created_at: string; task_id: string; title: string; completed: boolean; } };
+      task_delegations: { Row: { task_id: string; delegated_by_id: string | null; delegated_to_id: string | null; delegated_by: string | null; delegated_to: string | null; status: string | null; notes: string | null; }, Insert: { /* ... */ } };
     };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      [_ in never]: never;
-    };
+    Views: { [_ in never]: never; };
+    Functions: { [_ in never]: never; };
   };
 };
 
 // ===============================
-// Nossos Tipos de App (Derivados da Database e adicionando tipos de retorno de hooks, etc.)
+// Tipos de App (Tipos Limpos para Uso na Aplicação)
 // ===============================
 
 export type Project = Database['public']['Tables']['projects']['Row'];
-export type User = Database['public']['Tables']['profiles']['Row']; // Exportar o tipo User
-// Atualizando o tipo Task para incluir as propriedades opcionais (JOINs)
+export type UserProfile = Database['public']['Tables']['profiles']['Row'];
+
 export type Task = Database['public']['Tables']['tasks']['Row'] & {
     project?: Partial<Project>;
     subtasks?: Database['public']['Tables']['subtasks']['Row'][];
-    comments?: Database['public']['Tables']['comments']['Row'][]; // Usar o tipo Comment
-    attachments?: Database['public']['Tables']['attachments']['Row'][]; // Usar o tipo Attachment
+    comments?: Database['public']['Tables']['comments']['Row'][];
+    attachments?: Database['public']['Tables']['attachments']['Row'][];
+    assignee?: Partial<UserProfile>;
 };
 
-// Tipo para uma linha da tabela de comentários
-export type Comment = Database['public']['Tables']['comments']['Row'];
-// Tipo para uma linha da tabela de anexos
-export type Attachment = Database['public']['Tables']['attachments']['Row'];
-// Tipo para uma linha da tabela de subtasks
-export type Subtask = Database['public']['Tables']['subtasks']['Row'];
+export type Atendimento = Database['public']['Tables']['atendimentos']['Row'] & {
+  assignee_name?: string | null;
+};
 
-// Tipo para uma linha da tabela de notificações (usado no frontend)
-// Usamos 'created_at' conforme o banco de dados
-// Usamos 'action_required' conforme o banco de dados
+export type Comment = Database['public']['Tables']['comments']['Row'];
+export type Attachment = Database['public']['Tables']['attachments']['Row'];
+export type Subtask = Database['public']['Tables']['subtasks']['Row'];
 export type Notification = Database['public']['Tables']['notifications']['Row'];
 
-// Interface para o que o hook useNotifications deve retornar
+// ===============================
+// Tipos para Hooks
+// ===============================
+
 export interface UseNotificationsReturn {
-  notifications: Notification[]; // Array de notificações tipadas
-  loading: boolean; // Estado de carregamento
-  error: string | null; // Mensagem de erro ou null
-  // Funções de ação tipadas (assumindo que são assíncronas)
+  notifications: Notification[];
+  loading: boolean;
+  error: string | null;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   deleteNotification: (id: string) => Promise<void>;
   clearAllNotifications: () => Promise<void>;
-  refetch: () => Promise<void>; // Função para recarregar notificações
-  // unreadCount: number; // Opcional: pode ser calculado na página
-  // createNotification: (notificationData: Database['public']['Tables']['notifications']['Insert']) => Promise<void>; // Incluído se o hook criar notificações
+  refetch: () => Promise<void>;
 }
-
-// ===============================
-// Outros Tipos (Adicione aqui outros tipos globais se necessário)
-// ===============================
-
-// Exemplo: Tipo para o contexto de autenticação
-// export interface AuthContextType {
-//   user: User | null;
-//   session: any | null; // Substituir any pelo tipo de sessão do Supabase
-//   loading: boolean;
-//   signIn: (credentials: any) => Promise<any>; // Ajustar tipos
-//   signUp: (credentials: any) => Promise<any>; // Ajustar tipos
-//   signOut: () => Promise<any>; // Ajustar tipos
-// }

@@ -1,17 +1,9 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Mail, Edit, Trash2 } from 'lucide-react';
-
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  tasksCount: number;
-}
+import { Mail, Edit, Trash2, ShieldCheck } from 'lucide-react';
+import { TeamMember } from '@/pages/Team'; // Importar tipo
 
 interface TeamMemberCardProps {
   member: TeamMember;
@@ -20,59 +12,43 @@ interface TeamMemberCardProps {
 }
 
 const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, onEdit, onDelete }) => {
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
+  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
 
   return (
-    <Card key={member.id}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center space-x-3">
-          <Avatar>
-            <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <CardTitle className="text-base">{member.name}</CardTitle>
-            <CardDescription>{member.role}</CardDescription>
-          </div>
+    <Card key={member.id} className="flex flex-col">
+      <CardHeader>
+        <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-4">
+                <Avatar className="h-12 w-12">
+                    <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+                </Avatar>
+                <div>
+                    <CardTitle className="text-lg">{member.name}</CardTitle>
+                    <CardDescription>{member.funcao}</CardDescription>
+                </div>
+            </div>
+             <div className="flex items-center space-x-1">
+              <Button variant="ghost" size="icon" onClick={() => onEdit(member)}>
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => onDelete(member.id)} disabled={member.tasksCount > 0}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-2">
-          <div className="flex items-center text-sm text-gray-600">
+      <CardContent className="flex-grow space-y-3">
+         <div className="flex items-center text-sm text-muted-foreground">
             <Mail className="w-4 h-4 mr-2" />
             {member.email}
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              {member.tasksCount} tarefas atribuídas
-            </span>
-            <div className="flex space-x-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onEdit(member)}
-                className="hover:bg-blue-50"
-              >
-                <Edit className="w-3 h-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onDelete(member.id)}
-                className="hover:bg-red-50 hover:text-red-600"
-                disabled={member.tasksCount > 0}
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            </div>
+         <div className="flex items-center text-sm font-medium text-primary bg-primary/10 px-3 py-1.5 rounded-md">
+            <ShieldCheck className="w-4 h-4 mr-2" />
+            Nível de Acesso: {member.nivelAcesso}
           </div>
-          {member.tasksCount > 0 && (
-            <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-              Não é possível excluir: possui tarefas atribuídas
-            </div>
-          )}
-        </div>
+          <div className="text-sm text-muted-foreground">
+            {member.tasksCount} tarefas atribuídas
+          </div>
       </CardContent>
     </Card>
   );
