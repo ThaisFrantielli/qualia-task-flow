@@ -1,15 +1,17 @@
+// src/components/projects/ProjectsView.tsx
+
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, FolderOpen, Calendar, User, Clock, MoreHorizontal } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
-import type { Database, Task } from '@/types'; // Alterado o import para @/types
-
-// Removida a redefinição local do tipo Task
+import type { Task } from '@/types';
+// --- IMPORTAÇÃO DAS FUNÇÕES UTILITÁRIAS ---
+import { formatDate, getPriorityColor, getPriorityLabel } from '@/lib/utils';
 
 interface ProjectsViewProps {
   onTaskClick: (task: Task) => void;
@@ -28,34 +30,6 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
       newExpanded.add(projectId);
     }
     setExpandedProjects(newExpanded);
-  };
-
-  // Funções auxiliares
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Não definida';
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
-
-  const getPriorityColor = (priority: string | null) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'low':
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
-  };
-
-  const getPriorityLabel = (priority: string | null) => {
-    const labels: { [key: string]: string } = {
-      'high': 'Alta',
-      'medium': 'Média',
-      'low': 'Baixa'
-    };
-    return labels[priority || 'default'] || priority || 'Desconhecida';
   };
 
   // Agrupa tarefas por projeto
@@ -77,7 +51,6 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     return project || { name: 'Projeto Desconhecido', color: '#6b7280', description: '' };
   };
 
-  // Tela de carregamento
   if (tasksLoading || projectsLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -89,45 +62,35 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
     );
   }
 
-  // Renderização principal do componente
   return (
     <div className="space-y-3">
       {Object.entries(tasksByProject).map(([projectKey, projectTasks]) => {
         const projectInfo = getProjectInfo(projectKey);
         const isExpanded = expandedProjects.has(projectKey);
 
-        // --- Lógica de Progresso e contadores ---
         const completed = projectTasks.filter(t => t.status === 'done').length;
         const inProgress = projectTasks.filter(t => t.status === 'progress').length;
         const todo = projectTasks.filter(t => t.status === 'todo').length;
-        // const overdue = projectTasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done').length;
         const totalTasks = projectTasks.length;
         const progressPercent = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
 
         return (
           <Collapsible key={projectKey} open={isExpanded} onOpenChange={() => toggleProject(projectKey)}>
             <div className="bg-card text-card-foreground rounded-lg border">
-              {/* O NOVO HEADER DO PROJETO (Card Clicável) */}
               <CollapsibleTrigger asChild>
                 <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
                   <div
                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: projectInfo.color || '#6b7280' }}
                   />
-
                   <div className="flex-grow">
                     <h3 className="font-semibold">{projectInfo.name}</h3>
                   </div>
-
-                  {/* Indicadores Rápidos */}
                   <div className="hidden md:flex items-center gap-3 text-sm text-muted-foreground">
                     <span title="Concluídas">✅ {completed}</span>
                     <span title="Em Progresso">🔄 {inProgress}</span>
                     <span title="Pendentes">🕒 {todo}</span>
-                    {/* <span className="text-red-500" title="Atrasadas">🔴 {overdue}</span> */}
                   </div>
-
-                  {/* Barra de Progresso */}
                   <div className="w-40 hidden lg:block">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs text-muted-foreground">Progresso</span>
@@ -137,23 +100,14 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({ onTaskClick }) => {
                       <div className="bg-primary h-1.5 rounded-full" style={{ width: `${progressPercent}%` }}></div>
                     </div>
                   </div>
-
-                  {/* Avatares */}
                   <div className="flex -space-x-2">
+                    {/* Placeholder avatars */}
                     <Avatar className="h-6 w-6 border-2 border-background"><AvatarFallback>A</AvatarFallback></Avatar>
                     <Avatar className="h-6 w-6 border-2 border-background"><AvatarFallback>B</AvatarFallback></Avatar>
                   </div>
-
-                  {/* Ícone de Expandir */}
-                  {isExpanded ? (
-                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                  )}
+                  {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
                 </div>
               </CollapsibleTrigger>
-
-              {/* A NOVA LISTA DE TAREFAS DETALHADA */}
               <CollapsibleContent>
                 <div className="border-t">
                   <table className="w-full text-sm">
