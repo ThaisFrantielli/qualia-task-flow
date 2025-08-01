@@ -8,12 +8,10 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import TeamMemberDialog from '@/components/team/TeamMemberDialog';
 
-// Componentes da UI para a Tabela
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
-// Definição das interfaces e tipos para esta página
 export interface Permissoes {
   dashboard: boolean;
   kanban: boolean;
@@ -21,6 +19,7 @@ export interface Permissoes {
   projects: boolean;
   team: boolean;
   settings: boolean;
+  crm: boolean;
 }
 
 export interface TeamMember {
@@ -33,7 +32,6 @@ export interface TeamMember {
   tasksCount: number;
 }
 
-// Função helper para definir permissões padrão com base no nível de acesso
 const getDefaultPermissions = (nivel: TeamMember['nivelAcesso']): Permissoes => {
   const basePermissions = {
     dashboard: true,
@@ -42,12 +40,13 @@ const getDefaultPermissions = (nivel: TeamMember['nivelAcesso']): Permissoes => 
     projects: false,
     team: false,
     settings: false,
+    crm: false,
   };
   switch (nivel) {
     case 'Admin':
-      return { dashboard: true, kanban: true, tasks: true, projects: true, team: true, settings: true };
+      return { dashboard: true, kanban: true, tasks: true, projects: true, team: true, settings: true, crm: true };
     case 'Gestão':
-      return { ...basePermissions, projects: true, team: true };
+      return { ...basePermissions, projects: true, team: true, crm: true };
     case 'Supervisão':
       return { ...basePermissions, projects: true };
     case 'Usuário':
@@ -63,7 +62,6 @@ const Team = () => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   
-  // Estado para o formulário do Dialog
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -72,10 +70,8 @@ const Team = () => {
     permissoes: getDefaultPermissions('Usuário'),
   });
   
-  // Função para pegar as iniciais do nome para o Avatar
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
 
-  // Efeito para buscar os membros da equipe do banco de dados ao carregar a página
   useEffect(() => {
     const fetchTeamMembers = async () => {
       setIsLoading(true);
@@ -91,7 +87,7 @@ const Team = () => {
           funcao: profile.funcao || 'Função não definida',
           nivelAcesso: profile.nivelAcesso || 'Usuário',
           permissoes: profile.permissoes || getDefaultPermissions(profile.nivelAcesso || 'Usuário'),
-          tasksCount: 0, // A contagem de tarefas precisaria de uma consulta mais complexa
+          tasksCount: 0,
         }));
         setTeamMembers(members);
       }
@@ -100,8 +96,10 @@ const Team = () => {
     fetchTeamMembers();
   }, [toast]);
 
-  // Lida com mudanças nos campos do formulário do Dialog
-  const handleFormChange = (field: keyof typeof formData, value: any) => {
+  // --- A CORREÇÃO ESTÁ AQUI ---
+  // A tipagem do parâmetro 'field' foi alterada de 'keyof typeof formData' para 'string'.
+  // Isso torna a função compatível com a prop 'onFormChange' do TeamMemberDialog.
+  const handleFormChange = (field: string, value: any) => {
     setFormData(prev => {
       const newState = { ...prev, [field]: value };
       if (field === 'nivelAcesso') {
@@ -111,7 +109,6 @@ const Team = () => {
     });
   };
 
-  // Reseta o formulário para o estado inicial
   const resetForm = () => {
     setFormData({
       name: '',
@@ -122,13 +119,11 @@ const Team = () => {
     });
   };
   
-  // Função para "Adicionar Membro" - por enquanto, mostra um aviso
   const handleAddMember = () => {
     toast({ title: 'Função em desenvolvimento', description: 'Use a página de convite ou cadastro para adicionar um novo membro.', variant: 'default' });
     setIsAddMemberOpen(false);
   };
 
-  // Prepara o formulário para edição de um membro existente
   const handleEditMember = (member: TeamMember) => {
     setEditingMember(member);
     setFormData({
@@ -140,11 +135,10 @@ const Team = () => {
     });
   };
 
-  // Salva as alterações de um membro no banco de dados
   const handleUpdateMember = async () => {
     if (!editingMember) return;
     if (!formData.name.trim()) {
-      toast({ title: 'Erro', description: 'O nome é obrigatório.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'O nome é obrigatório.', variant: "destructive" });
       return;
     }
     
@@ -167,7 +161,6 @@ const Team = () => {
     }
   };
 
-  // Remove um membro da lista
   const handleDeleteMember = async (memberId: string) => {
     if (!window.confirm("Tem certeza que deseja remover este membro? A ação não poderá ser desfeita.")) return;
     
@@ -181,7 +174,6 @@ const Team = () => {
     }
   };
 
-  // Exibe um spinner de carregamento enquanto os dados são buscados
   if (isLoading) {
     return (
       <div className="p-6 flex justify-center items-center h-full">
@@ -260,7 +252,6 @@ const Team = () => {
         </Table>
       </div>
 
-      {/* Dialogs para adicionar e editar membros */}
       <TeamMemberDialog
         isOpen={isAddMemberOpen}
         onClose={() => { setIsAddMemberOpen(false); resetForm(); }}

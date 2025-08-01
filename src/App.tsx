@@ -15,23 +15,27 @@ import SettingsPage from './pages/Settings';
 import NotificationsPage from './pages/Notifications';
 import Team from './pages/Team'; 
 import CrmPdvPage from './pages/CrmPdvPage';
-
-// --- 1. IMPORTE A PÁGINA QUE FALTAVA ---
 import CrmDashboardPage from './pages/CrmDashboardPage';
+// --- 1. IMPORTE A PÁGINA DE REDEFINIÇÃO DE SENHA ---
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // Importe componentes de layout e proteção
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import AppLayout from './components/layout/AppLayout';
+import AppLayout from './components/layout/AppLayout'; // Ou o seu componente de Layout
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rotas Públicas */}
+        {/* === ROTAS PÚBLICAS === */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        
+        {/* --- 2. ADICIONE A NOVA ROTA PÚBLICA AQUI --- */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        {/* ------------------------------------------- */}
 
-        {/* Rotas Protegidas */}
+        {/* === ROTAS PROTEGIDAS === */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}> 
             {/* Rotas Principais */}
@@ -45,8 +49,7 @@ function App() {
             
             {/* Rotas de CRM / Pós-Vendas */}
             <Route path="/pos-vendas" element={<CrmPdvPage />} />
-            {/* --- 2. ADICIONE A NOVA ROTA DO DASHBOARD AQUI --- */}
-            <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
+            <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} /> {/* Renomeei para /pos-vendas/dashboard para consistência */}
 
             {/* Rotas de Gerenciamento */}
             <Route path="/team" element={<Team />} />

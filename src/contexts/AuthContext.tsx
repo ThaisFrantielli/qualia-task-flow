@@ -5,8 +5,18 @@ import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 // Importando nossos tipos personalizados
 import type { TeamMember } from '@/pages/Team';
 
-// O tipo de usuário da nossa aplicação será uma união do usuário do Supabase e do nosso TeamMember
-export type AppUser = SupabaseUser & Partial<TeamMember>;
+// src/contexts/AuthContext.tsx
+
+// Adiciona as propriedades que vêm do user_metadata do Supabase
+interface UserMetadata {
+  avatar_url?: string;
+  full_name?: string;
+}
+
+// O AppUser agora inclui o user_metadata
+export type AppUser = Omit<SupabaseUser, 'user_metadata'> & Partial<TeamMember> & {
+  user_metadata: UserMetadata;
+};
 
 // Definindo o tipo para o valor do nosso contexto
 interface AuthContextType {
