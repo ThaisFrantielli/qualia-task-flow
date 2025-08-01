@@ -1,17 +1,18 @@
 // src/pages/Team.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Plus, Users, ShieldCheck, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner'; // Usando sonner para toasts
 import TeamMemberDialog from '@/components/team/TeamMemberDialog';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
+// Tipos exportados para serem usados em outros lugares, como no Dialog
 export interface Permissoes {
   dashboard: boolean;
   kanban: boolean;
@@ -29,22 +30,22 @@ export interface TeamMember {
   funcao: string;
   nivelAcesso: 'Usuário' | 'Supervisão' | 'Gestão' | 'Admin';
   permissoes: Permissoes;
-  tasksCount: number;
+  tasksCount: number; // Placeholder, pode ser preenchido no futuro
 }
 
 const getDefaultPermissions = (nivel: TeamMember['nivelAcesso']): Permissoes => {
-  const basePermissions = {
+  const basePermissions: Permissoes = {
     dashboard: true,
     kanban: true,
     tasks: true,
+    crm: false,
     projects: false,
     team: false,
     settings: false,
-    crm: false,
   };
   switch (nivel) {
     case 'Admin':
-      return { dashboard: true, kanban: true, tasks: true, projects: true, team: true, settings: true, crm: true };
+      return { dashboard: true, kanban: true, tasks: true, crm: true, projects: true, team: true, settings: true };
     case 'Gestão':
       return { ...basePermissions, projects: true, team: true, crm: true };
     case 'Supervisão':
@@ -55,53 +56,52 @@ const getDefaultPermissions = (nivel: TeamMember['nivelAcesso']): Permissoes => 
   }
 };
 
+const initialFormData = {
+  name: '',
+  email: '',
+  funcao: '',
+  nivelAcesso: 'Usuário' as TeamMember['nivelAcesso'],
+  permissoes: getDefaultPermissions('Usuário'),
+};
+
 const Team = () => {
-  const { toast } = useToast();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    funcao: 'Desenvolvedor',
-    nivelAcesso: 'Usuário' as TeamMember['nivelAcesso'],
-    permissoes: getDefaultPermissions('Usuário'),
-  });
+  const [formData, setFormData] = useState(initialFormData);
   
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
 
-  useEffect(() => {
-    const fetchTeamMembers = async () => {
-      setIsLoading(true);
-      const { data: profiles, error } = await supabase.from('profiles').select('*');
-      
-      if (error) {
-        toast({ title: "Erro", description: "Não foi possível carregar a equipe.", variant: "destructive" });
-      } else if (profiles) {
-        const members = profiles.map(profile => ({
-          id: profile.id,
-          name: profile.full_name || 'Nome não definido',
-          email: profile.email || 'Email não definido',
-          funcao: profile.funcao || 'Função não definida',
-          nivelAcesso: profile.nivelAcesso || 'Usuário',
-          permissoes: profile.permissoes || getDefaultPermissions(profile.nivelAcesso || 'Usuário'),
-          tasksCount: 0,
-        }));
-        setTeamMembers(members);
-      }
-      setIsLoading(false);
-    };
-    fetchTeamMembers();
-  }, [toast]);
+  const fetchTeamMembers = useCallback(async () => {
+    setIsLoading(true);
+    const { data: profiles, error } = await supabase.from('profiles').select('*');
+    
+    if (error) {
+      toast.error("Erro ao carregar a equipe.", { description: error.message });
+    } else if (profiles) {
+      const members = profiles.map(profile => ({
+        id: profile.id,
+        name: profile.full_name || 'Nome não definido',
+        email: profile.email || 'Email não definido',
+        funcao: profile.funcao || 'Função não definida',
+        nivelAcesso: profile.nivelAcesso || 'Usuário',
+        permissoes: profile.permissoes as Permissoes || getDefaultPermissions(profile.nivelAcesso || 'Usuário'),
+        tasksCount: 0,
+      }));
+      setTeamMembers(members);
+    }
+    setIsLoading(false);
+  }, []);
 
-  // --- A CORREÇÃO ESTÁ AQUI ---
-  // A tipagem do parâmetro 'field' foi alterada de 'keyof typeof formData' para 'string'.
-  // Isso torna a função compatível com a prop 'onFormChange' do TeamMemberDialog.
+  useEffect(() => {
+    fetchTeamMembers();
+  }, [fetchTeamMembers]);
+
   const handleFormChange = (field: string, value: any) => {
     setFormData(prev => {
       const newState = { ...prev, [field]: value };
+      // ATUALIZAÇÃO AUTOMÁTICA DAS PERMISSÕES AO MUDAR NÍVEL DE ACESSO
       if (field === 'nivelAcesso') {
         newState.permissoes = getDefaultPermissions(value as TeamMember['nivelAcesso']);
       }
@@ -109,69 +109,61 @@ const Team = () => {
     });
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      funcao: 'Desenvolvedor',
-      nivelAcesso: 'Usuário',
-      permissoes: getDefaultPermissions('Usuário'),
-    });
+  const handleOpenDialog = (member: TeamMember | null) => {
+    if (member) { // Editando
+      setEditingMember(member);
+      setFormData({
+        name: member.name,
+        email: member.email,
+        funcao: member.funcao,
+        nivelAcesso: member.nivelAcesso,
+        permissoes: member.permissoes,
+      });
+    } else { // Adicionando (funcionalidade desabilitada por enquanto)
+      setEditingMember(null);
+      setFormData(initialFormData);
+      toast.info('Adicionar Membro', { description: 'A adição de novos membros deve ser feita pela página de cadastro.' });
+      return; // Impede a abertura do modal para adição
+    }
+    setIsDialogOpen(true);
   };
   
-  const handleAddMember = () => {
-    toast({ title: 'Função em desenvolvimento', description: 'Use a página de convite ou cadastro para adicionar um novo membro.', variant: 'default' });
-    setIsAddMemberOpen(false);
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setEditingMember(null);
+    setFormData(initialFormData);
   };
 
-  const handleEditMember = (member: TeamMember) => {
-    setEditingMember(member);
-    setFormData({
-      name: member.name,
-      email: member.email,
-      funcao: member.funcao,
-      nivelAcesso: member.nivelAcesso,
-      permissoes: member.permissoes,
-    });
-  };
-
-  const handleUpdateMember = async () => {
+  const handleSubmit = async () => {
     if (!editingMember) return;
     if (!formData.name.trim()) {
-      toast({ title: 'Erro', description: 'O nome é obrigatório.', variant: "destructive" });
+      toast.error('O nome é obrigatório.');
       return;
     }
     
-    const updatedData = {
-      full_name: formData.name,
-      funcao: formData.funcao,
-      nivelAcesso: formData.nivelAcesso,
-      permissoes: formData.permissoes,
-    };
-    
-    const { error } = await supabase.from('profiles').update(updatedData).eq('id', editingMember.id);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: formData.name,
+        funcao: formData.funcao,
+        nivelAcesso: formData.nivelAcesso,
+        permissoes: formData.permissoes,
+      })
+      .eq('id', editingMember.id);
     
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast.error("Erro ao salvar alterações", { description: error.message });
     } else {
-      setTeamMembers(prev => prev.map(member => (member.id === editingMember.id ? { ...member, ...formData } : member)));
-      setEditingMember(null);
-      resetForm();
-      toast({ title: 'Sucesso!', description: 'Membro atualizado com sucesso.' });
+      toast.success('Membro atualizado com sucesso!');
+      handleCloseDialog();
+      fetchTeamMembers(); // Recarrega os dados para garantir consistência
     }
   };
 
   const handleDeleteMember = async (memberId: string) => {
     if (!window.confirm("Tem certeza que deseja remover este membro? A ação não poderá ser desfeita.")) return;
     
-    const { error } = await supabase.from('profiles').delete().eq('id', memberId);
-    
-    if (error) {
-      toast({ title: "Erro ao remover", description: "Não foi possível remover o membro.", variant: "destructive" });
-    } else {
-      setTeamMembers(prev => prev.filter(member => member.id !== memberId));
-      toast({ title: 'Sucesso!', description: 'Membro removido da lista.' });
-    }
+    toast.error("Funcionalidade em desenvolvimento.", { description: "A remoção de usuários deve ser feita pelo admin do Supabase." });
   };
 
   if (isLoading) {
@@ -189,14 +181,10 @@ const Team = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Equipe e Permissões</h1>
           <p className="text-gray-600">Gerencie os membros, suas funções e níveis de acesso.</p>
         </div>
-        <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center space-x-2" onClick={() => setIsAddMemberOpen(true)}>
-              <Plus className="w-4 h-4" />
-              <span>Adicionar Membro</span>
-            </Button>
-          </DialogTrigger>
-        </Dialog>
+        <Button className="flex items-center space-x-2" onClick={() => handleOpenDialog(null)}>
+          <Plus className="w-4 h-4" />
+          <span>Adicionar Membro</span>
+        </Button>
       </div>
 
       <div className="bg-white rounded-xl border">
@@ -216,7 +204,7 @@ const Team = () => {
                   <TableCell>
                     <div className="flex items-center space-x-3">
                       <Avatar>
-                        <AvatarImage src={undefined} />
+                        {/* <AvatarImage src={undefined} /> */}
                         <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                       </Avatar>
                       <div>
@@ -232,7 +220,7 @@ const Team = () => {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEditMember(member)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(member)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDeleteMember(member.id)}>
@@ -253,22 +241,13 @@ const Team = () => {
       </div>
 
       <TeamMemberDialog
-        isOpen={isAddMemberOpen}
-        onClose={() => { setIsAddMemberOpen(false); resetForm(); }}
-        member={null}
-        formData={formData}
-        onFormChange={handleFormChange}
-        onSubmit={handleAddMember}
-        isEditing={false}
-      />
-      <TeamMemberDialog
-        isOpen={!!editingMember}
-        onClose={() => { setEditingMember(null); resetForm(); }}
+        isOpen={isDialogOpen}
+        onClose={handleCloseDialog}
         member={editingMember}
         formData={formData}
         onFormChange={handleFormChange}
-        onSubmit={handleUpdateMember}
-        isEditing={true}
+        onSubmit={handleSubmit}
+        isEditing={!!editingMember}
       />
     </div>
   );

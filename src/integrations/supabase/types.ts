@@ -14,6 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      atendimentos: {
+        Row: {
+          adjustment_index: string | null
+          assignee_id: string | null
+          client_email: string | null
+          client_name: string | null
+          client_phone: string | null
+          contact_end_time: string | null
+          contact_person: string | null
+          contact_start_time: string | null
+          contract_signed_date: string | null
+          created_at: string
+          department: Database["public"]["Enums"]["tipo_departamento"] | null
+          final_analysis:
+            | Database["public"]["Enums"]["tipo_analise_final"]
+            | null
+          first_response_at: string | null
+          id: number
+          initial_message: string | null
+          lead_source: Database["public"]["Enums"]["tipo_origem_lead"] | null
+          license_plate: string | null
+          notes: string | null
+          proposal_sent_date: string | null
+          reason: Database["public"]["Enums"]["tipo_motivo_reclamacao"] | null
+          resolution_details: string | null
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["tipo_status_atendimento"] | null
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          adjustment_index?: string | null
+          assignee_id?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          contact_end_time?: string | null
+          contact_person?: string | null
+          contact_start_time?: string | null
+          contract_signed_date?: string | null
+          created_at?: string
+          department?: Database["public"]["Enums"]["tipo_departamento"] | null
+          final_analysis?:
+            | Database["public"]["Enums"]["tipo_analise_final"]
+            | null
+          first_response_at?: string | null
+          id?: number
+          initial_message?: string | null
+          lead_source?: Database["public"]["Enums"]["tipo_origem_lead"] | null
+          license_plate?: string | null
+          notes?: string | null
+          proposal_sent_date?: string | null
+          reason?: Database["public"]["Enums"]["tipo_motivo_reclamacao"] | null
+          resolution_details?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["tipo_status_atendimento"] | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adjustment_index?: string | null
+          assignee_id?: string | null
+          client_email?: string | null
+          client_name?: string | null
+          client_phone?: string | null
+          contact_end_time?: string | null
+          contact_person?: string | null
+          contact_start_time?: string | null
+          contract_signed_date?: string | null
+          created_at?: string
+          department?: Database["public"]["Enums"]["tipo_departamento"] | null
+          final_analysis?:
+            | Database["public"]["Enums"]["tipo_analise_final"]
+            | null
+          first_response_at?: string | null
+          id?: number
+          initial_message?: string | null
+          lead_source?: Database["public"]["Enums"]["tipo_origem_lead"] | null
+          license_plate?: string | null
+          notes?: string | null
+          proposal_sent_date?: string | null
+          reason?: Database["public"]["Enums"]["tipo_motivo_reclamacao"] | null
+          resolution_details?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["tipo_status_atendimento"] | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attachments: {
         Row: {
           created_at: string
@@ -194,21 +292,30 @@ export type Database = {
           avatar_url: string | null
           email: string | null
           full_name: string | null
+          funcao: string | null
           id: string
+          nivelAcesso: string | null
+          permissoes: Json | null
           role: string
         }
         Insert: {
           avatar_url?: string | null
           email?: string | null
           full_name?: string | null
+          funcao?: string | null
           id: string
+          nivelAcesso?: string | null
+          permissoes?: Json | null
           role?: string
         }
         Update: {
           avatar_url?: string | null
           email?: string | null
           full_name?: string | null
+          funcao?: string | null
           id?: string
+          nivelAcesso?: string | null
+          permissoes?: Json | null
           role?: string
         }
         Relationships: []
@@ -421,6 +528,7 @@ export type Database = {
           assignee_avatar: string | null
           assignee_id: string | null
           assignee_name: string | null
+          atendimento_id: number | null
           created_at: string
           delegated_by: string | null
           description: string | null
@@ -430,6 +538,7 @@ export type Database = {
           id: string
           priority: string
           project_id: string | null
+          section: string | null
           start_date: string | null
           status: string
           tags: string | null
@@ -442,6 +551,7 @@ export type Database = {
           assignee_avatar?: string | null
           assignee_id?: string | null
           assignee_name?: string | null
+          atendimento_id?: number | null
           created_at?: string
           delegated_by?: string | null
           description?: string | null
@@ -451,6 +561,7 @@ export type Database = {
           id?: string
           priority?: string
           project_id?: string | null
+          section?: string | null
           start_date?: string | null
           status?: string
           tags?: string | null
@@ -463,6 +574,7 @@ export type Database = {
           assignee_avatar?: string | null
           assignee_id?: string | null
           assignee_name?: string | null
+          atendimento_id?: number | null
           created_at?: string
           delegated_by?: string | null
           description?: string | null
@@ -472,6 +584,7 @@ export type Database = {
           id?: string
           priority?: string
           project_id?: string | null
+          section?: string | null
           start_date?: string | null
           status?: string
           tags?: string | null
@@ -485,6 +598,13 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
             referencedColumns: ["id"]
           },
           {
@@ -504,7 +624,51 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      tipo_analise_final: "Procedente" | "Improcedente" | "Dúvida"
+      tipo_departamento:
+        | "Manutenção"
+        | "Central de Atendimento"
+        | "Documentação"
+        | "Operação"
+        | "Comercial"
+        | "Financeiro"
+        | "Departamento Pessoal"
+        | "Aberto Erroneamente"
+        | "Dúvida"
+        | "Operação - Filial SP"
+      tipo_motivo_reclamacao:
+        | "Contestação de Cobrança"
+        | "Demora na Aprovação do Orçamento"
+        | "Agendamento Errôneo"
+        | "Má Qualidade de Serviço"
+        | "Problemas Com Fornecedor"
+        | "Demora em atendimento"
+        | "Atendimento Ineficaz"
+        | "Multas e Notificações"
+        | "Problemas na Entrega"
+        | "Problemas Com Veículo Reserva"
+        | "Atendimento Comercial"
+        | "Oportunidade Aberta Erroneamente"
+        | "Cobrança Indevida"
+        | "Dúvida"
+        | "Erro de processo interno"
+        | "Troca definitiva de veículo"
+        | "Problema recorrente"
+        | "Solicitação de Reembolso"
+        | "Problemas com Terceiro"
+      tipo_origem_lead:
+        | "Cliente (Base)"
+        | "Tráfego Pago"
+        | "Indicação"
+        | "Site"
+        | "Ligação"
+        | "Redes Sociais"
+        | "Blip ChatBot"
+        | "E-mail"
+        | "Encerrado - Manutenção"
+        | "Fechada"
+        | "Perdida"
+      tipo_status_atendimento: "Solicitação" | "Em Análise" | "Resolvido"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -631,6 +795,55 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      tipo_analise_final: ["Procedente", "Improcedente", "Dúvida"],
+      tipo_departamento: [
+        "Manutenção",
+        "Central de Atendimento",
+        "Documentação",
+        "Operação",
+        "Comercial",
+        "Financeiro",
+        "Departamento Pessoal",
+        "Aberto Erroneamente",
+        "Dúvida",
+        "Operação - Filial SP",
+      ],
+      tipo_motivo_reclamacao: [
+        "Contestação de Cobrança",
+        "Demora na Aprovação do Orçamento",
+        "Agendamento Errôneo",
+        "Má Qualidade de Serviço",
+        "Problemas Com Fornecedor",
+        "Demora em atendimento",
+        "Atendimento Ineficaz",
+        "Multas e Notificações",
+        "Problemas na Entrega",
+        "Problemas Com Veículo Reserva",
+        "Atendimento Comercial",
+        "Oportunidade Aberta Erroneamente",
+        "Cobrança Indevida",
+        "Dúvida",
+        "Erro de processo interno",
+        "Troca definitiva de veículo",
+        "Problema recorrente",
+        "Solicitação de Reembolso",
+        "Problemas com Terceiro",
+      ],
+      tipo_origem_lead: [
+        "Cliente (Base)",
+        "Tráfego Pago",
+        "Indicação",
+        "Site",
+        "Ligação",
+        "Redes Sociais",
+        "Blip ChatBot",
+        "E-mail",
+        "Encerrado - Manutenção",
+        "Fechada",
+        "Perdida",
+      ],
+      tipo_status_atendimento: ["Solicitação", "Em Análise", "Resolvido"],
+    },
   },
 } as const
