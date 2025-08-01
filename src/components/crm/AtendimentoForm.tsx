@@ -21,9 +21,9 @@ const AtendimentoForm: React.FC<AtendimentoFormProps> = ({ setOpen, onSuccess })
   // Formulário simplificado para o registro inicial
   const [formData, setFormData] = useState({
     client_name: '',      // Nome da Empresa
-    contact_person: '',   // Nome da Pessoa
-    client_phone: '',     // WhatsApp
-    summary: '',          // Resumo inicial
+    contact_person: '',   // Nome da Pessoa que ligou/contactou
+    client_phone: '',     // Telefone/WhatsApp de contato
+    summary: '',          // Resumo inicial do que se trata o atendimento
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
