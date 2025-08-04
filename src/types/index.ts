@@ -20,85 +20,83 @@ export type Database = {
       // Tabela 'tasks'
       tasks: {
         Row: {
-          id: string;
-          created_at: string;
-          updated_at: string;
-          title: string;
-          description: string | null;
-          status: string | null;
-          priority: string | null;
-          due_date: string | null;
-          project_id: string | null;
-          user_id: string | null;
-          assignee_id: string | null;
-          assignee_name: string | null;
-          assignee_avatar: string | null;
-          archived: boolean | null;
-          tags: string | null;
-          estimated_hours: number | null;
-          start_date: string | null;
-          end_date: string | null;
-          delegated_by: string | null;
-          section: string | null;
-          atendimento_id: number | null;
+          id: string; created_at: string; updated_at: string; title: string;
+          description: string | null; status: string | null; priority: string | null;
+          due_date: string | null; project_id: string | null; user_id: string | null;
+          assignee_id: string | null; assignee_name: string | null; assignee_avatar: string | null;
+          archived: boolean | null; tags: string | null; estimated_hours: number | null;
+          start_date: string | null; end_date: string | null; delegated_by: string | null;
+          section: string | null; atendimento_id: number | null;
         };
-        Insert: { /* Adicione os campos de inserção se necessário */ };
-        Update: { /* Adicione os campos de atualização se necessário */ };
+        Insert: { /* ... */ }; Update: { /* ... */ };
       };
 
       // Tabela 'atendimentos'
       atendimentos: {
         Row: {
-          id: number;
-          created_at: string;
-          updated_at: string;
-          client_name: string | null;
-          client_phone: string | null;
-          client_email: string | null;
+          id: number; created_at: string; updated_at: string; client_name: string | null;
+          client_phone: string | null; client_email: string | null;
           status: 'Solicitação' | 'Em Análise' | 'Resolvido' | null;
-          summary: string | null;
-          initial_message: string | null;
-          assignee_id: string | null;
-          department: string | null;
-          reason: string | null;
-          license_plate: string | null;
-          resolution_details: string | null;
-          final_analysis: string | null;
-          lead_source: string | null;
-          contact_start_time: string | null;
-          contact_end_time: string | null;
-          proposal_sent_date: string | null;
-          contract_signed_date: string | null;
-          adjustment_index: string | null;
-          notes: string | null;
-          contact_person: string | null;
-          first_response_at: string | null; 
+          summary: string | null; initial_message: string | null; assignee_id: string | null;
+          department: string | null; reason: string | null; license_plate: string | null;
+          resolution_details: string | null; final_analysis: string | null;
+          lead_source: string | null; contact_start_time: string | null;
+          contact_end_time: string | null; proposal_sent_date: string | null;
+          contract_signed_date: string | null; adjustment_index: string | null;
+          notes: string | null; contact_person: string | null; first_response_at: string | null;
           resolved_at: string | null;
         };
-        Insert: {
-          id?: number;
-          client_name?: string | null;
-          contact_person?: string | null;
-          client_phone?: string | null;
-          client_email?: string | null;
-          status?: 'Solicitação' | 'Em Análise' | 'Resolvido' | null;
-          summary?: string | null;
-          initial_message?: string | null;
-          assignee_id?: string | null;
-          department?: string | null;
-          reason?: string | null;
+        Insert: { /* ... */ }; Update: { /* ... */ };
+      };
+      
+      // --- NOVAS TABELAS PARA O SISTEMA DE PESQUISAS ---
+      surveys: {
+        Row: {
+          id: string; // UUID
+          created_at: string;
+          type: 'comercial' | 'entrega' | 'manutencao' | 'devolucao';
+          client_name: string;
+          driver_name: string | null;
+          license_plate: string | null;
+          client_email: string | null;
+          client_phone: string | null;
+          sent_at: string | null;
+          responded_at: string | null;
+          created_by_id: string | null;
         };
-        Update: {
-          client_name?: string | null;
-          status?: 'Solicitação' | 'Em Análise' | 'Resolvido' | null;
-          summary?: string | null;
-          assignee_id?: string | null;
-          department?: string | null;
-          reason?: string | null;
-          resolution_details?: string | null;
-          final_analysis?: string | null;
+        Insert: {
+          id?: string;
+          type: 'comercial' | 'entrega' | 'manutencao' | 'devolucao';
+          client_name: string;
+          driver_name?: string | null;
+          license_plate?: string | null;
+          client_email?: string | null;
+          client_phone?: string | null;
+          created_by_id?: string | null;
         };
       };
+
+      survey_responses: {
+        Row: {
+          id: number;
+          survey_id: string;
+          created_at: string;
+          csat_score: number | null;
+          nps_score: number | null;
+          influencing_factors: string[] | null;
+          other_factor_text: string | null;
+          feedback_comment: string | null;
+        };
+        Insert: {
+          survey_id: string;
+          csat_score?: number | null;
+          nps_score?: number | null;
+          influencing_factors?: string[] | null;
+          other_factor_text?: string | null;
+          feedback_comment?: string | null;
+        };
+      };
+      // --- FIM DA ADIÇÃO DAS NOVAS TABELAS ---
 
       // Outras tabelas...
       projects: { Row: { id: string; name: string; description: string | null; color: string | null; created_at: string; updated_at: string; user_id: string | null; } };
@@ -132,6 +130,11 @@ export type Task = Database['public']['Tables']['tasks']['Row'] & {
 export type Atendimento = Database['public']['Tables']['atendimentos']['Row'] & {
   assignee_name?: string | null;
 };
+
+// --- NOVOS TIPOS DE APP PARA PESQUISAS ---
+export type Survey = Database['public']['Tables']['surveys']['Row'];
+export type SurveyResponse = Database['public']['Tables']['survey_responses']['Row'];
+// ------------------------------------
 
 export type Comment = Database['public']['Tables']['comments']['Row'];
 export type Attachment = Database['public']['Tables']['attachments']['Row'];
