@@ -11,10 +11,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // --- ADICIONE ESTA SEÇÃO ---
   server: {
-    host: '0.0.0.0', // Ouve em todas as interfaces de rede disponíveis
-    port: 8080,      // Usa a porta 8080
+    host: '0.0.0.0',
+    port: 8080,
+    // --- OPÇÃO FINAL: DESABILITAR O HMR ---
+    hmr: false,
   }
-  // --------------------------
 })

@@ -2,20 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import {
+import { 
   LayoutDashboard, KanbanSquare, List, Settings,
-  Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3
+  Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
+  ClipboardList
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
+import type { AppUser } from '@/contexts/AuthContext';
+import { Separator } from '@/components/ui/separator';
 
-// --- ESTRUTURA DE MENU REORGANIZADA EM MÓDULOS ---
 const menuGroups = [
   {
-    title: 'PRINCIPAL',
+    title: 'GERAL',
     items: [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
       { label: 'Kanban', url: '/kanban', icon: KanbanSquare, permissionKey: 'kanban' },
@@ -26,30 +28,33 @@ const menuGroups = [
     title: 'CRM',
     items: [
       { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
-      // Corrigindo a URL para corresponder ao App.tsx
-      { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
+      { label: 'Dashboard PDV', url: '/dashboard-pdv', icon: BarChart3, permissionKey: 'crm' },
+      { label: 'Pesquisas', url: '/pesquisas/gerador', icon: ClipboardList, permissionKey: 'crm' },
     ]
   },
   {
     title: 'CONFIGURAÇÕES',
     items: [
       { label: 'Equipe', url: '/team', icon: Users, permissionKey: 'team' },
-      { label: 'Notificações', url: '/notifications', icon: Bell, permissionKey: 'settings' },
-      { label: 'Ajustes', url: '/settings', icon: Settings, permissionKey: 'settings' },
+      { label: 'Notificações', url: '/notifications', icon: Bell },
+      { label: 'Ajustes', url: '/settings', icon: Settings },
     ]
   }
 ];
 
+// O componente agora não precisa mais receber a prop 'user'
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Busca o usuário diretamente do contexto
   const { projects } = useProjects();
   const [isProjectsOpen, setIsProjectsOpen] = useState(false);
 
   useEffect(() => {
-    // Abre a seção de projetos se a rota atual for de um projeto
-    setIsProjectsOpen(location.pathname.startsWith('/projects'));
+    // Abre a seção de projetos se a URL atual for de um projeto
+    if (location.pathname.startsWith('/projects')) {
+      setIsProjectsOpen(true);
+    }
   }, [location.pathname]);
 
   const handleLogout = async () => {
@@ -62,11 +67,10 @@ const Sidebar: React.FC = () => {
     return user?.email?.[0].toUpperCase() || '?';
   };
 
-  // Filtra projetos para não mostrar a opção "Todos os Projetos"
   const projectList = projects.filter(p => p.id !== 'all');
   const isProjectsSectionActive = location.pathname.startsWith('/projects');
 
-  // Mostra um skeleton/placeholder enquanto o usuário está sendo carregado
+  // Mostra um esqueleto de UI enquanto o usuário carrega
   if (!user) {
     return <div className="w-64 h-screen bg-gray-900 animate-pulse"></div>;
   }
@@ -76,27 +80,19 @@ const Sidebar: React.FC = () => {
       {/* Logo */}
       <div className="p-6 border-b border-gray-700/50">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <KanbanSquare className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg">Quality</h1>
-            <p className="text-gray-400 text-sm">Task Manager</p>
-          </div>
+          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center"><KanbanSquare className="w-6 h-6" /></div>
+          <div><h1 className="font-bold text-lg">Quality</h1><p className="text-gray-400 text-sm">Task Manager</p></div>
         </div>
       </div>
 
       <nav className="flex-1 py-6 px-4 overflow-y-auto">
-        <div className="space-y-6"> {/* Aumentado o espaçamento entre módulos */}
+        <div className="space-y-4">
+          {/* Renderização dos Grupos de Menu */}
           {menuGroups.map((group) => {
-            // Filtra os itens do menu com base nas permissões do usuário
             const visibleItems = group.items.filter(item => {
-              if (!item.permissionKey) return true; // Itens sem chave de permissão são sempre visíveis
-              // @ts-ignore - Supabase pode não inferir o tipo de 'permissoes' corretamente
-              return user?.permissoes?.[item.permissionKey] === true;
+              if (!item.permissionKey) return true;
+              return user?.permissoes?.[item.permissionKey as keyof typeof user.permissoes] === true;
             });
-            
-            // Não renderiza o título do módulo se não houver itens visíveis
             if (visibleItems.length === 0) return null;
 
             return (
@@ -107,14 +103,7 @@ const Sidebar: React.FC = () => {
                 <ul className="space-y-1">
                   {visibleItems.map((item) => (
                     <li key={item.label}>
-                      <NavLink
-                        to={item.url}
-                        className={({ isActive }) =>
-                          `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${
-                            isActive ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'
-                          }`
-                        }
-                      >
+                      <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
                         <item.icon className="w-5 h-5" />
                         <span>{item.label}</span>
                       </NavLink>
@@ -125,57 +114,52 @@ const Sidebar: React.FC = () => {
             );
           })}
 
-          {/* Seção de Projetos (renderizada separadamente se houver projetos) */}
-          {projectList.length > 0 && (
-            <div>
-              <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">
-                PROJETOS
-              </h2>
-              <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
-                <CollapsibleTrigger className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all ${isProjectsSectionActive ? 'bg-gray-800' : 'text-gray-300 hover:bg-gray-800'}`}>
-                  <div className="flex items-center space-x-3">
-                    <FolderOpen className="w-5 h-5" />
-                    <span>Meus Projetos</span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isProjectsOpen ? 'rotate-180' : ''}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-1 space-y-1 pl-6">
-                  {projectList.map(project => (
-                     <NavLink
-                        key={project.id}
-                        to={`/projects/${project.id}`}
-                        className={({isActive}) => `flex items-center gap-3 text-sm py-2 px-2 rounded-md ${isActive ? 'bg-primary text-white' : 'hover:bg-gray-800 text-gray-400'}`}
-                      >
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#6b7280' }} />
-                        <span className="truncate">{project.name}</span>
-                     </NavLink>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-          )}
+          {/* Seção de Projetos */}
+          <div>
+            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">
+              PROJETOS
+            </h2>
+            <ul className="space-y-1">
+              <li>
+                <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
+                  <CollapsibleTrigger asChild>
+                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
+                      <div className="flex items-center space-x-3">
+                        <FolderOpen className="w-5 h-5" />
+                        <span>Visão Geral</span>
+                      </div>
+                      <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isProjectsOpen ? 'rotate-180' : ''}`} />
+                    </NavLink>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent asChild>
+                    <ul className="pt-1 pl-6 pr-2 space-y-1">
+                      {projectList.map(project => (
+                        <li key={project.id}>
+                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-primary/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}>
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
+                            <span className="truncate">{project.name}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
+              </li>
+            </ul>
+          </div>
         </div>
       </nav>
 
       {/* Perfil do Usuário e Logout */}
       <div className="p-4 border-t border-gray-700/50">
         <div className="flex items-center space-x-3 mb-4">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={user.user_metadata?.avatar_url ?? undefined} />
-             {/* @ts-ignore */}
-            <AvatarFallback>{getInitials(user.full_name)}</AvatarFallback>
-          </Avatar>
+          <Avatar className="w-10 h-10"><AvatarImage src={user.user_metadata?.avatar_url ?? undefined} /><AvatarFallback>{getInitials(user.name)}</AvatarFallback></Avatar>
           <div className="flex-1 overflow-hidden">
-             {/* @ts-ignore */}
-            <p className="text-sm font-medium truncate">{user.full_name || 'Usuário'}</p>
-             {/* @ts-ignore */}
-            <div className="text-xs text-primary-300">{user.nivelAcesso || 'Nível não definido'}</div>
+            <p className="text-sm font-medium truncate">{user.name || 'Usuário'}</p>
+            <div className="text-xs text-primary-300">{user.nivelAcesso}</div>
           </div>
         </div>
-        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-300 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-          <LogOut className="w-4 h-4" />
-          <span>Sair</span>
-        </button>
+        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-300 hover:bg-red-500/20 hover:text-red-400"><LogOut className="w-4 h-4" /><span>Sair</span></button>
       </div>
     </div>
   );
