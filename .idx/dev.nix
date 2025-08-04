@@ -3,6 +3,7 @@
   packages = [
     pkgs.nodejs_20
     pkgs.docker
+    pkgs.postgresql  # <-- ADICIONE ESTA LINHA
   ];
   services.docker.enable = true;
   idx.extensions = [

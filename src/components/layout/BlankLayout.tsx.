@@ -1,0 +1,19 @@
+// src/components/layout/BlankLayout.tsx
+
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import { Toaster } from 'sonner';
+
+// Este layout apenas renderiza o conteúdo da página, sem sidebar.
+const BlankLayout = () => {
+  return (
+    <div className="min-h-screen bg-gray-50/50">
+      <main>
+        <Outlet />
+      </main>
+      <Toaster position="top-right" richColors />
+    </div>
+  );
+};
+
+export default BlankLayout;
