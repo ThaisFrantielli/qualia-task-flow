@@ -1,11 +1,15 @@
-
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* 
+  Este arquivo mescla os estilos do shadcn/ui do seu projeto principal
+  com as variáveis de marca (cores, fontes, sombras) do seu projeto de referência.
+*/
+
 @layer base {
   :root {
+    /* Cores base do shadcn/ui (do seu projeto qualia-task-flow) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -26,33 +30,46 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+
+    /* Variáveis para Gráficos */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /* --- ADICIONADO DO PROJETO DE REFERÊNCIA --- */
+    /* Cores da Marca Quality Frotas */
+    --quality-purple: 259 49% 29%;
+    --quality-orange: 25 81% 50%;
+    --quality-white: 0 0% 100%;
+    --quality-gray-light: 240 9% 96%;
+    --quality-text: 22 6% 18%;
+
+    /* Gradients */
+    --gradient-quality: linear-gradient(135deg, hsl(var(--quality-purple)), hsl(var(--quality-orange)));
+    --gradient-hero: linear-gradient(135deg, hsl(var(--quality-purple)) 0%, hsl(25 81% 45%) 100%);
+    
+    /* Shadows */
+    --shadow-quality: 0 10px 25px -5px hsl(var(--quality-purple) / 0.1);
+    --shadow-card: 0 4px 6px -1px hsl(var(--quality-purple) / 0.1);
+
+    /* Cores da Sidebar (se você quiser usar um tema diferente para ela) */
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    /* ... e outras variáveis da sidebar se necessário ... */
   }
 
   .dark {
+    /* Cores dark do shadcn/ui */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* ... (resto das suas variáveis dark) ... */
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+
+    /* Variáveis dark para Gráficos */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -66,168 +83,26 @@
     @apply border-border;
   }
   body {
-    @apply bg-gray-50 text-gray-900;
+    /* Aplica a fonte 'Inter' como padrão para o corpo do texto */
+    @apply bg-background text-foreground font-body;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    /* Aplica a fonte 'Comfortaa' como padrão para títulos */
+    @apply font-heading;
   }
 }
 
-/* Melhorar contraste dos inputs e campos */
-.custom-input {
-  @apply bg-white border-gray-300 text-gray-900 placeholder-gray-500;
-}
-
-.custom-select {
-  @apply bg-white border-gray-300 text-gray-900;
-}
-
-.custom-textarea {
-  @apply bg-white border-gray-300 text-gray-900 placeholder-gray-500;
-}
-
-.custom-button {
-  @apply bg-blue-600 text-white hover:bg-blue-700 font-medium;
-}
-
-.custom-card {
-  @apply bg-white border-gray-200 shadow-sm;
-}
-
-/* Custom styles for mentions */
-.mention {
-  @apply inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200;
-}
-
-/* Custom scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* Loading animation */
-.loading-dots {
-  display: inline-block;
-}
-
-.loading-dots::after {
-  content: '';
-  animation: dots 1.5s infinite;
-}
-
-@keyframes dots {
-  0%, 20% {
-    content: '';
+/* --- ADICIONADO DO PROJETO DE REFERÊNCIA --- */
+@layer utilities {
+  .font-heading {
+    font-family: 'Comfortaa', system-ui, sans-serif;
+    font-weight: 700;
   }
-  40% {
-    content: '.';
+
+  .font-body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 400;
   }
-  60% {
-    content: '..';
-  }
-  80%, 100% {
-    content: '...';
-  }
+
+  /* ... (suas outras classes customizadas podem vir aqui) ... */
 }
-
-/* Dropdown fixes - melhor contraste */
-.dropdown-content {
-  @apply bg-white border border-gray-300 shadow-lg z-50;
-}
-
-/* Toolbar fixes - melhor contraste */
-.toolbar {
-  @apply bg-white border-b border-gray-300;
-}
-
-.toolbar-item {
-  @apply text-gray-800 hover:text-gray-900 hover:bg-gray-100 font-medium;
-}
-
-/* Fixes específicos para elementos com baixo contraste */
-select {
-  @apply text-gray-900 bg-white border-gray-300;
-}
-
-input {
-  @apply text-gray-900 bg-white border-gray-300 placeholder-gray-500;
-}
-
-button {
-  @apply font-medium;
-}
-
-/* Melhoria específica para os filtros */
-.filter-button {
-  @apply text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-900;
-}
-
-.filter-button.active {
-  @apply text-white bg-blue-600 border-blue-600 hover:bg-blue-700;
-}
-
-/* Melhoria para cards e containers */
-.task-card {
-  @apply bg-white border border-gray-200 text-gray-900 shadow-sm;
-}
-
-.task-card h3 {
-  @apply text-gray-900 font-semibold;
-}
-
-.task-card p {
-  @apply text-gray-700;
-}
-
-/* Status badges com melhor contraste */
-.status-todo {
-  @apply bg-gray-100 text-gray-800 border-gray-300;
-}
-
-.status-progress {
-  @apply bg-blue-100 text-blue-800 border-blue-300;
-}
-
-.status-done {
-  @apply bg-green-100 text-green-800 border-green-300;
-}
-
-.status-late {
-  @apply bg-red-100 text-red-800 border-red-300;
-}
-
-/* Priority badges */
-.priority-low {
-  @apply bg-gray-100 text-gray-700 border-gray-300;
-}
-
-.priority-medium {
-  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
-}
-
-.priority-high {
-  @apply bg-red-100 text-red-800 border-red-300;
-}
-
-
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-

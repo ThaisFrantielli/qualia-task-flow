@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
-  ClipboardList
+  ClipboardList // Ícone para Pesquisas
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,8 +13,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import type { AppUser } from '@/contexts/AuthContext';
-import { Separator } from '@/components/ui/separator';
 
+// Estrutura de dados para os grupos de menu
 const menuGroups = [
   {
     title: 'GERAL',
@@ -28,8 +28,9 @@ const menuGroups = [
     title: 'CRM',
     items: [
       { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
-      { label: 'Dashboard PDV', url: '/dashboard-pdv', icon: BarChart3, permissionKey: 'crm' },
-      { label: 'Pesquisas', url: '/pesquisas/gerador', icon: ClipboardList, permissionKey: 'crm' },
+      { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
+      // --- ADICIONADO O NOVO LINK AQUI ---
+      { label: 'Pesquisas', url: '/pesquisas', icon: ClipboardList, permissionKey: 'crm' },
     ]
   },
   {
@@ -42,38 +43,23 @@ const menuGroups = [
   }
 ];
 
-// O componente agora não precisa mais receber a prop 'user'
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth(); // Busca o usuário diretamente do contexto
+  const { user } = useAuth();
   const { projects } = useProjects();
   const [isProjectsOpen, setIsProjectsOpen] = useState(false);
 
   useEffect(() => {
-    // Abre a seção de projetos se a URL atual for de um projeto
-    if (location.pathname.startsWith('/projects')) {
-      setIsProjectsOpen(true);
-    }
+    if (location.pathname.startsWith('/projects')) setIsProjectsOpen(true);
   }, [location.pathname]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/login');
-  };
-
-  const getInitials = (name?: string | null): string => {
-    if (name) return name.split(' ').map(n => n[0]).join('').toUpperCase();
-    return user?.email?.[0].toUpperCase() || '?';
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate('/login'); };
+  const getInitials = (name?: string | null): string => { if (name) return name.split(' ').map(n => n[0]).join('').toUpperCase(); return user?.email?.[0].toUpperCase() || '?'; };
 
   const projectList = projects.filter(p => p.id !== 'all');
-  const isProjectsSectionActive = location.pathname.startsWith('/projects');
 
-  // Mostra um esqueleto de UI enquanto o usuário carrega
-  if (!user) {
-    return <div className="w-64 h-screen bg-gray-900 animate-pulse"></div>;
-  }
+  if (!user) return <div className="w-64 h-screen bg-gray-900 animate-pulse"></div>;
 
   return (
     <div className="w-64 h-screen bg-gray-900 shadow-lg flex flex-col text-white">
@@ -87,7 +73,6 @@ const Sidebar: React.FC = () => {
 
       <nav className="flex-1 py-6 px-4 overflow-y-auto">
         <div className="space-y-4">
-          {/* Renderização dos Grupos de Menu */}
           {menuGroups.map((group) => {
             const visibleItems = group.items.filter(item => {
               if (!item.permissionKey) return true;
@@ -97,9 +82,7 @@ const Sidebar: React.FC = () => {
 
             return (
               <div key={group.title}>
-                <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">
-                  {group.title}
-                </h2>
+                <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">{group.title}</h2>
                 <ul className="space-y-1">
                   {visibleItems.map((item) => (
                     <li key={item.label}>
@@ -116,9 +99,7 @@ const Sidebar: React.FC = () => {
 
           {/* Seção de Projetos */}
           <div>
-            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">
-              PROJETOS
-            </h2>
+            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">PROJETOS</h2>
             <ul className="space-y-1">
               <li>
                 <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
