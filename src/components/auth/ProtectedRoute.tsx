@@ -7,21 +7,21 @@ import { Navigate, Outlet } from 'react-router-dom';
 const ProtectedRoute = () => {
   const { user, loading } = useAuth();
 
-  // 1. Tela de carregamento global enquanto a sessão é verificada
+  // 1. Enquanto a autenticação está sendo verificada, mostra uma tela de carregamento.
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  // 2. Se o carregamento terminou e NÃO há usuário, redireciona para login
+  // 2. Se o carregamento terminou e NÃO há usuário, redireciona para a página de login.
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. Se há usuário, permite a renderização do conteúdo (AppLayout e as páginas)
+  // 3. Se o carregamento terminou e HÁ um usuário, renderiza o conteúdo protegido (os Layouts e as páginas).
   return <Outlet />;
 };
 

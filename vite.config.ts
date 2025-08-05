@@ -3,6 +3,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from "path"
+import dotenv from 'dotenv' // 1. Importar o dotenv
+
+// 2. Carregar as variáveis do arquivo .env
+dotenv.config();
 
 export default defineConfig({
   plugins: [react()],
@@ -14,7 +18,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 8080,
-    // --- OPÇÃO FINAL: DESABILITAR O HMR ---
-    hmr: false,
+    // (sua configuração de hmr aqui)
   }
 })

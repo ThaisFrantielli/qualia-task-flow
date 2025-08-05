@@ -1,23 +1,17 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo-quality-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quality Task Manager - Sistema de Gestão de Tarefas</title>
-    <meta name="description" content="Sistema de gestão de tarefas da Quality com visual Kanban e funcionalidades avançadas" />
-    <meta name="author" content="Quality" />
+    <title>Quality Task Manager</title>
+
+    <script>
+      // Impede o erro "__WS_TOKEN__ is not defined" em ambientes de desenvolvimento na nuvem.
+      window.__WS_TOKEN__ = 'dummy_token';
+    </script>
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300;400;700&display=swap" rel="stylesheet">
-
-    <meta property="og:title" content="Quality Task Manager" />
-    <meta property="og:description" content="Sistema de gestão de tarefas da Quality" />
-    <meta property="og:type" content="website" />
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

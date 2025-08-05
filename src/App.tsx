@@ -2,25 +2,44 @@
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-// ... (todas as suas importações de páginas)
-import SurveyGeneratorPage from './pages/SurveyGeneratorPage';
-// ...
+// Importe suas páginas
+import Dashboard from '@/pages/Dashboard';
+import Kanban from '@/pages/Kanban';
+import Tasks from '@/pages/Tasks';
+import Projects from '@/pages/Projects';
+import ProjectDetailPage from '@/pages/ProjectDetailPage';
+import LoginPage from '@/pages/Login';
+import SignupPage from '@/pages/Signup';
+import NotFound from '@/pages/NotFound';
+import SettingsPage from '@/pages/Settings';
+import NotificationsPage from '@/pages/Notifications';
+import CrmPdvPage from '@/pages/CrmPdvPage';
+import CrmDashboardPage from '@/pages/CrmDashboardPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
+import SurveyResponsePage from '@/pages/SurveyResponsePage';
+import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
+import SurveyAdminPage from '@/pages/SurveyAdminPage';
 
-// Importe AMBOS os layouts
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import AppLayout from './components/layout/AppLayout';
-import BlankLayout from './components/layout/BlankLayout'; // 1. Importe o novo layout
+// --- IMPORTAÇÃO QUE FALTAVA ---
+import Team from '@/pages/Team'; 
+
+// Importe componentes de layout e proteção
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import AppLayout from '@/components/layout/AppLayout';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* === ROTAS PÚBLICAS === */}
-        {/* ... (suas rotas públicas) ... */}
-
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
+        <Route path="/obrigado" element={<SurveyThankYouPage />} />
+        
         {/* === ROTAS PROTEGIDAS === */}
         <Route element={<ProtectedRoute />}>
-          {/* 2. Rotas que USAM a Sidebar */}
           <Route element={<AppLayout />}> 
             <Route path="/" element={<Dashboard />} />
             <Route path="/kanban" element={<Kanban />} />
@@ -29,18 +48,15 @@ function App() {
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/pos-vendas" element={<CrmPdvPage />} />
             <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
+            <Route path="/pesquisas" element={<SurveyAdminPage />} />
             <Route path="/team" element={<Team />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
-          
-          {/* 3. Rotas que NÃO USAM a Sidebar */}
-          <Route element={<BlankLayout />}>
-            <Route path="/pesquisas/gerador" element={<SurveyGeneratorPage />} />
-          </Route>
         </Route>
 
-        {/* ... */}
+        {/* Rota para páginas não encontradas */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );
