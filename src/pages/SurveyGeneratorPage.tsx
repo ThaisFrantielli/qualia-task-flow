@@ -1,81 +1,204 @@
 // src/pages/SurveyGeneratorPage.tsx
 
-import React, { useState } from 'react';
-import { Plus, Users, BarChart2 } from 'lucide-react';
-import SurveyGeneratorForm from '../components/surveys/SurveyGeneratorForm'; // O formulário que já criamos
+import React, { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Database } from '@/types/supabase'; 
+type Survey = Database['public']['Tables']['surveys']['Row'];
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Users, BarChart2, Copy, Check, Send, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import SurveyGeneratorForm from '@/components/surveys/SurveyGeneratorForm';
 
-// No futuro, criaremos estes componentes para as outras abas
-// import SurveyResponsesView from '../components/surveys/SurveyResponsesView';
-// import SurveyReportsView from '../components/surveys/SurveyReportsView';
+interface AppUserWithPermissions {
+  permissoes?: {
+    is_admin?: boolean;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
 
 const SurveyGeneratorPage = () => {
-  const [activeTab, setActiveTab] = useState('generator');
-  
-  // Esta função será chamada pelo formulário quando um link for criado com sucesso.
-  // No futuro, ela pode recarregar a lista de respostas.
-  const handleSurveyCreated = () => {
-    console.log("Novo link de pesquisa foi gerado! Atualizando a lista...");
-    // Aqui poderíamos chamar uma função para recarregar os dados da aba "Respostas".
-    setActiveTab('responses'); // Opcional: Mudar para a aba de respostas automaticamente
+  const { user } = useAuth() as { user: AppUserWithPermissions | null };
+  const [activeTab, setActiveTab] = useState('responses');
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  const fetchSurveys = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('surveys')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast.error("Erro ao carregar pesquisas", { description: error.message });
+    } else if (data) {
+      setSurveys(data);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchSurveys();
+  }, [fetchSurveys]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('surveys-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'surveys' },
+        (payload) => {
+          console.log('Mudança na tabela de pesquisas recebida!', payload);
+          fetchSurveys();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchSurveys]);
+
+  const handleDelete = async (surveyId: string) => {
+    if (!window.confirm("Tem certeza que deseja excluir esta pesquisa? Esta ação não pode ser desfeita.")) {
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('surveys')
+        .delete()
+        .eq('id', surveyId);
+
+      if (error) throw error;
+      toast.success("Pesquisa excluída com sucesso!");
+    } catch (err: any) {
+      toast.error("Erro ao excluir pesquisa", { description: err.message });
+    }
   };
+
+  const handleCopyLink = (surveyId: string) => {
+    const link = `${window.location.origin}/pesquisa/${surveyId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedLink(surveyId);
+      toast.success("Link copiado!");
+      setTimeout(() => setCopiedLink(null), 2000);
+    });
+  };
+  
+  const handleSendWhatsApp = (survey: Survey) => {
+    if (!survey.client_phone) {
+      toast.error("Número de WhatsApp não cadastrado.");
+      return;
+    }
+    const link = `${window.location.origin}/pesquisa/${survey.id}`;
+    const message = `Olá, ${survey.client_name}! Gostaríamos de ouvir sua opinião: ${link}`;
+    const whatsappUrl = `https://wa.me/${survey.client_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const surveyTypeLabels: { [key in NonNullable<Survey['type']>]: string } = {
+    comercial: 'Pós-Contrato',
+    entrega: 'Entrega de Veículo',
+    manutencao: 'Manutenção',
+    devolucao: 'Devolução',
+  };
+
+  const isAdmin = user?.permissoes?.is_admin === true;
 
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
-      {/* Cabeçalho */}
       <header className="text-center space-y-2">
-        {/* Garanta que você tem um logo na pasta /public */}
         <img src="/logo-quality.png" alt="Quality Frotas Logo" className="mx-auto h-16" />
-        <h1 className="text-4xl font-bold font-comfortaa text-[#37255d]">
-          Sistema de Satisfação Quality Frotas
-        </h1>
-        <p className="text-lg text-gray-600">
-          Gerencie pesquisas de satisfação e colete feedback dos clientes
-        </p>
+        <h1 className="text-4xl font-bold font-comfortaa text-[#37255d]">Sistema de Satisfação</h1>
+        <p className="text-lg text-gray-600">Gere links de pesquisa e acompanhe as respostas dos clientes.</p>
       </header>
       
-      {/* Navegação por Abas */}
-      <div className="flex justify-center border-b max-w-4xl mx-auto">
-        <button
-          onClick={() => setActiveTab('generator')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold transition-colors ${activeTab === 'generator' ? 'border-b-2 border-[#37255d] text-[#37255d]' : 'text-gray-500 hover:text-black'}`}
-        >
-          <Plus className="h-5 w-5" />
-          Gerar Link
-        </button>
-        <button
-          onClick={() => setActiveTab('responses')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold transition-colors ${activeTab === 'responses' ? 'border-b-2 border-[#37255d] text-[#37255d]' : 'text-gray-500 hover:text-black'}`}
-        >
-          <Users className="h-5 w-5" />
-          Respostas
-        </button>
-        <button
-          onClick={() => setActiveTab('reports')}
-          className={`flex items-center gap-2 px-6 py-3 font-semibold transition-colors ${activeTab === 'reports' ? 'border-b-2 border-[#37255d] text-[#37255d]' : 'text-gray-500 hover:text-black'}`}
-        >
-          <BarChart2 className="h-5 w-5" />
-          Relatórios
-        </button>
-      </div>
-      
-      {/* Conteúdo da Aba Ativa */}
-      <main className="max-w-4xl mx-auto">
-        {activeTab === 'generator' && <SurveyGeneratorForm onSuccess={handleSurveyCreated} />}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-6xl mx-auto">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="generator"><Plus className="mr-2 h-4 w-4" /> Gerar Link</TabsTrigger>
+          <TabsTrigger value="responses"><Users className="mr-2 h-4 w-4" /> Respostas</TabsTrigger>
+          <TabsTrigger value="reports"><BarChart2 className="mr-2 h-4 w-4" /> Relatórios</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="generator">
+          <SurveyGeneratorForm onSuccess={fetchSurveys} />
+        </TabsContent>
+
+        <TabsContent value="responses">
+          <Card>
+            <CardHeader>
+              <CardTitle>Links de Pesquisa Gerados</CardTitle>
+              <CardDescription>Acompanhe o status das pesquisas enviadas. A lista é atualizada em tempo real.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? <p className="text-center p-8 text-gray-500">Carregando...</p> : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Data de Geração</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {surveys.map(survey => (
+                      <TableRow key={survey.id}>
+                        <TableCell className="font-medium">{survey.client_name}</TableCell>
+                        <TableCell>{survey.type ? surveyTypeLabels[survey.type] : 'N/A'}</TableCell>
+                        <TableCell>{new Date(survey.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell>
+                          {survey.responded_at ? (
+                            <span className="flex items-center text-green-600 font-semibold"><Check className="h-4 w-4 mr-1" /> Respondida</span>
+                          ) : (
+                            <span className="text-yellow-600 font-semibold">Pendente</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <Button variant="outline" size="icon" title="Copiar Link" onClick={() => handleCopyLink(survey.id)}>
+                            {copiedLink === survey.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                          <Button variant="outline" size="icon" title="Enviar por WhatsApp" onClick={() => handleSendWhatsApp(survey)}>
+                            <Send className="h-4 w-4" />
+                          </Button>
+                          
+                          {isAdmin && (
+                            <Button
+                              type="button" // <-- A CORREÇÃO FINAL ESTÁ AQUI
+                              variant="destructive"
+                              size="icon"
+                              title="Excluir Pesquisa"
+                              onClick={() => handleDelete(survey.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
         
-        {activeTab === 'responses' && (
-          <div className="text-center p-8 bg-white rounded-xl border">
-            <h2 className="text-2xl font-semibold">Visualização de Respostas</h2>
-            <p className="text-gray-500 mt-2">Em construção. Aqui aparecerá a tabela com os links gerados.</p>
-          </div>
-        )}
-        
-        {activeTab === 'reports' && (
-          <div className="text-center p-8 bg-white rounded-xl border">
-            <h2 className="text-2xl font-semibold">Dashboard de Relatórios</h2>
-            <p className="text-gray-500 mt-2">Em construção. Aqui aparecerão os gráficos com os resultados das pesquisas.</p>
-          </div>
-        )}
-      </main>
+        <TabsContent value="reports">
+          <Card>
+            <CardHeader><CardTitle>Relatórios de Satisfação</CardTitle></CardHeader>
+            <CardContent className="text-center p-8 text-gray-500">
+              <p>Dashboard de relatórios em construção.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

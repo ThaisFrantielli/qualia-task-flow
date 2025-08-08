@@ -18,9 +18,11 @@ import CrmDashboardPage from '@/pages/CrmDashboardPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
-import SurveyAdminPage from '@/pages/SurveyAdminPage';
 
-// --- IMPORTAÇÃO QUE FALTAVA ---
+// --- ARQUIVO CORRETO SENDO IMPORTADO E USADO ---
+import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage'; // O arquivo com a lógica final
+// import SurveyAdminPage from '@/pages/SurveyAdminPage'; // Esta linha não é mais necessária
+
 import Team from '@/pages/Team'; 
 
 // Importe componentes de layout e proteção
@@ -48,7 +50,11 @@ function App() {
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/pos-vendas" element={<CrmPdvPage />} />
             <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
-            <Route path="/pesquisas" element={<SurveyAdminPage />} />
+            
+            {/* --- ROTA CORRIGIDA --- */}
+            {/* Agora aponta para o componente que tem a tabela e a função de deletar */}
+            <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
+            
             <Route path="/team" element={<Team />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
