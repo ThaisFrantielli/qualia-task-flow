@@ -10,20 +10,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
+// --- CORREÇÃO AQUI: Adicionar 'setOpen' às props ---
 interface AtendimentoFormProps {
-  setOpen: (open: boolean) => void;
+  setOpen: (isOpen: boolean) => void;
   onSuccess: () => void;
 }
 
 const AtendimentoForm: React.FC<AtendimentoFormProps> = ({ setOpen, onSuccess }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  // Formulário simplificado para o registro inicial
   const [formData, setFormData] = useState({
-    client_name: '',      // Nome da Empresa
-    contact_person: '',   // Nome da Pessoa que ligou/contactou
-    client_phone: '',     // Telefone/WhatsApp de contato
-    summary: '',          // Resumo inicial do que se trata o atendimento
+    client_name: '',
+    contact_person: '',
+    client_phone: '',
+    summary: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -42,15 +42,15 @@ const AtendimentoForm: React.FC<AtendimentoFormProps> = ({ setOpen, onSuccess })
     try {
       const { error } = await supabase.from('atendimentos').insert({
         ...formData,
-        assignee_id: user?.id, // Atribui o ticket a quem o criou
-        status: 'Solicitação', // Status inicial fixo
+        assignee_id: user?.id,
+        status: 'Solicitação',
       });
 
       if (error) throw error;
 
       toast.success('Novo atendimento registrado com sucesso!');
       onSuccess();
-      setOpen(false);
+      setOpen(false); // Fecha o modal após o sucesso
     } catch (error: any) {
       toast.error('Erro ao registrar atendimento', { description: error.message });
     } finally {
