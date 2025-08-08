@@ -2,8 +2,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js'; // Importar a função createClient
-import type { Survey, Database } from '@/types'; // Importar o tipo Database
+import { supabase } from '@/integrations/supabase/client';
+
+// --- CORREÇÃO APLICADA AQUI ---
+// 1. Importamos o tipo 'Database' do arquivo gerado pelo Supabase.
+import type { Database } from '@/types/supabase'; 
+// 2. Definimos o tipo 'Survey' extraindo-o do tipo 'Database'.
+type Survey = Database['public']['Tables']['surveys']['Row'];
+// --- FIM DA CORREÇÃO ---
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,15 +18,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-// --- CRIAR UM CLIENTE SUPABASE ANÔNIMO SEPARADO ---
-// Isso garante que as buscas nesta página pública sempre usem as permissões da role 'public'.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Variáveis de ambiente do Supabase não encontradas.");
-}
-const supabaseAnonClient = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// O resto do arquivo permanece o mesmo...
 
 // --- SUB-COMPONENTES (CSATRating, NPSScale, MultipleChoice) ---
 interface CSATRatingProps { score: number | null; onSelect: (score: number) => void; }
@@ -60,6 +60,7 @@ const MultipleChoice: React.FC<MultipleChoiceProps> = ({ label, options, selecte
   </div>
 );
 
+
 // --- PÁGINA PRINCIPAL DE RESPOSTA DA PESQUISA ---
 const SurveyResponsePage = () => {
   const { surveyId } = useParams<{ surveyId: string }>();
@@ -73,9 +74,8 @@ const SurveyResponsePage = () => {
 
   const updateFormState = (updates: Partial<typeof formState>) => setFormState(prevState => ({ ...prevState, ...updates }));
   const handleSelectFactor = useCallback((factor: string) => updateFormState({ influencingFactors: formState.influencingFactors.includes(factor) ? formState.influencingFactors.filter(f => f !== factor) : [...formState.influencingFactors, factor] }), [formState.influencingFactors]);
-
+  
   const getSurveyQuestions = useCallback((surveyType: Survey['type']) => {
-    // Sua lógica de perguntas
     switch (surveyType) {
         case 'comercial': return { csatQuestion: "Qual sua satisfação com a negociação?", factorsLabel: "O que mais influenciou?", factorsOptions: ["Atendimento", "Proposta", "Flexibilidade", "Contrato"], showNPS: false, npsQuestion: "" };
         case 'entrega': return { csatQuestion: "Qual sua satisfação com a entrega?", factorsLabel: "O que mais influenciou?", factorsOptions: ["Agilidade", "Condição do veículo", "Informações", "Cordialidade"], showNPS: false, npsQuestion: "" };
@@ -90,8 +90,7 @@ const SurveyResponsePage = () => {
       if (!surveyId) {
         setError("ID da pesquisa não fornecido."); setLoading(false); return;
       }
-      // USAR O CLIENTE ANÔNIMO PARA A BUSCA
-      const { data, error: fetchError } = await supabaseAnonClient.from('surveys').select('*').eq('id', surveyId).single();
+      const { data, error: fetchError } = await supabase.from('surveys').select('*').eq('id', surveyId).single();
 
       if (fetchError || !data) {
         setError("Pesquisa não encontrada, link inválido ou já respondida.");
@@ -120,9 +119,8 @@ const SurveyResponsePage = () => {
     }
     setIsSubmitting(true);
     try {
-      // USAR O CLIENTE ANÔNIMO PARA INSERIR E ATUALIZAR
-      await supabaseAnonClient.from('survey_responses').insert({ survey_id: survey.id, csat_score: formState.csatScore, nps_score: formState.npsScore, influencing_factors: formState.influencingFactors, other_factor_text: formState.otherFactorText, feedback_comment: formState.feedbackComment });
-      await supabaseAnonClient.from('surveys').update({ responded_at: new Date().toISOString() }).eq('id', survey.id);
+      await supabase.from('survey_responses').insert({ survey_id: survey.id, csat_score: formState.csatScore, nps_score: formState.npsScore, influencing_factors: formState.influencingFactors, other_factor_text: formState.otherFactorText, feedback_comment: formState.feedbackComment });
+      await supabase.from('surveys').update({ responded_at: new Date().toISOString() }).eq('id', survey.id);
       
       localStorage.removeItem(localStorageKey);
       toast.success("Obrigado pela sua avaliação!");
