@@ -5,15 +5,23 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Task } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
-// --- FUNÇÕES DE BUSCA SEPARADAS (MELHOR PARA REACT QUERY) ---
+// Interface para os filtros (sem alterações)
+interface TaskFilters {
+  searchTerm: string;
+  statusFilter: string;
+  priorityFilter: string;
+  assigneeFilter: string;
+  projectFilter: string;
+  tagFilter: string;
+  archiveStatusFilter: 'archived' | 'unarchived' | 'all';
+}
 
-// Função para buscar a LISTA de tarefas com filtros
-const fetchTasksList = async (filters: any, userId: string | undefined) => {
+// Função para buscar a lista de tarefas (sem alterações)
+const fetchTasksList = async (filters: Partial<TaskFilters>, userId: string | undefined): Promise<Task[]> => {
   if (!userId) return [];
   
   let query = supabase.from('tasks').select('*, project:projects(*), assignee:profiles(*)');
   
-  // --- A SUA LÓGICA DE FILTRAGEM COMPLETA ---
   if (filters.searchTerm) {
     query = query.or(`title.ilike.%${filters.searchTerm}%,description.ilike.%${filters.searchTerm}%`);
   }
@@ -35,7 +43,6 @@ const fetchTasksList = async (filters: any, userId: string | undefined) => {
   if (filters.archiveStatusFilter && filters.archiveStatusFilter !== 'all') {
     query = query.eq('archived', filters.archiveStatusFilter === 'archived');
   }
-  // Adicionar aqui a lógica de periodFilter se necessário
 
   const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw error;
@@ -47,8 +54,8 @@ const fetchTasksList = async (filters: any, userId: string | undefined) => {
   })) as Task[];
 };
 
-// Função para buscar UMA ÚNICA tarefa
-const fetchTaskById = async (taskId: string) => {
+// Função para buscar uma única tarefa (sem alterações)
+const fetchTaskById = async (taskId: string): Promise<Task> => {
   const { data, error } = await supabase
     .from('tasks')
     .select('*, project:projects(*), assignee:profiles(*), comments(*), attachments(*), subtasks(*)')
@@ -59,9 +66,8 @@ const fetchTaskById = async (taskId: string) => {
   return { ...data, assignee_name: data.assignee?.full_name, assignee_avatar: data.assignee?.avatar_url } as Task;
 };
 
-
-// --- HOOK PARA A LISTA DE TAREFAS (PARA A PÁGINA /tasks) ---
-export const useTasks = (filters: any) => {
+// Hook para a lista de tarefas (sem alterações)
+export const useTasks = (filters: Partial<TaskFilters>) => {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['tasks', filters],
@@ -70,7 +76,7 @@ export const useTasks = (filters: any) => {
   });
 };
 
-// --- HOOK PARA UMA ÚNICA TAREFA (PARA A PÁGINA /tasks/:id) ---
+// Hook para uma única tarefa
 export const useTask = (taskId: string) => {
   const queryClient = useQueryClient();
   
@@ -80,17 +86,35 @@ export const useTask = (taskId: string) => {
     enabled: !!taskId,
   });
 
+  // CORREÇÃO CRÍTICA: As funções de mutação precisam ser async e retornar uma Promise explicitamente.
   const updateTask = useMutation({
-    mutationFn: (updates: Partial<Task>) => 
-      supabase.from('tasks').update(updates).eq('id', taskId),
+    mutationFn: async (updates: Partial<Omit<Task, 'id'>>) => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', taskId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['task', taskId] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
+  // CORREÇÃO CRÍTICA: Aplicando o mesmo padrão para a função de deletar.
   const deleteTask = useMutation({
-    mutationFn: () => supabase.from('tasks').delete().eq('id', taskId),
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
