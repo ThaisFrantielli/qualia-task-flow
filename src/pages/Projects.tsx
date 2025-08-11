@@ -1,114 +1,60 @@
 // src/pages/Projects.tsx
 
-import { useState } from 'react'; // 'React' agora é importado apenas como useState, removendo o aviso
-import { FolderOpen, Search, Filter } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-
-import { CreateProjectForm } from '@/components/CreateProjectForm';
-import ProjectListItem from '@/components/projects/ProjectListItem';
-import TaskDetailsModal from '@/components/TaskDetailsModal';
+import React from 'react';
+import { FolderOpen, Plus } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjects';
-import { useTasks } from '@/hooks/useTasks'; // Importa apenas o hook
-import type { Project, Task } from '@/types'; // Mantém a importação de tipos necessários
+import ProjectListItem from '@/components/projects/ProjectListItem'; // Usando o novo componente
+import { Button } from '@/components/ui/button';
+import { CreateProjectForm } from '@/components/CreateProjectForm'; // Usando seu formulário de criação
+import { Skeleton } from '@/components/ui/skeleton'; // Para o estado de carregamento
 
 const ProjectsPage = () => {
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
-  const { tasks, loading: tasksLoading } = useTasks();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  
+  // Filtra a opção "Todos os Projetos" que pode vir do hook
+  const projectList = projects.filter(p => p.id !== 'all');
 
   const handleProjectCreated = () => {
-    if (refetchProjects) {
-      refetchProjects();
-    } else {
-      window.location.reload();
-    }
+    if (refetchProjects) refetchProjects();
   };
 
-  const filteredProjects = projects.filter(project =>
-    project.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const tasksWithoutProject = tasks.filter(task => !task.project_id);
-
-  if (projectsLoading || tasksLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando seus projetos...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Projetos</h1>
-            <p className="text-muted-foreground">Gerencie seus projetos e o progresso das tarefas.</p>
-          </div>
-          <CreateProjectForm onProjectCreated={handleProjectCreated} />
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Projetos</h1>
+          <p className="text-gray-600">Organize e acompanhe o andamento das suas iniciativas.</p>
         </div>
-
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input 
-              placeholder="Buscar projetos..." 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="pl-10 bg-background" 
-            />
-          </div>
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="w-4 h-4" /> Filtros
-          </Button>
-        </div>
-
-        <div className="space-y-3">
-          {tasksWithoutProject.length > 0 && (
-            <ProjectListItem
-              project={{ id: 'sem-projeto', name: 'Sem Projeto', description: null, color: '#808080', created_at: '', updated_at: '', user_id: null }}
-              tasks={tasksWithoutProject}
-              onTaskClick={(task) => setSelectedTask(task)}
-            />
-          )}
-
-          {filteredProjects.map((project) => (
-            <ProjectListItem
-              key={project.id}
-              project={project}
-              tasks={tasks.filter(task => task.project_id === project.id)}
-              onTaskClick={(task) => setSelectedTask(task)}
-            />
-          ))}
-          
-          {filteredProjects.length === 0 && tasksWithoutProject.length === 0 && (
-            <div className="text-center py-16">
-              <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold">Nenhum projeto encontrado</h3>
-              <p className="text-muted-foreground mt-2">
-                Que tal criar seu primeiro projeto?
-              </p>
-            </div>
-          )}
-        </div>
+        {/* O botão "Novo Projeto" agora está dentro do componente de formulário */}
+        <CreateProjectForm onProjectCreated={handleProjectCreated} />
       </div>
+      
+      {/* TODO: Adicionar filtros e busca aqui no futuro */}
 
-      {selectedTask && (
-        <TaskDetailsModal
-          task={selectedTask}
-          open={!!selectedTask}
-          onOpenChange={(isOpen) => !isOpen && setSelectedTask(null)}
-        />
-      )}
-    </>
+      <div className="space-y-3">
+        {projectsLoading ? (
+          // Skeletons para o estado de carregamento
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        ) : projectList.length > 0 ? (
+          projectList.map((project) => (
+            <ProjectListItem key={project.id} project={project} />
+          ))
+        ) : (
+          // Estado Vazio Caprichado
+          <div className="text-center py-16 border-2 border-dashed rounded-lg mt-8">
+            <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold">Você ainda não tem projetos</h3>
+            <p className="text-gray-500 mt-2 mb-4">Clique no botão abaixo para criar seu primeiro projeto e organizar suas tarefas.</p>
+            <CreateProjectForm onProjectCreated={handleProjectCreated} />
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
 export default ProjectsPage;
-
