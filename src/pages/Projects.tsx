@@ -9,14 +9,14 @@ import { CreateProjectForm } from '@/components/CreateProjectForm';
 import ProjectListItem from '@/components/projects/ProjectListItem';
 import TaskDetailsModal from '@/components/TaskDetailsModal';
 import { useProjects } from '@/hooks/useProjects';
-import { useTasks, TaskWithAssigneeProfile } from '@/hooks/useTasks'; // Importa o tipo específico do hook
-import type { Project } from '@/types'; // Mantém a importação de Project, pois é usada no ProjectListItem
+import { useTasks } from '@/hooks/useTasks'; // Importa apenas o hook
+import type { Project, Task } from '@/types'; // Mantém a importação de tipos necessários
 
 const ProjectsPage = () => {
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   const { tasks, loading: tasksLoading } = useTasks();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTask, setSelectedTask] = useState<TaskWithAssigneeProfile | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const handleProjectCreated = () => {
     if (refetchProjects) {
