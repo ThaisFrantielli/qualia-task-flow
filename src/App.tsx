@@ -13,17 +13,17 @@ import SignupPage from '@/pages/Signup';
 import NotFound from '@/pages/NotFound';
 import SettingsPage from '@/pages/Settings';
 import NotificationsPage from '@/pages/Notifications';
+import Team from '@/pages/Team'; 
 import CrmPdvPage from '@/pages/CrmPdvPage';
 import CrmDashboardPage from '@/pages/CrmDashboardPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
+import SurveyAdminPage from '@/pages/SurveyAdminPage';
+import CreateAtendimentoPage from '@/pages/CreateAtendimentoPage';
 
-// --- ARQUIVO CORRETO SENDO IMPORTADO E USADO ---
-import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage'; // O arquivo com a lógica final
-// import SurveyAdminPage from '@/pages/SurveyAdminPage'; // Esta linha não é mais necessária
-
-import Team from '@/pages/Team'; 
+// --- 1. IMPORTE A NOVA PÁGINA DE DETALHES DA TAREFA ---
+import TaskDetailPage from '@/pages/TaskDetailPage'; 
 
 // Importe componentes de layout e proteção
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -45,16 +45,17 @@ function App() {
           <Route element={<AppLayout />}> 
             <Route path="/" element={<Dashboard />} />
             <Route path="/kanban" element={<Kanban />} />
+            
+            {/* --- 2. ADICIONE A NOVA ROTA DE DETALHES DA TAREFA --- */}
             <Route path="/tasks" element={<Tasks />} />
+            <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/pos-vendas" element={<CrmPdvPage />} />
+            <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
             <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
-            
-            {/* --- ROTA CORRIGIDA --- */}
-            {/* Agora aponta para o componente que tem a tabela e a função de deletar */}
-            <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
-            
+            <Route path="/pesquisas" element={<SurveyAdminPage />} />
             <Route path="/team" element={<Team />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

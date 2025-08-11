@@ -1,84 +1,84 @@
 // src/components/projects/ProjectListItem.tsx
-
-import React, { useState } from 'react';
+    
+import React, { useState, useEffect } from 'react'; // <-- CORREÇÃO AQUI
+import { supabase } from '@/integrations/supabase/client';
+import type { Project, Task } from '@/types';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { ChevronRight, MoreHorizontal, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-// --- IMPORTAÇÃO CORRIGIDA E COMPLETA ---
-import { cn, formatDate, getPriorityLabel, getPriorityColor, isOverdue } from '@/lib/utils';
-import type { Task, Project } from '@/types';
 
 interface ProjectListItemProps {
   project: Project;
-  tasks: Task[];
-  onTaskClick: (task: Task) => void;
 }
 
-const ProjectListItem: React.FC<ProjectListItemProps> = ({ project, tasks, onTaskClick }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  const completed = tasks.filter(t => t.status === 'done').length;
-  const totalTasks = tasks.length;
-  const progressPercent = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
+const ProjectListItem: React.FC<ProjectListItemProps> = ({ project }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [taskCount, setTaskCount] = useState(0);
+
+  useEffect(() => {
+    const fetchTaskCount = async () => {
+      const { count, error } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', project.id);
+      
+      if (error) console.error("Erro ao buscar contagem de tarefas:", error);
+      else if (count !== null) setTaskCount(count);
+    };
+    fetchTaskCount();
+  }, [project.id]);
+
+  const handleOpenChange = async (open: boolean) => {
+    setIsOpen(open);
+    if (open && tasks.length === 0 && !isLoadingTasks) {
+      setIsLoadingTasks(true);
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        toast.error("Erro ao buscar tarefas", { description: error.message });
+      } else if (data) {
+        setTasks(data);
+      }
+      setIsLoadingTasks(false);
+    }
+  };
 
   return (
-    <Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="border rounded-lg bg-card">
-      <CollapsibleTrigger className="w-full p-4 hover:bg-muted/50 transition-colors text-left">
-        <div className="flex items-center gap-4">
-          {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
-          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#6b7280' }} />
-          <div className="flex-grow"><h3 className="font-semibold">{project.name}</h3></div>
-          
-          <div className="w-40 hidden lg:block">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-xs text-muted-foreground">Progresso</span>
-              <span className="text-sm font-medium">{progressPercent}%</span>
-            </div>
-            <div className="w-full bg-muted rounded-full h-1.5">
-              <div className="bg-primary h-1.5 rounded-full" style={{ width: `${progressPercent}%` }}></div>
-            </div>
-          </div>
+    <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="border rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
+      <CollapsibleTrigger asChild>
+        <div className="flex items-center p-4 cursor-pointer">
+          <ChevronRight className={`h-5 w-5 mr-3 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+          <div className="w-2.5 h-2.5 rounded-full mr-3 flex-shrink-0" style={{ backgroundColor: project.color || '#A1A1AA' }} />
+          <span className="font-semibold text-gray-800 flex-1 truncate">{project.name}</span>
+          <Badge variant="secondary" className="mr-4">{taskCount} tarefas</Badge>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); toast.info("Menu de ações em breve!"); }}>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
         </div>
       </CollapsibleTrigger>
-      
       <CollapsibleContent>
-        <div className="border-t">
-          <table className="w-full text-sm">
-            {tasks.length > 0 && (
-              <thead className="bg-muted/50">
-                  <tr>
-                      <th className="p-2 font-medium text-left text-muted-foreground">Tarefa</th>
-                      <th className="p-2 font-medium text-left text-muted-foreground">Responsável</th>
-                      <th className="p-2 font-medium text-left text-muted-foreground">Prazo</th>
-                      <th className="p-2 font-medium text-left text-muted-foreground">Prioridade</th>
-                  </tr>
-              </thead>
-            )}
-            <tbody>
-              {tasks.length > 0 ? tasks.map((task) => (
-                <tr key={task.id} className="border-b last:border-b-0 hover:bg-muted/50 cursor-pointer" onClick={() => onTaskClick(task)}>
-                  <td className="p-2 font-medium">{task.title}</td>
-                  <td className="p-2">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6"><AvatarImage src={task.assignee_avatar || undefined} /><AvatarFallback className="text-xs">{task.assignee_name ? task.assignee_name.charAt(0) : '?'}</AvatarFallback></Avatar>
-                      <span>{task.assignee_name || 'N/A'}</span>
-                    </div>
-                  </td>
-                  <td className={cn("p-2", isOverdue(task) ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
-                    {formatDate(task.due_date)}
-                  </td>
-                  <td className="p-2"><Badge variant="outline" className={getPriorityColor(task.priority)}>{getPriorityLabel(task.priority)}</Badge></td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={4} className="text-center p-4 text-muted-foreground">
-                    Nenhuma tarefa neste projeto.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="border-t bg-gray-50/50 p-4">
+          {isLoadingTasks ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : tasks.length > 0 ? (
+            <ul className="space-y-2">
+              {tasks.map(task => (
+                <li key={task.id} className="text-sm text-gray-700 p-2 rounded hover:bg-gray-100">{task.title}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">Nenhuma tarefa neste projeto ainda.</p>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>
