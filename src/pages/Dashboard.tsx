@@ -1,17 +1,19 @@
+// src/pages/Dashboard.tsx
 
-import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle, Clock, AlertTriangle, TrendingUp, Users, Target } from 'lucide-react';
+// CORREÇÃO: Adicionar 'Users' à importação.
+import { Calendar, CheckCircle, Clock, AlertTriangle, Target, Users } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import ProductivityMetrics from '@/components/dashboard/ProductivityMetrics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
+import type { Task, Project } from '@/types';
 
 const Dashboard = () => {
-  const { tasks, loading: tasksLoading } = useTasks();
+  const { data: tasks, isLoading: tasksLoading } = useTasks({}); 
   const { projects, loading: projectsLoading } = useProjects();
 
   if (tasksLoading || projectsLoading) {
@@ -25,34 +27,35 @@ const Dashboard = () => {
     );
   }
 
-  // Calculate statistics
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(task => task.status === 'done').length;
-  const inProgressTasks = tasks.filter(task => task.status === 'progress').length;
-  const overdueTasks = tasks.filter(task => {
+  const safeTasks = tasks ?? [];
+  const safeProjects = projects ?? [];
+  
+  const totalTasks = safeTasks.length;
+  const completedTasks = safeTasks.filter((task: Task) => task.status === 'done').length;
+  const inProgressTasks = safeTasks.filter((task: Task) => task.status === 'progress').length;
+  const overdueTasks = safeTasks.filter((task: Task) => {
     if (!task.due_date || task.status === 'done') return false;
     return new Date(task.due_date) < new Date();
   }).length;
 
-  const totalProjects = projects.length;
+  const totalProjects = safeProjects.filter(p => p.id !== 'all').length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Recent tasks
-  const recentTasks = tasks
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  const recentTasks = [...safeTasks]
+    .sort((a: Task, b: Task) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 5);
 
-  // Upcoming deadlines
-  const upcomingDeadlines = tasks
-    .filter(task => task.due_date && task.status !== 'done')
-    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+  const upcomingDeadlines = safeTasks
+    .filter((task: Task) => task.due_date && task.status !== 'done')
+    .sort((a: Task, b: Task) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
     .slice(0, 5);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'todo':
         return 'bg-gray-100 text-gray-800';
@@ -65,7 +68,7 @@ const Dashboard = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string | null) => {
     switch (priority) {
       case 'high':
         return 'bg-red-100 text-red-800';
@@ -80,7 +83,6 @@ const Dashboard = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -103,7 +105,6 @@ const Dashboard = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -112,9 +113,6 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalTasks}</div>
-                <p className="text-xs text-muted-foreground">
-                  +2 desde ontem
-                </p>
               </CardContent>
             </Card>
 
@@ -138,9 +136,6 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{inProgressTasks}</div>
-                <p className="text-xs text-muted-foreground">
-                  Tarefas ativas
-                </p>
               </CardContent>
             </Card>
 
@@ -151,16 +146,11 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">{overdueTasks}</div>
-                <p className="text-xs text-muted-foreground">
-                  Precisam de atenção
-                </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Tasks */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Tarefas Recentes</CardTitle>
@@ -171,7 +161,7 @@ const Dashboard = () => {
                   <p className="text-gray-500 text-center py-4">Nenhuma tarefa encontrada</p>
                 ) : (
                   <div className="space-y-3">
-                    {recentTasks.map((task) => (
+                    {recentTasks.map((task: Task) => (
                       <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                         <div className="flex-1">
                           <h4 className="font-medium text-sm">{task.title}</h4>
@@ -194,7 +184,6 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Upcoming Deadlines */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Próximos Prazos</CardTitle>
@@ -205,7 +194,7 @@ const Dashboard = () => {
                   <p className="text-gray-500 text-center py-4">Nenhum prazo próximo</p>
                 ) : (
                   <div className="space-y-3">
-                    {upcomingDeadlines.map((task) => (
+                    {upcomingDeadlines.map((task: Task) => (
                       <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                         <div className="flex-1">
                           <h4 className="font-medium text-sm">{task.title}</h4>
@@ -228,8 +217,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Projects Overview */}
+          
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -239,12 +227,12 @@ const Dashboard = () => {
               <CardDescription>Status dos seus projetos ativos</CardDescription>
             </CardHeader>
             <CardContent>
-              {projects.length === 0 ? (
+              {safeProjects.filter(p => p.id !== 'all').length === 0 ? (
                 <p className="text-gray-500 text-center py-4">Nenhum projeto encontrado</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {projects.map((project) => {
-                    const projectTasks = tasks.filter(task => task.project_id === project.id);
+                  {safeProjects.filter((p: Project) => p.id !== 'all').map((project: Project) => {
+                    const projectTasks = safeTasks.filter(task => task.project_id === project.id);
                     const completedProjectTasks = projectTasks.filter(task => task.status === 'done').length;
                     const projectCompletion = projectTasks.length > 0 ? Math.round((completedProjectTasks / projectTasks.length) * 100) : 0;
                     
