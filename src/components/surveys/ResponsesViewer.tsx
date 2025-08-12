@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StarRating } from "@/components/StarRating";
-import { NPSRating } from "@/components/NPSRating";
+import { StarRating } from "@/components/surveys/StarRating";
+import { NPSRating } from "@/components/surveys/NPSRating";
 import { useToast } from "@/hooks/use-toast";
 
 interface SurveyResponse {

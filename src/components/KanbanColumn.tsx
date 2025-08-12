@@ -33,7 +33,7 @@ interface KanbanColumnProps {
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ 
   title, 
-  status, 
+  _status, 
   tasks, 
   color, 
   onAddTask,

@@ -1,9 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
-
-type Attachment = Database['public']['Tables']['attachments']['Row'];
+import type { Attachment } from '@/types';
 
 export const useAttachments = (taskId?: string) => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageCircle, Trash2, User } from 'lucide-react';
 import { formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TaskCommentsProps {
   taskId: string;
@@ -14,11 +15,14 @@ interface TaskCommentsProps {
 
 const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
   const { comments, addComment, deleteComment } = useComments(taskId);
+  const { user } = useAuth();
   const [newComment, setNewComment] = useState('');
 
   const handleAddComment = async () => {
     if (newComment.trim()) {
-      await addComment(newComment.trim(), 'Usuário Atual'); // In a real app, get from auth
+      const authorName = (user as any)?.full_name || user?.user_metadata?.full_name || user?.email || 'Usuário Atual';
+      if (!user?.id) return;
+      await addComment(newComment.trim(), authorName, user.id);
       setNewComment('');
     }
   };

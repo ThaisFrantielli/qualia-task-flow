@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
-import type { AppUser } from '@/contexts/AuthContext';
+
 
 // Estrutura de dados para os grupos de menu
 const menuGroups = [
