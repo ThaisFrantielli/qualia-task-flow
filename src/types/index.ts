@@ -17,14 +17,22 @@ export type Database = {
           updated_at: string;
           title: string;
           description: string | null;
-          status: string | null;
-          priority: string | null;
+          status: 'todo' | 'progress' | 'done' | 'late' | null;
+          priority: 'low' | 'medium' | 'high' | null;
           due_date: string | null;
+          start_date: string | null;
+          end_date: string | null;
           project_id: string | null;
           user_id: string | null;
           assignee_id: string | null;
           section: string | null;
           atendimento_id: number | null;
+          archived: boolean | null;
+          tags: string | null;
+          estimated_hours: number | null;
+          assignee_name: string | null;
+          assignee_avatar: string | null;
+          delegated_by: string | null;
         };
         Insert: { /* ... */ };
         Update: { /* ... */ };
@@ -97,7 +105,7 @@ export type Database = {
         Row: { id: string; created_at: string; user_id: string; task_id: string | null; type: string; title: string; message: string; read: boolean; action_required: boolean | null; data: Json | null; } 
       };
       comments: { 
-        Row: { id: string; created_at: string; task_id: string; user_id: string; content: string; } 
+        Row: { id: string; created_at: string; task_id: string; user_id: string | null; content: string; author_name: string; } 
       };
       attachments: { 
         Row: { id: string; created_at: string; task_id: string; file_name: string; file_url: string; uploaded_by_id: string; } 
@@ -148,12 +156,23 @@ export type Database = {
 // ESTA SEÇÃO AGORA FUNCIONARÁ, POIS TODAS AS TABELAS ACIMA ESTÃO DEFINIDAS CORRETAMENTE
 export type Project = Database['public']['Tables']['projects']['Row'];
 export type UserProfile = Database['public']['Tables']['profiles']['Row'];
-export type Task = Database['public']['Tables']['tasks']['Row'];
+export type Attachment = Database['public']['Tables']['attachments']['Row'];
+export type Subtask = Database['public']['Tables']['subtasks']['Row'];
+export type Comment = Database['public']['Tables']['comments']['Row'];
+export type Task = Database['public']['Tables']['tasks']['Row'] & {
+  project?: Project | null;
+  assignee?: UserProfile | null;
+  comments?: Comment[];
+  attachments?: Attachment[];
+  subtasks?: Subtask[];
+};
 export type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
 export type Client = Database['public']['Tables']['clients']['Row'];
 export type Survey = Database['public']['Tables']['surveys']['Row'];
 export type SurveyResponse = Database['public']['Tables']['survey_responses']['Row'];
-export type Comment = Database['public']['Tables']['comments']['Row'];
+// Alias para compatibilidade com componentes
+export type Profile = UserProfile;
+export type User = UserProfile;
 // Adicione outros tipos conforme necessário
 
 // --- TIPOS "ENRIQUECIDOS" PARA QUERIES COM JOIN ---
