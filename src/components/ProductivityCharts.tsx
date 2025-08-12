@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTasks } from '@/hooks/useTasks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 
 const ProductivityCharts: React.FC = () => {

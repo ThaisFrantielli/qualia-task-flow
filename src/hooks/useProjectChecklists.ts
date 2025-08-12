@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/types';
 
 type ProjectChecklist = Database['public']['Tables']['project_checklists']['Row'];
 

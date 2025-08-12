@@ -76,9 +76,10 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
       return;
     }
 
+    const authorName = (user as any)?.full_name || user?.user_metadata?.full_name || user?.email || 'Usuário';
     const promise = addComment(
       newComment.trim(),
-      user.full_name,
+      authorName,
       user.id
     ).then(() => {
       setNewComment('');
