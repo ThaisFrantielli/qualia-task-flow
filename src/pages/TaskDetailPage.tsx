@@ -1,53 +1,27 @@
 // src/pages/TaskDetailPage.tsx
 
-import React, { useState, useEffect, useCallback } from 'react'; // <-- CORREÇÃO AQUI
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import type { Task } from '@/types';
+// CORREÇÃO: Usar nosso hook 'useTask' que já é otimizado e tipado!
+import { useTask } from '@/hooks/useTasks'; 
 import TaskDetailsContent from '@/components/tasks/TaskDetailsContent';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button'; // Adicionado Button
+import { Button } from '@/components/ui/button';
 import { getStatusLabel, getPriorityLabel, isOverdue } from '@/lib/utils';
+// CORREÇÃO: Importar o tipo correto que o useTask retorna
+import type { TaskWithDetails } from '@/types'; 
 
 const TaskDetailPage = () => {
   const { taskId } = useParams<{ taskId: string }>();
-  const [task, setTask] = useState<Task | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchTask = useCallback(async () => {
-    if (!taskId) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*, project:projects(name), assignee:profiles(full_name, avatar_url)')
-      .eq('id', taskId)
-      .single();
-    
-    if (error) {
-      toast.error("Erro ao carregar tarefa", { description: error.message });
-      setTask(null);
-    } else {
-      const formattedTask = {
-          ...data,
-          assignee_name: data.assignee?.full_name,
-          assignee_avatar: data.assignee?.avatar_url
-      };
-      setTask(formattedTask as any);
-    }
-    setLoading(false);
-  }, [taskId]);
+  // CORREÇÃO: Simplificar a busca de dados usando nosso hook 'useTask'.
+  // O 'enabled: !!taskId' garante que a query só rode se o taskId existir.
+  const { data: task, isLoading, isError, refetch } = useTask(taskId || '');
 
-  useEffect(() => {
-    fetchTask();
-  }, [fetchTask]);
-
-  if (loading) {
+  // Estado de carregamento
+  if (isLoading) {
     return (
         <div className="p-6 space-y-4">
             <Skeleton className="h-8 w-48" />
@@ -57,7 +31,8 @@ const TaskDetailPage = () => {
     );
   }
 
-  if (!task) {
+  // Estado de erro ou se a tarefa não for encontrada
+  if (isError || !task) {
     return (
       <div className="p-6 text-center mt-16">
         <h2 className="text-xl font-semibold">Tarefa não encontrada</h2>
@@ -72,6 +47,7 @@ const TaskDetailPage = () => {
     );
   }
 
+  // Se chegou aqui, 'task' é um objeto válido e não nulo.
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="p-4 border-b flex justify-between items-center">
@@ -79,18 +55,23 @@ const TaskDetailPage = () => {
           <ArrowLeft className="h-4 w-4" /> Voltar para a Lista
         </Link>
         <div className="flex items-center gap-2">
+            {/* O TypeScript agora sabe que task.priority e task.status existem */}
             <Badge>{getPriorityLabel(task.priority)}</Badge>
             <Badge variant="outline">{getStatusLabel(task.status)}</Badge>
-            {isOverdue(task) && <Badge variant="destructive" className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Atrasada</Badge>}
+            {isOverdue(task as any) && <Badge variant="destructive" className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Atrasada</Badge>}
         </div>
       </div>
 
       <div className="p-6">
         <h1 className="text-3xl font-bold">{task.title}</h1>
+        {/* Agora acessamos o projeto de forma segura, pois TaskWithDetails o inclui */}
         {task.project?.name && <p className="text-muted-foreground mt-1">No projeto: {task.project.name}</p>}
       </div>
       
-      <TaskDetailsContent task={task} onUpdate={fetchTask} />
+      {/* CORREÇÃO FINAL: Esta linha agora é 100% segura. 
+          O TypeScript sabe que 'task' é do tipo 'TaskWithDetails',
+          que é o que o 'TaskDetailsContent' espera. */}
+      <TaskDetailsContent task={task as TaskWithDetails} onUpdate={refetch} />
     </div>
   );
 };

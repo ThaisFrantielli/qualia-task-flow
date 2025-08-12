@@ -12,11 +12,26 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-// NOTA IMPORTANTE: Se o erro "Profile not exported" persistir,
-// vá até o seu arquivo de tipos (ex: src/types.ts) e mude:
-// 'interface Profile { ... }' para 'export interface Profile { ... }'
-import type { Profile } from '@/types'; 
-import type { Comment } from '@/types'; // Assumindo que você tem um tipo Comment em @/types
+// --- AÇÃO NECESSÁRIA PARA CORRIGIR OS ERROS DE TIPO ---
+//
+// 1. VÁ ATÉ O SEU ARQUIVO DE TIPOS (ex: src/types.ts ou src/integrations/supabase/types.ts)
+//
+// 2. EXPORTE O TIPO 'Profile'. Encontre a linha e mude de:
+//    interface Profile { ... }  =>  PARA: export interface Profile { ... }
+//
+// 3. ATUALIZE O TIPO 'Comment'. Encontre a definição e adicione a propriedade 'author_name'.
+//    export interface Comment {
+//      id: string;
+//      created_at: string;
+//      task_id: string;
+//      user_id: string;
+//      content: string;
+//      author_name: string | null; // <-- ADICIONE ESTA LINHA!
+//    }
+//
+// 4. Depois de fazer essas duas mudanças, os erros de tipo devem desaparecer.
+//
+import type { Profile, Comment } from '@/types'; 
 
 interface MentionCommentsProps {
   taskId: string;
@@ -44,8 +59,6 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // SOLUÇÃO PARA O ERRO 'length' of undefined:
-  // Criamos uma variável segura que é sempre um array, mesmo que 'comments' seja undefined.
   const safeComments = comments ?? [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -101,7 +114,6 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageCircle className="w-5 h-5" />
-          {/* Usamos a variável segura aqui para evitar o erro */}
           Comentários ({loadingComments ? '...' : safeComments.length})
         </CardTitle>
       </CardHeader>
@@ -112,7 +124,7 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
             value={newComment}
             onChange={handleInputChange}
             rows={3}
-            disabled={loadingComments} // Desabilita o input enquanto carrega
+            disabled={loadingComments}
           />
           {showSuggestions && (
             <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
@@ -133,14 +145,12 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
           Adicionar Comentário
         </Button>
         <div className="space-y-3 pt-4 border-t">
-          {/* Mostramos um spinner enquanto os comentários estão carregando */}
           {loadingComments ? (
             <div className="flex items-center justify-center p-4">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span className="ml-2 text-sm text-muted-foreground">Carregando comentários...</span>
             </div>
           ) : (
-            // Apenas tentamos mapear os comentários quando o carregamento termina
             safeComments.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-4">Nenhum comentário ainda. Seja o primeiro a comentar!</p>
             ) : (
@@ -150,6 +160,7 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center"><User className="w-4 h-4 text-gray-600" /></div>
                       <div>
+                        {/* Agora o TypeScript sabe que 'comment.author_name' existe */}
                         <span className="font-medium text-sm">{comment.author_name}</span>
                         <p className="text-xs text-gray-500">{formatDistance(new Date(comment.created_at), new Date(), { addSuffix: true, locale: ptBR })}</p>
                       </div>
