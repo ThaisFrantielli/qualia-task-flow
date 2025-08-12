@@ -4,8 +4,9 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, ChevronDown, Users, Folder, Tag } from 'lucide-react';
-import type { UserProfile as User, Project } from '@/types';
+import { Search, Users, Folder, Tag } from 'lucide-react';
+// CORREÇÃO: O tipo do perfil é 'Profile', não 'User'. Vamos usar 'Profile' para consistência.
+import type { Profile, Project } from '@/types';
 
 interface TasksFiltersProps {
   searchTerm: string;
@@ -16,25 +17,32 @@ interface TasksFiltersProps {
   setPriorityFilter: (priority: string) => void;
   assigneeFilter: string;
   setAssigneeFilter: (assignee: string) => void;
-  periodFilter: string;
-  setPeriodFilter: (period: string) => void;
-  tagFilter: string;
-  setTagFilter: (tag: string) => void;
   projectFilter: string;
   setProjectFilter: (project: string) => void;
-  availableAssignees: User[] | null;
+  tagFilter: string;
+  setTagFilter: (tag: string) => void;
+  
+  // CORREÇÃO: Usar o tipo 'Profile' e garantir que os arrays podem ser nulos.
+  availableAssignees: Profile[] | null;
   uniqueTags: string[] | null;
   uniqueProjects: Project[] | null;
+
+  // CORREÇÃO: Padronizar o tipo do filtro de arquivamento.
+  archiveStatusFilter: 'unarchived' | 'archived' | 'all';
+  setArchiveStatusFilter: (filter: 'unarchived' | 'archived' | 'all') => void;
+
+  hasFilters: boolean;
+  onClearFilters: () => void;
+  
+  // As props abaixo parecem não estar sendo usadas nesta versão do componente, mas as mantemos para consistência.
+  periodFilter: string;
+  setPeriodFilter: (period: string) => void;
   viewMode: 'list' | 'grouped';
   setViewMode: (mode: 'list' | 'grouped') => void;
   focusMode: boolean;
   setFocusMode: (focus: boolean) => void;
   groupBy: 'status' | 'project' | 'assignee';
   setGroupBy: (groupBy: 'status' | 'project' | 'assignee') => void;
-  archiveStatusFilter: 'active' | 'archived' | 'all';
-  setArchiveStatusFilter: (filter: 'active' | 'archived' | 'all') => void;
-  hasFilters: boolean;
-  onClearFilters: () => void;
 }
 
 const TasksFilters: React.FC<TasksFiltersProps> = ({
@@ -42,7 +50,6 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
   statusFilter, setStatusFilter,
   priorityFilter, setPriorityFilter,
   assigneeFilter, setAssigneeFilter,
-  periodFilter, setPeriodFilter,
   tagFilter, setTagFilter,
   projectFilter, setProjectFilter,
   availableAssignees, uniqueTags, uniqueProjects,
@@ -96,6 +103,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os Responsáveis</SelectItem>
+            {/* Usando o tipo 'Profile' aqui */}
             {availableAssignees?.map(user => (
               <SelectItem key={user.id} value={user.id}>{user.full_name}</SelectItem>
             ))}
@@ -111,6 +119,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
               </div>
           </SelectTrigger>
           <SelectContent>
+            {/* O 'Todos os Projetos' agora vem do próprio array 'uniqueProjects' */}
             {uniqueProjects?.map(proj => (
               <SelectItem key={proj.id} value={proj.id}>{proj.name}</SelectItem>
             ))}
