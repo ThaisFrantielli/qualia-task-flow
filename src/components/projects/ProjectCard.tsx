@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { Project } from '@/types';
-import type { TaskWithAssigneeProfile } from '@/hooks/useTasks';
+import type { Project, TaskWithAssigneeProfile } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';

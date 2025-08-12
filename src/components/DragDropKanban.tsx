@@ -31,7 +31,7 @@ const DragDropKanban: React.FC = () => {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDragEnter = (e: React.DragEvent, status: string) => {
+  const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current++;
     const element = e.currentTarget as HTMLElement;
@@ -54,7 +54,7 @@ const DragDropKanban: React.FC = () => {
     element.classList.remove('bg-blue-50', 'border-blue-300');
 
     if (draggedItem && draggedItem.status !== targetStatus) {
-      await updateTaskStatus(draggedItem.id, targetStatus);
+      await updateTaskStatus(draggedItem.id, targetStatus as 'todo' | 'progress' | 'done' | 'late');
     }
     
     setDraggedItem(null);
@@ -74,7 +74,7 @@ const DragDropKanban: React.FC = () => {
             key={column.id}
             className="bg-gray-50 rounded-lg p-4 min-h-[600px] w-80 border-2 border-transparent transition-all duration-200"
             onDragOver={handleDragOver}
-            onDragEnter={(e) => handleDragEnter(e, column.id)}
+            onDragEnter={(e) => handleDragEnter(e)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, column.id)}
           >
