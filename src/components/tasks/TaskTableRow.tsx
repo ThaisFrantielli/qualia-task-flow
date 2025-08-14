@@ -5,11 +5,25 @@ import type { TaskWithDetails } from '@/types';
 import { TableRow, TableCell } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { 
-  MoreHorizontal, Archive, Trash2, 
-  Circle, CircleCheck, CircleDashed, AlertOctagon,
-  ArrowDown, ArrowRight, ArrowUp
+import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  MoreHorizontal,
+  Archive,
+  Trash2,
+  Circle,
+  CircleCheck,
+  CircleDashed,
+  AlertOctagon,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,42 +39,55 @@ const statusConfig = {
   done: { label: 'Concluído', icon: CircleCheck, color: 'text-green-500' },
   late: { label: 'Atrasado', icon: AlertOctagon, color: 'text-red-500' },
 };
+
 const priorityConfig = {
   low: { label: 'Baixa', icon: ArrowDown, color: 'text-gray-500' },
   medium: { label: 'Média', icon: ArrowRight, color: 'text-yellow-500' },
   high: { label: 'Alta', icon: ArrowUp, color: 'text-red-500' },
 };
-const getInitials = (name: string | null) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
+
+const getInitials = (name: string | null) =>
+  name?.split(' ').map((n) => n[0]).join('').toUpperCase() || '?';
 
 const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, onViewDetails, onDeleteRequest }) => {
-  const currentStatus = statusConfig[task.status as keyof typeof statusConfig || 'todo'];
-  const currentPriority = priorityConfig[task.priority as keyof typeof priorityConfig || 'low'];
+  const currentStatus = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
+  const currentPriority =
+    priorityConfig[task.priority as keyof typeof priorityConfig] || priorityConfig.low;
 
-  // --- CORREÇÃO 1: Função para parar a propagação do clique ---
   const handleActionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
-  
-  // --- CORREÇÃO 2: Função específica para o clique de exclusão ---
+
   const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Impede a navegação
-    onDeleteRequest(task); // Chama a função para abrir o diálogo
+    e.stopPropagation();
+    onDeleteRequest(task);
   };
 
   return (
-    <TableRow 
-      className="hover:bg-muted/50 cursor-pointer"
-      onClick={() => onViewDetails(task)}
-    >
-      <TableCell className="font-medium">{task.title}</TableCell>
+    <TableRow className="hover:bg-muted/50 cursor-pointer" onClick={() => onViewDetails(task)}>
+      <TableCell className="font-medium">
+        <div>{task.title}</div>
+        {task.category && (
+          <Badge
+            variant="outline"
+            className="mt-1 font-normal"
+            style={{
+              borderColor: task.category.color || undefined,
+              color: task.category.color || undefined,
+            }}
+          >
+            {task.category.name}
+          </Badge>
+        )}
+      </TableCell>
       <TableCell>
-        <div className={cn("flex items-center gap-2 text-sm", currentStatus.color)}>
+        <div className={cn('flex items-center gap-2 text-sm', currentStatus.color)}>
           <currentStatus.icon className="h-4 w-4" />
           <span>{currentStatus.label}</span>
         </div>
       </TableCell>
       <TableCell>
-        <div className={cn("flex items-center gap-2 text-sm", currentPriority.color)}>
+        <div className={cn('flex items-center gap-2 text-sm', currentPriority.color)}>
           <currentPriority.icon className="h-4 w-4" />
           <span>{currentPriority.label}</span>
         </div>
@@ -77,20 +104,19 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, onViewDetails, onDele
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            {/* O botão de 3 pontos agora impede o clique de passar para a linha */}
             <Button variant="ghost" className="h-8 w-8 p-0" onClick={handleActionClick}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {/* --- CORREÇÃO 3: Itens de menu removidos --- */}
-            {/* "Ver Detalhes" e "Editar Tarefa" foram removidos */}
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleActionClick}>
               <Archive className="mr-2 h-4 w-4" /> Arquivar
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {/* O item de exclusão agora usa sua própria função de clique */}
-            <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={handleDeleteClick}>
+            <DropdownMenuItem
+              className="text-red-600 focus:text-red-600"
+              onClick={handleDeleteClick}
+            >
               <Trash2 className="mr-2 h-4 w-4" /> Excluir
             </DropdownMenuItem>
           </DropdownMenuContent>
