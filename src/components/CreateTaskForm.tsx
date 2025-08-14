@@ -1,138 +1,102 @@
 // src/components/CreateTaskForm.tsx
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useProjects } from '@/hooks/useProjects';
+import { useClassifications } from '@/hooks/useClassifications';
+import { toast } from 'sonner';
+
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// --- ALTERAÇÃO: Validação da descrição tornada obrigatória ---
+const taskSchema = z.object({
+  title: z.string().min(3, "O título precisa ter pelo menos 3 caracteres."),
+  category_id: z.string().nullable(),
+  description: z.string().min(10, "A descrição é obrigatória e precisa ter pelo menos 10 caracteres."), // <-- OBRIGATÓRIO
+  priority: z.string().default('medium'),
+});
+type TaskFormData = z.infer<typeof taskSchema>;
 
 interface CreateTaskFormProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onTaskCreated: () => void;
+  onSuccess: () => void; // Função para ser chamada após o sucesso
 }
 
-// --- AQUI NÃO TEM 'export' ---
-const CreateTaskForm: React.FC<CreateTaskFormProps> = ({ open, onOpenChange, onTaskCreated }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState('medium');
-  const [projectId, setProjectId] = useState<string | null>(null);
-  
-  const [loading, setLoading] = useState(false);
-  
-  const { toast } = useToast();
+const CreateTaskForm: React.FC<CreateTaskFormProps> = ({ onSuccess }) => {
   const { user } = useAuth();
-  const { projects } = useProjects();
+  const { classifications, isLoading: isLoadingClassifications } = useClassifications();
 
-  useEffect(() => {
-    if (!open) {
-      setTitle('');
-      setDescription('');
-      setPriority('medium');
-      setProjectId(null);
-    }
-  }, [open]);
+  const form = useForm<TaskFormData>({
+    resolver: zodResolver(taskSchema),
+    defaultValues: { title: '', category_id: null, description: '', priority: 'medium' }
+  });
 
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const { formState: { isSubmitting } } = form;
 
-    if (!user) {
-      toast({ title: "Erro", description: "Você precisa estar logado.", variant: "destructive" });
-      return;
-    }
-    if (!title.trim()) {
-      toast({ title: "Erro", description: "O título da tarefa é obrigatório.", variant: "destructive" });
-      return;
-    }
+  const onSubmit = async (values: TaskFormData) => {
+    if (!user) return toast.error("Você precisa estar logado.");
 
-    setLoading(true);
-    try {
-      const newTask = {
-        title: title.trim(),
-        description: description.trim(),
-        priority: priority,
-        project_id: projectId,
-        user_id: user.id,
-        assignee_id: user.id,
-        status: 'todo'
-      };
+    const dataToSend = {
+      ...values,
+      category_id: values.category_id === 'none' ? null : values.category_id,
+      user_id: user.id,
+      status: 'todo',
+    };
+    
+    const { error } = await supabase.from('tasks').insert(dataToSend);
 
-      const { error } = await supabase.from('tasks').insert(newTask);
-
-      if (error) throw error;
-
-      toast({ title: "Sucesso!", description: `Tarefa "${title}" criada.` });
-      onOpenChange(false);
-      onTaskCreated();
-    } catch (error: any) {
-      console.error("Erro ao criar tarefa:", error);
-      toast({ title: "Erro!", description: "Não foi possível criar a tarefa.", variant: "destructive" });
-    } finally {
-      setLoading(false);
+    if (error) {
+      toast.error("Erro ao criar tarefa.", { description: error.message });
+    } else {
+      toast.success("Tarefa criada com sucesso!");
+      onSuccess(); // Chama a função de sucesso passada como prop
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Criar Nova Tarefa</DialogTitle>
-          <DialogDescription>Preencha os detalhes da nova tarefa.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleCreateTask}>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="task-title">Título da Tarefa</Label>
-              <Input id="task-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="task-description">Descrição (Opcional)</Label>
-              <Textarea id="task-description" value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                  <Label>Prioridade</Label>
-                  <Select value={priority} onValueChange={setPriority}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="low">Baixa</SelectItem>
-                          <SelectItem value="medium">Média</SelectItem>
-                          <SelectItem value="high">Alta</SelectItem>
-                      </SelectContent>
-                  </Select>
-              </div>
-              <div className="space-y-2">
-                  <Label>Projeto (Opcional)</Label>
-                  <Select onValueChange={(value) => setProjectId(value === 'none' ? null : value)}>
-                      <SelectTrigger><SelectValue placeholder="Selecione um projeto" /></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="none">Nenhum projeto</SelectItem>
-                          {projects.map(project => (
-                              <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
-                          ))}
-                      </SelectContent>
-                  </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Criando...' : 'Criar Tarefa'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form onSubmit={form.handleSubmit(onSubmit)} className="bg-card p-6 rounded-lg border space-y-4 max-w-3xl"> 
+      <div>
+        <Label>Categoria (Opcional)</Label>
+        <Controller name="category_id" control={form.control} render={({ field }) => (
+          <Select onValueChange={field.onChange} value={field.value || "none"} disabled={isLoadingClassifications}>
+            <SelectTrigger><SelectValue placeholder="Selecione uma categoria..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nenhuma</SelectItem>
+              {classifications.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )} />
+      </div>
+
+      <div>
+        <Label htmlFor="title">Título da Tarefa</Label>
+        <Input id="title" {...form.register('title')} />
+        {form.formState.errors.title && <p className="text-sm text-red-500 mt-1">{form.formState.errors.title.message}</p>}
+      </div>
+
+      <div>
+        <Label htmlFor="description">Descrição <span className="text-destructive">*</span></Label>
+        <Textarea id="description" {...form.register('description')} rows={8} />
+        {/* --- ALTERAÇÃO: Adiciona a mensagem de erro para descrição --- */}
+        {form.formState.errors.description && <p className="text-sm text-red-500 mt-1">{form.formState.errors.description.message}</p>}
+      </div>
+      
+      <div className="flex justify-end pt-4">
+        <Button type="submit" disabled={isSubmitting} size="lg">
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isSubmitting ? 'Criando...' : 'Salvar Tarefa'}
+        </Button>
+      </div>
+    </form>
   );
 };
 
-// --- MUDANÇA CRÍTICA AQUI: EXPORTAÇÃO PADRÃO ---
 export default CreateTaskForm;
