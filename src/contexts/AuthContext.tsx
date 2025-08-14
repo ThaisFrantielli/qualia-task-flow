@@ -2,11 +2,10 @@
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import type { TeamMember } from '@/pages/Team';
-
-// Definindo explicitamente o que é um AppUser
-export type AppUser = SupabaseUser & Partial<TeamMember>;
+import type { Session } from '@supabase/supabase-js';
+// --- CORREÇÃO APLICADA AQUI ---
+// 1. Importamos AppUser do nosso arquivo de tipos central.
+import type { AppUser } from '@/types'; 
 
 interface AuthContextType {
   user: AppUser | null;
@@ -31,7 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .eq('id', currentSession.user.id)
           .single();
         
-        setUser({ ...currentSession.user, ...profileData } as AppUser);
+        setUser({ ...currentSession.user, ...profileData }); // O cast não é mais necessário, pois os tipos já são compatíveis
         setSession(currentSession);
       } else {
         setUser(null);

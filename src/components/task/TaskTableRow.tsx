@@ -7,18 +7,21 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { 
-  MoreHorizontal, Archive, Trash2, 
+  MoreHorizontal, Eye, Edit, Archive, Trash2, 
   Circle, CircleCheck, CircleDashed, AlertOctagon,
   ArrowDown, ArrowRight, ArrowUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// --- A CORREÇÃO OBRIGATÓRIA ESTÁ AQUI ---
+// A interface de props PRECISA incluir a linha 'onDeleteRequest'.
 interface TaskTableRowProps {
   task: TaskWithDetails;
   onViewDetails: (task: TaskWithDetails) => void;
-  onDeleteRequest: (task: TaskWithDetails) => void;
+  onDeleteRequest: (task: TaskWithDetails) => void; // <--- ESTA LINHA CORRIGE O ERRO
 }
 
+// Mapeamentos de status e prioridade (sem alterações)
 const statusConfig = {
   todo: { label: 'A Fazer', icon: CircleDashed, color: 'text-gray-500' },
   progress: { label: 'Em Progresso', icon: Circle, color: 'text-blue-500' },
@@ -32,20 +35,11 @@ const priorityConfig = {
 };
 const getInitials = (name: string | null) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
 
+// O componente agora recebe 'onDeleteRequest' como uma prop
 const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, onViewDetails, onDeleteRequest }) => {
   const currentStatus = statusConfig[task.status as keyof typeof statusConfig || 'todo'];
   const currentPriority = priorityConfig[task.priority as keyof typeof priorityConfig || 'low'];
-
-  // --- CORREÇÃO 1: Função para parar a propagação do clique ---
-  const handleActionClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
-  
-  // --- CORREÇÃO 2: Função específica para o clique de exclusão ---
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Impede a navegação
-    onDeleteRequest(task); // Chama a função para abrir o diálogo
-  };
+  const handleActionClick = (e: React.MouseEvent) => e.stopPropagation();
 
   return (
     <TableRow 
@@ -77,20 +71,23 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, onViewDetails, onDele
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            {/* O botão de 3 pontos agora impede o clique de passar para a linha */}
             <Button variant="ghost" className="h-8 w-8 p-0" onClick={handleActionClick}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {/* --- CORREÇÃO 3: Itens de menu removidos --- */}
-            {/* "Ver Detalhes" e "Editar Tarefa" foram removidos */}
+          <DropdownMenuContent align="end" onClick={handleActionClick}>
+            <DropdownMenuItem onClick={() => onViewDetails(task)}>
+              <Eye className="mr-2 h-4 w-4" /> Ver Detalhes
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Edit className="mr-2 h-4 w-4" /> Editar Tarefa
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Archive className="mr-2 h-4 w-4" /> Arquivar
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {/* O item de exclusão agora usa sua própria função de clique */}
-            <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={handleDeleteClick}>
+            {/* O onClick agora chama a prop 'onDeleteRequest' que foi adicionada */}
+            <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => onDeleteRequest(task)}>
               <Trash2 className="mr-2 h-4 w-4" /> Excluir
             </DropdownMenuItem>
           </DropdownMenuContent>

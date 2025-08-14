@@ -1,68 +1,73 @@
 // src/App.tsx
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-
-// Importe suas páginas
-import Dashboard from '@/pages/Dashboard';
-import Kanban from '@/pages/Kanban';
-import Tasks from '@/pages/Tasks';
-import Projects from '@/pages/Projects';
-import ProjectDetailPage from '@/pages/ProjectDetailPage';
-import LoginPage from '@/pages/Login';
-import SignupPage from '@/pages/Signup';
-import NotFound from '@/pages/NotFound';
-import SettingsPage from '@/pages/Settings';
-import NotificationsPage from '@/pages/Notifications';
-import Team from '@/pages/Team'; 
-import CrmPdvPage from '@/pages/CrmPdvPage';
-import CrmDashboardPage from '@/pages/CrmDashboardPage';
-import ResetPasswordPage from '@/pages/ResetPasswordPage';
-import SurveyResponsePage from '@/pages/SurveyResponsePage';
-import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
-import SurveyAdminPage from '@/pages/SurveyAdminPage';
-import CreateAtendimentoPage from '@/pages/CreateAtendimentoPage';
-
-// --- 1. IMPORTE A NOVA PÁGINA DE DETALHES DA TAREFA ---
-import TaskDetailPage from '@/pages/TaskDetailPage'; 
-
-// Importe componentes de layout e proteção
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import AppLayout from '@/components/layout/AppLayout';
+import Layout from './components/Layout';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import LoginPage from './pages/Login';
+import SignupPage from './pages/Signup';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import Dashboard from './pages/Dashboard';
+import Kanban from './pages/Kanban';
+import TasksPage from './pages/Tasks';
+import TaskDetailPage from './pages/TaskDetailPage';
+import CreateTaskPage from './pages/CreateTaskPage';
+import ProjectsPage from './pages/Projects';
+import ProjectDetailPage from './pages/ProjectDetailPage';
+import Team from './pages/Team';
+import Settings from './pages/Settings';
+import Notifications from './pages/Notifications';
+import CrmPdvPage from './pages/CrmPdvPage';
+import CrmDashboardPage from './pages/CrmDashboardPage';
+import CreateAtendimentoPage from './pages/CreateAtendimentoPage';
+import SurveyGeneratorPage from './pages/SurveyGeneratorPage';
+import NotFound from './pages/NotFound';
+// --- IMPORTAÇÃO DA NOVA PÁGINA ---
+import TaskSettingsPage from '@/pages/TaskSettingsPage'; 
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* === ROTAS PÚBLICAS === */}
+        {/* Rotas Públicas */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
-        <Route path="/obrigado" element={<SurveyThankYouPage />} />
         
-        {/* === ROTAS PROTEGIDAS === */}
+        {/* Rotas Protegidas */}
         <Route element={<ProtectedRoute />}>
-          <Route element={<AppLayout />}> 
+          <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/kanban" element={<Kanban />} />
             
-            {/* --- 2. ADICIONE A NOVA ROTA DE DETALHES DA TAREFA --- */}
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+            <Route path="/tasks">
+              <Route index element={<TasksPage />} />
+              <Route path="new" element={<CreateTaskPage />} />
+              <Route path=":taskId" element={<TaskDetailPage />} />
+            </Route>
 
-            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-            <Route path="/pos-vendas" element={<CrmPdvPage />} />
-            <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
-            <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
-            <Route path="/pesquisas" element={<SurveyAdminPage />} />
+            
+            <Route path="/pos-vendas">
+              <Route index element={<CrmPdvPage />} />
+              <Route path="dashboard" element={<CrmDashboardPage />} />
+              <Route path="novo" element={<CreateAtendimentoPage />} />
+            </Route>
+            
+            <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
+
             <Route path="/team" element={<Team />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/notifications" element={<Notifications />} />
+            
+            {/* --- ROTAS DE CONFIGURAÇÕES ATUALIZADAS --- */}
+            <Route path="/settings" element={<Settings />} /> 
+            {/* Rota para a nova página de Configurações de Tarefas */}
+            <Route path="/settings/tasks" element={<TaskSettingsPage />} />
+
           </Route>
         </Route>
 
-        {/* Rota para páginas não encontradas */}
+        {/* Rota não encontrada */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
