@@ -86,7 +86,6 @@ const TasksPage = () => {
           <Button onClick={() => navigate('/tasks/new')}><Plus className="mr-2 h-4 w-4" /> Nova Tarefa</Button>
         </div>
 
-        {/* --- A CHAMADA PARA OS FILTROS ESTÁ AQUI --- */}
         <TasksFilters
           searchTerm={filters.searchTerm ?? ''} setSearchTerm={(val) => handleFilterChange('searchTerm', val)}
           statusFilter={filters.statusFilter ?? 'all'} setStatusFilter={(val) => handleFilterChange('statusFilter', val)}
@@ -147,4 +146,5 @@ const TasksPage = () => {
   );
 };
 
+// --- GARANTA QUE ESTA LINHA EXISTA NO FINAL DO ARQUIVO ---
 export default TasksPage;
