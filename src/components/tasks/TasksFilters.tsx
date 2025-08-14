@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Search, Users, Folder, Tag } from 'lucide-react';
-// CORREÇÃO: O tipo do perfil é 'Profile', não 'User'. Vamos usar 'Profile' para consistência.
 import type { Profile, Project } from '@/types';
 
 interface TasksFiltersProps {
@@ -22,19 +21,19 @@ interface TasksFiltersProps {
   tagFilter: string;
   setTagFilter: (tag: string) => void;
   
-  // CORREÇÃO: Usar o tipo 'Profile' e garantir que os arrays podem ser nulos.
   availableAssignees: Profile[] | null;
   uniqueTags: string[] | null;
   uniqueProjects: Project[] | null;
 
-  // CORREÇÃO: Padronizar o tipo do filtro de arquivamento.
-  archiveStatusFilter: 'unarchived' | 'archived' | 'all';
-  setArchiveStatusFilter: (filter: 'unarchived' | 'archived' | 'all') => void;
+  // --- A CORREÇÃO ESTÁ AQUI ---
+  // Trocamos 'unarchived' por 'active' para corresponder ao resto da aplicação.
+  archiveStatusFilter: 'active' | 'archived' | 'all';
+  setArchiveStatusFilter: (filter: 'active' | 'archived' | 'all') => void;
 
   hasFilters: boolean;
   onClearFilters: () => void;
   
-  // As props abaixo parecem não estar sendo usadas nesta versão do componente, mas as mantemos para consistência.
+  // As props abaixo podem ser mantidas para futuras implementações
   periodFilter: string;
   setPeriodFilter: (period: string) => void;
   viewMode: 'list' | 'grouped';
@@ -103,7 +102,6 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os Responsáveis</SelectItem>
-            {/* Usando o tipo 'Profile' aqui */}
             {availableAssignees?.map(user => (
               <SelectItem key={user.id} value={user.id}>{user.full_name}</SelectItem>
             ))}
@@ -119,7 +117,8 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
               </div>
           </SelectTrigger>
           <SelectContent>
-            {/* O 'Todos os Projetos' agora vem do próprio array 'uniqueProjects' */}
+             {/* Adicionando manualmente a opção "Todos" caso ela não venha do hook */}
+            <SelectItem value="all">Todos os Projetos</SelectItem>
             {uniqueProjects?.map(proj => (
               <SelectItem key={proj.id} value={proj.id}>{proj.name}</SelectItem>
             ))}

@@ -6,7 +6,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import TaskTableRow from './table/TaskTableRow';
+import TaskTableRow from './task/TaskTableRow';
 import type { Task } from '@/types';
 
 interface TaskTableProps {
