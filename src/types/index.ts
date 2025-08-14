@@ -2,15 +2,14 @@
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-export type Json = | string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-// Interface de filtros que será usada em Tasks.tsx
 export interface AllTaskFilters {
-  searchTerm?: string; 
+  searchTerm?: string;
   statusFilter?: 'all' | 'todo' | 'progress' | 'done' | 'late';
-  priorityFilter?: 'all' | 'low' | 'medium' | 'high'; 
+  priorityFilter?: 'all' | 'low' | 'medium' | 'high';
   assigneeFilter?: 'all' | string;
-  projectFilter?: 'all' | string; 
+  projectFilter?: 'all' | string;
   tagFilter?: 'all' | string;
   archiveStatusFilter?: 'active' | 'archived' | 'all';
 }
@@ -39,57 +38,59 @@ export type Database = {
       };
       tasks: {
         Row: {
-          id: string; 
-          created_at: string; 
-          updated_at: string; 
+          id: string;
+          created_at: string;
+          updated_at: string;
           title: string;
-          description: string | null; 
-          status: string; 
+          description: string | null;
+          status: string;
           priority: string;
-          due_date: string | null; 
-          start_date: string | null; 
+          due_date: string | null;
+          start_date: string | null;
           end_date: string | null;
-          project_id: string | null; 
-          user_id: string | null; 
+          project_id: string | null;
+          user_id: string | null;
           assignee_id: string | null;
-          section: string | null; 
-          atendimento_id: number | null; 
+          section: string | null;
+          atendimento_id: number | null;
           archived: boolean;
-          tags: string | null; 
-          estimated_hours: number | null; 
+          tags: string | null;
+          estimated_hours: number | null;
           assignee_name: string | null;
-          assignee_avatar: string | null; 
-          delegated_by: string | null; 
+          assignee_avatar: string | null;
+          delegated_by: string | null;
           category_id: string | null;
         };
         Insert: {
-          id?: string; 
-          title: string; 
-          description?: string | null; 
+          id?: string;
+          title: string;
+          description?: string | null;
           status?: string;
-          priority?: string; 
-          due_date?: string | null; 
+          priority?: string;
+          due_date?: string | null;
           user_id?: string | null;
-          project_id?: string | null; 
-          category_id?: string | null; 
+          project_id?: string | null;
+          category_id?: string | null;
           start_date?: string | null;
-          estimated_hours?: number | null; 
-          tags?: string | null; 
+          end_date?: string | null;
+          estimated_hours?: number | null;
+          tags?: string | null;
           assignee_id?: string | null;
         };
         Update: {
-          id?: string; 
-          title?: string; 
-          description?: string | null; 
+          id?: string;
+          title?: string;
+          description?: string | null;
           status?: string;
-          priority?: string; 
-          due_date?: string | null; 
+          priority?: string;
+          due_date?: string | null;
           project_id?: string | null;
-          assignee_id?: string | null; 
-          tags?: string | null; 
+          assignee_id?: string | null;
+          tags?: string | null;
           archived?: boolean;
-          category_id?: string | null; 
-          start_date?: string | null; 
+          category_id?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
           estimated_hours?: number | null;
         };
       };
@@ -143,23 +144,38 @@ export type Database = {
       subtasks: {
         Row: {
           id: string;
+          created_at: string;
           task_id: string;
           title: string;
           completed: boolean;
-          created_at: string;
-          updated_at: string;
+          description: string | null;
+          assignee_id: string | null;
+          due_date: string | null;
+          priority: string | null;
+          status: string;
+          start_date: string | null;
+          end_date: string | null;
+          secondary_assignee_id: string | null;
         };
         Insert: {
-          id?: string;
           task_id: string;
           title: string;
+          assignee_id?: string | null;
+          due_date?: string | null;
           completed?: boolean;
+          description?: string | null;
+          priority?: 'low' | 'medium' | 'high' | null;
+          secondary_assignee_id?: string | null;
         };
         Update: {
-          id?: string;
-          task_id?: string;
           title?: string;
           completed?: boolean;
+          due_date?: string | null;
+          status?: string;
+          assignee_id?: string | null;
+          secondary_assignee_id?: string | null;
+          priority?: 'low' | 'medium' | 'high' | null;
+          description?: string | null;
         };
       };
     };
@@ -178,25 +194,28 @@ export interface Permissoes {
   [key: string]: boolean | string | number;
 }
 
-export type ProfileWithPermissions = Omit<Profile, 'permissoes'> & { 
-  permissoes: Permissoes | null; 
+export type ProfileWithPermissions = Omit<Profile, 'permissoes'> & {
+  permissoes: Permissoes | null;
 };
 
 export type AppUser = SupabaseUser & Partial<ProfileWithPermissions>;
 export type UserProfile = ProfileWithPermissions;
 export type User = ProfileWithPermissions;
 
-// --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
 export type TaskWithDetails = Task & {
   assignee?: Profile | null;
   project?: Project | null;
-  category?: TaskCategory | null; // <-- Propriedade que estava faltando
-  // O TypeScript pode inferir subtasks e comments dos joins, mas ser explícito é mais seguro
-  subtasks?: Subtask[]; 
-  comments?: Comment[]; // Adicione Comment se não estiver definido
+  category?: TaskCategory | null;
+  subtasks?: SubtaskWithDetails[];
+  comments?: Comment[];
+  attachments?: Attachment[];
 };
 
-// Adicione o tipo Comment se ele não existir
+export type SubtaskWithDetails = Subtask & {
+  assignee?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null;
+  secondary_assignee?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null;
+};
+
 export type Comment = {
   id: string;
   task_id: string;
@@ -206,6 +225,18 @@ export type Comment = {
   updated_at: string;
 };
 
+export type Attachment = {
+  id: string;
+  task_id: string;
+  filename: string;
+  file_path: string;
+  file_size: number;
+  content_type: string;
+  uploaded_by: string;
+  created_at: string;
+};
+
 // --- Tipos para Insert e Update ---
 export type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
 export type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
+export type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
