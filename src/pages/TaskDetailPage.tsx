@@ -1,20 +1,17 @@
 // src/pages/TaskDetailPage.tsx
 
-import React from 'react'; // Apenas React é necessário
 import { useParams, Link } from 'react-router-dom';
 import { useTask } from '@/hooks/useTasks';
 import TaskDetailsContent from '@/components/tasks/TaskDetailsContent';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button'; // <-- IMPORTAÇÃO QUE FALTAVA
 import { getStatusLabel, getPriorityLabel, isOverdue } from '@/lib/utils';
-// TaskWithDetails não é mais necessário aqui
 
 const TaskDetailPage = () => {
   const { taskId } = useParams<{ taskId: string }>();
   const { task, isLoading, isError, refetch } = useTask(taskId || '');
-
-  // A lógica de 'startInEditMode' foi removida daqui
 
   if (isLoading) {
     return (
@@ -29,8 +26,13 @@ const TaskDetailPage = () => {
     return (
       <div className="p-6 text-center">
         <h2 className="text-xl font-semibold">Tarefa não encontrada</h2>
-        <p>O link pode estar quebrado ou a tarefa foi excluída.</p>
-        <Link to="/tasks"><Button variant="outline" className="mt-4">Voltar para a Lista</Button></Link>
+        <p className="text-muted-foreground mt-2">O link pode estar quebrado ou a tarefa foi excluída.</p>
+        <Link to="/tasks">
+          <Button variant="outline" className="mt-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar para a Lista
+          </Button>
+        </Link>
       </div>
     );
   }
@@ -44,7 +46,7 @@ const TaskDetailPage = () => {
         <div className="flex items-center gap-2">
           <Badge>{getPriorityLabel(task.priority)}</Badge>
           <Badge variant="outline">{getStatusLabel(task.status)}</Badge>
-          {isOverdue(task) && <Badge variant="destructive">Atrasada</Badge>}
+          {isOverdue(task) && <Badge variant="destructive" className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Atrasada</Badge>}
         </div>
       </div>
       <div className="p-6">
@@ -52,7 +54,6 @@ const TaskDetailPage = () => {
         {task.project?.name && <p className="text-muted-foreground mt-1">No projeto: {task.project.name}</p>}
       </div>
       
-      {/* O componente de conteúdo agora gerencia o próprio modo de edição */}
       <TaskDetailsContent 
         task={task} 
         onUpdate={refetch} 
