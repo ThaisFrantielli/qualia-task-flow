@@ -10,19 +10,19 @@ import Dashboard from './pages/Dashboard';
 import Kanban from './pages/Kanban';
 import TasksPage from './pages/Tasks';
 import TaskDetailPage from './pages/TaskDetailPage';
-import CreateTaskPage from './pages/CreateTaskPage';
+// --- IMPORTAÇÃO REMOVIDA ---
+// import CreateTaskPage from './pages/CreateTaskPage'; 
 import ProjectsPage from './pages/Projects';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import Team from './pages/Team';
 import Settings from './pages/Settings';
+import TaskSettingsPage from './pages/TaskSettingsPage';
 import Notifications from './pages/Notifications';
 import CrmPdvPage from './pages/CrmPdvPage';
 import CrmDashboardPage from './pages/CrmDashboardPage';
 import CreateAtendimentoPage from './pages/CreateAtendimentoPage';
 import SurveyGeneratorPage from './pages/SurveyGeneratorPage';
 import NotFound from './pages/NotFound';
-// --- IMPORTAÇÃO DA NOVA PÁGINA ---
-import TaskSettingsPage from '@/pages/TaskSettingsPage'; 
 
 function App() {
   return (
@@ -41,7 +41,8 @@ function App() {
             
             <Route path="/tasks">
               <Route index element={<TasksPage />} />
-              <Route path="new" element={<CreateTaskPage />} />
+              {/* --- ROTA REMOVIDA --- */}
+              {/* <Route path="new" element={<CreateTaskPage />} /> */}
               <Route path=":taskId" element={<TaskDetailPage />} />
             </Route>
 
@@ -58,16 +59,11 @@ function App() {
 
             <Route path="/team" element={<Team />} />
             <Route path="/notifications" element={<Notifications />} />
-            
-            {/* --- ROTAS DE CONFIGURAÇÕES ATUALIZADAS --- */}
             <Route path="/settings" element={<Settings />} /> 
-            {/* Rota para a nova página de Configurações de Tarefas */}
             <Route path="/settings/tasks" element={<TaskSettingsPage />} />
-
           </Route>
         </Route>
 
-        {/* Rota não encontrada */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
