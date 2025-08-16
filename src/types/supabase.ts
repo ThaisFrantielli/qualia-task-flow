@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -42,6 +42,7 @@ export type Database = {
           resolved_at: string | null
           status: Database["public"]["Enums"]["tipo_status_atendimento"] | null
           summary: string | null
+          tipo_atendimento: string | null
           updated_at: string
         }
         Insert: {
@@ -71,6 +72,7 @@ export type Database = {
           resolved_at?: string | null
           status?: Database["public"]["Enums"]["tipo_status_atendimento"] | null
           summary?: string | null
+          tipo_atendimento?: string | null
           updated_at?: string
         }
         Update: {
@@ -100,6 +102,7 @@ export type Database = {
           resolved_at?: string | null
           status?: Database["public"]["Enums"]["tipo_status_atendimento"] | null
           summary?: string | null
+          tipo_atendimento?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -218,6 +221,7 @@ export type Database = {
           created_at: string
           id: string
           task_id: string
+          user_id: string | null
         }
         Insert: {
           author_name: string
@@ -225,6 +229,7 @@ export type Database = {
           created_at?: string
           id?: string
           task_id: string
+          user_id?: string | null
         }
         Update: {
           author_name?: string
@@ -232,6 +237,7 @@ export type Database = {
           created_at?: string
           id?: string
           task_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -239,6 +245,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -387,30 +400,65 @@ export type Database = {
       }
       subtasks: {
         Row: {
+          assignee_id: string | null
           completed: boolean
           created_at: string
           description: string | null
+          due_date: string | null
+          end_date: string | null
           id: string
+          priority: string | null
+          secondary_assignee_id: string | null
+          start_date: string | null
+          status: string
           task_id: string
           title: string
         }
         Insert: {
+          assignee_id?: string | null
           completed?: boolean
           created_at?: string
           description?: string | null
+          due_date?: string | null
+          end_date?: string | null
           id?: string
+          priority?: string | null
+          secondary_assignee_id?: string | null
+          start_date?: string | null
+          status?: string
           task_id: string
           title: string
         }
         Update: {
+          assignee_id?: string | null
           completed?: boolean
           created_at?: string
           description?: string | null
+          due_date?: string | null
+          end_date?: string | null
           id?: string
+          priority?: string | null
+          secondary_assignee_id?: string | null
+          start_date?: string | null
+          status?: string
           task_id?: string
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "subtasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subtasks_secondary_assignee_id_fkey"
+            columns: ["secondary_assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "subtasks_task_id_fkey"
             columns: ["task_id"]
@@ -514,6 +562,41 @@ export type Database = {
           },
         ]
       }
+      task_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_delegations: {
         Row: {
           delegated_at: string
@@ -581,6 +664,7 @@ export type Database = {
           new_value: string | null
           old_value: string | null
           task_id: string
+          user_avatar_url: string | null
           user_id: string | null
           user_name: string
         }
@@ -592,6 +676,7 @@ export type Database = {
           new_value?: string | null
           old_value?: string | null
           task_id: string
+          user_avatar_url?: string | null
           user_id?: string | null
           user_name: string
         }
@@ -603,6 +688,7 @@ export type Database = {
           new_value?: string | null
           old_value?: string | null
           task_id?: string
+          user_avatar_url?: string | null
           user_id?: string | null
           user_name?: string
         }
@@ -623,6 +709,7 @@ export type Database = {
           assignee_id: string | null
           assignee_name: string | null
           atendimento_id: number | null
+          category_id: string | null
           created_at: string
           delegated_by: string | null
           description: string | null
@@ -646,6 +733,7 @@ export type Database = {
           assignee_id?: string | null
           assignee_name?: string | null
           atendimento_id?: number | null
+          category_id?: string | null
           created_at?: string
           delegated_by?: string | null
           description?: string | null
@@ -669,6 +757,7 @@ export type Database = {
           assignee_id?: string | null
           assignee_name?: string | null
           atendimento_id?: number | null
+          category_id?: string | null
           created_at?: string
           delegated_by?: string | null
           description?: string | null
@@ -702,6 +791,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasks_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -715,7 +811,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      get_my_permission: {
+        Args: { permission_key: string }
+        Returns: boolean
+      }
+      get_my_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       survey_type: "comercial" | "entrega" | "manutencao" | "devolucao"

@@ -1,15 +1,15 @@
-// src/components/tasks/TaskDetailsContent.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, Edit, Save, X as CancelIcon, Calendar as CalendarIcon, User, Folder, Loader2 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useTask } from '@/hooks/useTasks'; 
+import { useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useUsers } from '@/hooks/useUsers';
 import { useClassifications } from '@/hooks/useClassifications';
 import type { TaskUpdate, TaskWithDetails } from '@/types';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getPriorityLabel } from '@/lib/utils';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -17,12 +17,11 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
 import TaskAttachments from '../task/TaskAttachments';
-import TaskHistory from '../task/TaskHistory';
+import TaskHistory from './TaskHistory';
 import TaskDelegation from '../task/TaskDelegation';
 import MentionComments from '../comments/MentionComments';
 import ActionPlan from './ActionPlan';
@@ -33,7 +32,7 @@ interface TaskDetailsContentProps {
 }
 
 const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate }) => {
-  const { task: _, isLoading, isError, refetch, updateTask, startTask, completeTask } = useTask(task.id); 
+  const { updateTask, startTask, completeTask } = useTask(task.id);
   const { users: profiles } = useUsers();
   const { projects } = useProjects();
   const { classifications } = useClassifications();
@@ -41,16 +40,16 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState<TaskWithDetails>(task);
   const [isSaving, setIsSaving] = useState(false);
+  const currentPriorityLabel = getPriorityLabel(task.priority);
 
   useEffect(() => {
     setEditedTask(task);
-    // A LÓGICA CORRETA: Entra em modo de edição AUTOMATICAMENTE se for uma tarefa nova
     if (task.title === 'Nova Tarefa (sem título)') {
       setIsEditing(true);
     } else {
       setIsEditing(false);
     }
-  }, [task]); // Roda sempre que a tarefa mudar (ex: após salvar)
+  }, [task]);
 
   const handleInputChange = (field: keyof TaskUpdate, value: any) => {
     setEditedTask(prev => ({ ...prev!, [field]: value }));
@@ -67,18 +66,36 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
     }
     
     setIsSaving(true);
+
+    const payload: TaskUpdate = {
+      title: editedTask.title,
+      description: editedTask.description,
+      status: editedTask.status,
+      priority: editedTask.priority,
+      due_date: editedTask.due_date,
+      start_date: editedTask.start_date,
+      end_date: editedTask.end_date,
+      project_id: editedTask.project_id,
+      assignee_id: editedTask.assignee_id,
+      category_id: editedTask.category_id,
+    };
+
     try {
-      await updateTask(editedTask);
+      await updateTask(payload);
       toast.success("Tarefa salva com sucesso!");
-      setIsEditing(false); // <-- Volta para o modo de visualização
+      setIsEditing(false);
       onUpdate();
     } catch (error: any) {
-      toast.error("Não foi possível salvar as alterações.", { description: error.message });
+      toast.error("Não foi possível salvar as alterações.", { 
+        description: error.message.includes('schema cache')
+          ? "Erro de cache do Supabase. Por favor, recarregue a página (CTRL+F5)."
+          : error.message
+      });
     } finally {
       setIsSaving(false);
     }
   };
-  
+
   const calculateTimeSpent = () => {
     if (task.start_date && task.end_date) {
       return formatDistance(new Date(task.end_date), new Date(task.start_date), { locale: ptBR });
@@ -144,13 +161,111 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t">
-                  <div className="space-y-1"><Label className="text-muted-foreground">Responsável</Label>{isEditing ? (<Select onValueChange={(v) => handleInputChange('assignee_id', v === 'none' ? null : v)} value={editedTask.assignee_id || 'none'}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">Não atribuído</SelectItem>{profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent></Select>) : (<div className="flex items-center gap-2 pt-2"><User className="w-4 h-4" /><p>{currentAssigneeName}</p></div>)}</div>
-                  <div className="space-y-1"><Label className="text-muted-foreground">Projeto</Label>{isEditing ? (<Select onValueChange={(v) => handleInputChange('project_id', v === 'none' ? null : v)} value={editedTask.project_id || 'none'}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">Nenhum</SelectItem>{projects.filter(p => p.id !== 'all').map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>) : (<div className="flex items-center gap-2 pt-2"><Folder className="w-4 h-4" /><p>{currentProjectName}</p></div>)}</div>
-                  <div className="space-y-1"><Label className="text-muted-foreground">Categoria</Label>{isEditing ? (<Select onValueChange={(v) => handleInputChange('category_id', v === 'none' ? null : v)} value={editedTask.category_id || 'none'}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">Nenhuma</SelectItem>{classifications.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>) : (<div className="flex items-center gap-2 pt-2">{task.category?.color && <div className="w-3 h-3 rounded-full" style={{backgroundColor: task.category.color}} />}<p>{currentCategoryName}</p></div>)}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-6 border-t">
+                  <div className="space-y-1">
+                    <Label className="text-muted-foreground">Responsável</Label>
+                    {isEditing ? (
+                      <Select onValueChange={(v) => handleInputChange('assignee_id', v === 'none' ? null : v)} value={editedTask.assignee_id || 'none'}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Não atribuído</SelectItem>
+                          {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center gap-2 pt-2">
+                        <User className="w-4 h-4" />
+                        <p>{currentAssigneeName}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-muted-foreground">Projeto</Label>
+                    {isEditing ? (
+                      <Select onValueChange={(v) => handleInputChange('project_id', v === 'none' ? null : v)} value={editedTask.project_id || 'none'}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {projects.filter(p => p.id !== 'all').map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center gap-2 pt-2">
+                        <Folder className="w-4 h-4" />
+                        <p>{currentProjectName}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-muted-foreground">Prioridade</Label>
+                    {isEditing ? (
+                      <Select onValueChange={(v) => handleInputChange('priority', v)} value={editedTask.priority || 'medium'}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Definir prioridade..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Baixa</SelectItem>
+                          <SelectItem value="medium">Média</SelectItem>
+                          <SelectItem value="high">Alta</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center gap-2 pt-2">
+                        <p>{currentPriorityLabel}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-muted-foreground">Categoria</Label>
+                    {isEditing ? (
+                      <Select onValueChange={(v) => handleInputChange('category_id', v === 'none' ? null : v)} value={editedTask.category_id || 'none'}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {classifications.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center gap-2 pt-2">
+                        {task.category?.color && <div className="w-3 h-3 rounded-full" style={{backgroundColor: task.category.color}} />}
+                        <p>{currentCategoryName}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {isEditing && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t"><div className="space-y-1"><Label>Data de Início</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full font-normal justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{editedTask.start_date ? format(new Date(editedTask.start_date), "dd/MM/yyyy") : <span>Escolha</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d?.toISOString())} /></PopoverContent></Popover></div><div className="space-y-1"><Label>Prazo Final</Label><Popover><PopoverTrigger asChild><Button variant="outline" className="w-full font-normal justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{editedTask.due_date ? format(new Date(editedTask.due_date), "dd/MM/yyyy") : <span>Escolha</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d?.toISOString())} /></PopoverContent></Popover></div></div>)}
+                {isEditing && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t">
+                    <div className="space-y-1">
+                      <Label>Data de Início</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full font-normal justify-start">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {editedTask.start_date ? format(new Date(editedTask.start_date), "dd/MM/yyyy") : <span>Escolha</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d?.toISOString())} />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Prazo Final</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full font-normal justify-start">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {editedTask.due_date ? format(new Date(editedTask.due_date), "dd/MM/yyyy") : <span>Escolha</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d?.toISOString())} />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -164,4 +279,5 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
     </div>
   );
 };
+
 export default TaskDetailsContent;

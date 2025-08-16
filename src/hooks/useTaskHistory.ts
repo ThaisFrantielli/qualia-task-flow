@@ -1,25 +1,29 @@
-// src/hooks/useTaskHistory.ts
+// src/hooks/useTaskHistory.ts (VERSÃO FINAL CORRIGIDA)
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/types';
+import type { Database, Profile } from '@/types';
 
-// O tipo base para uma entrada de histórico
-type HistoryEntry = Database['public']['Tables']['task_history']['Row'];
+// O tipo base para uma entrada de histórico, extraído corretamente
+type HistoryEntry = Database['Tables']['task_history']['Row'];
 
-// Nosso novo tipo, que define a forma exata do que receberemos da query
+// --- CORREÇÃO DO TIPO: 'profiles' agora é um objeto, não um array ---
+// Este tipo agora corresponde exatamente ao que o Supabase retorna.
 export type TaskHistoryWithProfile = HistoryEntry & {
-  // A propriedade 'profiles' será um objeto ou nulo
   profiles: {
     full_name: string | null;
     avatar_url: string | null;
   } | null;
 };
 
+// Mapa para buscar nomes de responsáveis (assignees)
+type ProfileMap = { [id: string]: Profile };
+
 export const useTaskHistory = (taskId?: string) => {
   const [history, setHistory] = useState<TaskHistoryWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profileMap, setProfileMap] = useState<ProfileMap>({});
 
   const fetchHistory = useCallback(async () => {
     if (!taskId) {
@@ -31,35 +35,50 @@ export const useTaskHistory = (taskId?: string) => {
     try {
       setLoading(true);
       setError(null);
+      setProfileMap({});
 
-      // --- A NOVA QUERY EXPLÍCITA ---
-      // Dizemos exatamente como juntar as tabelas.
+      // --- CORREÇÃO DA QUERY: Usando '*' para pegar todas as colunas de 'task_history' ---
+      // E mantendo a junção com 'profiles'.
       const { data, error: fetchError } = await supabase
         .from('task_history')
         .select(`
-          id, 
-          created_at, 
-          action, 
-          field_changed, 
-          old_value, 
-          new_value,
+          *,
           profiles ( full_name, avatar_url )
         `)
         .eq('task_id', taskId)
         .order('created_at', { ascending: false });
 
-      if (fetchError) {
-        // Se a query explícita ainda der erro, o problema é na definição da FK no DB
-        if (fetchError.message.includes("relation")) {
-            console.error("ERRO DE RELAÇÃO NO SUPABASE. Verifique a Foreign Key 'user_id' na tabela 'task_history' apontando para 'profiles(id)'.");
-            throw new Error("Relação entre tabelas não encontrada no banco de dados.");
-        }
-        throw fetchError;
-      }
+      if (fetchError) throw fetchError;
 
-      // O TypeScript pode reclamar aqui porque não sabe que 'data' agora
-      // corresponde a TaskHistoryWithProfile. Fazemos uma coerção de tipo explícita.
-      setHistory(data as TaskHistoryWithProfile[]);
+      // Agora a coerção de tipo é segura e correta.
+      const historyData = data as TaskHistoryWithProfile[];
+      setHistory(historyData);
+
+      // Lógica para buscar os nomes dos responsáveis mencionados (nenhuma mudança aqui)
+      const assigneeIds = new Set<string>();
+      historyData.forEach(entry => {
+        if (entry.field_changed === 'assignee_id') {
+          if (entry.old_value) assigneeIds.add(entry.old_value);
+          if (entry.new_value) assigneeIds.add(entry.new_value);
+        }
+      });
+
+      if (assigneeIds.size > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', Array.from(assigneeIds));
+
+        if (profilesError) throw profilesError;
+
+        const map: ProfileMap = {};
+        if (profilesData) {
+          profilesData.forEach(profile => {
+            map[profile.id] = profile;
+          });
+        }
+        setProfileMap(map);
+      }
 
     } catch (err: any) {
       console.error("Erro ao buscar histórico da tarefa:", err);
@@ -73,5 +92,5 @@ export const useTaskHistory = (taskId?: string) => {
     fetchHistory();
   }, [fetchHistory]);
 
-  return { history, loading, error, refetch: fetchHistory };
+  return { history, loading, error, refetch: fetchHistory, profileMap };
 };

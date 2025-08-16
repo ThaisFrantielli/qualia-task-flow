@@ -1,9 +1,15 @@
-// src/types/index.ts
+// src/types/index.ts (VERSÃO CORRETA E COMPLETA)
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+// Importa a definição GERADA pelo Supabase. Verifique se o caminho './supabase' está correto.
+import type { Database as SupabaseDatabase } from './supabase';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
+// O tipo Database agora aponta para a estrutura correta.
+export type Database = SupabaseDatabase['public'];
+
+// --- Este tipo estava faltando na exportação, causando o erro em useTasks.ts ---
 export interface AllTaskFilters {
   searchTerm?: string;
   statusFilter?: 'all' | 'todo' | 'progress' | 'done' | 'late';
@@ -14,182 +20,14 @@ export interface AllTaskFilters {
   archiveStatusFilter?: 'active' | 'archived' | 'all';
 }
 
-export type Database = {
-  public: {
-    Tables: {
-      task_categories: {
-        Row: {
-          id: string;
-          name: string;
-          color: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          color?: string | null;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          color?: string | null;
-        };
-      };
-      tasks: {
-        Row: {
-          id: string;
-          created_at: string;
-          updated_at: string;
-          title: string;
-          description: string | null;
-          status: string;
-          priority: string;
-          due_date: string | null;
-          start_date: string | null;
-          end_date: string | null;
-          project_id: string | null;
-          user_id: string | null;
-          assignee_id: string | null;
-          section: string | null;
-          atendimento_id: number | null;
-          archived: boolean;
-          tags: string | null;
-          estimated_hours: number | null;
-          assignee_name: string | null;
-          assignee_avatar: string | null;
-          delegated_by: string | null;
-          category_id: string | null;
-        };
-        Insert: {
-          id?: string;
-          title: string;
-          description?: string | null;
-          status?: string;
-          priority?: string;
-          due_date?: string | null;
-          user_id?: string | null;
-          project_id?: string | null;
-          category_id?: string | null;
-          start_date?: string | null;
-          end_date?: string | null;
-          estimated_hours?: number | null;
-          tags?: string | null;
-          assignee_id?: string | null;
-        };
-        Update: {
-          id?: string;
-          title?: string;
-          description?: string | null;
-          status?: string;
-          priority?: string;
-          due_date?: string | null;
-          project_id?: string | null;
-          assignee_id?: string | null;
-          tags?: string | null;
-          archived?: boolean;
-          category_id?: string | null;
-          start_date?: string | null;
-          end_date?: string | null;
-          estimated_hours?: number | null;
-        };
-      };
-      profiles: {
-        Row: {
-          id: string;
-          email: string;
-          full_name: string | null;
-          avatar_url: string | null;
-          created_at: string;
-          updated_at: string;
-          permissoes: Json | null;
-        };
-        Insert: {
-          id: string;
-          email: string;
-          full_name?: string | null;
-          avatar_url?: string | null;
-          permissoes?: Json | null;
-        };
-        Update: {
-          id?: string;
-          email?: string;
-          full_name?: string | null;
-          avatar_url?: string | null;
-          permissoes?: Json | null;
-        };
-      };
-      projects: {
-        Row: {
-          id: string;
-          name: string;
-          description: string | null;
-          created_at: string;
-          updated_at: string;
-          user_id: string | null;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-          user_id?: string | null;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          description?: string | null;
-          user_id?: string | null;
-        };
-      };
-      subtasks: {
-        Row: {
-          id: string;
-          created_at: string;
-          task_id: string;
-          title: string;
-          completed: boolean;
-          description: string | null;
-          assignee_id: string | null;
-          due_date: string | null;
-          priority: string | null;
-          status: string;
-          start_date: string | null;
-          end_date: string | null;
-          secondary_assignee_id: string | null;
-        };
-        Insert: {
-          task_id: string;
-          title: string;
-          assignee_id?: string | null;
-          due_date?: string | null;
-          completed?: boolean;
-          description?: string | null;
-          priority?: 'low' | 'medium' | 'high' | null;
-          secondary_assignee_id?: string | null;
-        };
-        Update: {
-          title?: string;
-          completed?: boolean;
-          due_date?: string | null;
-          status?: string;
-          assignee_id?: string | null;
-          secondary_assignee_id?: string | null;
-          priority?: 'low' | 'medium' | 'high' | null;
-          description?: string | null;
-        };
-      };
-    };
-  };
-};
+// --- Tipos base extraídos da definição correta ---
+export type TaskCategory = Database['Tables']['task_categories']['Row'];
+export type Task = Database['Tables']['tasks']['Row'];
+export type Project = Database['Tables']['projects']['Row'];
+export type Profile = Database['Tables']['profiles']['Row'];
+export type Subtask = Database['Tables']['subtasks']['Row'];
+export type TaskHistoryEntry = Database['Tables']['task_history']['Row'];
 
-// --- Tipos Base ---
-export type TaskCategory = Database['public']['Tables']['task_categories']['Row'];
-export type Task = Database['public']['Tables']['tasks']['Row'];
-export type Project = Database['public']['Tables']['projects']['Row'];
-export type Profile = Database['public']['Tables']['profiles']['Row'];
-export type Subtask = Database['public']['Tables']['subtasks']['Row'];
-
-// --- Tipos Compostos e de Usuário ---
 export interface Permissoes {
   [key: string]: boolean | string | number;
 }
@@ -198,17 +36,23 @@ export type ProfileWithPermissions = Omit<Profile, 'permissoes'> & {
   permissoes: Permissoes | null;
 };
 
-export type AppUser = SupabaseUser & Partial<ProfileWithPermissions>;
-export type UserProfile = ProfileWithPermissions;
-export type User = ProfileWithPermissions;
+// --- A correção para 'permissoes' está aqui ---
+// O tipo AppUser agora usa Profile, que contém 'permissoes'.
+export type AppUser = SupabaseUser & Partial<Profile>;
+export type UserProfile = Profile;
+export type User = Profile;
 
+// --- A correção para assignee, project, category está aqui ---
+// O tipo TaskWithDetails agora usa o tipo 'Task' correto e estende-o.
 export type TaskWithDetails = Task & {
-  assignee?: Profile | null;
-  project?: Project | null;
-  category?: TaskCategory | null;
+  assignee: Profile | null; // Removido '?' para corresponder à query que sempre os inclui
+  project: Project | null;
+  category: TaskCategory | null;
   subtasks?: SubtaskWithDetails[];
   comments?: Comment[];
   attachments?: Attachment[];
+  subtasks_count?: number;
+  completed_subtasks_count?: number;
 };
 
 export type SubtaskWithDetails = Subtask & {
@@ -223,6 +67,7 @@ export type Comment = {
   content: string;
   created_at: string;
   updated_at: string;
+  author_name: string | null;
 };
 
 export type Attachment = {
@@ -236,7 +81,6 @@ export type Attachment = {
   created_at: string;
 };
 
-// --- Tipos para Insert e Update ---
-export type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
-export type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
-export type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
+export type TaskInsert = Database['Tables']['tasks']['Insert'];
+export type TaskUpdate = Database['Tables']['tasks']['Update'];
+export type SubtaskInsert = Database['Tables']['subtasks']['Insert'];
