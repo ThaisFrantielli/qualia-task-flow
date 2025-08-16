@@ -3,14 +3,15 @@
 import { useParams, Link } from 'react-router-dom';
 import { useTask } from '@/hooks/useTasks';
 import TaskDetailsContent from '@/components/tasks/TaskDetailsContent';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react'; // 'AlertTriangle' removido
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button'; // <-- IMPORTAÇÃO QUE FALTAVA
+import { Button } from '@/components/ui/button'; // <-- IMPORTAÇÃO DO BOTÃO ADICIONADA
 import { getStatusLabel, getPriorityLabel, isOverdue } from '@/lib/utils';
 
 const TaskDetailPage = () => {
   const { taskId } = useParams<{ taskId: string }>();
+  // FIXED: Changed from 'data: task' to 'task' to match the hook's return type
   const { task, isLoading, isError, refetch } = useTask(taskId || '');
 
   if (isLoading) {
@@ -26,13 +27,9 @@ const TaskDetailPage = () => {
     return (
       <div className="p-6 text-center">
         <h2 className="text-xl font-semibold">Tarefa não encontrada</h2>
-        <p className="text-muted-foreground mt-2">O link pode estar quebrado ou a tarefa foi excluída.</p>
-        <Link to="/tasks">
-          <Button variant="outline" className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar para a Lista
-          </Button>
-        </Link>
+        <p>O link pode estar quebrado ou a tarefa foi excluída.</p>
+        {/* Agora o <Button> funciona */}
+        <Link to="/tasks"><Button variant="outline" className="mt-4">Voltar para a Lista</Button></Link>
       </div>
     );
   }
@@ -46,7 +43,7 @@ const TaskDetailPage = () => {
         <div className="flex items-center gap-2">
           <Badge>{getPriorityLabel(task.priority)}</Badge>
           <Badge variant="outline">{getStatusLabel(task.status)}</Badge>
-          {isOverdue(task) && <Badge variant="destructive" className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Atrasada</Badge>}
+          {isOverdue(task) && <Badge variant="destructive">Atrasada</Badge>}
         </div>
       </div>
       <div className="p-6">
