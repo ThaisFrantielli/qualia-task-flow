@@ -1,17 +1,23 @@
-// src/hooks/useSubtasks.ts - VERSÃO ALTERNATIVA (caso os nomes das FK sejam diferentes)
+// src/hooks/useSubtasks.ts (VERSÃO CORRIGIDA)
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Subtask, SubtaskWithDetails, Database } from '@/types'; 
+// --- CORREÇÃO AQUI: 'SubtaskInsert' foi removido da importação ---
+import type { Subtask, SubtaskWithDetails, Database } from '@/types';
 
+// A declaração local é mantida, pois é a fonte da verdade
 type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
 
-// Função para buscar a LISTA de subtarefas - VERSÃO MAIS SIMPLES
+//
+// ... O RESTO DO ARQUIVO PERMANECE EXATAMENTE IGUAL ...
+// (Função fetchSubtasks, hook useSubtasks, hook useSubtask)
+//
+
+// Função para buscar a LISTA de subtarefas (com assignee) - Original Mantida
 const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
   if (!taskId) return [];
   
   try {
-    // Primeiro, buscar as subtarefas
     const { data: subtasks, error: subtasksError } = await supabase
       .from('subtasks')
       .select('*')
@@ -21,7 +27,6 @@ const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
     if (subtasksError) throw subtasksError;
     if (!subtasks) return [];
 
-    // Depois, buscar os perfis dos responsáveis
     const assigneeIds = subtasks
       .map(s => s.assignee_id)
       .filter(id => id !== null) as string[];
@@ -33,11 +38,10 @@ const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
       
     if (profilesError) throw profilesError;
 
-    // Combinar os dados
     const result: SubtaskWithDetails[] = subtasks.map(subtask => ({
       ...subtask,
       assignee: profiles?.find(p => p.id === subtask.assignee_id) || null,
-      secondary_assignee: null, // Por enquanto, vamos ignorar o secondary_assignee
+      secondary_assignee: null,
     }));
 
     return result;
@@ -48,46 +52,50 @@ const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
   }
 };
 
-// Hook principal para a LISTA de subtarefas
-export const useSubtasks = (taskId: string) => {
+// Hook principal para a LISTA de subtarefas - Original Mantido
+export const useSubtasks = (taskId: string | null) => {
   const queryClient = useQueryClient();
   const queryKey = ['subtasks', taskId];
 
   const { data, isLoading, error } = useQuery<SubtaskWithDetails[], Error>({
     queryKey,
-    queryFn: () => fetchSubtasks(taskId),
+    queryFn: () => fetchSubtasks(taskId || ''),
     enabled: !!taskId,
     retry: 2,
   });
 
   const addSubtask = useMutation({
     mutationFn: async (newSubtask: SubtaskInsert) => {
-      const { data, error } = await supabase
-        .from('subtasks')
-        .insert(newSubtask)
-        .select()
-        .single();
+      const { data, error } = await supabase.from('subtasks').insert(newSubtask).select().single();
       if (error) throw new Error(error.message);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
   const updateSubtask = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Subtask> }) => {
-      const { data, error } = await supabase
-        .from('subtasks')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+      const { data, error } = await supabase.from('subtasks').update(updates).eq('id', id).select().single();
       if (error) throw new Error(error.message);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const deleteSubtask = useMutation({
+    mutationFn: async (subtaskId: string) => {
+      const { error } = await supabase.from('subtasks').delete().eq('id', subtaskId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
 
@@ -97,26 +105,30 @@ export const useSubtasks = (taskId: string) => {
     error,
     add: addSubtask.mutateAsync,
     update: updateSubtask.mutateAsync,
+    delete: deleteSubtask.mutateAsync,
   };
 };
 
-// Hook para UMA ÚNICA subtarefa
+// --- HOOK PARA UMA ÚNICA SUBTAREFA (VERSÃO CORRIGIDA E COMPLETA) ---
 export const useSubtask = (subtaskId: string | null) => {
     const queryClient = useQueryClient();
     const queryKey = ['subtask', subtaskId];
 
-    const { data, isLoading, isError } = useQuery<SubtaskWithDetails | null, Error>({
+    const { data, isLoading, isError, error } = useQuery<SubtaskWithDetails | null, Error>({
         queryKey,
         queryFn: async () => {
             if (!subtaskId) return null;
             
-            const { data, error } = await supabase
+            const { data, error: queryError } = await supabase
                 .from('subtasks')
-                .select('*')
+                .select('*') 
                 .eq('id', subtaskId)
                 .single();
                 
-            if (error) throw new Error(error.message);
+            if (queryError) {
+              if (queryError.code === 'PGRST116') return null;
+              throw new Error(queryError.message);
+            }
             return data as SubtaskWithDetails;
         },
         enabled: !!subtaskId,
@@ -125,18 +137,43 @@ export const useSubtask = (subtaskId: string | null) => {
     const updateSubtask = useMutation({
         mutationFn: async (updates: Partial<Subtask>) => {
             if (!subtaskId) throw new Error("ID da subtarefa não fornecido.");
-            const { data, error } = await supabase
+            const { data: updatedData, error: updateError } = await supabase
                 .from('subtasks')
                 .update(updates)
                 .eq('id', subtaskId)
                 .select()
                 .single();
-            if (error) throw new Error(error.message);
-            return data;
+            if (updateError) throw new Error(updateError.message);
+            return updatedData;
         },
         onSuccess: (updatedSubtask) => {
-            queryClient.invalidateQueries({ queryKey: ['subtasks', updatedSubtask.task_id] });
-            queryClient.setQueryData(queryKey, updatedSubtask);
+            if (updatedSubtask) {
+              queryClient.invalidateQueries({ queryKey: ['subtasks', updatedSubtask.task_id] });
+              queryClient.setQueryData(queryKey, updatedSubtask);
+            }
+        },
+    });
+
+    const deleteSubtask = useMutation({
+        mutationFn: async () => {
+            if (!subtaskId) throw new Error("ID da subtarefa não fornecido para apagar.");
+            
+            const parentTaskId = data?.task_id;
+
+            const { error: deleteError } = await supabase
+                .from('subtasks')
+                .delete()
+                .eq('id', subtaskId);
+            if (deleteError) throw new Error(deleteError.message);
+
+            return { parentTaskId };
+        },
+        onSuccess: ({ parentTaskId }) => {
+            queryClient.removeQueries({ queryKey });
+            if (parentTaskId) {
+                queryClient.invalidateQueries({ queryKey: ['subtasks', parentTaskId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
         },
     });
 
@@ -144,6 +181,8 @@ export const useSubtask = (subtaskId: string | null) => {
         subtask: data,
         isLoading,
         isError,
+        error,
         update: updateSubtask.mutateAsync,
+        delete: deleteSubtask.mutateAsync,
     };
 };

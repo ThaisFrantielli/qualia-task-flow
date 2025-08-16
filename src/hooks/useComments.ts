@@ -1,74 +1,83 @@
-// src/hooks/useComments.ts
+// src/hooks/useComments.ts (VERSÃO COM DEPURAÇÃO E VALIDAÇÃO)
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Comment } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
 
 export const useComments = (taskId?: string) => {
-  const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // CORREÇÃO 1: A função de busca agora está dentro do useEffect ou é um useCallback
-  // estável que só depende de 'taskId'.
   const fetchComments = useCallback(async () => {
-    // Guarda de segurança: se não houver taskId, não faz nada e para de carregar.
     if (!taskId) {
       setComments([]);
       setLoading(false);
       return;
     }
-
-    // Inicia o carregamento
     setLoading(true);
     setError(null);
-
     try {
       const { data, error: fetchError } = await supabase
         .from('comments')
         .select('*')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true });
-        
       if (fetchError) throw fetchError;
-      
       setComments(data || []);
     } catch (err: any) {
       console.error("Erro ao carregar comentários:", err);
       setError(err.message || 'Falha ao carregar comentários');
     } finally {
-      // Finaliza o carregamento, independentemente de sucesso ou erro
       setLoading(false);
     }
-  }, [taskId]); // A função só será recriada se o taskId mudar.
+  }, [taskId]);
 
-  const addComment = async (content: string, authorName: string) => {
-    if (!taskId || !user?.id) {
-      throw new Error("Usuário não autenticado ou tarefa inválida.");
-    }
+  const addComment = async (content: string, authorName: string, userId: string) => {
+    // --- PASSO DE DEPURAÇÃO CRÍTICO ---
+    console.log('--- DADOS RECEBIDOS ANTES DE INSERIR O COMENTÁRIO ---');
+    console.log('Task ID:', taskId);
+    console.log('User ID Recebido:', userId);
+    console.log('Tipo do User ID:', typeof userId);
     
+    // --- VALIDAÇÃO ROBUSTA ---
+    if (!taskId) {
+      throw new Error("ID da tarefa está faltando. Não é possível adicionar comentário.");
+    }
+
+    // Regex para validar o formato de um UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    if (typeof userId !== 'string' || !uuidRegex.test(userId)) {
+      console.error('!!! VALIDAÇÃO FALHOU !!!');
+      console.error(`O valor "${userId}" fornecido para user_id NÃO é um UUID válido.`);
+      throw new Error(`ID de usuário inválido. Verifique o console para mais detalhes.`);
+    }
+
+    // Se a validação passar, tentamos inserir no banco.
     try {
+      const commentData = {
+        task_id: taskId,
+        content: content,
+        author_name: authorName,
+        user_id: userId
+      };
+
+      console.log('Objeto que será inserido:', commentData);
+
       const { data, error: insertError } = await supabase
         .from('comments')
-        .insert({
-          task_id: taskId,
-          content: content,
-          author_name: authorName,
-          user_id: user.id
-        })
+        .insert(commentData)
         .select()
         .single();
       
       if (insertError) throw insertError;
       
       if (data) {
-        // Atualiza o estado local para feedback instantâneo
         setComments(current => [...current, data as Comment]);
       }
     } catch (err: any) {
-      console.error('Error adding comment:', err);
+      console.error('Erro do Supabase ao tentar inserir:', err);
       throw err;
     }
   };
@@ -83,10 +92,9 @@ export const useComments = (taskId?: string) => {
     }
   };
 
-  // CORREÇÃO 2: O useEffect agora chama a função fetchComments.
   useEffect(() => {
     fetchComments();
-  }, [fetchComments]); // Ele só vai rodar quando a função fetchComments for recriada (ou seja, quando taskId mudar).
+  }, [fetchComments]);
 
   return { comments, loading, error, addComment, deleteComment, refetch: fetchComments };
 };

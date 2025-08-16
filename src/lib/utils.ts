@@ -8,8 +8,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// --- NOSSAS FUNÇÕES UTILITÁRIAS CENTRALIZADAS ---
-
 /**
  * Formata uma string de data para o padrão pt-BR.
  * Ex: '2024-07-25T10:00:00.000Z' -> '25/07/2024'
@@ -71,4 +69,23 @@ export const isOverdue = (task: Pick<Task, 'due_date' | 'status'>): boolean => {
     // Zera as horas para comparar apenas as datas
     today.setHours(0, 0, 0, 0);
     return dueDate < today;
+};
+
+/**
+ * Retorna as iniciais de um nome. Ex: "José Maria" -> "JM"
+ * @param name - O nome completo.
+ * @returns As iniciais em maiúsculas ou '?' se o nome for inválido.
+ */
+export const getInitials = (name?: string | null): string => {
+  if (!name) return '?';
+  
+  // Pega a primeira letra de cada uma das duas primeiras palavras
+  const initials = name
+    .trim()
+    .split(' ')
+    .slice(0, 2) 
+    .map(n => n[0])
+    .join('');
+    
+  return initials.toUpperCase();
 };
