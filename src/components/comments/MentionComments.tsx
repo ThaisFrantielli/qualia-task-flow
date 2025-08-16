@@ -1,4 +1,4 @@
-// src/components/comments/MentionComments.tsx
+// src/components/comments/MentionComments.tsx (VERSÃO FINAL CORRIGIDA)
 
 import { useState } from 'react';
 import { useComments } from '@/hooks/useComments';
@@ -11,26 +11,6 @@ import { formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-
-// --- AÇÃO NECESSÁRIA PARA CORRIGIR OS ERROS DE TIPO ---
-//
-// 1. VÁ ATÉ O SEU ARQUIVO DE TIPOS (ex: src/types.ts ou src/integrations/supabase/types.ts)
-//
-// 2. EXPORTE O TIPO 'Profile'. Encontre a linha e mude de:
-//    interface Profile { ... }  =>  PARA: export interface Profile { ... }
-//
-// 3. ATUALIZE O TIPO 'Comment'. Encontre a definição e adicione a propriedade 'author_name'.
-//    export interface Comment {
-//      id: string;
-//      created_at: string;
-//      task_id: string;
-//      user_id: string;
-//      content: string;
-//      author_name: string | null; // <-- ADICIONE ESTA LINHA!
-//    }
-//
-// 4. Depois de fazer essas duas mudanças, os erros de tipo devem desaparecer.
-//
 import type { Profile, Comment } from '@/types'; 
 
 interface MentionCommentsProps {
@@ -38,16 +18,11 @@ interface MentionCommentsProps {
 }
 
 const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
-  // Guarda defensiva contra ID inválido vindo do componente pai
   if (typeof taskId !== 'string' || !taskId) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Comentários</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">ID da tarefa não fornecido.</p>
-        </CardContent>
+        <CardHeader><CardTitle>Comentários</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">ID da tarefa não fornecido.</p></CardContent>
       </Card>
     );
   }
@@ -84,12 +59,14 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
     
-    if (!user?.id || !('full_name' in user && user.full_name)) {
-      toast.error("Você precisa estar logado para comentar.");
+    const authorName = (user as any)?.full_name || user?.user_metadata?.full_name;
+    if (!user?.id || !authorName) {
+      toast.error("Você precisa estar logado e ter um nome definido para comentar.");
       return;
     }
 
-    const authorName = (user as any)?.full_name || user?.user_metadata?.full_name || user?.email || 'Usuário';
+    // --- ALTERAÇÃO PRINCIPAL ---
+    // A chamada agora passa o user.id como o terceiro argumento esperado pelo hook.
     const promise = addComment(
       newComment.trim(),
       authorName,
@@ -101,7 +78,7 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
     toast.promise(promise, {
       loading: 'Adicionando comentário...',
       success: 'Comentário adicionado!',
-      error: 'Falha ao adicionar comentário.',
+      error: (err) => `Falha ao adicionar comentário: ${err.message}`,
     });
   };
 
@@ -160,12 +137,13 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center"><User className="w-4 h-4 text-gray-600" /></div>
                       <div>
-                        {/* Agora o TypeScript sabe que 'comment.author_name' existe */}
-                        <span className="font-medium text-sm">{comment.author_name}</span>
+                        <span className="font-medium text-sm">{comment.author_name || 'Usuário'}</span>
                         <p className="text-xs text-gray-500">{formatDistance(new Date(comment.created_at), new Date(), { addSuffix: true, locale: ptBR })}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => deleteComment(comment.id)}><Trash2 className="w-4 h-4" /></Button>
+                    {user?.id === comment.user_id && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteComment(comment.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                    )}
                   </div>
                   <p className="text-gray-700 text-sm whitespace-pre-wrap">{comment.content}</p>
                 </div>
