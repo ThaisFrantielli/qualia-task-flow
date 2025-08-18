@@ -1,9 +1,9 @@
-// src/components/tasks/ExpandedSubtasks.tsx (VERSÃO COPIA E COLA COMPLETA)
+// src/components/tasks/ExpandedSubtasks.tsx (COPIE E COLE ESTE CÓDIGO)
 
 import React from 'react';
 import { useSubtasks } from '@/hooks/useSubtasks';
 import SubtaskTableRow from './SubtaskTableRow';
-import AddSubtaskInline from './AddSubtaskInline'; // <-- IMPORTAÇÃO NOVA
+import AddSubtaskInline from './AddSubtaskInline';
 import { TableRow, TableCell } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ListTodo } from 'lucide-react';
@@ -20,7 +20,7 @@ const ExpandedSubtasks: React.FC<ExpandedSubtasksProps> = ({ taskId, onSubtaskCl
     return (
       <TableRow className="bg-muted/50 hover:bg-muted/50">
         <TableCell colSpan={5} className="py-2">
-          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-8 w-full" />
         </TableCell>
       </TableRow>
     );
@@ -32,7 +32,7 @@ const ExpandedSubtasks: React.FC<ExpandedSubtasksProps> = ({ taskId, onSubtaskCl
         <TableCell colSpan={5} className="text-center text-destructive py-4">
           <div className="flex items-center justify-center gap-2">
             <AlertTriangle className="h-4 w-4" />
-            <span>Erro ao carregar as subtarefas.</span>
+            <span>Erro ao carregar o plano de ação.</span>
           </div>
         </TableCell>
       </TableRow>
@@ -60,7 +60,7 @@ const ExpandedSubtasks: React.FC<ExpandedSubtasksProps> = ({ taskId, onSubtaskCl
         </TableRow>
       )}
 
-      {/* --- ADIÇÃO DO FORMULÁRIO INLINE NO FINAL --- */}
+      {/* Formulário para adicionar nova subtarefa inline */}
       <AddSubtaskInline taskId={taskId} />
     </>
   );
