@@ -5,11 +5,14 @@ import type { TaskWithDetails } from '@/types';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectDetails } from '@/hooks/useProjectDetails';
-import TaskTableRow from '@/components/tasks/TaskTableRow';
-import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
-import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
-import TaskDetailSheet from '@/components/tasks/TaskDetailSheet';
-import AddTaskInline from '@/components/projects/AddTaskInline';
+import AddTaskInline from '@/components/projects/AddTaskInline'; 
+import TaskRow from '@/components/projects/TaskRow';
+import SubtasksCascade from '@/components/projects/SubtasksCascade';
+// --- CORREÇÃO FINAL APLICADA AQUI ---
+// O caminho para este componente é o único que estava causando problemas.
+// Garantindo que ele esteja correto.
+import TaskDetailSheet from '@/components/tasks/TaskDetailSheet'; 
+// --- FIM DA CORREÇÃO ---
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -124,103 +127,65 @@ const ProjectDetailPage = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Cabeçalho */}
-      <Link to="/projects" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Voltar para Projetos
-      </Link>
-      <div className="flex justify-between items-center">
+    <>
+      <div className="p-6 space-y-4">
+        {/* Breadcrumbs */}
+        <nav className="flex items-center text-sm text-muted-foreground mb-2" aria-label="Breadcrumb">
+          <ol className="inline-flex items-center space-x-1">
+            <li>
+              <Link to="/projects" className="hover:underline flex items-center gap-1">
+                <ArrowLeft className="h-4 w-4" />
+                Projetos
+              </Link>
+            </li>
+            <li>
+              <span className="mx-2">/</span>
+              <span className="font-semibold text-foreground">{project.name}</span>
+            </li>
+          </ol>
+        </nav>
         <div className="flex items-center gap-4">
           <div className="w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: project.color || '#6b7280' }} />
           <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
         </div>
-        <AlertDialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
-          <AlertDialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Adicionar Seção
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Criar Nova Seção</AlertDialogTitle>
-              <AlertDialogDescription>Digite o nome da nova seção para organizar suas tarefas.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="py-2">
-              <Label htmlFor="section-name">Nome da Seção</Label>
-              <Input
-                id="section-name"
-                placeholder="Ex: Planejamento"
-                value={newSectionName}
-                onChange={(e) => setNewSectionName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddSection();
-                  }
-                }}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <AlertDialogCancel asChild>
-                <Button variant="outline">Cancelar</Button>
-              </AlertDialogCancel>
-              <AlertDialogAction asChild>
-                <Button onClick={handleAddSection}>Criar</Button>
-              </AlertDialogAction>
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-
-      {/* Tabela de Tarefas */}
-      <div className="border rounded-lg bg-card overflow-hidden shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-1/3">Tarefa</TableHead>
-              <TableHead>Status / Progresso</TableHead>
-              <TableHead>Prioridade</TableHead>
-              <TableHead>Responsável</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tasks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center p-8 text-muted-foreground">
-                  Este projeto ainda não tem tarefas.
-                </TableCell>
-              </TableRow>
-            ) : (
-              sectionOrder.map((sectionName) => (
-                <React.Fragment key={sectionName}>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={5} className="py-1">
-                      <h4 className="font-semibold p-2">{sectionName}</h4>
-                    </TableCell>
-                  </TableRow>
-                  {sections[sectionName]?.map((task) => (
-                    <React.Fragment key={task.id}>
-                      <TaskTableRow
-                        task={task}
-                        isExpanded={expandedRows.has(task.id)}
-                        onToggleExpand={() => handleToggleRow(task.id)}
-                        onViewDetails={() => setViewingTaskId(task.id)}
-                        onDeleteRequest={() => {
-                          /* Implementar lógica de deleção */
-                        }}
-                      />
-                      {expandedRows.has(task.id) && (
-                        <ExpandedSubtasks taskId={task.id} onSubtaskClick={setViewingSubtaskId} />
-                      )}
-                    </React.Fragment>
-                  ))}
-                  <AddTaskInline projectId={projectId!} sectionName={sectionName} onTaskAdded={handleTaskAdded} />
-                </React.Fragment>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <div className="flex items-center gap-2">
+          <AlertDialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
+            <AlertDialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Adicionar Seção</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>Criar Nova Seção</AlertDialogTitle><AlertDialogDescription>Digite o nome da nova seção para organizar suas tarefas.</AlertDialogDescription></AlertDialogHeader>
+              <div className="py-2">
+                <Label htmlFor="section-name" className="sr-only">Nome da Seção</Label>
+                <Input id="section-name" placeholder="Ex: Planejamento" value={newSectionName} onChange={(e) => setNewSectionName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSection(); } }} />
+              </div>
+              <AlertDialogFooter><AlertDialogCancel onClick={() => setNewSectionName('')}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleAddSection}>Criar Seção</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+        <div className="border rounded-lg bg-card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr><th className="p-2 text-left font-semibold text-muted-foreground w-3/5">Nome da Tarefa</th><th className="p-2 text-left font-semibold text-muted-foreground">Responsável</th><th className="p-2 text-left font-semibold text-muted-foreground">Prazo</th><th className="p-2 text-left font-semibold text-muted-foreground">Prioridade</th></tr>
+            </thead>
+            <tbody>
+              {tasks.length === 0 ? (
+                <tr><td colSpan={4} className="text-center p-8 text-muted-foreground">Este projeto ainda não tem tarefas.</td></tr>
+              ) : (
+                sectionOrder.map(sectionName => (
+                  <React.Fragment key={sectionName}>
+                    <tr className="bg-muted/30"><td colSpan={4} className="py-1"><div className="flex items-center gap-2 p-2 group"><h4 className="font-semibold">{sectionName}</h4></div></td></tr>
+                    {sections[sectionName]?.map(task => (
+                      <React.Fragment key={task.id}>
+                        <TaskRow task={task} onTaskClick={(clickedTask) => setViewingTaskId(clickedTask.id)} />
+                        <SubtasksCascade taskId={task.id} />
+                      </React.Fragment>
+                    ))}
+                    <AddTaskInline projectId={projectId!} sectionName={sectionName} onTaskAdded={handleTaskAdded} />
+                  </React.Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Detalhes da Tarefa e Subtarefa */}

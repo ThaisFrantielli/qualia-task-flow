@@ -94,11 +94,31 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
+        {/* Breadcrumbs */}
+        {subtask && (
+          <nav className="flex items-center text-xs text-muted-foreground mb-2 mt-2" aria-label="Breadcrumb">
+            <ol className="inline-flex items-center space-x-1">
+              <li>
+                <a href="/projects" className="hover:underline flex items-center gap-1">Projetos</a>
+              </li>
+              {/* subtask.project_id não existe, então não exibe esse breadcrumb */}
+              {subtask.task_id && (
+                <li>
+                  <span className="mx-1">/</span>
+                  <a href={`/tasks/${subtask.task_id}`} className="hover:underline">Tarefa</a>
+                </li>
+              )}
+              <li>
+                <span className="mx-1">/</span>
+                <span className="font-semibold text-foreground">{title}</span>
+              </li>
+            </ol>
+          </nav>
+        )}
         <SheetHeader>
           <SheetTitle>Detalhes da Ação</SheetTitle>
           <SheetDescription>Visualize e edite todas as informações da ação do seu plano.</SheetDescription>
         </SheetHeader>
-
         {isLoading ? (
           <div className="space-y-4 py-4">
             <Skeleton className="h-6 w-3/4" />
