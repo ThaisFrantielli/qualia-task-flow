@@ -36,21 +36,40 @@ const TaskDetailPage = () => {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="p-4 border-b flex justify-between items-center">
-        <Link to="/tasks" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Voltar para a Lista
-        </Link>
-        <div className="flex items-center gap-2">
-          <Badge>{getPriorityLabel(task.priority)}</Badge>
-          <Badge variant="outline">{getStatusLabel(task.status)}</Badge>
-          {isOverdue(task) && <Badge variant="destructive">Atrasada</Badge>}
+      {/* Breadcrumbs */}
+      <div className="p-4 border-b">
+        <nav className="flex items-center text-sm text-muted-foreground mb-2" aria-label="Breadcrumb">
+          <ol className="inline-flex items-center space-x-1">
+            <li>
+              <Link to="/projects" className="hover:underline flex items-center gap-1">
+                <ArrowLeft className="h-4 w-4" />
+                Projetos
+              </Link>
+            </li>
+            {task.project?.id && (
+              <li>
+                <span className="mx-2">/</span>
+                <Link to={`/projects/${task.project.id}`} className="hover:underline">{task.project.name}</Link>
+              </li>
+            )}
+            <li>
+              <span className="mx-2">/</span>
+              <span className="font-semibold text-foreground">{task.title}</span>
+            </li>
+          </ol>
+        </nav>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">{task.title}</h1>
+            {task.project?.name && <p className="text-muted-foreground mt-1">No projeto: {task.project.name}</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge>{getPriorityLabel(task.priority)}</Badge>
+            <Badge variant="outline">{getStatusLabel(task.status)}</Badge>
+            {isOverdue(task) && <Badge variant="destructive">Atrasada</Badge>}
+          </div>
         </div>
       </div>
-      <div className="p-6">
-        <h1 className="text-3xl font-bold">{task.title}</h1>
-        {task.project?.name && <p className="text-muted-foreground mt-1">No projeto: {task.project.name}</p>}
-      </div>
-      
       <TaskDetailsContent 
         task={task} 
         onUpdate={refetch} 
