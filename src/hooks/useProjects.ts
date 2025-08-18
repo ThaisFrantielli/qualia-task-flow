@@ -1,10 +1,23 @@
+// src/hooks/useProjects.ts (VERSÃO APRIMORADA)
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Project } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
+// --- NOVO TIPO: Projeto com estatísticas ---
+export type ProjectWithStats = {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  task_count: number;
+  completed_count: number;
+  late_count: number;
+};
+
 export const useProjects = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
+  // O estado agora armazena o novo tipo
+  const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -16,18 +29,16 @@ export const useProjects = () => {
       return;
     }
 
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('projects')
-        .select('*')
-        .order('name', { ascending: true });
+      // --- CHAMANDO A FUNÇÃO RPC ---
+      const { data, error: fetchError } = await supabase.rpc('get_projects_with_stats');
 
       if (fetchError) throw new Error(fetchError.message);
-      // Add an 'All Projects' option
-      const allProjectsOption: Project = { id: 'all', name: 'Todos Projetos', created_at: '', updated_at: '', description: null, color: null, user_id: null };
-      setProjects([allProjectsOption, ...(data as Project[] || [])]);
+      
+      setProjects(data || []);
+
     } catch (err: any) {
       console.error('Erro ao buscar projetos:', err);
       setError(`Erro ao buscar projetos: ${err.message}`);
@@ -40,10 +51,5 @@ export const useProjects = () => {
     fetchProjects();
   }, [fetchProjects]);
 
-  return {
-    projects,
-    loading,
-    error,
-    refetch: fetchProjects,
-  };
+  return { projects, loading, error, refetch: fetchProjects };
 };

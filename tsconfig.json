@@ -5,28 +5,20 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-
-    /* Path Aliases */
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  // --- CORREÇÃO APLICADA ---
-  // Removemos 'references' e adicionamos 'vite.config.ts' ao 'include'
   "include": ["src", "src/vite-env.d.ts", "vite.config.ts"]
 }
