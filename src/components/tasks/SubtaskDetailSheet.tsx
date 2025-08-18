@@ -1,5 +1,3 @@
-// src/components/tasks/SubtaskDetailSheet.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -9,13 +7,22 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { useSubtask, useSubtasks } from '@/hooks/useSubtasks'; // <-- Adicionado useSubtasks
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useSubtask } from '@/hooks/useSubtasks';
 import { useUsers } from '@/hooks/useUsers';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, Save, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
 
 interface SubtaskDetailSheetProps {
@@ -25,12 +32,9 @@ interface SubtaskDetailSheetProps {
 }
 
 const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open, onOpenChange }) => {
-  const { subtask, isLoading, update } = useSubtask(subtaskId);
-  const { delete: deleteSubtask } = useSubtasks(subtask?.task_id || ''); // <-- Usando o hook para a ação de delete
-  
+  const { subtask, isLoading, update, delete: deleteSubtask } = useSubtask(subtaskId);
   const { users: profiles } = useUsers();
   const [isSaving, setIsSaving] = useState(false);
-  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
@@ -38,6 +42,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
   const [priority, setPriority] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('todo');
 
+  // Popula o formulário quando a subtarefa é carregada
   useEffect(() => {
     if (subtask) {
       setTitle(subtask.title);
@@ -52,23 +57,23 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!subtask) return;
-    
+
     setIsSaving(true);
-    const updates = { 
-      title, 
+    const updates = {
+      title,
       description,
       assignee_id: assigneeId,
       priority,
       status,
       due_date: dueDate ? dueDate.toISOString() : null,
     };
-    
+
     try {
       await update(updates);
-      toast.success("Ação atualizada com sucesso!");
+      toast.success('Ação atualizada com sucesso!');
       onOpenChange(false);
     } catch (error: any) {
-      toast.error("Erro ao atualizar a ação.", { description: error.message });
+      toast.error('Erro ao atualizar a ação.', { description: error.message });
     } finally {
       setIsSaving(false);
     }
@@ -76,12 +81,13 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
 
   const handleDelete = async () => {
     if (!subtaskId) return;
+
     try {
-      await deleteSubtask(subtaskId);
-      toast.success("Ação apagada com sucesso!");
+      await deleteSubtask();
+      toast.success('Ação apagada com sucesso!');
       onOpenChange(false);
     } catch (error: any) {
-      toast.error("Erro ao apagar a ação.", { description: error.message });
+      toast.error('Erro ao apagar a ação.', { description: error.message });
     }
   };
 
@@ -90,32 +96,41 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
       <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
         <SheetHeader>
           <SheetTitle>Detalhes da Ação</SheetTitle>
-          <SheetDescription>
-            Visualize e edite todas as informações da ação do seu plano.
-          </SheetDescription>
+          <SheetDescription>Visualize e edite todas as informações da ação do seu plano.</SheetDescription>
         </SheetHeader>
-        
+
         {isLoading ? (
-          <div className="space-y-4 py-4"><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-10 w-full" /><Skeleton className="h-20 w-full" /></div>
+          <div className="space-y-4 py-4">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
         ) : subtask ? (
-          <form onSubmit={handleSave} className="flex-grow flex flex-col">
-            <div className="space-y-4 py-4 flex-grow overflow-y-auto pr-6">
+          <form onSubmit={handleSave} className="flex flex-col flex-grow">
+            <div className="space-y-4 py-4 flex-grow overflow-y-auto pr-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Título da Ação</Label>
-                <Input id="title" name="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Descrição / Notas</Label>
-                <Textarea id="description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-[120px]" />
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-[100px]" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Responsável</Label>
                   <Select value={assigneeId || 'none'} onValueChange={(value) => setAssigneeId(value === 'none' ? null : value)}>
-                    <SelectTrigger><SelectValue placeholder="Atribuir..." /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Atribuir..." />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Não atribuído</SelectItem>
-                      {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                      {profiles.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.full_name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -123,18 +138,22 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
                   <Label>Prazo</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button variant="outline" className="w-full justify-start font-normal">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dueDate ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR }) : <span>Definir prazo</span>}
+                        {dueDate ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR }) : <span>Escolha</span>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dueDate || undefined} onSelect={(date) => setDueDate(date || null)} initialFocus /></PopoverContent>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar mode="single" selected={dueDate || undefined} onSelect={(d) => setDueDate(d || null)} initialFocus />
+                    </PopoverContent>
                   </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label>Prioridade</Label>
-                   <Select value={priority || 'medium'} onValueChange={(value) => setPriority(value)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select value={priority || 'medium'} onValueChange={setPriority}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="low">Baixa</SelectItem>
                       <SelectItem value="medium">Média</SelectItem>
@@ -144,8 +163,10 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
                 </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select value={status} onValueChange={(value) => setStatus(value)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todo">A Fazer</SelectItem>
                       <SelectItem value="progress">Em Progresso</SelectItem>
@@ -158,24 +179,23 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
             <SheetFooter className="mt-auto pt-4 border-t flex justify-between items-center">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta ação não pode ser desfeita. Isso irá apagar permanentemente a ação do plano.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                    <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter>
+                  <div className="flex justify-end gap-2">
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Confirmar</AlertDialogAction>
-                  </AlertDialogFooter>
+                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
+                      Confirmar
+                    </AlertDialogAction>
+                  </div>
                 </AlertDialogContent>
               </AlertDialog>
-
               <div className="flex gap-2">
                 <SheetClose asChild>
                   <Button type="button" variant="outline">Cancelar</Button>
@@ -188,7 +208,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
             </SheetFooter>
           </form>
         ) : (
-          <p className="py-4 text-center text-muted-foreground">Ação não encontrada ou ID inválido.</p>
+          <p className="py-4 text-center text-muted-foreground">Ação não encontrada.</p>
         )}
       </SheetContent>
     </Sheet>

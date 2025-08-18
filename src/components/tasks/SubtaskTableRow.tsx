@@ -1,29 +1,20 @@
+// src/components/tasks/SubtaskTableRow.tsx (COPIE E COLE ESTE CÓDIGO)
+
 import React from 'react';
 import type { SubtaskWithDetails } from '@/types';
 import { TableRow, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import {
-  Circle, CircleCheck, CircleDashed, AlertOctagon,
-  ArrowDown, ArrowRight, ArrowUp,
-  Edit
-} from 'lucide-react';
+import { Edit, ArrowDown, ArrowRight, ArrowUp } from 'lucide-react';
 import { useSubtasks } from '@/hooks/useSubtasks';
 import { toast } from 'sonner';
 import { cn, getInitials } from '@/lib/utils';
 
-// Reutilizando as mesmas configurações de estilo do TaskTableRow
-const statusConfig = {
-  todo: { label: 'A Fazer', icon: CircleDashed, color: 'text-gray-500' },
-  progress: { label: 'Em Progresso', icon: Circle, color: 'text-blue-500' },
-  done: { label: 'Concluído', icon: CircleCheck, color: 'text-green-500' },
-  late: { label: 'Atrasado', icon: AlertOctagon, color: 'text-red-500' },
-};
 const priorityConfig = {
-  low: { label: 'Baixa', icon: ArrowDown, color: 'text-gray-500' },
-  medium: { label: 'Média', icon: ArrowRight, color: 'text-yellow-500' },
-  high: { label: 'Alta', icon: ArrowUp, color: 'text-red-500' },
+  low: { icon: ArrowDown, color: 'text-gray-500' },
+  medium: { icon: ArrowRight, color: 'text-yellow-500' },
+  high: { icon: ArrowUp, color: 'text-red-500' },
 };
 
 interface SubtaskTableRowProps {
@@ -33,11 +24,10 @@ interface SubtaskTableRowProps {
 
 const SubtaskTableRow: React.FC<SubtaskTableRowProps> = ({ subtask, onClick }) => {
   const { update } = useSubtasks(subtask.task_id);
-
-  const currentStatus = statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
   const currentPriority = subtask.priority ? priorityConfig[subtask.priority as keyof typeof priorityConfig] : null;
 
-  const handleToggleComplete = async () => {
+  const handleToggleComplete = async (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
     try {
       await update({
         id: subtask.id,
@@ -52,33 +42,26 @@ const SubtaskTableRow: React.FC<SubtaskTableRowProps> = ({ subtask, onClick }) =
     }
   };
 
-  const handleCheckboxClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Impede que clicar no checkbox acione o onClick da linha inteira
-  };
-
   const handleEditClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Impede que o clique na linha toda seja acionado
+    e.stopPropagation();
     onClick();
   };
 
   return (
     <TableRow 
-      className="bg-muted/50 hover:bg-muted/80 group"
-      onClick={() => {
-        console.log('CLIQUE NA LINHA DA TABELA! ID:', subtask.id);
-        onClick();
-      }}
+      className="bg-muted/50 hover:bg-muted/80 group cursor-pointer"
+      onClick={onClick}
     >
-      {/* Célula 1: Título */}
       <TableCell className="pl-12 py-2">
-        <div className="flex items-center gap-3" onClick={handleCheckboxClick}>
+        <div className="flex items-center gap-3">
           <Checkbox 
-            id={`subtask-table-row-${subtask.id}`}
+            id={`subtask-row-${subtask.id}`}
             checked={subtask.completed} 
-            onCheckedChange={handleToggleComplete} 
+            onCheckedChange={() => handleToggleComplete({} as React.MouseEvent)} // Passa um evento dummy
+            onClick={(e) => e.stopPropagation()}
           />
           <label 
-            htmlFor={`subtask-table-row-${subtask.id}`}
+            htmlFor={`subtask-row-${subtask.id}`}
             className={`text-sm cursor-pointer ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}
           >
             {subtask.title}
@@ -86,27 +69,18 @@ const SubtaskTableRow: React.FC<SubtaskTableRowProps> = ({ subtask, onClick }) =
         </div>
       </TableCell>
       
-      {/* Célula 2: Status */}
-      <TableCell>
-        <div className={cn("flex items-center gap-2 text-sm", currentStatus.color)}>
-          <currentStatus.icon className="h-4 w-4" />
-          <span>{currentStatus.label}</span>
-        </div>
-      </TableCell>
-
-      {/* Célula 3: Prioridade */}
+      <TableCell className="text-center text-muted-foreground">--</TableCell>
+      
       <TableCell>
         {currentPriority ? (
           <div className={cn("flex items-center gap-2 text-sm", currentPriority.color)}>
             <currentPriority.icon className="h-4 w-4" />
-            <span>{currentPriority.label}</span>
           </div>
         ) : (
-          <span className="text-muted-foreground">-</span>
+          <span className="text-muted-foreground text-center block">--</span>
         )}
       </TableCell>
 
-      {/* Célula 4: Responsável */}
       <TableCell>
         {subtask.assignee ? (
           <div className="flex items-center gap-2" title={subtask.assignee.full_name || 'Responsável'}>
@@ -115,10 +89,9 @@ const SubtaskTableRow: React.FC<SubtaskTableRowProps> = ({ subtask, onClick }) =
               <AvatarFallback className="text-xs">{getInitials(subtask.assignee.full_name)}</AvatarFallback>
             </Avatar>
           </div>
-        ) : <span className="text-xs text-muted-foreground">N/A</span>}
+        ) : null}
       </TableCell>
 
-      {/* Célula 5: Ações */}
       <TableCell className="text-right">
         <Button 
           variant="ghost" 

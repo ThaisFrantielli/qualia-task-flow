@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-// --- NOVO TIPO: Projeto com estatísticas ---
 export type ProjectWithStats = {
   id: string;
   name: string;
@@ -16,7 +15,6 @@ export type ProjectWithStats = {
 };
 
 export const useProjects = () => {
-  // O estado agora armazena o novo tipo
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

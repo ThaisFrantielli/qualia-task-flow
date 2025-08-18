@@ -1,3 +1,5 @@
+// src/components/tasks/TaskTableRow.tsx (COPIE E COLE ESTE CÓDIGO)
+
 import React from 'react';
 import type { TaskWithDetails } from '@/types';
 import { TableRow, TableCell } from '@/components/ui/table';
@@ -54,10 +56,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, isExpanded, onToggleE
   return (
     <TableRow 
       className="hover:bg-muted/50 cursor-pointer"
-      onClick={() => {
-        console.log('CLIQUE NA LINHA DA TAREFA! ID:', task.id);
-        onViewDetails(task);
-      }}
+      onClick={() => onViewDetails(task)}
     >
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
@@ -77,11 +76,11 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, isExpanded, onToggleE
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-1.5 text-muted-foreground ml-2 px-1.5 py-0.5 rounded-full bg-muted/50 hover:bg-muted transition-colors">
                     <ListTodo className="h-3 w-3" />
-                    <span className="text-xs font-mono font-semibold tracking-tighter">{task.subtasks_count}</span>
+                    <span className="text-xs font-mono font-semibold tracking-tighter">{completedSubtasks}/{totalSubtasks}</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Possui {task.subtasks_count} ações no plano.</p>
+                  <p>Plano de ação: {completedSubtasks} de {totalSubtasks} concluídas.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -94,7 +93,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, isExpanded, onToggleE
           <div className="flex items-center gap-2">
             <Progress value={progress} className="w-20 h-1.5" />
             <span className="text-xs font-mono text-muted-foreground">
-              {completedSubtasks}/{totalSubtasks}
+              {Math.round(progress)}%
             </span>
           </div>
         ) : (
