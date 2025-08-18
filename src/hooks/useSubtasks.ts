@@ -3,7 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/types/supabase';
 import type { Subtask, SubtaskWithDetails } from '@/types';
 
-type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
+// A declaração local é mantida, pois é a fonte da verdade
+type SubtaskInsert = Database['Tables']['subtasks']['Insert'];
 
 const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
   if (!taskId) return [];
