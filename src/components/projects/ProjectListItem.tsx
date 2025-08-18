@@ -1,87 +1,64 @@
-// src/components/projects/ProjectListItem.tsx
-    
-import React, { useState, useEffect } from 'react'; // <-- CORREÇÃO AQUI
-import { supabase } from '@/integrations/supabase/client';
-import type { Project, Task } from '@/types';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+// src/components/projects/ProjectListItem.tsx (VERSÃO DASHBOARD)
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+import type { ProjectWithStats } from '@/hooks/useProjects'; // Importa o novo tipo
 import { Button } from '@/components/ui/button';
-import { ChevronRight, MoreHorizontal, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
+import { MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface ProjectListItemProps {
-  project: Project;
+  project: ProjectWithStats;
 }
 
 const ProjectListItem: React.FC<ProjectListItemProps> = ({ project }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
-  const [taskCount, setTaskCount] = useState(0);
-
-  useEffect(() => {
-    const fetchTaskCount = async () => {
-      const { count, error } = await supabase
-        .from('tasks')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_id', project.id);
-      
-      if (error) console.error("Erro ao buscar contagem de tarefas:", error);
-      else if (count !== null) setTaskCount(count);
-    };
-    fetchTaskCount();
-  }, [project.id]);
-
-  const handleOpenChange = async (open: boolean) => {
-    setIsOpen(open);
-    if (open && tasks.length === 0 && !isLoadingTasks) {
-      setIsLoadingTasks(true);
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('project_id', project.id)
-        .order('created_at', { ascending: true });
-      
-      if (error) {
-        toast.error("Erro ao buscar tarefas", { description: error.message });
-      } else if (data) {
-        setTasks(data);
-      }
-      setIsLoadingTasks(false);
-    }
-  };
+  const progress = project.task_count > 0 ? (project.completed_count / project.task_count) * 100 : 0;
 
   return (
-    <Collapsible open={isOpen} onOpenChange={handleOpenChange} className="border rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
-      <CollapsibleTrigger asChild>
-        <div className="flex items-center p-4 cursor-pointer">
-          <ChevronRight className={`h-5 w-5 mr-3 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-          <div className="w-2.5 h-2.5 rounded-full mr-3 flex-shrink-0" style={{ backgroundColor: project.color || '#A1A1AA' }} />
-          <span className="font-semibold text-gray-800 flex-1 truncate">{project.name}</span>
-          <Badge variant="secondary" className="mr-4">{taskCount} tarefas</Badge>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); toast.info("Menu de ações em breve!"); }}>
+    // O item da lista agora é um link para a página de detalhes do projeto
+    <Link to={`/projects/${project.id}`} className="block">
+      <div className="border rounded-lg bg-white shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 p-4 flex flex-col gap-4">
+        {/* Cabeçalho com Nome, Cor e Ações */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#A1A1AA' }} />
+            <h3 className="font-semibold text-lg text-gray-800">{project.name}</h3>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 -mr-1" onClick={(e) => e.preventDefault()}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="border-t bg-gray-50/50 p-4">
-          {isLoadingTasks ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : tasks.length > 0 ? (
-            <ul className="space-y-2">
-              {tasks.map(task => (
-                <li key={task.id} className="text-sm text-gray-700 p-2 rounded hover:bg-gray-100">{task.title}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-gray-500 text-center py-4">Nenhuma tarefa neste projeto ainda.</p>
+
+        {/* Descrição do Projeto */}
+        {project.description && (
+          <p className="text-sm text-muted-foreground -mt-2">{project.description}</p>
+        )}
+
+        {/* Barra de Progresso */}
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs font-medium text-primary">Progresso</span>
+            <span className="text-xs font-semibold">{Math.round(progress)}%</span>
+          </div>
+          <Progress value={progress} className="h-1.5" />
+        </div>
+
+        {/* Rodapé com Estatísticas */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-3">
+          <div className="flex items-center gap-4">
+            <span>Total: <strong>{project.task_count}</strong></span>
+            <span>Concluídas: <strong className="text-green-600">{project.completed_count}</strong></span>
+          </div>
+          {project.late_count > 0 && (
+            <Badge variant="destructive" className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3" />
+              {project.late_count} Atrasada(s)
+            </Badge>
           )}
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </Link>
   );
 };
 
