@@ -29,45 +29,47 @@ import NotFound from '@/pages/NotFound';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Rotas Públicas */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} /> {/* Rota pública para responder */}
-        <Route path="/obrigado" element={<SurveyThankYouPage />} /> {/* Rota pública de agradecimento */}
-        
-        {/* Rotas Protegidas */}
-        <Route element={<ProtectedRoute />}>
-          {/* Todas as rotas aqui dentro usarão o AppLayout (com Sidebar e Header) */}
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/kanban" element={<Kanban />} />
-            
-            <Route path="/tasks" element={<TasksPage />} />
-            <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+    <>
+      <BrowserRouter>
+        <Routes>
+          {/* Rotas Públicas */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} /> {/* Rota pública para responder */}
+          <Route path="/obrigado" element={<SurveyThankYouPage />} /> {/* Rota pública de agradecimento */}
+          
+          {/* Rotas Protegidas */}
+          <Route element={<ProtectedRoute />}>
+            {/* Todas as rotas aqui dentro usarão o AppLayout (com Sidebar e Header) */}
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/kanban" element={<Kanban />} />
+              
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
 
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-            
-            <Route path="/pos-vendas" element={<CrmPdvPage />} />
-            <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
-            <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
-            
-            <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+              
+              <Route path="/pos-vendas" element={<CrmPdvPage />} />
+              <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
+              <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
+              
+              <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
 
-            <Route path="/team" element={<Team />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/settings" element={<Settings />} /> 
-            <Route path="/settings/tasks" element={<TaskSettingsPage />} />
+              <Route path="/team" element={<Team />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/settings" element={<Settings />} /> 
+              <Route path="/settings/tasks" element={<TaskSettingsPage />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* Rota "Catch-all" para páginas não encontradas */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Rota "Catch-all" para páginas não encontradas */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 }
 
