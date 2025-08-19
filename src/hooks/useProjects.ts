@@ -3,12 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Project } from '@/types';
 
-export type ProjectWithStats = {
-  id: string;
-  name: string;
-  description: string | null;
-  color: string | null;
+// ProjectWithStats agora estende Project, garantindo todos os campos obrigatórios
+export type ProjectWithStats = Project & {
   task_count: number;
   completed_count: number;
   late_count: number;

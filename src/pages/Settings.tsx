@@ -12,7 +12,8 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import ClassificationManager from '@/components/settings/ClassificationManager'; // Importando o novo componente
+import ClassificationManager from '@/components/settings/ClassificationManager';
+import { PortfolioSettings } from '@/components/projects/PortfolioSettings';
 
 const Settings = () => {
   const { user, loading: authLoading } = useAuth();
@@ -102,6 +103,7 @@ const Settings = () => {
           {user?.nivelAcesso === 'Admin' && (
             <TabsTrigger value="categories">Categorias</TabsTrigger>
           )}
+          <TabsTrigger value="portfolios">Portfólios</TabsTrigger>
         </TabsList>
 
         {/* Aba de Perfil */}
@@ -185,6 +187,9 @@ const Settings = () => {
             <ClassificationManager />
           </TabsContent>
         )}
+        <TabsContent value="portfolios">
+          <PortfolioSettings />
+        </TabsContent>
       </Tabs>
     </div>
   );

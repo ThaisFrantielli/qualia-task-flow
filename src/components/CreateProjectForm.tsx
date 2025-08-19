@@ -13,9 +13,11 @@ import { Plus } from 'lucide-react';
 
 interface CreateProjectFormProps {
   onProjectCreated: () => void;
+  defaultPortfolioId?: string;
 }
 
-export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({ onProjectCreated }) => {
+
+export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({ onProjectCreated, defaultPortfolioId }) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -38,22 +40,22 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({ onProjectC
 
     setLoading(true);
     try {
-      // 4. Montar o objeto a ser inserido, incluindo o user_id
-      const newProject = {
+      // 4. Montar o objeto a ser inserido, incluindo o user_id e portfolio_id se fornecido
+      const newProject: any = {
         name: name.trim(),
         description: description.trim(),
-        user_id: user.id, // <-- AQUI! Vinculando o projeto ao usuário
+        user_id: user.id,
       };
-      
+      if (defaultPortfolioId) {
+        newProject.portfolio_id = defaultPortfolioId;
+      }
       const { error } = await supabase.from('projects').insert(newProject);
-
       if (error) throw error;
-
       toast({ title: "Sucesso!", description: `Projeto "${name}" criado.` });
-      setName(''); // Limpa o formulário
+      setName('');
       setDescription('');
-      setOpen(false); // Fecha o modal
-      onProjectCreated(); // Avisa a página pai para recarregar os dados
+      setOpen(false);
+      onProjectCreated();
     } catch (error: any) {
       console.error("Erro ao criar projeto:", error);
       toast({ title: "Erro!", description: "Não foi possível criar o projeto.", variant: "destructive" });
