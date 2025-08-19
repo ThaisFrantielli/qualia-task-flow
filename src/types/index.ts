@@ -25,13 +25,14 @@ export interface AllTaskFilters {
   archiveStatusFilter?: 'active' | 'archived' | 'all';
 }
 
-// Tipos base agora usam o novo 'PublicSchema' para acessar as tabelas
-export type TaskCategory = PublicSchema['Tables']['task_categories']['Row'];
-export type Task = PublicSchema['Tables']['tasks']['Row'];
-export type Project = PublicSchema['Tables']['projects']['Row'];
-export type Profile = PublicSchema['Tables']['profiles']['Row'];
-export type Subtask = PublicSchema['Tables']['subtasks']['Row'];
-export type TaskHistoryEntry = PublicSchema['Tables']['task_history']['Row'];
+// --- Tipos base extraídos da definição correta ---
+export type TaskCategory = Database['Tables']['task_categories']['Row'];
+export type Task = Database['Tables']['tasks']['Row'];
+export type Portfolio = Database['Tables']['portfolios']['Row'];
+export type Project = Database['Tables']['projects']['Row'] & { portfolio_id?: string | null };
+export type Profile = Database['Tables']['profiles']['Row'];
+export type Subtask = Database['Tables']['subtasks']['Row'];
+export type TaskHistoryEntry = Database['Tables']['task_history']['Row'];
 
 export interface Permissoes {
   [key: string]: boolean | string | number;

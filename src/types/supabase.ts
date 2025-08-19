@@ -300,6 +300,33 @@ export type Database = {
           },
         ]
       }
+      portfolios: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -375,6 +402,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          portfolio_id: string | null
           updated_at: string
           user_id: string | null
         }
@@ -384,6 +412,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          portfolio_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -393,10 +422,19 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          portfolio_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subtasks: {
         Row: {
@@ -822,6 +860,22 @@ export type Database = {
       get_my_role: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_projects_with_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          color: string
+          completed_count: number
+          created_at: string
+          description: string
+          id: string
+          late_count: number
+          name: string
+          portfolio_id: string
+          task_count: number
+          updated_at: string
+          user_id: string
+        }[]
       }
     }
     Enums: {

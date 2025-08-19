@@ -4,6 +4,7 @@ import React from 'react';
 import { Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ClassificationManager from '@/components/settings/ClassificationManager';
+import { PortfolioSettings } from '@/components/projects/PortfolioSettings';
 
 const TaskSettingsPage = () => {
   return (
@@ -21,6 +22,7 @@ const TaskSettingsPage = () => {
       <Tabs defaultValue="categories" className="space-y-6">
         <TabsList>
           <TabsTrigger value="categories">Categorias</TabsTrigger>
+          <TabsTrigger value="portfolios">Portfólios</TabsTrigger>
           {/* 
             Placeholder para futuras abas de configuração.
             O atributo 'disabled' as torna visíveis, mas não clicáveis.
@@ -33,6 +35,9 @@ const TaskSettingsPage = () => {
         <TabsContent value="categories">
           {/* Renderiza o componente que você já criou para gerenciar as categorias */}
           <ClassificationManager />
+        </TabsContent>
+        <TabsContent value="portfolios">
+          <PortfolioSettings />
         </TabsContent>
         
         {/* 

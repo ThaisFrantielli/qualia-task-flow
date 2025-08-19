@@ -2,6 +2,9 @@ import React from 'react';
 import { FolderOpen } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
+import { PortfolioFilter } from '@/components/projects/PortfolioFilter';
+
+import { CreatePortfolioForm } from '@/components/projects/CreatePortfolioForm';
 import { CreateProjectForm } from '@/components/CreateProjectForm';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -21,6 +24,8 @@ const ProjectsPage = () => {
   const [status, setStatus] = React.useState("todos");
   const [modoLista, setModoLista] = React.useState(false);
   const [modoFoco, setModoFoco] = React.useState(false);
+  const [portfolioId, setPortfolioId] = React.useState<string | null>(null);
+  const [showPortfolioModal, setShowPortfolioModal] = React.useState(false);
 
   // Filtro local (client-side) para busca, status e modo foco
   let projetosFiltrados = projects.filter((p) => {
@@ -29,7 +34,9 @@ const ProjectsPage = () => {
     if (status === "ativos") statusMatch = p.task_count > 0;
     if (status === "concluidos") statusMatch = p.completed_count === p.task_count && p.task_count > 0;
     if (status === "atrasados") statusMatch = p.late_count > 0;
-    return nomeMatch && statusMatch;
+    let portfolioMatch = true;
+    if (portfolioId) portfolioMatch = p.portfolio_id === portfolioId;
+    return nomeMatch && statusMatch && portfolioMatch;
   });
   // Modo foco: apenas para visualização em cascata (lista)
   // O filtro será passado como prop para o componente ProjectsListCascade
@@ -65,6 +72,7 @@ const ProjectsPage = () => {
 
   return (
     <div className="p-6 space-y-6">
+  {/* Portfólios e projetos em cascata unificada */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Projetos</h1>
@@ -73,9 +81,9 @@ const ProjectsPage = () => {
         <CreateProjectForm onProjectCreated={handleProjectCreated} />
       </div>
 
-      {/* Busca, Filtros e Alternância de Visualização */}
+      {/* Busca, Filtros, Portfólio e Alternância de Visualização */}
       <div className="flex flex-col md:flex-row gap-2 md:items-center">
-        <div className="flex-1 flex gap-2">
+        <div className="flex-1 flex gap-2 items-center">
           <input
             type="text"
             placeholder="Buscar projetos..."
@@ -83,6 +91,14 @@ const ProjectsPage = () => {
             onChange={e => setBusca(e.target.value)}
             className="w-full md:w-80 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
+          <PortfolioFilter selected={portfolioId} onSelect={setPortfolioId} />
+          <button
+            type="button"
+            className="px-3 py-2 rounded-md border text-sm font-medium bg-primary text-white hover:bg-primary-dark transition"
+            onClick={() => setShowPortfolioModal(true)}
+          >
+            Novo Portfólio
+          </button>
           <button
             type="button"
             className={`px-3 py-2 rounded-md border text-sm font-medium transition ${modoLista ? 'bg-primary text-white' : 'bg-white text-primary border-primary'}`}
@@ -111,6 +127,14 @@ const ProjectsPage = () => {
           <option value="atrasados">Com atrasos</option>
         </select>
       </div>
+      {showPortfolioModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Novo Portfólio</h2>
+            <CreatePortfolioForm onCreated={() => setShowPortfolioModal(false)} onClose={() => setShowPortfolioModal(false)} />
+          </div>
+        </div>
+      )}
 
       {modoLista ? (
         <ProjectsListCascade projetos={projetosFiltrados} modoFoco={modoFoco} />
