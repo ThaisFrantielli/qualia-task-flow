@@ -92,12 +92,15 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
   if (errorPortfolios) {
     return <div className="p-4 text-red-500">Erro: {errorPortfolios}</div>;
   }
-  if (!portfolios || portfolios.length === 0) {
+  // Fallback defensivo para garantir arrays
+  const safePortfolios = Array.isArray(portfolios) ? portfolios : [];
+  const safeProjetos = Array.isArray(projetos) ? projetos : [];
+  if (safePortfolios.length === 0 && safeProjetos.length === 0) {
     return (
       <div className="text-center py-16 border-2 border-dashed rounded-lg mt-8">
         <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold">Nenhum portfólio encontrado</h3>
-        <p className="text-gray-500 mt-2 mb-4">Crie um portfólio para começar a organizar seus projetos.</p>
+        <h3 className="text-xl font-semibold">Nenhum portfólio ou projeto encontrado</h3>
+        <p className="text-gray-500 mt-2 mb-4">Crie um portfólio ou projeto para começar a organizar.</p>
       </div>
     );
   }
@@ -108,7 +111,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Portfólio / Projeto</TableHead>
+            <TableHead className="w-[320px] whitespace-nowrap">Portfólio / Projeto</TableHead>
             <TableHead>Tarefa</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Prioridade</TableHead>
@@ -118,8 +121,8 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
         </TableHeader>
         <TableBody>
           {/* Portfólios e seus projetos */}
-          {portfolios.map((portfolio) => {
-            const projectsInPortfolio = projetos.filter(p => p.portfolio_id === portfolio.id);
+          {(safePortfolios || []).map((portfolio) => {
+            const projectsInPortfolio = safeProjetos.filter(p => p.portfolio_id === portfolio.id);
             return (
               <React.Fragment key={portfolio.id}>
                 <TableRow className="bg-muted/20 group hover:bg-muted/30 transition-colors">
@@ -276,7 +279,15 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                           <button
                             type="button"
                             className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); toggleProject(project.id); }}
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              // Impede qualquer navegação acidental
+                              if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                                (e.nativeEvent as any).stopImmediatePropagation();
+                              }
+                              toggleProject(project.id);
+                            }}
                             aria-label={expandedProjects.has(project.id) ? 'Recolher projeto' : 'Expandir projeto'}
                             tabIndex={0}
                           >
@@ -314,74 +325,76 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                               <span className="font-semibold text-sm text-muted-foreground">{sectionName}</span>
                             </TableCell>
                           </TableRow>
-                          {sections[sectionName].map((task: any) => (
-                            <React.Fragment key={task.id}>
-                              <TableRow className="hover:bg-muted/50 group">
-                                <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 48 }}>
-                                  <button
-                                    type="button"
-                                    className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
-                                    onClick={e => { e.preventDefault(); e.stopPropagation(); toggleTask(task.id); }}
-                                    aria-label={expandedTasks.has(task.id) ? 'Recolher tarefa' : 'Expandir tarefa'}
-                                    tabIndex={0}
-                                  >
-                                    <ChevronRight className={`transition-transform ${expandedTasks.has(task.id) ? 'rotate-90' : ''}`} />
-                                  </button>
-                                </TableCell>
-                                <TableCell className="align-middle font-normal text-sm">
-                                  <div className="flex items-center gap-2">
-                                    {/* Checkbox igual subtarefa */}
-                                    <input
-                                      type="checkbox"
-                                      checked={task.status === 'done'}
-                                      readOnly
-                                      className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
-                                    />
-                                    <span className="truncate font-medium text-base">{task.title}</span>
-                                    {/* Contador de subtarefas */}
-                                    {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
-                                      <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-                                        {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
-                                      </span>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                                    <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
-                                </TableCell>
-                              </TableRow>
-                              {expandedTasks.has(task.id) && (
-                                <React.Fragment>
-                                  {/* Renderiza as subtarefas alinhadas às colunas principais */}
-                                  <TableRow className="bg-muted/20">
-                                    {/* Espaço para alinhar com o ícone de expandir da tarefa */}
-                                    <TableCell style={{ width: 48, paddingLeft: 48 }} />
-                                    {/* Subtarefas ocupam as mesmas colunas que as tarefas */}
-                                    <TableCell colSpan={5} className="p-0">
-                                      <Table>
-                                        <TableBody>
-                                          <ExpandedSubtasks taskId={task.id} onSubtaskClick={() => {}} />
-                                        </TableBody>
-                                      </Table>
+                          {Array.isArray(sections[sectionName]) && sections[sectionName].length > 0
+                            ? sections[sectionName].map((task: any) => (
+                                <React.Fragment key={task.id}>
+                                  <TableRow className="hover:bg-muted/50 group">
+                                    <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 48 }}>
+                                      <button
+                                        type="button"
+                                        className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
+                                        onClick={e => { e.preventDefault(); e.stopPropagation(); toggleTask(task.id); }}
+                                        aria-label={expandedTasks.has(task.id) ? 'Recolher tarefa' : 'Expandir tarefa'}
+                                        tabIndex={0}
+                                      >
+                                        <ChevronRight className={`transition-transform ${expandedTasks.has(task.id) ? 'rotate-90' : ''}`} />
+                                      </button>
+                                    </TableCell>
+                                    <TableCell className="align-middle font-normal text-sm">
+                                      <div className="flex items-center gap-2">
+                                        {/* Checkbox igual subtarefa */}
+                                        <input
+                                          type="checkbox"
+                                          checked={task.status === 'done'}
+                                          readOnly
+                                          className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
+                                        />
+                                        <span className="truncate font-medium text-base">{task.title}</span>
+                                        {/* Contador de subtarefas */}
+                                        {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
+                                          <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                                            {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="align-middle">
+                                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                                        <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="align-middle">
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="align-middle">
+                                      <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
+                                    </TableCell>
+                                    <TableCell className="align-middle">
+                                      <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
                                     </TableCell>
                                   </TableRow>
+                                  {expandedTasks.has(task.id) && (
+                                    <React.Fragment>
+                                      {/* Renderiza as subtarefas alinhadas às colunas principais */}
+                                      <TableRow className="bg-muted/20">
+                                        {/* Espaço para alinhar com o ícone de expandir da tarefa */}
+                                        <TableCell style={{ width: 48, paddingLeft: 48 }} />
+                                        {/* Subtarefas ocupam as mesmas colunas que as tarefas */}
+                                        <TableCell colSpan={5} className="p-0">
+                                          <Table>
+                                            <TableBody>
+                                              <ExpandedSubtasks taskId={task.id} onSubtaskClick={() => {}} />
+                                            </TableBody>
+                                          </Table>
+                                        </TableCell>
+                                      </TableRow>
+                                    </React.Fragment>
+                                  )}
                                 </React.Fragment>
-                              )}
-                            </React.Fragment>
-                          ))}
+                              ))
+                            : null}
                         </React.Fragment>
                       ))}
                     </React.Fragment>
@@ -391,7 +404,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
             );
           })}
           {/* Projetos sem portfólio */}
-          {projetos.filter(p => !p.portfolio_id).map((project) => {
+          {(safeProjetos || []).filter(p => !p.portfolio_id).map((project) => {
             let projectTasks = tasks.filter((t) => t.project_id === project.id);
             if (modoFoco) {
               projectTasks = projectTasks.filter(t => t.priority === 'high' || t.priority === 'alta');
@@ -445,81 +458,83 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                     </div>
                   </TableCell>
                 </TableRow>
-                {expandedProjects.has(project.id) && sectionOrder.map(sectionName => (
+                {expandedProjects.has(project.id) && Array.isArray(sectionOrder) && sectionOrder.length > 0 && sectionOrder.map(sectionName => (
                   <React.Fragment key={sectionName}>
                     <TableRow className="bg-muted/10">
                       <TableCell className="py-1 pl-16" colSpan={6} style={{ paddingLeft: 64 }}>
                         <span className="font-semibold text-sm text-muted-foreground">{sectionName}</span>
                       </TableCell>
                     </TableRow>
-                    {sections[sectionName].map((task: any) => (
-                      <React.Fragment key={task.id}>
-                        <TableRow className="hover:bg-muted/50 group">
-                          <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 48 }}>
-                            <button
-                              type="button"
-                              className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
-                              onClick={e => { e.preventDefault(); e.stopPropagation(); toggleTask(task.id); }}
-                              aria-label={expandedTasks.has(task.id) ? 'Recolher tarefa' : 'Expandir tarefa'}
-                              tabIndex={0}
-                            >
-                              <ChevronRight className={`transition-transform ${expandedTasks.has(task.id) ? 'rotate-90' : ''}`} />
-                            </button>
-                          </TableCell>
-                          <TableCell className="align-middle font-normal text-sm">
-                            <div className="flex items-center gap-2">
-                              {/* Checkbox igual subtarefa */}
-                              <input
-                                type="checkbox"
-                                checked={task.status === 'done'}
-                                readOnly
-                                className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
-                              />
-                              <span className="truncate font-medium text-base">{task.title}</span>
-                              {/* Contador de subtarefas */}
-                              {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
-                                <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-                                  {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-middle">
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                              <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-middle">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-middle">
-                            <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
-                          </TableCell>
-                          <TableCell className="align-middle">
-                            <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
-                          </TableCell>
-                        </TableRow>
-                        {expandedTasks.has(task.id) && (
-                          <React.Fragment>
-                            {/* Renderiza as subtarefas alinhadas às colunas principais */}
-                            <TableRow className="bg-muted/20">
-                              {/* Espaço para alinhar com o ícone de expandir da tarefa */}
-                              <TableCell style={{ width: 48, paddingLeft: 48 }} />
-                              {/* Subtarefas ocupam as mesmas colunas que as tarefas */}
-                              <TableCell colSpan={5} className="p-0">
-                                <Table>
-                                  <TableBody>
-                                    <ExpandedSubtasks taskId={task.id} onSubtaskClick={() => {}} />
-                                  </TableBody>
-                                </Table>
-                              </TableCell>
-                            </TableRow>
-                          </React.Fragment>
-                        )}
-                      </React.Fragment>
-                    ))}
+                    {Array.isArray(sections[sectionName]) && sections[sectionName].length > 0
+                      ? sections[sectionName].map((task: any) => (
+                        <React.Fragment key={task.id}>
+                          <TableRow className="hover:bg-muted/50 group">
+                            <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 48 }}>
+                              <button
+                                type="button"
+                                className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
+                                onClick={e => { e.preventDefault(); e.stopPropagation(); toggleTask(task.id); }}
+                                aria-label={expandedTasks.has(task.id) ? 'Recolher tarefa' : 'Expandir tarefa'}
+                                tabIndex={0}
+                              >
+                                <ChevronRight className={`transition-transform ${expandedTasks.has(task.id) ? 'rotate-90' : ''}`} />
+                              </button>
+                            </TableCell>
+                            <TableCell className="align-middle font-normal text-sm">
+                              <div className="flex items-center gap-2">
+                                {/* Checkbox igual subtarefa */}
+                                <input
+                                  type="checkbox"
+                                  checked={task.status === 'done'}
+                                  readOnly
+                                  className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
+                                />
+                                <span className="truncate font-medium text-base">{task.title}</span>
+                                {/* Contador de subtarefas */}
+                                {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
+                                  <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                                    {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-middle">
+                              <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-middle">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="align-middle">
+                              <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
+                            </TableCell>
+                            <TableCell className="align-middle">
+                              <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
+                            </TableCell>
+                          </TableRow>
+                          {expandedTasks.has(task.id) && (
+                            <React.Fragment>
+                              {/* Renderiza as subtarefas alinhadas às colunas principais */}
+                              <TableRow className="bg-muted/20">
+                                {/* Espaço para alinhar com o ícone de expandir da tarefa */}
+                                <TableCell style={{ width: 48, paddingLeft: 48 }} />
+                                {/* Subtarefas ocupam as mesmas colunas que as tarefas */}
+                                <TableCell colSpan={5} className="p-0">
+                                  <Table>
+                                    <TableBody>
+                                      <ExpandedSubtasks taskId={task.id} onSubtaskClick={() => {}} />
+                                    </TableBody>
+                                  </Table>
+                                </TableCell>
+                              </TableRow>
+                            </React.Fragment>
+                          )}
+                        </React.Fragment>
+                      ))
+                      : null}
                   </React.Fragment>
                 ))}
               </React.Fragment>

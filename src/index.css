@@ -16,8 +16,8 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 226 70% 55%; /* Azul moderno */
+    --primary-foreground: 0 0% 100%; /* Branco */
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
@@ -105,4 +105,85 @@
   }
 
   /* ... (suas outras classes customizadas podem vir aqui) ... */
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* fundo branco */
+    --foreground: 222.2 84% 4.9%; /* texto escuro */
+    --card: 0 0% 100%; /* cards brancos */
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 226 70% 55%; /* azul moderno */
+    --primary-foreground: 0 0% 100%; /* branco */
+    --secondary: 220 14% 96%; /* cinza claro para botões ghost */
+    --secondary-foreground: 226 70% 55%;
+    --muted: 220 14% 92%;
+    --muted-foreground: 220 10% 50%;
+    --accent: 226 70% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 14% 80%;
+    --input: 220 14% 80%;
+    --radius: 0.75rem;
+    /* Badges */
+    --badge-green: 142 71% 45%;
+    --badge-red: 0 84% 60%;
+    --badge-gray: 220 10% 60%;
+    /* Barra de progresso */
+    --progress-bg: 220 14% 92%;
+    --progress-bar: 226 70% 55%;
+  }
+}
+
+/* Cards de projeto */
+.card-projeto {
+  @apply bg-card text-card-foreground rounded-xl shadow-md transition hover:shadow-lg hover:-translate-y-1 border border-border;
+}
+
+/* Cards de resumo */
+.card-resumo {
+  @apply bg-card text-card-foreground rounded-lg shadow-sm border border-border flex flex-col items-center justify-center py-4 px-6;
+}
+
+/* Badges */
+.badge-green {
+  background: hsl(var(--badge-green));
+  color: #fff;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.15em 0.7em;
+  font-size: 0.95em;
+}
+.badge-red {
+  background: hsl(var(--badge-red));
+  color: #fff;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.15em 0.7em;
+  font-size: 0.95em;
+}
+.badge-gray {
+  background: hsl(var(--badge-gray));
+  color: #fff;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.15em 0.7em;
+  font-size: 0.95em;
+}
+
+/* Barra de progresso */
+.progress-bg {
+  background: hsl(var(--progress-bg));
+  border-radius: 9999px;
+  height: 6px;
+  width: 100%;
+}
+.progress-bar {
+  background: hsl(var(--progress-bar));
+  border-radius: 9999px;
+  height: 6px;
+  transition: width 0.3s;
 }
