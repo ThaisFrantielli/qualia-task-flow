@@ -1,25 +1,15 @@
-import { useNavigate } from 'react-router-dom';
-// src/pages/Projects.tsx (VERSÃO FINAL CORRIGIDA E COMPLETA)
-
 import React from 'react';
 import { FolderOpen } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjects';
-
-  const navigate = useNavigate();
-  const handleProjectClick = (projectId: string) => {
-    navigate(`/projects/${projectId}`);
-  };
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
 import { CreateProjectForm } from '@/components/CreateProjectForm';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const ProjectsPage = () => {
-  const { projects, loading: projectsLoading, refetch: refetchProjects, error } = useProjects();
+import { useNavigate } from 'react-router-dom';
 
-  React.useEffect(() => {
-    console.log('projects:', projects);
-    if (error) console.error('Erro ao carregar projetos:', error);
-  }, [projects, error]);
+const ProjectsPage = () => {
+  const navigate = useNavigate();
+  const { projects, loading: projectsLoading, refetch: refetchProjects, error } = useProjects();
 
   const handleProjectCreated = () => {
     if (refetchProjects) {
@@ -30,22 +20,19 @@ const ProjectsPage = () => {
   const [busca, setBusca] = React.useState("");
   const [status, setStatus] = React.useState("todos");
   const [modoLista, setModoLista] = React.useState(false);
+  const [modoFoco, setModoFoco] = React.useState(false);
 
-  // Filtro local (client-side) para busca e status
-  let projetosFiltrados: typeof projects = [];
-  try {
-    projetosFiltrados = Array.isArray(projects) ? projects.filter((p) => {
-      const nomeMatch = p.name?.toLowerCase().includes(busca.toLowerCase());
-      let statusMatch = true;
-      if (status === "ativos") statusMatch = p.task_count > 0;
-      if (status === "concluidos") statusMatch = p.completed_count === p.task_count && p.task_count > 0;
-      if (status === "atrasados") statusMatch = p.late_count > 0;
-      return nomeMatch && statusMatch;
-    }) : [];
-  } catch (e) {
-    console.error('Erro ao filtrar projetos:', e);
-    projetosFiltrados = [];
-  }
+  // Filtro local (client-side) para busca, status e modo foco
+  let projetosFiltrados = projects.filter((p) => {
+    const nomeMatch = p.name.toLowerCase().includes(busca.toLowerCase());
+    let statusMatch = true;
+    if (status === "ativos") statusMatch = p.task_count > 0;
+    if (status === "concluidos") statusMatch = p.completed_count === p.task_count && p.task_count > 0;
+    if (status === "atrasados") statusMatch = p.late_count > 0;
+    return nomeMatch && statusMatch;
+  });
+  // Modo foco: apenas para visualização em cascata (lista)
+  // O filtro será passado como prop para o componente ProjectsListCascade
 
   if (error) {
     return (
@@ -56,7 +43,18 @@ const ProjectsPage = () => {
     );
   }
 
-  if (!projectsLoading && (!projects || !Array.isArray(projects))) {
+  if (projectsLoading) {
+    return (
+      <div className="p-6">
+        <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded mb-4">Carregando projetos...</div>
+        <Skeleton className="h-40 w-full rounded-xl mb-2" />
+        <Skeleton className="h-40 w-full rounded-xl mb-2" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!projects || !Array.isArray(projects)) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-red-600">Nenhum dado de projeto retornado</h1>
@@ -93,6 +91,14 @@ const ProjectsPage = () => {
           >
             {modoLista ? 'Ver em cards' : 'Ver em lista'}
           </button>
+          <button
+            type="button"
+            className={`px-3 py-2 rounded-md border text-sm font-medium transition ${modoFoco ? 'bg-red-600 text-white' : 'bg-white text-red-600 border-red-600'}`}
+            onClick={() => setModoFoco(f => !f)}
+            title={modoFoco ? 'Sair do modo foco' : 'Ativar modo foco (prioridade alta)'}
+          >
+            {modoFoco ? 'Modo Foco Ativo' : 'Modo Foco Prioridade'}
+          </button>
         </div>
         <select
           value={status}
@@ -107,7 +113,7 @@ const ProjectsPage = () => {
       </div>
 
       {modoLista ? (
-        <ProjectsListCascade projetos={projetosFiltrados} />
+        <ProjectsListCascade projetos={projetosFiltrados} modoFoco={modoFoco} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projectsLoading ? (
@@ -115,10 +121,10 @@ const ProjectsPage = () => {
           ) : projetosFiltrados.length > 0 ? (
             projetosFiltrados.map((project) => (
               <div
-                key={project.id}
-                className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col gap-2 hover:shadow-md transition cursor-pointer"
-                onClick={() => handleProjectClick(project.id)}
-              >
+                  key={project.id}
+                  className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col gap-2 hover:shadow-md transition cursor-pointer"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                >
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color || '#A1A1AA' }} />
                   <span className="font-semibold text-base text-gray-900 truncate" title={project.name}>{project.name}</span>

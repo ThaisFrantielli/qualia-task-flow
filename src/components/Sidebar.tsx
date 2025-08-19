@@ -126,22 +126,7 @@ const Sidebar: React.FC = () => {
             );
           })}
 
-          {/* Lista de projetos dentro do grupo PROJETOS */}
-          {menuGroups.some(g => g.title === 'PROJETOS') && (
-            <div>
-              <ul className="pl-8 pr-2 space-y-1">
-                {projectList.map(project => (
-                  <li key={project.id}>
-                    <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-2 py-1 rounded-md text-sm ${isActive ? 'bg-primary/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}
-                      title={project.name}>
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
-                      <span className="truncate max-w-[120px]" title={project.name}>{project.name}</span>
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Lista de projetos dentro do grupo PROJETOS foi removida conforme solicitado */}
         </div>
       </nav>
 

@@ -60,6 +60,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
+    if (typeof window !== 'undefined') {
+      // Exibe erro visual na tela para facilitar diagnóstico
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = '<div style="background:#ffdddd;color:#a00;padding:24px;font-size:18px;font-weight:bold;text-align:center;">ERRO: useAuth chamado fora do AuthProvider!<br>Verifique se o AuthProvider está no topo da árvore de componentes.</div>';
+      }
+    }
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
