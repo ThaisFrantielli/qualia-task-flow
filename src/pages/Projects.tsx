@@ -7,6 +7,7 @@ import { PortfolioFilter } from '@/components/projects/PortfolioFilter';
 import { CreatePortfolioForm } from '@/components/projects/CreatePortfolioForm';
 import { CreateProjectForm } from '@/components/CreateProjectForm';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ViewModeIconToggle } from '@/components/ui/ViewModeIconToggle';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -78,11 +79,10 @@ const ProjectsPage = () => {
           <h1 className="text-3xl font-bold">Projetos</h1>
           <p className="text-gray-600">Organize e acompanhe o andamento das suas iniciativas.</p>
         </div>
-        <CreateProjectForm onProjectCreated={handleProjectCreated} />
       </div>
 
       {/* Busca, Filtros, Portfólio e Alternância de Visualização */}
-      <div className="flex flex-col md:flex-row gap-2 md:items-center">
+      <div className="flex flex-col md:flex-row gap-2 md:items-center justify-between">
         <div className="flex-1 flex gap-2 items-center">
           <input
             type="text"
@@ -92,21 +92,17 @@ const ProjectsPage = () => {
             className="w-full md:w-80 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <PortfolioFilter selected={portfolioId} onSelect={setPortfolioId} />
+        </div>
+        <div className="flex gap-2 items-center ml-auto">
+          <CreateProjectForm onProjectCreated={handleProjectCreated} />
           <button
             type="button"
-            className="px-3 py-2 rounded-md border text-sm font-medium bg-primary text-white hover:bg-primary-dark transition"
+            className="px-3 py-2 rounded-md border border-primary text-primary bg-white font-medium hover:bg-primary/10 transition"
             onClick={() => setShowPortfolioModal(true)}
           >
             Novo Portfólio
           </button>
-          <button
-            type="button"
-            className={`px-3 py-2 rounded-md border text-sm font-medium transition ${modoLista ? 'bg-primary text-white' : 'bg-white text-primary border-primary'}`}
-            onClick={() => setModoLista(m => !m)}
-            title={modoLista ? 'Ver em cards' : 'Ver em lista/cascata'}
-          >
-            {modoLista ? 'Ver em cards' : 'Ver em lista'}
-          </button>
+          <ViewModeIconToggle modoLista={modoLista} onChange={setModoLista} />
           <button
             type="button"
             className={`px-3 py-2 rounded-md border text-sm font-medium transition ${modoFoco ? 'bg-red-600 text-white' : 'bg-white text-red-600 border-red-600'}`}
@@ -115,17 +111,17 @@ const ProjectsPage = () => {
           >
             {modoFoco ? 'Modo Foco Ativo' : 'Modo Foco Prioridade'}
           </button>
+          <select
+            value={status}
+            onChange={e => setStatus(e.target.value)}
+            className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="todos">Todos</option>
+            <option value="ativos">Com tarefas</option>
+            <option value="concluidos">100% concluídos</option>
+            <option value="atrasados">Com atrasos</option>
+          </select>
         </div>
-        <select
-          value={status}
-          onChange={e => setStatus(e.target.value)}
-          className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <option value="todos">Todos</option>
-          <option value="ativos">Com tarefas</option>
-          <option value="concluidos">100% concluídos</option>
-          <option value="atrasados">Com atrasos</option>
-        </select>
       </div>
       {showPortfolioModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -145,43 +141,43 @@ const ProjectsPage = () => {
           ) : projetosFiltrados.length > 0 ? (
             projetosFiltrados.map((project) => (
               <div
-                  key={project.id}
-                  className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col gap-2 hover:shadow-md transition cursor-pointer"
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color || '#A1A1AA' }} />
-                  <span className="font-semibold text-base text-gray-900 truncate" title={project.name}>{project.name}</span>
-                </div>
-                {project.description && (
-                  <span className="text-xs text-gray-500 mb-1 truncate" title={project.description}>{project.description}</span>
-                )}
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex flex-col text-xs text-gray-500">
-                    <span>Progresso</span>
-                    <div className="w-24 h-2 bg-gray-100 rounded-full mt-1">
-                      <div
-                        className="h-2 rounded-full bg-primary"
-                        style={{ width: `${Math.round((project.completed_count / (project.task_count || 1)) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col text-xs text-gray-500">
-                    <span>Total</span>
-                    <span className="font-semibold text-gray-700">{project.task_count}</span>
-                  </div>
-                  <div className="flex flex-col text-xs text-gray-500">
-                    <span>Concluídas</span>
-                    <span className="font-semibold text-green-600">{project.completed_count}</span>
-                  </div>
-                  {project.late_count > 0 && (
-                    <div className="flex flex-col text-xs text-red-500">
-                      <span>Atrasadas</span>
-                      <span className="font-semibold">{project.late_count}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+  key={project.id}
+  className="card-projeto p-5 flex flex-col gap-2 cursor-pointer"
+  onClick={() => navigate(`/projects/${project.id}`)}
+>
+  <div className="flex items-center gap-2 mb-1">
+    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color || '#A1A1AA' }} />
+    <span className="font-semibold text-base truncate" title={project.name}>{project.name}</span>
+  </div>
+  {project.description && (
+    <span className="text-xs text-muted-foreground mb-1 truncate" title={project.description}>{project.description}</span>
+  )}
+  <div className="flex items-center gap-4 mt-2">
+    <div className="flex flex-col text-xs text-muted-foreground">
+      <span>Progresso</span>
+      <div className="progress-bg mt-1">
+        <div
+          className="progress-bar"
+          style={{ width: `${Math.round((project.completed_count / (project.task_count || 1)) * 100)}%` }}
+        />
+      </div>
+    </div>
+    <div className="flex flex-col text-xs text-muted-foreground">
+      <span>Total</span>
+      <span className="badge-gray">{project.task_count}</span>
+    </div>
+    <div className="flex flex-col text-xs text-muted-foreground">
+      <span>Concluídas</span>
+      <span className="badge-green">{project.completed_count}</span>
+    </div>
+    {project.late_count > 0 && (
+      <div className="flex flex-col text-xs text-muted-foreground">
+        <span>Atrasadas</span>
+        <span className="badge-red">{project.late_count}</span>
+      </div>
+    )}
+  </div>
+</div>
             ))
           ) : (
             <div className="col-span-full text-center py-16 border-2 border-dashed rounded-lg mt-8">
