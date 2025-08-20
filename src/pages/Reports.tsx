@@ -1,19 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { useProjects } from '../hooks/useProjects';
-import { Download, FileText, Filter, Calendar, BarChart3 } from 'lucide-react';
+import { Download, FileText, Filter, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as XLSX from 'xlsx';
 import type { Database } from '@/integrations/supabase/types';
 
-type Task = Database['public']['Tables']['tasks']['Row'] & {
-  project?: Database['public']['Tables']['projects']['Row'];
-  subtasks?: Database['public']['Tables']['subtasks']['Row'][];
-  comments?: Database['public']['Tables']['comments']['Row'][];
-  attachments?: Database['public']['Tables']['attachments']['Row'][];
-};
+
 
 const Reports = () => {
   const { tasks, loading, error } = useTasks();
@@ -38,7 +33,7 @@ const Reports = () => {
     return (
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">Erro: {error}</p>
+          <p className="text-red-600">Erro: {error.message || String(error)}</p>
         </div>
       </div>
     );
@@ -188,11 +183,13 @@ const Reports = () => {
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
           >
             <option value="all">Todos os Responsáveis</option>
-            {uniqueAssignees.map((assignee) => (
-              <option key={assignee} value={assignee}>
-                {assignee}
-              </option>
-            ))}
+            {uniqueAssignees.map((assignee) =>
+              assignee != null ? (
+                <option key={assignee} value={String(assignee)}>
+                  {assignee}
+                </option>
+              ) : null
+            )}
           </select>
 
           {/* Data Início */}

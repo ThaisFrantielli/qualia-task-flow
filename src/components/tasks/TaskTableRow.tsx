@@ -1,6 +1,4 @@
-// src/components/tasks/TaskTableRow.tsx (COPIE E COLE ESTE CÓDIGO)
 
-import React from 'react';
 import type { TaskWithDetails } from '@/types';
 import { TableRow, TableCell } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -121,7 +119,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, isExpanded, onToggleE
         </div>
       </TableCell>
       
-      <TableCell className="text-right">
+  <TableCell className="text-right align-middle !pr-6">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0" onClick={handleActionClick}>
