@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { usePortfolios } from '@/hooks/usePortfolios';
 import { Portfolio } from '@/types';
 import { PortfolioRow } from './PortfolioRow';

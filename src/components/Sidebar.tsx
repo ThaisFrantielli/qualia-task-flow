@@ -1,6 +1,6 @@
 // src/components/Sidebar.tsx
 
-import React, { ElementType } from 'react';
+import { ElementType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
