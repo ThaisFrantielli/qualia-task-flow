@@ -1,5 +1,6 @@
-import React from 'react';
+
 import { FolderOpen } from 'lucide-react';
+import { useState } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
 import { PortfolioFilter } from '@/components/projects/PortfolioFilter';
@@ -21,12 +22,12 @@ const ProjectsPage = () => {
     }
   };
 
-  const [busca, setBusca] = React.useState("");
-  const [status, setStatus] = React.useState("todos");
-  const [modoLista, setModoLista] = React.useState(false);
-  const [modoFoco, setModoFoco] = React.useState(false);
-  const [portfolioId, setPortfolioId] = React.useState<string | null>(null);
-  const [showPortfolioModal, setShowPortfolioModal] = React.useState(false);
+  const [busca, setBusca] = useState("");
+  const [status, setStatus] = useState("todos");
+  const [modoLista, setModoLista] = useState(false);
+  const [modoFoco, setModoFoco] = useState(false);
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [showPortfolioModal, setShowPortfolioModal] = useState(false);
 
   // Filtro local (client-side) para busca, status e modo foco
   let projetosFiltrados = projects.filter((p) => {

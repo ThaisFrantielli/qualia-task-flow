@@ -1,6 +1,6 @@
 // src/pages/Index.tsx (ou Dashboard.tsx)
 
-import React from 'react';
+
 
 const HomePage = () => {
   return (

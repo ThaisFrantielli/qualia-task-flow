@@ -405,6 +405,8 @@ export type Database = {
           portfolio_id: string | null
           updated_at: string
           user_id: string | null
+          team_id: string | null
+          privacy: string | null
         }
         Insert: {
           color?: string | null
@@ -415,6 +417,8 @@ export type Database = {
           portfolio_id?: string | null
           updated_at?: string
           user_id?: string | null
+          team_id?: string | null
+          privacy?: string | null
         }
         Update: {
           color?: string | null
@@ -425,6 +429,8 @@ export type Database = {
           portfolio_id?: string | null
           updated_at?: string
           user_id?: string | null
+          team_id?: string | null
+          privacy?: string | null
         }
         Relationships: [
           {
@@ -842,6 +848,57 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      teams: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+          updated_at: string;
+        }
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+        Relationships: []
+      }
+      project_members: {
+        Row: {
+          id: string;
+          project_id: string;
+          user_id: string;
+          role: string | null;
+          created_at: string;
+        }
+        Insert: {
+          id?: string;
+          project_id: string;
+          user_id: string;
+          role?: string | null;
+          created_at?: string;
+        }
+        Update: {
+          id?: string;
+          project_id?: string;
+          user_id?: string;
+          role?: string | null;
+          created_at?: string;
+        }
+        Relationships: [
+          { foreignKeyName: "project_members_project_id_fkey", columns: ["project_id"], referencedRelation: "projects", referencedColumns: ["id"] },
+          { foreignKeyName: "project_members_user_id_fkey", columns: ["user_id"], referencedRelation: "profiles", referencedColumns: ["id"] }
         ]
       }
     }

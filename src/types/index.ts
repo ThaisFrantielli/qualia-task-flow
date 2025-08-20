@@ -29,10 +29,12 @@ export interface AllTaskFilters {
 export type TaskCategory = Database['Tables']['task_categories']['Row'];
 export type Task = Database['Tables']['tasks']['Row'];
 export type Portfolio = Database['Tables']['portfolios']['Row'];
-export type Project = Database['Tables']['projects']['Row'] & { portfolio_id?: string | null };
+export type Project = Database['Tables']['projects']['Row'] & { portfolio_id?: string | null, team_id?: string | null, privacy?: string | null };
 export type Profile = Database['Tables']['profiles']['Row'];
 export type Subtask = Database['Tables']['subtasks']['Row'];
 export type TaskHistoryEntry = Database['Tables']['task_history']['Row'];
+export type Team = Database['Tables']['teams']['Row'];
+export type ProjectMember = Database['Tables']['project_members']['Row'];
 
 export interface Permissoes {
   [key: string]: boolean | string | number;

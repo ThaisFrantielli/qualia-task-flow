@@ -1,4 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React from 'react';
+// src/pages/ProjectDetailPage.tsx (VERSÃO FINAL COM CAMINHOS CORRIGIDOS)
+
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import type { TaskWithDetails } from '@/types';
@@ -14,6 +17,7 @@ import SubtasksCascade from '@/components/projects/SubtasksCascade';
 import TaskDetailSheet from '@/components/tasks/TaskDetailSheet'; 
 // --- FIM DA CORREÇÃO ---
 import { Button } from '@/components/ui/button';
+import { EditProjectForm } from '@/components/EditProjectForm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -128,67 +132,86 @@ const ProjectDetailPage = () => {
 
   return (
     <>
-      <div className="p-6 space-y-4">
-        {/* Breadcrumbs */}
-        <nav className="flex items-center text-sm text-muted-foreground mb-2" aria-label="Breadcrumb">
-          <ol className="inline-flex items-center space-x-1">
-            <li>
-              <Link to="/projects" className="hover:underline flex items-center gap-1">
-                <ArrowLeft className="h-4 w-4" />
-                Projetos
-              </Link>
-            </li>
-            <li>
-              <span className="mx-2">/</span>
-              <span className="font-semibold text-foreground">{project.name}</span>
-            </li>
-          </ol>
-        </nav>
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: project.color || '#6b7280' }} />
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <AlertDialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
-            <AlertDialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Adicionar Seção</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader><AlertDialogTitle>Criar Nova Seção</AlertDialogTitle><AlertDialogDescription>Digite o nome da nova seção para organizar suas tarefas.</AlertDialogDescription></AlertDialogHeader>
-              <div className="py-2">
-                <Label htmlFor="section-name" className="sr-only">Nome da Seção</Label>
-                <Input id="section-name" placeholder="Ex: Planejamento" value={newSectionName} onChange={(e) => setNewSectionName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSection(); } }} />
+      <div className="flex flex-col h-full bg-white">
+        {/* Header estilo TaskDetailPage */}
+        <div className="p-4 border-b">
+          <nav className="flex items-center text-sm text-muted-foreground mb-2" aria-label="Breadcrumb">
+            <ol className="inline-flex items-center space-x-1">
+              <li>
+                <Link to="/projects" className="hover:underline flex items-center gap-1">
+                  <ArrowLeft className="h-4 w-4" />
+                  Projetos
+                </Link>
+              </li>
+              <li>
+                <span className="mx-2">/</span>
+                <span className="font-semibold text-foreground">{project.name}</span>
+              </li>
+            </ol>
+          </nav>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg flex-shrink-0 border border-gray-200" style={{ backgroundColor: project.color || '#6b7280' }} />
+              <div>
+                <h1 className="text-3xl font-bold">{project.name}</h1>
+                {project.description && <p className="text-muted-foreground mt-1">{project.description}</p>}
               </div>
-              <AlertDialogFooter><AlertDialogCancel onClick={() => setNewSectionName('')}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleAddSection}>Criar Seção</AlertDialogAction></AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            </div>
+            <EditProjectForm project={project} onProjectUpdated={refetch} />
+          </div>
         </div>
-        <div className="border rounded-lg bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr><th className="p-2 text-left font-semibold text-muted-foreground w-3/5">Nome da Tarefa</th><th className="p-2 text-left font-semibold text-muted-foreground">Responsável</th><th className="p-2 text-left font-semibold text-muted-foreground">Prazo</th><th className="p-2 text-left font-semibold text-muted-foreground">Prioridade</th></tr>
-            </thead>
-            <tbody>
-              {tasks.length === 0 ? (
-                <tr><td colSpan={4} className="text-center p-8 text-muted-foreground">Este projeto ainda não tem tarefas.</td></tr>
-              ) : (
-                sectionOrder.map(sectionName => (
-                  <React.Fragment key={sectionName}>
-                    <tr className="bg-muted/30"><td colSpan={4} className="py-1"><div className="flex items-center gap-2 p-2 group"><h4 className="font-semibold">{sectionName}</h4></div></td></tr>
-                    {sections[sectionName]?.map(task => (
-                      <React.Fragment key={task.id}>
-                        <TaskRow task={task} onTaskClick={(clickedTask) => setViewingTaskId(clickedTask.id)} />
-                        <SubtasksCascade taskId={task.id} />
-                      </React.Fragment>
-                    ))}
-                    <AddTaskInline projectId={projectId!} sectionName={sectionName} onTaskAdded={handleTaskAdded} />
-                  </React.Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertDialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
+              <AlertDialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Adicionar Seção</Button></AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader><AlertDialogTitle>Criar Nova Seção</AlertDialogTitle><AlertDialogDescription>Digite o nome da nova seção para organizar suas tarefas.</AlertDialogDescription></AlertDialogHeader>
+                <div className="py-2">
+                  <Label htmlFor="section-name" className="sr-only">Nome da Seção</Label>
+                  <Input id="section-name" placeholder="Ex: Planejamento" value={newSectionName} onChange={(e) => setNewSectionName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSection(); } }} />
+                </div>
+                <AlertDialogFooter><AlertDialogCancel onClick={() => setNewSectionName('')}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleAddSection}>Criar Seção</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+          <div className="border rounded-xl bg-white shadow-sm overflow-hidden mt-4">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-3 text-left font-semibold text-gray-600 w-3/5">Nome da Tarefa</th>
+                  <th className="p-3 text-left font-semibold text-gray-600">Responsável</th>
+                  <th className="p-3 text-left font-semibold text-gray-600">Prazo</th>
+                  <th className="p-3 text-left font-semibold text-gray-600">Prioridade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.length === 0 ? (
+                  <tr><td colSpan={4} className="text-center p-8 text-gray-400">Este projeto ainda não tem tarefas.</td></tr>
+                ) : (
+                  sectionOrder.map(sectionName => (
+                    <React.Fragment key={sectionName}>
+                      <tr className="bg-gray-100/60">
+                        <td colSpan={4} className="py-2 px-3">
+                          <div className="flex items-center gap-2 group">
+                            <h4 className="font-semibold text-gray-700">{sectionName}</h4>
+                          </div>
+                        </td>
+                      </tr>
+                      {sections[sectionName]?.map(task => (
+                        <React.Fragment key={task.id}>
+                          <TaskRow task={task} onTaskClick={(clickedTask) => setViewingTaskId(clickedTask.id)} />
+                          <SubtasksCascade taskId={task.id} />
+                        </React.Fragment>
+                      ))}
+                      <AddTaskInline projectId={projectId!} sectionName={sectionName} onTaskAdded={handleTaskAdded} />
+                    </React.Fragment>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-      {/* Detalhes da Tarefa e Subtarefa */}
       <TaskDetailSheet
         taskId={viewingTaskId}
         open={!!viewingTaskId}

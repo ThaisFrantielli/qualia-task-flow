@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronRight, MoreVertical } from 'lucide-react';
 import { Portfolio } from '@/types';
 

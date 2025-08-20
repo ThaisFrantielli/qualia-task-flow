@@ -1,6 +1,6 @@
 // src/pages/TaskSettingsPage.tsx
 
-import React from 'react';
+
 import { Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ClassificationManager from '@/components/settings/ClassificationManager';
