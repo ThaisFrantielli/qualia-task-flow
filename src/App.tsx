@@ -26,6 +26,7 @@ import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage'; // <-- Adicionado para a rota de resposta
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage'; // <-- Adicionado para a rota de agradecimento
 import NotFound from '@/pages/NotFound';
+import CustomerManagementPage from '@/pages/CustomerManagementPage';
 
 function App() {
   return (
@@ -55,6 +56,7 @@ function App() {
               <Route path="/pos-vendas" element={<CrmPdvPage />} />
               <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
               <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
+              <Route path="/clientes" element={<CustomerManagementPage />} />
               
               <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
 
