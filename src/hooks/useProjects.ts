@@ -33,7 +33,16 @@ export const useProjects = () => {
 
       if (fetchError) throw new Error(fetchError.message);
       
-      setProjects(data || []);
+      setProjects(
+        (data || []).map((p: any) => ({
+          ...p,
+          team_id: p.team_id ?? null,
+          privacy: p.privacy ?? null,
+          portfolio_id: p.portfolio_id ?? null,
+          description: p.description ?? null,
+          user_id: p.user_id ?? null,
+        }))
+      );
 
     } catch (err: any) {
       console.error('Erro ao buscar projetos:', err);

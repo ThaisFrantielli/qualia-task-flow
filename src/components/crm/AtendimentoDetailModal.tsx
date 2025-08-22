@@ -45,20 +45,56 @@ interface AtendimentoDetailModalProps {
 
 // NOVO: Adicionada a lista de tipos de atendimento.
 const tiposAtendimento = ['Elogio', 'Dúvida', 'Atendimento Comercial', 'Reclamação', 'Outros'];
-const departamentos = ['Manutenção', 'Central de Atendimento', 'Documentação', 'Operação', 'Comercial', 'Financeiro', 'Departamento Pessoal'];
-const analisesFinais = ['Procedente', 'Improcedente', 'Dúvida'];
+const departamentos: Atendimento['department'][] = [
+  'Manutenção',
+  'Central de Atendimento',
+  'Documentação',
+  'Operação',
+  'Comercial',
+  'Financeiro',
+  'Departamento Pessoal',
+  'Aberto Erroneamente',
+  'Dúvida',
+  'Operação - Filial SP',
+];
+const analisesFinais: Atendimento['final_analysis'][] = [
+  'Procedente',
+  'Improcedente',
+  'Dúvida',
+];
+const motivosReclamacao: Atendimento['reason'][] = [
+  'Contestação de Cobrança',
+  'Demora na Aprovação do Orçamento',
+  'Agendamento Errôneo',
+  'Má Qualidade de Serviço',
+  'Problemas Com Fornecedor',
+  'Demora em atendimento',
+  'Atendimento Ineficaz',
+  'Multas e Notificações',
+  'Problemas na Entrega',
+  'Problemas Com Veículo Reserva',
+  'Atendimento Comercial',
+  'Oportunidade Aberta Erroneamente',
+  'Cobrança Indevida',
+  'Dúvida',
+  'Erro de processo interno',
+  'Troca definitiva de veículo',
+  'Problema recorrente',
+  'Solicitação de Reembolso',
+  'Problemas com Terceiro',
+];
 
 const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendimento, onClose, onUpdate }) => {
   const [delegatedTasks, setDelegatedTasks] = useState<TaskWithAssigneeProfile[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [activeStep, setActiveStep] = useState('analysis');
   
+  // reason deve ser do tipo enum ou string vazia
   const [editableData, setEditableData] = useState({
-    // ALTERADO: Adicionado o novo campo ao estado.
     tipo_atendimento: '',
-    department: '',
-    reason: '',
-    final_analysis: '',
+    department: null as Atendimento['department'] | null,
+    reason: '' as Atendimento['reason'] | '',
+    final_analysis: null as Atendimento['final_analysis'] | null,
     resolution_details: '',
   });
 
@@ -78,11 +114,10 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
   useEffect(() => {
     if (atendimento) {
       setEditableData({
-        // ALTERADO: Populando o estado com o novo campo.
         tipo_atendimento: atendimento.tipo_atendimento || '',
-        department: atendimento.department || '',
-        reason: atendimento.reason || '',
-        final_analysis: atendimento.final_analysis || '',
+        department: atendimento.department ?? null,
+        reason: atendimento.reason ?? '',
+        final_analysis: atendimento.final_analysis ?? null,
         resolution_details: atendimento.resolution_details || '',
       });
       setActiveStep('analysis');
@@ -93,11 +128,15 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
   const handleSaveChanges = async () => {
     if (!atendimento) return;
     setIsSaving(true);
+    // reason: se string vazia, envie undefined
+    const updateData = {
+      ...editableData,
+      reason: editableData.reason === '' ? undefined : editableData.reason,
+    };
     const { error } = await supabase
       .from('atendimentos')
-      .update(editableData)
+      .update(updateData)
       .eq('id', atendimento.id);
-      
     setIsSaving(false);
     if (error) {
       toast.error("Falha ao salvar. Tente novamente.", { description: error.message });
@@ -108,8 +147,16 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
     }
   };
 
-  const handleChange = (field: keyof typeof editableData, value: string) => {
-    setEditableData(prev => ({ ...prev, [field]: value }));
+  // Permitir string | null para campos enum
+  // Corrigir para reason aceitar string vazia, department/final_analysis null
+  const handleChange = (field: keyof typeof editableData, value: string | null) => {
+    if (field === 'department' || field === 'final_analysis') {
+      setEditableData(prev => ({ ...prev, [field]: value === '' ? null : value }));
+    } else if (field === 'reason') {
+      setEditableData(prev => ({ ...prev, [field]: value as Atendimento['reason'] | '' }));
+    } else {
+      setEditableData(prev => ({ ...prev, [field]: value ?? '' }));
+    }
   };
   
   if (!atendimento) return null;
@@ -192,18 +239,35 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Departamento Responsável</Label>
-                    <Select value={editableData.department} onValueChange={(value) => handleChange('department', value)}>
+                    <Select
+                      value={editableData.department ?? ''}
+                      onValueChange={(value) => handleChange('department', value)}
+                    >
                       <SelectTrigger id="department">
                         <SelectValue placeholder="Selecione um departamento" />
                       </SelectTrigger>
                       <SelectContent>
-                        {departamentos.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                        {departamentos.filter(Boolean).map(dep => (
+                          <SelectItem key={dep as string} value={dep as string}>{dep}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reason">Motivo do Contato</Label>
-                    <Textarea rows={5} id="reason" value={editableData.reason} onChange={(e) => handleChange('reason', e.target.value)} placeholder="Descreva o motivo do contato do cliente..."/>
+                    <Select
+                      value={editableData.reason ?? ''}
+                      onValueChange={(value) => handleChange('reason', value)}
+                    >
+                      <SelectTrigger id="reason">
+                        <SelectValue placeholder="Selecione o motivo do contato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {motivosReclamacao.map(motivo => (
+                          <SelectItem key={motivo as string} value={motivo as string}>{motivo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -236,12 +300,17 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
                 <div className="grid gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="final_analysis">Análise Final</Label>
-                    <Select value={editableData.final_analysis} onValueChange={(value) => handleChange('final_analysis', value)}>
+                    <Select
+                      value={editableData.final_analysis ?? ''}
+                      onValueChange={(value) => handleChange('final_analysis', value)}
+                    >
                       <SelectTrigger id="final_analysis">
                         <SelectValue placeholder="Selecione a análise final" />
                       </SelectTrigger>
                       <SelectContent>
-                        {analisesFinais.map(analise => <SelectItem key={analise} value={analise}>{analise}</SelectItem>)}
+                        {analisesFinais.filter(Boolean).map(analise => (
+                          <SelectItem key={analise as string} value={analise as string}>{analise}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
