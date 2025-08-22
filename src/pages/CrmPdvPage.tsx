@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import AtendimentosFilters from '@/components/crm/AtendimentosFilters';
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
+import AtendimentosDashboard from '@/components/crm/AtendimentosDashboard';
 
 type KanbanColumnStatus = 'Solicitação' | 'Em Análise' | 'Resolvido';
 const kanbanColumns: KanbanColumnStatus[] = ['Solicitação', 'Em Análise', 'Resolvido'];
@@ -164,6 +165,8 @@ const CrmPdvPage = () => {
             </Link>
           </div>
         </div>
+        {/* Indicadores principais */}
+        <AtendimentosDashboard atendimentos={atendimentos} />
         {/* Filtros de atendimentos */}
         <AtendimentosFilters
           search={search}

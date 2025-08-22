@@ -10,22 +10,22 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-import { useProjects } from '@/hooks/useProjects';
+
 import { useAuth } from '@/contexts/AuthContext';
 import type { Permissoes } from '@/types';
 
 // Tipagem explícita para os itens de menu para maior segurança e autocompletar
-interface MenuItem {
+type MenuItem = {
   label: string;
   url: string;
   icon: ElementType;
   permissionKey?: keyof Permissoes;
-}
+};
 
-interface MenuGroup {
+type MenuGroup = {
   title: string;
   items: MenuItem[];
-}
+};
 
 // Estrutura de dados para os grupos de menu, agora com o grupo PROJETOS
 const menuGroups: MenuGroup[] = [
@@ -71,7 +71,7 @@ const Sidebar: React.FC = () => {
 
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects } = useProjects();
+    // const { projects } = useProjects();
 
 
 
@@ -84,7 +84,7 @@ const Sidebar: React.FC = () => {
     return user?.email?.[0].toUpperCase() || '?'; 
   };
 
-  const projectList = projects.filter(p => p.id !== 'all');
+  // const projectList = projects.filter(p => p.id !== 'all');
 
   if (!user) return <div className="w-64 h-screen bg-gray-900 animate-pulse"></div>;
 
