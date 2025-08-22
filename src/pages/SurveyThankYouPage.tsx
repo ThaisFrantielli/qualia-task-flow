@@ -3,7 +3,7 @@
 
 import { CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Link } from 'react-router-dom';
+// ...existing code...
 
 const SurveyThankYouPage: React.FC = () => {
   return (

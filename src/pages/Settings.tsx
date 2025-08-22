@@ -1,8 +1,8 @@
 // src/pages/Settings.tsx
 
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Save, Bell, Palette, Shield, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 import ClassificationManager from '@/components/settings/ClassificationManager';
 import { PortfolioSettings } from '@/components/projects/PortfolioSettings';
 
-const Settings = () => {
+import React from 'react';
+const Settings: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState({
     full_name: '',
@@ -26,7 +27,7 @@ const Settings = () => {
   
   // Estados para as outras abas (manter como estavam)
   const [notifications, setNotifications] = useState({ emailNotifications: true, pushNotifications: true });
-  const [appearance, setAppearance] = useState({ theme: 'light', language: 'pt-BR' });
+
   const [security, setSecurity] = useState({ twoFactorAuth: false, loginNotifications: true });
 
   useEffect(() => {

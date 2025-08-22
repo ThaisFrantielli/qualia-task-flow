@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { usePortfolios } from '@/hooks/usePortfolios';
+// import { usePortfolios } from '@/hooks/usePortfolios';
 
 interface CreatePortfolioFormProps {
   onCreated?: () => void;
@@ -13,7 +13,6 @@ export const CreatePortfolioForm: React.FC<CreatePortfolioFormProps> = ({ onCrea
   const [color, setColor] = useState('#6366f1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { portfolios } = usePortfolios();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -10,15 +10,16 @@ export const PortfolioSettings: React.FC = () => {
   const { portfolios, loading, error } = usePortfolios();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Portfolio | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Corrigir: remover setDeleting, usar loading local para exclusão
+
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este portfólio?')) return;
-    setDeleting(id);
+  // setDeletingId removido
     setActionError(null);
     const { error } = await supabase.from('portfolios').delete().eq('id', id);
-    setDeleting(null);
+  // setDeletingId removido
     if (error) setActionError(error.message);
   };
 

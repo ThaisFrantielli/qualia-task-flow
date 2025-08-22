@@ -3,9 +3,8 @@ import { useState, useRef } from 'react';
 import { usePortfolios } from '@/hooks/usePortfolios';
 import { Portfolio, Project } from '@/types';
 import { CreateProjectForm } from '@/components/CreateProjectForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { EditPortfolioForm } from './EditPortfolioForm';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -82,8 +81,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
 
   const handleDeletePortfolio = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este portfólio?')) return;
-    const { error } = await supabase.from('portfolios').delete().eq('id', id);
-    if (error) setActionError(error.message);
+    await supabase.from('portfolios').delete().eq('id', id);
   };
 
 
