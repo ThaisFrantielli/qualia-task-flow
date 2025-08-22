@@ -8,14 +8,11 @@ import type { TaskWithDetails } from '@/types';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectDetails } from '@/hooks/useProjectDetails';
-import AddTaskInline from '@/components/projects/AddTaskInline'; 
+import AddTaskInline from '@/components/projects/AddTaskInline';
 import TaskRow from '@/components/projects/TaskRow';
 import SubtasksCascade from '@/components/projects/SubtasksCascade';
-// --- CORREÇÃO FINAL APLICADA AQUI ---
-// O caminho para este componente é o único que estava causando problemas.
-// Garantindo que ele esteja correto.
-import TaskDetailSheet from '@/components/tasks/TaskDetailSheet'; 
-// --- FIM DA CORREÇÃO ---
+import TaskDetailSheet from '@/components/tasks/TaskDetailSheet';
+import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
 import { Button } from '@/components/ui/button';
 import { EditProjectForm } from '@/components/EditProjectForm';
 import { Input } from '@/components/ui/input';
@@ -29,9 +26,10 @@ import {
   AlertDialogDescription,
   AlertDialogCancel,
   AlertDialogAction,
+  AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 
 const ProjectDetailPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -43,7 +41,7 @@ const ProjectDetailPage = () => {
   const [newSectionName, setNewSectionName] = useState('');
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  // expandedRows removido pois não é utilizado
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,14 +65,7 @@ const ProjectDetailPage = () => {
     setTasks((currentTasks) => [...currentTasks, newTask]);
   };
 
-  const handleToggleRow = (taskId: string) => {
-    setExpandedRows((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(taskId)) newSet.delete(taskId);
-      else newSet.add(taskId);
-      return newSet;
-    });
-  };
+  // handleToggleRow removido pois não é utilizado
 
   const handleAddSection = () => {
     if (!user || !newSectionName.trim()) return;
@@ -197,7 +188,7 @@ const ProjectDetailPage = () => {
                           </div>
                         </td>
                       </tr>
-                      {sections[sectionName]?.map(task => (
+                      {sections[sectionName]?.map((task: TaskWithDetails) => (
                         <React.Fragment key={task.id}>
                           <TaskRow task={task} onTaskClick={(clickedTask) => setViewingTaskId(clickedTask.id)} />
                           <SubtasksCascade taskId={task.id} />
@@ -223,7 +214,7 @@ const ProjectDetailPage = () => {
         open={!!viewingSubtaskId}
         onOpenChange={(isOpen) => !isOpen && setViewingSubtaskId(null)}
       />
-    </div>
+    </>
   );
 };
 

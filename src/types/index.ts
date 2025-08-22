@@ -10,7 +10,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = SupabaseDatabase;
 // 2. Criamos um tipo auxiliar para o schema 'public'.
 //    Todos os outros tipos neste arquivo usarão este 'PublicSchema'.
-type PublicSchema = Database['public'];
+export type PublicSchema = Database['public'];
 // --- FIM DA CORREÇÃO ---
 
 
@@ -26,15 +26,15 @@ export interface AllTaskFilters {
 }
 
 // --- Tipos base extraídos da definição correta ---
-export type TaskCategory = Database['Tables']['task_categories']['Row'];
-export type Task = Database['Tables']['tasks']['Row'];
-export type Portfolio = Database['Tables']['portfolios']['Row'];
-export type Project = Database['Tables']['projects']['Row'] & { portfolio_id?: string | null, team_id?: string | null, privacy?: string | null };
-export type Profile = Database['Tables']['profiles']['Row'];
-export type Subtask = Database['Tables']['subtasks']['Row'];
-export type TaskHistoryEntry = Database['Tables']['task_history']['Row'];
-export type Team = Database['Tables']['teams']['Row'];
-export type ProjectMember = Database['Tables']['project_members']['Row'];
+export type TaskCategory = PublicSchema['Tables']['task_categories']['Row'];
+export type Task = PublicSchema['Tables']['tasks']['Row'];
+export type Portfolio = PublicSchema['Tables']['portfolios']['Row'];
+export type Project = PublicSchema['Tables']['projects']['Row'] & { portfolio_id?: string | null, team_id?: string | null, privacy?: string | null };
+export type Profile = PublicSchema['Tables']['profiles']['Row'];
+export type Subtask = PublicSchema['Tables']['subtasks']['Row'];
+export type TaskHistoryEntry = PublicSchema['Tables']['task_history']['Row'];
+export type Team = PublicSchema['Tables']['teams']['Row'];
+export type ProjectMember = PublicSchema['Tables']['project_members']['Row'];
 
 export interface Permissoes {
   [key: string]: boolean | string | number;
