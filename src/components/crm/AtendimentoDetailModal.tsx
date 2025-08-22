@@ -1,7 +1,9 @@
 // src/components/crm/AtendimentoDetailModal.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Atendimento, Task, UserProfile } from '@/types';
+import type { Database } from '@/types/supabase';
+type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
+import type { Task, UserProfile } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,6 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { FileText, Users, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
 import DelegationForm from './DelegationForm';
+import AtendimentoTimeline from './AtendimentoTimeline';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import AtendimentoComments from './AtendimentoComments';
+import AtendimentoAttachments from './AtendimentoAttachments';
 
 type TaskWithAssigneeProfile = Task & {
   assignee: Pick<UserProfile, 'full_name' | 'avatar_url'> | null;
@@ -116,6 +122,12 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
     { id: 'resolution', label: 'Resolução', icon: MessageSquare, isCompleted: isResolutionComplete },
   ];
 
+  // Exemplo de eventos mockados para a timeline (substitua por fetch real depois)
+  const timelineEvents = [
+    { type: 'status' as const, date: atendimento.created_at, status: atendimento.status, user: atendimento.contact_person },
+    // ...adicione eventos reais de comentários, anexos, etc
+  ];
+
   return (
     <Dialog open={!!atendimento} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-5xl h-[80vh] flex p-0">
@@ -127,6 +139,38 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
           {steps.map(step => (
             <StepIndicator key={step.id} icon={step.icon} label={step.label} isActive={activeStep === step.id} isCompleted={step.isCompleted} onClick={() => setActiveStep(step.id)} />
           ))}
+          {/* Tabs para histórico, anexos, comentários */}
+          <Tabs defaultValue="dados" className="mt-8">
+            <TabsList className="w-full">
+              <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="historico">Histórico</TabsTrigger>
+              <TabsTrigger value="anexos">Anexos</TabsTrigger>
+              <TabsTrigger value="comentarios">Comentários</TabsTrigger>
+            </TabsList>
+            <TabsContent value="dados">
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div><b>Cliente:</b> {atendimento.client_name}</div>
+                <div><b>Contato:</b> {atendimento.contact_person} {atendimento.client_phone && `(${atendimento.client_phone})`}</div>
+                <div><b>Status:</b> {atendimento.status}</div>
+                <div><b>Motivo:</b> {atendimento.reason}</div>
+                <div><b>Departamento:</b> {atendimento.department}</div>
+                <div><b>Responsável:</b> {atendimento.assignee_id}</div>
+                <div><b>Criado em:</b> {new Date(atendimento.created_at).toLocaleString('pt-BR')}</div>
+                <div><b>Atualizado em:</b> {new Date(atendimento.updated_at).toLocaleString('pt-BR')}</div>
+                <div><b>Origem:</b> {atendimento.lead_source}</div>
+                <div><b>Resumo:</b> {atendimento.summary}</div>
+              </div>
+            </TabsContent>
+            <TabsContent value="historico">
+              <AtendimentoTimeline events={timelineEvents.map(e => ({ ...e, user: e.user ?? undefined }))} />
+            </TabsContent>
+            <TabsContent value="anexos">
+              <AtendimentoAttachments atendimentoId={String(atendimento.id)} />
+            </TabsContent>
+            <TabsContent value="comentarios">
+              <AtendimentoComments atendimentoId={String(atendimento.id)} />
+            </TabsContent>
+          </Tabs>
         </div>
         <div className="w-3/4 p-6 flex flex-col">
           <div className="flex-grow overflow-y-auto pr-4">
@@ -192,7 +236,7 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
                 <div className="grid gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="final_analysis">Análise Final</Label>
-        npm run             <Select value={editableData.final_analysis} onValueChange={(value) => handleChange('final_analysis', value)}>
+                    <Select value={editableData.final_analysis} onValueChange={(value) => handleChange('final_analysis', value)}>
                       <SelectTrigger id="final_analysis">
                         <SelectValue placeholder="Selecione a análise final" />
                       </SelectTrigger>
@@ -209,11 +253,15 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
               </div>
             )}
           </div>
-          <div className="pt-6 border-t mt-auto flex justify-end">
+          <div className="pt-6 border-t mt-auto flex justify-end gap-2">
             <Button onClick={handleSaveChanges} disabled={isSaving}>
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSaving ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
+            {/* Ações rápidas: comentar, anexar, delegar */}
+            <Button variant="outline" onClick={() => setActiveStep('delegations')}>Delegar</Button>
+            <Button variant="outline" onClick={() => document.querySelector('[data-state="active"][value="anexos"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))}>Anexar</Button>
+            <Button variant="outline" onClick={() => document.querySelector('[data-state="active"][value="comentarios"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))}>Comentar</Button>
           </div>
         </div>
       </DialogContent>
