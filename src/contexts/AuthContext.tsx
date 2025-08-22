@@ -30,7 +30,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .eq('id', currentSession.user.id)
           .single();
         
-        setUser({ ...currentSession.user, ...profileData }); // O cast não é mais necessário, pois os tipos já são compatíveis
+        setUser({
+          ...currentSession.user,
+          ...profileData,
+          email: profileData?.email ?? currentSession.user.email ?? ''
+        });
         setSession(currentSession);
       } else {
         setUser(null);

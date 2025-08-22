@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/types/supabase';
+
+import type { PublicSchema } from '@/types';
 import type { Subtask, SubtaskWithDetails } from '@/types';
 
 // A declaração local é mantida, pois é a fonte da verdade
-type SubtaskInsert = Database['Tables']['subtasks']['Insert'];
+type SubtaskInsert = PublicSchema['Tables']['subtasks']['Insert'];
 
 const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
   if (!taskId) return [];
@@ -90,7 +91,7 @@ export const useSubtask = (subtaskId: string | null) => {
         if (queryError.code === 'PGRST116') return null;
         throw new Error(queryError.message);
       }
-      return data as SubtaskWithDetails;
+  return data as unknown as SubtaskWithDetails;
     },
     enabled: !!subtaskId,
   });
