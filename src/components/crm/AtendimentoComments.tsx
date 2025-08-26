@@ -7,8 +7,8 @@ interface AtendimentoCommentsProps {
 }
 
 const AtendimentoComments: React.FC<AtendimentoCommentsProps> = ({ atendimentoId }) => {
-  // Reutiliza o componente de comentários de tarefa, mas pode customizar se necessário
-  return <TaskComments taskId={atendimentoId} />;
+  // Usa contextType 'pos_venda' para garantir notificações e menções corretas
+  return <TaskComments taskId={atendimentoId} contextType="pos_venda" />;
 };
 
 export default AtendimentoComments;

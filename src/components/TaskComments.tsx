@@ -11,9 +11,10 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface TaskCommentsProps {
   taskId: string;
+  contextType?: 'task' | 'pos_venda';
 }
 
-const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
+const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, contextType = 'task' }) => {
   const { comments, addComment, deleteComment } = useComments(taskId);
   const { user } = useAuth();
   const [newComment, setNewComment] = useState('');
@@ -22,7 +23,7 @@ const TaskComments: React.FC<TaskCommentsProps> = ({ taskId }) => {
     if (newComment.trim()) {
       const authorName = (user as any)?.full_name || user?.user_metadata?.full_name || user?.email || 'Usuário Atual';
       if (!user?.id) return;
-      await addComment(newComment.trim(), authorName, user.id);
+      await addComment(newComment.trim(), authorName, user.id, contextType, taskId);
       setNewComment('');
     }
   };

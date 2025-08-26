@@ -31,6 +31,12 @@ const CustomerManagementPage: React.FC = () => {
 
   const selected = filtered.find((c) => c.id === selectedId) || null;
 
+
+  // Hooks para dados do cliente selecionado
+  const idStr = selectedId ? String(selectedId) : '';
+  const { attachments } = useAttachments(idStr);
+  const { activities } = useCustomerActivities(idStr);
+
   // Exemplo de integração de ação rápida
   const handleCreateActivity = (data: any) => {
     alert('Atividade criada! (mock)');
@@ -66,40 +72,28 @@ const CustomerManagementPage: React.FC = () => {
           onSelect={setSelectedId}
         />
         {selected && (
-          (() => {
-            const idStr = String(selected.id);
-            const { attachments } = useAttachments(idStr);
-            const { activities } = useCustomerActivities(idStr);
-            // Corrigir step para enums reais
-            let step = 1;
-            if (selected.status === 'Em Análise') step = 1;
-            else if (selected.status === 'Resolvido') step = 2;
-            else if (selected.status === 'Solicitação') step = 3;
-            return (
-              <CustomerDetail
-                name={selected.client_name || 'Sem nome'}
-                cnpj={selected.client_email || ''}
-                phone={selected.client_phone || ''}
-                email={selected.client_email || ''}
-                department={selected.department}
-                responsible={selected.assignee_id}
-                createdAt={selected.created_at}
-                updatedAt={selected.updated_at}
-                motivo={selected.reason}
-                origem={selected.lead_source}
-                resumo={selected.summary}
-                anexos={attachments.map(a => ({ filename: a.filename, url: a.file_path }))}
-                resolucao={selected.resolution_details}
-                onEdit={() => alert('Editar cliente (mock)')}
-                onCreateAtendimento={() => alert('Criar atendimento (mock)')}
-                status={selected.status || 'Sem status'}
-                step={step}
-                activities={activities}
-                tab={tab}
-                onTabChange={setTab}
-              />
-            );
-          })()
+          <CustomerDetail
+            name={selected.client_name || 'Sem nome'}
+            cnpj={selected.client_email || ''}
+            phone={selected.client_phone || ''}
+            email={selected.client_email || ''}
+            department={selected.department}
+            responsible={selected.assignee_id}
+            createdAt={selected.created_at}
+            updatedAt={selected.updated_at}
+            motivo={selected.reason}
+            origem={selected.lead_source}
+            resumo={selected.summary}
+            anexos={attachments.map(a => ({ filename: a.filename, url: a.file_path }))}
+            resolucao={selected.resolution_details}
+            onEdit={() => alert('Editar cliente (mock)')}
+            onCreateAtendimento={() => alert('Criar atendimento (mock)')}
+            status={selected.status || 'Sem status'}
+            step={selected.status === 'Em Análise' ? 1 : selected.status === 'Resolvido' ? 2 : selected.status === 'Solicitação' ? 3 : 1}
+            activities={activities}
+            tab={tab}
+            onTabChange={setTab}
+          />
         )}
         <CustomerActionsPanel onCreate={handleCreateActivity} />
       </main>
