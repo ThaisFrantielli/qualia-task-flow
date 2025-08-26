@@ -5,7 +5,7 @@ import { useAtendimentos } from '@/hooks/useAtendimentos';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import AtendimentoCard from '@/components/crm/AtendimentoCard';
+import KanbanTaskCard from '../components/KanbanTaskCard';
 import AtendimentoDetailModal from '@/components/crm/AtendimentoDetailModal';
 import type { Database } from '@/types/supabase';
 type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
@@ -14,10 +14,11 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useDrop } from 'react-dnd';
 import { ItemTypes } from '@/constants/ItemTypes';
 import { toast } from 'sonner';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AtendimentosFilters from '@/components/crm/AtendimentosFilters';
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
-import AtendimentosDashboard from '@/components/crm/AtendimentosDashboard';
+import { KanbanMetricCard } from '../components/KanbanMetricCard';
+import { ExclamationTriangleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 type KanbanColumnStatus = 'Solicitação' | 'Em Análise' | 'Resolvido';
 const kanbanColumns: KanbanColumnStatus[] = ['Solicitação', 'Em Análise', 'Resolvido'];
@@ -64,7 +65,16 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
       </div>
       <div className="h-full overflow-y-auto pr-2 space-y-4">
         {atendimentos.map((at) => (
-          <AtendimentoCard key={at.id} atendimento={at} onClick={() => onCardClick(at)} />
+          <div key={at.id} onClick={() => onCardClick(at)} style={{ cursor: 'pointer' }}>
+            <KanbanTaskCard
+              id={at.id}
+              cliente={at.client_name || 'Cliente Desconhecido'}
+              resumo={at.summary || undefined}
+              data={at.created_at ? new Date(at.created_at).toLocaleDateString('pt-BR') : '-'}
+              motivo={at.reason || '-'}
+              avatar={at.client_name ? at.client_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
+            />
+          </div>
         ))}
       </div>
     </div>
@@ -75,6 +85,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
 const CrmPdvPage = () => {
   const { atendimentos, setAtendimentos, loading, error, refetch } = useAtendimentos();
   const [selectedAtendimento, setSelectedAtendimento] = useState<Atendimento | null>(null);
+  const navigate = useNavigate();
 
 
   // Filtros de busca
@@ -165,8 +176,35 @@ const CrmPdvPage = () => {
             </Link>
           </div>
         </div>
-        {/* Indicadores principais */}
-        <AtendimentosDashboard atendimentos={atendimentos} />
+        {/* Painel de métricas Kanban UX */}
+        <div className="flex gap-4 mb-6">
+          <KanbanMetricCard
+            value={filteredAtendimentos.filter(a => a.status === 'Solicitação' || a.status === 'Em Análise').length}
+            label="Em Aberto"
+            color="text-blue-600"
+            icon={<ClockIcon className="w-6 h-6" />}
+          />
+          <KanbanMetricCard
+            value={filteredAtendimentos.filter(a => a.status === 'Resolvido').length}
+            label="Resolvidos"
+            color="text-green-600"
+            icon={<CheckCircleIcon className="w-6 h-6" />}
+          />
+          <KanbanMetricCard
+            value={filteredAtendimentos.filter(a => {
+              if (a.status === 'Resolvido') return false;
+              const now = Date.now();
+              return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
+            }).length}
+            label="Atrasados"
+            color="text-red-600"
+            icon={<ExclamationTriangleIcon className="w-6 h-6" />}
+            highlight={filteredAtendimentos.some(a => a.status !== 'Resolvido' && (Date.now() - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000)}
+          />
+          <div className="flex flex-col justify-center ml-auto">
+            <span className="text-xs text-gray-400">Exibindo <span className="font-bold text-gray-700">{filteredAtendimentos.length}</span> tickets no total</span>
+          </div>
+        </div>
         {/* Filtros de atendimentos */}
         <AtendimentosFilters
           search={search}
@@ -184,15 +222,25 @@ const CrmPdvPage = () => {
         />
         {view === 'kanban' ? (
           <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-x-auto pb-4">
-            {kanbanColumns.map(columnStatus => (
-              <KanbanColumn
-                key={columnStatus}
-                title={columnStatus}
-                atendimentos={filteredAtendimentos.filter(at => at.status === columnStatus)}
-                onDrop={handleDrop}
-                onCardClick={setSelectedAtendimento}
-              />
-            ))}
+            {kanbanColumns.map(columnStatus => {
+              const colAtendimentos = filteredAtendimentos.filter(at => at.status === columnStatus);
+              return (
+                <div key={columnStatus} className="flex-1 flex flex-col">
+                  <KanbanColumn
+                    title={columnStatus}
+                    atendimentos={colAtendimentos}
+                    onDrop={handleDrop}
+                    onCardClick={(atendimento) => navigate(`/pos-vendas/${atendimento.id}`)}
+                  />
+                  {colAtendimentos.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full min-h-[120px] border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm mt-8 p-4">
+                      <span className="mb-2">Nenhum atendimento.</span>
+                      <span className="text-xs">Arraste um card para cá</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto pb-4">
