@@ -337,6 +337,7 @@ export type Database = {
           nivelAcesso: string | null
           permissoes: Json | null
           role: string
+          push_token: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -347,6 +348,7 @@ export type Database = {
           nivelAcesso?: string | null
           permissoes?: Json | null
           role?: string
+          push_token?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -357,6 +359,7 @@ export type Database = {
           nivelAcesso?: string | null
           permissoes?: Json | null
           role?: string
+          push_token?: string | null
         }
         Relationships: []
       }
