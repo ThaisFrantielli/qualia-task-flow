@@ -25,11 +25,32 @@ export default defineConfig(({ mode }) => ({
     global: 'globalThis',
   },
   optimizeDeps: {
-    exclude: ['qr-scanner'],
+    exclude: ['qr-scanner', 'node-fetch', 'fetch-blob', 'node-domexception'],
   },
   build: {
     rollupOptions: {
-      external: ['fs', 'path', 'url']
+      external: [
+        'fs', 
+        'path', 
+        'url', 
+        'node-fetch',
+        'node:http',
+        'node:https', 
+        'node:zlib',
+        'node:stream',
+        'node:buffer',
+        'node:util',
+        'node:net',
+        'node:fs',
+        'node:path',
+        'node:url',
+        'node:process',
+        'node:stream/web',
+        'worker_threads',
+        'buffer',
+        'fetch-blob',
+        'node-domexception'
+      ]
     }
   },
   server: {
