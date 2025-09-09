@@ -21,6 +21,17 @@ export default defineConfig(({ mode }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  define: {
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    exclude: ['qr-scanner'],
+  },
+  build: {
+    rollupOptions: {
+      external: ['fs', 'path', 'url']
+    }
+  },
   server: {
     host: "::",
     port: 8080,
