@@ -1,15 +1,14 @@
 // src/pages/Team.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner'; // Usando sonner para toasts
 import TeamMemberDialog from '@/components/team/TeamMemberDialog';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 // Tipos exportados para serem usados em outros lugares, como no Dialog
@@ -85,8 +84,8 @@ const Team = () => {
         name: profile.full_name || 'Nome não definido',
         email: profile.email || 'Email não definido',
         funcao: profile.funcao || 'Função não definida',
-        nivelAcesso: profile.nivelAcesso || 'Usuário',
-        permissoes: profile.permissoes as Permissoes || getDefaultPermissions(profile.nivelAcesso || 'Usuário'),
+        nivelAcesso: (profile.nivelAcesso as any) || 'Usuário',
+        permissoes: (profile.permissoes as any) || getDefaultPermissions(profile.nivelAcesso as any || 'Usuário'),
         tasksCount: 0,
       }));
       setTeamMembers(members);
@@ -147,7 +146,7 @@ const Team = () => {
         full_name: formData.name,
         funcao: formData.funcao,
         nivelAcesso: formData.nivelAcesso,
-        permissoes: formData.permissoes,
+        permissoes: formData.permissoes as any,
       })
       .eq('id', editingMember.id);
     
@@ -160,7 +159,7 @@ const Team = () => {
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
+  const handleDeleteMember = async () => {
     if (!window.confirm("Tem certeza que deseja remover este membro? A ação não poderá ser desfeita.")) return;
     
     toast.error("Funcionalidade em desenvolvimento.", { description: "A remoção de usuários deve ser feita pelo admin do Supabase." });
@@ -223,7 +222,7 @@ const Team = () => {
                     <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(member)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteMember(member.id)}>
+                    <Button variant="ghost" size="icon" onClick={handleDeleteMember}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>

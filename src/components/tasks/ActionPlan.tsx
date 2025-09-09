@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Plus, Calendar as CalendarIcon, ListTodo, Edit, ArrowUp, ArrowRight, ArrowDown } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, ListTodo, Edit, ArrowUp, ArrowRight, ArrowDown } from 'lucide-react';
 import SubtaskDetailSheet from './SubtaskDetailSheet';
 import SubtaskDeadline from './SubtaskDeadline';
 

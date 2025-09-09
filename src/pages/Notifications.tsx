@@ -1,7 +1,7 @@
 // src/pages/Notifications.tsx
 
-import { useState, useEffect } from 'react';
-import { Bell, Check, Trash2, Clock, AlertCircle, Info, CheckCircle } from 'lucide-react';
+import { useEffect } from 'react';
+import { Bell, Check, Clock, AlertCircle, Info, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import type { Notification } from '@/types'; // Import the Notification type
 
 const Notifications = () => {
-  const { notifications, loading, markAsRead, markAllAsRead, unreadCount } = useNotifications();
+  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications();
 
   useEffect(() => {
     // Effect can be added later if needed
@@ -71,21 +71,6 @@ const Notifications = () => {
         return <Info className="w-5 h-5 text-blue-500" />;
       default:
         return <Info className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  const getBadgeVariant = (type: string) => {
-    switch (type) {
-      case 'warning':
-        return 'secondary';
-      case 'error':
-        return 'destructive';
-      case 'success':
-        return 'default';
-      case 'info':
-        return 'outline';
-      default:
-        return 'secondary';
     }
   };
 

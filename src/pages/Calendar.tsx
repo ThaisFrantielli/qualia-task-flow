@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTasks } from '@/hooks/useTasks';
 import { useComments } from '@/hooks/useComments';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,10 +24,6 @@ const Calendar: React.FC = () => {
     );
   };
 
-  const getLastComment = (taskId: string) => {
-    const taskComments = comments.filter(c => c.task_id === taskId);
-    return taskComments.length > 0 ? taskComments[taskComments.length - 1] : null;
-  };
 
   return (
     <div className="p-6 space-y-6">
