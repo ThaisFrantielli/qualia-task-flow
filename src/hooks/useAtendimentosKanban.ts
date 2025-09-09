@@ -1,25 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../integrations/supabase/client";
-import type { Database } from "../types/supabase";
-
-export type Atendimento = Database["public"]["Tables"]["atendimentos"]["Row"];
+import type { AtendimentoComAssignee } from "../types";
 
 export function useAtendimentosKanban() {
-  const [data, setData] = useState<Atendimento[]>([]);
+  const [data, setData] = useState<AtendimentoComAssignee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchAtendimentos = useCallback(async () => {
     setLoading(true);
-    supabase
-      .from("atendimentos")
-      .select("*")
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        else setData(data || []);
-        setLoading(false);
-      });
+    setError(null);
+
+    const { data, error: fetchError } = await supabase
+      .from('atendimentos')
+      .select('*, assignee:profiles(*)')
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      setError(fetchError.message);
+    } else if (data) {
+      const formattedData: AtendimentoComAssignee[] = data.map(at => ({
+        ...at,
+        assignee: at.assignee,
+        cliente: {
+          nome: at.client_name,
+        },
+        descricao: at.summary,
+      }));
+      setData(formattedData);
+    }
+    setLoading(false);
   }, []);
 
-  return { data, loading, error };
+  useEffect(() => {
+    fetchAtendimentos();
+  }, [fetchAtendimentos]);
+
+  return { data, loading, error, refetch: fetchAtendimentos };
 }

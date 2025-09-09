@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Atendimento } from '@/types';
+import type { AtendimentoComAssignee } from '@/types';
 
 export const useAtendimentos = () => {
-  const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
+  const [atendimentos, setAtendimentos] = useState<AtendimentoComAssignee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,18 +15,21 @@ export const useAtendimentos = () => {
 
     const { data, error: fetchError } = await supabase
       .from('atendimentos')
-      .select('*, assignee:profiles(full_name)')
+      .select('*, assignee:profiles(*)')
       .order('created_at', { ascending: false });
 
     if (fetchError) {
       setError(fetchError.message);
     } else if (data) {
-      // Mapeia os dados do JOIN para o formato plano que usamos
-      const formattedData = data.map(at => ({
+      const formattedData: AtendimentoComAssignee[] = data.map(at => ({
         ...at,
-        assignee_name: at.assignee?.full_name,
+        assignee: at.assignee,
+        cliente: {
+          nome: at.client_name,
+        },
+        descricao: at.summary,
       }));
-      setAtendimentos(formattedData as unknown as Atendimento[]);
+      setAtendimentos(formattedData);
     }
     setLoading(false);
   }, []);
@@ -35,10 +38,9 @@ export const useAtendimentos = () => {
     fetchAtendimentos();
   }, [fetchAtendimentos]);
 
-  // A CORREÇÃO PRINCIPAL ESTÁ AQUI: RETORNAR setAtendimentos
   return {
     atendimentos,
-    setAtendimentos, // <-- Adicionado!
+    setAtendimentos,
     loading,
     error,
     refetch: fetchAtendimentos,

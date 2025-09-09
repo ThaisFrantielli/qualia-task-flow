@@ -93,6 +93,16 @@ export type Attachment = {
 // Tipos para atendimentos e pesquisas usando database schema
 export type Atendimento = PublicSchema['Tables']['atendimentos']['Row'];
 
+export type Cliente = {
+  nome: string | null;
+};
+
+export type AtendimentoComAssignee = Atendimento & {
+  assignee: Pick<Profile, 'full_name' | 'avatar_url'> | null;
+  cliente: Cliente | null;
+  descricao: string | null;
+};
+
 export type Survey = {
   id: string;
   title: string;
