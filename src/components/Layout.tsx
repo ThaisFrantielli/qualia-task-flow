@@ -2,25 +2,15 @@
 
 
 import { Outlet } from 'react-router-dom';
-
-// --- CAMINHOS DE IMPORTAÇÃO CORRIGIDOS ---
-// Como Layout.tsx e Sidebar.tsx estão na mesma pasta (components), o caminho é './'
 import Sidebar from './Sidebar'; 
-// A pasta 'notifications' é uma subpasta de 'components', então o caminho é './'
 import NotificationCenter from './notifications/NotificationCenter'; 
-// ------------------------------------------
-
 import { Toaster } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext'; // O alias '@/` geralmente aponta para 'src/', então este deve estar correto
 
 const Layout = () => {
-  // Pegar o usuário do contexto
-  const { user } = useAuth();
-
   return (
     <div className="flex h-screen bg-gray-50/50">
       {/* Passar o usuário como 'prop' para a Sidebar */}
-      <Sidebar user={user} />
+      <Sidebar />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header simplificado */}

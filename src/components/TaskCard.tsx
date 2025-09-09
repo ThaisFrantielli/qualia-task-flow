@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Clock, User, MessageCircle, Paperclip } from 'lucide-react';
+import { Clock, MessageCircle, Paperclip } from 'lucide-react';
 import TaskTags from './tasks/TaskTags';
 import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
 
@@ -39,7 +39,6 @@ const TaskCard: React.FC<TaskCardProps> = ({
   subtasks,
   comments,
   attachments,
-  onStatusChange,
   onTagsChange
 }) => {
   const statusColors = {

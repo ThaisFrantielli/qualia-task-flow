@@ -17,7 +17,7 @@ interface TaskDetailsModalProps {
 const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ taskId, open, onOpenChange, onTaskUpdate }) => {
   // 1. Busca os dados da tarefa AQUI, usando o ID.
   // O 'enabled: !!taskId' garante que a busca só acontece se tivermos um ID.
-  const { data: task, isLoading, isError } = useTask(taskId || '');
+  const { task, isLoading, isError } = useTask(taskId || '');
 
   const renderContent = () => {
     // 2. Mostra um estado de carregamento enquanto a tarefa está sendo buscada.
