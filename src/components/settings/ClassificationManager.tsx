@@ -96,7 +96,7 @@ const ClassificationManager = () => {
             <div className="flex justify-center items-center h-24"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : (
             <div className="space-y-2">
-              {classifications.map(c => (
+              {classifications.map((c: any) => (
                 <div key={c.id} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50">
                   <div className="flex items-center gap-3">
                     <div className="w-4 h-4 rounded-full" style={{ backgroundColor: c.color || '#ccc' }} />
