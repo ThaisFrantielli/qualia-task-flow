@@ -74,7 +74,7 @@ const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess }) 
 
     try {
       const { data, error } = await supabase.from('surveys').insert({
-        type: formData.type,
+        type: formData.type as 'comercial' | 'entrega' | 'manutencao' | 'devolucao',
         client_name: formData.client_name.trim(),
         driver_name: formData.driver_name.trim() || null,
         license_plate: formData.license_plate.trim() || null,
