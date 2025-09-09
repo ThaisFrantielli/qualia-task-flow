@@ -1,17 +1,11 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import { useTasks } from '@/hooks/useTasks';
 import TaskCard from './TaskCard';
 import { Plus } from 'lucide-react';
 
-interface DragItem {
-  id: string;
-  status: string;
-}
-
 const DragDropKanban: React.FC = () => {
   const { tasks } = useTasks();
-  const [draggedItem, setDraggedItem] = useState<DragItem | null>(null);
   const dragCounter = useRef(0);
 
   const columns = [
@@ -21,9 +15,8 @@ const DragDropKanban: React.FC = () => {
     { id: 'late', title: 'Atrasado', color: 'bg-red-500' }
   ];
 
-  const handleDragStart = (e: React.DragEvent, taskId: string, status: string) => {
-    setDraggedItem({ id: taskId, status });
-    e.dataTransfer.effectAllowed = 'move';
+  const handleDragStart = () => {
+    // Placeholder for drag functionality
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -46,20 +39,13 @@ const DragDropKanban: React.FC = () => {
     }
   };
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     
     const element = e.currentTarget as HTMLElement;
     element.classList.remove('bg-blue-50', 'border-blue-300');
-
-  // Aqui você pode implementar a lógica de atualização de status usando o hook useTask
-  // Exemplo:
-  // const { updateTask } = useTask(draggedItem.id);
-  // await updateTask({ status: targetStatus });
-  // Por simplicidade, removido para evitar erro de compilação.
-    
-    setDraggedItem(null);
+    // TODO: Implement drop functionality
   };
 
   const getTasksForStatus = (status: string) => {
@@ -78,7 +64,7 @@ const DragDropKanban: React.FC = () => {
             onDragOver={handleDragOver}
             onDragEnter={(e) => handleDragEnter(e)}
             onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, column.id)}
+            onDrop={(e) => handleDrop(e)}
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
@@ -109,7 +95,7 @@ const DragDropKanban: React.FC = () => {
                   <div
                     key={task.id}
                     draggable
-                    onDragStart={(e) => handleDragStart(e, task.id, task.status)}
+                    onDragStart={handleDragStart}
                     className="cursor-move hover:shadow-lg transition-shadow"
                   >
                     <TaskCard
