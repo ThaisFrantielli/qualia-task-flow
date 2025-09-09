@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { Project, TaskWithAssigneeProfile } from '@/types';
+import type { Project, Task } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 interface ProjectCardProps {
   project: Project;
-  tasks: TaskWithAssigneeProfile[];
+  tasks: Task[];
 }
 
 const getInitials = (name: string | null): string => {
