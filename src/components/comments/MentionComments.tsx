@@ -65,13 +65,9 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
       return;
     }
 
-    // --- ALTERAÇÃO PRINCIPAL ---
-    // A chamada agora passa o user.id como o terceiro argumento esperado pelo hook.
-    const promise = addComment(
-      newComment.trim(),
-      authorName,
-      user.id
-    ).then(() => {
+    const promise = addComment(newComment.trim(), authorName, user.id, 'task', taskId);
+    
+    promise.then(() => {
       setNewComment('');
     });
 
