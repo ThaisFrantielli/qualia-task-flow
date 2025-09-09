@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { sendPushNotificationFCM } from '@/lib/sendPushNotificationFCM';
 import type { Comment } from '@/types';
 
 export const useComments = (taskId?: string) => {
@@ -97,25 +96,7 @@ export const useComments = (taskId?: string) => {
             }));
             await supabase.from('notifications').insert(notificationInserts);
 
-            // 2.3. Disparar push notification
-            for (const u of users as Array<{ id: string; full_name: string | null; push_token?: string | null }>) {
-              if (u.push_token) {
-                try {
-                  await sendPushNotificationFCM(
-                    u.push_token,
-                    'Você foi mencionado',
-                    `${authorName} mencionou você em um comentário${contextType === 'pos_venda' ? ' no Pós-Vendas' : ' na tarefa'}.`,
-                    {
-                      comment_id: data.id,
-                      context_type: contextType,
-                      context_id: contextId || taskId
-                    }
-                  );
-                } catch (e) {
-                  // Falha ao enviar push, ignora
-                }
-              }
-            }
+            // Push notification removido - Firebase não configurado
           }
         }
       }

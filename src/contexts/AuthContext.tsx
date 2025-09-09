@@ -1,7 +1,6 @@
 // src/contexts/AuthContext.tsx
 
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { requestNotificationPermission } from '@/lib/firebase';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
 // --- CORREÇÃO APLICADA AQUI ---
@@ -31,15 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .eq('id', currentSession.user.id)
           .single();
 
-        // Solicita permissão e salva o token de push notification
-        try {
-          const token = await requestNotificationPermission();
-          if (token && profileData?.push_token !== token) {
-            await supabase.from('profiles').update({ push_token: token }).eq('id', currentSession.user.id);
-          }
-        } catch (e) {
-          // Permissão negada ou erro, ignora
-        }
+        // Push notification removido - Firebase não configurado
 
         setUser({
           ...currentSession.user,
