@@ -64,7 +64,7 @@ const NotificationCenter = () => {
                   Nenhuma notificação
                 </div>
               ) : (
-                notifications.map((notification) => (
+                notifications.map((notification: any) => (
                   <div
                     key={notification.id}
                     className={`p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
