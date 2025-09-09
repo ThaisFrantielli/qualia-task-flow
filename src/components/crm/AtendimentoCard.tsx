@@ -1,12 +1,21 @@
 // src/components/crm/AtendimentoCard.tsx
 
 import React from 'react';
-import { AtendimentoComAssignee } from '@/types';
+
+// --- CORREÇÃO APLICADA AQUI ---
+// O tipo 'AtendimentoComAssignee' provavelmente vem de um arquivo de tipos,
+// e não do hook 'useAtendimentos'.
+//
+// LINHA ANTIGA (INCORRETA):
+// import { AtendimentoComAssignee } from '@/hooks/useAtendimentos';
+//
+// LINHA NOVA (CORRIGIDA):
+import { AtendimentoComAssignee } from '@/types/index'; // Ou apenas '@/types', dependendo da sua configuração
 
 // Props que o componente espera receber
 interface AtendimentoCardProps {
   atendimento: AtendimentoComAssignee;
-  onClick: (id: number) => void; // Exemplo de função para quando o card for clicado
+  onClick: (id: string) => void; // Exemplo de função para quando o card for clicado
 }
 
 /**
