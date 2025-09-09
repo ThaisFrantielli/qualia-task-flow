@@ -5,14 +5,14 @@ import type { Database } from '@/types/supabase';
 type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
 import type { Task, UserProfile } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { FileText, Users, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import DelegationForm from './DelegationForm';
 import AtendimentoTimeline from './AtendimentoTimeline';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -23,19 +23,6 @@ type TaskWithAssigneeProfile = Task & {
   assignee: Pick<UserProfile, 'full_name' | 'avatar_url'> | null;
 };
 
-interface StepIndicatorProps {
-  icon: React.ElementType;
-  label: string;
-  isActive: boolean;
-  isCompleted: boolean;
-  onClick: () => void;
-}
-const StepIndicator: React.FC<StepIndicatorProps> = ({ icon: Icon, label, isActive, isCompleted, onClick }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 p-3 rounded-md text-left transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
-    {isCompleted ? <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" /> : <Icon className={`h-5 w-5 ${isActive ? 'text-primary' : 'text-muted-foreground'} flex-shrink-0`} />}
-    <span className={`font-medium ${isActive ? 'text-primary' : ''}`}>{label}</span>
-  </button>
-);
 
 interface AtendimentoDetailModalProps {
   atendimento: Atendimento | null;
@@ -163,11 +150,6 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
 
   const isAnalysisComplete = !!editableData.department;
   const isResolutionComplete = !!editableData.final_analysis && !!editableData.resolution_details;
-  const steps = [
-    { id: 'analysis', label: 'Análise Inicial', icon: FileText, isCompleted: isAnalysisComplete },
-    { id: 'delegations', label: 'Delegações', icon: Users, isCompleted: delegatedTasks.length > 0 },
-    { id: 'resolution', label: 'Resolução', icon: MessageSquare, isCompleted: isResolutionComplete },
-  ];
 
   // Exemplo de eventos mockados para a timeline (substitua por fetch real depois)
   const timelineEvents = [
