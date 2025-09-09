@@ -20,7 +20,12 @@ export const useAttachments = (taskId?: string) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setAttachments(data || []);
+      setAttachments(data?.map(attachment => ({
+        ...attachment,
+        content_type: 'application/octet-stream',
+        uploaded_by: 'system',
+        file_size: attachment.file_size || 0
+      })) || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar anexos');
     } finally {
