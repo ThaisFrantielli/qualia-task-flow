@@ -90,6 +90,39 @@ export type Attachment = {
   created_at: string;
 };
 
+// Tipos para atendimentos e pesquisas
+export type Atendimento = {
+  id: number;
+  customer_name: string;
+  issue: string;
+  status: 'Solicitação' | 'Em Análise' | 'Resolvido';
+  created_at: string;
+};
+
+export type Survey = {
+  id: string;
+  title: string;
+  type: string;
+  questions: any[];
+  created_at: string;
+};
+
+export type SurveyResponse = {
+  id: number;
+  survey_id: string;
+  customer_name: string;
+  responses: any;
+  created_at: string;
+};
+
+export type Notification = {
+  id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+};
+
 // Tipos para inserção e atualização, agora usando 'PublicSchema'
 export type TaskInsert = PublicSchema['Tables']['tasks']['Insert'];
 export type TaskUpdate = PublicSchema['Tables']['tasks']['Update'];

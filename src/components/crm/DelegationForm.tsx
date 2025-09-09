@@ -31,7 +31,7 @@ const DelegationForm: React.FC<DelegationFormProps> = ({ atendimentoId, atendime
     if (error) { toast.error('Falha ao delegar tarefa', { description: error.message }); } 
     else {
       toast.success('Tarefa delegada com sucesso!');
-      await supabase.from('atendimentos').update({ status: 'Análise de Reclamação' }).eq('id', atendimentoId).eq('status', 'Solicitação');
+      await supabase.from('atendimentos').update({ status: 'Em Análise' }).eq('id', atendimentoId).eq('status', 'Solicitação');
       onTaskCreated();
       setAssigneeId('');
       setNotes('');
