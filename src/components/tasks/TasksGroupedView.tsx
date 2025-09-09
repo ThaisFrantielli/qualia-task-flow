@@ -16,8 +16,6 @@ const TasksGroupedView: React.FC<TasksGroupedViewProps> = ({
   groupedTasks,
   groupBy,
   onTaskClick,
-  updateTaskStatus,
-  onAssigneeChange, // Recebendo a prop
   availableAssignees // Recebendo a prop
 }) => {
   const getGroupTitle = (key: string) => {

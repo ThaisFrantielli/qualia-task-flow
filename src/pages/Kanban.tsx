@@ -1,5 +1,4 @@
 
-import React from 'react';
 import DragDropKanban from '@/components/DragDropKanban';
 
 const Kanban = () => {

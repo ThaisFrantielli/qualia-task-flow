@@ -14,7 +14,7 @@ function getInitials(name: string | null) {
 }
 
 const CustomerManagementPage: React.FC = () => {
-  const { customers, loading, error } = useCustomers();
+  const { customers } = useCustomers();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [tab, setTab] = useState<string>('Atividades');
   const [search, setSearch] = useState('');
@@ -38,7 +38,7 @@ const CustomerManagementPage: React.FC = () => {
   const { activities } = useCustomerActivities(idStr);
 
   // Exemplo de integração de ação rápida
-  const handleCreateActivity = (data: any) => {
+  const handleCreateActivity = () => {
     alert('Atividade criada! (mock)');
   };
 

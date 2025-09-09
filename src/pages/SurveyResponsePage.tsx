@@ -119,7 +119,15 @@ const SurveyResponsePage = () => {
     }
     setIsSubmitting(true);
     try {
-      await supabase.from('survey_responses').insert({ survey_id: survey.id, csat_score: formState.csatScore, nps_score: formState.npsScore, influencing_factors: formState.influencingFactors, other_factor_text: formState.otherFactorText, feedback_comment: formState.feedbackComment });
+      await supabase.from('survey_responses').insert({ 
+        survey_id: survey.id, 
+        survey_type: survey.type,
+        csat_score: formState.csatScore, 
+        nps_score: formState.npsScore, 
+        influencing_factors: formState.influencingFactors, 
+        other_factor_text: formState.otherFactorText, 
+        feedback_comment: formState.feedbackComment 
+      });
       await supabase.from('surveys').update({ responded_at: new Date().toISOString() }).eq('id', survey.id);
       
       localStorage.removeItem(localStorageKey);
