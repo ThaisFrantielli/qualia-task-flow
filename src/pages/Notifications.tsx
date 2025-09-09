@@ -1,6 +1,6 @@
 // src/pages/Notifications.tsx
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, Check, Trash2, Clock, AlertCircle, Info, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,13 +11,11 @@ import { useNotifications } from '@/hooks/useNotifications';
 import type { Notification } from '@/types'; // Import the Notification type
 
 const Notifications = () => {
-  const { notifications, loading, error, markAsRead, markAllAsRead, deleteNotification, clearAllNotifications, refetch } = useNotifications(); // Include clearAllNotifications
+  const { notifications, loading, markAsRead, markAllAsRead, unreadCount } = useNotifications();
 
   useEffect(() => {
-    if (refetch) {
-      refetch();
-    }
-  }, [refetch]);
+    // Effect can be added later if needed
+  }, []);
 
   // Function to format timestamp (using created_at)
   const formatTimestamp = (timestamp: string) => { // Expecting string from DB
@@ -92,25 +90,13 @@ const Notifications = () => {
   };
 
 
-  // Render loading or error state
+  // Render loading state
   if (loading) {
     return (
        <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-gray-600">Carregando notificações...</p>
-          </div>
-        </div>
-    );
-  }
-
-  if (error) {
-     return (
-       <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Erro ao Carregar Notificações</h2>
-            <p className="text-gray-600">{error}</p>
-            {refetch && <Button onClick={refetch} className="mt-4">Tentar Novamente</Button>}
           </div>
         </div>
     );
@@ -130,10 +116,6 @@ const Notifications = () => {
           <Button variant="outline" onClick={markAllAsRead} disabled={notifications.length === 0}>
             <Check className="w-4 h-4 mr-2" />
             Marcar todas como lidas
-          </Button>
-          <Button variant="outline" onClick={clearAllNotifications} disabled={notifications.length === 0}> {/* Use clearAllNotifications from hook */}
-            <Trash2 className="w-4 h-4 mr-2" />
-            Limpar todas
           </Button>
         </div>
       </div>
@@ -233,14 +215,6 @@ const Notifications = () => {
                           <Check className="w-4 h-4" />
                         </Button>
                       )}
-                      {/* Botão Excluir usa a função do hook */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteNotification(notification.id)} // Use deleteNotification from hook
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -283,27 +257,20 @@ const Notifications = () => {
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500">
-                        {formatTimestamp(notification.created_at)} {/* Use created_at */}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => markAsRead(notification.id)}
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteNotification(notification.id)} // Use deleteNotification
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
+                     <div className="flex items-center space-x-2">
+                       <span className="text-xs text-gray-500">
+                         {formatTimestamp(notification.created_at)} {/* Use created_at */}
+                       </span>
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         onClick={() => markAsRead(notification.id)}
+                       >
+                         <Check className="w-4 h-4" />
+                       </Button>
+                     </div>
+                   </div>
+                 </CardHeader>
               </Card>
             ))
           )}
@@ -348,26 +315,18 @@ const Notifications = () => {
                         {formatTimestamp(notification.created_at)} {/* Use created_at */}
                       </span>
                        {/* Botão Marcar como Lida usa a função do hook */}
-                      {!notification.read && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => markAsRead(notification.id)}
-                        >
-                          <Check className="w-4 h-4" />
-                        </Button>
-                      )}
-                      {/* Botão Excluir usa a função do hook */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteNotification(notification.id)} // Use deleteNotification
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
+                       {!notification.read && (
+                         <Button
+                           variant="ghost"
+                           size="sm"
+                           onClick={() => markAsRead(notification.id)}
+                         >
+                           <Check className="w-4 h-4" />
+                         </Button>
+                       )}
+                     </div>
+                   </div>
+                 </CardHeader>
               </Card>
             ))
           )}

@@ -90,14 +90,8 @@ export type Attachment = {
   created_at: string;
 };
 
-// Tipos para atendimentos e pesquisas
-export type Atendimento = {
-  id: number;
-  customer_name: string;
-  issue: string;
-  status: 'Solicitação' | 'Em Análise' | 'Resolvido';
-  created_at: string;
-};
+// Tipos para atendimentos e pesquisas usando database schema
+export type Atendimento = PublicSchema['Tables']['atendimentos']['Row'];
 
 export type Survey = {
   id: string;
@@ -113,6 +107,7 @@ export type SurveyResponse = {
   customer_name: string;
   responses: any;
   created_at: string;
+  survey_type: "comercial" | "entrega" | "manutencao" | "devolucao";
 };
 
 export type Notification = {
@@ -121,6 +116,7 @@ export type Notification = {
   message: string;
   read: boolean;
   created_at: string;
+  type: string;
 };
 
 // Tipos para inserção e atualização, agora usando 'PublicSchema'

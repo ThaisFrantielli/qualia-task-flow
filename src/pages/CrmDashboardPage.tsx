@@ -1,16 +1,14 @@
 // src/pages/CrmDashboardPage.tsx
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useAtendimentos } from '@/hooks/useAtendimentos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Headset, MessageCircleQuestion, AlertCircle, Clock, Filter, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DateRange } from 'react-day-picker'; // Para o seletor de data
 
 const CrmDashboardPage = () => {
   const { atendimentos, loading, error } = useAtendimentos();
-  const [date, setDate] = React.useState<DateRange | undefined>();
 
   // --- ANÁLISE DOS DADOS (similar ao que o Power BI faz) ---
   const stats = useMemo(() => {
@@ -132,7 +130,7 @@ const CrmDashboardPage = () => {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie data={stats.analiseFinal} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                  {stats.analiseFinal.map((entry, index) => (
+                  {stats.analiseFinal.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Database } from '@/types/supabase';
 type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
-import type { Task, UserProfile } from '@/types';
+// Removed unused imports
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -79,10 +79,10 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
   });
 
   const fetchDelegatedTasks = useCallback(async (atendimentoId: number) => {
-    const { error } = await supabase
-      .from('tasks')
-      .select('*, assignee:profiles!assignee_id(full_name, avatar_url)')
-      .eq('atendimento_id', atendimentoId);
+  const { error } = await supabase
+    .from('tasks')
+    .select('*, assignee:profiles!assignee_id(full_name, avatar_url)')
+    .eq('atendimento_id', atendimentoId);
     
     if (error) {
       toast.error("Erro ao buscar tarefas delegadas.", { description: error.message });
