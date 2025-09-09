@@ -19,11 +19,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AtendimentoComments from './AtendimentoComments';
 import AtendimentoAttachments from './AtendimentoAttachments';
 
-type TaskWithAssigneeProfile = Task & {
-  assignee: Pick<UserProfile, 'full_name' | 'avatar_url'> | null;
-};
-
-
 interface AtendimentoDetailModalProps {
   atendimento: Atendimento | null;
   onClose: () => void;
@@ -84,7 +79,7 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
   });
 
   const fetchDelegatedTasks = useCallback(async (atendimentoId: number) => {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('tasks')
       .select('*, assignee:profiles!assignee_id(full_name, avatar_url)')
       .eq('atendimento_id', atendimentoId);
@@ -103,7 +98,7 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
         final_analysis: atendimento.final_analysis ?? null,
         resolution_details: atendimento.resolution_details || '',
       });
-            fetchDelegatedTasks(atendimento.id);
+      fetchDelegatedTasks(atendimento.id);
     }
   }, [atendimento, fetchDelegatedTasks]);
 
@@ -187,13 +182,7 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
               <div className="text-sm text-gray-900"><b>Cliente:</b> {atendimento.client_name}</div>
               <div className="text-sm text-gray-900"><b>Contato:</b> {atendimento.contact_person} {atendimento.client_phone && `(${atendimento.client_phone})`}</div>
               <div className="text-sm text-gray-900"><b>Status:</b> {atendimento.status}</div>
-              <div className="text-sm text-gray-900"><b>Motivo:</b> {atendimento.reason}</div>
-              <div className="text-sm text-gray-900"><b>Departamento:</b> {atendimento.department}</div>
-              <div className="text-sm text-gray-900"><b>Responsável:</b> {atendimento.assignee_id}</div>
               <div className="text-sm text-gray-900"><b>Criado em:</b> {new Date(atendimento.created_at).toLocaleString('pt-BR')}</div>
-              <div className="text-sm text-gray-900"><b>Atualizado em:</b> {new Date(atendimento.updated_at).toLocaleString('pt-BR')}</div>
-              <div className="text-sm text-gray-900"><b>Origem:</b> {atendimento.lead_source}</div>
-              <div className="text-sm text-gray-900"><b>Resumo:</b> {atendimento.summary}</div>
             </div>
             <div className="mt-6">
               <DelegationForm atendimentoId={atendimento.id} atendimentoTitle={atendimento.client_name || ''} onTaskCreated={() => fetchDelegatedTasks(atendimento.id)} />

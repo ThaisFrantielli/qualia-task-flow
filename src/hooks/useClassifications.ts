@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { TaskCategory } from '@/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useClassifications = () => {
   const queryClient = useQueryClient();

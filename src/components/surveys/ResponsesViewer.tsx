@@ -45,7 +45,12 @@ export const ResponsesViewer = () => {
         return;
       }
 
-      setResponses(data as SurveyResponse[] || []);
+      setResponses(data?.map(response => ({
+        ...response,
+        id: response.id.toString(),
+        customer_name: 'N/A',
+        responses: {}
+      })) as SurveyResponse[] || []);
     } catch (error) {
       console.error('Error fetching responses:', error);
       toast({
@@ -72,7 +77,7 @@ export const ResponsesViewer = () => {
     return labels[type] || type;
   };
 
-  const renderResponse = (questionId: string, response: any, questionText: string) => {
+  const renderResponse = (response: any, questionText: string) => {
     if (typeof response === 'number') {
       if (questionText.toLowerCase().includes('nps') || questionText.toLowerCase().includes('recomenda')) {
         return <NPSRating value={response} onChange={() => {}} />;
@@ -169,7 +174,7 @@ export const ResponsesViewer = () => {
                           <p className="text-sm font-medium mb-1">
                             {questionId.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                           </p>
-                          {renderResponse(questionId, answer, questionId)}
+                          {renderResponse(answer, questionId)}
                         </div>
                       ))}
                     </div>
