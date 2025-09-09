@@ -72,9 +72,7 @@ const motivosReclamacao: Atendimento['reason'][] = [
 ];
 
 const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendimento, onClose, onUpdate }) => {
-  const [delegatedTasks, setDelegatedTasks] = useState<TaskWithAssigneeProfile[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeStep, setActiveStep] = useState('analysis');
   
   // reason deve ser do tipo enum ou string vazia
   const [editableData, setEditableData] = useState({
@@ -93,8 +91,6 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
     
     if (error) {
       toast.error("Erro ao buscar tarefas delegadas.", { description: error.message });
-    } else {
-      setDelegatedTasks(data || []);
     }
   }, []);
 
@@ -107,8 +103,7 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
         final_analysis: atendimento.final_analysis ?? null,
         resolution_details: atendimento.resolution_details || '',
       });
-      setActiveStep('analysis');
-      fetchDelegatedTasks(atendimento.id);
+            fetchDelegatedTasks(atendimento.id);
     }
   }, [atendimento, fetchDelegatedTasks]);
 
@@ -147,9 +142,6 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
   };
   
   if (!atendimento) return null;
-
-  const isAnalysisComplete = !!editableData.department;
-  const isResolutionComplete = !!editableData.final_analysis && !!editableData.resolution_details;
 
   // Exemplo de eventos mockados para a timeline (substitua por fetch real depois)
   const timelineEvents = [

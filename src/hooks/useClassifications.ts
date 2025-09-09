@@ -1,25 +1,25 @@
-// src/hooks/useClassifications.ts
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { TaskCategory } from '@/types';
-
-const fetchClassifications = async (): Promise<TaskCategory[]> => {
-  const { data, error } = await supabase.from('task_categories').select('*').order('name');
-  if (error) throw new Error(error.message);
-  return data;
-};
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export const useClassifications = () => {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery<TaskCategory[], Error>({
+  const { data: classifications = [], isLoading } = useQuery({
     queryKey: ['classifications'],
-    queryFn: fetchClassifications,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_categories')
+        .select('*')
+        .order('name');
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
   });
 
   const createClassification = useMutation({
-    mutationFn: async (newClassification: Partial<Omit<TaskCategory, 'id' | 'created_at'>>) => {
+    mutationFn: async (newClassification: { name: string; color?: string; description?: string }) => {
       const { data, error } = await supabase.from('task_categories').insert(newClassification).select().single();
       if (error) throw new Error(error.message);
       return data;
@@ -29,10 +29,14 @@ export const useClassifications = () => {
     },
   });
 
-  // --- MUTATION DE ATUALIZAÇÃO ADICIONADA ---
   const updateClassification = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<TaskCategory> }) => {
-      const { data, error } = await supabase.from('task_categories').update(updates).eq('id', id).select().single();
+    mutationFn: async ({ id, updates }: { id: string; updates: { name?: string; color?: string; description?: string } }) => {
+      const { data, error } = await supabase
+        .from('task_categories')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw new Error(error.message);
       return data;
     },
@@ -52,11 +56,10 @@ export const useClassifications = () => {
   });
 
   return {
-    classifications: data ?? [],
+    classifications,
     isLoading,
-    error,
     create: createClassification.mutateAsync,
-    update: updateClassification.mutateAsync, // <-- Exportando a nova função
+    update: updateClassification.mutateAsync,
     delete: deleteClassification.mutateAsync,
   };
 };
