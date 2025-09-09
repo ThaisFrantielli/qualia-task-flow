@@ -1,135 +1,65 @@
-// src/types/index.ts (VERSÃO FINAL E CORRIGIDA)
+// src/types/index.ts (VERSÃO FINAL E COMPLETA)
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
-import type { Database as SupabaseDatabase } from './supabase';
+import type { Database as SupabaseDatabase } from './supabase'; // Caminho para os tipos gerados pelo Supabase
 
+// --- Tipos Utilitários e de Base ---
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+type PublicSchema = SupabaseDatabase['public'];
 
-// --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
-// 1. Exportamos o tipo Database COMPLETO, sem extrair 'public'.
-export type Database = SupabaseDatabase;
-// 2. Criamos um tipo auxiliar para o schema 'public'.
-//    Todos os outros tipos neste arquivo usarão este 'PublicSchema'.
-export type PublicSchema = Database['public'];
-// --- FIM DA CORREÇÃO ---
-
-
-// Filtros para tarefas
-export interface AllTaskFilters {
-  searchTerm?: string;
-  statusFilter?: 'all' | 'todo' | 'progress' | 'done' | 'late';
-  priorityFilter?: 'all' | 'low' | 'medium' | 'high';
-  assigneeFilter?: 'all' | string;
-  projectFilter?: 'all' | string;
-  tagFilter?: 'all' | string;
-  archiveStatusFilter?: 'active' | 'archived' | 'all';
-}
-
-// --- Tipos base extraídos da definição correta ---
-export type TaskCategory = PublicSchema['Tables']['task_categories']['Row'];
-export type Task = PublicSchema['Tables']['tasks']['Row'];
-export type Portfolio = PublicSchema['Tables']['portfolios']['Row'];
-export type Project = PublicSchema['Tables']['projects']['Row'] & { portfolio_id?: string | null, team_id?: string | null, privacy?: string | null };
-export type Profile = PublicSchema['Tables']['profiles']['Row'] & { push_token?: string | null };
-export type Subtask = PublicSchema['Tables']['subtasks']['Row'];
-export type TaskHistoryEntry = PublicSchema['Tables']['task_history']['Row'];
+// --- Tipos de Usuário e Autenticação ---
+export type Profile = PublicSchema['Tables']['profiles']['Row'];
 export type Team = PublicSchema['Tables']['teams']['Row'];
-export type ProjectMember = PublicSchema['Tables']['project_members']['Row'];
+export type AppUser = SupabaseUser & Omit<Profile, 'id'>;
 
-export interface Permissoes {
-  [key: string]: boolean | string | number;
-}
+// --- Tipos de Tarefas e Projetos ---
+export type Task = PublicSchema['Tables']['tasks']['Row'];
+export type Project = PublicSchema['Tables']['projects']['Row'];
+export type Comment = PublicSchema['Tables']['comments']['Row'];
+// Adicione outros tipos de tarefas/projetos aqui conforme necessário
 
-export type ProfileWithPermissions = Omit<Profile, 'permissoes'> & {
-  permissoes: Permissoes | null;
-};
+// Tipos para inserção e atualização de dados
+export type TaskInsert = PublicSchema['Tables']['tasks']['Insert'];
+export type TaskUpdate = PublicSchema['Tables']['tasks']['Update'];
 
-// Tipo para usuário autenticado com informações do perfil
-export type AppUser = SupabaseUser & Partial<Profile>;
-export type UserProfile = Profile;
-export type User = Profile;
-
-// Tipo para tarefa com detalhes adicionais
+// Tipo "enriquecido" com dados de relacionamentos (JOINs)
 export type TaskWithDetails = Task & {
   assignee: Profile | null;
   project: Project | null;
-  category: TaskCategory | null;
-  subtasks?: SubtaskWithDetails[];
-  comments?: Comment[];
-  attachments?: Attachment[];
-  subtasks_count?: number;
-  completed_subtasks_count?: number;
+  // Adicione outras relações aqui
 };
 
-// Tipo para subtarefa com detalhes adicionais
-export type SubtaskWithDetails = Subtask & {
-  assignee?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null;
-  secondary_assignee?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null;
-};
-
-// Tipo para comentários (mantido manualmente, pois pode ter lógica customizada)
-export type Comment = {
-  id: string;
-  task_id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-  author_name: string | null;
-};
-
-// Tipo para anexos (mantido manualmente)
-export type Attachment = {
-  id: string;
-  task_id: string;
-  filename: string;
-  file_path: string;
-  file_size: number;
-  content_type: string;
-  uploaded_by: string;
-  created_at: string;
-};
-
-// Tipos para atendimentos e pesquisas usando database schema
+// --- Tipos de CRM e Atendimento ---
 export type Atendimento = PublicSchema['Tables']['atendimentos']['Row'];
+export type Cliente = PublicSchema['Tables']['clientes']['Row']; // Adicionada exportação para uso global
 
-export type Cliente = {
-  nome: string | null;
-};
-
+// Tipo para atendimento com os dados do cliente e do responsável (assignee) aninhados.
+// Esta é a estrutura ideal para usar em componentes como AtendimentoCard.
 export type AtendimentoComAssignee = Atendimento & {
-  assignee: Pick<Profile, 'full_name' | 'avatar_url'> | null;
   cliente: Cliente | null;
-  descricao: string | null;
+  assignee: Profile | null;
 };
 
-export type Survey = {
-  id: string;
-  title: string;
-  type: string;
-  questions: any[];
-  created_at: string;
+// Tipo para representar uma interação na timeline de um atendimento
+export type Interaction = {
+  id: number | string;
+  author: string;
+  date: string;
+  text: string;
+  type: 'cliente' | 'resposta_publica' | 'nota_interna';
 };
 
-export type SurveyResponse = {
-  id: number;
-  survey_id: string;
-  customer_name: string;
-  responses: any;
-  created_at: string;
-  survey_type: "comercial" | "entrega" | "manutencao" | "devolucao";
+// Tipo completo para a tela de detalhes do atendimento
+export type AtendimentoDetail = Atendimento & {
+  cliente: Cliente | null; // Reutilizando o tipo Cliente
+  assignee: Profile | null; // Reutilizando o tipo Profile
+  interactions: Interaction[];
+  // Adicione outras relações se necessário
 };
 
-export type Notification = {
-  id: string;
-  title: string;
-  message: string;
-  read: boolean;
-  created_at: string;
-  type: string;
-};
-
-// Tipos para inserção e atualização, agora usando 'PublicSchema'
-export type TaskInsert = PublicSchema['Tables']['tasks']['Insert'];
-export type TaskUpdate = PublicSchema['Tables']['tasks']['Update'];
-export type SubtaskInsert = PublicSchema['Tables']['subtasks']['Insert'];
+// --- Tipos de Filtros ---
+export interface AllTaskFilters {
+  searchTerm?: string;
+  status?: 'all' | string;
+  priority?: 'all' | string;
+}
