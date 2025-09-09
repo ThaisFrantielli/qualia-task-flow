@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database, Profile } from '@/types';
 
-// O tipo base para uma entrada de histórico, extraído corretamente
-type HistoryEntry = Database['Tables']['task_history']['Row'];
+// O tipo base para uma entrada de histórico, extraído corretamente  
+type HistoryEntry = Database['public']['Tables']['task_history']['Row'];
 
 // --- CORREÇÃO DO TIPO: 'profiles' agora é um objeto, não um array ---
 // Este tipo agora corresponde exatamente ao que o Supabase retorna.

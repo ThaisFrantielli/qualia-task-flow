@@ -1,6 +1,6 @@
 // src/components/settings/ClassificationManager.tsx
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useClassifications } from '@/hooks/useClassifications';
 import type { TaskCategory } from '@/types';
 import { Button } from '@/components/ui/button';

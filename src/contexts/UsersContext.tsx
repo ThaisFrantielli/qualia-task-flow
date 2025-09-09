@@ -1,6 +1,6 @@
 // src/contexts/UsersContext.tsx
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Profile } from '@/types';
@@ -12,10 +12,23 @@ interface UsersContextType {
 
 const UsersContext = createContext<UsersContextType | undefined>(undefined);
 
-const fetchUsers = async (): Promise<Profile[]> => {
+const fetchUsers = async () => {
   const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email');
   if (error) throw new Error(error.message);
-  return data || [];
+  return data?.map(user => ({
+    id: user.id,
+    full_name: user.full_name,
+    avatar_url: user.avatar_url,
+    email: user.email,
+    funcao: null,
+    nivelAcesso: null,
+    permissoes: null,
+    role: 'user',
+    push_token: null,
+    updated_at: new Date().toISOString(),
+    username: null,
+    website: null
+  })) || [];
 };
 
 export const UsersProvider = ({ children }: { children: ReactNode }) => {
