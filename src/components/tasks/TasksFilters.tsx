@@ -20,7 +20,6 @@ interface TasksFiltersProps {
 const TasksFilters: React.FC<TasksFiltersProps> = ({
   filters,
   onFilterChange,
-  onClearFilters,
   isFocusMode,         // <-- 4. Receber as novas props
   onToggleFocusMode,
 }) => {
