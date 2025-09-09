@@ -1,24 +1,21 @@
 // src/pages/Dashboard.tsx
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle, Clock, AlertTriangle, Target, Users } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, Target } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
-import { useProjects } from '@/hooks/useProjects';
 import ProductivityMetrics from '@/components/dashboard/ProductivityMetrics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
-import type { Task, Project } from '@/types';
+import type { Task } from '@/types';
 
 const Dashboard = () => {
   // --- CORREÇÃO APLICADA AQUI ---
   // 1. Desestruturamos 'tasks' e 'loading' diretamente do hook.
   // 2. Renomeamos 'loading' para 'tasksLoading' para evitar conflito com 'projectsLoading'.
-  const { tasks, loading: tasksLoading } = useTasks({}); 
-  const { projects, loading: projectsLoading } = useProjects();
+  const { tasks, loading: tasksLoading } = useTasks({});
 
-  if (tasksLoading || projectsLoading) {
+  if (tasksLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -31,7 +28,6 @@ const Dashboard = () => {
 
   // O '?? []' garante que, se 'tasks' for undefined, usamos um array vazio para evitar erros.
   const safeTasks = tasks ?? [];
-  const safeProjects = projects ?? [];
   
   const totalTasks = safeTasks.length;
   const completedTasks = safeTasks.filter((task: Task) => task.status === 'done').length;
@@ -44,40 +40,7 @@ const Dashboard = () => {
     return new Date(task.due_date) < today;
   }).length;
 
-  const totalProjects = safeProjects.filter(p => p.id !== 'all').length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-  const recentTasks = [...safeTasks]
-    .sort((a: Task, b: Task) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-    .slice(0, 5);
-
-  const upcomingDeadlines = safeTasks
-    .filter((task: Task) => task.due_date && task.status !== 'done')
-    .sort((a: Task, b: Task) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-    .slice(0, 5);
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-  };
-
-  const getStatusColor = (status: string | null) => {
-    switch (status) {
-      case 'todo': return 'bg-gray-100 text-gray-800';
-      case 'progress': return 'bg-blue-100 text-blue-800';
-      case 'done': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPriorityColor = (priority: string | null) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   return (
     <div className="p-6 space-y-6">
