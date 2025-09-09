@@ -1,6 +1,6 @@
 // Função serverless de exemplo para enviar push notification via FCM
 // Pode ser adaptada para rodar em Vercel, AWS Lambda, etc.
-import fetch from 'node-fetch';
+// Using browser's native fetch API
 
 const FCM_SERVER_KEY = 'SUA_SERVER_KEY';
 
