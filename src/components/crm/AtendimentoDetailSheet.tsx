@@ -7,18 +7,11 @@ import type { AtendimentoDetail, Interaction } from '@/types';
 
 // Componentes da UI
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { User, Mail, Phone, Building, AlertCircle, CheckCircle, MoreHorizontal } from 'lucide-react';
-
-// Componentes Customizados
-import ItemConversa from './detalhes/ItemConversa';
-import Composer from './detalhes/Composer';
-import StatusTimeline from './detalhes/StatusTimeline';
+import { AlertCircle, CheckCircle, MoreHorizontal } from 'lucide-react';
 
 interface AtendimentoDetailSheetProps {
   atendimentoId: number | null;
@@ -74,7 +67,7 @@ const SheetSkeleton: React.FC = () => (
     </>
 );
 
-const AtendimentoDetailSheet: React.FC<AtendimentoDetailSheetProps> = ({ atendimentoId, isOpen, onOpenChange, onUpdate }) => {
+const AtendimentoDetailSheet: React.FC<AtendimentoDetailSheetProps> = ({ atendimentoId, isOpen, onOpenChange }) => {
   const { data: atendimento, isLoading, isError, error } = useQuery({
     queryKey: ['atendimentoDetail', atendimentoId],
     queryFn: () => {
@@ -142,16 +135,39 @@ const AtendimentoDetailSheet: React.FC<AtendimentoDetailSheetProps> = ({ atendim
               <div className="lg:col-span-2 flex flex-col overflow-hidden">
                 <ScrollArea className="flex-1">
                     <div className="p-4 space-y-6">
-                        <StatusTimeline currentStatus={atendimento.status} />
-                        <Composer />
-                        <div className="space-y-4">{atendimento.interactions.map((inter: Interaction) => <ItemConversa key={inter.id} interaction={inter}/>)}</div>
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold">Timeline do Atendimento</h3>
+                          <div className="text-sm text-muted-foreground">
+                            Status atual: {atendimento.status}
+                          </div>
+                          {atendimento.interactions.map((inter: Interaction) => (
+                            <div key={inter.id} className="border-l-2 border-muted pl-4">
+                              <div className="font-medium">{inter.author}</div>
+                              <div className="text-sm text-muted-foreground">{inter.date}</div>
+                              <div className="mt-1">{inter.text}</div>
+                            </div>
+                          ))}
+                        </div>
                     </div>
                 </ScrollArea>
               </div>
-              <ScrollArea className="lg:col-span-1 border-l bg-gray-50/50">
+              <ScrollArea className="lg:col-span-1 border-l bg-muted/30">
                 <div className="p-4 space-y-6">
-                    <div>...</div> {/* Conteúdo do cliente */}
-                    <div>...</div> {/* Conteúdo das propriedades */}
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Informações do Cliente</h4>
+                      <div className="text-sm space-y-1">
+                        <div><span className="font-medium">Nome:</span> {atendimento.client_name}</div>
+                        <div><span className="font-medium">Email:</span> {atendimento.client_email}</div>
+                        <div><span className="font-medium">Telefone:</span> {atendimento.client_phone}</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Detalhes do Atendimento</h4>
+                      <div className="text-sm space-y-1">
+                        <div><span className="font-medium">Status:</span> {atendimento.status}</div>
+                        <div><span className="font-medium">Resumo:</span> {atendimento.summary}</div>
+                      </div>
+                    </div>
                 </div>
               </ScrollArea>
             </div>

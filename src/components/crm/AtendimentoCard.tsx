@@ -23,16 +23,16 @@ interface AtendimentoCardProps {
  */
 const AtendimentoCard: React.FC<AtendimentoCardProps> = ({ atendimento, onClick }) => {
   // Desestruturando os dados do atendimento para facilitar o uso
-  const { id, descricao, cliente, assignee } = atendimento;
+  const { id, summary, cliente, assignee } = atendimento;
 
   return (
     <div 
       className="p-4 mb-4 border rounded-lg shadow-sm cursor-pointer hover:bg-gray-50"
-      onClick={() => onClick(id)}
+      onClick={() => onClick(String(id))}
     >
       <div className="flex justify-between items-start">
         {/* Usando um fallback '??' caso o cliente não tenha nome */}
-        <h3 className="font-bold text-lg">{cliente?.nome ?? 'Cliente não identificado'}</h3>
+        <h3 className="font-bold text-lg">{cliente?.nome ?? atendimento.client_name ?? 'Cliente não identificado'}</h3>
         
         {/* Exibindo a foto do responsável (assignee) se existir */}
         {assignee?.avatar_url && (
@@ -45,7 +45,7 @@ const AtendimentoCard: React.FC<AtendimentoCardProps> = ({ atendimento, onClick 
       </div>
 
       <p className="text-gray-700 mt-2 truncate">
-        {descricao ?? 'Sem descrição'}
+        {summary ?? 'Sem descrição'}
       </p>
 
       <div className="mt-4 text-sm text-gray-500">
