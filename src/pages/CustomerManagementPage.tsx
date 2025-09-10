@@ -45,21 +45,31 @@ const CustomerManagementPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Barra superior */}
-      <header className="bg-white shadow flex items-center px-8 py-4 justify-between">
-        <h1 className="text-2xl font-bold text-blue-900">Gerenciamento de Clientes Pós-Venda</h1>
-        <div className="flex items-center gap-4">
-          <input
-            type="text"
-            placeholder="Buscar cliente..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="border rounded px-3 py-1 text-sm focus:outline-none focus:ring"
-          />
-          <button className="bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition">Novo Cliente</button>
-          <span className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-blue-900 font-bold">T</span>
+      <header className="bg-background shadow-sm border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center px-4 sm:px-8 py-4 gap-4 sm:justify-between">
+          <div className="flex-shrink-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Gerenciamento de Clientes Pós-Venda</h1>
+          </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+            <input
+              type="text"
+              placeholder="Buscar cliente..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary min-w-0 flex-1 sm:flex-none sm:w-64"
+            />
+            <div className="flex items-center gap-2">
+              <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition text-sm whitespace-nowrap">
+                Novo Cliente
+              </button>
+              <span className="w-8 h-8 bg-muted rounded-full flex items-center justify-center text-foreground font-bold text-sm flex-shrink-0">
+                T
+              </span>
+            </div>
+          </div>
         </div>
       </header>
-      <main className="flex-1 grid grid-cols-12 gap-6 px-8 py-6">
+      <main className="flex-1 grid grid-cols-12 gap-6 px-4 sm:px-8 py-6">
         <CustomerList
           customers={filtered.map(c => ({
             id: c.id,
