@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-import type { PublicSchema } from '@/types';
-import type { Subtask, SubtaskWithDetails } from '@/types';
+import type { PublicSchema, SubtaskWithDetails } from '@/types';
 
-// A declaração local é mantida, pois é a fonte da verdade
+// Tipos do Supabase para operações da base de dados
 type SubtaskInsert = PublicSchema['Tables']['subtasks']['Insert'];
+type SubtaskUpdate = PublicSchema['Tables']['subtasks']['Update'];
 
 const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
   if (!taskId) return [];
@@ -41,7 +41,7 @@ export const useSubtasks = (taskId: string | null) => {
   });
 
   const updateSubtask = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Subtask> }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: SubtaskUpdate }) => {
       const { data, error } = await supabase.from('subtasks').update(updates).eq('id', id).select().single();
       if (error) throw new Error(error.message);
       return data;
@@ -97,7 +97,7 @@ export const useSubtask = (subtaskId: string | null) => {
   });
 
   const updateSubtask = useMutation({
-    mutationFn: async (updates: Partial<Subtask>) => {
+    mutationFn: async (updates: SubtaskUpdate) => {
       if (!subtaskId) throw new Error('ID da subtarefa não fornecido.');
       const { data: updatedData, error: updateError } = await supabase
         .from('subtasks')
