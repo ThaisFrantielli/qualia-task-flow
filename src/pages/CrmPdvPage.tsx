@@ -34,9 +34,9 @@ interface KanbanColumnProps {
 // CORREÇÃO: Definição completa e correta do componente KanbanColumn
 // O erro foi corrigido garantindo que o componente retorne JSX.
 const COLUMN_COLORS: Record<KanbanColumnStatus, string> = {
-  'Solicitação': 'bg-blue-50 border-blue-300',
-  'Em Análise': 'bg-yellow-50 border-yellow-300',
-  'Resolvido': 'bg-green-50 border-green-300',
+  'Solicitação': 'bg-status-pending/10 border-status-pending',
+  'Em Análise': 'bg-status-analysis/10 border-status-analysis',
+  'Resolvido': 'bg-status-resolved/10 border-status-resolved',
 };
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop, onCardClick }) => {
@@ -60,7 +60,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
           {title} <span className="text-xs text-muted-foreground">({atendimentos.length})</span>
         </h3>
         {atrasados > 0 && (
-          <span className="ml-2 px-2 py-0.5 rounded-full bg-red-200 text-red-800 text-xs font-bold" title="Atrasados">{atrasados} ⚠️</span>
+          <span className="ml-2 px-2 py-0.5 rounded-full bg-destructive/20 text-destructive text-xs font-bold" title="Atrasados">{atrasados} ⚠️</span>
         )}
       </div>
       <div className="h-full overflow-y-auto pr-2 space-y-4">
@@ -154,7 +154,26 @@ const CrmPdvPage = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Carregando atendimentos...</div>;
+  if (loading) return (
+    <div className="p-6 space-y-6">
+      <div className="animate-pulse">
+        <div className="h-8 bg-muted rounded w-1/3 mb-2"></div>
+        <div className="h-4 bg-muted rounded w-1/2"></div>
+      </div>
+      <div className="flex gap-4">
+        {[1,2,3].map(i => (
+          <div key={i} className="flex-1 space-y-3">
+            <div className="h-6 bg-muted rounded"></div>
+            <div className="space-y-2">
+              {[1,2,3].map(j => (
+                <div key={j} className="h-24 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
   if (error) return <div className="p-6 text-red-500">Erro ao carregar atendimentos: {error}</div>;
 
   return (

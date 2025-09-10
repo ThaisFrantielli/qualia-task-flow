@@ -53,7 +53,21 @@ export default {
     				foreground: 'hsl(var(--card-foreground))'
     			},
     			sidebar: { /* ... */ },
-    			chart: { /* ... */ }
+			chart: { /* ... */ },
+			status: {
+				pending: {
+					DEFAULT: 'hsl(var(--status-pending))',
+					background: 'hsl(var(--status-pending-bg))'
+				},
+				analysis: {
+					DEFAULT: 'hsl(var(--status-analysis))',
+					background: 'hsl(var(--status-analysis-bg))'
+				},
+				resolved: {
+					DEFAULT: 'hsl(var(--status-resolved))',
+					background: 'hsl(var(--status-resolved-bg))'
+				}
+			}
     		},
     		borderRadius: {
     			lg: 'var(--radius)',
