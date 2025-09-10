@@ -103,7 +103,7 @@ const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess }) 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label htmlFor="type">Tipo de Pesquisa *</Label>
-            <Select onValueChange={(value: Survey['type']) => handleChange('type', value)}>
+            <Select onValueChange={(value: string) => handleChange('type', value)}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="comercial">Pós-Contrato (Avaliação Comercial)</SelectItem>
