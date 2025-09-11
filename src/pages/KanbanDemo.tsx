@@ -1,6 +1,6 @@
 
 import { useAtendimentosKanban } from "../hooks/useAtendimentosKanban";
-import { KanbanMetricCard } from "../components/KanbanMetricCard";
+import { AnimatedKPICard } from "../components/AnimatedKPICard";
 import KanbanTaskCard from "../components/KanbanTaskCard";
 import { ClipboardDocumentListIcon, ExclamationTriangleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 
@@ -32,7 +32,7 @@ export default function KanbanDemo() {
     status: getStatusKey(a.status as string),
     avatar: a.client_name ? a.client_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0,2) : "-",
     motivo: a.tipo_atendimento || "-",
-  // campos extras removidos para compatibilidade
+    created_at: a.created_at,
   })) : [
     {
       id: 1,
@@ -42,10 +42,7 @@ export default function KanbanDemo() {
       status: "solicitacao",
       avatar: "TC",
       motivo: "Solicitação",
-  // prioridade: "Urgente",
-  // atrasado: true,
-  // anexos: 2,
-  // comentarios: 1,
+      created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(), // 3 dias atrás (urgente)
     },
     {
       id: 2,
@@ -55,10 +52,7 @@ export default function KanbanDemo() {
       status: "solicitacao",
       avatar: "S",
       motivo: "Solicitação",
-  // prioridade: "Média",
-  // atrasado: false,
-  // anexos: 0,
-  // comentarios: 0,
+      created_at: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(), // 1.5 dias atrás (médio)
     },
     {
       id: 3,
@@ -68,10 +62,7 @@ export default function KanbanDemo() {
       status: "solicitacao",
       avatar: "X",
       motivo: "Solicitação",
-  // prioridade: "Baixa",
-  // atrasado: false,
-  // anexos: 1,
-  // comentarios: 2,
+      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 horas atrás (normal)
     },
   ];
 
@@ -80,6 +71,13 @@ export default function KanbanDemo() {
   const emAberto = cards.filter((c) => c.status === "solicitacao" || c.status === "em_analise").length;
   const resolvidos = cards.filter((c) => c.status === "resolvido").length;
   const atrasados = cards.filter((c) => c.status === "atrasado").length;
+
+  // Dados simulados de sparkline para mostrar tendências
+  const sparklineData = {
+    emAberto: [12, 15, 13, 18, 16, emAberto],
+    resolvidos: [8, 10, 12, 15, 18, resolvidos],
+    atrasados: [2, 1, 3, 4, 2, atrasados]
+  };
 
   return (
     <div className="p-0 bg-gray-50 min-h-screen">
@@ -90,14 +88,44 @@ export default function KanbanDemo() {
           </h1>
           <p className="text-gray-500 mt-1 text-sm">Gerencie o fluxo de atendimentos e reclamações de forma visual e intuitiva.</p>
         </div>
-        {/* Painel de métricas */}
-        <div className="flex gap-4 mb-8">
-          <KanbanMetricCard value={emAberto} label="Em Aberto" color="text-blue-600" icon={<ClockIcon className="w-6 h-6" />} />
-          <KanbanMetricCard value={resolvidos} label="Resolvidos" color="text-green-600" icon={<CheckCircleIcon className="w-6 h-6" />} />
-          <KanbanMetricCard value={atrasados} label="Atrasados" color="text-red-600" icon={<ExclamationTriangleIcon className="w-6 h-6" />} highlight={atrasados > 0} />
-          <div className="flex flex-col justify-center ml-auto">
-            <span className="text-xs text-gray-400">Exibindo <span className="font-bold text-gray-700">{total}</span> tickets no total</span>
-          </div>
+        {/* Painel de métricas com animações */}
+        <div className="flex gap-6 mb-8 overflow-x-auto pb-2">
+          <AnimatedKPICard 
+            value={emAberto} 
+            label="Em Aberto" 
+            color="warning"
+            icon={<ClockIcon className="w-6 h-6" />}
+            trend="up"
+            trendValue="+12%"
+            sparklineData={sparklineData.emAberto}
+          />
+          <AnimatedKPICard 
+            value={resolvidos} 
+            label="Resolvidos" 
+            color="success"
+            icon={<CheckCircleIcon className="w-6 h-6" />}
+            trend="up"
+            trendValue="+25%"
+            sparklineData={sparklineData.resolvidos}
+          />
+          <AnimatedKPICard 
+            value={atrasados} 
+            label="Atrasados" 
+            color="danger"
+            icon={<ExclamationTriangleIcon className="w-6 h-6" />}
+            trend={atrasados > 3 ? "up" : "down"}
+            trendValue={atrasados > 3 ? "+15%" : "-8%"}
+            sparklineData={sparklineData.atrasados}
+            highlight={atrasados > 3}
+          />
+          <AnimatedKPICard 
+            value={total} 
+            label="Total de Tickets" 
+            color="primary"
+            icon={<ClipboardDocumentListIcon className="w-6 h-6" />}
+            trend="stable"
+            sparklineData={[45, 48, 52, 49, 53, total]}
+          />
         </div>
         {error && <div className="text-red-600 mb-4">Erro ao carregar atendimentos: {error}</div>}
         <div className="flex gap-6 items-start">
