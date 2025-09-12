@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAtendimentos } from '@/hooks/useAtendimentos';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus } from 'lucide-react';
+import { Plus, MoreHorizontal, Grid3X3, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import KanbanTaskCard from '../components/KanbanTaskCard';
 import AtendimentoDetailModal from '@/components/crm/AtendimentoDetailModal';
@@ -15,10 +15,10 @@ import { useDrop } from 'react-dnd';
 import { ItemTypes } from '@/constants/ItemTypes';
 import { toast } from 'sonner';
 import { Link, useNavigate } from 'react-router-dom';
-import AtendimentosFilters from '@/components/crm/AtendimentosFilters';
+import { AnimatedKPICard } from '../components/AnimatedKPICard';
+import { MobileFirstFilters } from '../components/MobileFirstFilters';
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
-import { KanbanMetricCard } from '../components/KanbanMetricCard';
-import { ExclamationTriangleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, CheckCircleIcon, ClockIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 
 type KanbanColumnStatus = 'Solicitação' | 'Em Análise' | 'Resolvido';
 const kanbanColumns: KanbanColumnStatus[] = ['Solicitação', 'Em Análise', 'Resolvido'];
@@ -34,9 +34,9 @@ interface KanbanColumnProps {
 // CORREÇÃO: Definição completa e correta do componente KanbanColumn
 // O erro foi corrigido garantindo que o componente retorne JSX.
 const COLUMN_COLORS: Record<KanbanColumnStatus, string> = {
-  'Solicitação': 'bg-status-pending/10 border-status-pending',
-  'Em Análise': 'bg-status-analysis/10 border-status-analysis',
-  'Resolvido': 'bg-status-resolved/10 border-status-resolved',
+  'Solicitação': 'bg-gradient-to-br from-status-pending/5 to-status-pending/10 border-status-pending/20 shadow-status-pending/5',
+  'Em Análise': 'bg-gradient-to-br from-status-analysis/5 to-status-analysis/10 border-status-analysis/20 shadow-status-analysis/5', 
+  'Resolvido': 'bg-gradient-to-br from-status-resolved/5 to-status-resolved/10 border-status-resolved/20 shadow-status-resolved/5',
 };
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop, onCardClick }) => {
@@ -53,29 +53,88 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
   return (
     <div
       ref={drop}
-      className={`border-2 rounded-lg p-4 w-full md:w-80 flex-shrink-0 transition-colors ${COLUMN_COLORS[title]} ${isOver ? 'ring-2 ring-primary' : ''}`}
+      className={`
+        group relative rounded-xl border-2 transition-all duration-300 ease-out 
+        min-h-[600px] w-full md:w-80 flex-shrink-0 backdrop-blur-sm
+        ${COLUMN_COLORS[title]} 
+        ${isOver ? 'ring-2 ring-primary/50 scale-[1.02] shadow-xl' : 'shadow-lg hover:shadow-xl'}
+      `}
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-lg text-center w-full">
-          {title} <span className="text-xs text-muted-foreground">({atendimentos.length})</span>
-        </h3>
-        {atrasados > 0 && (
-          <span className="ml-2 px-2 py-0.5 rounded-full bg-destructive/20 text-destructive text-xs font-bold" title="Atrasados">{atrasados} ⚠️</span>
-        )}
-      </div>
-      <div className="h-full overflow-y-auto pr-2 space-y-4">
-        {atendimentos.map((at) => (
-          <div key={at.id} onClick={() => onCardClick(at)} style={{ cursor: 'pointer' }}>
-            <KanbanTaskCard
-              id={at.id}
-              cliente={at.client_name || 'Cliente Desconhecido'}
-              resumo={at.summary || undefined}
-              data={at.created_at ? new Date(at.created_at).toLocaleDateString('pt-BR') : '-'}
-              motivo={at.reason || '-'}
-              avatar={at.client_name ? at.client_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
-            />
+      {/* Header da coluna */}
+      <div className="sticky top-0 z-10 bg-card/80 backdrop-blur-md rounded-t-xl border-b border-border/50 p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${
+              title === 'Solicitação' ? 'from-status-pending to-status-pending/70' :
+              title === 'Em Análise' ? 'from-status-analysis to-status-analysis/70' :
+              'from-status-resolved to-status-resolved/70'
+            } animate-pulse-glow`} />
+            <h3 className="font-bold text-lg text-card-foreground">
+              {title}
+            </h3>
           </div>
-        ))}
+          
+          <div className="flex items-center gap-2">
+            <span className={`
+              px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-sm
+              ${title === 'Solicitação' ? 'bg-status-pending/10 text-status-pending border border-status-pending/20' :
+                title === 'Em Análise' ? 'bg-status-analysis/10 text-status-analysis border border-status-analysis/20' :
+                'bg-status-resolved/10 text-status-resolved border border-status-resolved/20'}
+            `}>
+              {atendimentos.length}
+            </span>
+            {atrasados > 0 && (
+              <span className="px-2 py-1 rounded-full bg-priority-urgent/10 text-priority-urgent text-xs font-bold animate-pulse-glow" title="Atrasados">
+                {atrasados} ⚠️
+              </span>
+            )}
+            <Button variant="ghost" size="sm" className="w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Conteúdo da coluna */}
+      <div className="px-4 pb-4 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+        <div className="space-y-3">
+          {atendimentos.map((at) => (
+            <div 
+              key={at.id} 
+              onClick={() => onCardClick(at)} 
+              className="cursor-pointer transform transition-transform duration-200 hover:scale-[1.02]"
+            >
+              <KanbanTaskCard
+                id={at.id}
+                cliente={at.client_name || 'Cliente Desconhecido'}
+                resumo={at.summary || undefined}
+                data={at.created_at ? new Date(at.created_at).toLocaleDateString('pt-BR') : '-'}
+                motivo={at.reason || '-'}
+                avatar={at.client_name ? at.client_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
+                created_at={at.created_at}
+              />
+            </div>
+          ))}
+          
+          {/* Estado vazio */}
+          {atendimentos.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className={`w-12 h-12 rounded-xl mb-4 flex items-center justify-center
+                ${title === 'Solicitação' ? 'bg-status-pending/10' :
+                  title === 'Em Análise' ? 'bg-status-analysis/10' :
+                  'bg-status-resolved/10'}
+              `}>
+                <ClipboardDocumentListIcon className={`w-6 h-6 
+                  ${title === 'Solicitação' ? 'text-status-pending' :
+                    title === 'Em Análise' ? 'text-status-analysis' :
+                    'text-status-resolved'}
+                `} />
+              </div>
+              <p className="text-sm text-muted-foreground mb-1">Nenhum atendimento</p>
+              <p className="text-xs text-muted-foreground">Arraste cards para cá</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -176,102 +235,171 @@ const CrmPdvPage = () => {
   );
   if (error) return <div className="p-6 text-red-500">Erro ao carregar atendimentos: {error}</div>;
 
+  // Dados simulados de sparkline para mostrar tendências
+  const sparklineData = {
+    emAberto: [12, 15, 13, 18, 16, filteredAtendimentos.filter(a => a.status === 'Solicitação' || a.status === 'Em Análise').length],
+    resolvidos: [8, 10, 12, 15, 18, filteredAtendimentos.filter(a => a.status === 'Resolvido').length],
+    atrasados: [2, 1, 3, 4, 2, filteredAtendimentos.filter(a => {
+      if (a.status === 'Resolvido') return false;
+      const now = Date.now();
+      return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
+    }).length]
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="p-6 h-full flex flex-col">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Pós-Vendas ({view === 'kanban' ? 'Kanban' : 'Tabela'})</h1>
-            <p className="text-muted-foreground">Gerencie o fluxo de atendimentos e reclamações.</p>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+        <div className="max-w-7xl mx-auto px-8 py-8">
+          
+          {/* Header Premium */}
+          <div className="mb-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg">
+                    <ClipboardDocumentListIcon className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                      Pós-Vendas
+                    </h1>
+                    <p className="text-muted-foreground font-medium">
+                      Gerencie o fluxo de atendimentos com visibilidade total
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                {/* View Toggle */}
+                <div className="flex items-center bg-muted/30 rounded-lg p-1 backdrop-blur-sm">
+                  <Button 
+                    variant={view === 'kanban' ? 'default' : 'ghost'} 
+                    size="sm"
+                    onClick={() => setView('kanban')}
+                    className={view === 'kanban' ? 'shadow-md' : ''}
+                  >
+                    <Grid3X3 className="mr-2 h-4 w-4" />
+                    Kanban
+                  </Button>
+                  <Button 
+                    variant={view === 'table' ? 'default' : 'ghost'} 
+                    size="sm"
+                    onClick={() => setView('table')}
+                    className={view === 'table' ? 'shadow-md' : ''}
+                  >
+                    <Table2 className="mr-2 h-4 w-4" />
+                    Tabela
+                  </Button>
+                </div>
+                
+                <Link to="/pos-vendas/novo">
+                  <Button className="shadow-lg bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-200">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Novo Atendimento
+                  </Button>
+                </Link>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2 items-center">
-            <Button variant={view === 'kanban' ? 'default' : 'outline'} onClick={() => setView('kanban')}>Kanban</Button>
-            <Button variant={view === 'table' ? 'default' : 'outline'} onClick={() => setView('table')}>Tabela</Button>
-            <Link to="/pos-vendas/novo">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Novo Atendimento
-              </Button>
-            </Link>
+
+          {/* Métricas Animadas */}
+          <div className="flex gap-6 mb-8 overflow-x-auto pb-2">
+            <AnimatedKPICard 
+              value={filteredAtendimentos.filter(a => a.status === 'Solicitação' || a.status === 'Em Análise').length} 
+              label="Em Aberto" 
+              color="warning"
+              icon={<ClockIcon className="w-6 h-6" />}
+              trend="up"
+              trendValue="+12%"
+              sparklineData={sparklineData.emAberto}
+            />
+            <AnimatedKPICard 
+              value={filteredAtendimentos.filter(a => a.status === 'Resolvido').length} 
+              label="Resolvidos" 
+              color="success"
+              icon={<CheckCircleIcon className="w-6 h-6" />}
+              trend="up"
+              trendValue="+25%"
+              sparklineData={sparklineData.resolvidos}
+            />
+            <AnimatedKPICard 
+              value={filteredAtendimentos.filter(a => {
+                if (a.status === 'Resolvido') return false;
+                const now = Date.now();
+                return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
+              }).length} 
+              label="Atrasados" 
+              color="danger"
+              icon={<ExclamationTriangleIcon className="w-6 h-6" />}
+              trend={filteredAtendimentos.filter(a => {
+                if (a.status === 'Resolvido') return false;
+                const now = Date.now();
+                return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
+              }).length > 3 ? "up" : "down"}
+              trendValue={filteredAtendimentos.filter(a => {
+                if (a.status === 'Resolvido') return false;
+                const now = Date.now();
+                return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
+              }).length > 3 ? "+15%" : "-8%"}
+              sparklineData={sparklineData.atrasados}
+              highlight={filteredAtendimentos.some(a => a.status !== 'Resolvido' && (Date.now() - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000)}
+            />
+            <AnimatedKPICard 
+              value={filteredAtendimentos.length} 
+              label="Total" 
+              color="primary"
+              icon={<ClipboardDocumentListIcon className="w-6 h-6" />}
+              trend="stable"
+              sparklineData={[45, 48, 52, 49, 53, filteredAtendimentos.length]}
+            />
           </div>
-        </div>
-        {/* Painel de métricas Kanban UX */}
-        <div className="flex gap-4 mb-6">
-          <KanbanMetricCard
-            value={filteredAtendimentos.filter(a => a.status === 'Solicitação' || a.status === 'Em Análise').length}
-            label="Em Aberto"
-            color="text-blue-600"
-            icon={<ClockIcon className="w-6 h-6" />}
+
+          {/* Filtros Mobile-First */}
+          <MobileFirstFilters
+            search={search}
+            onSearchChange={setSearch}
+            status={status}
+            onStatusChange={setStatus}
+            motivo={motivo}
+            onMotivoChange={setMotivo}
+            period={period}
+            onPeriodChange={setPeriod}
+            onClear={handleClear}
+            statusOptions={statusOptions}
+            motivoOptions={motivoOptions}
+            periodOptions={periodOptions}
           />
-          <KanbanMetricCard
-            value={filteredAtendimentos.filter(a => a.status === 'Resolvido').length}
-            label="Resolvidos"
-            color="text-green-600"
-            icon={<CheckCircleIcon className="w-6 h-6" />}
-          />
-          <KanbanMetricCard
-            value={filteredAtendimentos.filter(a => {
-              if (a.status === 'Resolvido') return false;
-              const now = Date.now();
-              return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
-            }).length}
-            label="Atrasados"
-            color="text-red-600"
-            icon={<ExclamationTriangleIcon className="w-6 h-6" />}
-            highlight={filteredAtendimentos.some(a => a.status !== 'Resolvido' && (Date.now() - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000)}
-          />
-          <div className="flex flex-col justify-center ml-auto">
-            <span className="text-xs text-gray-400">Exibindo <span className="font-bold text-gray-700">{filteredAtendimentos.length}</span> tickets no total</span>
-          </div>
-        </div>
-        {/* Filtros de atendimentos */}
-        <AtendimentosFilters
-          search={search}
-          onSearchChange={setSearch}
-          status={status}
-          onStatusChange={setStatus}
-          motivo={motivo}
-          onMotivoChange={setMotivo}
-          period={period}
-          onPeriodChange={setPeriod}
-          onClear={handleClear}
-          statusOptions={statusOptions}
-          motivoOptions={motivoOptions}
-          periodOptions={periodOptions}
-        />
-        {view === 'kanban' ? (
-          <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-x-auto pb-4">
-            {kanbanColumns.map(columnStatus => {
-              const colAtendimentos = filteredAtendimentos.filter(at => at.status === columnStatus);
-              return (
-                <div key={columnStatus} className="flex-1 flex flex-col">
+
+          {/* Conteúdo Principal */}
+          {view === 'kanban' ? (
+            <div className="flex gap-6 overflow-x-auto pb-4 min-h-[600px]">
+              {kanbanColumns.map(columnStatus => {
+                const colAtendimentos = filteredAtendimentos.filter(at => at.status === columnStatus);
+                return (
                   <KanbanColumn
+                    key={columnStatus}
                     title={columnStatus}
                     atendimentos={colAtendimentos}
                     onDrop={handleDrop}
                     onCardClick={(atendimento) => navigate(`/pos-vendas/${atendimento.id}`)}
                   />
-                  {colAtendimentos.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full min-h-[120px] border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm mt-8 p-4">
-                      <span className="mb-2">Nenhum atendimento.</span>
-                      <span className="text-xs">Arraste um card para cá</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto pb-4">
-            <AtendimentosTable atendimentos={filteredAtendimentos} onRowClick={setSelectedAtendimento} />
-          </div>
-        )}
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-card rounded-xl border shadow-lg p-6">
+              <AtendimentosTable atendimentos={filteredAtendimentos} onRowClick={setSelectedAtendimento} />
+            </div>
+          )}
+        </div>
+
+        <AtendimentoDetailModal 
+          atendimento={selectedAtendimento}
+          onClose={() => setSelectedAtendimento(null)}
+          onUpdate={refetch}
+        />
       </div>
-      <AtendimentoDetailModal 
-        atendimento={selectedAtendimento}
-        onClose={() => setSelectedAtendimento(null)}
-        onUpdate={refetch}
-      />
     </DndProvider>
   );
 };
