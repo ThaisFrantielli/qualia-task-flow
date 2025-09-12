@@ -72,13 +72,6 @@ export default function KanbanDemo() {
   const resolvidos = cards.filter((c) => c.status === "resolvido").length;
   const atrasados = cards.filter((c) => c.status === "atrasado").length;
 
-  // Dados simulados de sparkline para mostrar tendências
-  const sparklineData = {
-    emAberto: [12, 15, 13, 18, 16, emAberto],
-    resolvidos: [8, 10, 12, 15, 18, resolvidos],
-    atrasados: [2, 1, 3, 4, 2, atrasados]
-  };
-
   return (
     <div className="p-0 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-8 py-8">
@@ -97,7 +90,6 @@ export default function KanbanDemo() {
             icon={<ClockIcon className="w-6 h-6" />}
             trend="up"
             trendValue="+12%"
-            sparklineData={sparklineData.emAberto}
           />
           <AnimatedKPICard 
             value={resolvidos} 
@@ -106,7 +98,6 @@ export default function KanbanDemo() {
             icon={<CheckCircleIcon className="w-6 h-6" />}
             trend="up"
             trendValue="+25%"
-            sparklineData={sparklineData.resolvidos}
           />
           <AnimatedKPICard 
             value={atrasados} 
@@ -115,7 +106,6 @@ export default function KanbanDemo() {
             icon={<ExclamationTriangleIcon className="w-6 h-6" />}
             trend={atrasados > 3 ? "up" : "down"}
             trendValue={atrasados > 3 ? "+15%" : "-8%"}
-            sparklineData={sparklineData.atrasados}
             highlight={atrasados > 3}
           />
           <AnimatedKPICard 
@@ -124,7 +114,6 @@ export default function KanbanDemo() {
             color="primary"
             icon={<ClipboardDocumentListIcon className="w-6 h-6" />}
             trend="stable"
-            sparklineData={[45, 48, 52, 49, 53, total]}
           />
         </div>
         {error && <div className="text-red-600 mb-4">Erro ao carregar atendimentos: {error}</div>}
