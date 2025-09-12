@@ -63,30 +63,30 @@ export function MobileFirstFilters({
   }, [debouncedSearch, onSearchChange]);
 
   // Contador de filtros ativos
-  const activeFiltersCount = [status, motivo, period].filter(Boolean).length;
+  const activeFiltersCount = [status, motivo, period].filter(f => f && f !== 'all').length;
 
   // Chips de filtros ativos
   const getActiveFilterChips = () => {
     const chips = [];
     
-    if (status) {
+    if (status && status !== 'all') {
       chips.push({
         label: `Status: ${status}`,
-        onRemove: () => onStatusChange('')
+        onRemove: () => onStatusChange('all')
       });
     }
     
-    if (motivo) {
+    if (motivo && motivo !== 'all') {
       chips.push({
         label: `Motivo: ${motivo}`,
-        onRemove: () => onMotivoChange('')
+        onRemove: () => onMotivoChange('all')
       });
     }
     
-    if (period) {
+    if (period && period !== 'all') {
       chips.push({
         label: `Período: ${period}`,
-        onRemove: () => onPeriodChange('')
+        onRemove: () => onPeriodChange('all')
       });
     }
     
@@ -130,7 +130,7 @@ export function MobileFirstFilters({
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {statusOptions.map(option => (
                   <SelectItem key={option} value={option}>{option}</SelectItem>
                 ))}
@@ -142,7 +142,7 @@ export function MobileFirstFilters({
                 <SelectValue placeholder="Motivo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {motivoOptions.map(option => (
                   <SelectItem key={option} value={option}>{option}</SelectItem>
                 ))}
@@ -154,7 +154,7 @@ export function MobileFirstFilters({
                 <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {periodOptions.map(option => (
                   <SelectItem key={option} value={option}>{option}</SelectItem>
                 ))}
@@ -205,7 +205,7 @@ export function MobileFirstFilters({
                       <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       {statusOptions.map(option => (
                         <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
@@ -220,7 +220,7 @@ export function MobileFirstFilters({
                       <SelectValue placeholder="Selecione o motivo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       {motivoOptions.map(option => (
                         <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
@@ -235,7 +235,7 @@ export function MobileFirstFilters({
                       <SelectValue placeholder="Selecione o período" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       {periodOptions.map(option => (
                         <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
