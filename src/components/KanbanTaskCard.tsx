@@ -1,5 +1,4 @@
 import { CalendarIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { Badge } from '@/components/ui/badge';
 import { memo } from 'react';
 
 export interface KanbanTaskCardProps {
@@ -25,16 +24,16 @@ const getPriorityFromDate = (dateStr: string): 'urgent' | 'medium' | 'normal' =>
   return 'normal';                        // -24h = Normal
 };
 
-// Gradientes para avatares baseados no hash do nome
-const getAvatarGradient = (name: string): string => {
-  const gradients = [
-    'bg-gradient-to-br from-purple-600 to-orange-500',
-    'bg-gradient-to-br from-blue-600 to-green-600', 
-    'bg-gradient-to-br from-orange-500 to-red-500',
-    'bg-gradient-to-br from-primary to-purple-600'
+// Cores simples para avatares baseados no hash do nome
+const getAvatarColor = (name: string): string => {
+  const colors = [
+    'bg-blue-500',
+    'bg-green-500', 
+    'bg-purple-500',
+    'bg-orange-500'
   ];
   const hash = name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  return gradients[hash % gradients.length];
+  return colors[hash % colors.length];
 };
 
 const KanbanTaskCard = memo(({ 
@@ -43,137 +42,98 @@ const KanbanTaskCard = memo(({
   resumo, 
   data, 
   motivo, 
-  avatar, 
-  status,
-  created_at,
-  department = 'suporte'
+  avatar,
+  created_at
 }: KanbanTaskCardProps) => {
   const priority = getPriorityFromDate(created_at || data);
-  const avatarGradient = getAvatarGradient(cliente);
+  const avatarColor = getAvatarColor(cliente);
   
-  // Mapear status para departamento se não especificado
-  const finalDepartment = department || (
-    status === 'analise' ? 'tecnico' :
-    status === 'resolvido' ? 'suporte' :
-    'suporte'
-  );
-  
-  // Configuração de cores por prioridade
+  // Configuração simplificada por prioridade
   const priorityConfig = {
     urgent: {
-      border: 'border-priority-urgent/30',
-      bg: 'bg-priority-urgent/5',
+      border: 'border-priority-urgent/50',
       icon: ExclamationTriangleIcon,
-      iconColor: 'text-priority-urgent',
-      pulse: 'animate-pulse-glow'
+      iconColor: 'text-priority-urgent'
     },
     medium: {
-      border: 'border-priority-medium/30', 
-      bg: 'bg-priority-medium/5',
+      border: 'border-priority-medium/50', 
       icon: ClockIcon,
-      iconColor: 'text-priority-medium',
-      pulse: ''
+      iconColor: 'text-priority-medium'
     },
     normal: {
-      border: 'border-priority-normal/30',
-      bg: 'bg-priority-normal/5', 
+      border: 'border-border',
       icon: CalendarIcon,
-      iconColor: 'text-priority-normal',
-      pulse: ''
+      iconColor: 'text-muted-foreground'
     }
   };
 
   const config = priorityConfig[priority];
   const PriorityIcon = config.icon;
 
-  // Configuração de cores por departamento
-  const deptColors = {
-    vendas: 'bg-department-vendas',
-    suporte: 'bg-department-suporte', 
-    financeiro: 'bg-department-financeiro',
-    tecnico: 'bg-department-tecnico'
-  };
-
   return (
     <div className={`
-      group relative cursor-pointer
-      border-2 ${config.border} ${config.bg}
-      bg-card rounded-xl p-4 min-h-[100px]
-      shadow-sm hover:shadow-card-hover
-      transition-all duration-300 ease-out
-      hover:scale-[1.02] hover:-translate-y-1
-      ${config.pulse}
-      animate-fade-in
+      cursor-pointer
+      border ${config.border}
+      bg-card rounded-lg p-3
+      hover:shadow-sm
+      transition-shadow duration-200
     `}>
       {/* Indicador de prioridade (barra lateral) */}
-      <div className={`
-        absolute left-0 top-4 bottom-4 w-1 rounded-r-full
-        ${priority === 'urgent' ? 'bg-priority-urgent' : 
-          priority === 'medium' ? 'bg-priority-medium' : 'bg-priority-normal'}
-      `} />
-
-      <div className="flex gap-4 items-center">
-        {/* Avatar com gradiente */}
+      {priority !== 'normal' && (
         <div className={`
-          relative w-12 h-12 rounded-full flex items-center justify-center 
-          font-bold text-lg text-white shadow-md
-          ${avatarGradient}
-          transition-transform duration-300 group-hover:scale-110
+          absolute left-0 top-3 bottom-3 w-0.5 rounded-r
+          ${priority === 'urgent' ? 'bg-priority-urgent' : 'bg-priority-medium'}
+        `} />
+      )}
+
+      <div className="flex gap-3 items-center">
+        {/* Avatar simples */}
+        <div className={`
+          w-10 h-10 rounded-full flex items-center justify-center 
+          font-medium text-sm text-white
+          ${avatarColor}
         `}>
-          <span className="relative z-10">{avatar || cliente.charAt(0).toUpperCase()}</span>
-          <div className="absolute inset-0 rounded-full bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <span>{avatar || cliente.charAt(0).toUpperCase()}</span>
         </div>
 
         <div className="flex-1 min-w-0">
           {/* Header com nome e ID */}
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-bold text-card-foreground text-base truncate">
+            <span className="font-medium text-foreground text-sm truncate">
               {cliente}
             </span>
             <span className="text-xs text-muted-foreground">#{id}</span>
-            <PriorityIcon className={`w-4 h-4 ${config.iconColor} ml-auto`} />
+            {priority !== 'normal' && (
+              <PriorityIcon className={`w-3 h-3 ${config.iconColor} ml-auto`} />
+            )}
           </div>
 
           {/* Info secundária */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs flex items-center gap-1 text-muted-foreground">
-              <CalendarIcon className="w-3 h-3" /> {data}
-            </span>
-            <span className="text-xs text-muted-foreground">• {motivo}</span>
+          <div className="text-xs text-muted-foreground mb-1">
+            {data} • {motivo}
           </div>
 
           {/* Resumo */}
           {resumo && (
-            <div className="text-xs text-card-foreground/80 mb-2 line-clamp-2">
+            <div className="text-xs text-foreground/70 mb-2 line-clamp-1">
               {resumo}
             </div>
           )}
 
-          {/* Badge de departamento */}
-          <div className="flex items-center justify-between">
-            <Badge 
-              variant="outline" 
-              className={`text-xs ${deptColors[finalDepartment]} text-white border-0`}
-            >
-              {finalDepartment.charAt(0).toUpperCase() + finalDepartment.slice(1)}
-            </Badge>
-            
-            {/* Indicador de tempo */}
-            <div className={`
-              text-xs px-2 py-1 rounded-full font-medium
-              ${priority === 'urgent' ? 'bg-priority-urgent/10 text-priority-urgent' :
-                priority === 'medium' ? 'bg-priority-medium/10 text-priority-medium' :
-                'bg-priority-normal/10 text-priority-normal'}
-            `}>
-              {priority === 'urgent' ? 'Urgente' : 
-               priority === 'medium' ? 'Médio' : 'Normal'}
+          {/* Status */}
+          {priority !== 'normal' && (
+            <div className="flex justify-end">
+              <span className={`
+                text-xs px-2 py-0.5 rounded font-medium
+                ${priority === 'urgent' ? 'bg-priority-urgent/10 text-priority-urgent' :
+                  'bg-priority-medium/10 text-priority-medium'}
+              `}>
+                {priority === 'urgent' ? 'Urgente' : 'Médio'}
+              </span>
             </div>
-          </div>
+          )}
         </div>
       </div>
-
-      {/* Glow effect no hover */}
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
     </div>
   );
 });
