@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/types/supabase';
 
 interface CustomerEditFormProps {
   isOpen: boolean;
@@ -16,10 +17,10 @@ interface CustomerEditFormProps {
     client_name: string | null;
     client_email: string | null;
     client_phone: string | null;
-    status: string | null;
-    department: string | null;
-    reason: string | null;
-    lead_source: string | null;
+    status: Database["public"]["Enums"]["tipo_status_atendimento"] | null;
+    department: Database["public"]["Enums"]["tipo_departamento"] | null;
+    reason: Database["public"]["Enums"]["tipo_motivo_reclamacao"] | null;
+    lead_source: Database["public"]["Enums"]["tipo_origem_lead"] | null;
     summary: string | null;
     resolution_details: string | null;
     assignee_id: string | null;
@@ -39,10 +40,10 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
     client_name: customer.client_name || '',
     client_email: customer.client_email || '',
     client_phone: customer.client_phone || '',
-    status: customer.status || 'Solicitação',
-    department: customer.department || '',
-    reason: customer.reason || '',
-    lead_source: customer.lead_source || '',
+    status: customer.status || 'Solicitação' as Database["public"]["Enums"]["tipo_status_atendimento"],
+    department: customer.department || 'Central de Atendimento' as Database["public"]["Enums"]["tipo_departamento"],
+    reason: customer.reason || 'Dúvida' as Database["public"]["Enums"]["tipo_motivo_reclamacao"],
+    lead_source: customer.lead_source || 'Site' as Database["public"]["Enums"]["tipo_origem_lead"],
     summary: customer.summary || '',
     resolution_details: customer.resolution_details || '',
   });
@@ -137,7 +138,7 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
             
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => handleChange('status', value)}>
+              <Select value={formData.status} onValueChange={(value: Database["public"]["Enums"]["tipo_status_atendimento"]) => handleChange('status', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>
@@ -145,7 +146,6 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
                   <SelectItem value="Solicitação">Solicitação</SelectItem>
                   <SelectItem value="Em Análise">Em Análise</SelectItem>
                   <SelectItem value="Resolvido">Resolvido</SelectItem>
-                  <SelectItem value="Cancelado">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -154,31 +154,43 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="department">Departamento</Label>
-              <Select value={formData.department} onValueChange={(value) => handleChange('department', value)}>
+              <Select value={formData.department} onValueChange={(value: Database["public"]["Enums"]["tipo_departamento"]) => handleChange('department', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o departamento" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Vendas">Vendas</SelectItem>
-                  <SelectItem value="Suporte">Suporte</SelectItem>
+                  <SelectItem value="Manutenção">Manutenção</SelectItem>
+                  <SelectItem value="Central de Atendimento">Central de Atendimento</SelectItem>
+                  <SelectItem value="Documentação">Documentação</SelectItem>
+                  <SelectItem value="Operação">Operação</SelectItem>
+                  <SelectItem value="Comercial">Comercial</SelectItem>
                   <SelectItem value="Financeiro">Financeiro</SelectItem>
-                  <SelectItem value="Técnico">Técnico</SelectItem>
+                  <SelectItem value="Departamento Pessoal">Departamento Pessoal</SelectItem>
+                  <SelectItem value="Aberto Erroneamente">Aberto Erroneamente</SelectItem>
+                  <SelectItem value="Dúvida">Dúvida</SelectItem>
+                  <SelectItem value="Operação - Filial SP">Operação - Filial SP</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="lead_source">Origem do Lead</Label>
-              <Select value={formData.lead_source} onValueChange={(value) => handleChange('lead_source', value)}>
+              <Select value={formData.lead_source} onValueChange={(value: Database["public"]["Enums"]["tipo_origem_lead"]) => handleChange('lead_source', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a origem" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Website">Website</SelectItem>
-                  <SelectItem value="Telefone">Telefone</SelectItem>
-                  <SelectItem value="Email">Email</SelectItem>
+                  <SelectItem value="Cliente (Base)">Cliente (Base)</SelectItem>
+                  <SelectItem value="Tráfego Pago">Tráfego Pago</SelectItem>
                   <SelectItem value="Indicação">Indicação</SelectItem>
+                  <SelectItem value="Site">Site</SelectItem>
+                  <SelectItem value="Ligação">Ligação</SelectItem>
                   <SelectItem value="Redes Sociais">Redes Sociais</SelectItem>
+                  <SelectItem value="Blip ChatBot">Blip ChatBot</SelectItem>
+                  <SelectItem value="E-mail">E-mail</SelectItem>
+                  <SelectItem value="Encerrado - Manutenção">Encerrado - Manutenção</SelectItem>
+                  <SelectItem value="Fechada">Fechada</SelectItem>
+                  <SelectItem value="Perdida">Perdida</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -186,16 +198,30 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
 
           <div className="space-y-2">
             <Label htmlFor="reason">Motivo</Label>
-            <Select value={formData.reason} onValueChange={(value) => handleChange('reason', value)}>
+            <Select value={formData.reason} onValueChange={(value: Database["public"]["Enums"]["tipo_motivo_reclamacao"]) => handleChange('reason', value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o motivo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Reclamação">Reclamação</SelectItem>
-                <SelectItem value="Sugestão">Sugestão</SelectItem>
+                <SelectItem value="Contestação de Cobrança">Contestação de Cobrança</SelectItem>
+                <SelectItem value="Demora na Aprovação do Orçamento">Demora na Aprovação do Orçamento</SelectItem>
+                <SelectItem value="Agendamento Errôneo">Agendamento Errôneo</SelectItem>
+                <SelectItem value="Má Qualidade de Serviço">Má Qualidade de Serviço</SelectItem>
+                <SelectItem value="Problemas Com Fornecedor">Problemas Com Fornecedor</SelectItem>
+                <SelectItem value="Demora em atendimento">Demora em atendimento</SelectItem>
+                <SelectItem value="Atendimento Ineficaz">Atendimento Ineficaz</SelectItem>
+                <SelectItem value="Multas e Notificações">Multas e Notificações</SelectItem>
+                <SelectItem value="Problemas na Entrega">Problemas na Entrega</SelectItem>
+                <SelectItem value="Problemas Com Veículo Reserva">Problemas Com Veículo Reserva</SelectItem>
+                <SelectItem value="Atendimento Comercial">Atendimento Comercial</SelectItem>
+                <SelectItem value="Oportunidade Aberta Erroneamente">Oportunidade Aberta Erroneamente</SelectItem>
+                <SelectItem value="Cobrança Indevida">Cobrança Indevida</SelectItem>
                 <SelectItem value="Dúvida">Dúvida</SelectItem>
-                <SelectItem value="Solicitação">Solicitação</SelectItem>
-                <SelectItem value="Elogio">Elogio</SelectItem>
+                <SelectItem value="Erro de processo interno">Erro de processo interno</SelectItem>
+                <SelectItem value="Troca definitiva de veículo">Troca definitiva de veículo</SelectItem>
+                <SelectItem value="Problema recorrente">Problema recorrente</SelectItem>
+                <SelectItem value="Solicitação de Reembolso">Solicitação de Reembolso</SelectItem>
+                <SelectItem value="Problemas com Terceiro">Problemas com Terceiro</SelectItem>
               </SelectContent>
             </Select>
           </div>
