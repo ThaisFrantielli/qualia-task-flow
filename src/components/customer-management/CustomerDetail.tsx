@@ -36,6 +36,7 @@ interface CustomerDetailProps {
   anexos?: { filename: string; url: string }[];
   resolucao?: string | null;
   onEdit: () => void;
+  onDelete: () => void;
   onCreateAtendimento: () => void;
   status: string;
   step: number;
@@ -70,6 +71,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({
   anexos,
   resolucao,
   onEdit,
+  onDelete,
   status,
   activities,
   tab,
@@ -145,7 +147,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({
               <Edit className="h-4 w-4 mr-2" />
               Editar
             </Button>
-            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={onDelete}>
               <Trash2 className="h-4 w-4 mr-2" />
               Excluir
             </Button>
