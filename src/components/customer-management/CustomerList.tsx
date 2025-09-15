@@ -1,7 +1,9 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Search, Plus, Users } from 'lucide-react';
+import { Users, MoreVertical } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export interface Customer {
   id: number;
@@ -31,68 +33,75 @@ const getStatusColor = (status: string) => {
 };
 
 const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSelect }) => (
-  <div className="col-span-3 space-y-6">
+  <div className="bg-card rounded-lg border h-full flex flex-col">
     {/* Header */}
-    <div className="bg-card rounded-lg border p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Clientes</h2>
-        </div>
-        <Badge variant="secondary">{customers.length}</Badge>
-      </div>
-      
-      {/* Search would go here */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input 
-          type="text" 
-          placeholder="Buscar cliente..." 
-          className="w-full pl-10 pr-4 py-2 border rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-        />
+    <div className="flex items-center justify-between p-6 border-b">
+      <div className="flex items-center gap-3">
+        <Users className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold">Clientes</h2>
+        <Badge variant="secondary" className="ml-2">{customers.length}</Badge>
       </div>
     </div>
 
     {/* Customer List */}
-    <div className="bg-card rounded-lg border">
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">Lista de Clientes</span>
-          <button className="text-primary hover:text-primary/80 p-1">
-            <Plus className="h-4 w-4" />
-          </button>
+    <div className="flex-1 overflow-y-auto">
+      {customers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 text-center">
+          <Users className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-sm font-medium text-foreground mb-2">Nenhum cliente encontrado</h3>
+          <p className="text-xs text-muted-foreground">Tente ajustar sua busca</p>
         </div>
-      </div>
-      <div className="divide-y max-h-96 overflow-y-auto">
-        {customers.map((customer) => (
-          <div
-            key={customer.id}
-            className={`p-4 cursor-pointer transition-colors hover:bg-muted/50 ${
-              selectedId === customer.id ? 'bg-primary/5 border-r-2 border-r-primary' : ''
-            }`}
-            onClick={() => onSelect(customer.id)}
-          >
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                  {customer.initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{customer.name}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className={getStatusColor(customer.status)}>
+      ) : (
+        <div className="divide-y">
+          {customers.map((customer) => (
+            <div
+              key={customer.id}
+              className={`p-4 cursor-pointer transition-all duration-200 hover:bg-muted/50 ${
+                selectedId === customer.id 
+                  ? 'bg-primary/5 border-r-4 border-r-primary' 
+                  : ''
+              }`}
+              onClick={() => onSelect(customer.id)}
+            >
+              <div className="flex items-center gap-3">
+                <Avatar className="h-11 w-11 flex-shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                    {customer.initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="font-medium text-sm text-foreground truncate">
+                      {customer.name}
+                    </p>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <MoreVertical className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem>Ver detalhes</DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600">Excluir</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs mb-2 ${getStatusColor(customer.status)}`}
+                  >
                     {customer.status}
                   </Badge>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {customer.responsible}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  {customer.responsible}
-                </p>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   </div>
 );

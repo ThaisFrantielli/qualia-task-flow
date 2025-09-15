@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import CustomerList from '@/components/customer-management/CustomerList';
 import CustomerDetail from '@/components/customer-management/CustomerDetail';
-import CustomerActionsPanel from '@/components/customer-management/CustomerActionsPanel';
 import CustomerEditForm from '@/components/customer-management/CustomerEditForm';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useAttachments } from '@/hooks/useAttachments';
 import { useCustomerActivities } from '@/hooks/useCustomerActivities';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, Users, TrendingUp, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Plus, Search, Users } from 'lucide-react';
 
 function getInitials(name: string | null) {
   if (!name) return '?';
@@ -38,12 +37,6 @@ const CustomerManagementPage: React.FC = () => {
   const { attachments } = useAttachments(idStr);
   const { activities } = useCustomerActivities(idStr);
 
-  // Métricas do dashboard
-  const totalCustomers = customers.length;
-  const resolvedCustomers = customers.filter(c => c.status === 'Resolvido').length;
-  const pendingCustomers = customers.filter(c => c.status === 'Em Análise').length;
-  const newCustomers = customers.filter(c => c.status === 'Solicitação').length;
-
   const handleEditCustomer = () => {
     setIsEditFormOpen(true);
   };
@@ -53,123 +46,94 @@ const CustomerManagementPage: React.FC = () => {
     setIsEditFormOpen(false);
   };
 
-  const handleCreateActivity = () => {
-    // Implementation for creating activities
+  const handleCreateCustomer = () => {
+    // Implementation for creating new customer
+    console.log('Create new customer');
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Clean Header */}
       <div className="border-b bg-card">
-        <div className="flex flex-col sm:flex-row sm:items-center px-4 sm:px-8 py-6 gap-4 sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Clientes</h1>
-            <p className="text-muted-foreground mt-1">Acompanhe e gerencie todos os seus clientes pós-venda</p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
-            <input
-              type="text"
-              placeholder="Buscar cliente..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-w-0 flex-1 sm:flex-none sm:w-64"
-            />
+        <div className="px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold text-foreground">Gerenciamento de Clientes</h1>
+              <p className="text-muted-foreground mt-2">Visualize, edite e gerencie informações de clientes</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-10 pr-4 py-2 w-80 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+              <Button onClick={handleCreateCustomer} className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Novo Cliente
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Dashboard Cards */}
-      <div className="px-4 sm:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Clientes
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <div className="px-6 pb-4">
-              <div className="text-2xl font-bold">{totalCustomers}</div>
-            </div>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Resolvidos
-              </CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <div className="px-6 pb-4">
-              <div className="text-2xl font-bold text-green-600">{resolvedCustomers}</div>
-            </div>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Em Análise
-              </CardTitle>
-              <Clock className="h-4 w-4 text-yellow-600" />
-            </CardHeader>
-            <div className="px-6 pb-4">
-              <div className="text-2xl font-bold text-yellow-600">{pendingCustomers}</div>
-            </div>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Novas Solicitações
-              </CardTitle>
-              <Building2 className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <div className="px-6 pb-4">
-              <div className="text-2xl font-bold text-blue-600">{newCustomers}</div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-12 gap-6">
-          <CustomerList
-            customers={filtered.map(c => ({
-              id: c.id,
-              name: c.client_name || 'Sem nome',
-              status: c.status || 'Sem status',
-              responsible: c.assignee_id || 'Sem responsável',
-              initials: getInitials(c.client_name),
-            }))}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-          
-          {selected && (
-            <CustomerDetail
-              name={selected.client_name || 'Sem nome'}
-              cnpj={selected.client_email || ''}
-              phone={selected.client_phone || ''}
-              email={selected.client_email || ''}
-              department={selected.department}
-              responsible={selected.assignee_id}
-              createdAt={selected.created_at}
-              updatedAt={selected.updated_at}
-              motivo={selected.reason}
-              origem={selected.lead_source}
-              resumo={selected.summary}
-              anexos={attachments.map(a => ({ filename: a.filename, url: a.file_path }))}
-              resolucao={selected.resolution_details}
-              onEdit={handleEditCustomer}
-              onCreateAtendimento={() => alert('Criar atendimento (mock)')}
-              status={selected.status || 'Sem status'}
-              step={selected.status === 'Em Análise' ? 1 : selected.status === 'Resolvido' ? 2 : selected.status === 'Solicitação' ? 3 : 1}
-              activities={activities}
-              tab={tab}
-              onTabChange={setTab}
+      {/* Main Content Layout */}
+      <div className="px-8 py-6">
+        <div className="grid grid-cols-12 gap-8 h-[calc(100vh-200px)]">
+          {/* Customer List - Left Sidebar */}
+          <div className="col-span-4">
+            <CustomerList
+              customers={filtered.map(c => ({
+                id: c.id,
+                name: c.client_name || 'Sem nome',
+                status: c.status || 'Sem status',
+                responsible: c.assignee_id || 'Sem responsável',
+                initials: getInitials(c.client_name),
+              }))}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
             />
-          )}
+          </div>
           
-          <CustomerActionsPanel onCreate={handleCreateActivity} />
+          {/* Customer Details - Center */}
+          <div className="col-span-8">
+            {selected ? (
+              <CustomerDetail
+                name={selected.client_name || 'Sem nome'}
+                cnpj={selected.client_email || ''}
+                phone={selected.client_phone || ''}
+                email={selected.client_email || ''}
+                department={selected.department}
+                responsible={selected.assignee_id}
+                createdAt={selected.created_at}
+                updatedAt={selected.updated_at}
+                motivo={selected.reason}
+                origem={selected.lead_source}
+                resumo={selected.summary}
+                anexos={attachments.map(a => ({ filename: a.filename, url: a.file_path }))}
+                resolucao={selected.resolution_details}
+                onEdit={handleEditCustomer}
+                onCreateAtendimento={() => alert('Criar atendimento (mock)')}
+                status={selected.status || 'Sem status'}
+                step={selected.status === 'Em Análise' ? 1 : selected.status === 'Resolvido' ? 2 : selected.status === 'Solicitação' ? 3 : 1}
+                activities={activities}
+                tab={tab}
+                onTabChange={setTab}
+              />
+            ) : (
+              <div className="bg-card rounded-lg border h-full flex items-center justify-center">
+                <div className="text-center">
+                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">Selecione um cliente</h3>
+                  <p className="text-muted-foreground">Escolha um cliente da lista para ver os detalhes</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
