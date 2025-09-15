@@ -14,7 +14,7 @@ function getInitials(name: string | null) {
 }
 
 const CustomerManagementPage: React.FC = () => {
-  const { customers } = useCustomers();
+  const { customers, deleteCustomer, refreshCustomers } = useCustomers();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [tab, setTab] = useState<string>('Atividades');
   const [search, setSearch] = useState('');
@@ -41,14 +41,24 @@ const CustomerManagementPage: React.FC = () => {
     setIsEditFormOpen(true);
   };
 
-  const handleSaveCustomer = () => {
-    // Refresh data would happen here
+  const handleSaveCustomer = async () => {
+    // Refresh data after edit
+    await refreshCustomers();
     setIsEditFormOpen(false);
   };
 
   const handleCreateCustomer = () => {
-    // Implementation for creating new customer
-    console.log('Create new customer');
+    // Future implementation for creating new customer
+    console.log('Create new customer - to be implemented');
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (selected && window.confirm(`Tem certeza que deseja excluir o cliente ${selected.client_name}?`)) {
+      const success = await deleteCustomer(selected.id);
+      if (success) {
+        setSelectedId(null);
+      }
+    }
   };
 
   return (
@@ -117,6 +127,7 @@ const CustomerManagementPage: React.FC = () => {
                 anexos={attachments.map(a => ({ filename: a.filename, url: a.file_path }))}
                 resolucao={selected.resolution_details}
                 onEdit={handleEditCustomer}
+                onDelete={handleDeleteCustomer}
                 onCreateAtendimento={() => alert('Criar atendimento (mock)')}
                 status={selected.status || 'Sem status'}
                 step={selected.status === 'Em Análise' ? 1 : selected.status === 'Resolvido' ? 2 : selected.status === 'Solicitação' ? 3 : 1}
