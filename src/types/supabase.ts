@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      atendimento_historico: {
+        Row: {
+          atendimento_id: number
+          created_at: string
+          detalhes: Json | null
+          id: number
+          tipo_evento: string
+          user_id: string | null
+        }
+        Insert: {
+          atendimento_id: number
+          created_at?: string
+          detalhes?: Json | null
+          id?: number
+          tipo_evento: string
+          user_id?: string | null
+        }
+        Update: {
+          atendimento_id?: number
+          created_at?: string
+          detalhes?: Json | null
+          id?: number
+          tipo_evento?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimento_historico_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimentos: {
         Row: {
           adjustment_index: string | null
@@ -115,6 +150,99 @@ export type Database = {
           },
         ]
       }
+      atendimentos_pos_venda: {
+        Row: {
+          analise_final: string | null
+          atendente: string | null
+          canal: string | null
+          cliente: string | null
+          data_atualizacao: string | null
+          data_criacao: string | null
+          departamento: string | null
+          email: string | null
+          fantasia: string | null
+          fase: string | null
+          id: number
+          inicio_contato: string | null
+          motivo_reclamacao: string | null
+          nome: string | null
+          numero_atendimento: string | null
+          origem_lead: string | null
+          pipeline: string | null
+          placa: string | null
+          prev_fechamento: string | null
+          produtos: string | null
+          resolucao: string | null
+          resumo: string | null
+          status: string | null
+          telefone: string | null
+          tempo_atendimento: string | null
+          termino_contato: string | null
+          tipo_atendimento: string | null
+          valor: string | null
+        }
+        Insert: {
+          analise_final?: string | null
+          atendente?: string | null
+          canal?: string | null
+          cliente?: string | null
+          data_atualizacao?: string | null
+          data_criacao?: string | null
+          departamento?: string | null
+          email?: string | null
+          fantasia?: string | null
+          fase?: string | null
+          id?: number
+          inicio_contato?: string | null
+          motivo_reclamacao?: string | null
+          nome?: string | null
+          numero_atendimento?: string | null
+          origem_lead?: string | null
+          pipeline?: string | null
+          placa?: string | null
+          prev_fechamento?: string | null
+          produtos?: string | null
+          resolucao?: string | null
+          resumo?: string | null
+          status?: string | null
+          telefone?: string | null
+          tempo_atendimento?: string | null
+          termino_contato?: string | null
+          tipo_atendimento?: string | null
+          valor?: string | null
+        }
+        Update: {
+          analise_final?: string | null
+          atendente?: string | null
+          canal?: string | null
+          cliente?: string | null
+          data_atualizacao?: string | null
+          data_criacao?: string | null
+          departamento?: string | null
+          email?: string | null
+          fantasia?: string | null
+          fase?: string | null
+          id?: number
+          inicio_contato?: string | null
+          motivo_reclamacao?: string | null
+          nome?: string | null
+          numero_atendimento?: string | null
+          origem_lead?: string | null
+          pipeline?: string | null
+          placa?: string | null
+          prev_fechamento?: string | null
+          produtos?: string | null
+          resolucao?: string | null
+          resumo?: string | null
+          status?: string | null
+          telefone?: string | null
+          tempo_atendimento?: string | null
+          termino_contato?: string | null
+          tipo_atendimento?: string | null
+          valor?: string | null
+        }
+        Relationships: []
+      }
       attachments: {
         Row: {
           created_at: string
@@ -184,6 +312,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cliente_contatos: {
+        Row: {
+          cliente_id: string
+          email_contato: string | null
+          id: string
+          is_gestor: boolean
+          nome_contato: string | null
+          telefone_contato: string | null
+        }
+        Insert: {
+          cliente_id: string
+          email_contato?: string | null
+          id?: string
+          is_gestor?: boolean
+          nome_contato?: string | null
+          telefone_contato?: string | null
+        }
+        Update: {
+          cliente_id?: string
+          email_contato?: string | null
+          id?: string
+          is_gestor?: boolean
+          nome_contato?: string | null
+          telefone_contato?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_contatos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clientes: {
+        Row: {
+          bairro: string | null
+          cadastro_cliente: string | null
+          cep: string | null
+          cidade: string | null
+          codigo_cliente: string
+          cpf_cnpj: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          natureza_cliente: string | null
+          nome_fantasia: string | null
+          numero: string | null
+          razao_social: string | null
+          situacao: string | null
+          tipo_cliente: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cadastro_cliente?: string | null
+          cep?: string | null
+          cidade?: string | null
+          codigo_cliente: string
+          cpf_cnpj?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          natureza_cliente?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          razao_social?: string | null
+          situacao?: string | null
+          tipo_cliente?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cadastro_cliente?: string | null
+          cep?: string | null
+          cidade?: string | null
+          codigo_cliente?: string
+          cpf_cnpj?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          natureza_cliente?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          razao_social?: string | null
+          situacao?: string | null
+          tipo_cliente?: string | null
+        }
+        Relationships: []
       }
       comment_mentions: {
         Row: {
@@ -337,7 +554,6 @@ export type Database = {
           nivelAcesso: string | null
           permissoes: Json | null
           role: string
-          push_token: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -348,7 +564,6 @@ export type Database = {
           nivelAcesso?: string | null
           permissoes?: Json | null
           role?: string
-          push_token?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -359,7 +574,6 @@ export type Database = {
           nivelAcesso?: string | null
           permissoes?: Json | null
           role?: string
-          push_token?: string | null
         }
         Relationships: []
       }
@@ -398,6 +612,42 @@ export type Database = {
           },
         ]
       }
+      project_members: {
+        Row: {
+          created_at: string
+          project_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          project_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          project_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           color: string | null
@@ -408,8 +658,6 @@ export type Database = {
           portfolio_id: string | null
           updated_at: string
           user_id: string | null
-          team_id: string | null
-          privacy: string | null
         }
         Insert: {
           color?: string | null
@@ -420,8 +668,6 @@ export type Database = {
           portfolio_id?: string | null
           updated_at?: string
           user_id?: string | null
-          team_id?: string | null
-          privacy?: string | null
         }
         Update: {
           color?: string | null
@@ -432,8 +678,6 @@ export type Database = {
           portfolio_id?: string | null
           updated_at?: string
           user_id?: string | null
-          team_id?: string | null
-          privacy?: string | null
         }
         Relationships: [
           {
@@ -855,53 +1099,34 @@ export type Database = {
       }
       teams: {
         Row: {
-          id: string;
-          name: string;
-          description: string | null;
-          created_at: string;
-          updated_at: string;
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string | null
         }
         Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-          created_at?: string;
-          updated_at?: string;
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id?: string | null
         }
         Update: {
-          id?: string;
-          name?: string;
-          description?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        }
-        Relationships: []
-      }
-      project_members: {
-        Row: {
-          id: string;
-          project_id: string;
-          user_id: string;
-          role: string | null;
-          created_at: string;
-        }
-        Insert: {
-          id?: string;
-          project_id: string;
-          user_id: string;
-          role?: string | null;
-          created_at?: string;
-        }
-        Update: {
-          id?: string;
-          project_id?: string;
-          user_id?: string;
-          role?: string | null;
-          created_at?: string;
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string | null
         }
         Relationships: [
-          { foreignKeyName: "project_members_project_id_fkey", columns: ["project_id"], referencedRelation: "projects", referencedColumns: ["id"] },
-          { foreignKeyName: "project_members_user_id_fkey", columns: ["user_id"], referencedRelation: "profiles", referencedColumns: ["id"] }
+          {
+            foreignKeyName: "teams_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -921,6 +1146,18 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_profile_nivelacesso: {
+        Args: { _id: string }
+        Returns: string
+      }
+      get_profile_permissoes: {
+        Args: { _id: string }
+        Returns: Json
+      }
+      get_profile_role: {
+        Args: { _id: string }
+        Returns: string
+      }
       get_projects_with_stats: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -936,6 +1173,14 @@ export type Database = {
           updated_at: string
           user_id: string
         }[]
+      }
+      is_member_of_project: {
+        Args: { _project_id: string }
+        Returns: boolean
+      }
+      is_owner_of_project: {
+        Args: { _project_id: string }
+        Returns: boolean
       }
     }
     Enums: {
