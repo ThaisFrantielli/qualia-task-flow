@@ -1,30 +1,31 @@
+// src/components/customer-management/CustomerList.tsx
+
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Users } from 'lucide-react';
 
-export interface Customer {
-  id: number;
+export interface CustomerDisplayInfo {
+  id: string;
   name: string;
   status: string;
-  responsible: string;
+  primaryContact: string;
   initials: string;
 }
 
 interface CustomerListProps {
-  customers: Customer[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  customers: CustomerDisplayInfo[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }
 
 const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'Resolvido':
+  if (!status) return 'bg-gray-100 text-gray-800 border-gray-200';
+  switch (status.toLowerCase()) {
+    case 'ativo':
       return 'bg-green-100 text-green-800 border-green-200';
-    case 'Em Análise':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'Solicitação':
-      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'inativo':
+      return 'bg-red-100 text-red-800 border-red-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
@@ -32,7 +33,6 @@ const getStatusColor = (status: string) => {
 
 const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSelect }) => (
   <div className="bg-card rounded-lg border h-full flex flex-col">
-    {/* Header */}
     <div className="flex items-center justify-between p-6 border-b">
       <div className="flex items-center gap-3">
         <Users className="h-5 w-5 text-primary" />
@@ -40,14 +40,12 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSe
         <Badge variant="secondary" className="ml-2">{customers.length}</Badge>
       </div>
     </div>
-
-    {/* Customer List */}
     <div className="flex-1 overflow-y-auto">
       {customers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-center">
+        <div className="flex flex-col items-center justify-center h-full text-center">
           <Users className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-sm font-medium text-foreground mb-2">Nenhum cliente encontrado</h3>
-          <p className="text-xs text-muted-foreground">Tente ajustar sua busca</p>
+          <p className="text-xs text-muted-foreground">Verifique o console para erros ou adicione novos clientes.</p>
         </div>
       ) : (
         <div className="divide-y">
@@ -55,9 +53,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSe
             <div
               key={customer.id}
               className={`p-4 cursor-pointer transition-all duration-200 hover:bg-muted/50 ${
-                selectedId === customer.id 
-                  ? 'bg-primary/5 border-r-4 border-r-primary' 
-                  : ''
+                selectedId === customer.id ? 'bg-primary/5 border-r-4 border-r-primary' : ''
               }`}
               onClick={() => onSelect(customer.id)}
             >
@@ -68,19 +64,16 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSe
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="font-medium text-sm text-foreground truncate">
-                      {customer.name}
-                    </p>
+                  <p className="font-medium text-sm text-foreground truncate mb-1">
+                    {customer.name}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-xs ${getStatusColor(customer.status)}`}>
+                      {customer.status || 'Não definido'}
+                    </Badge>
                   </div>
-                  <Badge 
-                    variant="outline" 
-                    className={`text-xs mb-2 ${getStatusColor(customer.status)}`}
-                  >
-                    {customer.status}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {customer.responsible}
+                  <p className="text-xs text-muted-foreground truncate mt-1.5">
+                    Contato: {customer.primaryContact}
                   </p>
                 </div>
               </div>
