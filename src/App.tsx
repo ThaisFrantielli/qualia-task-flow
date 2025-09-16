@@ -1,10 +1,8 @@
-// src/App.tsx (VERSÃO FINAL E AJUSTADA)
+// src/App.tsx 
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-// --- CORREÇÃO: Padronização de todos os imports para usar o alias '@' ---
-// Isso torna os caminhos mais consistentes e menos propensos a erros.
-import AppLayout from '@/components/layout/AppLayout'; // <-- Usando o novo layout que você criou
+import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
 import SignupPage from '@/pages/Signup';
@@ -23,11 +21,11 @@ import CrmPdvPage from '@/pages/CrmPdvPage';
 import CrmDashboardPage from '@/pages/CrmDashboardPage';
 import CreateAtendimentoPage from '@/pages/CreateAtendimentoPage';
 import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
-import SurveyResponsePage from '@/pages/SurveyResponsePage'; // <-- Adicionado para a rota de resposta
-import SurveyThankYouPage from '@/pages/SurveyThankYouPage'; // <-- Adicionado para a rota de agradecimento
+import SurveyResponsePage from '@/pages/SurveyResponsePage';
+import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
 import NotFound from '@/pages/NotFound';
-import CustomerManagementPage from '@/pages/CustomerManagementPage';
-import AtendimentoDetailPage from '@/pages/AtendimentoDetailPage'; // <-- Importando a página de detalhe do atendimento
+import AtendimentoDetailPage from '@/pages/AtendimentoDetailPage';
+import CustomerHubPage from '@/pages/CustomerHubPage';
 
 function App() {
   return (
@@ -38,12 +36,11 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} /> {/* Rota pública para responder */}
-          <Route path="/obrigado" element={<SurveyThankYouPage />} /> {/* Rota pública de agradecimento */}
+          <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
+          <Route path="/obrigado" element={<SurveyThankYouPage />} />
           
           {/* Rotas Protegidas */}
           <Route element={<ProtectedRoute />}>
-            {/* Todas as rotas aqui dentro usarão o AppLayout (com Sidebar e Header) */}
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/kanban" element={<Kanban />} />
@@ -57,19 +54,19 @@ function App() {
               <Route path="/pos-vendas" element={<CrmPdvPage />} />
               <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
               <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
-              <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} /> {/* Rota para detalhe do atendimento */}
-              <Route path="/clientes" element={<CustomerManagementPage />} />
+              <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} />
+                           
+              <Route path="/clientes" element={<CustomerHubPage />} />
               
               <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
 
               <Route path="/team" element={<Team />} />
               <Route path="/notifications" element={<Notifications />} />
-                <Route path="/settings" element={<Settings />} /> 
+              <Route path="/settings" element={<Settings />} /> 
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
             </Route>
           </Route>
 
-          {/* Rota "Catch-all" para páginas não encontradas */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
