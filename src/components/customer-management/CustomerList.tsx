@@ -1,4 +1,4 @@
-// src/components/customer-management/CustomerList.tsx
+// src/components/customer-management/CustomerList.tsx (VERSÃO COM LAYOUT FLEX PARA SCROLL)
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -32,20 +32,21 @@ const getStatusColor = (status: string) => {
 };
 
 const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSelect }) => (
+  // --- AJUSTE DE LAYOUT: O card inteiro agora é um container flexível vertical ---
   <div className="bg-card rounded-lg border h-full flex flex-col">
-    <div className="flex items-center justify-between p-6 border-b">
+    <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
       <div className="flex items-center gap-3">
         <Users className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-semibold">Clientes</h2>
         <Badge variant="secondary" className="ml-2">{customers.length}</Badge>
       </div>
     </div>
+    {/* --- AJUSTE DE LAYOUT: Este div vai crescer e rolar o conteúdo interno --- */}
     <div className="flex-1 overflow-y-auto">
       {customers.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-center">
           <Users className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-sm font-medium text-foreground mb-2">Nenhum cliente encontrado</h3>
-          <p className="text-xs text-muted-foreground">Verifique o console para erros ou adicione novos clientes.</p>
         </div>
       ) : (
         <div className="divide-y">
@@ -67,11 +68,9 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, selectedId, onSe
                   <p className="font-medium text-sm text-foreground truncate mb-1">
                     {customer.name}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={`text-xs ${getStatusColor(customer.status)}`}>
-                      {customer.status || 'Não definido'}
-                    </Badge>
-                  </div>
+                  <Badge variant="outline" className={`text-xs ${getStatusColor(customer.status)}`}>
+                    {customer.status || 'Não definido'}
+                  </Badge>
                   <p className="text-xs text-muted-foreground truncate mt-1.5">
                     Contato: {customer.primaryContact}
                   </p>

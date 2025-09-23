@@ -1,11 +1,8 @@
-// src/contexts/AuthContext.tsx
-
+// DEBUG: AuthContext.tsx loaded
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
-// --- CORREÇÃO APLICADA AQUI ---
-// 1. Importamos AppUser do nosso arquivo de tipos central.
-import type { AppUser } from '@/types'; 
+import type { AppUser } from '@/types';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -13,44 +10,65 @@ interface AuthContextType {
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  session: null,
+  loading: true
+});
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchUserProfile = async (currentSession: Session) => {
+    try {
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentSession.user.id)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const updatedUser: AppUser = {
+        ...currentSession.user,
+        ...(profileData || {}),
+        email: profileData?.email || currentSession.user.email || ''
+      };
+
+      setUser(updatedUser);
+      setSession(currentSession);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      setUser(null);
+      setSession(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setLoading(true);
-    const fetchSessionAndProfile = async (currentSession: Session | null) => {
-      if (currentSession) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', currentSession.user.id)
-          .single();
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        fetchUserProfile(session);
+      } else {
+        setLoading(false);
+      }
+    });
 
-        // Push notification removido - Firebase não configurado
-
-        setUser({
-          ...currentSession.user,
-          ...profileData,
-          email: profileData?.email ?? currentSession.user.email ?? ''
-        });
-        setSession(currentSession);
+    // Listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        fetchUserProfile(session);
       } else {
         setUser(null);
         setSession(null);
+        setLoading(false);
       }
-      setLoading(false);
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchSessionAndProfile(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      fetchSessionAndProfile(session);
     });
 
     return () => {
@@ -58,22 +76,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const value = { session, user, loading };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, session, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    if (typeof window !== 'undefined') {
-      // Exibe erro visual na tela para facilitar diagnóstico
-      const root = document.getElementById('root');
-      if (root) {
-        root.innerHTML = '<div style="background:#ffdddd;color:#a00;padding:24px;font-size:18px;font-weight:bold;text-align:center;">ERRO: useAuth chamado fora do AuthProvider!<br>Verifique se o AuthProvider está no topo da árvore de componentes.</div>';
-      }
-    }
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
+
+export default AuthContext;
