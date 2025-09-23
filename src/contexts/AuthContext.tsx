@@ -2,7 +2,7 @@
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
-import type { AppUser } from '@/types';
+import type { AppUser, Permissoes } from '@/types';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -33,10 +33,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
 
+      // Garante que as permissões sejam um objeto, não uma string JSON
+      let finalPermissoes = profileData?.permissoes;
+      if (typeof finalPermissoes === 'string') {
+        try {
+          finalPermissoes = JSON.parse(finalPermissoes) as Permissoes;
+        } catch (e) {
+          console.error("Erro ao fazer parse das permissões:", e);
+          finalPermissoes = null;
+        }
+      } else if (finalPermissoes && typeof finalPermissoes === 'object') {
+        finalPermissoes = finalPermissoes as Permissoes;
+      } else {
+        finalPermissoes = null;
+      }
+
       const updatedUser: AppUser = {
         ...currentSession.user,
         ...(profileData || {}),
-        email: profileData?.email || currentSession.user.email || ''
+        email: profileData?.email || currentSession.user.email || '',
+        permissoes: finalPermissoes,
       };
 
       setUser(updatedUser);
