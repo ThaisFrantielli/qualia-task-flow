@@ -1,33 +1,33 @@
 // src/components/Sidebar.tsx
 
-import { ElementType } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, ElementType } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
-  Users, Bell, LogOut, FolderOpen, Headset, BarChart3,
-  ClipboardList, SlidersHorizontal
+  Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
+  ClipboardList, SlidersHorizontal // Ícone novo importado
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
-
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Permissoes } from '@/types';
 
 // Tipagem explícita para os itens de menu para maior segurança e autocompletar
-type MenuItem = {
+interface MenuItem {
   label: string;
   url: string;
   icon: ElementType;
   permissionKey?: keyof Permissoes;
-};
+}
 
-type MenuGroup = {
+interface MenuGroup {
   title: string;
   items: MenuItem[];
-};
+}
 
-// Estrutura de dados para os grupos de menu, agora com o grupo PROJETOS
+// Estrutura de dados para os grupos de menu, agora com os ajustes
 const menuGroups: MenuGroup[] = [
   {
     title: 'GERAL',
@@ -38,15 +38,8 @@ const menuGroups: MenuGroup[] = [
     ]
   },
   {
-    title: 'PROJETOS',
-    items: [
-      { label: 'Projetos', url: '/projects', icon: FolderOpen },
-    ]
-  },
-  {
     title: 'CRM',
     items: [
-      { label: 'Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
       { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
       { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
       { label: 'Pesquisas', url: '/pesquisas', icon: ClipboardList, permissionKey: 'crm' },
@@ -69,13 +62,15 @@ const menuGroups: MenuGroup[] = [
 ];
 
 const Sidebar: React.FC = () => {
-
+  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-    // const { projects } = useProjects();
+  const { projects } = useProjects();
+  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
 
-
-
+  useEffect(() => {
+    if (location.pathname.startsWith('/projects')) setIsProjectsOpen(true);
+  }, [location.pathname]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate('/login'); };
   
@@ -85,7 +80,7 @@ const Sidebar: React.FC = () => {
     return user?.email?.[0].toUpperCase() || '?'; 
   };
 
-  // const projectList = projects.filter(p => p.id !== 'all');
+  const projectList = projects.filter(p => p.id !== 'all');
 
   if (!user) return <div className="w-64 h-screen bg-gray-900 animate-pulse"></div>;
 
@@ -103,10 +98,9 @@ const Sidebar: React.FC = () => {
       <nav className="flex-1 py-6 px-4 overflow-y-auto">
         <div className="space-y-4">
           {menuGroups.map((group) => {
-            const permissoes = (user && typeof user.permissoes === 'object' && user.permissoes !== null) ? user.permissoes as Record<string, boolean | string | number> : {};
             const visibleItems = group.items.filter(item => {
               if (!item.permissionKey) return true;
-              return permissoes[item.permissionKey] === true;
+              return user?.permissoes?.[item.permissionKey] === true;
             });
             if (visibleItems.length === 0) return null;
 
@@ -127,7 +121,34 @@ const Sidebar: React.FC = () => {
             );
           })}
 
-          {/* Lista de projetos dentro do grupo PROJETOS foi removida conforme solicitado */}
+          {/* Seção de Projetos */}
+          <div>
+            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">PROJETOS</h2>
+            <ul className="space-y-1">
+              <li>
+                <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
+                  <CollapsibleTrigger asChild>
+                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
+                      <div className="flex items-center space-x-3"><FolderOpen className="w-5 h-5" /><span>Visão Geral</span></div>
+                      <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isProjectsOpen ? 'rotate-180' : ''}`} />
+                    </NavLink>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent asChild>
+                    <ul className="pt-1 pl-6 pr-2 space-y-1">
+                      {projectList.map(project => (
+                        <li key={project.id}>
+                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-primary/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}>
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
+                            <span className="truncate">{project.name}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
+              </li>
+            </ul>
+          </div>
         </div>
       </nav>
 
