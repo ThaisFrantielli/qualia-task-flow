@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
-  ClipboardList, SlidersHorizontal // Ícone novo importado
+  ClipboardList, SlidersHorizontal, Target // Ícone novo importado
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -40,6 +40,7 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'CRM',
     items: [
+      { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
       { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
       { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
       { label: 'Pesquisas', url: '/pesquisas', icon: ClipboardList, permissionKey: 'crm' },

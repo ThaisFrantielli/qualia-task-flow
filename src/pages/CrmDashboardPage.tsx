@@ -1,19 +1,15 @@
 // src/pages/CrmDashboardPage.tsx
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useAtendimentos } from '@/hooks/useAtendimentos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { HeadphonesIcon as Headset, MessageCircleQuestion, AlertCircle, Clock, Filter, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { Database } from '@/types/supabase';
-
-type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
+import type { Atendimento } from '@/types';
 
 const CrmDashboardPage = () => {
   const { atendimentos, loading, error } = useAtendimentos();
-  // Remove unused variables
-  // const [date, setDate] = React.useState<DateRange | undefined>();
 
   // --- ANÁLISE DOS DADOS (similar ao que o Power BI faz) ---
   const stats = useMemo(() => {
