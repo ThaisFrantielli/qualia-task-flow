@@ -1,6 +1,7 @@
 // src/App.tsx 
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { OportunidadeProvider } from './contexts/OportunidadeContext';
 
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -13,6 +14,7 @@ import TasksPage from '@/pages/Tasks';
 import TaskDetailPage from '@/pages/TaskDetailPage';
 import ProjectsPage from '@/pages/Projects';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
+import { OportunidadeList } from '@/components/OportunidadeList';
 import Team from '@/pages/Team';
 import Settings from '@/pages/Settings';
 import TaskSettingsPage from '@/pages/TaskSettingsPage';
@@ -26,6 +28,8 @@ import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
 import NotFound from '@/pages/NotFound';
 import AtendimentoDetailPage from '@/pages/AtendimentoDetailPage';
 import CustomerHubPage from '@/pages/CustomerHubPage';
+import OportunidadesPage from '@/pages/OportunidadesPage';
+import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
 
 function App() {
   return (
@@ -41,7 +45,11 @@ function App() {
           
           {/* Rotas Protegidas */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
+            <Route element={
+              <OportunidadeProvider>
+                <AppLayout />
+              </OportunidadeProvider>
+            }>
               <Route path="/" element={<Dashboard />} />
               <Route path="/kanban" element={<Kanban />} />
               
@@ -50,6 +58,9 @@ function App() {
 
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+              
+              <Route path="/oportunidades" element={<OportunidadesPage />} />
+              <Route path="/oportunidades/:id" element={<OportunidadeDetalhePage />} />
               
               <Route path="/pos-vendas" element={<CrmPdvPage />} />
               <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
