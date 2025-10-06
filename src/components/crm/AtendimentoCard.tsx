@@ -32,7 +32,7 @@ const AtendimentoCard: React.FC<AtendimentoCardProps> = ({ atendimento, onClick 
     >
       <div className="flex justify-between items-start">
         {/* Usando um fallback '??' caso o cliente não tenha nome */}
-        <h3 className="font-bold text-lg">{cliente?.nome ?? atendimento.client_name ?? 'Cliente não identificado'}</h3>
+        <h3 className="font-bold text-lg">{cliente?.nome ?? cliente?.razao_social ?? atendimento.client_name ?? 'Cliente não identificado'}</h3>
         
         {/* Exibindo a foto do responsável (assignee) se existir */}
         {assignee?.avatar_url && (

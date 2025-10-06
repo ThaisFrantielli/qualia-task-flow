@@ -14,7 +14,6 @@ import TasksPage from '@/pages/Tasks';
 import TaskDetailPage from '@/pages/TaskDetailPage';
 import ProjectsPage from '@/pages/Projects';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
-import { OportunidadeList } from '@/components/OportunidadeList';
 import Team from '@/pages/Team';
 import Settings from '@/pages/Settings';
 import TaskSettingsPage from '@/pages/TaskSettingsPage';

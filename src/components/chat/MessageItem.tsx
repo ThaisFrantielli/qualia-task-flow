@@ -1,7 +1,6 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ChatMessage } from '@/types/api';
-import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface MessageItemProps {

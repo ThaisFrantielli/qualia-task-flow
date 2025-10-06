@@ -16,9 +16,9 @@ client.on('qr', (qr) => {
     qrcode.generate(qr, { small: true });
 
     // Temporarily comment out the axios.post call to prevent crash loop
-    // axios.post('http://localhost:8000/api/whatsapp/qr-code', { qr })
-    //     .then(() => console.log('QR Code sent to Laravel backend'))
-    //     .catch((err) => console.error('Failed to send QR Code to Laravel backend', err));
+    axios.post('http://localhost:8000/api/whatsapp-webhook/qr-code', { qr })
+        .then(() => console.log('QR Code sent to new webhook'))
+        .catch((err) => console.error('Failed to send QR Code to new webhook', err));
 });
 
 // WhatsApp client is ready
@@ -30,13 +30,13 @@ client.on('ready', () => {
 client.on('message', (message) => {
     console.log(`Message received from ${message.from}: ${message.body}`);
 
-    // Forward message to Laravel webhook
-    axios.post('http://localhost:8000/api/webhook/whatsapp', {
+    // Forward message to new webhook
+    axios.post('http://localhost:8000/api/whatsapp-webhook/messages', {
         from: message.from,
         body: message.body,
     })
-        .then(() => console.log('Message forwarded to Laravel webhook'))
-        .catch((err) => console.error('Failed to forward message to Laravel webhook', err));
+        .then(() => console.log('Message forwarded to new webhook'))
+        .catch((err) => console.error('Failed to forward message to new webhook', err));
 });
 
 // API endpoint to send messages

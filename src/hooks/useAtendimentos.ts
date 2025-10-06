@@ -2,47 +2,43 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { AtendimentoComAssignee } from '@/types';
+import { AtendimentoComAssignee } from '@/types';
 
-export const useAtendimentos = () => {
+export function useAtendimentos() {
   const [atendimentos, setAtendimentos] = useState<AtendimentoComAssignee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<any>(null);
 
   const fetchAtendimentos = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      const { data, error: queryError } = await supabase
+        .from('atendimentos')
+        .select(`
+          *,
+          assignee:profiles (id, full_name, avatar_url),
+          cliente:clientes (id, nome_fantasia, razao_social)
+        `);
 
-    const { data, error: fetchError } = await supabase
-      .from('atendimentos')
-      .select('*, assignee:profiles(*)')
-      .order('created_at', { ascending: false });
+      if (queryError) {
+        throw queryError;
+      }
 
-    if (fetchError) {
-      setError(fetchError.message);
-    } else if (data) {
-      const formattedData: AtendimentoComAssignee[] = data.map(at => ({
-        ...at,
-        assignee: at.assignee,
-        cliente: {
-          nome: at.client_name,
-        },
-        descricao: at.summary,
-      }));
-      setAtendimentos(formattedData);
+      if (data) {
+        setAtendimentos(data as AtendimentoComAssignee[]);
+      }
+
+    } catch (err) {
+      setError(err);
+      console.error("Erro ao buscar atendimentos:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchAtendimentos();
   }, [fetchAtendimentos]);
 
-  return {
-    atendimentos,
-    setAtendimentos,
-    loading,
-    error,
-    refetch: fetchAtendimentos,
-  };
-};
+  return { atendimentos, loading, error, refresh: fetchAtendimentos };
+}
