@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@/types/api';
 import Echo from '@/services/echo';
-import type { Channel } from 'pusher-js';
 
 interface UseChatOptions {
     oportunidadeId: number;

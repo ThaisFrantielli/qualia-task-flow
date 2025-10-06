@@ -19,13 +19,16 @@ export function useAtendimentosKanban() {
     if (fetchError) {
       setError(fetchError.message);
     } else if (data) {
-      const formattedData: AtendimentoComAssignee[] = data.map(at => ({
+      const formattedData: AtendimentoComAssignee[] = data.map((at: any) => ({
         ...at,
-        assignee: at.assignee,
+        assignee: at.assignee ?? null,
         cliente: {
-          nome: at.client_name,
+          id: at.cliente_id ?? null,
+          nome: at.client_name ?? null,
+          nome_fantasia: at.client_name ?? null,
+          razao_social: at.client_name ?? null,
         },
-        descricao: at.summary,
+        descricao: at.summary ?? at.description ?? null,
       }));
       setData(formattedData);
     }

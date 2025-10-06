@@ -1,6 +1,6 @@
 // src/components/crm/AtendimentoDetailModal.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Database } from '@/types/supabase';
 type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
 // Removed unused imports

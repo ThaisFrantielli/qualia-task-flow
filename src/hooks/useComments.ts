@@ -68,11 +68,11 @@ export const useComments = (taskId?: string) => {
           // Buscar usuários mencionados pelo nome (ajuste se necessário para buscar por username/email)
           const { data: users } = await supabase
             .from('profiles')
-            .select('id, full_name, push_token')
+            .select('id, full_name')
             .in('full_name', mentions);
           if (users && users.length > 0) {
             // 2.1. Persistir menções com contexto
-            const mentionsToInsert = users.map((u: { id: string; full_name: string | null; push_token?: string | null }) => ({
+            const mentionsToInsert = users.map((u: { id: string; full_name: string | null }) => ({
               comment_id: data.id,
               mentioned_user: u.id,
               context_type: contextType,
@@ -81,7 +81,7 @@ export const useComments = (taskId?: string) => {
             await supabase.from('comment_mentions').insert(mentionsToInsert);
 
             // 2.2. Criar notificação para cada usuário mencionado
-            const notificationInserts = users.map((u: { id: string; full_name: string | null; push_token?: string | null }) => ({
+            const notificationInserts = users.map((u: { id: string; full_name: string | null }) => ({
               user_id: u.id,
               title: 'Você foi mencionado',
               message: `${authorName} mencionou você em um comentário${contextType === 'pos_venda' ? ' no Pós-Vendas' : ' na tarefa'}.`,

@@ -1,4 +1,3 @@
-
 import React, { useRef } from 'react';
 import { useTasks } from '@/hooks/useTasks';
 import TaskCard from './TaskCard';
@@ -110,7 +109,7 @@ const DragDropKanban: React.FC = () => {
                       }}
                       dueDate={task.due_date || undefined}
                       subtasks={{
-                        completed: task.subtasks?.filter(st => st.completed).length || 0,
+                        completed: task.subtasks?.filter((st: { completed: boolean }) => st.completed).length || 0,
                         total: task.subtasks?.length || 0
                       }}
                       comments={task.comments?.length || 0}

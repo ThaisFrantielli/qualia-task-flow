@@ -5,7 +5,6 @@ import type { Oportunidade, ChatMessage, PaginatedResponse } from '@/types/api';
 import { Loader2 } from 'lucide-react';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { useChat } from '@/hooks/useChat';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface OportunidadeDetalheState {
   oportunidade: Oportunidade | null;
@@ -22,7 +21,6 @@ interface OportunidadeDetalheState {
 export default function OportunidadeDetalhePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [state, setState] = useState<OportunidadeDetalheState>({
     oportunidade: null,
     messages: [],

@@ -140,11 +140,11 @@ const AtendimentoDetailSheet: React.FC<AtendimentoDetailSheetProps> = ({ atendim
                           <div className="text-sm text-muted-foreground">
                             Status atual: {atendimento.status}
                           </div>
-                          {atendimento.interactions.map((inter: Interaction) => (
-                            <div key={inter.id} className="border-l-2 border-muted pl-4">
-                              <div className="font-medium">{inter.author}</div>
-                              <div className="text-sm text-muted-foreground">{inter.date}</div>
-                              <div className="mt-1">{inter.text}</div>
+                          {(atendimento.interactions || []).map((inter: Interaction) => (
+                            <div key={(inter as any)?.id ?? Math.random()} className="border-l-2 border-muted pl-4">
+                              <div className="font-medium">{(inter as any)?.author ?? 'Desconhecido'}</div>
+                              <div className="text-sm text-muted-foreground">{(inter as any)?.date ?? ''}</div>
+                              <div className="mt-1">{(inter as any)?.text ?? ''}</div>
                             </div>
                           ))}
                         </div>

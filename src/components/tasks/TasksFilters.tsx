@@ -9,7 +9,7 @@ import type { AllTaskFilters } from '@/types';
 import { cn } from '@/lib/utils'; // <-- 2. Importar o utilitário 'cn'
 
 interface TasksFiltersProps {
-  filters: AllTaskFilters;
+  filters: Partial<AllTaskFilters>;
   onFilterChange: (filterName: keyof AllTaskFilters, value: string) => void;
   onClearFilters: () => void;
   // --- 3. Adicionar as novas props para o Modo Foco ---
@@ -29,13 +29,13 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
         <div className="relative md:col-span-2"> {/* A busca agora ocupa 2 colunas */}
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por título..."
-            value={filters.searchTerm || ''}
-            onChange={(e) => onFilterChange('searchTerm', e.target.value)}
+            placeholder="Buscar por tdtulo..."
+            value={'searchTerm' in filters ? (filters.searchTerm as string) || '' : ''}
+            onChange={(e) => onFilterChange('searchTerm' as keyof AllTaskFilters, e.target.value)}
             className="pl-10"
           />
         </div>
-        <Select value={filters.statusFilter || 'all'} onValueChange={(v) => onFilterChange('statusFilter', v)}>
+  <Select value={'statusFilter' in filters ? (filters.statusFilter as string) || 'all' : 'all'} onValueChange={(v) => onFilterChange('statusFilter' as keyof AllTaskFilters, v)}>
           <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os Status</SelectItem>
@@ -44,7 +44,7 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             <SelectItem value="done">Concluído</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filters.priorityFilter || 'all'} onValueChange={(v) => onFilterChange('priorityFilter', v)}>
+  <Select value={'priorityFilter' in filters ? (filters.priorityFilter as string) || 'all' : 'all'} onValueChange={(v) => onFilterChange('priorityFilter' as keyof AllTaskFilters, v)}>
           <SelectTrigger><SelectValue placeholder="Prioridade" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as Prioridades</SelectItem>
