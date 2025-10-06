@@ -65,6 +65,20 @@ class ChatMessageController extends Controller
         // Load relationships for the resource
         $message->load(['user', 'replies.user']);
 
+        // Send the message via WhatsApp API
+        try {
+            $whatsapp = new \Netflie\WhatsAppCloudApi\WhatsAppCloudApi([
+                'access_token' => env('WHATSAPP_API_TOKEN'),
+                'phone_number_id' => env('WHATSAPP_API_PHONE_NUMBER_ID'),
+            ]);
+
+            $customerPhone = $oportunidade->customer_phone;
+            $whatsapp->sendTextMessage($customerPhone, $message->content);
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Log::error('Failed to send WhatsApp message', ['error' => $e->getMessage()]);
+        }
+
         // Broadcast the new message to other users
         broadcast(new NewMessageCreated($message))->toOthers();
 
