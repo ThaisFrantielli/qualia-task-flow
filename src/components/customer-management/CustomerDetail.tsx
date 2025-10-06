@@ -1,6 +1,6 @@
 // src/components/customer-management/CustomerDetail.tsx (VERSÃO FINAL CORRIGIDA)
 
-import React from 'react';
+import React, { Suspense } from 'react';
 // CORREÇÃO: Importa o tipo Atendimento para usar na tipagem do onRowClick
 import type { ClienteComContatos, Contato, Atendimento } from '@/types';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
@@ -31,6 +31,8 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  const WhatsAppChat = React.lazy(() => import('../WhatsAppChat'));
+
   return (
     <div className="bg-card rounded-lg border h-full flex flex-col">
       <div className="p-6 border-b flex items-start justify-between">
@@ -59,6 +61,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
           <TabsTrigger value="tarefas">
             Tarefas <Badge variant="secondary" className="ml-2">{detalhes?.tarefas.length ?? 0}</Badge>
           </TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
         </TabsList>
         
         <div className="flex-1 overflow-y-auto p-6">
@@ -144,6 +147,19 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                     )}
                 </CardContent>
              </Card>
+          </TabsContent>
+
+          <TabsContent value="whatsapp" className="mt-0">
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg">WhatsApp</CardTitle></CardHeader>
+              <CardContent>
+                <div style={{ minHeight: 300 }}>
+                  <Suspense fallback={<div>Carregando chat...</div>}>
+                    <WhatsAppChat customerId={String(customer.id)} />
+                  </Suspense>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </div>
       </Tabs>

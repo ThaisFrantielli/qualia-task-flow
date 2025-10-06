@@ -5,7 +5,8 @@ import type { ChatMessage } from '@/types/api';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
-  opportunityId: number;
+  // opportunityId was unused; keep it optional for upstream compatibility
+  opportunityId?: number;
   onLoadMore: () => void;
   hasMore: boolean;
   isLoadingMore: boolean;
@@ -15,7 +16,6 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({
   messages,
-  opportunityId,
   onLoadMore,
   hasMore,
   isLoadingMore,

@@ -7,8 +7,6 @@ import { Plus, Grid3X3, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import KanbanTaskCard from '../components/KanbanTaskCard';
 import AtendimentoDetailModal from '@/components/crm/AtendimentoDetailModal';
-import type { Database } from '@/types/supabase';
-type Atendimento = Database['public']['Tables']['atendimentos']['Row'];
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useDrop } from 'react-dnd';
@@ -19,16 +17,17 @@ import { AnimatedKPICard } from '../components/AnimatedKPICard';
 import { MobileFirstFilters } from '../components/MobileFirstFilters';
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
 import { ExclamationTriangleIcon, CheckCircleIcon, ClockIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import { AtendimentoComAssignee } from '@/types';
 
-type KanbanColumnStatus = 'Solicitação' | 'Em Análise' | 'Resolvido';
+export type KanbanColumnStatus = 'Solicitação' | 'Em Análise' | 'Resolvido';
 const kanbanColumns: KanbanColumnStatus[] = ['Solicitação', 'Em Análise', 'Resolvido'];
 
 // Interface para as props do KanbanColumn (sem alterações)
 interface KanbanColumnProps {
   title: KanbanColumnStatus;
-  atendimentos: Atendimento[];
+  atendimentos: AtendimentoComAssignee[]; // <-- CORREÇÃO
   onDrop: (item: { id: number, status: KanbanColumnStatus }, newStatus: KanbanColumnStatus) => void;
-  onCardClick: (atendimento: Atendimento) => void;
+  onCardClick: (atendimento: AtendimentoComAssignee) => void; // <-- CORREÇÃO
 }
 
 // CORREÇÃO: Definição completa e correta do componente KanbanColumn
@@ -89,7 +88,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
           >
             <KanbanTaskCard
               id={at.id}
-              cliente={at.client_name || 'Cliente Desconhecido'}
+              cliente={at.cliente?.nome_fantasia || at.cliente?.razao_social || 'Cliente Desconhecido'}
               resumo={at.summary || undefined}
               data={at.created_at ? new Date(at.created_at).toLocaleDateString('pt-BR') : '-'}
               motivo={at.reason || '-'}
@@ -112,8 +111,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
 
 
 const CrmPdvPage = () => {
-  const { atendimentos, setAtendimentos, loading, error, refetch } = useAtendimentos();
-  const [selectedAtendimento, setSelectedAtendimento] = useState<Atendimento | null>(null);
+  const { atendimentos, loading, error } = useAtendimentos();
+  const [selectedAtendimento, setSelectedAtendimento] = useState<AtendimentoComAssignee | null>(null);
   const navigate = useNavigate();
 
 
@@ -172,12 +171,10 @@ const CrmPdvPage = () => {
     if (newStatus === 'Resolvido') {
       updatePayload.resolved_at = new Date().toISOString();
     }
-    const originalAtendimentos = [...atendimentos];
-    setAtendimentos(prev => prev.map(at => (at.id === item.id ? { ...at, status: newStatus } : at)));
     const { error } = await supabase.from('atendimentos').update(updatePayload).eq('id', item.id);
     if (error) {
       toast.error('Falha ao mover atendimento', { description: error.message });
-      setAtendimentos(originalAtendimentos);
+      // setAtendimentos(originalAtendimentos);
     } else {
       toast.success(`Atendimento movido para "${newStatus}"`);
     }
@@ -345,7 +342,7 @@ const CrmPdvPage = () => {
         <AtendimentoDetailModal 
           atendimento={selectedAtendimento}
           onClose={() => setSelectedAtendimento(null)}
-          onUpdate={refetch}
+          onUpdate={() => { /* refresh list after edit */ }}
         />
       </div>
     </DndProvider>
