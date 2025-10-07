@@ -47,6 +47,9 @@ export type TaskWithDetails = Task & {
   attachments?: Attachment[];
   project?: Project | null;
   category?: TaskCategory | null;
+  // Added properties
+  subtasks_count?: number;
+  completed_subtasks_count?: number;
 };
 
 export type TaskInsert = PublicSchema['Tables']['tasks']['Insert'];
@@ -111,6 +114,7 @@ export type Survey = PublicSchema['Tables']['surveys']['Row'];
 // --- Tipos de Filtros ---
 export type AllTaskFilters = {
   search?: string;
+  searchTerm?: string; // Added property
   status?: string[];
   priority?: string[];
   assignee?: string[];
@@ -120,4 +124,19 @@ export type AllTaskFilters = {
     start?: Date;
     end?: Date;
   };
+};
+
+// --- Tipos de Oportunidades ---
+export type Oportunidade = PublicSchema['Tables']['oportunidades']['Row'];
+export type OportunidadeMessage = PublicSchema['Tables']['oportunidade_messages']['Row'];
+export type OportunidadeProduto = PublicSchema['Tables']['oportunidade_produtos']['Row'];
+
+export type OportunidadeWithDetails = Oportunidade & {
+  user?: Profile | null;
+  cliente?: Cliente | null;
+  messages?: OportunidadeMessage[];
+  produtos?: OportunidadeProduto[];
+  messages_count?: number;
+  produtos_count?: number;
+  latest_message?: OportunidadeMessage;
 };

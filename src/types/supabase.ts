@@ -539,6 +539,142 @@ export type Database = {
           },
         ]
       }
+      oportunidade_messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: number
+          is_system_message: boolean | null
+          metadata: Json | null
+          oportunidade_id: number | null
+          parent_message_id: number | null
+          read_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: number
+          is_system_message?: boolean | null
+          metadata?: Json | null
+          oportunidade_id?: number | null
+          parent_message_id?: number | null
+          read_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: number
+          is_system_message?: boolean | null
+          metadata?: Json | null
+          oportunidade_id?: number | null
+          parent_message_id?: number | null
+          read_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidade_messages_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oportunidade_messages_parent_message_id_fkey"
+            columns: ["parent_message_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidade_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oportunidade_produtos: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          id: number
+          nome: string
+          oportunidade_id: number | null
+          quantidade: number | null
+          valor_total: number | null
+          valor_unitario: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          nome: string
+          oportunidade_id?: number | null
+          quantidade?: number | null
+          valor_total?: number | null
+          valor_unitario?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          nome?: string
+          oportunidade_id?: number | null
+          quantidade?: number | null
+          valor_total?: number | null
+          valor_unitario?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidade_produtos_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oportunidades: {
+        Row: {
+          cliente_id: string | null
+          created_at: string | null
+          descricao: string | null
+          id: number
+          status: string | null
+          titulo: string
+          updated_at: string | null
+          user_id: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          status?: string | null
+          titulo: string
+          updated_at?: string | null
+          user_id?: string | null
+          valor_total?: number | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          status?: string | null
+          titulo?: string
+          updated_at?: string | null
+          user_id?: string | null
+          valor_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidades_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolios: {
         Row: {
           color: string | null
