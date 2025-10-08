@@ -35,12 +35,20 @@ const LoginPage = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    console.log('Tentando login com:', { email, passwordLength: password.length });
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
     if (error) {
-      toast.error('Email ou senha inválidos.', { description: 'Verifique suas credenciais e tente novamente.' });
+      console.error('Erro de login:', error);
+      toast.error('Erro ao fazer login', { 
+        description: error.message || 'Verifique suas credenciais e tente novamente.' 
+      });
     } else {
+      console.log('Login bem-sucedido:', data);
       toast.success('Login realizado com sucesso!');
-      navigate('/'); // Redireciona para o dashboard após o login
+      navigate('/');
     }
     setLoading(false);
   };
