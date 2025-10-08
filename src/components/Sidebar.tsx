@@ -40,6 +40,7 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'CRM',
     items: [
+      { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
       { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
       { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
       { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
