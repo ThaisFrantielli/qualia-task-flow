@@ -8,9 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building, User, Mail, Phone, Edit, Trash2, MapPin, CalendarDays, Headset, ListChecks } from 'lucide-react';
+import { Loader2, Building, User, Mail, Phone, Edit, Trash2, MapPin, CalendarDays, Headset, ListChecks, Target, DollarSign, Package } from 'lucide-react';
 // CORREÇÃO: Importa o componente usando a sintaxe de 'export default'
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface CustomerDetailProps {
   customer: ClienteComContatos;
@@ -20,6 +24,21 @@ interface CustomerDetailProps {
 
 const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDelete }) => {
   const { detalhes, loading: detalhesLoading } = useClienteDetail(customer);
+
+  // Buscar oportunidades do cliente
+  const { data: oportunidades = [], isLoading: oportunidadesLoading } = useQuery({
+    queryKey: ['oportunidades-cliente', customer.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('oportunidades')
+        .select('*')
+        .eq('cliente_id', customer.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return '?';
@@ -55,6 +74,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
       <Tabs defaultValue="detalhes" className="flex-1 flex flex-col min-h-0">
         <TabsList className="mx-6 mt-4">
           <TabsTrigger value="detalhes">Detalhes do Cliente</TabsTrigger>
+          <TabsTrigger value="oportunidades">
+            Oportunidades <Badge variant="secondary" className="ml-2">{oportunidades.length}</Badge>
+          </TabsTrigger>
           <TabsTrigger value="atendimentos">
             Atendimentos <Badge variant="secondary" className="ml-2">{detalhes?.atendimentos.length ?? 0}</Badge>
           </TabsTrigger>
@@ -108,6 +130,64 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="oportunidades" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Target className="h-5 w-5" /> Oportunidades de Negócio
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {oportunidadesLoading ? (
+                  <div className="flex justify-center items-center p-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : oportunidades.length > 0 ? (
+                  <div className="space-y-3">
+                    {oportunidades.map((opp: any) => (
+                      <div key={opp.id} className="p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-semibold text-base">{opp.titulo}</h4>
+                          <Badge variant={
+                            opp.status === 'aberta' ? 'default' : 
+                            opp.status === 'fechada' ? 'secondary' : 
+                            'destructive'
+                          }>
+                            {opp.status}
+                          </Badge>
+                        </div>
+                        {opp.descricao && (
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                            {opp.descricao}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            <span>
+                              {new Intl.NumberFormat('pt-BR', { 
+                                style: 'currency', 
+                                currency: 'BRL' 
+                              }).format(Number(opp.valor_total) || 0)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Package className="h-4 w-4" />
+                            <span>Criado em {opp.created_at && format(new Date(opp.created_at), "dd/MM/yyyy", { locale: ptBR })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Nenhuma oportunidade cadastrada para este cliente.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="atendimentos" className="mt-0">
