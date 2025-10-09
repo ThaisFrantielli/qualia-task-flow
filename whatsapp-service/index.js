@@ -1,10 +1,12 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const express = require('express');
+const cors = require('cors');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // Supabase configuration

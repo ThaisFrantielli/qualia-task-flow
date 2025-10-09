@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      atendimento_historico: {
+        Row: {
+          atendimento_id: number
+          created_at: string
+          detalhes: Json | null
+          id: number
+          tipo_evento: string
+          user_id: string | null
+        }
+        Insert: {
+          atendimento_id: number
+          created_at?: string
+          detalhes?: Json | null
+          id?: number
+          tipo_evento: string
+          user_id?: string | null
+        }
+        Update: {
+          atendimento_id?: number
+          created_at?: string
+          detalhes?: Json | null
+          id?: number
+          tipo_evento?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimento_historico_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimentos: {
         Row: {
           adjustment_index: string | null
@@ -21,12 +56,14 @@ export type Database = {
           client_email: string | null
           client_name: string | null
           client_phone: string | null
+          cliente_id: string | null
           contact_end_time: string | null
           contact_person: string | null
           contact_start_time: string | null
           contract_signed_date: string | null
           created_at: string
           department: Database["public"]["Enums"]["tipo_departamento"] | null
+          descricao: string | null
           final_analysis:
             | Database["public"]["Enums"]["tipo_analise_final"]
             | null
@@ -43,6 +80,7 @@ export type Database = {
           status: Database["public"]["Enums"]["tipo_status_atendimento"] | null
           summary: string | null
           tipo_atendimento: string | null
+          titulo: string | null
           updated_at: string
         }
         Insert: {
@@ -51,12 +89,14 @@ export type Database = {
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
+          cliente_id?: string | null
           contact_end_time?: string | null
           contact_person?: string | null
           contact_start_time?: string | null
           contract_signed_date?: string | null
           created_at?: string
           department?: Database["public"]["Enums"]["tipo_departamento"] | null
+          descricao?: string | null
           final_analysis?:
             | Database["public"]["Enums"]["tipo_analise_final"]
             | null
@@ -73,6 +113,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["tipo_status_atendimento"] | null
           summary?: string | null
           tipo_atendimento?: string | null
+          titulo?: string | null
           updated_at?: string
         }
         Update: {
@@ -81,12 +122,14 @@ export type Database = {
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
+          cliente_id?: string | null
           contact_end_time?: string | null
           contact_person?: string | null
           contact_start_time?: string | null
           contract_signed_date?: string | null
           created_at?: string
           department?: Database["public"]["Enums"]["tipo_departamento"] | null
+          descricao?: string | null
           final_analysis?:
             | Database["public"]["Enums"]["tipo_analise_final"]
             | null
@@ -103,6 +146,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["tipo_status_atendimento"] | null
           summary?: string | null
           tipo_atendimento?: string | null
+          titulo?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -111,6 +155,13 @@ export type Database = {
             columns: ["assignee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
         ]
@@ -281,22 +332,28 @@ export type Database = {
       cliente_contatos: {
         Row: {
           cliente_id: string
+          departamento: string | null
           email_contato: string | null
           id: string
+          is_gestor: boolean
           nome_contato: string | null
           telefone_contato: string | null
         }
         Insert: {
           cliente_id: string
+          departamento?: string | null
           email_contato?: string | null
           id?: string
+          is_gestor?: boolean
           nome_contato?: string | null
           telefone_contato?: string | null
         }
         Update: {
           cliente_id?: string
+          departamento?: string | null
           email_contato?: string | null
           id?: string
+          is_gestor?: boolean
           nome_contato?: string | null
           telefone_contato?: string | null
         }
@@ -318,18 +375,20 @@ export type Database = {
           cidade: string | null
           codigo_cliente: string
           cpf_cnpj: string | null
-          email_gestor: string | null
+          email: string | null
           endereco: string | null
           estado: string | null
           id: string
           natureza_cliente: string | null
           nome_fantasia: string | null
           numero: string | null
+          origem: string | null
           razao_social: string | null
           situacao: string | null
-          telefone1_gestor: string | null
-          telefone2_gestor: string | null
+          status: string | null
+          telefone: string | null
           tipo_cliente: string | null
+          whatsapp_number: string | null
         }
         Insert: {
           bairro?: string | null
@@ -338,18 +397,20 @@ export type Database = {
           cidade?: string | null
           codigo_cliente: string
           cpf_cnpj?: string | null
-          email_gestor?: string | null
+          email?: string | null
           endereco?: string | null
           estado?: string | null
           id?: string
           natureza_cliente?: string | null
           nome_fantasia?: string | null
           numero?: string | null
+          origem?: string | null
           razao_social?: string | null
           situacao?: string | null
-          telefone1_gestor?: string | null
-          telefone2_gestor?: string | null
+          status?: string | null
+          telefone?: string | null
           tipo_cliente?: string | null
+          whatsapp_number?: string | null
         }
         Update: {
           bairro?: string | null
@@ -358,18 +419,20 @@ export type Database = {
           cidade?: string | null
           codigo_cliente?: string
           cpf_cnpj?: string | null
-          email_gestor?: string | null
+          email?: string | null
           endereco?: string | null
           estado?: string | null
           id?: string
           natureza_cliente?: string | null
           nome_fantasia?: string | null
           numero?: string | null
+          origem?: string | null
           razao_social?: string | null
           situacao?: string | null
-          telefone1_gestor?: string | null
-          telefone2_gestor?: string | null
+          status?: string | null
+          telefone?: string | null
           tipo_cliente?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
@@ -484,6 +547,156 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oportunidade_messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: number
+          is_system_message: boolean | null
+          metadata: Json | null
+          oportunidade_id: number | null
+          parent_message_id: number | null
+          read_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: number
+          is_system_message?: boolean | null
+          metadata?: Json | null
+          oportunidade_id?: number | null
+          parent_message_id?: number | null
+          read_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: number
+          is_system_message?: boolean | null
+          metadata?: Json | null
+          oportunidade_id?: number | null
+          parent_message_id?: number | null
+          read_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidade_messages_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oportunidade_messages_parent_message_id_fkey"
+            columns: ["parent_message_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidade_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oportunidade_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oportunidade_produtos: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          id: number
+          nome: string
+          oportunidade_id: number | null
+          quantidade: number | null
+          valor_total: number | null
+          valor_unitario: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          nome: string
+          oportunidade_id?: number | null
+          quantidade?: number | null
+          valor_total?: number | null
+          valor_unitario?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          nome?: string
+          oportunidade_id?: number | null
+          quantidade?: number | null
+          valor_total?: number | null
+          valor_unitario?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidade_produtos_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oportunidades: {
+        Row: {
+          cliente_id: string | null
+          created_at: string | null
+          descricao: string | null
+          id: number
+          status: string | null
+          titulo: string
+          updated_at: string | null
+          user_id: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          status?: string | null
+          titulo: string
+          updated_at?: string | null
+          user_id?: string | null
+          valor_total?: number | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          status?: string | null
+          titulo?: string
+          updated_at?: string | null
+          user_id?: string | null
+          valor_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oportunidades_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oportunidades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1100,6 +1313,183 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_config: {
+        Row: {
+          connected_number: string | null
+          created_at: string | null
+          id: string
+          is_connected: boolean | null
+          last_connection_at: string | null
+          qr_code: string | null
+          session_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          connected_number?: string | null
+          created_at?: string | null
+          id: string
+          is_connected?: boolean | null
+          last_connection_at?: string | null
+          qr_code?: string | null
+          session_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          connected_number?: string | null
+          created_at?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_connection_at?: string | null
+          qr_code?: string | null
+          session_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_conversations: {
+        Row: {
+          atendimento_id: number | null
+          cliente_id: string
+          created_at: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          is_online: boolean | null
+          last_message: string | null
+          last_message_at: string | null
+          status: string
+          unread_count: number | null
+          updated_at: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          atendimento_id?: number | null
+          cliente_id: string
+          created_at?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_message?: string | null
+          last_message_at?: string | null
+          status?: string
+          unread_count?: number | null
+          updated_at?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          atendimento_id?: number | null
+          cliente_id?: string
+          created_at?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_message?: string | null
+          last_message_at?: string | null
+          status?: string
+          unread_count?: number | null
+          updated_at?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          message_type: string
+          metadata: Json | null
+          read_at: string | null
+          sender_id: string | null
+          sender_name: string | null
+          sender_phone: string | null
+          sender_type: string
+          updated_at: string | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          read_at?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sender_phone?: string | null
+          sender_type: string
+          updated_at?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          read_at?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sender_phone?: string | null
+          sender_type?: string
+          updated_at?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1145,6 +1535,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_member_of_project: {
         Args: { _project_id: string }
         Returns: boolean
@@ -1155,6 +1552,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "admin" | "manager" | "agent" | "user"
       survey_type: "comercial" | "entrega" | "manutencao" | "devolucao"
       tipo_analise_final: "Procedente" | "Improcedente" | "Dúvida"
       tipo_departamento:
@@ -1328,6 +1726,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "manager", "agent", "user"],
       survey_type: ["comercial", "entrega", "manutencao", "devolucao"],
       tipo_analise_final: ["Procedente", "Improcedente", "Dúvida"],
       tipo_departamento: [
