@@ -1,71 +1,388 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWhatsAppConversations, useWhatsAppMessages } from '../hooks/useWhatsAppConversations';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  Send, 
+  Search, 
+  MoreVertical, 
+  Phone, 
+  Video, 
+  CheckCheck,
+  Check,
+  MessageSquare,
+  Clock
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { format, isToday, isYesterday } from 'date-fns';
 
 interface WhatsAppChatProps {
-  customerId: string;
+  customerId?: string;
+  className?: string;
 }
 
-export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ customerId }) => {
+
+
+const formatMessageDate = (date: string) => {
+  const messageDate = new Date(date);
+  
+  if (isToday(messageDate)) {
+    return format(messageDate, 'HH:mm');
+  } else if (isYesterday(messageDate)) {
+    return 'Ontem';
+  } else {
+    return format(messageDate, 'dd/MM/yyyy');
+  }
+};
+
+const formatMessageTime = (date: string) => {
+  return format(new Date(date), 'HH:mm');
+};
+
+const getCustomerInitials = (name: string | null, phone: string) => {
+  if (name) {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  }
+  return phone.slice(-2);
+};
+
+export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ 
+  customerId, 
+  className 
+}) => {
   const { conversations, loading: convLoading, error: convError } = useWhatsAppConversations(customerId);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const { messages, loading: msgLoading, error: msgError } = useWhatsAppMessages(selectedConversationId || undefined);
+  const { messages, loading: msgLoading, error: msgError, refetch: refetchMessages } = useWhatsAppMessages(selectedConversationId || undefined);
   const [newMessage, setNewMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
-  const handleSelectConversation = (id: string) => {
-    setSelectedConversationId(id);
+  // Auto scroll to bottom when new messages arrive
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Select first conversation automatically if none selected
+  useEffect(() => {
+    if (conversations.length > 0 && !selectedConversationId) {
+      setSelectedConversationId(conversations[0].id);
+    }
+  }, [conversations, selectedConversationId]);
+
+  const handleSelectConversation = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
   };
 
   const handleSendMessage = async () => {
-    // TODO: Integrate with Edge Function whatsapp-send
-    setNewMessage('');
+    if (!newMessage.trim() || !selectedConversationId) return;
+
+    setIsSending(true);
+    try {
+      const selectedConv = conversations.find(c => c.id === selectedConversationId);
+      if (!selectedConv) return;
+
+      const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw';
+      
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumber: selectedConv.customer_phone,
+          message: newMessage.trim(),
+          conversationId: selectedConversationId
+        }),
+      });
+
+      if (response.ok) {
+        setNewMessage('');
+        // Refresh messages after sending
+        setTimeout(() => {
+          refetchMessages();
+        }, 500);
+        
+        toast({
+          title: "Mensagem enviada",
+          description: "Sua mensagem foi enviada com sucesso!",
+        });
+      } else {
+        throw new Error('Failed to send message');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Erro ao enviar mensagem",
+        description: "Não foi possível enviar a mensagem. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Filter conversations based on search
+  const filteredConversations = conversations.filter(conv => 
+    (conv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    conv.customer_phone.includes(searchTerm) ||
+    (conv.last_message?.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+
   return (
-    <div className="whatsapp-chat">
-      <div className="conversations-list">
-        <h3>Conversas</h3>
-        {convLoading && <p>Carregando...</p>}
-        {convError && <p>Erro: {convError}</p>}
-        <ul>
-          {conversations.map((conv) => (
-            <li
-              key={conv.id}
-              className={conv.id === selectedConversationId ? 'selected' : ''}
-              onClick={() => handleSelectConversation(conv.id)}
-            >
-              {conv.last_message}
-              <span style={{ fontSize: '0.8em', color: '#888' }}>{conv.updated_at}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="messages-list">
-        <h3>Mensagens</h3>
-        {msgLoading && <p>Carregando...</p>}
-        {msgError && <p>Erro: {msgError}</p>}
-        <ul>
-          {messages.map((msg) => (
-            <li key={msg.id}>
-              <b>{msg.sender}:</b> {msg.body}
-              <span style={{ fontSize: '0.8em', color: '#888' }}>{msg.created_at}</span>
-            </li>
-          ))}
-        </ul>
-        {selectedConversationId && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendMessage();
-            }}
-          >
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Digite sua mensagem..."
+    <div className={cn("flex h-[calc(100vh-200px)] border rounded-lg overflow-hidden bg-background", className)}>
+      {/* Sidebar de conversas - 30% */}
+      <div className="w-1/3 border-r bg-background flex flex-col">
+        {/* Header das conversas */}
+        <div className="p-4 border-b bg-muted/30">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">Conversas</h2>
+            <MessageSquare className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar conversas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
             />
-            <button type="submit">Enviar</button>
-          </form>
+          </div>
+        </div>
+
+        {/* Lista de conversas */}
+        <ScrollArea className="flex-1">
+          {convLoading ? (
+            <div className="p-4 text-center text-muted-foreground">
+              <div className="animate-pulse space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center space-x-3 p-3">
+                    <div className="w-12 h-12 bg-muted rounded-full"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded w-3/4"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : convError ? (
+            <div className="p-4 text-center text-destructive">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Erro ao carregar conversas</p>
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="p-4 text-center text-muted-foreground">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Nenhuma conversa encontrada</p>
+            </div>
+          ) : (
+            <div className="p-2">
+              {filteredConversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  onClick={() => handleSelectConversation(conv.id)}
+                  className={cn(
+                    "flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-muted/50",
+                    conv.id === selectedConversationId ? "bg-primary/10 border-l-2 border-primary" : ""
+                  )}
+                >
+                  <div className="relative">
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src="" />
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {getCustomerInitials(conv.customer_name, conv.customer_phone)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {conv.is_online && (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium truncate">
+                        {conv.customer_name || `+${conv.customer_phone}`}
+                      </h3>
+                      {conv.last_message_at && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatMessageDate(conv.last_message_at)}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-sm text-muted-foreground truncate">
+                        {conv.last_message || 'Nenhuma mensagem'}
+                      </p>
+                      {conv.unread_count > 0 && (
+                        <Badge variant="default" className="bg-primary text-primary-foreground text-xs min-w-[20px] h-5 flex items-center justify-center">
+                          {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </div>
+
+      {/* Área de mensagens - 70% */}
+      <div className="flex-1 flex flex-col">
+        {selectedConversation ? (
+          <>
+            {/* Header com info do contato */}
+            <div className="p-4 border-b flex items-center justify-between bg-muted/30">
+              <div className="flex items-center space-x-3">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getCustomerInitials(selectedConversation.customer_name, selectedConversation.customer_phone)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-semibold">
+                    {selectedConversation.customer_name || 'Cliente WhatsApp'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    +{selectedConversation.customer_phone}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" size="sm">
+                  <Phone className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm">
+                  <Video className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Área de mensagens */}
+            <ScrollArea className="flex-1 p-4" style={{ backgroundColor: '#f0f2f5' }}>
+              {msgLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-pulse text-muted-foreground">Carregando mensagens...</div>
+                </div>
+              ) : msgError ? (
+                <div className="flex items-center justify-center h-full text-destructive">
+                  <div>Erro ao carregar mensagens</div>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <div className="text-center">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma mensagem ainda</p>
+                    <p className="text-sm">Envie a primeira mensagem para iniciar a conversa</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        "flex",
+                        msg.sender_type === 'customer' ? 'justify-start' : 'justify-end'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "max-w-[70%] rounded-lg p-3 shadow-sm",
+                          msg.sender_type === 'customer' 
+                            ? 'bg-white border' 
+                            : 'bg-primary text-primary-foreground'
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        <div className="flex items-center justify-end gap-1 mt-1">
+                          <span className={cn(
+                            "text-xs",
+                            msg.sender_type === 'customer' ? 'text-muted-foreground' : 'text-primary-foreground/70'
+                          )}>
+                            {formatMessageTime(msg.created_at)}
+                          </span>
+                          {msg.sender_type === 'user' && (
+                            <div className="flex">
+                              {msg.status === 'delivered' ? (
+                                <CheckCheck className="h-3 w-3 text-primary-foreground/70" />
+                              ) : (
+                                <Check className="h-3 w-3 text-primary-foreground/70" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </ScrollArea>
+
+            {/* Input de mensagem */}
+            <div className="p-4 border-t bg-background">
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Digite uma mensagem..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={isSending}
+                    className="resize-none min-h-[44px]"
+                  />
+                </div>
+                <Button 
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim() || isSending}
+                  size="sm"
+                  className="min-w-[44px] h-[44px]"
+                >
+                  {isSending ? (
+                    <Clock className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-muted/30">
+            <div className="text-center text-muted-foreground">
+              <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">Bem-vindo ao WhatsApp</h3>
+              <p>Selecione uma conversa para começar a conversar</p>
+            </div>
+          </div>
         )}
       </div>
     </div>

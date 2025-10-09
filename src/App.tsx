@@ -29,6 +29,9 @@ import AtendimentoDetailPage from '@/pages/AtendimentoDetailPage';
 import CustomerHubPage from '@/pages/CustomerHubPage';
 import OportunidadesPage from '@/pages/OportunidadesPage';
 import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
+import WhatsAppConfigPage from '@/pages/WhatsAppConfigPage';
+import WhatsAppChatPage from '@/pages/WhatsAppChatPage';
+import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
 
 function App() {
   return (
@@ -65,6 +68,8 @@ function App() {
               <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
               <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
               <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} />
+              
+              <Route path="/whatsapp" element={<WhatsAppChatPage />} />
                            
               <Route path="/clientes" element={<CustomerHubPage />} />
               
@@ -74,6 +79,8 @@ function App() {
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} /> 
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
+              <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
+              <Route path="/whatsapp-manager" element={<MultiWhatsAppManagerPage />} />
             </Route>
           </Route>
 
