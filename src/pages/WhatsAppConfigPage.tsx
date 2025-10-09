@@ -29,6 +29,7 @@ export default function WhatsAppConfigPage() {
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [serviceOnline, setServiceOnline] = useState(false);
   const { toast } = useToast();
 
   const fetchWhatsAppConfig = async () => {
@@ -62,6 +63,8 @@ export default function WhatsAppConfigPage() {
       const response = await fetch(`${WHATSAPP_SERVICE_URL}/status`);
       const data = await response.json();
       
+      setServiceOnline(true);
+      
       // Update local state with service status
       if (config) {
         setConfig({
@@ -72,6 +75,7 @@ export default function WhatsAppConfigPage() {
       }
     } catch (error) {
       console.error('WhatsApp service not reachable:', error);
+      setServiceOnline(false);
     }
   };
 
@@ -182,6 +186,31 @@ export default function WhatsAppConfigPage() {
         </Button>
       </div>
 
+      {/* Service Status Alert */}
+      {!serviceOnline && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="space-y-2">
+                <p className="font-semibold text-amber-900">Serviço WhatsApp não está rodando</p>
+                <p className="text-sm text-amber-800">
+                  O serviço local do WhatsApp (porta 3005) não está disponível. Para conectar o WhatsApp, você precisa iniciar o serviço primeiro.
+                </p>
+                <div className="mt-3 p-3 bg-white rounded border border-amber-200">
+                  <p className="text-xs font-mono text-amber-900 mb-1">Execute estes comandos no terminal:</p>
+                  <code className="text-xs block bg-gray-900 text-green-400 p-2 rounded mt-1">
+                    cd whatsapp-service<br/>
+                    npm install<br/>
+                    npm start
+                  </code>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Status Card */}
         <Card>
@@ -269,7 +298,18 @@ export default function WhatsAppConfigPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {config?.qr_code && !config?.is_connected ? (
+            {!serviceOnline ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-16 w-16 text-amber-500 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  Serviço Offline
+                </h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  Inicie o serviço WhatsApp para gerar um novo QR Code.
+                  O QR Code será atualizado automaticamente a cada 30 segundos.
+                </p>
+              </div>
+            ) : config?.qr_code && !config?.is_connected ? (
               <div className="flex flex-col items-center space-y-4">
                 <div className="p-4 bg-white rounded-lg shadow-sm border">
                   <img
@@ -325,11 +365,20 @@ export default function WhatsAppConfigPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            {serviceOnline ? (
+              <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            )}
             <div>
-              <p className="font-medium">Serviço WhatsApp deve estar rodando</p>
+              <p className="font-medium">
+                Serviço WhatsApp: {serviceOnline ? 'Online ✓' : 'Offline ✗'}
+              </p>
               <p className="text-sm text-muted-foreground">
-                Certifique-se de que o serviço WhatsApp está ativo na porta 3005
+                {serviceOnline 
+                  ? 'O serviço está ativo e pronto para conexão'
+                  : 'Inicie o serviço na porta 3005 para conectar o WhatsApp'
+                }
               </p>
             </div>
           </div>
