@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowUmdGlobalAccess": true,
+    "checkJs": false,
+    "lib": ["es2020", "dom"],
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "es2020",
+    "typeRoots": ["."],
+    "types": ["./types.d.ts"]
+  },
+  "include": ["**/*.ts", "types.d.ts"]
+}

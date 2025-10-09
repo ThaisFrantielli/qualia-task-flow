@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
-  ClipboardList, SlidersHorizontal, Target // Ícone novo importado
+  ClipboardList, SlidersHorizontal, Target, MessageSquare // Ícone novo importado
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -41,6 +41,7 @@ const menuGroups: MenuGroup[] = [
     title: 'CRM',
     items: [
       { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
+      { label: 'WhatsApp', url: '/whatsapp', icon: MessageSquare, permissionKey: 'crm' },
       { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
       { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
       { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
@@ -54,6 +55,18 @@ const menuGroups: MenuGroup[] = [
         label: 'Tarefas e Projetos', 
         url: '/settings/tasks', 
         icon: SlidersHorizontal, 
+        permissionKey: 'team' // Apenas Admins e Gestores podem ver
+      },
+      { 
+        label: 'Config. WhatsApp', 
+        url: '/configuracoes/whatsapp', 
+        icon: MessageSquare, 
+        permissionKey: 'team' // Apenas Admins e Gestores podem ver
+      },
+      { 
+        label: 'Multi-WhatsApp', 
+        url: '/whatsapp-manager', 
+        icon: MessageSquare, 
         permissionKey: 'team' // Apenas Admins e Gestores podem ver
       },
       { label: 'Equipe', url: '/team', icon: Users, permissionKey: 'team' },
