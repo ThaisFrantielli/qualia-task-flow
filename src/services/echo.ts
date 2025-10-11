@@ -4,7 +4,7 @@ import Pusher from 'pusher-js';
 // Declare the Echo type on the window object
 declare global {
     interface Window {
-        Echo: Echo;
+        Echo: Echo | null;
         Pusher: typeof Pusher;
     }
 }
@@ -12,23 +12,29 @@ declare global {
 // Make Pusher available globally (required by Laravel Echo)
 window.Pusher = Pusher;
 
-// Create and configure Echo instance
+// Check if we should enable WebSocket connections
+const isWebSocketEnabled = import.meta.env.VITE_ENABLE_WEBSOCKET === 'true';
 const key = import.meta.env.VITE_PUSHER_APP_KEY;
-if (!key) {
-    throw new Error('VITE_PUSHER_APP_KEY is not set in your .env file');
-}
 
-window.Echo = new Echo({
-    broadcaster: 'pusher',
-    key: key,
-    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
-    wsHost: import.meta.env.VITE_PUSHER_HOST ?? '127.0.0.1',
-    wsPort: import.meta.env.VITE_PUSHER_PORT ? Number(import.meta.env.VITE_PUSHER_PORT) : 6001,
-    wssPort: import.meta.env.VITE_PUSHER_PORT ? Number(import.meta.env.VITE_PUSHER_PORT) : 6001,
-    forceTLS: false,
-    encrypted: false,
-    enabledTransports: ['ws'],
-    disableStats: true,
+if (!isWebSocketEnabled) {
+    console.info('WebSocket connections are disabled. Set VITE_ENABLE_WEBSOCKET=true to enable.');
+    window.Echo = null;
+} else if (!key) {
+    console.warn('VITE_PUSHER_APP_KEY is not set in your .env file. WebSocket connections disabled.');
+    window.Echo = null;
+} else {
+    // Create and configure Echo instance only if enabled and configured
+    window.Echo = new Echo({
+        broadcaster: 'pusher',
+        key: key,
+        cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
+        wsHost: import.meta.env.VITE_PUSHER_HOST ?? '127.0.0.1',
+        wsPort: import.meta.env.VITE_PUSHER_PORT ? Number(import.meta.env.VITE_PUSHER_PORT) : 6001,
+        wssPort: import.meta.env.VITE_PUSHER_PORT ? Number(import.meta.env.VITE_PUSHER_PORT) : 6001,
+        forceTLS: false,
+        encrypted: false,
+        enabledTransports: ['ws'],
+        disableStats: true,
     authorizer: (channel: any) => ({
         authorize: async (socketId: string, callback: Function) => {
             try {
@@ -52,7 +58,8 @@ window.Echo = new Echo({
             }
         },
     }),
-});
+    });
+}
 
 // Export the configured Echo instance
 export default window.Echo;
