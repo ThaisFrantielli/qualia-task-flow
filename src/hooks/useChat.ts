@@ -11,6 +11,12 @@ export function useChat({ oportunidadeId, onNewMessage }: UseChatOptions) {
     const channelName = `chat.${oportunidadeId}`;
 
     const subscribeToChat = useCallback(() => {
+        // Check if Echo is available and enabled
+        if (!Echo) {
+            console.info('WebSocket/Echo not available. Real-time chat updates disabled.');
+            return () => {}; // Return empty cleanup function
+        }
+
         const channel = Echo.private(channelName);
 
         channel.bind('.new.message', (event: { message: ChatMessage }) => {
@@ -19,7 +25,7 @@ export function useChat({ oportunidadeId, onNewMessage }: UseChatOptions) {
 
         return () => {
             channel.unbind('.new.message');
-            Echo.leave(channelName);
+            Echo?.leave(channelName);
         };
     }, [channelName, onNewMessage]);
 
