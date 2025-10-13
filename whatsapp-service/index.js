@@ -154,8 +154,13 @@ client.on('message', async (message) => {
 
     // Forward message to Supabase Edge Function
     try {
+        // Get company WhatsApp number
+        const info = await client.info;
+        const companyNumber = info.wid.user;
+        
         await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
             from: message.from,
+            to: companyNumber,
             body: message.body,
             timestamp: message.timestamp,
             type: message.type,
@@ -166,7 +171,7 @@ client.on('message', async (message) => {
                 'Content-Type': 'application/json'
             }
         });
-        console.log('Message forwarded to Supabase webhook');
+        console.log('Message forwarded to Supabase webhook with company number:', companyNumber);
     } catch (error) {
         console.error('Failed to forward message to Supabase webhook:', error);
     }
