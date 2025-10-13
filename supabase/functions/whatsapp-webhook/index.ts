@@ -27,12 +27,13 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { from, body, timestamp, type = 'text', id: whatsappMessageId } = await req.json()
+    const { from, body, timestamp, type = 'text', id: whatsappMessageId, to } = await req.json()
 
-    console.log('Received WhatsApp message:', { from, body, timestamp, type })
+    console.log('Received WhatsApp message:', { from, body, timestamp, type, to })
 
     // Extract phone number (remove @c.us suffix)
     const phoneNumber = from.replace('@c.us', '')
+    const companyWhatsAppNumber = to ? to.replace('@c.us', '') : '0000000000'
     
     // 1. Find or create customer by phone number
     let customerId: string | null = null
@@ -76,6 +77,7 @@ serve(async (req: Request) => {
       .from('whatsapp_conversations')
       .select('id')
       .eq('customer_phone', phoneNumber)
+      .eq('whatsapp_number', companyWhatsAppNumber)
       .eq('status', 'active')
       .single()
 
@@ -86,9 +88,10 @@ serve(async (req: Request) => {
       const { data: newConversation, error: conversationError } = await supabase
         .from('whatsapp_conversations')
         .insert({
-          customer_id: customerId,
+          cliente_id: customerId,
           customer_phone: phoneNumber,
           customer_name: `Cliente ${phoneNumber}`,
+          whatsapp_number: companyWhatsAppNumber,
           status: 'active',
           last_message: body,
           last_message_at: new Date().toISOString(),

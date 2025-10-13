@@ -15,8 +15,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const WHATSAPP_SERVICE_URL = 'http://localhost:3005'
-
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -29,98 +27,57 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { phoneNumber, message, conversationId } = await req.json()
+    const { conversationId, content, messageType = 'text' } = await req.json()
 
-    console.log('Sending WhatsApp message:', { phoneNumber, message, conversationId })
-
-    if (!phoneNumber || !message) {
+    if (!conversationId || !content) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'phoneNumber and message are required'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        }
+        JSON.stringify({ error: 'conversationId and content are required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
-    // 1. Send message via WhatsApp service
-    const formattedNumber = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`
+    console.log('Sending WhatsApp message:', { conversationId, content })
+
+    // Buscar informações da conversação
+    const { data: conversation, error: convError } = await supabase
+      .from('whatsapp_conversations')
+      .select('customer_phone, whatsapp_number')
+      .eq('id', conversationId)
+      .single()
+
+    if (convError || !conversation) {
+      console.error('Conversation not found:', convError)
+      return new Response(
+        JSON.stringify({ error: 'Conversation not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      )
+    }
+
+    // Enviar mensagem para o serviço WhatsApp local
+    const WHATSAPP_SERVICE_URL = 'http://localhost:3005'
     
-    const whatsappResponse = await fetch(`${WHATSAPP_SERVICE_URL}/send-message`, {
+    const sendResponse = await fetch(`${WHATSAPP_SERVICE_URL}/send-message`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        phoneNumber: formattedNumber,
-        message: message
+        phoneNumber: conversation.customer_phone,
+        message: content
       })
     })
 
-    if (!whatsappResponse.ok) {
-      const error = await whatsappResponse.text()
-      console.error('WhatsApp service error:', error)
+    if (!sendResponse.ok) {
       throw new Error('Failed to send message via WhatsApp service')
     }
 
-    const whatsappResult = await whatsappResponse.json()
-    console.log('WhatsApp service response:', whatsappResult)
-
-    // 2. Save message to database
-    let actualConversationId = conversationId
-
-    // If no conversationId provided, try to find or create one
-    if (!actualConversationId) {
-      const cleanPhoneNumber = phoneNumber.replace('@c.us', '')
-      
-      const { data: existingConversation } = await supabase
-        .from('whatsapp_conversations')
-        .select('id')
-        .eq('customer_phone', cleanPhoneNumber)
-        .eq('status', 'active')
-        .single()
-
-      if (existingConversation) {
-        actualConversationId = existingConversation.id
-      } else {
-        // Create new conversation
-        const { data: newConversation, error: conversationError } = await supabase
-          .from('whatsapp_conversations')
-          .insert({
-            customer_phone: cleanPhoneNumber,
-            customer_name: `Cliente ${cleanPhoneNumber}`,
-            status: 'active',
-            last_message: message,
-            last_message_at: new Date().toISOString(),
-            unread_count: 0
-          })
-          .select('id')
-          .single()
-
-        if (conversationError) {
-          console.error('Error creating conversation:', conversationError)
-          throw conversationError
-        }
-
-        actualConversationId = newConversation.id
-      }
-    }
-
-    // 3. Save the sent message
-    const { data: savedMessage, error: messageError } = await supabase
+    // Salvar mensagem no banco de dados
+    const { data: message, error: messageError } = await supabase
       .from('whatsapp_messages')
       .insert({
-        conversation_id: actualConversationId,
+        conversation_id: conversationId,
         sender_type: 'user',
-        sender_phone: null, // System/user sending
-        sender_name: 'Sistema',
-        content: message,
-        message_type: 'text',
-        status: 'sent', // Will be updated to delivered/read by webhooks
-        whatsapp_message_id: null
+        sender_phone: conversation.whatsapp_number,
+        content: content,
+        message_type: messageType,
       })
       .select()
       .single()
@@ -130,25 +87,21 @@ serve(async (req: Request) => {
       throw messageError
     }
 
-    // 4. Update conversation with latest message
+    // Atualizar última mensagem da conversação
     await supabase
       .from('whatsapp_conversations')
       .update({
-        last_message: message,
+        last_message: content,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('id', actualConversationId)
+      .eq('id', conversationId)
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Message sent successfully',
-        data: {
-          messageId: savedMessage.id,
-          conversationId: actualConversationId,
-          whatsappResponse: whatsappResult
-        }
+        data: message
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
