@@ -1,16 +1,16 @@
 // src/components/customer-management/CustomerDetail.tsx (VERSÃO FINAL CORRIGIDA)
 
-import React, { Suspense } from 'react';
-// CORREÇÃO: Importa o tipo Atendimento para usar na tipagem do onRowClick
+import React from 'react';
 import type { ClienteComContatos, Contato, Atendimento } from '@/types';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
+import { useWhatsAppNumbers } from '@/hooks/useWhatsAppNumbers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building, User, Mail, Phone, Edit, Trash2, MapPin, CalendarDays, Headset, ListChecks, Target, DollarSign, Package } from 'lucide-react';
-// CORREÇÃO: Importa o componente usando a sintaxe de 'export default'
+import { Loader2, Building, User, Mail, Phone, Edit, Trash2, MapPin, CalendarDays, Headset, ListChecks, Target, DollarSign, Package, MessageCircle } from 'lucide-react';
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
+import { WhatsAppTab } from './WhatsAppTab';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -24,6 +24,7 @@ interface CustomerDetailProps {
 
 const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDelete }) => {
   const { detalhes, loading: detalhesLoading } = useClienteDetail(customer);
+  const { numbers: whatsappNumbers, loading: whatsappLoading } = useWhatsAppNumbers();
 
   // Buscar oportunidades do cliente
   const { data: oportunidades = [], isLoading: oportunidadesLoading } = useQuery({
@@ -50,8 +51,6 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
-  const WhatsAppChat = React.lazy(() => import('../WhatsAppChat'));
-
   return (
     <div className="bg-card rounded-lg border h-full flex flex-col">
       <div className="p-6 border-b flex items-start justify-between">
@@ -73,17 +72,31 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
 
       <Tabs defaultValue="detalhes" className="flex-1 flex flex-col min-h-0">
         <TabsList className="mx-6 mt-4">
-          <TabsTrigger value="detalhes">Detalhes do Cliente</TabsTrigger>
+          <TabsTrigger value="detalhes">
+            <User className="h-4 w-4 mr-2" />
+            CLIENTE
+          </TabsTrigger>
+          
+          {/* Tabs dinâmicas para cada WhatsApp */}
+          {!whatsappLoading && whatsappNumbers.map((whatsapp) => (
+            <TabsTrigger key={whatsapp.number} value={`whatsapp-${whatsapp.number}`}>
+              <MessageCircle className="h-4 w-4 mr-2" />
+              {whatsapp.number}
+            </TabsTrigger>
+          ))}
+          
           <TabsTrigger value="oportunidades">
+            <Target className="h-4 w-4 mr-2" />
             Oportunidades <Badge variant="secondary" className="ml-2">{oportunidades.length}</Badge>
           </TabsTrigger>
           <TabsTrigger value="atendimentos">
+            <Headset className="h-4 w-4 mr-2" />
             Atendimentos <Badge variant="secondary" className="ml-2">{detalhes?.atendimentos.length ?? 0}</Badge>
           </TabsTrigger>
           <TabsTrigger value="tarefas">
+            <ListChecks className="h-4 w-4 mr-2" />
             Tarefas <Badge variant="secondary" className="ml-2">{detalhes?.tarefas.length ?? 0}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
         </TabsList>
         
         <div className="flex-1 overflow-y-auto p-6">
@@ -229,18 +242,16 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
              </Card>
           </TabsContent>
 
-          <TabsContent value="whatsapp" className="mt-0">
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2 text-lg">WhatsApp</CardTitle></CardHeader>
-              <CardContent>
-                <div style={{ minHeight: 300 }}>
-                  <Suspense fallback={<div>Carregando chat...</div>}>
-                    <WhatsAppChat customerId={String(customer.id)} />
-                  </Suspense>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {/* Tabs de WhatsApp dinâmicas */}
+          {whatsappNumbers.map((whatsapp) => (
+            <TabsContent key={whatsapp.number} value={`whatsapp-${whatsapp.number}`} className="mt-0">
+              <WhatsAppTab
+                clienteId={customer.id}
+                whatsappNumber={whatsapp.number}
+                customerName={customer.nome_fantasia || customer.razao_social || undefined}
+              />
+            </TabsContent>
+          ))}
         </div>
       </Tabs>
     </div>
