@@ -43,7 +43,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
       try {
         setCheckingService(true);
         console.log('Checking WhatsApp service status...');
-        const response = await fetch('http://localhost:3005/status');
+        const response = await fetch('http://localhost:3006/status');
         console.log('Response status:', response.status, 'OK:', response.ok);
         
         if (!response.ok) {
@@ -213,7 +213,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
         <div className="p-3 bg-red-50 border-b border-red-200 flex items-center gap-2">
           <Phone className="h-4 w-4 text-red-600" />
           <p className="text-xs text-red-800">
-            Serviço WhatsApp offline. Verifique se o serviço está rodando na porta 3005.
+            Serviço WhatsApp offline. Verifique se o serviço está rodando na porta 3006.
           </p>
         </div>
       )}
