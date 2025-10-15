@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../integrations/supabase';
-import { WhatsAppMessage } from './useWhatsAppConversations';
+
+// Define interface local para evitar problemas de tipos
+interface WhatsAppMessage {
+  id: string;
+  conversation_id: string;
+  sender_type: 'customer' | 'user';
+  sender_phone: string | null;
+  sender_name: string | null;
+  content: string;
+  message_type: 'text' | 'image' | 'audio' | 'video' | 'document';
+  status: 'sent' | 'delivered' | 'read';
+  whatsapp_message_id: string | null;
+  created_at: string;
+  updated_at: string;
+  sender_id?: string | null;
+  metadata?: any;
+  read_at?: string | null;
+}
 
 interface ConversationData {
   id: string;
@@ -201,7 +218,7 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
         message: content
       });
       
-      const response = await fetch('http://localhost:3005/send-message', {
+      const response = await fetch('http://localhost:3006/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
