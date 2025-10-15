@@ -79,9 +79,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
           
           {/* Tabs dinâmicas para cada WhatsApp */}
           {!whatsappLoading && whatsappNumbers.map((whatsapp) => (
-            <TabsTrigger key={whatsapp.number} value={`whatsapp-${whatsapp.number}`}>
+            <TabsTrigger key={whatsapp.id} value={`whatsapp-${whatsapp.id}`}>
               <MessageCircle className="h-4 w-4 mr-2" />
-              {whatsapp.number}
+              {whatsapp.displayName}
             </TabsTrigger>
           ))}
           
@@ -244,7 +244,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
 
           {/* Tabs de WhatsApp dinâmicas */}
           {whatsappNumbers.map((whatsapp) => (
-            <TabsContent key={whatsapp.number} value={`whatsapp-${whatsapp.number}`} className="mt-0">
+            <TabsContent key={whatsapp.id} value={`whatsapp-${whatsapp.id}`} className="mt-0">
               <WhatsAppTab
                 clienteId={customer.id}
                 whatsappNumber={whatsapp.number}

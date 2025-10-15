@@ -36,7 +36,10 @@ serve(async (req: Request) => {
       )
     }
 
-    console.log('Sending WhatsApp message:', { conversationId, content })
+    console.log('=== WhatsApp Send Debug ===')
+    console.log('ConversationId:', conversationId)
+    console.log('Content:', content)
+    console.log('MessageType:', messageType)
 
     // Buscar informações da conversação
     const { data: conversation, error: convError } = await supabase
@@ -53,8 +56,18 @@ serve(async (req: Request) => {
       )
     }
 
+    console.log('Conversation found:', conversation)
+    console.log('Customer Phone (destino):', conversation.customer_phone)
+    console.log('WhatsApp Number (empresa):', conversation.whatsapp_number)
+
     // Enviar mensagem para o serviço WhatsApp local
     const WHATSAPP_SERVICE_URL = 'http://localhost:3005'
+    
+    console.log('Sending to service:', WHATSAPP_SERVICE_URL)
+    console.log('Payload:', {
+      phoneNumber: conversation.customer_phone,
+      message: content
+    })
     
     const sendResponse = await fetch(`${WHATSAPP_SERVICE_URL}/send-message`, {
       method: 'POST',
@@ -66,8 +79,12 @@ serve(async (req: Request) => {
     })
 
     if (!sendResponse.ok) {
-      throw new Error('Failed to send message via WhatsApp service')
+      const errorText = await sendResponse.text()
+      console.error('WhatsApp service error:', errorText)
+      throw new Error(`Failed to send message via WhatsApp service: ${errorText}`)
     }
+
+    console.log('Message sent successfully to WhatsApp service')
 
     // Salvar mensagem no banco de dados
     const { data: message, error: messageError } = await supabase

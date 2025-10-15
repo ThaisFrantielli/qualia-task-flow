@@ -240,13 +240,20 @@ app.post('/disconnect', async (req, res) => {
 app.post('/send-message', async (req, res) => {
     const { phoneNumber, message } = req.body;
 
+    console.log(`📤 Sending message to ${phoneNumber}`);
+    console.log(`Message: ${message}`);
+    console.log(`Client ready: ${client.info?.wid?.user || 'Not connected'}`);
+
     try {
         // Ensure phone number format is correct
         const formattedNumber = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+        
         await client.sendMessage(formattedNumber, message);
+        console.log(`✅ Message sent successfully to ${formattedNumber}`);
+        
         res.status(200).json({ success: true, message: 'Message sent successfully' });
     } catch (error) {
-        console.error('Failed to send message:', error);
+        console.error('❌ Failed to send message:', error);
         res.status(500).json({ success: false, error: 'Failed to send message' });
     }
 });

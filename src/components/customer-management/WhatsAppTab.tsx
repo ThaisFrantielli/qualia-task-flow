@@ -18,6 +18,8 @@ interface WhatsAppTabProps {
 export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAppTabProps) {
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [serviceOnline, setServiceOnline] = useState(false);
+  const [checkingService, setCheckingService] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -33,8 +35,29 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
     }
   }, [messages]);
 
+  // Verificar status do serviço WhatsApp
+  useEffect(() => {
+    const checkService = async () => {
+      try {
+        setCheckingService(true);
+        const response = await fetch('http://localhost:3005/status');
+        const data = await response.json();
+        setServiceOnline(response.ok && data.isConnected);
+      } catch {
+        setServiceOnline(false);
+      } finally {
+        setCheckingService(false);
+      }
+    };
+    
+    checkService();
+    const interval = setInterval(checkService, 30000); // Check a cada 30s
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSendMessage = async () => {
-    if (!messageText.trim()) return;
+    if (!messageText.trim() || !serviceOnline) return;
 
     try {
       setIsSending(true);
@@ -84,7 +107,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
     }
   };
 
-  if (loading) {
+  if (loading || checkingService) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -94,8 +117,13 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-96 text-destructive">
-        <p>Erro ao carregar conversação: {error}</p>
+      <div className="flex flex-col items-center justify-center h-96 gap-3">
+        <p className="text-destructive">Erro ao carregar conversação: {error}</p>
+        {error.includes('telefone') && (
+          <Button variant="outline" size="sm">
+            Adicionar telefone ao cliente
+          </Button>
+        )}
       </div>
     );
   }
@@ -118,10 +146,22 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-sm text-muted-foreground">Online</span>
+          <div className={`h-2 w-2 rounded-full ${serviceOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+          <span className="text-sm text-muted-foreground">
+            {serviceOnline ? 'Online' : 'Offline'}
+          </span>
         </div>
       </div>
+
+      {/* Alert se serviço offline */}
+      {!serviceOnline && (
+        <div className="p-3 bg-yellow-50 border-b border-yellow-200 flex items-center gap-2">
+          <Phone className="h-4 w-4 text-yellow-600" />
+          <p className="text-xs text-yellow-800">
+            Serviço WhatsApp offline. Mensagens não serão enviadas até reconectar.
+          </p>
+        </div>
+      )}
 
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
@@ -197,9 +237,10 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!messageText.trim() || isSending}
+            disabled={!messageText.trim() || isSending || !serviceOnline}
             size="icon"
             className="h-[60px] w-[60px] flex-shrink-0"
+            title={!serviceOnline ? 'Serviço WhatsApp offline' : 'Enviar mensagem'}
           >
             {isSending ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -209,6 +250,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
+          {!serviceOnline && '⚠️ Aguardando conexão com o serviço WhatsApp · '}
           Pressione Enter para enviar, Shift+Enter para nova linha
         </p>
       </div>
