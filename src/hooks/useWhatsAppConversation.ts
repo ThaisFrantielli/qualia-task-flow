@@ -43,19 +43,27 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
 
       // Se não existir, criar nova conversação
       if (!convData) {
+        // Buscar dados completos do cliente
         const { data: clienteData } = await supabase
           .from('clientes')
-          .select('nome_fantasia, whatsapp_number')
+          .select('nome_fantasia, razao_social, whatsapp_number, telefone')
           .eq('id', clienteId)
           .single();
+
+        // Pegar o número do cliente (priorizar whatsapp_number, depois telefone)
+        const customerPhone = clienteData?.whatsapp_number || clienteData?.telefone || '';
+
+        if (!customerPhone) {
+          throw new Error('Cliente não possui número de telefone cadastrado');
+        }
 
         const { data: newConv, error: createError } = await supabase
           .from('whatsapp_conversations')
           .insert({
             cliente_id: clienteId,
-            whatsapp_number: whatsappNumber,
-            customer_phone: clienteData?.whatsapp_number || '',
-            customer_name: clienteData?.nome_fantasia || '',
+            whatsapp_number: whatsappNumber, // Número da empresa WhatsApp
+            customer_phone: customerPhone, // Número do CLIENTE
+            customer_name: clienteData?.nome_fantasia || clienteData?.razao_social || 'Cliente',
             status: 'active'
           })
           .select('id')
