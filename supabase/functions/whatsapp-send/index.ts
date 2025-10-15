@@ -41,10 +41,18 @@ serve(async (req: Request) => {
     console.log('Content:', content)
     console.log('MessageType:', messageType)
 
-    // Buscar informações da conversação
+    // Buscar informações da conversação com dados do cliente
     const { data: conversation, error: convError } = await supabase
       .from('whatsapp_conversations')
-      .select('customer_phone, whatsapp_number')
+      .select(`
+        whatsapp_number,
+        clientes:cliente_id (
+          whatsapp_number,
+          telefone,
+          nome_fantasia,
+          razao_social
+        )
+      `)
       .eq('id', conversationId)
       .single()
 
@@ -57,7 +65,19 @@ serve(async (req: Request) => {
     }
 
     console.log('Conversation found:', conversation)
-    console.log('Customer Phone (destino):', conversation.customer_phone)
+    
+    // Extrair número do cliente (priorizar whatsapp_number, depois telefone)
+    const customerPhone = conversation.clientes?.whatsapp_number || conversation.clientes?.telefone
+    
+    if (!customerPhone) {
+      console.error('Customer phone not found')
+      return new Response(
+        JSON.stringify({ error: 'Customer phone not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+    
+    console.log('Customer Phone (destino):', customerPhone)
     console.log('WhatsApp Number (empresa):', conversation.whatsapp_number)
 
     // Enviar mensagem para o serviço WhatsApp local
@@ -65,7 +85,7 @@ serve(async (req: Request) => {
     
     console.log('Sending to service:', WHATSAPP_SERVICE_URL)
     console.log('Payload:', {
-      phoneNumber: conversation.customer_phone,
+      phoneNumber: customerPhone,
       message: content
     })
     
@@ -73,7 +93,7 @@ serve(async (req: Request) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        phoneNumber: conversation.customer_phone,
+        phoneNumber: customerPhone,
         message: content
       })
     })
@@ -92,7 +112,6 @@ serve(async (req: Request) => {
       .insert({
         conversation_id: conversationId,
         sender_type: 'user',
-        sender_phone: conversation.whatsapp_number,
         content: content,
         message_type: messageType,
       })
@@ -108,7 +127,6 @@ serve(async (req: Request) => {
     await supabase
       .from('whatsapp_conversations')
       .update({
-        last_message: content,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
