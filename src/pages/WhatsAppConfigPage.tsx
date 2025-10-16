@@ -13,7 +13,8 @@ import {
   Power,
   RefreshCw
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
+import { WHATSAPP } from '@/integrations/whatsapp/config';
 
 interface WhatsAppConfig {
   id: string;
@@ -23,7 +24,7 @@ interface WhatsAppConfig {
   last_connection_at: string | null;
 }
 
-const WHATSAPP_SERVICE_URL = 'http://localhost:3005';
+const SERVICE_URL = WHATSAPP.SERVICE_URL;
 
 export default function WhatsAppConfigPage() {
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
@@ -60,7 +61,7 @@ export default function WhatsAppConfigPage() {
 
   const checkServiceStatus = async () => {
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/status`);
+      const response = await fetch(`${SERVICE_URL}/status`);
       const data = await response.json();
       
       setServiceOnline(true);
@@ -73,6 +74,25 @@ export default function WhatsAppConfigPage() {
           connected_number: data.connectedNumber
         });
       }
+
+      // If not connected, try to fetch current QR directly from the service
+      if (!data.isConnected) {
+        try {
+          const qrRes = await fetch(`${SERVICE_URL}/qr-code`);
+          if (qrRes.ok) {
+            const qrData = await qrRes.json();
+            if (qrData?.qrCode) {
+              setConfig(prev => prev ? { ...prev, qr_code: qrData.qrCode } : {
+                id: 'default',
+                qr_code: qrData.qrCode,
+                is_connected: false,
+                connected_number: null,
+                last_connection_at: null
+              });
+            }
+          }
+        } catch {}
+      }
     } catch (error) {
       console.error('WhatsApp service not reachable:', error);
       setServiceOnline(false);
@@ -82,7 +102,7 @@ export default function WhatsAppConfigPage() {
   const handleDisconnect = async () => {
     setIsDisconnecting(true);
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/disconnect`, {
+      const response = await fetch(`${SERVICE_URL}/disconnect`, {
         method: 'POST'
       });
 
@@ -115,6 +135,20 @@ export default function WhatsAppConfigPage() {
     setIsLoading(true);
     fetchWhatsAppConfig();
     checkServiceStatus();
+  };
+
+  const handleForceNewQR = async () => {
+    try {
+      const res = await fetch(`${SERVICE_URL}/reset-session`, { method: 'POST' });
+      if (!res.ok) throw new Error('Falha ao resetar sessão');
+      toast({ title: 'Novo QR solicitado', description: 'Um novo QR Code será gerado em instantes.' });
+      setTimeout(() => {
+        fetchWhatsAppConfig();
+        checkServiceStatus();
+      }, 1500);
+    } catch (e) {
+      toast({ title: 'Erro ao gerar QR', description: 'Não foi possível solicitar novo QR.', variant: 'destructive' });
+    }
   };
 
   useEffect(() => {
@@ -195,7 +229,7 @@ export default function WhatsAppConfigPage() {
               <div className="space-y-2">
                 <p className="font-semibold text-amber-900">Serviço WhatsApp não está rodando</p>
                 <p className="text-sm text-amber-800">
-                  O serviço local do WhatsApp (porta 3005) não está disponível. Para conectar o WhatsApp, você precisa iniciar o serviço primeiro.
+                  O serviço local do WhatsApp em {SERVICE_URL} não está disponível. Para conectar o WhatsApp, inicie o serviço primeiro.
                 </p>
                 <div className="mt-3 p-3 bg-white rounded border border-amber-200">
                   <p className="text-xs font-mono text-amber-900 mb-1">Execute estes comandos no terminal:</p>
@@ -330,6 +364,10 @@ export default function WhatsAppConfigPage() {
                 <Badge variant="outline" className="animate-pulse">
                   QR Code expira em alguns minutos
                 </Badge>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => window.open(`${SERVICE_URL}/qr-view`, '_blank')}>Abrir QR em nova aba</Button>
+                  <Button variant="secondary" size="sm" onClick={handleForceNewQR}>Forçar novo QR</Button>
+                </div>
               </div>
             ) : config?.is_connected ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -352,6 +390,12 @@ export default function WhatsAppConfigPage() {
                   Inicie o serviço WhatsApp para gerar um novo QR Code.
                   O código aparecerá aqui automaticamente.
                 </p>
+                {serviceOnline && (
+                  <div className="mt-4 flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => window.open(`${SERVICE_URL}/qr-view`, '_blank')}>Abrir QR em nova aba</Button>
+                    <Button variant="secondary" size="sm" onClick={handleForceNewQR}>Forçar novo QR</Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

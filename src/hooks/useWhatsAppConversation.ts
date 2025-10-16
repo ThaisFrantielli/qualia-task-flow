@@ -1,23 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../integrations/supabase';
+import { supabase } from '@/integrations/supabase/client';
+import { WHATSAPP } from '@/integrations/whatsapp/config';
 
-// Define interface local para evitar problemas de tipos
-interface WhatsAppMessage {
-  id: string;
-  conversation_id: string;
-  sender_type: 'customer' | 'user';
-  sender_phone: string | null;
-  sender_name: string | null;
-  content: string;
-  message_type: 'text' | 'image' | 'audio' | 'video' | 'document';
-  status: 'sent' | 'delivered' | 'read';
-  whatsapp_message_id: string | null;
-  created_at: string;
-  updated_at: string;
-  sender_id?: string | null;
-  metadata?: any;
-  read_at?: string | null;
-}
+// Use o tipo diretamente do Supabase
+import type { Database } from '@/types';
+
+type WhatsAppMessage = Database['public']['Tables']['whatsapp_messages']['Row'];
 
 interface ConversationData {
   id: string;
@@ -32,6 +20,8 @@ interface ConversationData {
 }
 
 export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: string) {
+  if (WHATSAPP.DEBUG_LOGS) console.log('🔧 useWhatsAppConversation called with:', { clienteId, whatsappNumber });
+  
   const [conversation, setConversation] = useState<ConversationData>({
     id: '',
     messages: [],
@@ -73,7 +63,7 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
 
       // Se não existir, criar nova conversação
       if (!convData) {
-        console.log('Creating new conversation for client:', clienteId);
+        if (WHATSAPP.DEBUG_LOGS) console.log('Creating new conversation for client:', clienteId);
         const { data: newConv, error: createError } = await supabase
           .from('whatsapp_conversations')
           .insert({
@@ -99,7 +89,7 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
         convData = newConv;
       }
 
-      console.log('Conversation data:', convData);
+      if (WHATSAPP.DEBUG_LOGS) console.log('Conversation data:', convData);
 
       // Extrair informações do cliente
       const cliente = Array.isArray(convData.clientes) ? convData.clientes[0] : convData.clientes;
@@ -167,101 +157,173 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
   }, [conversation.id]);
 
   const sendMessage = async (content: string) => {
+    // Permitir fluxo local quando não houver conversação no banco
     if (!conversation.id) {
-      throw new Error('Conversação não inicializada');
+      if (clienteId && whatsappNumber) {
+        const tempId = `local-${clienteId}-${whatsappNumber}`;
+        console.warn('⚠️ Conversação não encontrada no banco. Usando conversa local temporária:', tempId);
+        setConversation(prev => ({
+          ...prev,
+          id: tempId,
+          loading: false,
+          error: null,
+          clienteInfo: prev.clienteInfo ?? {
+            hasWhatsApp: true,
+            phone: whatsappNumber,
+            whatsappNumber: whatsappNumber,
+          },
+        }));
+      } else {
+        throw new Error('Conversação não inicializada');
+      }
     }
 
     try {
-      console.log('Sending message, conversation ID:', conversation.id);
-      
-      // Buscar dados da conversação com cliente
-      const { data: convData, error: convError } = await supabase
-        .from('whatsapp_conversations')
-        .select(`
-          id,
-          whatsapp_number,
-          clientes:cliente_id (
+      if (WHATSAPP.DEBUG_LOGS) console.log('Sending message, conversation ID:', conversation.id);
+
+      const isLocalConversation = String(conversation.id).startsWith('local-');
+      let customerPhone: string | null = null;
+      let canPersistToDb = true;
+
+      if (isLocalConversation) {
+        // Local-only mode: use provided whatsappNumber or clienteInfo
+        customerPhone = whatsappNumber || conversation.clienteInfo?.whatsappNumber || conversation.clienteInfo?.phone || null;
+        canPersistToDb = false; // Avoid FK errors
+        if (WHATSAPP.DEBUG_LOGS) console.log('Local conversation mode. Using phone:', customerPhone);
+      } else {
+        // Buscar dados da conversação com cliente
+        const { data: convData, error: convError } = await supabase
+          .from('whatsapp_conversations')
+          .select(`
+            id,
             whatsapp_number,
-            telefone,
-            nome_fantasia,
-            razao_social
-          )
-        `)
-        .eq('id', conversation.id)
-        .single();
+            clientes:cliente_id (
+              whatsapp_number,
+              telefone,
+              nome_fantasia,
+              razao_social
+            )
+          `)
+          .eq('id', conversation.id)
+          .single();
 
-      console.log('Conversation query result:', { convData, convError });
+        if (WHATSAPP.DEBUG_LOGS) console.log('Conversation query result:', { convData, convError });
 
-      if (convError || !convData) {
-        console.error('Conversation not found:', convError);
-        throw new Error('Conversação não encontrada');
+        if (convError || !convData) {
+          console.error('Conversation not found:', convError);
+          throw new Error('Conversação não encontrada');
+        }
+
+        // Extrair número do cliente
+        const cliente = Array.isArray(convData.clientes) ? convData.clientes[0] : convData.clientes;
+        if (WHATSAPP.DEBUG_LOGS) console.log('Cliente data:', cliente);
+        
+        // Priorizar WhatsApp number, depois telefone
+        customerPhone = cliente?.whatsapp_number || cliente?.telefone || null;
+        const isWhatsAppNumber = !!cliente?.whatsapp_number; // Flag para identificar se é WhatsApp
+        
+        if (WHATSAPP.DEBUG_LOGS) console.log('Customer phone:', customerPhone);
+        if (WHATSAPP.DEBUG_LOGS) console.log('Is WhatsApp number:', isWhatsAppNumber);
       }
 
-      // Extrair número do cliente
-      const cliente = Array.isArray(convData.clientes) ? convData.clientes[0] : convData.clientes;
-      console.log('Cliente data:', cliente);
-      
-      // Priorizar WhatsApp number, depois telefone
-      const customerPhone = cliente?.whatsapp_number || cliente?.telefone;
-      const isWhatsAppNumber = !!cliente?.whatsapp_number; // Flag para identificar se é WhatsApp
-      
-      console.log('Customer phone:', customerPhone);
-      console.log('Is WhatsApp number:', isWhatsAppNumber);
-      
       if (!customerPhone) {
         throw new Error('Cliente não possui número de telefone/WhatsApp cadastrado');
       }
 
-      // Enviar mensagem diretamente para o serviço WhatsApp
-      console.log('Sending to WhatsApp service:', {
-        phoneNumber: customerPhone,
-        message: content
-      });
-      
-      const response = await fetch('http://localhost:3006/send-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: customerPhone,
-          message: content
-        })
-      });
+      // Sanitizar número: manter apenas dígitos e preservar DDI
+      const digits = (customerPhone || '').replace(/\D+/g, '');
+      const sanitizedPhone = digits;
+      if (WHATSAPP.DEBUG_LOGS) console.log('Sanitized phone:', { input: customerPhone, sanitized: sanitizedPhone });
 
-      console.log('WhatsApp service response status:', response.status);
+      // Prefer Edge Function; fallback to direct service when in dev
+      let sentOk = false;
+      if (WHATSAPP.USE_EDGE_FUNCTION) {
+        try {
+          if (WHATSAPP.DEBUG_LOGS) console.log('Sending via Supabase Edge Function:', {
+              to_number: customerPhone,
+              message_text: content
+            });
+          const { data: functionResult, error: functionError } = await supabase.functions
+            .invoke(WHATSAPP.EDGE_FUNCTION_NAME, {
+              body: {
+                to_number: customerPhone,
+                message_text: content
+              }
+            });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('WhatsApp service error:', errorText);
-        throw new Error(`Erro no serviço WhatsApp: ${errorText}`);
+          if (WHATSAPP.DEBUG_LOGS) console.log('Edge Function response:', { functionResult, functionError });
+          if (!functionError && functionResult?.success) {
+            sentOk = true;
+          } else if (functionError) {
+            console.warn('Edge Function failed, will try direct service fallback:', functionError);
+          } else {
+            console.warn('Edge Function returned error:', functionResult);
+          }
+        } catch (e) {
+          console.warn('Edge Function exception, falling back to direct service:', e);
+        }
       }
 
-      console.log('Message sent successfully to WhatsApp service');
+      if (!sentOk) {
+        if (WHATSAPP.DEBUG_LOGS) console.log('Sending directly to WhatsApp service (fallback):', {
+          phoneNumber: sanitizedPhone,
+            message: content,
+            url: `${WHATSAPP.SERVICE_URL}/send-message`
+          });
+        const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: sanitizedPhone, message: content })
+        });
+        if (WHATSAPP.DEBUG_LOGS) console.log('WhatsApp service response status:', response.status);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('WhatsApp service error:', errorText);
+          throw new Error(`Erro no serviço WhatsApp: ${errorText}`);
+        }
+        sentOk = true;
+      }
 
-      // Salvar mensagem no banco de dados (tentar sem sender_id primeiro)
-      console.log('Saving message to database...');
-      
-      const messageData = {
-        conversation_id: conversation.id,
-        sender_type: 'user' as const,
-        content: content,
-        message_type: 'text' as const,
-        // Tentar sem sender_id primeiro
-      };
-      
-      console.log('Message data to insert:', messageData);
-      
-      const { data: insertedMessage, error: messageError } = await supabase
-        .from('whatsapp_messages')
-        .insert(messageData)
-        .select();
+      if (WHATSAPP.DEBUG_LOGS) console.log('Message sent successfully');
 
-      console.log('Insert result:', { insertedMessage, messageError });
-
-      if (messageError) {
-        console.error('Error saving message:', messageError);
-        console.warn('Message was sent to WhatsApp but not saved to database');
+      if (canPersistToDb) {
+        // Salvar mensagem no banco de dados (tentar sem sender_id primeiro)
+        if (WHATSAPP.DEBUG_LOGS) console.log('Saving message to database...');
         
-        // Adicionar mensagem localmente na interface mesmo com erro no banco
+        const messageData = {
+          conversation_id: conversation.id,
+          sender_type: 'user' as const,
+          content: content,
+          message_type: 'text' as const,
+          // Tentar sem sender_id primeiro
+        };
+        
+        if (WHATSAPP.DEBUG_LOGS) console.log('Message data to insert:', messageData);
+        
+        const { data: insertedMessage, error: messageError } = await supabase
+          .from('whatsapp_messages')
+          .insert(messageData)
+          .select();
+
+        if (WHATSAPP.DEBUG_LOGS) console.log('Insert result:', { insertedMessage, messageError });
+
+        if (messageError) {
+          console.error('Error saving message:', messageError);
+          console.warn('Message was sent to WhatsApp but not saved to database');
+        } else {
+          if (WHATSAPP.DEBUG_LOGS) console.log('✅ Message saved to database successfully');
+          // Se salvou no banco, atualizar também localmente
+          if (insertedMessage && insertedMessage[0]) {
+            setConversation(prev => ({
+              ...prev,
+              messages: [...prev.messages, insertedMessage[0]]
+            }));
+          }
+        }
+      }
+
+      // Sempre garantir exibição local (em modo local ou se DB falhou)
+      if (!canPersistToDb) {
         const localMessage = {
           id: `local-${Date.now()}`,
           conversation_id: conversation.id,
@@ -278,47 +340,28 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
           metadata: null,
           read_at: null
         };
-        
-        console.log('📱 Adding local message:', localMessage);
-        
-        // Atualizar estado local com a nova mensagem
-        setConversation(prev => {
-          const updatedConversation = {
-            ...prev,
-            messages: [...prev.messages, localMessage]
-          };
-          console.log('📱 Updated conversation state:', updatedConversation);
-          return updatedConversation;
-        });
-        
-        console.log('✅ Message added to local interface');
-      } else {
-        console.log('✅ Message saved to database successfully');
-        
-        // Se salvou no banco, atualizar também localmente
-        if (insertedMessage && insertedMessage[0]) {
-          setConversation(prev => ({
-            ...prev,
-            messages: [...prev.messages, insertedMessage[0]]
-          }));
-        }
+        if (WHATSAPP.DEBUG_LOGS) console.log('📱 Adding local message (local mode):', localMessage);
+        setConversation(prev => ({ ...prev, messages: [...prev.messages, localMessage] }));
       }
 
       // Atualizar conversação
-      try {
-        await supabase
-          .from('whatsapp_conversations')
-          .update({
-            last_message_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', conversation.id);
-        console.log('✅ Conversation updated');
-      } catch (convError) {
-        console.warn('Failed to update conversation timestamp:', convError);
+      // Atualizar conversação no banco se for uma conversa real (não-local)
+      if (canPersistToDb) {
+        try {
+          await supabase
+            .from('whatsapp_conversations')
+            .update({
+              last_message_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', conversation.id);
+          if (WHATSAPP.DEBUG_LOGS) console.log('✅ Conversation updated');
+        } catch (convError) {
+          console.warn('Failed to update conversation timestamp:', convError);
+        }
       }
       
-      console.log('🎉 Send message process completed successfully');
+      if (WHATSAPP.DEBUG_LOGS) console.log('🎉 Send message process completed successfully');
 
     } catch (err) {
       console.error('Error sending message:', err);

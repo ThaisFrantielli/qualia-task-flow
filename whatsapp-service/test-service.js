@@ -3,7 +3,26 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// Configure CORS to allow all origins
+app.use(cors({
+    origin: true, // Allow all origins
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['*']
+}));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// Add security headers
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    next();
+});
+
 app.use(express.json());
 
 const PORT = 3006;
@@ -41,5 +60,6 @@ app.get('/qr-code', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-    // Service started silently
+    console.log(`🚀 WhatsApp Test Service running on http://localhost:${PORT}`);
+    console.log(`✅ CORS enabled for all origins`);
 });

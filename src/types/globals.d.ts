@@ -1,7 +1,4 @@
-// Types declaration to fix import issues
-declare module './types.d.ts' {
-  // This file resolves type import conflicts
-}
+// Global types declaration file
 
 // Extend global types if needed
 declare global {
