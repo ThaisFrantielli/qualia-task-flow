@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../integrations/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '../hooks/use-toast';
 
 export function useClienteDelete() {
@@ -19,16 +19,16 @@ export function useClienteDelete() {
         .from('atendimentos')
         .select('id')
         .eq('cliente_id', clienteId)
-        .eq('status', 'Em Andamento');
+        .eq('status', 'Em Análise');
       
       if (atendimentosError) throw new Error(atendimentosError.message);
       
       // Verificar tarefas pendentes
       const { data: tarefas, error: tarefasError } = await supabase
-        .from('tarefas')
+        .from('tasks')
         .select('id')
-        .eq('cliente_id', clienteId)
-        .in('status', ['pendente', 'em_andamento']);
+        .eq('client_id', clienteId)
+        .in('status', ['pending', 'in_progress']);
       
       if (tarefasError) throw new Error(tarefasError.message);
       
@@ -53,12 +53,11 @@ export function useClienteDelete() {
     setError(null);
     
     try {
-      // Realizar soft delete (atualizar flag deleted para true)
+      // Realizar soft delete (marcar na situação)
       const { error } = await supabase
         .from('clientes')
         .update({ 
-          deleted: true,
-          deleted_at: new Date().toISOString()
+          situacao: `[DELETADO EM ${new Date().toISOString()}]`
         })
         .eq('id', clienteId);
       

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../integrations/supabase';
+import { WHATSAPP } from '@/integrations/whatsapp/config';
 
 export interface WhatsAppNumber {
   id: string; // ID da configuração
@@ -14,57 +14,46 @@ export function useWhatsAppNumbers() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchNumbers = async () => {
+    const checkWhatsAppService = async () => {
       try {
         setLoading(true);
         
-        // Buscar configurações de WhatsApp da empresa
-        const { data: configs, error } = await supabase
-          .from('whatsapp_config')
-          .select('*');
-
-        if (error) throw error;
-
-        const whatsappNumbers: WhatsAppNumber[] = configs
-          .filter(config => config.is_connected && config.connected_number)
-          .map(config => ({
-            id: config.id,
-            number: config.connected_number || '',
-            displayName: `WhatsApp ${config.connected_number?.slice(-4) || config.id.slice(0, 8)}`,
-            isConnected: config.is_connected || false,
-            connectedNumber: config.connected_number || undefined
-          }));
-
-        setNumbers(whatsappNumbers);
+  // Verificar se o serviço WhatsApp está conectado
+  const response = await fetch(`${WHATSAPP.SERVICE_URL}/status`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.isConnected && data.connectedNumber) {
+            const whatsappNumbers: WhatsAppNumber[] = [{
+              id: 'default',
+              number: data.connectedNumber,
+              displayName: `WhatsApp ${data.connectedNumber.slice(-4)}`,
+              isConnected: data.isConnected,
+              connectedNumber: data.connectedNumber
+            }];
+            
+            setNumbers(whatsappNumbers);
+          } else {
+            setNumbers([]);
+          }
+        } else {
+          setNumbers([]);
+        }
       } catch (error) {
-        console.error('Error fetching WhatsApp numbers:', error);
+        console.error('Error checking WhatsApp service:', error);
         setNumbers([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchNumbers();
+    checkWhatsAppService();
 
-    // Real-time subscription para mudanças nas configurações
-    const channel = supabase
-      .channel('whatsapp-config-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'whatsapp_config'
-        },
-        () => {
-          fetchNumbers();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Polling para verificar status periodicamente
+  const interval = setInterval(checkWhatsAppService, WHATSAPP.STATUS_POLL_INTERVAL_MS);
+    
+    return () => clearInterval(interval);
   }, []);
 
   return { numbers, loading };

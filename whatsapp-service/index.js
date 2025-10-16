@@ -185,6 +185,34 @@ app.get('/qr-code', (req, res) => {
     });
 });
 
+// Simple HTML page to view QR code in the browser
+app.get('/qr-view', (req, res) => {
+        if (!currentQRCode) {
+                return res.send(`
+                        <html>
+                            <head><title>WhatsApp QR</title></head>
+                            <body style="font-family: sans-serif;">
+                                <h3>Nenhum QR Code disponível no momento.</h3>
+                                <p>Se o cliente não estiver conectado, aguarde a geração do QR ou faça POST /reset-session.</p>
+                            </body>
+                        </html>
+                `);
+        }
+        const src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentQRCode)}`;
+        res.send(`
+            <html>
+                <head><title>WhatsApp QR</title></head>
+                <body style="display:flex;align-items:center;justify-content:center;height:100vh;background:#f7f7f7;font-family:sans-serif;">
+                    <div style="text-align:center;background:#fff;padding:20px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+                        <h3 style="margin:0 0 12px">Escaneie para conectar</h3>
+                        <img alt="WhatsApp QR" src="${src}" />
+                        <p style="color:#555">Atualize a página se expirar (45s).</p>
+                    </div>
+                </body>
+            </html>
+        `);
+});
+
 // API endpoint to get connection status
 app.get('/status', (req, res) => {
     res.json({

@@ -60,6 +60,37 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## WhatsApp Development (local)
+
+For local development of the WhatsApp tab without relying on a real device/session, there's a lightweight test service that simulates WhatsApp connectivity and sending.
+
+- Test service: `whatsapp-service/test-service.js` (port 3006)
+- Frontend: Vite dev server (port 8080)
+
+Quickstart:
+
+```sh
+# Install root deps
+npm i
+
+# Install WhatsApp service deps
+cd whatsapp-service && npm i && cd ..
+
+# Run both (Vite + test service)
+npm run dev:test-wa
+```
+
+Environment knobs (optional):
+
+- `VITE_WHATSAPP_SERVICE_URL` (default: http://localhost:3006)
+- `VITE_WHATSAPP_USE_EDGE` (default: false)
+- `VITE_WHATSAPP_STATUS_POLL_MS` (default: 30000)
+
+Notes:
+
+- The test service returns a fixed connected number and always succeeds in sending. Use it to validate UI flows.
+- For real WhatsApp Web automation, use `whatsapp-service/index.js` (port 3005) and ensure Chromium dependencies are available on your host.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/c62c972d-00bb-44a2-b847-540f233c5168) and click on Share -> Publish.

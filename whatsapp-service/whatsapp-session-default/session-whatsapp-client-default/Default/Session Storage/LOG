@@ -1,3 +1,2 @@
-2025/10/15-19:20:38.785 63e9 Reusing MANIFEST /home/codespace/qualia-task-flow-3/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/Session Storage/MANIFEST-000001
-2025/10/15-19:20:38.786 63e9 Recovering log #3
-2025/10/15-19:20:38.786 63e9 Reusing old log /home/codespace/qualia-task-flow-3/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/Session Storage/000003.log 
+2025/10/16-12:22:05.676 4a12 Creating DB /home/codespace/qualia-task-flow-3/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/Session Storage since it was missing.
+2025/10/16-12:22:05.682 4a12 Reusing MANIFEST /home/codespace/qualia-task-flow-3/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/Session Storage/MANIFEST-000001

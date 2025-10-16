@@ -1,33 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../integrations/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
-export interface WhatsAppConversation {
-  id: string;
-  customer_id: string | null;
-  customer_phone: string;
-  customer_name: string | null;
-  last_message: string | null;
-  last_message_at: string | null;
-  unread_count: number;
-  is_online: boolean;
-  status: 'active' | 'archived';
-  created_at: string;
-  updated_at: string;
-}
+export type WhatsAppConversation = Database['public']['Tables']['whatsapp_conversations']['Row'];
 
-export interface WhatsAppMessage {
-  id: string;
-  conversation_id: string;
-  sender_type: 'customer' | 'user';
-  sender_phone: string | null;
-  sender_name: string | null;
-  content: string;
-  message_type: 'text' | 'image' | 'audio' | 'video' | 'document';
-  status: 'sent' | 'delivered' | 'read';
-  whatsapp_message_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import type { Database } from '@/types';
+
+export type WhatsAppMessage = Database['public']['Tables']['whatsapp_messages']['Row'];
 
 export function useWhatsAppConversations(customerId?: string) {
   const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
@@ -88,7 +66,11 @@ export function useWhatsAppConversations(customerId?: string) {
             setConversations(prev => 
               prev.map(conv => 
                 conv.id === payload.new.id ? { ...payload.new as WhatsAppConversation } : conv
-              ).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+              ).sort((a, b) => {
+                const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+                const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+                return dateB - dateA;
+              })
             );
           } else if (payload.eventType === 'DELETE') {
             setConversations(prev => prev.filter(conv => conv.id !== payload.old.id));
