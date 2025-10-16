@@ -25,6 +25,14 @@ interface CustomerDetailProps {
 const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDelete }) => {
   const { detalhes, loading: detalhesLoading } = useClienteDetail(customer);
   const { numbers: whatsappNumbers, loading: whatsappLoading } = useWhatsAppNumbers();
+  const hasDynamicWhatsApp = !whatsappLoading && whatsappNumbers.length > 0;
+
+  // Fallback: se não houver instância WhatsApp detectada, ainda mostramos a aba usando o telefone do cliente
+  const fallbackNumberRaw = (customer as any)?.whatsapp_number
+    || (customer as any)?.telefone
+    || (customer?.cliente_contatos && customer.cliente_contatos[0]?.telefone_contato)
+    || null;
+  const fallbackNumber = fallbackNumberRaw ? String(fallbackNumberRaw) : null;
 
   // Buscar oportunidades do cliente
   const { data: oportunidades = [], isLoading: oportunidadesLoading } = useQuery({
@@ -78,12 +86,19 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
           </TabsTrigger>
           
           {/* Tabs dinâmicas para cada WhatsApp */}
-          {!whatsappLoading && whatsappNumbers.map((whatsapp) => (
+          {hasDynamicWhatsApp && whatsappNumbers.map((whatsapp) => (
             <TabsTrigger key={whatsapp.id} value={`whatsapp-${whatsapp.id}`}>
               <MessageCircle className="h-4 w-4 mr-2" />
               {whatsapp.displayName}
             </TabsTrigger>
           ))}
+          {/* Aba fallback quando não há números detectados pelo serviço */}
+          {!hasDynamicWhatsApp && fallbackNumber && (
+            <TabsTrigger value={`whatsapp-fallback`}>
+              <MessageCircle className="h-4 w-4 mr-2" />
+              WhatsApp
+            </TabsTrigger>
+          )}
           
           <TabsTrigger value="oportunidades">
             <Target className="h-4 w-4 mr-2" />
@@ -243,7 +258,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
           </TabsContent>
 
           {/* Tabs de WhatsApp dinâmicas */}
-          {whatsappNumbers.map((whatsapp) => (
+          {hasDynamicWhatsApp && whatsappNumbers.map((whatsapp) => (
             <TabsContent key={whatsapp.id} value={`whatsapp-${whatsapp.id}`} className="mt-0">
               <WhatsAppTab
                 clienteId={customer.id}
@@ -252,6 +267,16 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
               />
             </TabsContent>
           ))}
+          {/* Tab fallback */}
+          {!hasDynamicWhatsApp && fallbackNumber && (
+            <TabsContent value={`whatsapp-fallback`} className="mt-0">
+              <WhatsAppTab
+                clienteId={customer.id}
+                whatsappNumber={fallbackNumber}
+                customerName={customer.nome_fantasia || customer.razao_social || undefined}
+              />
+            </TabsContent>
+          )}
         </div>
       </Tabs>
     </div>

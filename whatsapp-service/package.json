@@ -4,7 +4,9 @@
   "description": "Service for WhatsApp Web automation",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "NODE_ENV=development node index.js",
+    "test-service": "node test-service.js"
   },
   "author": "",
   "license": "MIT",

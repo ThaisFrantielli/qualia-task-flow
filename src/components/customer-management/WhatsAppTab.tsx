@@ -8,6 +8,7 @@ import { Send, Loader2, Phone, User, Bot, MessageSquare } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { WHATSAPP } from '@/integrations/whatsapp/config';
 
 interface WhatsAppTabProps {
   clienteId: string;
@@ -21,8 +22,12 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
   const [serviceOnline, setServiceOnline] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [checkingService, setCheckingService] = useState(true);
+  const [connectedNumber, setConnectedNumber] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  // Debug props
+  if (WHATSAPP.DEBUG_LOGS) console.log('🔍 WhatsAppTab props:', { clienteId, whatsappNumber, customerName });
 
   const { messages, loading, error, sendMessage, clienteInfo, refreshMessages } = useWhatsAppConversation(
     clienteId,
@@ -31,7 +36,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
 
   // Auto-scroll para última mensagem
   useEffect(() => {
-    console.log('📱 Messages changed in component:', messages.length, messages);
+  if (WHATSAPP.DEBUG_LOGS) console.log('📱 Messages changed in component:', messages.length, messages);
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -42,9 +47,9 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
     const checkService = async () => {
       try {
         setCheckingService(true);
-        console.log('Checking WhatsApp service status...');
-        const response = await fetch('http://localhost:3006/status');
-        console.log('Response status:', response.status, 'OK:', response.ok);
+  if (WHATSAPP.DEBUG_LOGS) console.log('Checking WhatsApp service status...');
+        const response = await fetch(`${WHATSAPP.SERVICE_URL}/status`);
+  if (WHATSAPP.DEBUG_LOGS) console.log('Response status:', response.status, 'OK:', response.ok);
         
         if (!response.ok) {
           console.log('Response not OK - Service is offline');
@@ -54,15 +59,18 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
         }
         
         const data = await response.json();
-        console.log('WhatsApp status data:', data);
-        console.log('isConnected:', data.isConnected);
+        if (WHATSAPP.DEBUG_LOGS) {
+          console.log('WhatsApp status data:', data);
+          console.log('isConnected:', data.isConnected);
+        }
         
         // Service is responding (online)
         setServiceOnline(true);
         // WhatsApp connection status
         setWhatsappConnected(data.isConnected === true);
+  setConnectedNumber(data.connectedNumber || null);
       } catch (error) {
-        console.error('Error checking WhatsApp service:', error);
+        if (WHATSAPP.DEBUG_LOGS) console.error('Error checking WhatsApp service:', error);
         setServiceOnline(false);
         setWhatsappConnected(false);
       } finally {
@@ -71,7 +79,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
     };
     
     checkService();
-    const interval = setInterval(checkService, 30000); // Check a cada 30s
+    const interval = setInterval(checkService, WHATSAPP.STATUS_POLL_INTERVAL_MS);
     
     return () => clearInterval(interval);
   }, []);
@@ -80,14 +88,14 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
     if (!messageText.trim() || !serviceOnline || !whatsappConnected) return;
 
     const messageToSend = messageText.trim();
-    console.log('🚀 Sending message from component:', messageToSend);
+  if (WHATSAPP.DEBUG_LOGS) console.log('🚀 Sending message from component:', messageToSend);
 
     try {
       setIsSending(true);
       await sendMessage(messageToSend);
       setMessageText('');
       
-      console.log('✅ Message sent successfully from component');
+  if (WHATSAPP.DEBUG_LOGS) console.log('✅ Message sent successfully from component');
       
       toast({
         title: 'Mensagem enviada',
@@ -102,7 +110,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
       }, 100);
       
     } catch (err) {
-      console.error('❌ Error in component send:', err);
+  if (WHATSAPP.DEBUG_LOGS) console.error('❌ Error in component send:', err);
       toast({
         title: 'Erro ao enviar',
         description: 'Não foi possível enviar a mensagem. Tente novamente.',
@@ -150,18 +158,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-3">
-        <p className="text-destructive">Erro ao carregar conversação: {error}</p>
-        {error.includes('telefone') && (
-          <Button variant="outline" size="sm">
-            Adicionar telefone ao cliente
-          </Button>
-        )}
-      </div>
-    );
-  }
+  // Não bloquear a UI por erro de DB; mostrar banner mais abaixo
 
   return (
     <div className="flex flex-col h-[600px] border rounded-lg bg-background">
@@ -197,6 +194,20 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
           >
             🔄
           </Button>
+          {WHATSAPP.DEBUG_LOGS && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                console.log('🧪 Teste direto - enviando mensagem de teste');
+                sendMessage('Mensagem de teste - ' + new Date().toLocaleTimeString());
+              }}
+              className="text-xs h-6 px-2"
+              disabled={!serviceOnline || !whatsappConnected}
+            >
+              🧪
+            </Button>
+          )}
           <div className={`h-2 w-2 rounded-full ${
             serviceOnline && whatsappConnected ? 'bg-green-500' : 
             serviceOnline ? 'bg-yellow-500' : 'bg-gray-400'
@@ -213,7 +224,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
         <div className="p-3 bg-red-50 border-b border-red-200 flex items-center gap-2">
           <Phone className="h-4 w-4 text-red-600" />
           <p className="text-xs text-red-800">
-            Serviço WhatsApp offline. Verifique se o serviço está rodando na porta 3006.
+            Serviço WhatsApp offline. Verifique se o serviço está rodando em {WHATSAPP.SERVICE_URL}.
           </p>
         </div>
       )}
@@ -222,6 +233,21 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
           <Phone className="h-4 w-4 text-yellow-600" />
           <p className="text-xs text-yellow-800">
             WhatsApp desconectado. Escaneie o QR Code na página de configuração para reconectar.
+            {connectedNumber ? ` (número do dispositivo: ${connectedNumber})` : ''}
+          </p>
+        </div>
+      )}
+      {serviceOnline && whatsappConnected && WHATSAPP.SERVICE_URL.includes(':3006') && (
+        <div className="p-3 bg-blue-50 border-b border-blue-200 text-blue-900 text-xs">
+          Modo simulado ativo ({WHATSAPP.SERVICE_URL}). Mensagens não são entregues ao destinatário. 
+          Para enviar de verdade, ajuste VITE_WHATSAPP_SERVICE_URL para http://localhost:3005 e inicie o serviço real (whatsapp-service/index.js).
+        </div>
+      )}
+      {error && (
+        <div className="p-3 bg-orange-50 border-b border-orange-200 flex items-center gap-2">
+          <Phone className="h-4 w-4 text-orange-600" />
+          <p className="text-xs text-orange-800">
+            Aviso: não foi possível carregar a conversação do banco ({error}). Você ainda pode enviar mensagens; elas serão exibidas localmente.
           </p>
         </div>
       )}
@@ -239,9 +265,11 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
           {/* Debug info */}
-          <div className="text-xs text-muted-foreground text-center border-b pb-2">
-            Mensagens: {messages.length} | Status: {loading ? 'Carregando' : 'Pronto'}
-          </div>
+          {WHATSAPP.DEBUG_LOGS && (
+            <div className="text-xs text-muted-foreground text-center border-b pb-2">
+              Mensagens: {messages.length} | Status: {loading ? 'Carregando' : 'Pronto'}
+            </div>
+          )}
           
           {loading && <p className="text-center text-muted-foreground">Carregando mensagens...</p>}
           {messages.length === 0 && !loading ? (
@@ -271,9 +299,9 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
                         : 'bg-primary text-primary-foreground'
                     }`}
                   >
-                    {!isCustomer && message.sender_name && (
+                    {!isCustomer && (
                       <p className="text-xs font-semibold mb-1 opacity-80">
-                        {message.sender_name}
+                        Você
                       </p>
                     )}
                     <p className="text-sm whitespace-pre-wrap break-words">
@@ -284,7 +312,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
                         isCustomer ? 'text-muted-foreground' : 'opacity-70'
                       }`}
                     >
-                      {formatTime(message.created_at)}
+                      {message.created_at ? formatTime(message.created_at) : 'Agora'}
                     </p>
                   </div>
 

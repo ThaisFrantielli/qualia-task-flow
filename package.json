@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "dev:all": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\""
+    "dev:all": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\"",
+    "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\""
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
