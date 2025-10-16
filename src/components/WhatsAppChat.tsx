@@ -226,7 +226,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phoneNumber: selectedConv.customer_phone,
+          phoneNumber: (selectedConv as any).customer_phone,
           message: newMessage.trim(),
           conversationId: selectedConversationId
         }),
@@ -266,11 +266,14 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
   };
 
   // Filter conversations based on search
-  const filteredConversations = conversations.filter(conv => 
-    (conv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    conv.customer_phone.includes(searchTerm) ||
-    (conv.last_message?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredConversations = conversations.filter(conv => {
+    const convAny = conv as any;
+    return (
+      (convAny.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      convAny.customer_phone?.includes(searchTerm) ||
+      (convAny.last_message?.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  });
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
 
@@ -348,10 +351,10 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                     <Avatar className="w-12 h-12">
                       <AvatarImage src="" />
                       <AvatarFallback className="bg-primary/10 text-primary">
-                        {getCustomerInitials(conv.customer_name, conv.customer_phone)}
+                        {getCustomerInitials((conv as any).customer_name, (conv as any).customer_phone)}
                       </AvatarFallback>
                     </Avatar>
-                    {conv.is_online && (
+                    {(conv as any).is_online && (
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
                     )}
                   </div>
@@ -359,7 +362,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium truncate">
-                        {conv.customer_name || `+${conv.customer_phone}`}
+                        {(conv as any).customer_name || `+${(conv as any).customer_phone || ''}`}
                       </h3>
                       {conv.last_message_at && (
                         <span className="text-xs text-muted-foreground">
@@ -370,11 +373,11 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                     
                     <div className="flex items-center justify-between mt-1">
                       <p className="text-sm text-muted-foreground truncate">
-                        {conv.last_message || 'Nenhuma mensagem'}
+                        {(conv as any).last_message || 'Nenhuma mensagem'}
                       </p>
-                      {conv.unread_count > 0 && (
+                      {(conv as any).unread_count > 0 && (
                         <Badge variant="default" className="bg-primary text-primary-foreground text-xs min-w-[20px] h-5 flex items-center justify-center">
-                          {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                          {(conv as any).unread_count > 99 ? '99+' : (conv as any).unread_count}
                         </Badge>
                       )}
                     </div>
@@ -396,15 +399,15 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                 <Avatar className="w-10 h-10">
                   <AvatarImage src="" />
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    {getCustomerInitials(selectedConversation.customer_name, selectedConversation.customer_phone)}
+                    {getCustomerInitials((selectedConversation as any).customer_name, (selectedConversation as any).customer_phone)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <h3 className="font-semibold">
-                    {selectedConversation.customer_name || 'Cliente WhatsApp'}
+                    {(selectedConversation as any).customer_name || 'Cliente WhatsApp'}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    +{selectedConversation.customer_phone}
+                    +{(selectedConversation as any).customer_phone || ''}
                   </p>
                 </div>
               </div>
@@ -464,11 +467,11 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                             "text-xs",
                             msg.sender_type === 'customer' ? 'text-muted-foreground' : 'text-primary-foreground/70'
                           )}>
-                            {formatMessageTime(msg.created_at)}
+                            {formatMessageTime(msg.created_at || '')}
                           </span>
                           {msg.sender_type === 'user' && (
                             <div className="flex">
-                              {msg.status === 'delivered' ? (
+                              {(msg as any).status === 'delivered' ? (
                                 <CheckCheck className="h-3 w-3 text-primary-foreground/70" />
                               ) : (
                                 <Check className="h-3 w-3 text-primary-foreground/70" />
