@@ -75,12 +75,14 @@ export default function WhatsAppConfigPage() {
         });
       }
 
-      // If not connected, try to fetch current QR directly from the service
+      // Always fetch QR directly from service when not connected
       if (!data.isConnected) {
         try {
           const qrRes = await fetch(`${SERVICE_URL}/qr-code`);
           if (qrRes.ok) {
             const qrData = await qrRes.json();
+            console.log('QR Code from service:', qrData);
+            
             if (qrData?.qrCode) {
               setConfig(prev => prev ? { ...prev, qr_code: qrData.qrCode } : {
                 id: 'default',
@@ -89,9 +91,12 @@ export default function WhatsAppConfigPage() {
                 connected_number: null,
                 last_connection_at: null
               });
+              console.log('QR Code updated in state');
             }
           }
-        } catch {}
+        } catch (e) {
+          console.log('No QR available yet from service');
+        }
       }
     } catch (error) {
       console.error('WhatsApp service not reachable:', error);
@@ -155,15 +160,33 @@ export default function WhatsAppConfigPage() {
     fetchWhatsAppConfig();
     checkServiceStatus();
 
-    // Auto-refresh every 30 seconds to get updated QR codes
-    const interval = setInterval(() => {
+    // Polling agressivo nos primeiros 2 minutos (a cada 3 segundos)
+    let fastInterval: NodeJS.Timeout | null = setInterval(() => {
       if (!config?.is_connected) {
-        fetchWhatsAppConfig();
+        checkServiceStatus();
       }
-      checkServiceStatus();
-    }, 30000);
+    }, 3000);
 
-    return () => clearInterval(interval);
+    // Após 2 minutos, mudar para polling normal (a cada 15 segundos)
+    const switchToNormalPolling = setTimeout(() => {
+      if (fastInterval) {
+        clearInterval(fastInterval);
+        fastInterval = null;
+      }
+      
+      const normalInterval = setInterval(() => {
+        if (!config?.is_connected) {
+          checkServiceStatus();
+        }
+      }, 15000);
+      
+      return () => clearInterval(normalInterval);
+    }, 120000); // 2 minutos
+
+    return () => {
+      if (fastInterval) clearInterval(fastInterval);
+      clearTimeout(switchToNormalPolling);
+    };
   }, []);
 
   // Real-time subscription for config changes
@@ -232,12 +255,15 @@ export default function WhatsAppConfigPage() {
                   O serviço local do WhatsApp em {SERVICE_URL} não está disponível. Para conectar o WhatsApp, inicie o serviço primeiro.
                 </p>
                 <div className="mt-3 p-3 bg-white rounded border border-amber-200">
-                  <p className="text-xs font-mono text-amber-900 mb-1">Execute estes comandos no terminal:</p>
+                  <p className="text-xs font-mono text-amber-900 mb-1">Execute estes comandos no terminal (uma única vez):</p>
                   <code className="text-xs block bg-gray-900 text-green-400 p-2 rounded mt-1">
                     cd whatsapp-service<br/>
                     npm install<br/>
                     npm start
                   </code>
+                  <p className="text-xs text-amber-700 mt-2">
+                    ⚡ O QR Code aparecerá automaticamente aqui em alguns segundos após iniciar o serviço!
+                  </p>
                 </div>
               </div>
             </div>
