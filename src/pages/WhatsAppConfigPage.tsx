@@ -255,15 +255,49 @@ export default function WhatsAppConfigPage() {
                   O serviço local do WhatsApp em {SERVICE_URL} não está disponível. Para conectar o WhatsApp, inicie o serviço primeiro.
                 </p>
                 <div className="mt-3 p-3 bg-white rounded border border-amber-200">
-                  <p className="text-xs font-mono text-amber-900 mb-1">Execute estes comandos no terminal (uma única vez):</p>
-                  <code className="text-xs block bg-gray-900 text-green-400 p-2 rounded mt-1">
-                    cd whatsapp-service<br/>
-                    npm install<br/>
-                    npm start
-                  </code>
-                  <p className="text-xs text-amber-700 mt-2">
-                    ⚡ O QR Code aparecerá automaticamente aqui em alguns segundos após iniciar o serviço!
-                  </p>
+                  <p className="text-xs font-semibold text-amber-900 mb-2">🚀 Iniciar Serviço WhatsApp:</p>
+                  
+                  <div className="space-y-3">
+                    {/* Opção 1: Scripts prontos */}
+                    <div className="p-2 bg-green-50 rounded border border-green-200">
+                      <p className="text-xs font-semibold text-green-800 mb-1">✨ MAIS FÁCIL - Use os scripts prontos:</p>
+                      <div className="text-xs text-green-700 space-y-1">
+                        <p><strong>Windows:</strong> Clique duas vezes em <code className="bg-green-100 px-1 rounded">INICIAR_SERVICO.bat</code></p>
+                        <p><strong>Linux/Mac:</strong> Execute <code className="bg-green-100 px-1 rounded">./iniciar-servico.sh</code></p>
+                      </div>
+                    </div>
+
+                    {/* Opção 2: Comandos manuais */}
+                    <div>
+                      <p className="text-xs text-amber-900 mb-1">📝 Ou copie e cole no terminal:</p>
+                      <code className="text-xs block bg-gray-900 text-green-400 p-2 rounded">
+                        cd whatsapp-service<br/>
+                        npm install<br/>
+                        npm start
+                      </code>
+                      
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText('cd whatsapp-service && npm install && npm start');
+                          toast({
+                            title: "Comandos copiados! 📋",
+                            description: "Cole no terminal para iniciar o serviço WhatsApp",
+                          });
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300"
+                      >
+                        📋 Copiar comandos
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 p-2 bg-blue-50 rounded border border-blue-200">
+                    <p className="text-xs text-blue-700 font-medium">
+                      ⚡ O QR Code aparecerá <strong>automaticamente</strong> aqui em 3-5 segundos!
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -452,6 +486,20 @@ export default function WhatsAppConfigPage() {
               </p>
             </div>
           </div>
+          
+          {!serviceOnline && (
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Scripts de inicialização prontos</p>
+                <p className="text-sm text-muted-foreground">
+                  <strong>Windows:</strong> Execute <code className="text-xs bg-muted px-1 rounded">INICIAR_SERVICO.bat</code> na pasta whatsapp-service<br/>
+                  <strong>Linux/Mac:</strong> Execute <code className="text-xs bg-muted px-1 rounded">./iniciar-servico.sh</code> na pasta whatsapp-service
+                </p>
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
             <div>
