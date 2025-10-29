@@ -111,18 +111,18 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
     <div className="flex-grow overflow-y-auto">
       <Tabs defaultValue="details" className="w-full">
         <div className="p-6 border-b sticky top-0 bg-background z-10">
-          <TabsList>
-            <TabsTrigger value="details">Detalhes</TabsTrigger>
-            <TabsTrigger value="action_plan">Plano de Ação</TabsTrigger>
-            <TabsTrigger value="attachments">Anexos</TabsTrigger>
-            <TabsTrigger value="comments">Comentários</TabsTrigger>
-            <TabsTrigger value="delegation">Delegação</TabsTrigger>
-            <TabsTrigger value="history">Histórico</TabsTrigger>
+          <TabsList className="rounded-xl bg-muted/40">
+            <TabsTrigger value="details" className="rounded-xl">Detalhes</TabsTrigger>
+            <TabsTrigger value="action_plan" className="rounded-xl">Plano de Ação</TabsTrigger>
+            <TabsTrigger value="attachments" className="rounded-xl">Anexos</TabsTrigger>
+            <TabsTrigger value="comments" className="rounded-xl">Comentários</TabsTrigger>
+            <TabsTrigger value="delegation" className="rounded-xl">Delegação</TabsTrigger>
+            <TabsTrigger value="history" className="rounded-xl">Histórico</TabsTrigger>
           </TabsList>
         </div>
         <div className="p-6">
           <TabsContent value="details">
-            <Card className="border-none shadow-none">
+            <Card className="border-none shadow-none rounded-2xl bg-white">
               <CardHeader className="p-0 pb-4">
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">Informações da Tarefa</CardTitle>
@@ -144,15 +144,21 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
               <CardContent className="p-0 mt-6 space-y-6">
                 {isEditing ? (
                   <>
-                    <div><Label htmlFor="task-title">Título <span className="text-destructive">*</span></Label><Input id="task-title" value={editedTask.title} onChange={(e) => handleInputChange('title', e.target.value)} /></div>
-                    <div><Label>Descrição <span className="text-destructive">*</span></Label><Textarea value={editedTask.description || ''} onChange={(e) => handleInputChange('description', e.target.value)} rows={4} /></div>
+                    <div>
+                      <Label htmlFor="task-title">Título <span className="text-destructive">*</span></Label>
+                      <Input id="task-title" value={editedTask.title} onChange={(e) => handleInputChange('title', e.target.value)} className="rounded-xl border-2" />
+                    </div>
+                    <div>
+                      <Label>Descrição <span className="text-destructive">*</span></Label>
+                      <Textarea value={editedTask.description || ''} onChange={(e) => handleInputChange('description', e.target.value)} rows={4} className="rounded-xl border-2" />
+                    </div>
                   </>
                 ) : (
                   <div className="space-y-1"><Label className="text-muted-foreground">Descrição</Label><p className="text-sm whitespace-pre-wrap">{task.description || 'Nenhuma descrição.'}</p></div>
                 )}
                 
                 {!isEditing && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-4 border rounded-lg bg-muted/50">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-4 border rounded-2xl bg-muted/50">
                     <div className="space-y-1"><Label className="text-xs text-muted-foreground">Criado em</Label><p className="font-medium">{format(new Date(task.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p></div>
                     <div className="space-y-1"><Label className="text-xs text-muted-foreground">Prazo</Label><p className="font-medium">{task.due_date ? format(new Date(task.due_date), 'dd/MM/yyyy') : 'N/A'}</p></div>
                     <div className="space-y-1"><Label className="text-xs text-muted-foreground">Iniciado</Label><p className="font-medium">{task.start_date ? format(new Date(task.start_date), 'dd/MM/yyyy HH:mm') : '-'}</p></div>
@@ -161,7 +167,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-6 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-6 border-t rounded-2xl">
                   <div className="space-y-1">
                     <Label className="text-muted-foreground">Responsável</Label>
                     {isEditing ? (
@@ -235,7 +241,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                 </div>
 
                 {isEditing && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t rounded-2xl">
                     <div className="space-y-1">
                       <Label>Data de Início</Label>
                       <Popover>
@@ -246,7 +252,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d?.toISOString())} />
+                          <Calendar mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d ? new Date(d.setHours(12,0,0,0)).toISOString() : undefined)} />
                         </PopoverContent>
                       </Popover>
                     </div>
@@ -260,7 +266,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d?.toISOString())} />
+                          <Calendar mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d ? new Date(d.setHours(12,0,0,0)).toISOString() : undefined)} />
                         </PopoverContent>
                       </Popover>
                     </div>

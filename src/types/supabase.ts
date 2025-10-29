@@ -375,14 +375,18 @@ export type Database = {
           cidade: string | null
           codigo_cliente: string
           cpf_cnpj: string | null
+          email: string | null
           endereco: string | null
           estado: string | null
           id: string
           natureza_cliente: string | null
           nome_fantasia: string | null
           numero: string | null
+          origem: string | null
           razao_social: string | null
           situacao: string | null
+          status: string | null
+          telefone: string | null
           tipo_cliente: string | null
           whatsapp_number: string | null
         }
@@ -393,14 +397,18 @@ export type Database = {
           cidade?: string | null
           codigo_cliente: string
           cpf_cnpj?: string | null
+          email?: string | null
           endereco?: string | null
           estado?: string | null
           id?: string
           natureza_cliente?: string | null
           nome_fantasia?: string | null
           numero?: string | null
+          origem?: string | null
           razao_social?: string | null
           situacao?: string | null
+          status?: string | null
+          telefone?: string | null
           tipo_cliente?: string | null
           whatsapp_number?: string | null
         }
@@ -411,14 +419,18 @@ export type Database = {
           cidade?: string | null
           codigo_cliente?: string
           cpf_cnpj?: string | null
+          email?: string | null
           endereco?: string | null
           estado?: string | null
           id?: string
           natureza_cliente?: string | null
           nome_fantasia?: string | null
           numero?: string | null
+          origem?: string | null
           razao_social?: string | null
           situacao?: string | null
+          status?: string | null
+          telefone?: string | null
           tipo_cliente?: string | null
           whatsapp_number?: string | null
         }
@@ -588,6 +600,13 @@ export type Database = {
             referencedRelation: "oportunidade_messages"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "oportunidade_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       oportunidade_produtos: {
@@ -671,6 +690,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oportunidades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -810,30 +836,42 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          customcolor: string | null
           description: string | null
           id: string
           name: string
+          notes: string | null
           portfolio_id: string | null
+          privacy: string | null
+          status: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
           color?: string | null
           created_at?: string
+          customcolor?: string | null
           description?: string | null
           id?: string
           name: string
+          notes?: string | null
           portfolio_id?: string | null
+          privacy?: string | null
+          status?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           color?: string | null
           created_at?: string
+          customcolor?: string | null
           description?: string | null
           id?: string
           name?: string
+          notes?: string | null
           portfolio_id?: string | null
+          privacy?: string | null
+          status?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1305,14 +1343,52 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_config: {
+        Row: {
+          connected_number: string | null
+          created_at: string | null
+          id: string
+          is_connected: boolean | null
+          last_connection_at: string | null
+          qr_code: string | null
+          session_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          connected_number?: string | null
+          created_at?: string | null
+          id: string
+          is_connected?: boolean | null
+          last_connection_at?: string | null
+          qr_code?: string | null
+          session_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          connected_number?: string | null
+          created_at?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_connection_at?: string | null
+          qr_code?: string | null
+          session_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           atendimento_id: number | null
           cliente_id: string
           created_at: string | null
+          customer_name: string | null
+          customer_phone: string | null
           id: string
+          is_online: boolean | null
+          last_message: string | null
           last_message_at: string | null
           status: string
+          unread_count: number | null
           updated_at: string | null
           whatsapp_number: string
         }
@@ -1320,9 +1396,14 @@ export type Database = {
           atendimento_id?: number | null
           cliente_id: string
           created_at?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           id?: string
+          is_online?: boolean | null
+          last_message?: string | null
           last_message_at?: string | null
           status?: string
+          unread_count?: number | null
           updated_at?: string | null
           whatsapp_number: string
         }
@@ -1330,9 +1411,14 @@ export type Database = {
           atendimento_id?: number | null
           cliente_id?: string
           created_at?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           id?: string
+          is_online?: boolean | null
+          last_message?: string | null
           last_message_at?: string | null
           status?: string
+          unread_count?: number | null
           updated_at?: string | null
           whatsapp_number?: string
         }
@@ -1363,7 +1449,10 @@ export type Database = {
           metadata: Json | null
           read_at: string | null
           sender_id: string | null
+          sender_name: string | null
+          sender_phone: string | null
           sender_type: string
+          updated_at: string | null
           whatsapp_message_id: string | null
         }
         Insert: {
@@ -1375,7 +1464,10 @@ export type Database = {
           metadata?: Json | null
           read_at?: string | null
           sender_id?: string | null
+          sender_name?: string | null
+          sender_phone?: string | null
           sender_type: string
+          updated_at?: string | null
           whatsapp_message_id?: string | null
         }
         Update: {
@@ -1387,7 +1479,10 @@ export type Database = {
           metadata?: Json | null
           read_at?: string | null
           sender_id?: string | null
+          sender_name?: string | null
+          sender_phone?: string | null
           sender_type?: string
+          updated_at?: string | null
           whatsapp_message_id?: string | null
         }
         Relationships: [
@@ -1412,32 +1507,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      get_my_permission: {
-        Args: { permission_key: string }
-        Returns: boolean
-      }
-      get_my_role: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_profile_nivelacesso: {
-        Args: { _id: string }
-        Returns: string
-      }
-      get_profile_permissoes: {
-        Args: { _id: string }
-        Returns: Json
-      }
-      get_profile_role: {
-        Args: { _id: string }
-        Returns: string
-      }
+      get_is_admin: { Args: never; Returns: boolean }
+      get_my_permission: { Args: { permission_key: string }; Returns: boolean }
+      get_my_role: { Args: never; Returns: string }
+      get_profile_nivelacesso: { Args: { _id: string }; Returns: string }
+      get_profile_permissoes: { Args: { _id: string }; Returns: Json }
+      get_profile_role: { Args: { _id: string }; Returns: string }
       get_projects_with_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           color: string
           completed_count: number
@@ -1459,13 +1536,11 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_member_of_project: {
-        Args: { _project_id: string }
-        Returns: boolean
-      }
-      is_owner_of_project: {
-        Args: { _project_id: string }
-        Returns: boolean
+      is_member_of_project: { Args: { _project_id: string }; Returns: boolean }
+      is_owner_of_project: { Args: { _project_id: string }; Returns: boolean }
+      send_whatsapp_message: {
+        Args: { message_text: string; to_number: string }
+        Returns: Json
       }
     }
     Enums: {
