@@ -7,6 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { EditPortfolioForm } from './EditPortfolioForm';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MoreVertical } from "lucide-react"
+
 
 // Configuração de prioridade para exibição na tabela
 const priorityConfig: Record<string, { label: string; color: string }> = {
@@ -84,6 +92,11 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
     await supabase.from('portfolios').delete().eq('id', id);
   };
 
+  const handleDeleteProject = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este projeto?')) return;
+    await supabase.from('projects').delete().eq('id', id);
+  };
+
 
   if (loadingPortfolios) {
     return <div className="p-4">Carregando portfólios...</div>;
@@ -116,6 +129,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
             <TableHead>Prioridade</TableHead>
             <TableHead>Responsável</TableHead>
             <TableHead>Prazo</TableHead>
+            <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -125,7 +139,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
             return (
               <React.Fragment key={portfolio.id}>
                 <TableRow className="bg-muted/20 group hover:bg-muted/30 transition-colors">
-                  <TableCell colSpan={6} className="align-middle">
+                  <TableCell colSpan={7} className="align-middle">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -316,6 +330,23 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                             })()}
                           </div>
                         </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+                                <MoreVertical className="h-5 w-5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem
+                                className="text-red-500"
+                                onClick={() => handleDeleteProject(project.id)}
+                              >
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                       {expandedProjects.has(project.id) && sectionOrder.map(sectionName => (
                         <React.Fragment key={sectionName}>
@@ -455,6 +486,23 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                         );
                       })()}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+                          <MoreVertical className="h-5 w-5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem
+                          className="text-red-500"
+                          onClick={() => handleDeleteProject(project.id)}
+                        >
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
                 {expandedProjects.has(project.id) && Array.isArray(sectionOrder) && sectionOrder.length > 0 && sectionOrder.map(sectionName => (
