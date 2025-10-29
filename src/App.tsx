@@ -14,6 +14,7 @@ import TasksPage from '@/pages/Tasks';
 import TaskDetailPage from '@/pages/TaskDetailPage';
 import ProjectsPage from '@/pages/Projects';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
+import EditProjectPage from '@/pages/EditProject';
 import Team from '@/pages/Team';
 import Settings from '@/pages/Settings';
 import TaskSettingsPage from '@/pages/TaskSettingsPage';
@@ -60,6 +61,7 @@ function App() {
 
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+              <Route path="/projects/:id/edit" element={<EditProjectPage />} />
               
               <Route path="/oportunidades" element={<OportunidadesPage />} />
               <Route path="/oportunidades/:id" element={<OportunidadeDetalhePage />} />
