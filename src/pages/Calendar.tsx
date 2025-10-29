@@ -72,6 +72,25 @@ const Calendar: React.FC = () => {
     return calendarEvents.filter(ev => isSameDay(new Date(ev.start_date), date));
   };
 
+  // Função para verificar se o dia está dentro do intervalo de um evento/tarefa
+  const isDayInEventRange = (day: Date, item: any) => {
+    if (!item.start_date || !item.end_date) return false;
+    const start = new Date(item.start_date);
+    const end = new Date(item.end_date);
+    // Ignorar hora, comparar apenas data
+    const dayDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    return dayDate >= startDate && dayDate <= endDate;
+  };
+
+  // Função para cor de status (exemplo: pode ser expandida para outros status)
+  const getEventColor = (event: any) => {
+    if (event.status === 'done') return 'bg-green-400';
+    if (event.status === 'progress') return 'bg-yellow-400';
+    return 'bg-blue-400';
+  };
+
   const handleTaskClick = (task: any) => {
     setEditTask(task);
     setEditTitle(task.title);
@@ -134,19 +153,49 @@ const Calendar: React.FC = () => {
             {days.map((day) => {
               const dayTasks = getTasksForDate(day);
               const isCurrentMonth = isSameMonth(day, currentDate);
-              
+              // Eventos que abrangem este dia
+              // Eventos que abrangem este dia e têm intervalo
+              const spanningEvents = calendarEvents.filter(ev => ev.start_date && ev.end_date && isDayInEventRange(day, ev));
+              // Tarefas que abrangem este dia (start_date e end_date)
+              // Corrigir para considerar inclusive o último dia
+              const spanningTasks = tasks.filter(task => {
+                if (!task.start_date || !task.end_date) return false;
+                const start = new Date(task.start_date);
+                const end = new Date(task.end_date);
+                const dayDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+                const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                // Só desenhar linha se o intervalo for maior que 1 dia
+                if (startDate.getTime() === endDate.getTime()) return false;
+                return dayDate >= startDate && dayDate <= endDate;
+              });
               return (
                 <div
                   key={day.toISOString()}
-                  className={`min-h-[120px] p-2 border rounded ${
+                  className={`relative min-h-[120px] p-2 border rounded ${
                     isCurrentMonth ? 'bg-white' : 'bg-gray-50'
                   } ${isSameDay(day, new Date()) ? 'ring-2 ring-blue-500' : ''}`}
                 >
-                  <div className="font-medium text-sm mb-2">
+                  {/* Linha contínua para eventos que abrangem este dia */}
+                  {spanningEvents.map(ev => (
+                    <div
+                      key={ev.id}
+                      className={`absolute left-1 right-1 top-1 h-2 ${getEventColor(ev)} opacity-70 rounded-full`}
+                      style={{ zIndex: 1 }}
+                    />
+                  ))}
+                  {/* Linha contínua para tarefas que abrangem este dia */}
+                  {spanningTasks.map(task => (
+                    <div
+                      key={task.id}
+                      className={`absolute left-1 right-1 top-4 h-2 bg-blue-400 opacity-80 rounded-full`}
+                      style={{ zIndex: 2 }}
+                    />
+                  ))}
+                  <div className="font-medium text-sm mb-2 relative z-20">
                     {format(day, 'd')}
                   </div>
-                  
-                  <div className="space-y-1">
+                  <div className="space-y-1 relative z-20">
                     {/* Eventos do calendário */}
                     {getEventsForDate(day).map(ev => (
                       <div key={ev.id} className="text-xs p-1 bg-green-100 text-green-800 rounded mb-1">

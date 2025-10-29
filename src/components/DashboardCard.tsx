@@ -23,7 +23,7 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
   trend
 }) => {
   const colorClasses = {
-    primary: 'gradient-quality text-white',
+  primary: 'gradient-quality text-white', // Quality Conecta
     secondary: 'gradient-secondary text-white',
     accent: 'bg-gray-100 text-gray-900',
     success: 'bg-green-500 text-white',
@@ -31,7 +31,7 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-quality p-6 hover:shadow-lg transition-shadow duration-200">
+  <div className="bg-white rounded-xl shadow-quality p-6 hover:shadow-lg transition-shadow duration-200"> {/* Quality Conecta */}
       <div className="flex items-center justify-between mb-4">
         <div className={`w-12 h-12 rounded-lg ${colorClasses[color]} flex items-center justify-center`}>
           <Icon className="w-6 h-6" />

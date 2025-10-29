@@ -111,7 +111,7 @@ const Sidebar: React.FC = () => {
       <div className="p-6 border-b border-gray-700/50">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center"><KanbanSquare className="w-6 h-6" /></div>
-          <div><h1 className="font-bold text-lg">Quality</h1><p className="text-gray-400 text-sm">Task Manager</p></div>
+          <div><h1 className="font-bold text-lg">Quality Conecta</h1><p className="text-gray-400 text-sm">Conectada com você</p></div>
         </div>
       </div>
 
