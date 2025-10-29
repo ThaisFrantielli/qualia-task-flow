@@ -3,6 +3,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { OportunidadeProvider } from './contexts/OportunidadeContext';
 
+import Calendar from '@/pages/Calendar';
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
@@ -33,6 +34,7 @@ import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
 import WhatsAppConfigPage from '@/pages/WhatsAppConfigPage';
 import WhatsAppChatPage from '@/pages/WhatsAppChatPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
+// ...existing imports
 
 function App() {
   return (
@@ -83,6 +85,7 @@ function App() {
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
               <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
               <Route path="/whatsapp-manager" element={<MultiWhatsAppManagerPage />} />
+              <Route path="/calendar" element={<Calendar />} />
             </Route>
           </Route>
 

@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
-  ClipboardList, SlidersHorizontal, Target, MessageSquare // Ícone novo importado
+  ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon // Ícone novo importado
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,6 +29,12 @@ interface MenuGroup {
 
 // Estrutura de dados para os grupos de menu, agora com os ajustes
 const menuGroups: MenuGroup[] = [
+  {
+    title: 'AGENDA',
+    items: [
+      { label: 'Calendário', url: '/calendar', icon: CalendarIcon },
+    ]
+  },
   {
     title: 'GERAL',
     items: [
