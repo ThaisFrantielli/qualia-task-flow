@@ -18,7 +18,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
   tasks
 }) => {
   return (
-    <div className="bg-white rounded-xl shadow-quality overflow-hidden">
+  <div className="bg-white rounded-xl shadow-quality overflow-hidden"> {/* Quality Conecta */}
       <Table>
         <TableHeader>
           <TableRow>

@@ -114,7 +114,7 @@ const SurveyGeneratorPage = () => {
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
       <header className="text-center space-y-2">
-        <img src="/logo-quality.png" alt="Quality Frotas Logo" className="mx-auto h-16" />
+  <img src="/logo-quality.png" alt="Quality Conecta Logo" className="mx-auto h-16" />
         <h1 className="text-4xl font-bold font-comfortaa text-[#37255d]">Sistema de Satisfação</h1>
         <p className="text-lg text-gray-600">Gere links de pesquisa e acompanhe as respostas dos clientes.</p>
       </header>
