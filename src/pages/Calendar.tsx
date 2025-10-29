@@ -1,5 +1,6 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useTasks } from '@/hooks/useTasks';
 import { useTask } from '@/hooks/useTasks';
 import { useComments } from '@/hooks/useComments';
