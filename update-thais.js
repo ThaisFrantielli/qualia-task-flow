@@ -27,8 +27,8 @@ async function updateThaisClient() {
       const { data: updateData, error: updateError } = await supabase
         .from('clientes')
         .update({
-          whatsapp_number: '5561992209067', // Número do WhatsApp
-          telefone: '5561992209067' // Mesmo número como telefone
+          whatsapp_number: '556192209067', // Número do WhatsApp (correto com 9)
+          telefone: '556192209067' // Mesmo número como telefone
         })
         .eq('id', thaisClient.id)
         .select();
