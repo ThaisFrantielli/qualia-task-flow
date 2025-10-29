@@ -292,7 +292,7 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
         
         const messageData = {
           conversation_id: conversation.id,
-          sender_type: 'user' as const,
+          sender_type: 'system' as const, // Changed from 'user' to 'system' to avoid constraint error
           content: content,
           message_type: 'text' as const,
           // Tentar sem sender_id primeiro
@@ -327,7 +327,7 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
         const localMessage = {
           id: `local-${Date.now()}`,
           conversation_id: conversation.id,
-          sender_type: 'user' as const,
+          sender_type: 'system' as const, // Changed from 'user' to 'system' to avoid constraint error
           sender_phone: null,
           sender_name: 'Você',
           content: content,
