@@ -1,9 +1,15 @@
-
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, MoreVertical } from 'lucide-react';
 import { useState } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
 import { PortfolioFilter } from '@/components/projects/PortfolioFilter';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { supabase } from '@/integrations/supabase/client';
 
 import { CreatePortfolioForm } from '@/components/projects/CreatePortfolioForm';
 import { CreateProjectForm } from '@/components/CreateProjectForm';
@@ -19,6 +25,19 @@ const ProjectsPage = () => {
   const handleProjectCreated = () => {
     if (refetchProjects) {
       refetchProjects();
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este projeto?')) return;
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting project:', error);
+      // TODO: Show toast notification
+    } else {
+      if (refetchProjects) {
+        refetchProjects();
+      }
     }
   };
 
@@ -141,42 +160,63 @@ const ProjectsPage = () => {
             Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-xl" />)
           ) : projetosFiltrados.length > 0 ? (
             projetosFiltrados.map((project) => (
-              <div
+<div
   key={project.id}
-  className="card-projeto p-5 flex flex-col gap-2 cursor-pointer"
-  onClick={() => navigate(`/projects/${project.id}`)}
+  className="relative card-projeto p-5 flex flex-col gap-2"
 >
-  <div className="flex items-center gap-2 mb-1">
-    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color || '#A1A1AA' }} />
-    <span className="font-semibold text-base truncate" title={project.name}>{project.name}</span>
+  <div className="absolute top-2 right-2">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+          <MoreVertical className="h-5 w-5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem
+          className="text-red-500"
+          onClick={() => handleDeleteProject(project.id)}
+        >
+          Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   </div>
-  {project.description && (
-    <span className="text-xs text-muted-foreground mb-1 truncate" title={project.description}>{project.description}</span>
-  )}
-  <div className="flex items-center gap-4 mt-2">
-    <div className="flex flex-col text-xs text-muted-foreground">
-      <span>Progresso</span>
-      <div className="progress-bg mt-1">
-        <div
-          className="progress-bar"
-          style={{ width: `${Math.round((project.completed_count / (project.task_count || 1)) * 100)}%` }}
-        />
-      </div>
+  <div 
+    className="cursor-pointer"
+    onClick={() => navigate(`/projects/${project.id}`)}
+  >
+    <div className="flex items-center gap-2 mb-1">
+      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: project.color || '#A1A1AA' }} />
+      <span className="font-semibold text-base truncate" title={project.name}>{project.name}</span>
     </div>
-    <div className="flex flex-col text-xs text-muted-foreground">
-      <span>Total</span>
-      <span className="badge-gray">{project.task_count}</span>
-    </div>
-    <div className="flex flex-col text-xs text-muted-foreground">
-      <span>Concluídas</span>
-      <span className="badge-green">{project.completed_count}</span>
-    </div>
-    {project.late_count > 0 && (
-      <div className="flex flex-col text-xs text-muted-foreground">
-        <span>Atrasadas</span>
-        <span className="badge-red">{project.late_count}</span>
-      </div>
+    {project.description && (
+      <span className="text-xs text-muted-foreground mb-1 truncate" title={project.description}>{project.description}</span>
     )}
+    <div className="flex items-center gap-4 mt-2">
+      <div className="flex flex-col text-xs text-muted-foreground">
+        <span>Progresso</span>
+        <div className="progress-bg mt-1">
+          <div
+            className="progress-bar"
+            style={{ width: `${Math.round((project.completed_count / (project.task_count || 1)) * 100)}%` }}
+          />
+        </div>
+      </div>
+      <div className="flex flex-col text-xs text-muted-foreground">
+        <span>Total</span>
+        <span className="badge-gray">{project.task_count}</span>
+      </div>
+      <div className="flex flex-col text-xs text-muted-foreground">
+        <span>Concluídas</span>
+        <span className="badge-green">{project.completed_count}</span>
+      </div>
+      {project.late_count > 0 && (
+        <div className="flex flex-col text-xs text-muted-foreground">
+          <span>Atrasadas</span>
+          <span className="badge-red">{project.late_count}</span>
+        </div>
+      )}
+    </div>
   </div>
 </div>
             ))
