@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ViewModeIconToggle } from '@/components/ui/ViewModeIconToggle';
 
 import { useNavigate } from 'react-router-dom';
+import EditProjectPage from './EditProject';
 
 const ProjectsPage = () => {
   const navigate = useNavigate();
@@ -39,6 +40,10 @@ const ProjectsPage = () => {
         refetchProjects();
       }
     }
+  };
+
+  const handleEditProject = (id: string) => {
+    navigate(`/projects/${id}/edit`);
   };
 
   const [busca, setBusca] = useState("");
@@ -172,6 +177,12 @@ const ProjectsPage = () => {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem
+          className="text-blue-500"
+          onClick={() => handleEditProject(project.id)}
+        >
+          Editar
+        </DropdownMenuItem>
         <DropdownMenuItem
           className="text-red-500"
           onClick={() => handleDeleteProject(project.id)}
