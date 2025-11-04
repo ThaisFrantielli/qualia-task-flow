@@ -27,6 +27,7 @@ const SignupPage = () => {
         email: email,
         password: password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           // Passamos os dados extras aqui, que serão usados pelo nosso trigger no Supabase
           data: {
             full_name: fullName,
