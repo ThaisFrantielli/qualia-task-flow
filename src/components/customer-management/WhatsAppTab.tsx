@@ -279,7 +279,6 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName }: WhatsAp
           ) : (
             messages.map((message) => {
               const isCustomer = message.sender_type === 'customer';
-              const isOutgoing = message.sender_type === 'system' || message.sender_type === 'user';
               return (
                 <div
                   key={message.id}
