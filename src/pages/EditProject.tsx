@@ -24,7 +24,7 @@ const EditProjectPage = () => {
     customColor: string | null;
     notes: string | null;
   };
-  const [project, setProject] = useState<ProjectType | null>(null);
+  const [, setProject] = useState<ProjectType | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

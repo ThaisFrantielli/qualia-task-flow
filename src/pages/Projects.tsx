@@ -17,7 +17,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ViewModeIconToggle } from '@/components/ui/ViewModeIconToggle';
 
 import { useNavigate } from 'react-router-dom';
-import EditProjectPage from './EditProject';
 
 const ProjectsPage = () => {
   const navigate = useNavigate();
