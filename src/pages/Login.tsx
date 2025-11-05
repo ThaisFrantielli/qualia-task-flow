@@ -61,10 +61,9 @@ const LoginPage = () => {
     }
     setIsSending(true);
     
-    // É CRUCIAL informar ao Supabase para onde redirecionar o usuário
-    const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    // Usando apenas a URL base sem caminho específico
+    // O Supabase vai usar o Site URL configurado no dashboard
+    const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail);
 
     if (error) {
       toast.error('Erro ao enviar email', { description: error.message });
