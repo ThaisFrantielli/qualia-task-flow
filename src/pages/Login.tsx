@@ -61,9 +61,10 @@ const LoginPage = () => {
     }
     setIsSending(true);
     
-    // Usando apenas a URL base sem caminho específico
-    // O Supabase vai usar o Site URL configurado no dashboard
-    const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail);
+    // URL completa e explícita para redirecionamento
+    const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+      redirectTo: 'https://qualityconecta.vercel.app/reset-password',
+    });
 
     if (error) {
       toast.error('Erro ao enviar email', { description: error.message });
