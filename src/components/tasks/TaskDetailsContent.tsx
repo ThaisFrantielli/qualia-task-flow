@@ -6,7 +6,7 @@ import { useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useUsers } from '@/hooks/useUsers';
 import { useClassifications } from '@/hooks/useClassifications';
-import type { TaskUpdate, TaskWithDetails } from '@/types';
+import type { TaskUpdate, TaskWithDetails, TaskUpdateExtended } from '@/types';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getPriorityLabel } from '@/lib/utils';
@@ -51,7 +51,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
     }
   }, [task]);
 
-  const handleInputChange = (field: keyof TaskUpdate, value: any) => {
+  const handleInputChange = (field: keyof TaskWithDetails, value: any) => {
     setEditedTask(prev => ({ ...prev!, [field]: value }));
   };
 
@@ -67,7 +67,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
     
     setIsSaving(true);
 
-    const payload: TaskUpdate = {
+  const payload: TaskUpdateExtended = {
       title: editedTask.title,
       description: editedTask.description,
       status: editedTask.status,
@@ -78,6 +78,11 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
       project_id: editedTask.project_id,
       assignee_id: editedTask.assignee_id,
       category_id: editedTask.category_id,
+      is_recurring: editedTask.is_recurring ?? false,
+      recurrence_pattern: editedTask.recurrence_pattern ?? null,
+      recurrence_days: editedTask.recurrence_days ?? null,
+      recurrence_end: editedTask.recurrence_end ?? null,
+      parent_task_id: editedTask.parent_task_id ?? null,
     };
 
     try {
@@ -151,6 +156,34 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                     <div>
                       <Label>Descrição <span className="text-destructive">*</span></Label>
                       <Textarea value={editedTask.description || ''} onChange={(e) => handleInputChange('description', e.target.value)} rows={4} className="rounded-xl border-2" />
+                    </div>
+                    <div className="pt-4">
+                      <Label className="mb-2">Tarefa recorrente</Label>
+                      <div className="flex items-center gap-4">
+                        <input type="checkbox" checked={!!editedTask.is_recurring} onChange={e => handleInputChange('is_recurring', e.target.checked)} />
+                        <span>Ativar recorrência</span>
+                      </div>
+                      {!!editedTask.is_recurring && (
+                        <div className="mt-2 space-y-2">
+                          <Label>Padrão de recorrência</Label>
+                          <select value={editedTask.recurrence_pattern || 'weekly'} onChange={e => handleInputChange('recurrence_pattern', e.target.value)} className="border rounded px-2 py-1">
+                            <option value="weekly">Semanal</option>
+                            <option value="monthly">Mensal</option>
+                          </select>
+                          <Label>Dias da semana</Label>
+                          <select value={editedTask.recurrence_days || 'monday'} onChange={e => handleInputChange('recurrence_days', e.target.value)} className="border rounded px-2 py-1">
+                            <option value="monday">Segunda-feira</option>
+                            <option value="tuesday">Terça-feira</option>
+                            <option value="wednesday">Quarta-feira</option>
+                            <option value="thursday">Quinta-feira</option>
+                            <option value="friday">Sexta-feira</option>
+                            <option value="saturday">Sábado</option>
+                            <option value="sunday">Domingo</option>
+                          </select>
+                          <Label>Recorrência até</Label>
+                          <Input type="date" value={editedTask.recurrence_end ? format(new Date(editedTask.recurrence_end), 'yyyy-MM-dd') : ''} onChange={e => handleInputChange('recurrence_end', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
