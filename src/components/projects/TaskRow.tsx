@@ -19,12 +19,6 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskClick }) => {
     >
       <td className="px-4 py-2 w-3/5">
         <div className="flex items-center gap-3">
-          <input 
-            type="checkbox" 
-            checked={task.status === 'done'} 
-            readOnly 
-            className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer" 
-          />
           <span className="font-medium">{task.title}</span>
         </div>
       </td>

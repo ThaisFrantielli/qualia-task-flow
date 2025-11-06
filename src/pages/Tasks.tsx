@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { useProjects } from '@/hooks/useProjects';
+import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,7 @@ const TasksPage = () => {
   const [taskToDelete, setTaskToDelete] = useState<TaskWithDetails | null>(null);
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const { projects } = useProjects();
 
   const { tasks, loading, deleteTask, createTask } = useTasks(filters);
 
@@ -117,7 +120,7 @@ const TasksPage = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+  <div className="p-6 space-y-6">
       {/* Cabeçalho */}
       <div className="flex justify-between items-center">
         <div>
@@ -139,57 +142,12 @@ const TasksPage = () => {
         onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
       />
 
-      {/* Tabela de Tarefas */}
-      <div className="border rounded-lg bg-white shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-1/3">Tarefa</TableHead>
-              <TableHead>Status / Progresso</TableHead>
-              <TableHead>Prioridade</TableHead>
-              <TableHead>Responsável</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={5}>
-                    <Skeleton className="h-8 w-full" />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : displayedTasks.length > 0 ? (
-              displayedTasks.map((task) => (
-                <React.Fragment key={task.id}>
-                  <TaskTableRow
-                    task={task}
-                    isExpanded={expandedRows.has(task.id)}
-                    onToggleExpand={() => handleToggleRow(task.id)}
-                    onViewDetails={() => navigate(`/tasks/${task.id}`)}
-                    onDeleteRequest={setTaskToDelete}
-                  />
-                  {expandedRows.has(task.id) && (
-                    <ExpandedSubtasks taskId={task.id} onSubtaskClick={setViewingSubtaskId} />
-                  )}
-                </React.Fragment>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="h-60 text-center">
-                  <TasksEmptyState
-                    hasFilters={hasFilters}
-                    focusMode={isFocusMode}
-                    onCreateTask={handleCreateAndNavigate}
-                    onClearFilters={handleClearFilters}
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      {/* Cascata Portfólio > Projeto > Tarefas > Subtarefas */}
+      <div className="mt-4">
+        <ProjectsListCascade projetos={projects} />
       </div>
+
+      {/* Tabela de Tarefas removida. As tarefas agora aparecem apenas dentro do bloco de Portfólio/Projeto na cascata. */}
 
       {/* Diálogo de Confirmação de Exclusão */}
       <AlertDialog open={!!taskToDelete} onOpenChange={() => setTaskToDelete(null)}>

@@ -125,6 +125,7 @@ export function useTask(taskId: string) {
                 throw new Error('ID da tarefa inválido.');
             }
 
+
             const { data, error } = await supabase
                 .from('tasks')
                 .update(updates)
@@ -138,12 +139,43 @@ export function useTask(taskId: string) {
                 .single();
 
             if (error) throw new Error(error.message);
+            const typedData = data as TaskWithDetails;
+
+            // Lógica de recorrência: criar próxima instância se for recorrente e concluída
+            if (typedData.is_recurring && (updates.status === 'done' || updates.status === 'late')) {
+                // Calcular próxima data
+                let nextDate = null;
+                if (typedData.recurrence_pattern === 'weekly' && typedData.due_date) {
+                    nextDate = new Date(typedData.due_date);
+                    nextDate.setDate(nextDate.getDate() + 7);
+                } else if (typedData.recurrence_pattern === 'monthly' && typedData.due_date) {
+                    nextDate = new Date(typedData.due_date);
+                    nextDate.setMonth(nextDate.getMonth() + 1);
+                }
+                if (nextDate && (!typedData.recurrence_end || nextDate <= new Date(typedData.recurrence_end))) {
+                    await supabase.from('tasks').insert({
+                        title: typedData.title,
+                        description: typedData.description,
+                        status: 'todo',
+                        priority: typedData.priority,
+                        due_date: nextDate.toISOString(),
+                        is_recurring: true,
+                        recurrence_pattern: typedData.recurrence_pattern,
+                        recurrence_days: typedData.recurrence_days,
+                        recurrence_end: typedData.recurrence_end,
+                        parent_task_id: typedData.id,
+                        project_id: typedData.project_id,
+                        assignee_id: typedData.assignee_id,
+                        category_id: typedData.category_id,
+                    });
+                }
+            }
 
             return {
-                ...data,
-                assignee: data.assignee as Profile | null,
-                project: data.project as Project | null,
-                category: data.category as TaskCategory | null,
+                ...typedData,
+                assignee: typedData.assignee as Profile | null,
+                project: typedData.project as Project | null,
+                category: typedData.category as TaskCategory | null,
             } as TaskWithDetails;
         },
         onSuccess: () => {

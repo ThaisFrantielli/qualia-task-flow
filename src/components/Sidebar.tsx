@@ -78,6 +78,12 @@ const menuGroups: MenuGroup[] = [
       { label: 'Equipe', url: '/team', icon: Users, permissionKey: 'team' },
       { label: 'Notificações', url: '/notifications', icon: Bell },
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
+        { 
+          label: 'Configuração de Módulos', 
+          url: '/configuracoes/controle-acesso', 
+          icon: SlidersHorizontal, 
+          permissionKey: 'team' // Apenas Admins/Gestores podem ver
+        },
     ]
   }
 ];

@@ -372,13 +372,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                     </TableCell>
                                     <TableCell className="align-middle font-normal text-sm">
                                       <div className="flex items-center gap-2">
-                                        {/* Checkbox igual subtarefa */}
-                                        <input
-                                          type="checkbox"
-                                          checked={task.status === 'done'}
-                                          readOnly
-                                          className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
-                                        />
+                                        {/* Checkbox removido */}
                                         <span className="truncate font-medium text-base">{task.title}</span>
                                         {/* Contador de subtarefas */}
                                         {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
@@ -529,13 +523,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                             </TableCell>
                             <TableCell className="align-middle font-normal text-sm">
                               <div className="flex items-center gap-2">
-                                {/* Checkbox igual subtarefa */}
-                                <input
-                                  type="checkbox"
-                                  checked={task.status === 'done'}
-                                  readOnly
-                                  className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
-                                />
+                                {/* Checkbox removido */}
                                 <span className="truncate font-medium text-base">{task.title}</span>
                                 {/* Contador de subtarefas */}
                                 {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
