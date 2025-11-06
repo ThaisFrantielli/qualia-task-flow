@@ -50,10 +50,22 @@ export type TaskWithDetails = Task & {
   // Added properties
   subtasks_count?: number;
   completed_subtasks_count?: number;
+  is_recurring?: boolean;
+  recurrence_pattern?: string | null;
+  recurrence_days?: string | null;
+  recurrence_end?: string | null;
+  parent_task_id?: string | null;
 };
 
 export type TaskInsert = PublicSchema['Tables']['tasks']['Insert'];
 export type TaskUpdate = PublicSchema['Tables']['tasks']['Update'];
+export type TaskUpdateExtended = TaskUpdate & {
+  is_recurring?: boolean;
+  recurrence_pattern?: string | null;
+  recurrence_days?: string | null;
+  recurrence_end?: string | null;
+  parent_task_id?: string | null;
+};
 
 // --- Tipos de Subtarefas ---
 export type Subtask = PublicSchema['Tables']['subtasks']['Row'];

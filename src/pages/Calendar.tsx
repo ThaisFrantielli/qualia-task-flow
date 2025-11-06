@@ -3,16 +3,15 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTasks } from '@/hooks/useTasks';
 import { useTask } from '@/hooks/useTasks';
-import { useComments } from '@/hooks/useComments';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, User } from 'lucide-react';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ptBR } from 'date-fns/locale';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import clsx from 'clsx';
 
 const Calendar: React.FC = () => {
   const [addEventOpen, setAddEventOpen] = useState(false);
@@ -52,11 +51,9 @@ const Calendar: React.FC = () => {
   const { tasks } = useTasks();
   const { updateTask } = useTask(editTask?.id || '');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const { comments } = useComments(selectedTaskId || undefined);
   const navigate = useNavigate();
 
   const monthStart = startOfMonth(currentDate);
@@ -91,11 +88,6 @@ const Calendar: React.FC = () => {
     return 'bg-blue-400';
   };
 
-  const handleTaskClick = (task: any) => {
-    setEditTask(task);
-    setEditTitle(task.title);
-    setEditDesc(task.description || '');
-  };
 
   const handleSaveEdit = async () => {
     if (!editTask) return;
@@ -151,7 +143,6 @@ const Calendar: React.FC = () => {
           
           <div className="grid grid-cols-7 gap-1">
             {days.map((day) => {
-              const dayTasks = getTasksForDate(day);
               const isCurrentMonth = isSameMonth(day, currentDate);
               // Eventos que abrangem este dia
               // Eventos que abrangem este dia e têm intervalo
@@ -205,45 +196,25 @@ const Calendar: React.FC = () => {
                         )}
                       </div>
                     ))}
-                    {/* Tarefas */}
-                    {dayTasks.map((task) => (
-                      <TooltipProvider key={task.id}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="text-xs p-1 bg-blue-100 text-blue-800 rounded cursor-pointer hover:bg-blue-200 transition-colors"
-                              onMouseEnter={() => setSelectedTaskId(task.id)}
-                              onClick={() => handleTaskClick(task)}
-                              onDoubleClick={() => navigate(`/tasks/${task.id}`)}
-                            >
-                              <div className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                <span className="truncate">{task.title}</span>
-                              </div>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            <div className="space-y-2">
-                              <h4 className="font-semibold">{task.title}</h4>
-                              {task.description && (
-                                <p className="text-sm">{task.description}</p>
-                              )}
-                              {task.assignee_name && (
-                                <div className="flex items-center gap-1">
-                                  <User className="w-3 h-3" />
-                                  <span className="text-sm">{task.assignee_name}</span>
-                                </div>
-                              )}
-                              {comments.length > 0 && (
-                                <div className="border-t pt-2">
-                                  <p className="text-xs font-medium">Último comentário:</p>
-                                  <p className="text-xs">{comments[comments.length - 1]?.content}</p>
-                                </div>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                    {/* Tarefas do dia */}
+                    {getTasksForDate(day).map((task) => (
+                      <div
+                        key={task.id}
+                        className={clsx(
+                          'calendar-task',
+                          task.status === 'done' && 'calendar-task-done',
+                          task.status === 'late' && 'calendar-task-late',
+                          task.is_recurring && 'calendar-task-recurring',
+                        )}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        {task.is_recurring && (
+                          <span title="Tarefa recorrente" style={{ color: '#0bb', marginRight: 4 }}>
+                            &#8635;
+                          </span>
+                        )}
+                        <span>{task.title}</span>
+                      </div>
                     ))}
                   </div>
                 </div>

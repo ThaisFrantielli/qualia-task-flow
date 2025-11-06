@@ -21,7 +21,12 @@ interface AppUserWithPermissions {
   [key: string]: any;
 }
 
+import { useProjects } from '@/hooks/useProjects';
+import { usePortfolios } from '@/hooks/usePortfolios';
+
 const SurveyGeneratorPage = () => {
+  const { projects, loading: loadingProjects } = useProjects();
+  const { portfolios, loading: loadingPortfolios } = usePortfolios();
   const { user } = useAuth() as { user: AppUserWithPermissions | null };
   const [activeTab, setActiveTab] = useState('responses');
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -113,6 +118,35 @@ const SurveyGeneratorPage = () => {
 
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
+      {/* Breadcrumb cascata de Portfólio > Projeto */}
+      <section className="mb-8">
+        <h2 className="text-2xl font-bold text-[#37255d] mb-2">Projetos & Portfólios</h2>
+        {loadingProjects || loadingPortfolios ? (
+          <p className="text-gray-500">Carregando...</p>
+        ) : (
+          <div className="space-y-2">
+            {projects.length === 0 ? (
+              <p className="text-gray-500">Nenhum projeto cadastrado.</p>
+            ) : (
+              projects.map(project => {
+                const portfolio = portfolios.find(p => p.id === project.portfolio_id);
+                return (
+                  <div key={project.id} className="flex items-center gap-2 text-sm">
+                    {portfolio && (
+                      <span className="font-semibold text-[#37255d]">{portfolio.name}</span>
+                    )}
+                    {portfolio && <span className="mx-1 text-gray-400">&gt;</span>}
+                    <span className="font-semibold">{project.name}</span>
+                    {project.description && (
+                      <span className="ml-2 text-xs text-gray-500">{project.description}</span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </section>
       <header className="text-center space-y-2">
   <img src="/logo-quality.png" alt="Quality Conecta Logo" className="mx-auto h-16" />
         <h1 className="text-4xl font-bold font-comfortaa text-[#37255d]">Sistema de Satisfação</h1>

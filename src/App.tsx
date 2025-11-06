@@ -34,6 +34,7 @@ import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
 import WhatsAppConfigPage from '@/pages/WhatsAppConfigPage';
 import WhatsAppChatPage from '@/pages/WhatsAppChatPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
+import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
 // ...existing imports
 
 function App() {
@@ -84,6 +85,7 @@ function App() {
               <Route path="/settings" element={<Settings />} /> 
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
               <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
+              <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
               <Route path="/whatsapp-manager" element={<MultiWhatsAppManagerPage />} />
               <Route path="/calendar" element={<Calendar />} />
             </Route>
