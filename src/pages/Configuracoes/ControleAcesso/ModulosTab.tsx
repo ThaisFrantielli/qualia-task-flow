@@ -13,7 +13,7 @@ const ModulosTab: React.FC = () => {
   const [editingModule, setEditingModule] = useState<Module | null>(null);
 
   const handleCreate = (data: Omit<Module, 'id' | 'created_at' | 'updated_at'>) => {
-    createModule(data);
+    createModule({ ...data, is_active: data.is_active ?? true });
     setIsCreateDialogOpen(false);
   };
 
@@ -28,6 +28,7 @@ const ModulosTab: React.FC = () => {
       icon: data.icon,
       display_order: data.display_order,
       route: data.route,
+      is_active: true,
       pages: data.pages || [], // persiste as páginas selecionadas
     });
     setIsCustomCreateDialogOpen(false);
