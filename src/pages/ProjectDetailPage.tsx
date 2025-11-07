@@ -1,7 +1,6 @@
-import React from 'react';
 // src/pages/ProjectDetailPage.tsx (VERSÃO FINAL COM CAMINHOS CORRIGIDOS)
 
-import { useState, useMemo, useEffect } from 'react';
+import { Fragment, useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import type { TaskWithDetails } from '@/types';
@@ -9,7 +8,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectDetails } from '@/hooks/useProjectDetails';
 import AddTaskInline from '@/components/projects/AddTaskInline';
-import TaskRow from '@/components/projects/TaskRow';
 import SubtasksCascade from '@/components/projects/SubtasksCascade';
 import TaskDetailSheet from '@/components/tasks/TaskDetailSheet';
 import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
@@ -184,7 +182,7 @@ const ProjectDetailPage = () => {
               <tr><td colSpan={5} className="text-center p-8 text-gray-400">Este projeto ainda não tem tarefas.</td></tr>
             ) : (
               sectionOrder.map(sectionName => (
-                <React.Fragment key={sectionName}>
+                <Fragment key={sectionName}>
                   <tr className="bg-gray-100/60">
                     <td colSpan={5} className="py-2 px-3">
                       <div className="flex items-center gap-2 group">
@@ -202,7 +200,7 @@ const ProjectDetailPage = () => {
                     </td>
                   </tr>
                   {expandedSections[sectionName] && sections[sectionName]?.map((task: TaskWithDetails) => (
-                    <React.Fragment key={task.id}>
+                    <Fragment key={task.id}>
                       <tr className="hover:bg-muted/50 group">
                         <td className="align-middle w-0" style={{ width: 48, paddingLeft: 32 }}>
                           <button
@@ -238,18 +236,18 @@ const ProjectDetailPage = () => {
                       </tr>
                       {/* Subtarefas */}
                       {<SubtasksCascade taskId={task.id} />}
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                   {expandedSections[sectionName] && (
-                    <React.Fragment>
+                    <Fragment>
                       <tr>
                         <td colSpan={5}>
                           <AddTaskInline projectId={projectId!} sectionName={sectionName} onTaskAdded={handleTaskAdded} />
                         </td>
                       </tr>
-                    </React.Fragment>
+                    </Fragment>
                   )}
-                </React.Fragment>
+                </Fragment>
               ))
             )}
           </tbody>
