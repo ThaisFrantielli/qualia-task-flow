@@ -507,6 +507,134 @@ export type Database = {
           },
         ]
       }
+      group_modules: {
+        Row: {
+          created_at: string | null
+          group_id: string | null
+          id: string
+          module_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          module_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          module_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_modules_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_modules_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      module_pages: {
+        Row: {
+          created_at: string | null
+          id: string
+          module_id: string | null
+          page_key: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          module_id?: string | null
+          page_key: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          module_id?: string | null
+          page_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_pages_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          name: string
+          route: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          name: string
+          route?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          name?: string
+          route?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -836,30 +964,42 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          customcolor: string | null
           description: string | null
           id: string
           name: string
+          notes: string | null
           portfolio_id: string | null
+          privacy: string | null
+          status: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
           color?: string | null
           created_at?: string
+          customcolor?: string | null
           description?: string | null
           id?: string
           name: string
+          notes?: string | null
           portfolio_id?: string | null
+          privacy?: string | null
+          status?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           color?: string | null
           created_at?: string
+          customcolor?: string | null
           description?: string | null
           id?: string
           name?: string
+          notes?: string | null
           portfolio_id?: string | null
+          privacy?: string | null
+          status?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1313,6 +1453,64 @@ export type Database = {
           },
         ]
       }
+      user_groups: {
+        Row: {
+          created_at: string | null
+          group_id: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_modules: {
+        Row: {
+          created_at: string | null
+          id: string
+          module_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          module_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          module_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_modules_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -1495,32 +1693,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      get_my_permission: {
-        Args: { permission_key: string }
-        Returns: boolean
-      }
-      get_my_role: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_profile_nivelacesso: {
-        Args: { _id: string }
-        Returns: string
-      }
-      get_profile_permissoes: {
-        Args: { _id: string }
-        Returns: Json
-      }
-      get_profile_role: {
-        Args: { _id: string }
-        Returns: string
-      }
+      get_is_admin: { Args: never; Returns: boolean }
+      get_my_permission: { Args: { permission_key: string }; Returns: boolean }
+      get_my_role: { Args: never; Returns: string }
+      get_profile_nivelacesso: { Args: { _id: string }; Returns: string }
+      get_profile_permissoes: { Args: { _id: string }; Returns: Json }
+      get_profile_role: { Args: { _id: string }; Returns: string }
       get_projects_with_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           color: string
           completed_count: number
@@ -1535,6 +1715,22 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_user_modules: {
+        Args: { _user_id: string }
+        Returns: {
+          description: string
+          display_order: number
+          icon: string
+          id: string
+          key: string
+          name: string
+          route: string
+        }[]
+      }
+      has_module_access: {
+        Args: { _module_key: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1542,13 +1738,11 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_member_of_project: {
-        Args: { _project_id: string }
-        Returns: boolean
-      }
-      is_owner_of_project: {
-        Args: { _project_id: string }
-        Returns: boolean
+      is_member_of_project: { Args: { _project_id: string }; Returns: boolean }
+      is_owner_of_project: { Args: { _project_id: string }; Returns: boolean }
+      send_whatsapp_message: {
+        Args: { message_text: string; to_number: string }
+        Returns: Json
       }
     }
     Enums: {
