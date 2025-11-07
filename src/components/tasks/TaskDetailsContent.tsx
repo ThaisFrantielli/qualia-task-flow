@@ -6,7 +6,7 @@ import { useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useUsers } from '@/hooks/useUsers';
 import { useClassifications } from '@/hooks/useClassifications';
-import type { TaskUpdate, TaskWithDetails, TaskUpdateExtended } from '@/types';
+import type { TaskWithDetails, TaskUpdateExtended } from '@/types';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getPriorityLabel } from '@/lib/utils';
