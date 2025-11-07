@@ -28,7 +28,7 @@ const ModulosTab: React.FC = () => {
       icon: data.icon,
       display_order: data.display_order,
       route: data.route,
-      // pages: data.pages // Salve as páginas vinculadas conforme sua estrutura
+      pages: data.pages || [], // persiste as páginas selecionadas
     });
     setIsCustomCreateDialogOpen(false);
     // Adicione lógica para persistir vinculação das páginas se necessário
