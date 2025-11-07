@@ -1,18 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,9 +18,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTasks } from '@/hooks/useTasks';
 import type { AllTaskFilters, TaskWithDetails } from '@/types';
 import TasksFilters from '@/components/tasks/TasksFilters';
-import TasksEmptyState from '@/components/tasks/TasksEmptyState';
-import TaskTableRow from '@/components/tasks/TaskTableRow';
-import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
 
 const TasksPage = () => {
@@ -40,37 +28,12 @@ const TasksPage = () => {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<TaskWithDetails | null>(null);
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const { projects } = useProjects();
 
-  const { tasks, loading, deleteTask, createTask } = useTasks(filters);
+  const { deleteTask, createTask } = useTasks(filters);
 
-  // Filtragem otimizada para Modo Foco
-  const displayedTasks = useMemo(() => {
-    if (isFocusMode && user?.id) {
-      return tasks.filter((task) => task.assignee_id === user.id);
-    }
-    return tasks;
-  }, [tasks, isFocusMode, user?.id]);
-
-  // Verifica se há filtros ativos (incluindo Modo Foco)
-  const hasFilters = useMemo(
-    () => isFocusMode || Object.values(filters).some((v) => v && v !== 'all'),
-    [filters, isFocusMode]
-  );
-
-  // Manipuladores de eventos
-  const handleToggleRow = (taskId: string) => {
-    setExpandedRows((prev) => {
-      const newExpandedRows = new Set(prev);
-      if (newExpandedRows.has(taskId)) {
-        newExpandedRows.delete(taskId);
-      } else {
-        newExpandedRows.add(taskId);
-      }
-      return newExpandedRows;
-    });
-  };
+  // NOTE: The Tasks table was replaced by the ProjectsListCascade view.
+  // Keep page-level helpers for filters/create/delete. Removed unused displayedTasks, loading, expandedRows, etc.
 
   const handleFilterChange = (filterName: keyof AllTaskFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [filterName]: value }));
