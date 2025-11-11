@@ -123,7 +123,6 @@ const Sidebar: React.FC = () => {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate('/login'); };
   
-  // CORREÇÃO: Usa 'full_name' para obter as iniciais
   const getInitials = (name?: string | null): string => { 
     if (name) return name.split(' ').map(n => n[0]).join('').toUpperCase(); 
     return user?.email?.[0].toUpperCase() || '?'; 
@@ -131,20 +130,22 @@ const Sidebar: React.FC = () => {
 
   const projectList = projects.filter(p => p.id !== 'all');
 
-  if (!user) return <div className="w-64 h-screen bg-slate-50 animate-pulse"></div>;
+  // AJUSTE: Cor de fundo escura para o estado de carregamento
+  if (!user) return <div className="w-64 h-screen bg-slate-800 animate-pulse"></div>;
 
   return (
-    <div className="w-64 h-screen bg-slate-50 shadow-lg flex flex-col">
+    // AJUSTE: Cor de fundo principal da sidebar
+    <div className="w-64 h-screen bg-slate-800 shadow-lg flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-slate-200">
+      {/* AJUSTE: Cor da borda e dos textos */}
+      <div className="p-6 border-b border-slate-700">
         <div className="flex items-center space-x-3">
-          {/* Orange Check Icon */}
           <svg className="w-10 h-10" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 50 L40 70 L80 30" fill="none" stroke="#F97316" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <div>
-            <h1 className="font-bold text-lg text-slate-800">Quality Conecta</h1>
-            <p className="text-slate-500 text-sm">Conectada com você</p>
+            <h1 className="font-bold text-lg text-slate-100">Quality Conecta</h1>
+            <p className="text-slate-400 text-sm">Conectada com você</p>
           </div>
         </div>
       </div>
@@ -165,7 +166,8 @@ const Sidebar: React.FC = () => {
               <div key={group.title}>
                 <Collapsible open={isOpen} onOpenChange={(v) => toggleGroup(group.title, v)}>
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-left text-xs font-semibold uppercase text-slate-600 tracking-wider hover:bg-slate-100">
+                    {/* AJUSTE: Cor do texto e do hover */}
+                    <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-left text-xs font-semibold uppercase text-slate-400 tracking-wider hover:bg-slate-700">
                       <span>{group.title}</span>
                       <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -174,7 +176,8 @@ const Sidebar: React.FC = () => {
                     <ul className="pt-1 pl-2 pr-2 space-y-1">
                       {visibleItems.map((item) => (
                         <li key={item.label}>
-                          <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-orange-500 text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}>
+                          {/* AJUSTE: Cores para item ativo e inativo/hover */}
+                          <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-orange-500 text-white font-semibold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                             <item.icon className="w-5 h-5" />
                             <span>{item.label}</span>
                           </NavLink>
@@ -189,12 +192,14 @@ const Sidebar: React.FC = () => {
 
           {/* Seção de Projetos */}
           <div>
-            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-slate-600 tracking-wider">PROJETOS</h2>
+             {/* AJUSTE: Cor do texto */}
+            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-slate-400 tracking-wider">PROJETOS</h2>
             <ul className="space-y-1">
               <li>
                 <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
                   <CollapsibleTrigger asChild>
-                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-orange-500 text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}>
+                    {/* AJUSTE: Cores para item ativo e inativo/hover */}
+                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-orange-500 text-white font-semibold' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                       <div className="flex items-center space-x-3"><FolderOpen className="w-5 h-5" /><span>Visão Geral</span></div>
                       <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isProjectsOpen ? 'rotate-180' : ''}`} />
                     </NavLink>
@@ -203,7 +208,8 @@ const Sidebar: React.FC = () => {
                     <ul className="pt-1 pl-6 pr-2 space-y-1">
                       {projectList.map(project => (
                         <li key={project.id}>
-                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-orange-500 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                          {/* AJUSTE: Cores para item ativo e inativo/hover */}
+                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-orange-500 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
                             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
                             <span className="truncate">{project.name}</span>
                           </NavLink>
@@ -219,20 +225,20 @@ const Sidebar: React.FC = () => {
       </nav>
 
       {/* Perfil do Usuário e Logout */}
-      <div className="p-4 border-t border-slate-200">
+       {/* AJUSTE: Cor da borda e dos textos */}
+      <div className="p-4 border-t border-slate-700">
         <div className="flex items-center space-x-3 mb-4">
           <Avatar className="w-10 h-10">
             <AvatarImage src={user.user_metadata?.avatar_url ?? undefined} />
-            {/* CORREÇÃO: Usa 'full_name' */}
             <AvatarFallback>{getInitials(user.full_name)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 overflow-hidden">
-            {/* CORREÇÃO: Usa 'full_name' */}
-            <p className="text-sm font-medium truncate text-slate-800">{user.full_name || 'Usuário'}</p>
+            <p className="text-sm font-medium truncate text-slate-100">{user.full_name || 'Usuário'}</p>
             <div className="text-xs text-orange-500">{user.nivelAcesso}</div>
           </div>
         </div>
-        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-slate-700 hover:bg-red-50 hover:text-red-600">
+        {/* AJUSTE: Cores para o botão de logout */}
+        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-red-500/10 hover:text-red-400 transition-colors">
           <LogOut className="w-4 h-4" />
           <span>Sair</span>
         </button>
