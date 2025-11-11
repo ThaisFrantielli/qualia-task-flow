@@ -35,6 +35,7 @@ import WhatsAppConfigPage from '@/pages/WhatsAppConfigPage';
 import WhatsAppChatPage from '@/pages/WhatsAppChatPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
 import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
+import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
 // ...existing imports
 
 function App() {
@@ -86,6 +87,7 @@ function App() {
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
               <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
               <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
+              <Route path="/configuracoes/equipes" element={<GerenciarEquipesPage />} />
               <Route path="/whatsapp-manager" element={<MultiWhatsAppManagerPage />} />
               <Route path="/calendar" element={<Calendar />} />
             </Route>

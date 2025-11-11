@@ -1,2 +1,3 @@
-2025/10/16-18:39:18.897 15b9 Creating DB /home/codespace/qualia-task-flow-4/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/shared_proto_db/metadata since it was missing.
-2025/10/16-18:39:18.903 15b9 Reusing MANIFEST /home/codespace/qualia-task-flow-4/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/shared_proto_db/metadata/MANIFEST-000001
+2025/11/08-00:02:59.584 12cf0 Reusing MANIFEST /home/codespace/qualia-task-flow-4/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/shared_proto_db/metadata/MANIFEST-000001
+2025/11/08-00:02:59.584 12cf0 Recovering log #3
+2025/11/08-00:02:59.586 12cf0 Reusing old log /home/codespace/qualia-task-flow-4/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/shared_proto_db/metadata/000003.log 

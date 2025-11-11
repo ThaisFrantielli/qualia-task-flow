@@ -21,6 +21,8 @@ const isValidUUID = (uuid: string): boolean => {
 const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | null): Promise<TaskWithDetails[]> => {
     if (!user?.id || !isValidUUID(user.id)) return [];
     
+    // RLS (Row Level Security) do Supabase cuida automaticamente das permissões
+    // Não é mais necessário filtrar manualmente por user_id ou nível de acesso
     let query = supabase.from('tasks').select(`
         *, 
         assignee: profiles (*), 
@@ -30,12 +32,7 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
         completed_subtasks:subtasks ( count )
     `).eq('completed_subtasks.completed', true);
 
-    const isAdmin = user?.permissoes && typeof user.permissoes === 'object' && 'team' in user.permissoes && (user.permissoes as any).team === true;
-
-    if (!isAdmin) { 
-        query = query.eq('user_id', user.id);
-    }
-
+    // Aplicar apenas filtros de busca do usuário
     if (filters.searchTerm) {
         query = query.ilike('title', `%${filters.searchTerm}%`);
     }
