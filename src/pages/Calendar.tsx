@@ -4,22 +4,43 @@ import { supabase } from '@/integrations/supabase/client';
 import { useTasks } from '@/hooks/useTasks';
 import { useTask } from '@/hooks/useTasks';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
+import { Calendar as CalendarIcon, Filter, X } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, parseISO } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ptBR } from 'date-fns/locale';
+import { useProjects } from '@/hooks/useProjects';
 import clsx from 'clsx';
+
+// Função para converter data do input para ISO sem mudar timezone
+const dateInputToISO = (dateString: string): string => {
+  if (!dateString) return '';
+  // Input type="date" retorna YYYY-MM-DD
+  // Adicionar T00:00:00 para manter a data local sem conversão de timezone
+  return `${dateString}T00:00:00`;
+};
+
+// Função para converter ISO para data do input
+const isoToDateInput = (isoString: string | null): string => {
+  if (!isoString) return '';
+  // Extrair apenas YYYY-MM-DD do ISO string
+  return isoString.split('T')[0];
+};
 
 const Calendar: React.FC = () => {
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
-  const [eventDate, setEventDate] = useState<Date | null>(null);
-  const [eventEndDate, setEventEndDate] = useState<Date | null>(null);
+  const [eventDate, setEventDate] = useState('');
+  const [eventEndDate, setEventEndDate] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterProject, setFilterProject] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  
   // Carregar eventos do Supabase
   useEffect(() => {
     async function fetchEvents() {
@@ -32,21 +53,29 @@ const Calendar: React.FC = () => {
   const handleAddEvent = async () => {
     if (!eventTitle || !eventDate) return;
     setIsAdding(true);
-    const { data, error } = await supabase.from('calendar_events').insert({
+    
+    const eventData: any = {
       title: eventTitle,
-      start_date: eventDate.toISOString(),
-      end_date: eventEndDate ? eventEndDate.toISOString() : null,
+      start_date: dateInputToISO(eventDate),
       created_at: new Date().toISOString(),
-    }).select();
+    };
+    
+    if (eventEndDate) {
+      eventData.end_date = dateInputToISO(eventEndDate);
+    }
+    
+    const { data, error } = await supabase.from('calendar_events').insert(eventData).select();
+    
     if (!error && data) {
       setCalendarEvents(prev => [...prev, data[0]]);
       setAddEventOpen(false);
       setEventTitle('');
-      setEventDate(null);
-      setEventEndDate(null);
+      setEventDate('');
+      setEventEndDate('');
     }
     setIsAdding(false);
   };
+  
   const [editTask, setEditTask] = useState<any | null>(null);
   const { tasks } = useTasks();
   const { updateTask } = useTask(editTask?.id || '');
@@ -133,6 +162,26 @@ const Calendar: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Legenda de cores */}
+          <div className="flex flex-wrap gap-4 mb-6 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-blue-400 rounded"></div>
+              <span className="text-sm">Tarefa Agendada</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-400 rounded"></div>
+              <span className="text-sm">Evento/Lembrete</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-yellow-400 rounded"></div>
+              <span className="text-sm">Em Progresso</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-400 rounded"></div>
+              <span className="text-sm">Atrasada</span>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-7 gap-1 mb-4">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
               <div key={day} className="p-2 text-center font-semibold text-gray-600">
@@ -163,9 +212,9 @@ const Calendar: React.FC = () => {
               return (
                 <div
                   key={day.toISOString()}
-                  className={`relative min-h-[120px] p-2 border rounded ${
-                    isCurrentMonth ? 'bg-white' : 'bg-gray-50'
-                  } ${isSameDay(day, new Date()) ? 'ring-2 ring-blue-500' : ''}`}
+                  className={`relative min-h-[140px] p-3 border-2 rounded-lg shadow-sm hover:shadow-md transition-all ${
+                    isCurrentMonth ? 'bg-white hover:border-blue-300' : 'bg-gray-50 opacity-60'
+                  } ${isSameDay(day, new Date()) ? 'ring-4 ring-blue-500 bg-blue-50' : ''}`}
                 >
                   {/* Linha contínua para eventos que abrangem este dia */}
                   {spanningEvents.map(ev => (
@@ -183,8 +232,16 @@ const Calendar: React.FC = () => {
                       style={{ zIndex: 2 }}
                     />
                   ))}
-                  <div className="font-medium text-sm mb-2 relative z-20">
-                    {format(day, 'd')}
+                  <div className="font-medium text-sm mb-2 relative z-20 flex justify-between items-center">
+                    <span className={isSameDay(day, new Date()) ? 'font-bold text-blue-600' : ''}>
+                      {format(day, 'd')}
+                    </span>
+                    {/* Badge com contador de tarefas/eventos */}
+                    {(getTasksForDate(day).length + getEventsForDate(day).length) > 0 && (
+                      <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
+                        {getTasksForDate(day).length + getEventsForDate(day).length}
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-1 relative z-20">
                     {/* Eventos do calendário */}
@@ -200,20 +257,22 @@ const Calendar: React.FC = () => {
                     {getTasksForDate(day).map((task) => (
                       <div
                         key={task.id}
+                        onClick={() => navigate(`/tasks/${task.id}`)}
                         className={clsx(
-                          'calendar-task',
+                          'calendar-task cursor-pointer hover:bg-gray-100 transition-colors',
                           task.status === 'done' && 'calendar-task-done',
                           task.status === 'late' && 'calendar-task-late',
                           task.is_recurring && 'calendar-task-recurring',
                         )}
                         style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                        title={`${task.title}\nStatus: ${task.status}\nClique para ver detalhes`}
                       >
                         {task.is_recurring && (
                           <span title="Tarefa recorrente" style={{ color: '#0bb', marginRight: 4 }}>
                             &#8635;
                           </span>
                         )}
-                        <span>{task.title}</span>
+                        <span className="truncate">{task.title}</span>
                       </div>
                     ))}
                   </div>
