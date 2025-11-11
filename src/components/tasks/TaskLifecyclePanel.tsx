@@ -6,6 +6,7 @@ import { Calendar, PlayCircle, CheckCircle, Clock } from 'lucide-react';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useTask } from '@/hooks/useTasks';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import type { TaskWithDetails } from '@/types';
 import { toast } from 'sonner';
 
@@ -30,7 +31,7 @@ const TaskLifecyclePanel: React.FC<TaskLifecyclePanelProps> = ({ task, onUpdate 
 
   const handleStartTask = async () => {
     try {
-      await updateTask({ start_date: new Date().toISOString(), status: 'progress' });
+      await updateTask({ start_date: dateToLocalISO(new Date()), status: 'progress' });
       toast.success("Tarefa iniciada!");
       onUpdate();
     } catch (error) {
@@ -44,7 +45,7 @@ const TaskLifecyclePanel: React.FC<TaskLifecyclePanelProps> = ({ task, onUpdate 
         return;
     }
     try {
-      await updateTask({ end_date: new Date().toISOString(), status: 'done' });
+      await updateTask({ end_date: dateToLocalISO(new Date()), status: 'done' });
       toast.success("Tarefa concluída!");
       onUpdate();
     } catch (error) {

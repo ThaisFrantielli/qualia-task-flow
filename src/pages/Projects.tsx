@@ -157,7 +157,11 @@ const ProjectsPage = () => {
       )}
 
       {modoLista ? (
-        <ProjectsListCascade projetos={projetosFiltrados} modoFoco={modoFoco} />
+        <ProjectsListCascade 
+          projetos={projetosFiltrados} 
+          modoFoco={modoFoco} 
+          onProjectDeleted={refetchProjects}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projectsLoading ? (

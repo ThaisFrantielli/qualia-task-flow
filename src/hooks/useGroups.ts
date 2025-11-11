@@ -1,6 +1,7 @@
 // Hook para gerenciar grupos de usuários
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 
 export interface Group {
@@ -61,7 +62,7 @@ export const useGroups = () => {
     mutationFn: async ({ id, ...groupData }: Partial<Group> & { id: string }) => {
       const { data, error } = await supabase
         .from('groups')
-        .update({ ...groupData, updated_at: new Date().toISOString() })
+        .update({ ...groupData, updated_at: dateToLocalISO(new Date()) })
         .eq('id', id)
         .select()
         .single();
