@@ -84,6 +84,12 @@ const menuGroups: MenuGroup[] = [
           icon: SlidersHorizontal, 
           permissionKey: 'team' // Apenas Admins/Gestores podem ver
         },
+        { 
+          label: 'Gerenciar Equipes', 
+          url: '/configuracoes/equipes', 
+          icon: Users, 
+          permissionKey: 'team' // Apenas Admins/Gestores/Supervisores podem ver
+        },
     ]
   }
 ];

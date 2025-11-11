@@ -34,13 +34,81 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      user_hierarchy: {
+        Row: {
+          id: string
+          user_id: string
+          supervisor_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          supervisor_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          supervisor_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_hierarchy_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_hierarchy_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_team_hierarchy: {
+        Args: {
+          user_uuid: string
+        }
+        Returns: {
+          team_member_id: string
+        }[]
+      }
+      get_team_count: {
+        Args: {
+          user_uuid: string
+        }
+        Returns: number
+      }
+      get_direct_supervisor: {
+        Args: {
+          user_uuid: string
+        }
+        Returns: {
+          id: string
+          full_name: string
+          email: string
+          avatar_url: string
+          nivelAcesso: string
+          funcao: string
+        }[]
+      }
+      is_user_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
