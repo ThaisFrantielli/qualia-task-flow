@@ -5,7 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
-  ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon, Building2 // Ícone novo importado
+  ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -75,7 +75,7 @@ const menuGroups: MenuGroup[] = [
         icon: MessageSquare, 
         permissionKey: 'team' // Apenas Admins e Gestores podem ver
       },
-      { label: 'Equipe', url: '/team', icon: Users, permissionKey: 'team' },
+  { label: 'Configurações de usuário', url: '/team', icon: Users, permissionKey: 'team' },
       { label: 'Notificações', url: '/notifications', icon: Bell },
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
         { 
@@ -85,16 +85,10 @@ const menuGroups: MenuGroup[] = [
           permissionKey: 'team' // Apenas Admins/Gestores podem ver
         },
         { 
-          label: 'Criar Equipes/Departamentos', 
-          url: '/configuracoes/departamentos', 
-          icon: Building2, 
-          permissionKey: 'team' // Apenas Admins podem criar equipes
-        },
-        { 
-          label: 'Gerenciar Hierarquia', 
-          url: '/configuracoes/equipes', 
+          label: 'Equipes & Hierarquia', 
+          url: '/configuracoes/equipes-hierarquia', 
           icon: Users, 
-          permissionKey: 'team' // Apenas Admins/Gestores/Supervisores podem ver
+          permissionKey: 'team' // Todos podem ver (conteúdo interno tem verificação)
         },
     ]
   }
