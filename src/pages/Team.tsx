@@ -177,8 +177,8 @@ const Team = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Equipe e Permissões</h1>
-          <p className="text-gray-600">Gerencie os membros, suas funções e níveis de acesso.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configurações de usuário</h1>
+          <p className="text-gray-600">Gerencie os usuários do sistema, suas funções e permissões.</p>
         </div>
         <Button className="flex items-center space-x-2" onClick={() => handleOpenDialog(null)}>
           <Plus className="w-4 h-4" />

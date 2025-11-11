@@ -248,3 +248,6 @@ export const useUpdateTeamMemberSupervisor = () => {
     },
   });
 };
+
+// Alias para compatibilidade
+export const useUpdateTeamMember = useUpdateTeamMemberSupervisor;

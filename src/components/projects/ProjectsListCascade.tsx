@@ -25,6 +25,8 @@ const priorityConfig: Record<string, { label: string; color: string }> = {
 
 import { FolderOpen, ChevronRight } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
 
@@ -48,7 +50,8 @@ import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 
 const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco }) => {
   // const navigate = useNavigate();
-  const { tasks } = useTasks({});
+  const { tasks, deleteTask } = useTasks({});
+  const navigate = useNavigate();
   const { portfolios, loading: loadingPortfolios, error: errorPortfolios } = usePortfolios();
   const [expandedPortfolios, setExpandedPortfolios] = useState<Set<string>>(new Set());
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
@@ -94,7 +97,18 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
 
   const handleDeleteProject = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este projeto?')) return;
-    await supabase.from('projects').delete().eq('id', id);
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) {
+        console.error('Erro ao deletar projeto:', error);
+        toast.error('Não foi possível deletar o projeto', { description: error.message });
+      } else {
+        toast.success('Projeto deletado com sucesso');
+      }
+    } catch (err: any) {
+      console.error('Erro ao deletar projeto:', err);
+      toast.error('Erro ao deletar projeto', { description: err?.message });
+    }
   };
 
 
@@ -397,6 +411,29 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                     </TableCell>
                                     <TableCell className="align-middle">
                                       <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
+                                    </TableCell>
+                                    <TableCell className="align-middle text-right">
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+                                            <MoreVertical className="h-5 w-5" />
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                          <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>
+                                            Editar
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={async () => {
+                                            if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+                                            try {
+                                              await deleteTask(task.id);
+                                              toast.success('Tarefa excluída com sucesso!');
+                                            } catch (err: any) {
+                                              toast.error('Erro ao excluir tarefa', { description: err?.message });
+                                            }
+                                          }} className="text-red-600">Excluir</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     </TableCell>
                                   </TableRow>
                                   {expandedTasks.has(task.id) && (
