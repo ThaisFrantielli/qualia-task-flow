@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import { WHATSAPP } from '@/integrations/whatsapp/config';
 
 // Use o tipo diretamente do Supabase
@@ -334,8 +335,8 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
           message_type: 'text' as const,
           status: 'sent' as const,
           whatsapp_message_id: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: dateToLocalISO(new Date()),
+          updated_at: dateToLocalISO(new Date()),
           sender_id: null,
           metadata: null,
           read_at: null
@@ -351,8 +352,8 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
           await supabase
             .from('whatsapp_conversations')
             .update({
-              last_message_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              last_message_at: dateToLocalISO(new Date()),
+              updated_at: dateToLocalISO(new Date())
             })
             .eq('id', conversation.id);
           if (WHATSAPP.DEBUG_LOGS) console.log('✅ Conversation updated');

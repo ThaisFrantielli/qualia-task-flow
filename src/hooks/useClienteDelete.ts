@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import { toast } from '../hooks/use-toast';
 
 export function useClienteDelete() {
@@ -57,7 +58,7 @@ export function useClienteDelete() {
       const { error } = await supabase
         .from('clientes')
         .update({ 
-          situacao: `[DELETADO EM ${new Date().toISOString()}]`
+          situacao: `[DELETADO EM ${dateToLocalISO(new Date())}]`
         })
         .eq('id', clienteId);
       
