@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2, Plus } from 'lucide-react';
+import { calendarDateToISO } from '@/lib/dateUtils';
 import { useTasks } from '@/hooks/useTasks';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -45,7 +46,7 @@ const QuickCreateTask: React.FC<QuickCreateTaskProps> = ({ onTaskCreated }) => {
       await createTask({
         title: data.title,
         description: data.description,
-        due_date: data.due_date.toISOString(),
+        due_date: calendarDateToISO(data.due_date) || '',
         user_id: user.id,
         status: 'todo',
         priority: 'medium',

@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { calendarDateToISO } from '@/lib/dateUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,7 +66,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
       assignee_id: assigneeId,
       priority,
       status,
-      due_date: dueDate ? dueDate.toISOString() : null,
+      due_date: dueDate ? calendarDateToISO(dueDate) : null,
     };
 
     try {

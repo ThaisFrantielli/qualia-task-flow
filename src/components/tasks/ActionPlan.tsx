@@ -10,6 +10,7 @@ import { useUsers } from '@/hooks/useUsers';
 import type { Subtask, SubtaskWithDetails } from '@/types';
 import { getInitials } from '@/lib/utils';
 import { format } from 'date-fns';
+import { calendarDateToISO } from '@/lib/dateUtils';
 
 // Componentes da UI
 import { Button } from '@/components/ui/button';
@@ -59,7 +60,7 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
         task_id: taskId,
         title: data.title,
         assignee_id: data.assignee_id === 'none' ? null : data.assignee_id, // Permite desatribuir
-        due_date: data.due_date ? data.due_date.toISOString() : null,
+        due_date: data.due_date ? calendarDateToISO(data.due_date) : null,
         priority: data.priority,
       });
       toast.success("Ação adicionada ao plano!");

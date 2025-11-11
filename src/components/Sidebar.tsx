@@ -106,6 +106,22 @@ const Sidebar: React.FC = () => {
   const { user } = useAuth();
   const { projects } = useProjects();
   const [isProjectsOpen, setIsProjectsOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('sidebar.openGroups');
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const toggleGroup = (title: string, value?: boolean) => {
+    setOpenGroups(prev => {
+      const next = { ...prev, [title]: typeof value === 'boolean' ? value : !prev[title] };
+      try { localStorage.setItem('sidebar.openGroups', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (location.pathname.startsWith('/projects')) setIsProjectsOpen(true);
@@ -143,19 +159,30 @@ const Sidebar: React.FC = () => {
             });
             if (visibleItems.length === 0) return null;
 
+            const isOpen = !!openGroups[group.title];
+
             return (
               <div key={group.title}>
-                <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">{group.title}</h2>
-                <ul className="space-y-1">
-                  {visibleItems.map((item) => (
-                    <li key={item.label}>
-                      <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
-                        <item.icon className="w-5 h-5" />
-                        <span>{item.label}</span>
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
+                <Collapsible open={isOpen} onOpenChange={(v) => toggleGroup(group.title, v)}>
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-left text-xs font-semibold uppercase text-gray-400 tracking-wider hover:bg-gray-800/50">
+                      <span>{group.title}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent asChild>
+                    <ul className="pt-1 pl-2 pr-2 space-y-1">
+                      {visibleItems.map((item) => (
+                        <li key={item.label}>
+                          <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
+                            <item.icon className="w-5 h-5" />
+                            <span>{item.label}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             );
           })}
