@@ -1,6 +1,7 @@
 // Hook para gerenciar módulos do sistema
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 
 export interface Module {
@@ -71,7 +72,7 @@ export const useModules = () => {
     mutationFn: async ({ id, ...moduleData }: Partial<Module> & { id: string }) => {
       const { data, error } = await supabase
         .from('modules')
-        .update({ ...moduleData, updated_at: new Date().toISOString() })
+        .update({ ...moduleData, updated_at: dateToLocalISO(new Date()) })
         .eq('id', id)
         .select()
         .single();
@@ -116,7 +117,7 @@ export const useModules = () => {
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { error } = await supabase
         .from('modules')
-        .update({ is_active, updated_at: new Date().toISOString() })
+        .update({ is_active, updated_at: dateToLocalISO(new Date()) })
         .eq('id', id);
       
       if (error) throw error;

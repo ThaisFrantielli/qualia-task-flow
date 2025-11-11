@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { dateToLocalISO, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
+import { filterTasksByHierarchy } from '@/lib/hierarchyUtils';
 import { toast } from 'sonner';
 import type { 
     Task, 
@@ -22,8 +23,17 @@ const isValidUUID = (uuid: string): boolean => {
 const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | null): Promise<TaskWithDetails[]> => {
     if (!user?.id || !isValidUUID(user.id)) return [];
     
+    // Buscar dados da hierarquia para aplicar filtros
+    const { data: hierarchyData, error: hierarchyError } = await supabase
+        .from('user_hierarchy')
+        .select('user_id, supervisor_id');
+    
+    if (hierarchyError) {
+        console.error('Erro ao buscar hierarquia:', hierarchyError);
+    }
+    
     // RLS (Row Level Security) do Supabase cuida automaticamente das permissões
-    // Não é mais necessário filtrar manualmente por user_id ou nível de acesso
+    // Mas vamos aplicar filtro adicional client-side para hierarquia
     let query = supabase.from('tasks').select(`
         *, 
         assignee: profiles (*), 
@@ -41,7 +51,7 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
 
-    return data?.map((task: any) => ({
+    const tasks = data?.map((task: any) => ({
         ...task,
         assignee: task.assignee as Profile | null,
         project: task.project as Project | null,
@@ -49,6 +59,13 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
         subtasks_count: task.subtasks[0]?.count || 0, 
         completed_subtasks_count: task.completed_subtasks[0]?.count || 0,
     })) || [];
+
+    // Aplicar filtro hierárquico client-side
+    if (hierarchyData && hierarchyData.length > 0) {
+        return filterTasksByHierarchy(tasks, user as Profile, hierarchyData);
+    }
+
+    return tasks;
 };
 
 const fetchTaskById = async (taskId: string): Promise<TaskWithDetails | null> => {

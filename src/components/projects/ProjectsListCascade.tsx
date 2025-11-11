@@ -35,6 +35,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 interface ProjectsListCascadeProps {
   projetos: Project[];
   modoFoco?: boolean;
+  onProjectDeleted?: () => void;
 }
 
 
@@ -48,7 +49,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 
 
-const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco }) => {
+const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, onProjectDeleted }) => {
   // const navigate = useNavigate();
   const { tasks, deleteTask } = useTasks({});
   const navigate = useNavigate();
@@ -104,6 +105,10 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
         toast.error('Não foi possível deletar o projeto', { description: error.message });
       } else {
         toast.success('Projeto deletado com sucesso');
+        // Trigger refetch no componente pai
+        if (onProjectDeleted) {
+          onProjectDeleted();
+        }
       }
     } catch (err: any) {
       console.error('Erro ao deletar projeto:', err);
