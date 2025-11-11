@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import type { Database } from '@/types';
 
 type ProjectChecklist = Database['public']['Tables']['project_checklists']['Row'];
@@ -49,7 +50,7 @@ export const useProjectChecklists = (projectId?: string) => {
     try {
       const { error } = await supabase
         .from('project_checklists')
-        .update({ completed, updated_at: new Date().toISOString() })
+        .update({ completed, updated_at: dateToLocalISO(new Date()) })
         .eq('id', id);
 
       if (error) throw error;

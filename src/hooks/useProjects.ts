@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Project } from '@/types';
+import { filterProjectsByHierarchy } from '@/lib/hierarchyUtils';
+import { Project, Profile } from '@/types';
 
 // ProjectWithStats agora estende Project, garantindo todos os campos obrigatórios
 export type ProjectWithStats = Project & {
@@ -28,21 +29,36 @@ export const useProjects = () => {
     setLoading(true);
     setError(null);
     try {
+      // Buscar dados da hierarquia para aplicar filtros
+      const { data: hierarchyData, error: hierarchyError } = await supabase
+        .from('user_hierarchy')
+        .select('user_id, supervisor_id');
+      
+      if (hierarchyError) {
+        console.error('Erro ao buscar hierarquia:', hierarchyError);
+      }
+
       // --- CHAMANDO A FUNÇÃO RPC ---
       const { data, error: fetchError } = await supabase.rpc('get_projects_with_stats');
 
       if (fetchError) throw new Error(fetchError.message);
       
-      setProjects(
-        (data || []).map((p: any) => ({
-          ...p,
-          team_id: p.team_id ?? null,
-          privacy: p.privacy ?? null,
-          portfolio_id: p.portfolio_id ?? null,
-          description: p.description ?? null,
-          user_id: p.user_id ?? null,
-        }))
-      );
+      const allProjects = (data || []).map((p: any) => ({
+        ...p,
+        team_id: p.team_id ?? null,
+        privacy: p.privacy ?? null,
+        portfolio_id: p.portfolio_id ?? null,
+        description: p.description ?? null,
+        user_id: p.user_id ?? null,
+      }));
+
+      // Aplicar filtro hierárquico client-side
+      let filteredProjects = allProjects;
+      if (hierarchyData && hierarchyData.length > 0) {
+        filteredProjects = filterProjectsByHierarchy(allProjects, user as Profile, hierarchyData);
+      }
+
+      setProjects(filteredProjects);
 
     } catch (err: any) {
       console.error('Erro ao buscar projetos:', err);
