@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import type { 
     Task, 
@@ -155,7 +156,7 @@ export function useTask(taskId: string) {
                         description: typedData.description,
                         status: 'todo',
                         priority: typedData.priority,
-                        due_date: nextDate.toISOString(),
+                        due_date: dateToLocalDateOnlyISO(nextDate),
                         is_recurring: true,
                         recurrence_pattern: typedData.recurrence_pattern,
                         recurrence_days: typedData.recurrence_days,
@@ -189,7 +190,7 @@ export function useTask(taskId: string) {
         mutationFn: async () => {
             const updates = { 
                 status: 'progress', 
-                start_date: new Date().toISOString() 
+                start_date: dateToLocalISO(new Date()) 
             };
             const { data, error } = await supabase.from('tasks').update(updates).eq('id', taskId);
             if (error) throw new Error(error.message);
@@ -206,7 +207,7 @@ export function useTask(taskId: string) {
         mutationFn: async () => {
             const updates = { 
                 status: 'done', 
-                end_date: new Date().toISOString() 
+                end_date: dateToLocalISO(new Date()) 
             };
             const { data, error } = await supabase.from('tasks').update(updates).eq('id', taskId);
             if (error) throw new Error(error.message);
