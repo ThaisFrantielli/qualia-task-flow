@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAtendimentos } from '@/hooks/useAtendimentos';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import { Plus, Grid3X3, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import KanbanTaskCard from '../components/KanbanTaskCard';
@@ -169,7 +170,7 @@ const CrmPdvPage = () => {
 
     const updatePayload: { status: KanbanColumnStatus; resolved_at?: string } = { status: newStatus };
     if (newStatus === 'Resolvido') {
-      updatePayload.resolved_at = new Date().toISOString();
+      updatePayload.resolved_at = dateToLocalISO(new Date());
     }
     const { error } = await supabase.from('atendimentos').update(updatePayload).eq('id', item.id);
     if (error) {

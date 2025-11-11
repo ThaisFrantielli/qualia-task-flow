@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 
 // --- CORREÇÃO APLICADA AQUI ---
 // 1. Importamos o tipo 'Database' do arquivo gerado pelo Supabase.
@@ -128,7 +129,7 @@ const SurveyResponsePage = () => {
         other_factor_text: formState.otherFactorText, 
         feedback_comment: formState.feedbackComment 
       });
-      await supabase.from('surveys').update({ responded_at: new Date().toISOString() }).eq('id', survey.id);
+      await supabase.from('surveys').update({ responded_at: dateToLocalISO(new Date()) }).eq('id', survey.id);
       
       localStorage.removeItem(localStorageKey);
       toast.success("Obrigado pela sua avaliação!");
