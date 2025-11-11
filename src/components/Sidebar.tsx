@@ -13,6 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Permissoes } from '@/types';
+import Logo from './Logo'; // <<<<<<< 1. IMPORTAÇÃO DO NOVO COMPONENTE LOGO
 
 // Tipagem explícita para os itens de menu para maior segurança e autocompletar
 interface MenuItem {
@@ -140,9 +141,8 @@ const Sidebar: React.FC = () => {
       {/* AJUSTE: Cor da borda e dos textos */}
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center space-x-3">
-          <svg className="w-10 h-10" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 50 L40 70 L80 30" fill="none" stroke="#F97316" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          {/* <<<<<<< 2. SUBSTITUIÇÃO DO SVG PELO COMPONENTE LOGO */}
+          <Logo className="w-10 h-10" />
           <div>
             <h1 className="font-bold text-lg text-slate-100">Quality Conecta</h1>
             <p className="text-slate-400 text-sm">Conectada com você</p>
