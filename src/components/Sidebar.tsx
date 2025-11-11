@@ -131,15 +131,21 @@ const Sidebar: React.FC = () => {
 
   const projectList = projects.filter(p => p.id !== 'all');
 
-  if (!user) return <div className="w-64 h-screen bg-gray-900 animate-pulse"></div>;
+  if (!user) return <div className="w-64 h-screen bg-slate-50 animate-pulse"></div>;
 
   return (
-    <div className="w-64 h-screen bg-gray-900 shadow-lg flex flex-col text-white">
+    <div className="w-64 h-screen bg-slate-50 shadow-lg flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-gray-700/50">
+      <div className="p-6 border-b border-slate-200">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center"><KanbanSquare className="w-6 h-6" /></div>
-          <div><h1 className="font-bold text-lg">Quality Conecta</h1><p className="text-gray-400 text-sm">Conectada com você</p></div>
+          {/* Orange Check Icon */}
+          <svg className="w-10 h-10" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 50 L40 70 L80 30" fill="none" stroke="#F97316" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <div>
+            <h1 className="font-bold text-lg text-slate-800">Quality Conecta</h1>
+            <p className="text-slate-500 text-sm">Conectada com você</p>
+          </div>
         </div>
       </div>
 
@@ -159,7 +165,7 @@ const Sidebar: React.FC = () => {
               <div key={group.title}>
                 <Collapsible open={isOpen} onOpenChange={(v) => toggleGroup(group.title, v)}>
                   <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-left text-xs font-semibold uppercase text-gray-400 tracking-wider hover:bg-gray-800/50">
+                    <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-left text-xs font-semibold uppercase text-slate-600 tracking-wider hover:bg-slate-100">
                       <span>{group.title}</span>
                       <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -168,7 +174,7 @@ const Sidebar: React.FC = () => {
                     <ul className="pt-1 pl-2 pr-2 space-y-1">
                       {visibleItems.map((item) => (
                         <li key={item.label}>
-                          <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
+                          <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-orange-500 text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}>
                             <item.icon className="w-5 h-5" />
                             <span>{item.label}</span>
                           </NavLink>
@@ -183,12 +189,12 @@ const Sidebar: React.FC = () => {
 
           {/* Seção de Projetos */}
           <div>
-            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-gray-400 tracking-wider">PROJETOS</h2>
+            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-slate-600 tracking-wider">PROJETOS</h2>
             <ul className="space-y-1">
               <li>
                 <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
                   <CollapsibleTrigger asChild>
-                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-primary text-white font-semibold' : 'text-gray-300 hover:bg-gray-800'}`}>
+                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-orange-500 text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}>
                       <div className="flex items-center space-x-3"><FolderOpen className="w-5 h-5" /><span>Visão Geral</span></div>
                       <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isProjectsOpen ? 'rotate-180' : ''}`} />
                     </NavLink>
@@ -197,7 +203,7 @@ const Sidebar: React.FC = () => {
                     <ul className="pt-1 pl-6 pr-2 space-y-1">
                       {projectList.map(project => (
                         <li key={project.id}>
-                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-primary/80 text-white' : 'text-gray-400 hover:bg-gray-700/50'}`}>
+                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-orange-500 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
                             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
                             <span className="truncate">{project.name}</span>
                           </NavLink>
@@ -213,7 +219,7 @@ const Sidebar: React.FC = () => {
       </nav>
 
       {/* Perfil do Usuário e Logout */}
-      <div className="p-4 border-t border-gray-700/50">
+      <div className="p-4 border-t border-slate-200">
         <div className="flex items-center space-x-3 mb-4">
           <Avatar className="w-10 h-10">
             <AvatarImage src={user.user_metadata?.avatar_url ?? undefined} />
@@ -222,11 +228,11 @@ const Sidebar: React.FC = () => {
           </Avatar>
           <div className="flex-1 overflow-hidden">
             {/* CORREÇÃO: Usa 'full_name' */}
-            <p className="text-sm font-medium truncate">{user.full_name || 'Usuário'}</p>
-            <div className="text-xs text-primary-300">{user.nivelAcesso}</div>
+            <p className="text-sm font-medium truncate text-slate-800">{user.full_name || 'Usuário'}</p>
+            <div className="text-xs text-orange-500">{user.nivelAcesso}</div>
           </div>
         </div>
-        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-300 hover:bg-red-500/20 hover:text-red-400">
+        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-slate-700 hover:bg-red-50 hover:text-red-600">
           <LogOut className="w-4 h-4" />
           <span>Sair</span>
         </button>
