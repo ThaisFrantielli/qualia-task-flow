@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, Edit, Save, X as CancelIcon, Calendar as CalendarIcon, User, Folder, Loader2 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { dateInputToISO, isoToDateInput, calendarDateToISO } from '@/lib/dateUtils';
 import { useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useUsers } from '@/hooks/useUsers';
@@ -181,7 +182,11 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                             <option value="sunday">Domingo</option>
                           </select>
                           <Label>Recorrência até</Label>
-                          <Input type="date" value={editedTask.recurrence_end ? format(new Date(editedTask.recurrence_end), 'yyyy-MM-dd') : ''} onChange={e => handleInputChange('recurrence_end', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+                          <Input 
+                            type="date" 
+                            value={isoToDateInput(editedTask.recurrence_end)} 
+                            onChange={e => handleInputChange('recurrence_end', e.target.value ? dateInputToISO(e.target.value) : null)} 
+                          />
                         </div>
                       )}
                     </div>
@@ -285,7 +290,11 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} onSelect={(d) => handleInputChange('start_date', d ? new Date(d.setHours(12,0,0,0)).toISOString() : undefined)} />
+                          <Calendar 
+                            mode="single" 
+                            selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} 
+                            onSelect={(d) => handleInputChange('start_date', calendarDateToISO(d))} 
+                          />
                         </PopoverContent>
                       </Popover>
                     </div>
@@ -299,7 +308,11 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} onSelect={(d) => handleInputChange('due_date', d ? new Date(d.setHours(12,0,0,0)).toISOString() : undefined)} />
+                          <Calendar 
+                            mode="single" 
+                            selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} 
+                            onSelect={(d) => handleInputChange('due_date', calendarDateToISO(d))} 
+                          />
                         </PopoverContent>
                       </Popover>
                     </div>
