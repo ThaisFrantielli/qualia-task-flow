@@ -4,10 +4,33 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve static assets from ./public (favicon, etc.)
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+}
+
+// If a favicon doesn't exist, write a tiny default one (1x1 transparent PNG) as favicon.ico
+const faviconPath = path.join(publicDir, 'favicon.ico');
+if (!fs.existsSync(faviconPath)) {
+    // 1x1 transparent PNG base64
+    const base64Png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
+    try {
+        fs.writeFileSync(faviconPath, Buffer.from(base64Png, 'base64'));
+        console.log('Wrote default favicon to', faviconPath);
+    } catch (err) {
+        console.error('Failed to write default favicon:', err);
+    }
+}
+
+app.use(express.static(publicDir));
 
 // Supabase configuration
 const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
@@ -221,6 +244,9 @@ app.get('/status', (req, res) => {
         clientState: client.getState()
     });
 });
+
+// Avoid browser requesting favicon and returning 404
+// (now served from ./public via express.static)
 
 // API endpoint to force new QR code
 app.post('/reset-session', async (req, res) => {
