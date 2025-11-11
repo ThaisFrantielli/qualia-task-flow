@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "./StarRating";
 import { NPSRating } from "./NPSRating";
+import { dateToLocalISO } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 
 interface SurveyQuestion {
@@ -83,7 +84,7 @@ export const SurveyForm = ({
       surveyType,
       customerInfo,
       responses,
-      timestamp: new Date().toISOString(),
+      timestamp: dateToLocalISO(new Date()),
     };
 
     onSubmit(surveyData);

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import { Database } from '@/types/supabase';
 
 interface CustomerEditFormProps {
@@ -69,7 +70,7 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
           lead_source: formData.lead_source,
           summary: formData.summary,
           resolution_details: formData.resolution_details,
-          updated_at: new Date().toISOString(),
+          updated_at: dateToLocalISO(new Date()),
         })
         .eq('id', customer.id);
 

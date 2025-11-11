@@ -3,6 +3,7 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { dateToLocalISO } from '@/lib/dateUtils';
 import type { Profile } from '@/types';
 
 interface UsersContextType {
@@ -25,7 +26,7 @@ const fetchUsers = async () => {
     permissoes: null,
     role: 'user',
     push_token: null,
-    updated_at: new Date().toISOString(),
+    updated_at: dateToLocalISO(new Date()),
     username: null,
     website: null
   })) || [];
