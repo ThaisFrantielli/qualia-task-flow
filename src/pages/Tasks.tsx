@@ -107,7 +107,7 @@ const TasksPage = () => {
 
       {/* Cascata Portfólio > Projeto > Tarefas > Subtarefas */}
       <div className="mt-4">
-        <ProjectsListCascade projetos={projects} />
+        <ProjectsListCascade projetos={projects} onOpenSubtask={(id) => setViewingSubtaskId(id)} />
       </div>
 
       {/* Tabela de Tarefas removida. As tarefas agora aparecem apenas dentro do bloco de Portfólio/Projeto na cascata. */}

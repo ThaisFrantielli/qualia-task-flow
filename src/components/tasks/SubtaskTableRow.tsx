@@ -26,17 +26,17 @@ const SubtaskTableRow: React.FC<SubtaskTableRowProps> = ({ subtask, onClick }) =
   const { update } = useSubtasks(subtask.task_id);
   const currentPriority = subtask.priority ? priorityConfig[subtask.priority as keyof typeof priorityConfig] : null;
 
-  const handleToggleComplete = async (e: React.MouseEvent | React.KeyboardEvent) => {
-    e.stopPropagation();
+  const handleToggleComplete = async (checked?: boolean) => {
     try {
+      const newCompleted = typeof checked === 'boolean' ? checked : !subtask.completed;
       await update({
         id: subtask.id,
-        updates: { 
-          completed: !subtask.completed,
-          status: !subtask.completed ? 'done' : 'todo'
+        updates: {
+          completed: newCompleted,
+          status: newCompleted ? 'done' : 'todo',
         }
       });
-      toast.success(subtask.completed ? "Ação marcada como pendente." : "Ação concluída!");
+      toast.success(newCompleted ? "Ação concluída!" : "Ação marcada como pendente.");
     } catch (error: any) {
       toast.error("Erro ao atualizar status.", { description: error.message });
     }
@@ -54,10 +54,10 @@ const SubtaskTableRow: React.FC<SubtaskTableRowProps> = ({ subtask, onClick }) =
     >
       <TableCell className="pl-12 py-2">
         <div className="flex items-center gap-3">
-          <Checkbox 
+          <Checkbox
             id={`subtask-row-${subtask.id}`}
-            checked={subtask.completed} 
-            onCheckedChange={() => handleToggleComplete({} as React.MouseEvent)} // Passa um evento dummy
+            checked={subtask.completed}
+            onCheckedChange={(checked) => handleToggleComplete(checked as boolean)}
             onClick={(e) => e.stopPropagation()}
           />
           <label 
