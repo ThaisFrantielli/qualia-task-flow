@@ -6,6 +6,10 @@ interface LogoProps {
   className?: string;
 }
 
+import React from 'react';
+// Referência rápida para evitar erro de "declared but its value is never read" em algumas configurações TS
+void React;
+
 // Aplicamos a tipagem e removemos o import desnecessário do React.
 // Ajuste: alteramos os fills principais para `currentColor` para
 // permitir que o componente receba cor via CSS (ex.: `text-white`).
