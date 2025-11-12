@@ -36,6 +36,7 @@ interface ProjectsListCascadeProps {
   projetos: Project[];
   modoFoco?: boolean;
   onProjectDeleted?: () => void;
+  onOpenSubtask?: (subtaskId: string) => void;
 }
 
 
@@ -49,7 +50,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 
 
-const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, onProjectDeleted }) => {
+const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, onProjectDeleted, onOpenSubtask }) => {
   // const navigate = useNavigate();
   const { tasks, deleteTask } = useTasks({});
   const navigate = useNavigate();
@@ -451,7 +452,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                         <TableCell colSpan={5} className="p-0">
                                           <Table>
                                             <TableBody>
-                                              <ExpandedSubtasks taskId={task.id} onSubtaskClick={() => {}} />
+                                              <ExpandedSubtasks taskId={task.id} onSubtaskClick={(id) => onOpenSubtask?.(id)} />
                                             </TableBody>
                                           </Table>
                                         </TableCell>
@@ -602,7 +603,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                 <TableCell colSpan={5} className="p-0">
                                   <Table>
                                     <TableBody>
-                                      <ExpandedSubtasks taskId={task.id} onSubtaskClick={() => {}} />
+                                      <ExpandedSubtasks taskId={task.id} onSubtaskClick={(id) => onOpenSubtask?.(id)} />
                                     </TableBody>
                                   </Table>
                                 </TableCell>
