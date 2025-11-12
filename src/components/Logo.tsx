@@ -7,6 +7,8 @@ interface LogoProps {
 }
 
 // Aplicamos a tipagem e removemos o import desnecessário do React.
+// Ajuste: alteramos os fills principais para `currentColor` para
+// permitir que o componente receba cor via CSS (ex.: `text-white`).
 const Logo = ({ className }: LogoProps) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -27,7 +29,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g20" transform="translate(538.206 513.368)">
             <path
               id="path22"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
@@ -37,7 +39,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g24" transform="translate(855.057 650.366)">
             <path
               id="path26"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
@@ -47,7 +49,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g28" transform="translate(967.835 513.368)">
             <path
               id="path30"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
@@ -57,7 +59,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g32" transform="translate(1153.444 502.37)">
             <path
               id="path34"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
@@ -67,7 +69,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g36" transform="translate(1193.667 485.174)">
             <path
               id="path38"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
@@ -77,7 +79,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g40" transform="translate(1344.095 502.373)">
             <path
               id="path42"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
@@ -87,7 +89,7 @@ const Logo = ({ className }: LogoProps) => (
           <g id="g44" transform="translate(1516 648.768)">
             <path
               id="path46"
-              fill="#302760"
+              fill="currentColor"
               fillOpacity="1"
               fillRule="nonzero"
               stroke="none"
