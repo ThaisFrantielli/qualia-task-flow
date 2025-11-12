@@ -5,8 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
-  ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose
+  ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,9 +13,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Permissoes } from '@/types';
-import Logo from './Logo';
 
-// Tipagem explícita para os itens de menu
+// Tipagem explícita para os itens de menu para maior segurança e autocompletar
 interface MenuItem {
   label: string;
   url: string;
@@ -29,7 +27,7 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-// Estrutura de dados completa para os grupos de menu
+// Estrutura de dados para os grupos de menu, agora com os ajustes
 const menuGroups: MenuGroup[] = [
   {
     title: 'AGENDA',
@@ -59,14 +57,39 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'CONFIGURAÇÕES',
     items: [
-      { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
-      { label: 'Config. WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
-      { label: 'Multi-WhatsApp', url: '/whatsapp-manager', icon: MessageSquare, permissionKey: 'team' },
-      { label: 'Configurações de usuário', url: '/team', icon: Users, permissionKey: 'team' },
+      { 
+        label: 'Tarefas e Projetos', 
+        url: '/settings/tasks', 
+        icon: SlidersHorizontal, 
+        permissionKey: 'team' // Apenas Admins e Gestores podem ver
+      },
+      { 
+        label: 'Config. WhatsApp', 
+        url: '/configuracoes/whatsapp', 
+        icon: MessageSquare, 
+        permissionKey: 'team' // Apenas Admins e Gestores podem ver
+      },
+      { 
+        label: 'Multi-WhatsApp', 
+        url: '/whatsapp-manager', 
+        icon: MessageSquare, 
+        permissionKey: 'team' // Apenas Admins e Gestores podem ver
+      },
+  { label: 'Configurações de usuário', url: '/team', icon: Users, permissionKey: 'team' },
       { label: 'Notificações', url: '/notifications', icon: Bell },
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
-      { label: 'Configuração de Módulos', url: '/configuracoes/controle-acesso', icon: SlidersHorizontal, permissionKey: 'team' },
-      { label: 'Equipes & Hierarquia', url: '/configuracoes/equipes-hierarquia', icon: Users, permissionKey: 'team' },
+        { 
+          label: 'Configuração de Módulos', 
+          url: '/configuracoes/controle-acesso', 
+          icon: SlidersHorizontal, 
+          permissionKey: 'team' // Apenas Admins/Gestores podem ver
+        },
+        { 
+          label: 'Equipes & Hierarquia', 
+          url: '/configuracoes/equipes-hierarquia', 
+          icon: Users, 
+          permissionKey: 'team' // Todos podem ver (conteúdo interno tem verificação)
+        },
     ]
   }
 ];
@@ -76,13 +99,14 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { projects } = useProjects();
-  
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem('sidebar.openGroups');
       return raw ? JSON.parse(raw) : {};
-    } catch (e) { return {}; }
+    } catch (e) {
+      return {};
+    }
   });
 
   const toggleGroup = (title: string, value?: boolean) => {
@@ -93,10 +117,13 @@ const Sidebar: React.FC = () => {
     });
   };
 
-  useEffect(() => { /* Lógica de useEffect original mantida */ }, [location.pathname]);
+  useEffect(() => {
+    if (location.pathname.startsWith('/projects')) setIsProjectsOpen(true);
+  }, [location.pathname]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate('/login'); };
   
+  // CORREÇÃO: Usa 'full_name' para obter as iniciais
   const getInitials = (name?: string | null): string => { 
     if (name) return name.split(' ').map(n => n[0]).join('').toUpperCase(); 
     return user?.email?.[0].toUpperCase() || '?'; 
@@ -104,31 +131,28 @@ const Sidebar: React.FC = () => {
 
   const projectList = projects.filter(p => p.id !== 'all');
 
-  if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
+  if (!user) return <div className="w-64 h-screen bg-slate-50 animate-pulse"></div>;
 
   return (
-    <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] shadow-lg flex flex-col`}>
-      <div className="flex-1 flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex flex-col items-start w-full">
-              <Logo className="w-24 h-auto text-white" />
-              <p className="text-[#C7C9D9] text-xs mt-1">Conectada com você</p>
-            </div>
-          )}
-          {isCollapsed && <Logo className="w-8 h-auto text-white mx-auto" />}
-
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 text-[#C7C9D9] hover:text-white hover:bg-white/10 rounded-md flex-shrink-0"
-          >
-            {isCollapsed ? <PanelRightClose size={20} /> : <PanelLeftClose size={20} />}
-          </button>
+    <div className="w-64 h-screen bg-slate-50 shadow-lg flex flex-col">
+      {/* Logo */}
+      <div className="p-6 border-b border-slate-200">
+        <div className="flex items-center space-x-3">
+          {/* Orange Check Icon */}
+          <svg className="w-10 h-10" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 50 L40 70 L80 30" fill="none" stroke="#F97316" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <div>
+            <h1 className="font-bold text-lg text-slate-800">Quality Conecta</h1>
+            <p className="text-slate-500 text-sm">Conectada com você</p>
+          </div>
         </div>
+      </div>
 
-        <nav className="flex-1 px-2 py-4 space-y-2">
+      {/* Navegação Principal */}
+      <nav className="flex-1 py-6 px-4 overflow-y-auto">
+        <div className="space-y-4">
           {menuGroups.map((group) => {
-            // LÓGICA DE VISIBILIDADE POR HIERARQUIA MANTIDA
             const visibleItems = group.items.filter(item => {
               if (!item.permissionKey) return true;
               return user?.permissoes?.[item.permissionKey] === true;
@@ -139,63 +163,79 @@ const Sidebar: React.FC = () => {
 
             return (
               <div key={group.title}>
-                {!isCollapsed && (
-                    <Collapsible open={isOpen} onOpenChange={(v) => toggleGroup(group.title, v)}>
-                        <CollapsibleTrigger asChild>
-                            <h2 className="px-4 mb-2 text-xs font-semibold text-slate-500 tracking-wider flex justify-between items-center cursor-pointer">
-                                {group.title}
-                                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                            </h2>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent asChild>
-                            <ul className="space-y-1">
-                                {visibleItems.map((item) => (
-                                    <li key={item.label}>
-                                        <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 p-2.5 rounded-xl text-sm transition-all ${isActive ? 'bg-[#FF8C00] text-white font-semibold shadow-md' : 'text-[#C7C9D9] hover:bg-white/5 hover:text-white'}`}>
-                                            <item.icon className="w-5 h-5 flex-shrink-0" />
-                                            <span>{item.label}</span>
-                                        </NavLink>
-                                    </li>
-                                ))}
-                            </ul>
-                        </CollapsibleContent>
-                    </Collapsible>
-                )}
-                {isCollapsed && (
-                    <ul className="space-y-1">
-                        {visibleItems.map((item) => (
-                            <li key={item.label}>
-                                <NavLink to={item.url} title={item.label} className={({isActive}) => `flex items-center justify-center space-x-3 p-2.5 rounded-xl text-sm transition-all ${isActive ? 'bg-[#FF8C00] text-white font-semibold shadow-md' : 'text-[#C7C9D9] hover:bg-white/5 hover:text-white'}`}>
-                                    <item.icon className="w-5 h-5 flex-shrink-0" />
-                                </NavLink>
-                            </li>
-                        ))}
+                <Collapsible open={isOpen} onOpenChange={(v) => toggleGroup(group.title, v)}>
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-left text-xs font-semibold uppercase text-slate-600 tracking-wider hover:bg-slate-100">
+                      <span>{group.title}</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent asChild>
+                    <ul className="pt-1 pl-2 pr-2 space-y-1">
+                      {visibleItems.map((item) => (
+                        <li key={item.label}>
+                          <NavLink to={item.url} className={({isActive}) => `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-orange-500 text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}>
+                            <item.icon className="w-5 h-5" />
+                            <span>{item.label}</span>
+                          </NavLink>
+                        </li>
+                      ))}
                     </ul>
-                )}
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             );
           })}
-        </nav>
-      </div>
 
-      <div className="p-4 border-t border-white/10">
-        <div className="flex items-center">
-          <Avatar className="w-9 h-9 flex-shrink-0">
+          {/* Seção de Projetos */}
+          <div>
+            <h2 className="px-4 mb-2 text-xs font-semibold uppercase text-slate-600 tracking-wider">PROJETOS</h2>
+            <ul className="space-y-1">
+              <li>
+                <Collapsible open={isProjectsOpen} onOpenChange={setIsProjectsOpen}>
+                  <CollapsibleTrigger asChild>
+                    <NavLink to="/projects" end className={({isActive}) => `w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive && location.pathname === '/projects' ? 'bg-orange-500 text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}`}>
+                      <div className="flex items-center space-x-3"><FolderOpen className="w-5 h-5" /><span>Visão Geral</span></div>
+                      <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isProjectsOpen ? 'rotate-180' : ''}`} />
+                    </NavLink>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent asChild>
+                    <ul className="pt-1 pl-6 pr-2 space-y-1">
+                      {projectList.map(project => (
+                        <li key={project.id}>
+                          <NavLink to={`/projects/${project.id}`} className={({isActive}) => `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${isActive ? 'bg-orange-500 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
+                            <span className="truncate">{project.name}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+      {/* Perfil do Usuário e Logout */}
+      <div className="p-4 border-t border-slate-200">
+        <div className="flex items-center space-x-3 mb-4">
+          <Avatar className="w-10 h-10">
             <AvatarImage src={user.user_metadata?.avatar_url ?? undefined} />
+            {/* CORREÇÃO: Usa 'full_name' */}
             <AvatarFallback>{getInitials(user.full_name)}</AvatarFallback>
           </Avatar>
-          {!isCollapsed && (
-            <div className="ml-3 flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate text-white">{user.full_name || 'Usuário'}</p>
-              <p className="text-xs truncate text-[#C7C9D9]">{user.nivelAcesso}</p>
-            </div>
-          )}
-          {!isCollapsed && (
-            <button onClick={handleLogout} className="ml-2 p-2 rounded-md text-[#C7C9D9] hover:bg-white/5 hover:text-white">
-              <LogOut className="w-5 h-5" />
-            </button>
-          )}
+          <div className="flex-1 overflow-hidden">
+            {/* CORREÇÃO: Usa 'full_name' */}
+            <p className="text-sm font-medium truncate text-slate-800">{user.full_name || 'Usuário'}</p>
+            <div className="text-xs text-orange-500">{user.nivelAcesso}</div>
+          </div>
         </div>
+        <button onClick={handleLogout} className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-slate-700 hover:bg-red-50 hover:text-red-600">
+          <LogOut className="w-4 h-4" />
+          <span>Sair</span>
+        </button>
       </div>
     </div>
   );
