@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateSafe } from '@/lib/dateUtils';
 
 interface CustomerDetailProps {
   customer: ClienteComContatos;
@@ -56,7 +57,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
 
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    return formatDateSafe(dateString, 'dd/MM/yyyy');
   };
 
   return (
@@ -203,7 +204,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                           </div>
                           <div className="flex items-center gap-1">
                             <Package className="h-4 w-4" />
-                            <span>Criado em {opp.created_at && format(new Date(opp.created_at), "dd/MM/yyyy", { locale: ptBR })}</span>
+                            <span>Criado em {opp.created_at && formatDateSafe(opp.created_at, 'dd/MM/yyyy')}</span>
                           </div>
                         </div>
                       </div>

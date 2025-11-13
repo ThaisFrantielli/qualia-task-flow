@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Clock, List, AlertTriangle, ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 import { ptBR } from 'date-fns/locale';
 import { getInitials, getStatusLabel, getPriorityLabel } from '@/lib/utils';
 
@@ -48,8 +49,8 @@ const formatHistoryEntry = (entry: TaskHistoryWithProfile, profileMap: { [id: st
         const newAssigneeName = profileMap[new_value || '']?.full_name || 'Não Atribuído';
         return <>{userName} alterou o responsável de {renderChange(oldAssigneeName, newAssigneeName)}.</>;
       case 'due_date':
-        const oldDate = old_value ? new Date(old_value).toLocaleDateString('pt-BR') : 'Sem Prazo';
-        const newDate = new_value ? new Date(new_value).toLocaleDateString('pt-BR') : 'Sem Prazo';
+        const oldDate = old_value ? formatDateSafe(old_value, 'dd/MM/yyyy') : 'Sem Prazo';
+        const newDate = new_value ? formatDateSafe(new_value, 'dd/MM/yyyy') : 'Sem Prazo';
         return <>{userName} alterou o prazo de {renderChange(oldDate, newDate)}.</>;
       default:
         return <>{userName} atualizou o campo '{field_changed}'.</>;
@@ -99,7 +100,7 @@ const TaskHistory: React.FC<TaskHistoryProps> = ({ taskId }) => {
                 {formatHistoryEntry(entry, profileMap)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true, locale: ptBR })}
+                {formatDistanceToNow(parseISODateSafe(entry.created_at) || new Date(), { addSuffix: true, locale: ptBR })}
               </p>
             </div>
           </li>

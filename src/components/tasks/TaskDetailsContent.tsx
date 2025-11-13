@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, Edit, Save, X as CancelIcon, Calendar as CalendarIcon, User, Folder, Loader2 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { dateInputToISO, isoToDateInput, calendarDateToISO } from '@/lib/dateUtils';
+import { dateInputToISO, isoToDateInput, calendarDateToISO, parseISODateSafe, formatDateSafe } from '@/lib/dateUtils';
 import { useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useUsers } from '@/hooks/useUsers';
@@ -103,8 +103,10 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
   };
 
   const calculateTimeSpent = () => {
-    if (task.start_date && task.end_date) {
-      return formatDistance(new Date(task.end_date), new Date(task.start_date), { locale: ptBR });
+    const start = parseISODateSafe(task.start_date);
+    const end = parseISODateSafe(task.end_date);
+    if (start && end) {
+      return formatDistance(end, start, { locale: ptBR });
     }
     return null;
   };
@@ -197,10 +199,10 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                 
                 {!isEditing && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-4 border rounded-2xl bg-muted/50">
-                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Criado em</Label><p className="font-medium">{format(new Date(task.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p></div>
-                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Prazo</Label><p className="font-medium">{task.due_date ? format(new Date(task.due_date), 'dd/MM/yyyy') : 'N/A'}</p></div>
-                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Iniciado</Label><p className="font-medium">{task.start_date ? format(new Date(task.start_date), 'dd/MM/yyyy HH:mm') : '-'}</p></div>
-                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Concluído</Label><p className="font-medium">{task.end_date ? format(new Date(task.end_date), 'dd/MM/yyyy HH:mm') : '-'}</p></div>
+                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Criado em</Label><p className="font-medium">{(() => { const d = parseISODateSafe(task.created_at); return d ? format(d, 'dd/MM/yyyy', { locale: ptBR }) : '' })()}</p></div>
+                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Prazo</Label><p className="font-medium">{(() => { const d = parseISODateSafe(task.due_date); return d ? format(d, 'dd/MM/yyyy') : 'N/A' })()}</p></div>
+                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Iniciado</Label><p className="font-medium">{(() => { const d = parseISODateSafe(task.start_date); return d ? format(d, 'dd/MM/yyyy HH:mm') : '-' })()}</p></div>
+                    <div className="space-y-1"><Label className="text-xs text-muted-foreground">Concluído</Label><p className="font-medium">{(() => { const d = parseISODateSafe(task.end_date); return d ? format(d, 'dd/MM/yyyy HH:mm') : '-' })()}</p></div>
                     {calculateTimeSpent() && (<div className="space-y-1 col-span-full border-t pt-2 mt-2"><Label className="text-xs text-muted-foreground">Tempo Gasto</Label><p className="font-medium">{calculateTimeSpent()}</p></div>)}
                   </div>
                 )}
@@ -284,15 +286,15 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                       <Label>Data de Início</Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full font-normal justify-start">
+                            <Button variant="outline" className="w-full font-normal justify-start">
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editedTask.start_date ? format(new Date(editedTask.start_date), "dd/MM/yyyy") : <span>Escolha</span>}
+                            {editedTask.start_date ? formatDateSafe(editedTask.start_date, 'dd/MM/yyyy') : <span>Escolha</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar 
+                            <Calendar 
                             mode="single" 
-                            selected={editedTask.start_date ? new Date(editedTask.start_date) : undefined} 
+                            selected={editedTask.start_date ? parseISODateSafe(editedTask.start_date) ?? undefined : undefined} 
                             onSelect={(d) => handleInputChange('start_date', calendarDateToISO(d))} 
                           />
                         </PopoverContent>
@@ -302,15 +304,15 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                       <Label>Prazo Final</Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full font-normal justify-start">
+                            <Button variant="outline" className="w-full font-normal justify-start">
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editedTask.due_date ? format(new Date(editedTask.due_date), "dd/MM/yyyy") : <span>Escolha</span>}
+                            {editedTask.due_date ? formatDateSafe(editedTask.due_date, 'dd/MM/yyyy') : <span>Escolha</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar 
+                            <Calendar 
                             mode="single" 
-                            selected={editedTask.due_date ? new Date(editedTask.due_date) : undefined} 
+                            selected={editedTask.due_date ? parseISODateSafe(editedTask.due_date) ?? undefined : undefined} 
                             onSelect={(d) => handleInputChange('due_date', calendarDateToISO(d))} 
                           />
                         </PopoverContent>

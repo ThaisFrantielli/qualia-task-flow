@@ -3,6 +3,7 @@ import { Group } from '@/hooks/useGroups';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Users } from 'lucide-react';
+import { formatDateSafe } from '@/lib/dateUtils';
 
 interface GroupCardProps {
   group: Group;
@@ -22,7 +23,7 @@ const GroupCard: React.FC<GroupCardProps> = ({ group, onEdit, onDelete }) => {
             <div>
               <h3 className="font-semibold">{group.name}</h3>
               <p className="text-xs text-muted-foreground">
-                Criado em {new Date(group.created_at).toLocaleDateString('pt-BR')}
+                Criado em {formatDateSafe(group.created_at, 'dd/MM/yyyy')}
               </p>
             </div>
           </div>

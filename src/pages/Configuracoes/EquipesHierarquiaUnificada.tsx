@@ -25,6 +25,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatDateSafe } from '@/lib/dateUtils';
 
 const EquipesHierarquiaUnificada: React.FC = () => {
   const { user } = useAuth();
@@ -304,7 +305,7 @@ const EquipesHierarquiaUnificada: React.FC = () => {
                         <div>
                           <p className="font-semibold">{team.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            Criado em {new Date(team.created_at).toLocaleDateString('pt-BR')}
+                            Criado em {formatDateSafe(team.created_at, 'dd/MM/yyyy')}
                           </p>
                         </div>
                       </div>

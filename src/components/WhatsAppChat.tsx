@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
+import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 
 interface WhatsAppChatProps {
   customerId?: string;
@@ -36,19 +37,19 @@ interface ContactOption {
 
 
 const formatMessageDate = (date: string) => {
-  const messageDate = new Date(date);
-  
+  const messageDate = parseISODateSafe(date) || new Date(date);
+
   if (isToday(messageDate)) {
     return format(messageDate, 'HH:mm');
   } else if (isYesterday(messageDate)) {
     return 'Ontem';
   } else {
-    return format(messageDate, 'dd/MM/yyyy');
+    return formatDateSafe(messageDate, 'dd/MM/yyyy');
   }
 };
 
 const formatMessageTime = (date: string) => {
-  return format(new Date(date), 'HH:mm');
+  return formatDateSafe(date, 'HH:mm');
 };
 
 const getCustomerInitials = (name: string | null, phone: string) => {

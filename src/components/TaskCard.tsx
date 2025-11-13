@@ -2,6 +2,7 @@
 import React from 'react';
 import { Clock, MessageCircle, Paperclip } from 'lucide-react';
 import TaskTags from './tasks/TaskTags';
+import { formatDateSafe } from '@/lib/dateUtils';
 import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
 
 interface TaskCardProps {
@@ -149,7 +150,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
         {dueDate && (
           <div className="flex items-center space-x-1">
             <Clock className="w-3 h-3" />
-            <span>{new Date(dueDate).toLocaleDateString('pt-BR')}</span>
+            <span>{formatDateSafe(dueDate, 'dd/MM/yyyy')}</span>
           </div>
         )}
       </div>

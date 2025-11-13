@@ -3,6 +3,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Task } from "@/types";
+import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -14,8 +15,7 @@ export function cn(...inputs: ClassValue[]) {
  */
 export const formatDate = (dateString?: string | null): string => {
   if (!dateString) return 'Não definida';
-  // Adiciona timeZone 'UTC' para evitar problemas de fuso horário que mudam o dia.
-  return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  return formatDateSafe(dateString, 'dd/MM/yyyy');
 };
 
 /**
@@ -61,14 +61,16 @@ export const getStatusColor = (status?: string | null): string => {
  * Verifica se uma tarefa está atrasada.
  */
 export const isOverdue = (task: Pick<Task, 'due_date' | 'status'>): boolean => {
-    if (!task.due_date || task.status === 'done') {
-        return false;
-    }
-    const dueDate = new Date(task.due_date);
-    const today = new Date();
-    // Zera as horas para comparar apenas as datas
-    today.setHours(0, 0, 0, 0);
-    return dueDate < today;
+  if (!task.due_date || task.status === 'done') {
+    return false;
+  }
+  const dueDate = parseISODateSafe(task.due_date);
+  if (!dueDate) return false;
+  const today = new Date();
+  // Zera as horas para comparar apenas as datas
+  today.setHours(0, 0, 0, 0);
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today;
 };
 
 /**

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { useProjects } from '../hooks/useProjects';
 import { Download, FileText, Filter, BarChart3 } from 'lucide-react';
+import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -51,9 +52,10 @@ const Reports = () => {
     
     let matchesDate = true;
     if (dateRange.start && dateRange.end) {
-      const taskDate = new Date(task.created_at);
+      const taskDate = parseISODateSafe(task.created_at);
       const startDate = new Date(dateRange.start);
       const endDate = new Date(dateRange.end);
+      if (!taskDate) return false;
       matchesDate = taskDate >= startDate && taskDate <= endDate;
     }
     
@@ -81,8 +83,8 @@ const Reports = () => {
       'Prioridade': getPriorityLabel(task.priority),
       'Projeto': task.project?.name || 'Sem projeto',
       'Responsável': task.assignee_name || 'Não atribuído',
-      'Data de Criação': new Date(task.created_at).toLocaleDateString('pt-BR'),
-      'Data de Vencimento': task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : '',
+      'Data de Criação': formatDateSafe(task.created_at, 'dd/MM/yyyy'),
+      'Data de Vencimento': task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '',
       'Subtarefas': task.subtasks?.length || 0,
       'Subtarefas Concluídas': task.subtasks?.filter(s => s.completed).length || 0,
       'Comentários': task.comments?.length || 0,
