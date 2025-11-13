@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Users, BarChart2, Copy, Check, Send, Trash2 } from 'lucide-react';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import SurveyGeneratorForm from '@/components/surveys/SurveyGeneratorForm';
 
@@ -187,7 +188,7 @@ const SurveyGeneratorPage = () => {
                       <TableRow key={survey.id}>
                         <TableCell className="font-medium">{survey.client_name}</TableCell>
                         <TableCell>{survey.type ? surveyTypeLabels[survey.type] : 'N/A'}</TableCell>
-                        <TableCell>{new Date(survey.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell>{formatDateSafe(survey.created_at, 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
                           {survey.responded_at ? (
                             <span className="flex items-center text-green-600 font-semibold"><Check className="h-4 w-4 mr-1" /> Respondida</span>

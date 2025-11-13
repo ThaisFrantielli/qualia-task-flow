@@ -33,7 +33,7 @@ const SubtasksCascade: React.FC<SubtasksCascadeProps> = ({ taskId }) => {
             </div>
           </td>
           <td className="py-2 text-xs text-muted-foreground">
-            {subtask.due_date ? new Date(subtask.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+            {subtask.due_date ? formatDateSafe(subtask.due_date, 'dd/MM/yyyy') : '-'}
           </td>
         </tr>
       ))}

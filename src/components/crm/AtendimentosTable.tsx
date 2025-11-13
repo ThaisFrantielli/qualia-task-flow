@@ -51,7 +51,7 @@ const AtendimentosTable: React.FC<AtendimentosTableProps> = ({ atendimentos, onR
                 <td className="px-4 py-2 font-medium">{at.contact_person || '-'}</td>
                 <td className="px-4 py-2">{at.reason || '-'}</td>
                 <td className="px-4 py-2"><Badge variant="outline">{at.status}</Badge></td>
-                <td className="px-4 py-2">{new Date(at.created_at).toLocaleDateString('pt-BR')}</td>
+                <td className="px-4 py-2">{formatDateSafe(at.created_at, 'dd/MM/yyyy')}</td>
                 <td className="px-4 py-2">
                   {at.status === 'Resolvido' && at.final_analysis ? (
                     <Badge variant={at.final_analysis === 'Procedente' ? 'default' : at.final_analysis === 'Improcedente' ? 'destructive' : 'secondary'}>

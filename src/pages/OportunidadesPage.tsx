@@ -11,6 +11,7 @@ import { Plus, MessageSquare, Package, DollarSign, Calendar } from 'lucide-react
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateSafe } from '@/lib/dateUtils';
 
 export default function OportunidadesPage() {
   const { oportunidades, isLoading, error, createOportunidade } = useOportunidades();
@@ -201,7 +202,7 @@ export default function OportunidadesPage() {
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Calendar className="h-3 w-3" />
                   <span>
-                    {oportunidade.created_at && format(new Date(oportunidade.created_at), "dd 'de' MMM, yyyy", { locale: ptBR })}
+                    {oportunidade.created_at && formatDateSafe(oportunidade.created_at, "dd 'de' MMM, yyyy", { locale: ptBR })}
                   </span>
                 </div>
               </CardContent>

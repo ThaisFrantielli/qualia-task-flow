@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { dateToLocalISO, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
+import { dateToLocalISO, dateToLocalDateOnlyISO, parseISODateSafe } from '@/lib/dateUtils';
 import { filterTasksByHierarchy } from '@/lib/hierarchyUtils';
 import { toast } from 'sonner';
 import type { 
@@ -158,16 +158,22 @@ export function useTask(taskId: string) {
 
             // Lógica de recorrência: criar próxima instância se for recorrente e concluída
             if (typedData.is_recurring && (updates.status === 'done' || updates.status === 'late')) {
-                // Calcular próxima data
-                let nextDate = null;
-                if (typedData.recurrence_pattern === 'weekly' && typedData.due_date) {
-                    nextDate = new Date(typedData.due_date);
-                    nextDate.setDate(nextDate.getDate() + 7);
-                } else if (typedData.recurrence_pattern === 'monthly' && typedData.due_date) {
-                    nextDate = new Date(typedData.due_date);
-                    nextDate.setMonth(nextDate.getMonth() + 1);
+                // Calcular próxima data usando parseISODateSafe para evitar problemas de timezone/valores inválidos
+                let nextDate: Date | null = null;
+                if (typedData.due_date) {
+                    const parsedDue = parseISODateSafe(typedData.due_date as any);
+                    if (parsedDue) {
+                        if (typedData.recurrence_pattern === 'weekly') {
+                            nextDate = new Date(parsedDue);
+                            nextDate.setDate(nextDate.getDate() + 7);
+                        } else if (typedData.recurrence_pattern === 'monthly') {
+                            nextDate = new Date(parsedDue);
+                            nextDate.setMonth(nextDate.getMonth() + 1);
+                        }
+                    }
                 }
-                if (nextDate && (!typedData.recurrence_end || nextDate <= new Date(typedData.recurrence_end))) {
+                const recurrenceEndDate = parseISODateSafe(typedData.recurrence_end as any);
+                if (nextDate && (!recurrenceEndDate || nextDate <= recurrenceEndDate)) {
                     await supabase.from('tasks').insert({
                         title: typedData.title,
                         description: typedData.description,

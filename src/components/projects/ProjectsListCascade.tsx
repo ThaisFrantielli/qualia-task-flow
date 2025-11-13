@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { useState, useRef } from 'react';
 import { usePortfolios } from '@/hooks/usePortfolios';
 import { Portfolio, Project } from '@/types';
@@ -416,7 +417,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                       <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
                                     </TableCell>
                                     <TableCell className="align-middle">
-                                      <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
+                                      <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
                                     </TableCell>
                                     <TableCell className="align-middle text-right">
                                       <DropdownMenu>
@@ -590,7 +591,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                               <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
                             </TableCell>
                             <TableCell className="align-middle">
-                              <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
+                              <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
                             </TableCell>
                           </TableRow>
                           {expandedTasks.has(task.id) && (

@@ -5,6 +5,7 @@ import type { TaskWithDetails } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { getInitials } from '@/lib/utils'; // Assumindo que você tem essa função em utils
+import { formatDateSafe } from '@/lib/dateUtils';
 
 interface TaskRowProps {
   task: TaskWithDetails;
@@ -32,7 +33,7 @@ const TaskRow: React.FC<TaskRowProps> = ({ task, onTaskClick }) => {
         </div>
       </td>
       <td className="px-4 py-2 text-sm text-muted-foreground">
-        {task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+        {task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}
       </td>
       <td className="px-4 py-2">
         <Badge variant="outline">{task.priority || 'Normal'}</Badge>
