@@ -6,7 +6,7 @@ interface LogoProps {
   className?: string;
 }
 
-// Aplicamos a tipagem e removemos o import desnecessário do React.
+// Removemos import/void temporários; JSX runtime é `react-jsx` então import não é necessário.
 // Ajuste: alteramos os fills principais para `currentColor` para
 // permitir que o componente receba cor via CSS (ex.: `text-white`).
 const Logo = ({ className }: LogoProps) => (
