@@ -26,6 +26,9 @@ import TaskHistory from './TaskHistory';
 import TaskDelegation from '../task/TaskDelegation';
 import MentionComments from '../comments/MentionComments';
 import ActionPlan from './ActionPlan';
+import RecurrenceConfig from '@/components/recurrence/RecurrenceConfig';
+import RecurrenceIndicator from '@/components/recurrence/RecurrenceIndicator';
+import RecurrenceSeriesView from '@/components/recurrence/RecurrenceSeriesView';
 
 interface TaskDetailsContentProps {
   task: TaskWithDetails;
@@ -134,7 +137,9 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
               <CardHeader className="p-0 pb-4">
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">Informações da Tarefa</CardTitle>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-4">
+                    <RecurrenceIndicator task={task} />
+                    <div className="flex gap-2">
                     {!isEditing && task.status === 'todo' && (<Button size="sm" onClick={() => startTask()} className="bg-blue-500 hover:bg-blue-600"><Play className="w-4 h-4 mr-2" /> Iniciar</Button>)}
                     {!isEditing && task.status === 'progress' && (<Button size="sm" onClick={() => completeTask()} className="bg-green-500 hover:bg-green-600"><CheckCircle className="w-4 h-4 mr-2" /> Concluir</Button>)}
                     {isEditing ? (
@@ -145,6 +150,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                     ) : (
                       <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}><Edit className="w-4 h-4 mr-2" /> Editar</Button>
                     )}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -167,28 +173,28 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                         <span>Ativar recorrência</span>
                       </div>
                       {!!editedTask.is_recurring && (
-                        <div className="mt-2 space-y-2">
-                          <Label>Padrão de recorrência</Label>
-                          <select value={editedTask.recurrence_pattern || 'weekly'} onChange={e => handleInputChange('recurrence_pattern', e.target.value)} className="border rounded px-2 py-1">
-                            <option value="weekly">Semanal</option>
-                            <option value="monthly">Mensal</option>
-                          </select>
-                          <Label>Dias da semana</Label>
-                          <select value={editedTask.recurrence_days || 'monday'} onChange={e => handleInputChange('recurrence_days', e.target.value)} className="border rounded px-2 py-1">
-                            <option value="monday">Segunda-feira</option>
-                            <option value="tuesday">Terça-feira</option>
-                            <option value="wednesday">Quarta-feira</option>
-                            <option value="thursday">Quinta-feira</option>
-                            <option value="friday">Sexta-feira</option>
-                            <option value="saturday">Sábado</option>
-                            <option value="sunday">Domingo</option>
-                          </select>
-                          <Label>Recorrência até</Label>
-                          <Input 
-                            type="date" 
-                            value={isoToDateInput(editedTask.recurrence_end)} 
-                            onChange={e => handleInputChange('recurrence_end', e.target.value ? dateInputToISO(e.target.value) : null)} 
-                          />
+                        <div className="mt-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm">Configurar recorrência</Button>
+                            </PopoverTrigger>
+                            <PopoverContent side="right" className="w-96">
+                              <RecurrenceConfig
+                                value={{
+                                  pattern: (editedTask.recurrence_pattern as any) || null,
+                                  interval: (editedTask.recurrence_interval as any) || 1,
+                                  days: editedTask.recurrence_days ? editedTask.recurrence_days.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n)) : [],
+                                  endDate: editedTask.recurrence_end ?? null,
+                                }}
+                                onChange={(v: any) => {
+                                  handleInputChange('recurrence_pattern', v.pattern ?? null);
+                                  handleInputChange('recurrence_interval', v.interval ?? 1);
+                                  handleInputChange('recurrence_days', Array.isArray(v.days) ? v.days.join(',') : null);
+                                  handleInputChange('recurrence_end', v.endDate ?? null);
+                                }}
+                              />
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       )}
                     </div>
@@ -206,6 +212,13 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                     {calculateTimeSpent() && (<div className="space-y-1 col-span-full border-t pt-2 mt-2"><Label className="text-xs text-muted-foreground">Tempo Gasto</Label><p className="font-medium">{calculateTimeSpent()}</p></div>)}
                   </div>
                 )}
+
+                  {/* Recurrence series view for parent tasks or show series when this is an occurrence */}
+                  {!isEditing && (task.is_recurring || task.parent_task_id) && (
+                    <div className="mt-6">
+                      <RecurrenceSeriesView parentTaskId={task.parent_task_id ?? task.id} />
+                    </div>
+                  )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-6 border-t rounded-2xl">
                   <div className="space-y-1">
@@ -317,6 +330,31 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                           />
                         </PopoverContent>
                       </Popover>
+                      {editedTask.is_recurring && (
+                        <div className="mt-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="sm">🔁 Recorrência</Button>
+                            </PopoverTrigger>
+                            <PopoverContent side="right" className="w-96">
+                              <RecurrenceConfig
+                                value={{
+                                  pattern: (editedTask.recurrence_pattern as any) || null,
+                                  interval: (editedTask.recurrence_interval as any) || 1,
+                                  days: editedTask.recurrence_days ? editedTask.recurrence_days.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n)) : [],
+                                  endDate: editedTask.recurrence_end ?? null,
+                                }}
+                                onChange={(v: any) => {
+                                  handleInputChange('recurrence_pattern', v.pattern ?? null);
+                                  handleInputChange('recurrence_interval', v.interval ?? 1);
+                                  handleInputChange('recurrence_days', Array.isArray(v.days) ? v.days.join(',') : null);
+                                  handleInputChange('recurrence_end', v.endDate ?? null);
+                                }}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
