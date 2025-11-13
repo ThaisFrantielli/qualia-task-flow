@@ -1,3 +1,4 @@
+// Re-export the stable Sidebar implementation while the original file is being cleaned.
 // @ts-nocheck
-// Temporary re-export to use the cleaned Sidebar while the original file is repaired.
+// Re-export the stable Sidebar implementation while the original file is being cleaned.
 export { default } from './SidebarFixed';
