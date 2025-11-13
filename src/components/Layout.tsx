@@ -2,7 +2,7 @@
 
 
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar'; 
+import Sidebar from './SidebarFixed'; 
 import NotificationCenter from './notifications/NotificationCenter'; 
 import { Toaster } from 'sonner';
 
