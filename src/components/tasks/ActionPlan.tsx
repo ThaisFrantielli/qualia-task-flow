@@ -23,6 +23,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Calendar as CalendarIcon, ListTodo, Edit, ArrowUp, ArrowRight, ArrowDown } from 'lucide-react';
+
+import { supabase } from '@/integrations/supabase/client';
+import { calculateNextDate } from '@/lib/recurrenceUtils';
+import { parseISODateSafe, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
 import SubtaskDetailSheet from './SubtaskDetailSheet';
 import SubtaskDeadline from './SubtaskDeadline';
 
@@ -104,6 +108,16 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
           <CardTitle className="flex items-center gap-2 text-lg">
             <ListTodo className="h-5 w-5" />
             Plano de Ação
+            <div className="ml-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="ml-2">Importar recorrência</Button>
+                </PopoverTrigger>
+                <PopoverContent side="right" className="w-80">
+                  <RecurrenceImporter taskId={taskId} add={add} />
+                </PopoverContent>
+              </Popover>
+            </div>
           </CardTitle>
         </CardHeader>
         
@@ -213,3 +227,103 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
 };
 
 export default ActionPlan;
+
+// Small helper component that fetches task recurrence and lets the user import occurrences as subtasks
+function RecurrenceImporter({ taskId, add }: { taskId: string; add: (s: any) => Promise<any> }) {
+  const [loading, setLoading] = React.useState(false);
+  const [parentTask, setParentTask] = React.useState<any | null>(null);
+  const [count, setCount] = React.useState<number>(5);
+  const [dates, setDates] = React.useState<string[]>([]);
+  const [pattern, setPattern] = React.useState<string | null>(null);
+  const [interval, setInterval] = React.useState<number>(1);
+  const [daysCsv, setDaysCsv] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data, error } = await supabase.from('tasks').select('*').eq('id', taskId).single();
+      if (error) return;
+      if (!mounted) return;
+      setParentTask(data);
+      setPattern(data?.recurrence_pattern ?? null);
+      setInterval(data?.recurrence_interval ?? 1);
+      setDaysCsv(data?.recurrence_days ?? null);
+    })();
+    return () => { mounted = false; };
+  }, [taskId]);
+
+  const generatePreview = React.useCallback(() => {
+    const out: string[] = [];
+    const start = parseISODateSafe(parentTask?.due_date) || new Date();
+    let current = start;
+    for (let i = 0; i < count; i++) {
+      const next = calculateNextDate(current, (pattern as any) || null, interval || 1, daysCsv as any);
+      if (!next) break;
+      out.push(dateToLocalDateOnlyISO(next));
+      current = next;
+    }
+    setDates(out);
+  }, [parentTask, count, pattern, interval, daysCsv]);
+
+  React.useEffect(() => {
+    if (!parentTask) return;
+    generatePreview();
+  }, [parentTask, count, pattern, interval, daysCsv, generatePreview]);
+
+  const handleImport = async () => {
+    if (!parentTask) return;
+    setLoading(true);
+    try {
+      for (const d of dates) {
+        await add({ task_id: taskId, title: `${parentTask.title} (recorrência)`, due_date: d, priority: parentTask.priority || 'medium' });
+      }
+      toast.success(`Importadas ${dates.length} ações ao plano`);
+    } catch (err: any) {
+      toast.error('Erro ao importar recorrências: ' + (err?.message || String(err)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {!parentTask && <div>Carregando tarefa...</div>}
+      {parentTask && (
+        <>
+          <div className="text-sm font-medium">Tarefa: {parentTask.title}</div>
+          <div className="space-y-2">
+            <label className="text-xs">Gerar próximas</label>
+            <input type="number" min={1} max={30} value={count} onChange={e => setCount(Math.max(1, parseInt(e.target.value || '1', 10)))} className="w-20 border rounded px-2 py-1" />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs">Padrão</label>
+            <select value={pattern || ''} onChange={e => setPattern(e.target.value || null)} className="w-full border rounded px-2 py-1">
+              <option value="">(usar padrão da tarefa)</option>
+              <option value="daily">Diária</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensal</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs">Intervalo</label>
+            <input type="number" min={1} value={interval} onChange={e => setInterval(Math.max(1, parseInt(e.target.value || '1', 10)))} className="w-24 border rounded px-2 py-1" />
+          </div>
+
+          <div>
+            <label className="text-xs">Preview</label>
+            <ul className="text-sm list-disc list-inside">
+              {dates.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => generatePreview()}>Atualizar</Button>
+            <Button size="sm" onClick={handleImport} disabled={loading || dates.length === 0}>{loading ? 'Importando...' : 'Importar como ações'}</Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
