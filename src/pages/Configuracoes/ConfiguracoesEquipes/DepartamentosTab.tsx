@@ -10,16 +10,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeams } from '@/hooks/useTeams';
 import { useToast } from '@/hooks/use-toast';
+import { useUsersContext } from '@/contexts/UsersContext';
 import { supabase } from '@/integrations/supabase/client';
 
 const DepartamentosTab: React.FC = () => {
   const { user } = useAuth();
   const { teams, loading: isLoading, refetch } = useTeams();
+  const { users } = useUsersContext();
   const { toast } = useToast();
   
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<any>(null);
+  const [teamMembersSelected, setTeamMembersSelected] = useState<string[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
   
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamDescription, setNewTeamDescription] = useState('');
@@ -90,11 +94,41 @@ const DepartamentosTab: React.FC = () => {
 
       if (error) throw error;
 
+      // Sincronizar membros da equipe (tabela team_members)
+      try {
+        const { data: existingData, error: fetchErr } = await supabase
+          .from('team_members')
+          .select('user_id')
+          .eq('team_id', editingTeam.id);
+
+        if (fetchErr) throw fetchErr;
+
+        const existing = (existingData || []).map((d: any) => d.user_id);
+
+        const toAdd = teamMembersSelected.filter(id => !existing.includes(id));
+        const toRemove = existing.filter(id => !teamMembersSelected.includes(id));
+
+        if (toRemove.length > 0) {
+          await supabase
+            .from('team_members')
+            .delete()
+            .eq('team_id', editingTeam.id)
+            .in('user_id', toRemove);
+        }
+
+        if (toAdd.length > 0) {
+          const inserts = toAdd.map((userId) => ({ team_id: editingTeam.id, user_id: userId }));
+          await supabase.from('team_members').insert(inserts);
+        }
+      } catch (syncErr) {
+        console.error('Erro ao sincronizar membros da equipe:', syncErr);
+      }
+
       toast({ 
         title: 'Sucesso!', 
         description: `Equipe "${editingTeam.name}" atualizada com sucesso.` 
       });
-      
+
       setIsEditDialogOpen(false);
       setEditingTeam(null);
       refetch();
@@ -142,6 +176,26 @@ const DepartamentosTab: React.FC = () => {
   const openEditDialog = (team: any) => {
     setEditingTeam({ ...team });
     setIsEditDialogOpen(true);
+    if (team?.id) fetchTeamMembers(team.id);
+  };
+
+  // Busca membros já vinculados à equipe (tabela `team_members` no Supabase)
+  const fetchTeamMembers = async (teamId: string) => {
+    setMembersLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', teamId);
+
+      if (error) throw error;
+
+      setTeamMembersSelected((data || []).map((d: any) => d.user_id));
+    } catch (err) {
+      console.error('Erro ao buscar membros da equipe:', err);
+    } finally {
+      setMembersLoading(false);
+    }
   };
 
   if (!user) {
@@ -372,6 +426,33 @@ const DepartamentosTab: React.FC = () => {
                   placeholder="Descreva o propósito e responsabilidades..."
                   rows={3}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Membros da Equipe (opcional)</Label>
+                {membersLoading ? (
+                  <p className="text-sm text-muted-foreground">Carregando membros...</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-auto">
+                    {users && users.length > 0 ? users.map(u => (
+                      <label key={u.id} className="flex items-center gap-2 p-2 border rounded">
+                        <input
+                          type="checkbox"
+                          checked={teamMembersSelected.includes(u.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTeamMembersSelected(prev => [...prev, u.id]);
+                            } else {
+                              setTeamMembersSelected(prev => prev.filter(id => id !== u.id));
+                            }
+                          }}
+                        />
+                        <span className="text-sm">{u.full_name || u.email}</span>
+                      </label>
+                    )) : (
+                      <p className="text-sm text-muted-foreground">Nenhum usuário disponível.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
