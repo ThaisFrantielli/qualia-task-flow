@@ -57,9 +57,10 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     cors: true,
+    // Use plain websocket (ws) and the dev server port for HMR in local dev.
     hmr: {
-      clientPort: 443,
-      protocol: 'wss',
+      protocol: 'ws',
+      clientPort: 8080,
     },
   },
 }))
