@@ -5,15 +5,15 @@ import { useTasks } from '@/hooks/useTasks';
 import { useTask } from '@/hooks/useTasks';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isValid } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTeams } from '@/hooks/useTeams';
 import { useAuth } from '@/contexts/AuthContext';
-import { dateInputToISO, isSameDateIgnoreTime, dateToLocalISO } from '@/lib/dateUtils';
+import { dateInputToISO, dateTimeInputToISO, isSameDateIgnoreTime, dateToLocalISO } from '@/lib/dateUtils';
 import { ptBR } from 'date-fns/locale';
 import { useProjects } from '@/hooks/useProjects';
 
@@ -21,7 +21,9 @@ const Calendar: React.FC = () => {
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
+  const [eventStartTime, setEventStartTime] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
+  const [eventEndTime, setEventEndTime] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -45,25 +47,30 @@ const Calendar: React.FC = () => {
   const handleAddEvent = async () => {
     if (!eventTitle || !eventDate) return;
     setIsAdding(true);
-    
+
     const eventData: any = {
       title: eventTitle,
-      start_date: dateInputToISO(eventDate),
       created_at: dateToLocalISO(new Date()),
     };
-    
-    if (eventEndDate) {
-      eventData.end_date = dateInputToISO(eventEndDate);
-    }
-    
+
+    // build start datetime using date + optional time (falls back to date-only)
+    const startIso = dateTimeInputToISO(eventDate, eventStartTime) || dateInputToISO(eventDate);
+    if (startIso) eventData.start_date = startIso;
+
+    // build end datetime if provided
+    const endIso = dateTimeInputToISO(eventEndDate, eventEndTime) || dateInputToISO(eventEndDate);
+    if (endIso) eventData.end_date = endIso;
+
     const { data, error } = await supabase.from('calendar_events').insert(eventData).select();
-    
+
     if (!error && data) {
       setCalendarEvents(prev => [...prev, data[0]]);
       setAddEventOpen(false);
       setEventTitle('');
       setEventDate('');
+      setEventStartTime('');
       setEventEndDate('');
+      setEventEndTime('');
     }
     setIsAdding(false);
   };
@@ -108,6 +115,17 @@ const Calendar: React.FC = () => {
     });
   };
 
+  const formatDateSafe = (value: any, fmt: string, opts?: any) => {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (!isValid(d)) return '';
+    try {
+      return format(d, fmt, opts);
+    } catch (e) {
+      return '';
+    }
+  };
+
   // Função para verificar se o dia está dentro do intervalo de um evento/tarefa
   const isDayInEventRange = (day: Date, item: any) => {
     if (!item.start_date || !item.end_date) return false;
@@ -130,6 +148,8 @@ const Calendar: React.FC = () => {
   // Handler para clicar em um dia vazio (criar tarefa rápida)
   const handleDayClick = (day: Date) => {
     setEventDate(format(day, 'yyyy-MM-dd'));
+    setEventStartTime('09:00');
+    setEventEndTime('');
     setAddEventOpen(true);
   };
 
@@ -367,12 +387,17 @@ const Calendar: React.FC = () => {
                             key={ev.id} 
                             className="group relative text-xs p-2 bg-green-100 text-green-800 rounded-md mb-1 hover:bg-green-200 transition-colors shadow-sm"
                           >
-                            <div className="flex items-center gap-1">
-                              <span className="font-semibold truncate">📅 {ev.title}</span>
+                            <div className="flex items-center gap-2 justify-between">
+                              <div className="flex items-center gap-1">
+                                <span className="font-semibold truncate">📅 {ev.title}</span>
+                                <span className="text-xs opacity-75">
+                                  {formatDateSafe(ev.start_date, 'HH:mm', { locale: ptBR }) || ''}
+                                </span>
+                              </div>
+                              <div className="text-xs opacity-75">
+                                {ev.end_date ? `até ${formatDateSafe(ev.end_date, 'd/M HH:mm', { locale: ptBR })}` : ''}
+                              </div>
                             </div>
-                            {ev.end_date && (
-                              <span className="text-xs opacity-75">até {format(new Date(ev.end_date), 'd/M', { locale: ptBR })}</span>
-                            )}
                           </div>
                         ))}
                         {/* Tarefas do dia */}
@@ -441,7 +466,10 @@ const Calendar: React.FC = () => {
                         <div key={ev.id} className="p-2 bg-green-50 rounded flex justify-between items-center">
                           <div>
                             <div className="font-medium">📅 {ev.title}</div>
-                            {ev.end_date && <div className="text-xs text-gray-600">até {format(new Date(ev.end_date), 'd MMM', { locale: ptBR })}</div>}
+                            <div className="text-xs text-gray-600">
+                              {formatDateSafe(ev.start_date, 'dd/MM HH:mm', { locale: ptBR })}
+                              {ev.end_date ? ` • até ${formatDateSafe(ev.end_date, 'dd/MM HH:mm', { locale: ptBR })}` : ''}
+                            </div>
                           </div>
                           <div>
                             <Button size="sm" variant="ghost" onClick={() => { /* open event */ }}>Ver</Button>
@@ -471,7 +499,10 @@ const Calendar: React.FC = () => {
       {/* Dialog para adicionar evento/lembrete */}
       <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
         <DialogContent>
-          <h2 className="text-lg font-bold mb-2">Adicionar Evento/Lembrete</h2>
+            <DialogHeader>
+              <DialogTitle>Adicionar Evento/Lembrete</DialogTitle>
+              <DialogDescription className="mb-2">Preencha título, data e horário do evento.</DialogDescription>
+            </DialogHeader>
           <Input
             value={eventTitle}
             onChange={e => setEventTitle(e.target.value)}
@@ -487,6 +518,14 @@ const Calendar: React.FC = () => {
                 onChange={e => setEventDate(e.target.value)}
               />
             </div>
+            <div className="w-[140px]">
+              <label className="text-sm text-gray-600 mb-1 block">Horário</label>
+              <Input
+                type="time"
+                value={eventStartTime}
+                onChange={e => setEventStartTime(e.target.value)}
+              />
+            </div>
             <div className="flex-1">
               <label className="text-sm text-gray-600 mb-1 block">Data Final (opcional)</label>
               <Input
@@ -494,6 +533,15 @@ const Calendar: React.FC = () => {
                 value={eventEndDate}
                 onChange={e => setEventEndDate(e.target.value)}
                 placeholder="Data final (opcional)"
+              />
+            </div>
+            <div className="w-[140px]">
+              <label className="text-sm text-gray-600 mb-1 block">Horário Final</label>
+              <Input
+                type="time"
+                value={eventEndTime}
+                onChange={e => setEventEndTime(e.target.value)}
+                placeholder="(opcional)"
               />
             </div>
           </div>
@@ -511,7 +559,10 @@ const Calendar: React.FC = () => {
       {/* Dialog de edição rápida da tarefa */}
       <Dialog open={!!editTask} onOpenChange={open => !open && setEditTask(null)}>
         <DialogContent>
-          <h2 className="text-lg font-bold mb-2">Editar Tarefa</h2>
+            <DialogHeader>
+              <DialogTitle>Editar Tarefa</DialogTitle>
+              <DialogDescription className="mb-2">Edite título e descrição da tarefa.</DialogDescription>
+            </DialogHeader>
           <Input
             value={editTitle}
             onChange={e => setEditTitle(e.target.value)}

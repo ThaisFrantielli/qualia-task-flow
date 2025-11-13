@@ -9,12 +9,33 @@ export function normalizeToLocalDate(d: Date | string | null): Date | null {
   return nd;
 }
 
+import { format } from 'date-fns';
+
 export function parseISODateSafe(iso: string | null | undefined): Date | null {
   if (!iso) return null;
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
 }
+
+/**
+ * Safe formatter wrapper around date-fns `format` that first validates the input.
+ * Returns empty string for invalid or missing dates.
+ */
+export const formatDateSafe = (
+  isoOrDate: string | Date | null | undefined,
+  fmt: string,
+  opts?: Record<string, unknown>
+) => {
+  if (!isoOrDate) return '';
+  const dt = typeof isoOrDate === 'string' ? parseISODateSafe(isoOrDate) : isoOrDate;
+  if (!dt) return '';
+  try {
+    return format(dt as Date, fmt, opts);
+  } catch (e) {
+    return '';
+  }
+};
 
 // returns ISO date string (yyyy-mm-dd) for DB date-only fields or comparisons
 export function dateToISODateOnly(d: Date | null): string | null {
@@ -51,11 +72,27 @@ export default {
  * @param dateString - String no formato YYYY-MM-DD
  * @returns ISO string com data local (YYYY-MM-DDTHH:mm:ss)
  */
-export const dateInputToISO = (dateString: string): string => {
-  if (!dateString) return '';
+export const dateInputToISO = (dateString: string | null | undefined): string | null => {
+  if (!dateString) return null;
   // Input type="date" retorna YYYY-MM-DD
   // Adicionar T00:00:00 para manter a data local
   return `${dateString}T00:00:00`;
+};
+
+/**
+ * Converte input date (YYYY-MM-DD) e input time (HH:mm or HH:mm:ss) para ISO local
+ * Retorna null se `dateString` for vazio/undefined
+ * @param dateString string no formato YYYY-MM-DD
+ * @param timeString string no formato HH:mm ou HH:mm:ss (opcional)
+ */
+export const dateTimeInputToISO = (dateString: string | null | undefined, timeString?: string | null | undefined): string | null => {
+  if (!dateString) return null;
+  let time = '00:00:00';
+  if (timeString) {
+    // aceita HH:mm ou HH:mm:ss
+    time = timeString.length === 5 ? `${timeString}:00` : timeString;
+  }
+  return `${dateString}T${time}`;
 };
 
 /**

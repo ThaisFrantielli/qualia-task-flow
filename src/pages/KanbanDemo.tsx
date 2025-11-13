@@ -3,6 +3,7 @@ import { useAtendimentosKanban } from "../hooks/useAtendimentosKanban";
 import { AnimatedKPICard } from "../components/AnimatedKPICard";
 import KanbanTaskCard from "../components/KanbanTaskCard";
 import { ClipboardDocumentListIcon, ExclamationTriangleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { formatDateSafe } from '@/lib/dateUtils';
 
 const kanbanColumns = [
   { key: "solicitacao", title: "Solicitação", color: "bg-blue-50 border-blue-200", border: "border-blue-300", header: "text-blue-700" },
@@ -28,7 +29,7 @@ export default function KanbanDemo() {
     id: a.id,
     cliente: a.client_name || "-",
     resumo: a.summary || undefined,
-    data: a.created_at ? new Date(a.created_at).toLocaleDateString() : "-",
+    data: a.created_at ? formatDateSafe(a.created_at, 'dd/MM/yyyy') : "-",
     status: getStatusKey(a.status as string),
     avatar: a.client_name ? a.client_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0,2) : "-",
     motivo: a.tipo_atendimento || "-",

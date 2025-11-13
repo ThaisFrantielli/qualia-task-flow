@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAtendimentos } from '@/hooks/useAtendimentos';
 import { supabase } from '@/integrations/supabase/client';
-import { dateToLocalISO } from '@/lib/dateUtils';
+import { dateToLocalISO, formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 import { Plus, Grid3X3, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import KanbanTaskCard from '../components/KanbanTaskCard';
@@ -48,7 +48,12 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
 
   // Badge de atrasados: considera atrasado se status não for 'Resolvido' e criado há mais de 3 dias
   const now = Date.now();
-  const atrasados = atendimentos.filter(at => at.status !== 'Resolvido' && (now - new Date(at.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000).length;
+  const atrasados = atendimentos.filter(at => {
+    if (at.status === 'Resolvido') return false;
+    const created = parseISODateSafe(at.created_at);
+    if (!created) return false;
+    return (now - created.getTime()) > 3 * 24 * 60 * 60 * 1000;
+  }).length;
 
   return (
     <div
@@ -81,7 +86,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
       </div>
 
       {/* Conteúdo da coluna */}
-      <div className="p-3 space-y-3 h-full overflow-y-auto">
+            <div className="p-3 space-y-3 h-full overflow-y-auto">
         {atendimentos.map((at) => (
           <div 
             key={at.id} 
@@ -91,7 +96,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
               id={at.id}
               cliente={at.cliente?.nome_fantasia || at.cliente?.razao_social || 'Cliente Desconhecido'}
               resumo={at.summary || undefined}
-              data={at.created_at ? new Date(at.created_at).toLocaleDateString('pt-BR') : '-'}
+              data={at.created_at ? formatDateSafe(at.created_at, 'dd/MM/yyyy') : '-'}
               motivo={at.reason || '-'}
               avatar={at.client_name ? at.client_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
               created_at={at.created_at}

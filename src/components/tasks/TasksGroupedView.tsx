@@ -1,6 +1,7 @@
 import React from 'react';
 import { Filter, FolderOpen, User as UserIcon } from 'lucide-react'; // Renomeado User para UserIcon para evitar conflito de nome
 import TaskCard from '../TaskCard';
+import { formatDateSafe } from '@/lib/dateUtils';
 import type { Task, User } from '@/types'; // Importado o tipo Task e User centralizados
 
 interface TasksGroupedViewProps {
@@ -20,7 +21,7 @@ const TasksGroupedView: React.FC<TasksGroupedViewProps> = ({
 }) => {
   const getGroupTitle = (key: string) => {
     switch (groupBy) {
-      case 'status':
+      case 'status': {
         const statusMap: Record<string, string> = {
           'todo': 'A Fazer',
           'progress': 'Em Andamento',
@@ -28,15 +29,18 @@ const TasksGroupedView: React.FC<TasksGroupedViewProps> = ({
           'late': 'Atrasado'
         };
         return statusMap[key] || key;
+      }
       // Adicionar casos para project e assignee se os títulos forem mapeados
-      case 'project':
+        case 'project': {
           // Pode buscar o nome do projeto se o key for o ID do projeto
           // Por enquanto, apenas retorna a chave
           return key;
-      case 'assignee':
+        }
+        case 'assignee': {
            // Buscar o nome do assignee usando availableAssignees
            const assignee = availableAssignees?.find(a => a.id === key);
            return assignee ? assignee.full_name || 'Não atribuído' : key; // Usa o nome completo ou a chave
+        }
       default:
         return key;
     }
@@ -82,7 +86,7 @@ const TasksGroupedView: React.FC<TasksGroupedViewProps> = ({
                         name: task.assignee_name || 'Não atribuído',
                         avatar: task.assignee_avatar || undefined
                       }}
-                      dueDate={task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR') : undefined}
+                      dueDate={task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : undefined}
                       subtasks={subtasksTotal > 0 ? { completed: subtasksCompleted, total: subtasksTotal } : undefined}
                       comments={0} // TODO: Fix when comments are properly loaded
                       attachments={0} // TODO: Fix when attachments are properly loaded

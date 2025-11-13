@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { ptBR } from 'date-fns/locale';
 import type { ChatMessage } from '@/types/api';
 import { cn } from '@/lib/utils';
@@ -41,9 +42,7 @@ export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
             </span>
           )}
           <time className="text-gray-500 text-xs">
-            {format(new Date(message.created_at), "HH:mm 'em' d 'de' MMM", {
-              locale: ptBR,
-            })}
+            {formatDateSafe(message.created_at, "HH:mm 'em' d 'de' MMM", { locale: ptBR })}
           </time>
         </div>
 

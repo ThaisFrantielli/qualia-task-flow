@@ -12,6 +12,7 @@ import SubtasksCascade from '@/components/projects/SubtasksCascade';
 import TaskDetailSheet from '@/components/tasks/TaskDetailSheet';
 import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
 import { Button } from '@/components/ui/button';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { EditProjectForm } from '@/components/EditProjectForm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -231,7 +232,7 @@ const ProjectDetailPage = () => {
                           <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
                         </td>
                         <td className="align-middle">
-                          <span className="text-xs text-muted-foreground">{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</span>
+                          <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
                         </td>
                       </tr>
                       {/* Subtarefas */}

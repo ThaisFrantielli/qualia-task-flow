@@ -3,10 +3,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar, PlayCircle, CheckCircle, Clock } from 'lucide-react';
-import { format, formatDistanceToNowStrict } from 'date-fns';
+import { format, formatDistanceToNowStrict, formatDistanceStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateSafe, parseISODateSafe, dateToLocalISO } from '@/lib/dateUtils';
 import { useTask } from '@/hooks/useTasks';
-import { dateToLocalISO } from '@/lib/dateUtils';
 import type { TaskWithDetails } from '@/types';
 import { toast } from 'sonner';
 
@@ -54,26 +54,27 @@ const TaskLifecyclePanel: React.FC<TaskLifecyclePanelProps> = ({ task, onUpdate 
   };
   
   const calculateDuration = () => {
-    if (!task.start_date || !task.end_date) return 'N/A';
-    return formatDistanceToNowStrict(new Date(task.start_date), { 
-      addSuffix: false, // para não mostrar "há 2 dias"
-      locale: ptBR,
-      unit: 'day' // pode ser 'hour', 'minute', etc.
-    });
+    const start = parseISODateSafe(task.start_date);
+    const end = parseISODateSafe(task.end_date);
+    if (!start) return 'N/A';
+    if (start && end) {
+      return formatDistanceStrict(start, end, { locale: ptBR });
+    }
+    return formatDistanceToNowStrict(start, { addSuffix: false, locale: ptBR });
   };
 
   return (
     <div className="bg-muted/50 p-4 rounded-lg">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
         {/* Criado em */}
-        <InfoItem icon={Clock} label="Criado em" value={format(new Date(task.created_at), 'dd/MM/yyyy')} />
+          <InfoItem icon={Clock} label="Criado em" value={formatDateSafe(task.created_at, 'dd/MM/yyyy')} />
         
         {/* Prazo */}
-        <InfoItem icon={Calendar} label="Prazo" value={task.due_date ? format(new Date(task.due_date), 'dd/MM/yyyy') : 'N/A'} />
+          <InfoItem icon={Calendar} label="Prazo" value={task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : 'N/A'} />
 
         {/* Iniciado */}
         {task.start_date ? (
-          <InfoItem icon={PlayCircle} label="Iniciado em" value={format(new Date(task.start_date), 'dd/MM/yy HH:mm')} color="text-blue-600" />
+          <InfoItem icon={PlayCircle} label="Iniciado em" value={formatDateSafe(task.start_date, 'dd/MM/yy HH:mm')} color="text-blue-600" />
         ) : (
           <Button variant="outline" size="sm" onClick={handleStartTask} disabled={isLoading || task.status === 'done'}>
             <PlayCircle className="mr-2 h-4 w-4" /> Iniciar Tarefa
@@ -82,7 +83,7 @@ const TaskLifecyclePanel: React.FC<TaskLifecyclePanelProps> = ({ task, onUpdate 
 
         {/* Concluído */}
         {task.end_date ? (
-          <InfoItem icon={CheckCircle} label="Concluído em" value={format(new Date(task.end_date), 'dd/MM/yy HH:mm')} color="text-green-600" />
+          <InfoItem icon={CheckCircle} label="Concluído em" value={formatDateSafe(task.end_date, 'dd/MM/yy HH:mm')} color="text-green-600" />
         ) : (
           <Button variant="outline" size="sm" onClick={handleCompleteTask} disabled={isLoading || task.status === 'done' || !task.start_date}>
             <CheckCircle className="mr-2 h-4 w-4" /> Concluir Tarefa
