@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { dateToLocalISO, dateToLocalDateOnlyISO, parseISODateSafe } from '@/lib/dateUtils';
+import { calculateNextDate, generateNextOccurrences } from '@/lib/recurrenceUtils';
 import { filterTasksByHierarchy } from '@/lib/hierarchyUtils';
 import { toast } from 'sonner';
 import type { 
@@ -81,9 +82,28 @@ const fetchTaskById = async (taskId: string): Promise<TaskWithDetails | null> =>
 };
 
 const createTaskFn = async (taskData: TaskInsert): Promise<Task> => {
-    const { data, error } = await supabase.from('tasks').insert(taskData).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+        const { data, error } = await supabase.from('tasks').insert(taskData).select().single();
+        if (error) throw new Error(error.message);
+        const newTask = data as Task;
+
+        // If created task is recurring, generate initial occurrences (window of future tasks)
+        try {
+            if (taskData.is_recurring) {
+                // fetch freshly created task with details to pass to generator
+                const { data: fetched } = await supabase.from('tasks').select('*').eq('id', newTask.id).single();
+                if (fetched) {
+                    const occurrences = generateNextOccurrences(fetched as TaskWithDetails, 5);
+                    if (occurrences.length > 0) {
+                        await supabase.from('tasks').insert(occurrences);
+                    }
+                }
+            }
+        } catch (e) {
+            // don't fail creation if occurrences generation fails, just log
+            console.error('Erro gerando ocorrências iniciais:', e);
+        }
+
+        return newTask;
 };
 
 export function useTasks(filters: Partial<AllTaskFilters> = {}) {
@@ -158,20 +178,12 @@ export function useTask(taskId: string) {
 
             // Lógica de recorrência: criar próxima instância se for recorrente e concluída
             if (typedData.is_recurring && (updates.status === 'done' || updates.status === 'late')) {
-                // Calcular próxima data usando parseISODateSafe para evitar problemas de timezone/valores inválidos
+                const parsedDue = parseISODateSafe(typedData.due_date as any);
                 let nextDate: Date | null = null;
-                if (typedData.due_date) {
-                    const parsedDue = parseISODateSafe(typedData.due_date as any);
-                    if (parsedDue) {
-                        if (typedData.recurrence_pattern === 'weekly') {
-                            nextDate = new Date(parsedDue);
-                            nextDate.setDate(nextDate.getDate() + 7);
-                        } else if (typedData.recurrence_pattern === 'monthly') {
-                            nextDate = new Date(parsedDue);
-                            nextDate.setMonth(nextDate.getMonth() + 1);
-                        }
-                    }
+                if (parsedDue) {
+                    nextDate = calculateNextDate(parsedDue, typedData.recurrence_pattern as any, (typedData.recurrence_interval as any) || 1, typedData.recurrence_days);
                 }
+
                 const recurrenceEndDate = parseISODateSafe(typedData.recurrence_end as any);
                 if (nextDate && (!recurrenceEndDate || nextDate <= recurrenceEndDate)) {
                     await supabase.from('tasks').insert({
@@ -180,10 +192,7 @@ export function useTask(taskId: string) {
                         status: 'todo',
                         priority: typedData.priority,
                         due_date: dateToLocalDateOnlyISO(nextDate),
-                        is_recurring: true,
-                        recurrence_pattern: typedData.recurrence_pattern,
-                        recurrence_days: typedData.recurrence_days,
-                        recurrence_end: typedData.recurrence_end,
+                        is_recurring: false,
                         parent_task_id: typedData.id,
                         project_id: typedData.project_id,
                         assignee_id: typedData.assignee_id,
