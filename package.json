@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:all": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\"",
-    "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\""
+    "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\"",
+    "db:sync": "bash scripts/sync_supabase.sh"
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.19",
