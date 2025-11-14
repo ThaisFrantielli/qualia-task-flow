@@ -22,6 +22,8 @@ export type Permissoes = {
   tasks?: boolean;
   crm?: boolean;
   team?: boolean;
+  // flag administrativa para controle de acesso global
+  is_admin?: boolean;
 };
 
 // --- Tipos de CRM, Clientes e Atendimento ---

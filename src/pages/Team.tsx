@@ -20,6 +20,8 @@ export interface Permissoes {
   team: boolean;
   settings: boolean;
   crm: boolean;
+  // flag administrativa para controle de acesso global
+  is_admin?: boolean;
 }
 
 export interface TeamMember {
