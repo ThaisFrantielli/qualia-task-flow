@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet';
 import { Calendar } from '@/components/ui/calendar';
 
 import TaskAttachments from '../task/TaskAttachments';
@@ -44,6 +45,16 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
   const [isEditing, setIsEditing] = useState(false);
   const [editedTask, setEditedTask] = useState<TaskWithDetails>(task);
   const [isSaving, setIsSaving] = useState(false);
+  const [recurrenceSheetOpen, setRecurrenceSheetOpen] = useState(false);
+
+  const handleSaveAndClose = async () => {
+    try {
+      await handleSave();
+      setRecurrenceSheetOpen(false);
+    } catch (e) {
+      // handleSave already shows toast on error
+    }
+  };
   const currentPriorityLabel = getPriorityLabel(task.priority);
 
   useEffect(() => {
@@ -174,27 +185,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                       </div>
                       {!!editedTask.is_recurring && (
                         <div className="mt-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" size="sm">Configurar recorrência</Button>
-                            </PopoverTrigger>
-                            <PopoverContent side="right" className="w-96">
-                              <RecurrenceConfig
-                                value={{
-                                  pattern: (editedTask.recurrence_pattern as any) || null,
-                                  interval: (editedTask.recurrence_interval as any) || 1,
-                                  days: editedTask.recurrence_days ? editedTask.recurrence_days.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n)) : [],
-                                  endDate: editedTask.recurrence_end ?? null,
-                                }}
-                                onChange={(v: any) => {
-                                  handleInputChange('recurrence_pattern', v.pattern ?? null);
-                                  handleInputChange('recurrence_interval', v.interval ?? 1);
-                                  handleInputChange('recurrence_days', Array.isArray(v.days) ? v.days.join(',') : null);
-                                  handleInputChange('recurrence_end', v.endDate ?? null);
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
+                          <Button variant="outline" size="sm" onClick={() => setRecurrenceSheetOpen(true)}>Configurar recorrência</Button>
                         </div>
                       )}
                     </div>
@@ -332,27 +323,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                       </Popover>
                       {editedTask.is_recurring && (
                         <div className="mt-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="ghost" size="sm">🔁 Recorrência</Button>
-                            </PopoverTrigger>
-                            <PopoverContent side="right" className="w-96">
-                              <RecurrenceConfig
-                                value={{
-                                  pattern: (editedTask.recurrence_pattern as any) || null,
-                                  interval: (editedTask.recurrence_interval as any) || 1,
-                                  days: editedTask.recurrence_days ? editedTask.recurrence_days.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n)) : [],
-                                  endDate: editedTask.recurrence_end ?? null,
-                                }}
-                                onChange={(v: any) => {
-                                  handleInputChange('recurrence_pattern', v.pattern ?? null);
-                                  handleInputChange('recurrence_interval', v.interval ?? 1);
-                                  handleInputChange('recurrence_days', Array.isArray(v.days) ? v.days.join(',') : null);
-                                  handleInputChange('recurrence_end', v.endDate ?? null);
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
+                          <Button variant="ghost" size="sm" onClick={() => setRecurrenceSheetOpen(true)}>🔁 Recorrência</Button>
                         </div>
                       )}
                     </div>
@@ -368,6 +339,36 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
           <TabsContent value="history"><TaskHistory taskId={task.id} /></TabsContent>
         </div>
       </Tabs>
+      <Sheet open={recurrenceSheetOpen} onOpenChange={setRecurrenceSheetOpen}>
+        <SheetContent side="right" className="w-[400px] sm:w-[540px] flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Configurar recorrência</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4">
+            <RecurrenceConfig
+              value={{
+                pattern: (editedTask.recurrence_pattern as any) || null,
+                interval: (editedTask.recurrence_interval as any) || 1,
+                days: editedTask.recurrence_days ? editedTask.recurrence_days.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n)) : [],
+                endDate: editedTask.recurrence_end ?? null,
+              }}
+              onChange={(v: any) => {
+                handleInputChange('recurrence_pattern', v.pattern ?? null);
+                handleInputChange('recurrence_interval', v.interval ?? 1);
+                handleInputChange('recurrence_days', Array.isArray(v.days) ? v.days.join(',') : null);
+                handleInputChange('recurrence_end', v.endDate ?? null);
+              }}
+            />
+          </div>
+          <div className="mt-auto pt-4 border-t flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setRecurrenceSheetOpen(false)}>Fechar</Button>
+            <Button size="sm" onClick={handleSaveAndClose} disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Salvar e fechar
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
