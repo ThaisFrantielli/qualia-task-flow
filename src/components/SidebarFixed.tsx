@@ -176,49 +176,7 @@ const SidebarFixed: React.FC = () => {
             );
           })}
 
-          {!isCollapsed && (
-            <div>
-              <h2 className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-[#C7C9D9]">PROJETOS</h2>
-              <ul className="space-y-1">
-                <li>
-                  <div>
-                    <button
-                      onClick={() => setIsProjectsOpen(prev => !prev)}
-                      className={`w-full flex items-center justify-between space-x-3 px-4 py-2.5 rounded-lg transition-all ${
-                        location.pathname === '/projects' ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <FolderOpen className="w-5 h-5" />
-                        <span>Visão Geral</span>
-                      </div>
-                      <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isProjectsOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {isProjectsOpen && (
-                      <ul className="pt-1 pl-6 pr-2 space-y-1">
-                        {projectList.map((project: any) => (
-                          <li key={project.id}>
-                            <NavLink
-                              to={`/projects/${project.id}`}
-                              className={({ isActive }) =>
-                                `flex items-center w-full gap-2 px-4 py-2 rounded-md text-sm ${
-                                  isActive ? 'bg-[#FF8C00] text-white' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
-                                }`
-                              }
-                            >
-                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#808080' }} />
-                              <span className="truncate">{project.name}</span>
-                            </NavLink>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </li>
-              </ul>
-            </div>
-          )}
+          {/* Projetos link removed: kept central/general link elsewhere */}
         </div>
       </nav>
 
