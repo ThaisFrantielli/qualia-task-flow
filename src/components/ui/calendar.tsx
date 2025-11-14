@@ -10,7 +10,7 @@ import type { EventClickArg, DateSelectArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 
 // utilitários / componentes do projeto (mantidos)
@@ -242,7 +242,7 @@ export default function CalendarApp(): JSX.Element {
   // reclamar de colunas faltantes no schema cache (PGRST204), remove essas colunas da
   // seleção e re-tenta até estabilizar (ou esgotar as colunas esperadas).
   async function fetchCalendarEvents(): Promise<any[] | null> {
-    const expectedCols = ['id','title','start_date','end_date','color','description','owner_id','user_id','team_id','is_private','task_id','created_at'];
+      const expectedCols = ['id','title','start_date','end_date','color','description','owner_id','team_id','is_private','task_id','created_at'];
     let cols = [...expectedCols];
     // tentativa inicial com '*'
     try {
@@ -319,8 +319,7 @@ export default function CalendarApp(): JSX.Element {
           color: d.color || '#7C3AED',
           description: d.description || undefined,
           // campos opcionais que podem existir na tabela para suportar políticas de visibilidade
-          owner_id: d.owner_id || d.user_id || null,
-          user_id: d.user_id || null,
+          owner_id: d.owner_id || null,
           team_id: d.team_id || null,
           is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
           task_id: d.task_id || null,
@@ -340,7 +339,7 @@ export default function CalendarApp(): JSX.Element {
     if (!user) return false;
 
     // proprietário / criador
-    if (item.owner_id === user.id || item.user_id === user.id) return true;
+    if (item.owner_id === user.id) return true;
 
     // se for tarefa/objeto com fields de assignee
     if (item.assignee_id === user.id) return true;
@@ -392,7 +391,6 @@ export default function CalendarApp(): JSX.Element {
         description: t.description || undefined,
         // campos de permissão referentes à task
         owner_id: t.user_id || null,
-        user_id: t.user_id || null,
         assignee_id: t.assignee_id || (t.assignee && t.assignee.id) || null,
         team_id: t.project && (t.project as any).team_id || null,
         task_id: t.id,
@@ -508,8 +506,7 @@ export default function CalendarApp(): JSX.Element {
             title: data.title,
             start: data.start_date,
             end: data.end_date || undefined,
-            owner_id: data.owner_id || data.user_id || null,
-            user_id: data.user_id || null,
+            owner_id: data.owner_id || null,
             team_id: data.team_id || null,
             is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null,
           };
@@ -558,7 +555,6 @@ export default function CalendarApp(): JSX.Element {
             description: formDescription || null,
             color: formColor || null,
             owner_id: user?.id || null,
-            user_id: user?.id || null,
             created_at: new Date().toISOString(),
           };
 
@@ -581,18 +577,17 @@ export default function CalendarApp(): JSX.Element {
                     const reData = await fetchCalendarEvents();
                     if (reData) {
                       setCalendarEvents((reData || []).map((d: any) => ({
-                        id: `ce-${d.id}`,
-                        title: d.title,
-                        start: d.start_date,
-                        end: d.end_date || undefined,
-                        color: d.color || '#7C3AED',
-                        description: d.description || undefined,
-                        owner_id: d.owner_id || d.user_id || null,
-                        user_id: d.user_id || null,
-                        team_id: d.team_id || null,
-                        is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
-                        task_id: d.task_id || null,
-                      })));
+                          id: `ce-${d.id}`,
+                          title: d.title,
+                          start: d.start_date,
+                          end: d.end_date || undefined,
+                          color: d.color || '#7C3AED',
+                          description: d.description || undefined,
+                          owner_id: d.owner_id || null,
+                          team_id: d.team_id || null,
+                          is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
+                          task_id: d.task_id || null,
+                        })));
                       toast.success('Evento criado');
                     } else {
                       console.warn('Inserido mas não foi possível recarregar eventos');
@@ -607,7 +602,7 @@ export default function CalendarApp(): JSX.Element {
                 toast.error(error.message || JSON.stringify(error));
               }
             } else if (data) {
-              setCalendarEvents(prev => [{ id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null }, ...prev]);
+              setCalendarEvents(prev => [{ id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null }, ...prev]);
               toast.success('Evento criado');
             }
           } catch (err: any) {
@@ -618,7 +613,8 @@ export default function CalendarApp(): JSX.Element {
           // criar tarefa via hook createTask
           const dueDateIso = formStart ? datetimeLocalToIso(formStart) : dateToLocalDateOnlyISO(new Date());
           try {
-            await createTask({ title: formTitle, due_date: dueDateIso, status: 'A fazer' } as any);
+            // Use canonical status keys expected by the backend ('todo' / 'progress' / 'done')
+            await createTask({ title: formTitle, due_date: dueDateIso, status: 'todo' } as any);
             toast.success('Tarefa criada');
           } catch (err) {
             console.error('Erro criando tarefa:', err);
@@ -654,8 +650,7 @@ export default function CalendarApp(): JSX.Element {
                       end: d.end_date || undefined,
                       color: d.color || '#7C3AED',
                       description: d.description || undefined,
-                      owner_id: d.owner_id || d.user_id || null,
-                      user_id: d.user_id || null,
+                      owner_id: d.owner_id || null,
                       team_id: d.team_id || null,
                       is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
                       task_id: d.task_id || null,
@@ -674,7 +669,7 @@ export default function CalendarApp(): JSX.Element {
               toast.error(error.message || JSON.stringify(error));
             }
           } else if (data) {
-            setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
+            setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
             toast.success('Evento atualizado');
           }
         } catch (err: any) {
@@ -762,8 +757,7 @@ export default function CalendarApp(): JSX.Element {
             title: data.title,
             start: data.start_date,
             end: data.end_date || undefined,
-            owner_id: data.owner_id || data.user_id || null,
-            user_id: data.user_id || null,
+            owner_id: data.owner_id || null,
             team_id: data.team_id || null,
             is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null,
           };
@@ -891,17 +885,31 @@ export default function CalendarApp(): JSX.Element {
           <h3 className="text-sm font-medium mb-2">Eventos do dia</h3>
           <ul className="space-y-3" role="list" aria-live="polite">
             {eventsForDay.length === 0 && <li className="text-sm text-muted-foreground">Nenhum evento</li>}
-            {eventsForDay.map(ev => (
-              <li key={ev.id} onClick={() => { try { _openEditById(ev.id); } catch {} }} role="button" tabIndex={0} className="bg-white p-2 rounded-md flex items-start gap-2 shadow-sm">
-                <div className="w-2 h-8 rounded" style={{ background: ev.color }} aria-hidden />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{ev.title}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {new Date(ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {ev.description ? `• ${ev.description}` : ''}
+              {eventsForDay.map(ev => (
+                <li key={ev.id} onClick={() => { try { _openEditById(ev.id); } catch {} }} role="button" tabIndex={0} className="bg-white p-2 rounded-md flex items-start gap-2 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-8 rounded" style={{ background: ev.color }} aria-hidden />
                   </div>
-                </div>
-              </li>
-            ))}
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    {/* subtle icon: calendar for calendar_events (ce-), check for tasks, dot for sample */}
+                    <span className="flex-shrink-0">
+                      {String(ev.id).startsWith('ce-') ? (
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground opacity-70" />
+                      ) : String(ev.id).startsWith('s-') ? (
+                        <span className="inline-block h-2 w-2 bg-muted-foreground rounded-full opacity-60" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 text-muted-foreground opacity-70" />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{ev.title}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {new Date(ev.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {ev.description ? `• ${ev.description}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              ))}
           </ul>
         </div>
       </aside>
