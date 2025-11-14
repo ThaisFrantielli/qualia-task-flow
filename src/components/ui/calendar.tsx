@@ -10,7 +10,7 @@ import type { EventClickArg, DateSelectArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 
 // utilitários / componentes do projeto (mantidos)
@@ -35,12 +35,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
+// dropdown-menu imports removed because not used in this file
 
 // -------------------- Tipos --------------------
 type AppEvent = {
@@ -61,7 +56,13 @@ type AppEvent = {
 // -------------------- Micro-componentes (no mesmo arquivo para facilitar copy/paste) --------------------
 
 // Calendar mini (DayPicker) - memoizado
-export type CalendarProps = React.ComponentProps<typeof DayPicker>;
+// Use a slightly relaxed type for onSelect to avoid incompatibilities
+export type CalendarProps = Omit<React.ComponentProps<typeof DayPicker>, 'onSelect'> & {
+  // Back-compat: accept either `onSelect` (legacy callers) or `onDaySelect`.
+  // Keep types permissive to avoid conflicts with other libs that expect different signatures.
+  onDaySelect?: (selected: Date | Date[] | undefined) => void;
+  onSelect?: (selected: Date | Date[] | undefined) => void;
+};
 const MiniCalendar = React.memo(function MiniCalendar({
   className,
   classNames,
@@ -72,6 +73,7 @@ const MiniCalendar = React.memo(function MiniCalendar({
     <DayPicker
       locale={ptBR}
       showOutsideDays={showOutsideDays}
+      mode={'single' as any}
       className={cn('p-3', className)}
       classNames={{
         months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
@@ -100,7 +102,26 @@ const MiniCalendar = React.memo(function MiniCalendar({
         IconLeft: () => <ChevronLeft className="h-4 w-4" />,
         IconRight: () => <ChevronRight className="h-4 w-4" />,
       }}
-      {...props}
+      onDayClick={(day: Date | undefined, _modifiers: any, _e?: any) => {
+        // Encaminha cliques de dia para o onDaySelect provido pelo pai
+        try {
+          const cb = (props as any).onDaySelect;
+          if (cb) cb(day);
+        } catch {
+          // ignore
+        }
+      }}
+      onSelect={(sel: Date | Date[] | undefined) => {
+        try {
+          const cb = (props as any).onDaySelect;
+          if (cb) cb(sel);
+          const legacy = (props as any).onSelect as ((s: Date | Date[] | undefined) => void) | undefined;
+          if (legacy) legacy(sel);
+        } catch {
+          // ignore
+        }
+      }}
+      {...(props as any)}
     />
   );
 });
@@ -115,10 +136,12 @@ const EventCalendar = React.memo(
       events,
       onSelectRange,
       onEventClick,
+        onDatesSet,
     }: {
       events: AppEvent[];
       onSelectRange: (arg: DateSelectArg) => void;
       onEventClick: (arg: EventClickArg) => void;
+        onDatesSet?: (arg: any) => void;
     },
     ref: any
   ) {
@@ -139,8 +162,10 @@ const EventCalendar = React.memo(
         locale="pt-br"
         headerToolbar={false} // header customizado externamente
         buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }}
-        slotMinTime="06:00:00"
-        slotMaxTime="20:00:00"
+        // Render full 24h day but scroll initially to 06:00 so user sees daytime hours
+        slotMinTime="00:00:00"
+        slotMaxTime="24:00:00"
+        scrollTime="06:00:00"
         allDaySlot={false}
         editable={true}
         selectable={true}
@@ -149,6 +174,7 @@ const EventCalendar = React.memo(
         nowIndicator
         height="auto"
         select={onSelectRange}
+        datesSet={onDatesSet}
         dateClick={(arg) => {
           try {
             onSelectRange({ start: arg.date, end: arg.date, startStr: arg.dateStr, endStr: arg.dateStr, jsEvent: (arg as any).jsEvent } as any as DateSelectArg);
@@ -157,7 +183,9 @@ const EventCalendar = React.memo(
           }
         }}
         eventClick={onEventClick}
-        eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: false }}
+        // Use 24-hour formatting for event times and slot labels
+        eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+        slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
         eventDisplay="block"
         expandRows
       />
@@ -195,9 +223,75 @@ export default function CalendarApp(): JSX.Element {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProject, setFilterProject] = useState<string>('all');
   const [filterTeam, setFilterTeam] = useState<string>('all');
+  const [calendarViewType, setCalendarViewType] = useState<string | null>(null);
+  const [calendarCurrentDate, setCalendarCurrentDate] = useState<Date | null>(null);
 
   const calendarRef = useRef<any>(null);
 
+  const handleDatesSet = useCallback((arg: any) => {
+    try {
+      setCalendarViewType(arg.view?.type || null);
+      // arg.start é o range start; para day view isso é a data do dia
+      setCalendarCurrentDate(arg.start ? new Date(arg.start) : null);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Helper robusto para carregar calendar_events: tenta `select('*')` e, se o PostgREST
+  // reclamar de colunas faltantes no schema cache (PGRST204), remove essas colunas da
+  // seleção e re-tenta até estabilizar (ou esgotar as colunas esperadas).
+  async function fetchCalendarEvents(): Promise<any[] | null> {
+    const expectedCols = ['id','title','start_date','end_date','color','description','owner_id','user_id','team_id','is_private','task_id','created_at'];
+    let cols = [...expectedCols];
+    // tentativa inicial com '*'
+    try {
+      const res = await supabase.from('calendar_events').select('*');
+      if (res.error) throw res.error;
+      return res.data || [];
+    } catch (err: any) {
+      console.warn('fetchCalendarEvents: select(*) falhou, tentando seleção adaptativa:', err?.message || err);
+      // Se for erro do tipo PGRST204, tentar detectar a coluna reportada e remover da lista
+      let lastError: any = err;
+      // loop de tentativas removendo colunas até funcionar ou até não sobrar colunas
+      while (cols.length > 0) {
+        // parse possível coluna faltante da mensagem
+        const msg = lastError?.message || String(lastError || '');
+        const m = msg.match(/Could not find the '([^']+)' column/);
+        if (m && m[1]) {
+          const missing = m[1];
+          cols = cols.filter(c => c !== missing);
+        }
+        try {
+          const sel = cols.join(',');
+          const r = await supabase.from('calendar_events').select(sel);
+          if (r.error) throw r.error;
+          return r.data || [];
+        } catch (e: any) {
+          lastError = e;
+          // se o novo erro não for PGRST204, sai e retorna null
+          if (e?.code !== 'PGRST204') break;
+          // caso seja PGRST204, loop continuará removendo colunas mencionadas
+        }
+      }
+      console.error('fetchCalendarEvents: falha ao carregar calendar_events:', lastError);
+      return null;
+    }
+  }
+
+  // Busca um único evento por id com fallback para usar fetchCalendarEvents
+  async function fetchSingleEvent(id: string): Promise<any | null> {
+    try {
+      const res = await supabase.from('calendar_events').select('*').eq('id', id).single();
+      if (res.error) throw res.error;
+      return res.data || null;
+    } catch (err: any) {
+      console.warn('fetchSingleEvent: select(*) falhou, tentando recarregar lista completa:', err?.message || err);
+      const all = await fetchCalendarEvents();
+      if (!all) return null;
+      return (all || []).find((d: any) => String(d.id) === String(id)) || null;
+    }
+  }
   // Modal / form state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
@@ -214,12 +308,9 @@ export default function CalendarApp(): JSX.Element {
     let mounted = true;
     (async () => {
       try {
-        const { data, error } = await supabase.from('calendar_events').select('*');
-        if (error) {
-          console.error('Erro ao carregar calendar_events:', error);
-          return;
-        }
+        const data = await fetchCalendarEvents();
         if (!mounted) return;
+        if (!data) return;
         setCalendarEvents((data || []).map((d: any) => ({
           id: `ce-${d.id}`,
           title: d.title,
@@ -405,9 +496,8 @@ export default function CalendarApp(): JSX.Element {
     if (id.startsWith('ce-')) {
       const realId = id.replace('ce-', '');
       try {
-        const { data, error } = await supabase.from('calendar_events').select('*').eq('id', realId).single();
-        if (error) {
-          console.error('Erro buscando calendar_event:', error);
+        const data = await fetchSingleEvent(realId);
+        if (!data) {
           toast.error('Não foi possível carregar o evento');
           return;
         }
@@ -451,24 +541,78 @@ export default function CalendarApp(): JSX.Element {
     try {
       if (modalMode === 'create') {
         if (createChoice === 'event') {
+          // Validações básicas para evitar requests inválidos ao Supabase
+          if (!formTitle || !formTitle.trim()) {
+            toast.error('Informe um título para o evento');
+            return;
+          }
+          if (!formStart) {
+            toast.error('Informe a data/hora de início do evento');
+            return;
+          }
+
           const payload: any = {
-            title: formTitle,
+            title: formTitle.trim(),
             start_date: datetimeLocalToIso(formStart) || null,
             end_date: formEnd ? datetimeLocalToIso(formEnd) : null,
             description: formDescription || null,
             color: formColor || null,
-            // atribuir o usuário atual como owner quando possível
             owner_id: user?.id || null,
             user_id: user?.id || null,
             created_at: new Date().toISOString(),
           };
-          const { data, error } = await supabase.from('calendar_events').insert(payload).select().single();
-          if (error) {
-            console.error('Erro criando calendar_event:', error);
-            toast.error('Erro ao criar evento');
-          } else if (data) {
-            setCalendarEvents(prev => [{ id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null }, ...prev]);
-            toast.success('Evento criado');
+
+          try {
+            // Tenta inserir e retornar o registro. Alguns setups do PostgREST/Supabase podem
+            // falhar no `select()` se a coluna não existir no cache do schema (PGRST204).
+            const { data, error } = await supabase.from('calendar_events').insert(payload).select().single();
+            if (error) {
+              // Se o erro for relacionado ao schema cache (coluna não encontrada), refazemos
+              // a inserção sem usar `.select()` e então re-fetch dos eventos para sincronizar.
+              console.error('Erro criando calendar_event:', error);
+              if (error.code === 'PGRST204') {
+                try {
+                  const ins = await supabase.from('calendar_events').insert(payload);
+                  if (ins.error) {
+                    console.error('Erro secundário criando calendar_event (sem select):', ins.error);
+                    toast.error(ins.error.message || JSON.stringify(ins.error));
+                    } else {
+                      // Recarrega a lista completa de events para manter o estado consistente
+                    const reData = await fetchCalendarEvents();
+                    if (reData) {
+                      setCalendarEvents((reData || []).map((d: any) => ({
+                        id: `ce-${d.id}`,
+                        title: d.title,
+                        start: d.start_date,
+                        end: d.end_date || undefined,
+                        color: d.color || '#7C3AED',
+                        description: d.description || undefined,
+                        owner_id: d.owner_id || d.user_id || null,
+                        user_id: d.user_id || null,
+                        team_id: d.team_id || null,
+                        is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
+                        task_id: d.task_id || null,
+                      })));
+                      toast.success('Evento criado');
+                    } else {
+                      console.warn('Inserido mas não foi possível recarregar eventos');
+                      toast.success('Evento criado (recarregamento falhou)');
+                    }
+                  }
+                } catch (err: any) {
+                  console.error('Exceção secundária criando calendar_event (sem select):', err);
+                  toast.error(err?.message || String(err));
+                }
+              } else {
+                toast.error(error.message || JSON.stringify(error));
+              }
+            } else if (data) {
+              setCalendarEvents(prev => [{ id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null }, ...prev]);
+              toast.success('Evento criado');
+            }
+          } catch (err: any) {
+            console.error('Exceção criando calendar_event:', err);
+            toast.error(err?.message || String(err));
           }
         } else {
           // criar tarefa via hook createTask
@@ -490,13 +634,52 @@ export default function CalendarApp(): JSX.Element {
           description: formDescription || null,
           color: formColor || null,
         };
-        const { data, error } = await supabase.from('calendar_events').update(updates).eq('id', realId).select().single();
-        if (error) {
-          console.error('Erro atualizando calendar_event:', error);
-          toast.error('Erro ao atualizar evento');
-        } else if (data) {
-          setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
-          toast.success('Evento atualizado');
+        try {
+          const { data, error } = await supabase.from('calendar_events').update(updates).eq('id', realId).select().single();
+          if (error) {
+            console.error('Erro atualizando calendar_event:', error);
+            if (error.code === 'PGRST204') {
+              try {
+                const up = await supabase.from('calendar_events').update(updates).eq('id', realId);
+                if (up.error) {
+                  console.error('Erro secundário atualizando calendar_event (sem select):', up.error);
+                  toast.error(up.error.message || JSON.stringify(up.error));
+                } else {
+                  const reData = await fetchCalendarEvents();
+                  if (reData) {
+                    setCalendarEvents((reData || []).map((d: any) => ({
+                      id: `ce-${d.id}`,
+                      title: d.title,
+                      start: d.start_date,
+                      end: d.end_date || undefined,
+                      color: d.color || '#7C3AED',
+                      description: d.description || undefined,
+                      owner_id: d.owner_id || d.user_id || null,
+                      user_id: d.user_id || null,
+                      team_id: d.team_id || null,
+                      is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
+                      task_id: d.task_id || null,
+                    })));
+                    toast.success('Evento atualizado');
+                  } else {
+                    console.warn('Atualizado mas não foi possível recarregar eventos');
+                    toast.success('Evento atualizado (recarregamento falhou)');
+                  }
+                }
+              } catch (err: any) {
+                console.error('Exceção secundária atualizando calendar_event (sem select):', err);
+                toast.error(err?.message || String(err));
+              }
+            } else {
+              toast.error(error.message || JSON.stringify(error));
+            }
+          } else if (data) {
+            setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
+            toast.success('Evento atualizado');
+          }
+        } catch (err: any) {
+          console.error('Exceção atualizando calendar_event:', err);
+          toast.error(err?.message || String(err));
         }
       }
     } finally {
@@ -550,7 +733,7 @@ export default function CalendarApp(): JSX.Element {
   }, [selectedDate, events]);
 
   // Helper: abre/edita/navega conforme o id do evento (ce- = calendar_events, s- = sample, else = task)
-  const openEditById = useCallback(async (id: string) => {
+  const _openEditById = useCallback(async (id: string) => {
     if (!id) return;
     if (id.startsWith('s-')) {
       const realId = id.replace('s-', '');
@@ -568,9 +751,8 @@ export default function CalendarApp(): JSX.Element {
     if (id.startsWith('ce-')) {
       const realId = id.replace('ce-', '');
       try {
-        const { data, error } = await supabase.from('calendar_events').select('*').eq('id', realId).single();
-        if (error) {
-          console.error('Erro buscando calendar_event:', error);
+        const data = await fetchSingleEvent(realId);
+        if (!data) {
           toast.error('Não foi possível carregar o evento');
           return;
         }
@@ -639,7 +821,31 @@ export default function CalendarApp(): JSX.Element {
         <div className="bg-white p-3 rounded-lg shadow-sm">
           <MiniCalendar
             selected={selectedDate}
-            onSelect={setSelectedDate}
+            onDaySelect={(d: any) => {
+              const date = Array.isArray(d) ? d[0] : d;
+              if (date instanceof Date) {
+                setSelectedDate(date);
+                try {
+                  const api = calendarRef.current?.getApi?.();
+                  if (api && typeof api.gotoDate === 'function') {
+                    api.gotoDate(date);
+                  } else {
+                    setTimeout(() => {
+                      try {
+                        const api2 = calendarRef.current?.getApi?.();
+                        if (api2 && typeof api2.gotoDate === 'function') api2.gotoDate(date);
+                      } catch (e) {
+                        // ignore
+                      }
+                    }, 100);
+                  }
+                } catch (err) {
+                  console.warn('MiniCalendar onSelect error:', err);
+                }
+              } else {
+                setSelectedDate(undefined);
+              }
+            }}
             aria-label="Calendário mini"
           />
         </div>
@@ -686,7 +892,7 @@ export default function CalendarApp(): JSX.Element {
           <ul className="space-y-3" role="list" aria-live="polite">
             {eventsForDay.length === 0 && <li className="text-sm text-muted-foreground">Nenhum evento</li>}
             {eventsForDay.map(ev => (
-              <li key={ev.id} className="bg-white p-2 rounded-md flex items-start gap-2 shadow-sm">
+              <li key={ev.id} onClick={() => { try { _openEditById(ev.id); } catch {} }} role="button" tabIndex={0} className="bg-white p-2 rounded-md flex items-start gap-2 shadow-sm">
                 <div className="w-2 h-8 rounded" style={{ background: ev.color }} aria-hidden />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{ev.title}</div>
@@ -705,62 +911,30 @@ export default function CalendarApp(): JSX.Element {
         <div className="bg-white rounded-2xl shadow p-4 h-full flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2" role="region" aria-label="Controles do calendário">
-              <button
-                onClick={() => calendarRef.current?.getApi().prev()}
-                className={cn(buttonVariants({ variant: 'outline' }), 'px-3 py-1')}
-                aria-label="Mês anterior"
-                title="Anterior"
-              >
-                ◀
-              </button>
-              <button
-                onClick={() => calendarRef.current?.getApi().today()}
-                className={cn(buttonVariants({ variant: 'outline' }), 'px-3 py-1')}
-                aria-label="Ir para hoje"
-                title="Hoje"
-              >
-                Hoje
-              </button>
-              <button
-                onClick={() => calendarRef.current?.getApi().next()}
-                className={cn(buttonVariants({ variant: 'outline' }), 'px-3 py-1')}
-                aria-label="Próximo mês"
-                title="Próximo"
-              >
-                ▶
-              </button>
+              <button onClick={() => calendarRef.current?.getApi().prev()} className={cn(buttonVariants({ variant: 'outline' }), 'px-3 py-1')} aria-label="Mês anterior">◀</button>
+              <button onClick={() => calendarRef.current?.getApi().today()} className={cn(buttonVariants({ variant: 'outline' }), 'px-3 py-1')} aria-label="Ir para hoje">Hoje</button>
+              <button onClick={() => calendarRef.current?.getApi().next()} className={cn(buttonVariants({ variant: 'outline' }), 'px-3 py-1')} aria-label="Próximo mês">▶</button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => calendarRef.current?.getApi().changeView('dayGridMonth')}
-                className={cn(buttonVariants({ variant: 'ghost' }), 'px-3 py-1')}
-                aria-pressed={false}
-                aria-label="Visualizar mês"
-              >
-                Mês
-              </button>
-              <button
-                onClick={() => calendarRef.current?.getApi().changeView('timeGridWeek')}
-                className={cn(buttonVariants({ variant: 'ghost' }), 'px-3 py-1')}
-                aria-pressed={false}
-                aria-label="Visualizar semana"
-              >
-                Semana
-              </button>
-              <button
-                onClick={() => calendarRef.current?.getApi().changeView('timeGridDay')}
-                className={cn(buttonVariants({ variant: 'ghost' }), 'px-3 py-1')}
-                aria-pressed={false}
-                aria-label="Visualizar dia"
-              >
-                Dia
-              </button>
+            <div className="flex items-center gap-4">
+              <div className="text-sm font-semibold" aria-live="polite">
+                {calendarViewType === 'timeGridDay' && calendarCurrentDate ? (
+                  <span>{new Date(calendarCurrentDate).toLocaleDateString('pt-BR', { weekday: 'long' })} — {new Date(calendarCurrentDate).toLocaleDateString('pt-BR')}</span>
+                ) : (
+                  <span />
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button onClick={() => calendarRef.current?.getApi().changeView('dayGridMonth')} className={cn(buttonVariants({ variant: 'ghost' }), 'px-3 py-1')} aria-pressed={false}>Mês</button>
+                <button onClick={() => calendarRef.current?.getApi().changeView('timeGridWeek')} className={cn(buttonVariants({ variant: 'ghost' }), 'px-3 py-1')} aria-pressed={false}>Semana</button>
+                <button onClick={() => calendarRef.current?.getApi().changeView('timeGridDay')} className={cn(buttonVariants({ variant: 'ghost' }), 'px-3 py-1')} aria-pressed={false}>Dia</button>
+              </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-auto">
-            <EventCalendar ref={calendarRef as any} events={events} onSelectRange={handleSelect} onEventClick={handleEventClick} />
+            <EventCalendar ref={calendarRef as any} events={events} onSelectRange={handleSelect} onEventClick={handleEventClick} onDatesSet={handleDatesSet} />
           </div>
         </div>
       </main>
