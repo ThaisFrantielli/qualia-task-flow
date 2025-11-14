@@ -19,6 +19,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { useTasks } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useTeams } from '@/hooks/useTeams';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { dateToLocalDateOnlyISO } from '@/lib/dateUtils';
 import { toast } from 'sonner';
@@ -49,6 +50,12 @@ type AppEvent = {
   end?: string; // ISO
   color?: string;
   description?: string;
+  // permission-related (optionais, dependem do esquema da tabela)
+  owner_id?: string | null; // id do usuário que criou
+  user_id?: string | null; // alias possível
+  team_id?: string | null; // team associada
+  is_private?: boolean | null; // visibilidade particular
+  task_id?: string | null; // link com task
 };
 
 // -------------------- Micro-componentes (no mesmo arquivo para facilitar copy/paste) --------------------
@@ -180,6 +187,7 @@ export default function CalendarApp(): JSX.Element {
   const { tasks, createTask } = useTasks();
   const { projects } = useProjects();
   const { teams } = useTeams();
+  const { user } = useAuth();
 
   const [sampleEvents, setSampleEvents] = useState<AppEvent[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<AppEvent[]>([]);
@@ -219,6 +227,12 @@ export default function CalendarApp(): JSX.Element {
           end: d.end_date || undefined,
           color: d.color || '#7C3AED',
           description: d.description || undefined,
+          // campos opcionais que podem existir na tabela para suportar políticas de visibilidade
+          owner_id: d.owner_id || d.user_id || null,
+          user_id: d.user_id || null,
+          team_id: d.team_id || null,
+          is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
+          task_id: d.task_id || null,
         })));
       } catch (err) {
         console.error('Erro genérico ao carregar calendar_events:', err);
@@ -226,6 +240,39 @@ export default function CalendarApp(): JSX.Element {
     })();
     return () => { mounted = false; };
   }, []);
+
+  // Permissões: função utilitária que decide se o usuário atual pode ver um item
+  const isAdmin = !!user?.permissoes?.is_admin;
+
+  const canViewItem = useCallback((item: any) => {
+    if (isAdmin) return true;
+    if (!user) return false;
+
+    // proprietário / criador
+    if (item.owner_id === user.id || item.user_id === user.id) return true;
+
+    // se for tarefa/objeto com fields de assignee
+    if (item.assignee_id === user.id) return true;
+    if (item.assignee && item.assignee.id === user.id) return true;
+
+    // se vinculado a uma task, verificar permissões da task
+    if (item.task_id) {
+      const t = (tasks || []).find((x: any) => x.id === item.task_id);
+      if (t) {
+        if (t.assignee_id === user.id) return true;
+        if (t.user_id === user.id) return true;
+        if (t.assignee && t.assignee.id === user.id) return true;
+        const projTeam = t.project && (t.project as any).team_id;
+        if (projTeam && teams.some(tm => tm.id === projTeam && tm.owner_id === user.id)) return true;
+      }
+    }
+
+    // se há equipe definida no item, permitir apenas se for owner da equipe (fallback)
+    if (item.team_id && teams.some((tm: any) => tm.id === item.team_id && tm.owner_id === user.id)) return true;
+
+    // último recurso: não visível
+    return false;
+  }, [isAdmin, user, tasks, teams]);
 
   // AJUSTE APLICADO AQUI: Quando o selectedDate muda, apenas navega no calendário principal
   useEffect(() => {
@@ -252,15 +299,27 @@ export default function CalendarApp(): JSX.Element {
         end: undefined,
         color: t.priority === 'high' ? '#FB7185' : t.priority === 'medium' ? '#F59E0B' : '#10B981',
         description: t.description || undefined,
-      } as AppEvent));
+        // campos de permissão referentes à task
+        owner_id: t.user_id || null,
+        user_id: t.user_id || null,
+        assignee_id: t.assignee_id || (t.assignee && t.assignee.id) || null,
+        team_id: t.project && (t.project as any).team_id || null,
+        task_id: t.id,
+      } as AppEvent))
+      .filter((e: any) => canViewItem(e));
   }, [tasks, filterStatus, filterProject, filterTeam]);
 
   // Merge events: sample, calendarEvents, tasks
   const events = useMemo(() => {
     const prefixedSample = sampleEvents.map(e => ({ ...e, id: `s-${e.id}` }));
     const merged = [...prefixedSample, ...calendarEvents, ...taskEvents];
+    // aplicar filtro de visibilidade: manter sample sempre, verificar os demais
+    const visible = merged.filter((e: any) => {
+      if (String(e.id).startsWith('s-')) return true;
+      return canViewItem(e);
+    });
     const map = new Map<string, AppEvent>();
-    for (const e of merged) {
+    for (const e of visible) {
       const key = `${e.title}|${e.start}`;
       if (!map.has(key)) map.set(key, e);
     }
@@ -286,8 +345,34 @@ export default function CalendarApp(): JSX.Element {
       return;
     }
 
-    // navega pra day view
+    // Se já estivermos na visualização 'day', abrir modal de criação na hora clicada
     try {
+      const viewType = calendarRef.current?.getApi()?.view?.type;
+      if (viewType === 'timeGridDay') {
+        setModalMode('create');
+        // permitir escolha entre evento ou tarefa
+        setCreateChoice('event');
+        setFormTitle('');
+        setFormDescription('');
+        setFormColor('#7C3AED');
+        setFormStart(isoToDatetimeLocal(startStr));
+        // sugerir fim 1 hora depois quando houver start
+        if (startStr) {
+          try {
+            const dt = new Date(startStr);
+            const end = new Date(dt.getTime() + 60 * 60 * 1000);
+            setFormEnd(isoToDatetimeLocal(end.toISOString()));
+          } catch {
+            setFormEnd(endStr ? isoToDatetimeLocal(endStr) : undefined);
+          }
+        } else {
+          setFormEnd(endStr || undefined);
+        }
+        setModalOpen(true);
+        return;
+      }
+
+      // caso contrário, navega para a visualização do dia
       calendarRef.current?.getApi().changeView('timeGridDay');
       calendarRef.current?.getApi().gotoDate(info.start);
     } catch {
@@ -327,6 +412,21 @@ export default function CalendarApp(): JSX.Element {
           return;
         }
         if (data) {
+          // segurança: checar permissão antes de abrir o modal
+          const candidate = {
+            id: `ce-${data.id}`,
+            title: data.title,
+            start: data.start_date,
+            end: data.end_date || undefined,
+            owner_id: data.owner_id || data.user_id || null,
+            user_id: data.user_id || null,
+            team_id: data.team_id || null,
+            is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null,
+          };
+          if (!canViewItem(candidate)) {
+            toast.error('Você não tem permissão para visualizar este evento');
+            return;
+          }
           setModalMode('edit');
           setEditingEventId(`ce-${data.id}`);
           setFormTitle(data.title || '');
@@ -357,6 +457,9 @@ export default function CalendarApp(): JSX.Element {
             end_date: formEnd ? datetimeLocalToIso(formEnd) : null,
             description: formDescription || null,
             color: formColor || null,
+            // atribuir o usuário atual como owner quando possível
+            owner_id: user?.id || null,
+            user_id: user?.id || null,
             created_at: new Date().toISOString(),
           };
           const { data, error } = await supabase.from('calendar_events').insert(payload).select().single();
@@ -364,7 +467,7 @@ export default function CalendarApp(): JSX.Element {
             console.error('Erro criando calendar_event:', error);
             toast.error('Erro ao criar evento');
           } else if (data) {
-            setCalendarEvents(prev => [{ id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined }, ...prev]);
+            setCalendarEvents(prev => [{ id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null }, ...prev]);
             toast.success('Evento criado');
           }
         } else {
@@ -392,7 +495,7 @@ export default function CalendarApp(): JSX.Element {
           console.error('Erro atualizando calendar_event:', error);
           toast.error('Erro ao atualizar evento');
         } else if (data) {
-          setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined } : ev));
+          setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || data.user_id || null, user_id: data.user_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
           toast.success('Evento atualizado');
         }
       }
@@ -406,6 +509,14 @@ export default function CalendarApp(): JSX.Element {
 
   const handleDeleteEvent = useCallback(async () => {
     if (!editingEventId) return;
+    // só admin ou owner pode deletar
+    if (!isAdmin) {
+      const ev = calendarEvents.find(ev => ev.id === editingEventId);
+      if (ev && ev.owner_id !== user?.id) {
+        toast.error('Você não tem permissão para excluir este evento');
+        return;
+      }
+    }
     const realId = editingEventId.replace('ce-', '');
     try {
       const { error } = await supabase.from('calendar_events').delete().eq('id', realId);
@@ -464,6 +575,20 @@ export default function CalendarApp(): JSX.Element {
           return;
         }
         if (data) {
+          const candidate = {
+            id: `ce-${data.id}`,
+            title: data.title,
+            start: data.start_date,
+            end: data.end_date || undefined,
+            owner_id: data.owner_id || data.user_id || null,
+            user_id: data.user_id || null,
+            team_id: data.team_id || null,
+            is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null,
+          };
+          if (!canViewItem(candidate)) {
+            toast.error('Você não tem permissão para visualizar este evento');
+            return;
+          }
           setModalMode('edit');
           setEditingEventId(`ce-${data.id}`);
           setFormTitle(data.title || '');
