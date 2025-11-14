@@ -10,7 +10,7 @@ import type { EventClickArg, DateSelectArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 
 // utilitários / componentes do projeto (mantidos)
@@ -34,6 +34,12 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 
 // -------------------- Tipos --------------------
 type AppEvent = {
@@ -431,6 +437,51 @@ export default function CalendarApp(): JSX.Element {
       return s >= startOfDay && s <= endOfDay;
     });
   }, [selectedDate, events]);
+
+  // Helper: abre/edita/navega conforme o id do evento (ce- = calendar_events, s- = sample, else = task)
+  const openEditById = useCallback(async (id: string) => {
+    if (!id) return;
+    if (id.startsWith('s-')) {
+      const realId = id.replace('s-', '');
+      const action = window.prompt(`Evento: ${realId}\nDigite 'edit' para renomear, 'delete' para excluir, ou cancele.`);
+      if (!action) return;
+      if (action.toLowerCase() === 'delete') {
+        setSampleEvents(prev => prev.filter(e => e.id !== realId));
+      } else if (action.toLowerCase() === 'edit') {
+        const newTitle = window.prompt('Novo título:', realId);
+        if (newTitle) setSampleEvents(prev => prev.map(e => e.id === realId ? { ...e, title: newTitle } : e));
+      }
+      return;
+    }
+
+    if (id.startsWith('ce-')) {
+      const realId = id.replace('ce-', '');
+      try {
+        const { data, error } = await supabase.from('calendar_events').select('*').eq('id', realId).single();
+        if (error) {
+          console.error('Erro buscando calendar_event:', error);
+          toast.error('Não foi possível carregar o evento');
+          return;
+        }
+        if (data) {
+          setModalMode('edit');
+          setEditingEventId(`ce-${data.id}`);
+          setFormTitle(data.title || '');
+          setFormStart(isoToDatetimeLocal(data.start_date || ''));
+          setFormEnd(data.end_date ? isoToDatetimeLocal(data.end_date) : undefined);
+          setFormDescription(data.description || '');
+          setFormColor(data.color || '#7C3AED');
+          setModalOpen(true);
+        }
+      } catch (err) {
+        console.error('Erro genérico ao carregar evento:', err);
+      }
+      return;
+    }
+
+    // Caso padrão: navegar para detalhe da tarefa
+    navigate(`/tasks/${id}`);
+  }, [navigate]);
 
   // -------------------- Render --------------------
   return (
