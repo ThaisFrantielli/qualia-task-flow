@@ -335,6 +335,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                             {project.description && (
                               <span className="text-xs text-gray-500 ml-2 truncate italic group-hover:text-primary/70 transition-colors" title={project.description}>{project.description}</span>
                             )}
+                            {/* ações visuais do projeto (menu principal aparece no final da linha) */}
                             {/* Barra de progresso do projeto */}
                             {(() => {
                               const total = projectTasks.length;
@@ -354,17 +355,14 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+                              <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()} aria-label="Ações do projeto">
                                 <MoreVertical className="h-5 w-5" />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                              <DropdownMenuItem
-                                className="text-red-500"
-                                onClick={() => handleDeleteProject(project.id)}
-                              >
-                                Excluir
-                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>Abrir Projeto</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}/edit`)}>Editar Projeto</DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteProject(project.id)}>Excluir</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -528,17 +526,14 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+                        <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()} aria-label="Ações do projeto">
                           <MoreVertical className="h-5 w-5" />
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem
-                          className="text-red-500"
-                          onClick={() => handleDeleteProject(project.id)}
-                        >
-                          Excluir
-                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}`)}>Abrir Projeto</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}/edit`)}>Editar Projeto</DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteProject(project.id)}>Excluir</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

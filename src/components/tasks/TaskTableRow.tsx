@@ -4,6 +4,10 @@ import { TableRow, TableCell } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { canEditProject } from '@/lib/hierarchyUtils';
+import { useNavigate } from 'react-router-dom';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
 import { 
@@ -50,6 +54,27 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, isExpanded, onToggleE
     e.stopPropagation();
     onToggleExpand();
   };
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [hierarchyData, setHierarchyData] = useState<{ user_id: string; supervisor_id: string }[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await supabase.from('user_hierarchy').select('user_id, supervisor_id');
+        if (!mounted) return;
+        setHierarchyData((data as any) || []);
+      } catch (err) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const projectObj = (task as any).project || (task as any).project_id ? { id: (task as any).project?.id || (task as any).project_id, user_id: (task as any).project?.user_id } : null;
+  const canEditProj = projectObj && user ? canEditProject(projectObj as any, user as any, hierarchyData) : false;
 
   return (
     <TableRow 
@@ -126,13 +151,18 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({ task, isExpanded, onToggleE
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={handleActionClick}>
+            <DropdownMenuContent align="end" onClick={handleActionClick}>
             <DropdownMenuItem onClick={() => onViewDetails(task)}>
               <Eye className="mr-2 h-4 w-4" /> Ver Detalhes
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Edit className="mr-2 h-4 w-4" /> Editar Tarefa
             </DropdownMenuItem>
+            {projectObj && canEditProj && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/projects/${projectObj.id}`); }}>
+                <Edit className="mr-2 h-4 w-4" /> Editar Projeto
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Archive className="mr-2 h-4 w-4" /> Arquivar
