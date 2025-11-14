@@ -3,7 +3,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar, PlayCircle, CheckCircle, Clock } from 'lucide-react';
-import { format, formatDistanceToNowStrict, formatDistanceStrict } from 'date-fns';
+import { formatDistanceToNowStrict, formatDistanceStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatDateSafe, parseISODateSafe, dateToLocalISO } from '@/lib/dateUtils';
 import { useTask } from '@/hooks/useTasks';

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, MessageSquare, Package, DollarSign, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+// import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatDateSafe } from '@/lib/dateUtils';
 

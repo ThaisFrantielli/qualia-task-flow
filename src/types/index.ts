@@ -53,6 +53,7 @@ export type TaskWithDetails = Task & {
   is_recurring?: boolean;
   recurrence_pattern?: string | null;
   recurrence_days?: string | null;
+  recurrence_interval?: number | null;
   recurrence_end?: string | null;
   parent_task_id?: string | null;
 };
@@ -63,6 +64,7 @@ export type TaskUpdateExtended = TaskUpdate & {
   is_recurring?: boolean;
   recurrence_pattern?: string | null;
   recurrence_days?: string | null;
+  recurrence_interval?: number | null;
   recurrence_end?: string | null;
   parent_task_id?: string | null;
 };
