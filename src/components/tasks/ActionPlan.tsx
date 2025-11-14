@@ -274,10 +274,26 @@ function RecurrenceImporter({ taskId, add }: { taskId: string; add: (s: any) => 
     if (!parentTask) return;
     setLoading(true);
     try {
+      const createdRows: Array<{ id: string; due_date?: string }> = [];
       for (const d of dates) {
-        await add({ task_id: taskId, title: `${parentTask.title} (recorrência)`, due_date: d, priority: parentTask.priority || 'medium' });
+        const created = await add({ task_id: taskId, title: `${parentTask.title} (recorrência)`, due_date: d, priority: parentTask.priority || 'medium' });
+        if (created && created.id) {
+          createdRows.push({ id: created.id, due_date: d });
+        }
       }
-      toast.success(`Importadas ${dates.length} ações ao plano`);
+
+      // Insert history records linking parent task -> generated subtasks
+      if (createdRows.length > 0) {
+        const historyRows = createdRows.map(r => ({
+          parent_task_id: parentTask.id,
+          generated_task_id: r.id,
+          occurrence_date: r.due_date,
+        }));
+        const { error: histErr } = await supabase.from('task_recurrence_history').insert(historyRows);
+        if (histErr) console.error('Erro ao registrar histórico de recorrência:', histErr);
+      }
+
+      toast.success(`Importadas ${createdRows.length} ações ao plano`);
     } catch (err: any) {
       toast.error('Erro ao importar recorrências: ' + (err?.message || String(err)));
     } finally {
