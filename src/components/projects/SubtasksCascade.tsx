@@ -2,6 +2,7 @@ import React from 'react';
 import { useSubtasks } from '@/hooks/useSubtasks';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
+import { formatDateSafe } from '@/lib/dateUtils';
 
 interface SubtasksCascadeProps {
   taskId: string;

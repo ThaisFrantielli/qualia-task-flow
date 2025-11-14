@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, Edit, Save, X as CancelIcon, Calendar as CalendarIcon, User, Folder, Loader2 } from 'lucide-react';
 import { format, formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { dateInputToISO, isoToDateInput, calendarDateToISO, parseISODateSafe, formatDateSafe } from '@/lib/dateUtils';
+import { calendarDateToISO, parseISODateSafe, formatDateSafe } from '@/lib/dateUtils';
 import { useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useUsers } from '@/hooks/useUsers';
@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Calendar } from '@/components/ui/calendar';
 
 import TaskAttachments from '../task/TaskAttachments';

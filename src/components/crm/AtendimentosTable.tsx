@@ -3,6 +3,7 @@
 import React from 'react';
 import type { Atendimento } from '@/types'; // <-- Corrigido para importar de @/types
 import { Badge } from '@/components/ui/badge';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { useNavigate } from 'react-router-dom';
 
 interface AtendimentosTableProps {

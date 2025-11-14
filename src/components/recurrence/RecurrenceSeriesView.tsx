@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { TaskWithDetails } from '@/types';
 
@@ -13,20 +13,26 @@ export default function RecurrenceSeriesView({ parentTaskId }: Props) {
   useEffect(() => {
     if (!parentTaskId) return;
     setLoading(true);
-    supabase
-      .from('tasks')
-      .select('*')
-      .eq('parent_task_id', parentTaskId)
-      .order('due_date', { ascending: true })
-      .then(({ data, error }) => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('parent_task_id', parentTaskId)
+          .order('due_date', { ascending: true });
         if (error) {
           console.error('Erro buscando série de recorrência', error);
           setItems([]);
         } else {
           setItems(data as TaskWithDetails[]);
         }
-      })
-      .finally(() => setLoading(false));
+      } catch (err) {
+        console.error('Erro desconhecido buscando série de recorrência', err);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [parentTaskId]);
 
   if (!parentTaskId) return null;
