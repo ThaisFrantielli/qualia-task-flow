@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { formatDateSafe } from '@/lib/dateUtils';
 import { ptBR } from 'date-fns/locale';
 import type { ChatMessage } from '@/types/api';

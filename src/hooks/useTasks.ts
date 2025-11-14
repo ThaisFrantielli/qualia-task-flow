@@ -88,7 +88,7 @@ const createTaskFn = async (taskData: TaskInsert): Promise<Task> => {
 
         // If created task is recurring, generate initial occurrences (window of future tasks)
         try {
-            if (taskData.is_recurring) {
+            if ((taskData as any).is_recurring) {
                 // fetch freshly created task with details to pass to generator
                 const { data: fetched } = await supabase.from('tasks').select('*').eq('id', newTask.id).single();
                 if (fetched) {
