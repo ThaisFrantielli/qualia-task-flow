@@ -453,6 +453,73 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                             <TableBody>
                                               <ExpandedSubtasks taskId={task.id} onSubtaskClick={(id) => onOpenSubtask?.(id)} />
                                             </TableBody>
+                                            {/* Tarefas sem projeto */}
+                                            {(() => {
+                                              const noProjectTasks = (tasks || []).filter(t => !t.project_id);
+                                              if (!noProjectTasks || noProjectTasks.length === 0) return null;
+                                              return (
+                                                <>
+                                                  <div className="p-4 border-t">
+                                                    <strong className="text-sm">Sem Projeto</strong>
+                                                  </div>
+                                                  <Table>
+                                                    <TableBody>
+                                                      {noProjectTasks.map((task: any) => (
+                                                        <TableRow key={`nop-${task.id}`} className="hover:bg-muted/50 group">
+                                                          <TableCell className="align-middle font-normal text-sm">
+                                                            <div className="flex items-center gap-2">
+                                                              <span className="truncate font-medium text-base">{task.title}</span>
+                                                              {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
+                                                                <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                                                                  {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
+                                                                </span>
+                                                              )}
+                                                            </div>
+                                                          </TableCell>
+                                                          <TableCell className="align-middle">
+                                                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                              <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
+                                                            </div>
+                                                          </TableCell>
+                                                          <TableCell className="align-middle">
+                                                            <div className="flex items-center gap-2 text-sm">
+                                                              <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
+                                                            </div>
+                                                          </TableCell>
+                                                          <TableCell className="align-middle">
+                                                            <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
+                                                          </TableCell>
+                                                          <TableCell className="align-middle">
+                                                            <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
+                                                          </TableCell>
+                                                          <TableCell className="align-middle text-right">
+                                                            <DropdownMenu>
+                                                              <DropdownMenuTrigger asChild>
+                                                                <button className="p-1 rounded-full hover:bg-gray-200">
+                                                                  <MoreVertical className="h-5 w-5" />
+                                                                </button>
+                                                              </DropdownMenuTrigger>
+                                                              <DropdownMenuContent align="end">
+                                                                <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>Editar</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={async () => {
+                                                                  if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+                                                                  try {
+                                                                    await deleteTask(task.id);
+                                                                    toast.success('Tarefa excluída com sucesso!');
+                                                                  } catch (err: any) {
+                                                                    toast.error('Erro ao excluir tarefa', { description: err?.message });
+                                                                  }
+                                                                }} className="text-red-600">Excluir</DropdownMenuItem>
+                                                              </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                          </TableCell>
+                                                        </TableRow>
+                                                      ))}
+                                                    </TableBody>
+                                                  </Table>
+                                                </>
+                                              );
+                                            })()}
                                           </Table>
                                         </TableCell>
                                       </TableRow>

@@ -30,6 +30,8 @@ import ActionPlan from './ActionPlan';
 import RecurrenceConfig from '@/components/recurrence/RecurrenceConfig';
 import RecurrenceIndicator from '@/components/recurrence/RecurrenceIndicator';
 import RecurrenceSeriesView from '@/components/recurrence/RecurrenceSeriesView';
+import { useNavigate } from 'react-router-dom';
+import { useTasks } from '@/hooks/useTasks';
 
 interface TaskDetailsContentProps {
   task: TaskWithDetails;
@@ -38,6 +40,8 @@ interface TaskDetailsContentProps {
 
 const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate }) => {
   const { updateTask, startTask, completeTask } = useTask(task.id);
+  const navigate = useNavigate();
+  const { deleteTask } = useTasks({});
   const { users: profiles } = useUsers();
   const { projects } = useProjects();
   const { classifications } = useClassifications();
@@ -159,7 +163,22 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                         <Button size="sm" onClick={handleSave} disabled={isSaving}>{isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Salvar</Button>
                       </>
                     ) : (
-                      <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}><Edit className="w-4 h-4 mr-2" /> Editar</Button>
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}><Edit className="w-4 h-4 mr-2" /> Editar</Button>
+                        <Button variant="destructive" size="sm" onClick={async () => {
+                          try {
+                            if (!confirm('Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.')) return;
+                            await deleteTask(task.id);
+                            toast.success('Tarefa excluída');
+                            navigate('/tasks');
+                          } catch (err: any) {
+                            console.error('Erro ao excluir tarefa:', err);
+                            toast.error('Não foi possível excluir a tarefa.', { description: err?.message });
+                          }
+                        }}>
+                          Excluir
+                        </Button>
+                      </>
                     )}
                     </div>
                   </div>
@@ -299,7 +318,10 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                             <Calendar 
                             mode="single" 
                             selected={editedTask.start_date ? parseISODateSafe(editedTask.start_date) ?? undefined : undefined} 
-                            onSelect={(d) => handleInputChange('start_date', calendarDateToISO(d))} 
+                            onSelect={(d) => {
+                              const date = Array.isArray(d) ? (d[0] as Date | undefined) : (d as Date | undefined);
+                              handleInputChange('start_date', calendarDateToISO(date));
+                            }} 
                           />
                         </PopoverContent>
                       </Popover>
@@ -317,7 +339,10 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                             <Calendar 
                             mode="single" 
                             selected={editedTask.due_date ? parseISODateSafe(editedTask.due_date) ?? undefined : undefined} 
-                            onSelect={(d) => handleInputChange('due_date', calendarDateToISO(d))} 
+                            onSelect={(d) => {
+                              const date = Array.isArray(d) ? (d[0] as Date | undefined) : (d as Date | undefined);
+                              handleInputChange('due_date', calendarDateToISO(date));
+                            }} 
                           />
                         </PopoverContent>
                       </Popover>
