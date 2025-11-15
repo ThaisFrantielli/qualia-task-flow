@@ -10,9 +10,7 @@ import { Link } from 'react-router-dom';
 import type { Task } from '@/types';
 
 const Dashboard = () => {
-  // --- CORREÇÃO APLICADA AQUI ---
-  // 1. Desestruturamos 'tasks' e 'loading' diretamente do hook.
-  // 2. Renomeamos 'loading' para 'tasksLoading' para evitar conflito com 'projectsLoading'.
+  
   const { tasks, loading: tasksLoading } = useTasks({});
 
   if (tasksLoading) {
