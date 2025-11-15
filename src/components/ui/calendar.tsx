@@ -16,7 +16,7 @@ import { DayPicker } from 'react-day-picker';
 // utilitários / componentes do projeto (mantidos)
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { useTasks } from '@/hooks/useTasks';
+import { useTasks, useTask } from '@/hooks/useTasks';
 import { useProjects } from '@/hooks/useProjects';
 import { useTeams } from '@/hooks/useTeams';
 import { useAuth } from '@/contexts/AuthContext';
@@ -166,7 +166,7 @@ const EventCalendar = React.memo(
         slotMinTime="00:00:00"
         slotMaxTime="24:00:00"
         scrollTime="06:00:00"
-        allDaySlot={false}
+        allDaySlot={true}
         editable={true}
         selectable={true}
         selectMirror={true}
@@ -197,11 +197,24 @@ EventCalendar.displayName = 'EventCalendar';
 // -------------------- Funções utilitárias --------------------
 function isoToDatetimeLocal(iso?: string | null) {
   if (!iso) return '';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  // date-only string (YYYY-MM-DD): build a local midnight Date
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const parts = iso.split('-').map(s => parseInt(s, 10));
+    const local = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0);
+    return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`;
+  }
+  // If ISO includes midnight UTC or midnight with offset (common when stored from a date-only),
+  // treat it as date-only to avoid shifting to previous day in negative timezones.
+  const midnightUtcMatch = iso.match(/^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?(?:Z|[+-]\d{2}:\d{2})?$/);
+  if (midnightUtcMatch) {
+    const parts = midnightUtcMatch[1].split('-').map(s => parseInt(s, 10));
+    const local = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0);
+    return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`;
+  }
+  // full ISO with time/timezone: use local getters to build datetime-local
   const d = new Date(iso);
-  // converte para local (corrige offset)
-  const tzOffset = d.getTimezoneOffset();
-  const local = new Date(d.getTime() - tzOffset * 60000);
-  return local.toISOString().slice(0, 16);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function datetimeLocalToIso(input?: string | null) {
   if (!input) return null;
@@ -209,10 +222,32 @@ function datetimeLocalToIso(input?: string | null) {
   return input;
 }
 
+// Normaliza strings de início/fim para o formato usado no formulário.
+// Garante que `end` não fique anterior a `start` (ajusta para igualar start se necessário).
+function normalizeFormStartEnd(startIso?: string | null, endIso?: string | null) {
+  const s = startIso ? isoToDatetimeLocal(startIso) : undefined;
+  const e = endIso ? isoToDatetimeLocal(endIso) : undefined;
+  if (!s) return { s, e };
+  if (!e) return { s, e };
+  try {
+    const sDate = new Date(datetimeLocalToIso(s) || '');
+    const eDate = new Date(datetimeLocalToIso(e) || '');
+    if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime()) && eDate < sDate) {
+      // ajustar para não ficar anterior
+      return { s, e: s };
+    }
+  } catch {
+    // ignore parsing errors
+  }
+  return { s, e };
+}
+
 // -------------------- Componente Principal --------------------
 export default function CalendarApp(): JSX.Element {
   const navigate = useNavigate();
-  const { tasks, createTask } = useTasks();
+  const { tasks, createTask, refetch: refetchTasks, deleteTask } = useTasks();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const { task: selectedTask, refetch: refetchSelectedTask, updateTask: updateSelectedTask } = useTask(selectedTaskId || '');
   const { projects } = useProjects();
   const { teams } = useTeams();
   const { user } = useAuth();
@@ -238,9 +273,6 @@ export default function CalendarApp(): JSX.Element {
     }
   }, []);
 
-  // Helper robusto para carregar calendar_events: tenta `select('*')` e, se o PostgREST
-  // reclamar de colunas faltantes no schema cache (PGRST204), remove essas colunas da
-  // seleção e re-tenta até estabilizar (ou esgotar as colunas esperadas).
   async function fetchCalendarEvents(): Promise<any[] | null> {
       const expectedCols = ['id','title','start_date','end_date','color','description','owner_id','team_id','is_private','task_id','created_at'];
     let cols = [...expectedCols];
@@ -302,6 +334,20 @@ export default function CalendarApp(): JSX.Element {
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState('#7C3AED');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+
+  // Safety: if formEnd becomes earlier than formStart, normalize to formStart
+  useEffect(() => {
+    if (!formStart || !formEnd) return;
+    try {
+      const s = new Date(datetimeLocalToIso(formStart) || '');
+      const e = new Date(datetimeLocalToIso(formEnd) || '');
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && e < s) {
+        setFormEnd(formStart);
+      }
+    } catch {
+      // ignore
+    }
+  }, [formStart, formEnd]);
 
   // Load calendar events (supabase)
   useEffect(() => {
@@ -412,7 +458,24 @@ export default function CalendarApp(): JSX.Element {
       const key = `${e.title}|${e.start}`;
       if (!map.has(key)) map.set(key, e);
     }
-    return Array.from(map.values());
+
+    // Normaliza eventos sem hora (YYYY-MM-DD) adicionando horário padrão
+    const normalizeStart = (s: any) => {
+      if (!s) return s;
+      try {
+        const str = String(s);
+        // se for data somente (ex: 2025-11-22) sem 'T', adicionar horário para aparecer na day view
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+          // usar 09:00 como horário padrão para visibilidade
+          return `${str}T09:00:00`;
+        }
+        return str;
+      } catch {
+        return s;
+      }
+    };
+
+    return Array.from(map.values()).map(ev => ({ ...ev, start: String(ev.id).startsWith('ce-') ? normalizeStart(ev.start) : ev.start }));
   }, [sampleEvents, calendarEvents, taskEvents]);
 
   // -------------------- Handlers --------------------
@@ -421,15 +484,16 @@ export default function CalendarApp(): JSX.Element {
     const startStr = (info as any).startStr || (info.start ? (info.start as Date).toISOString() : undefined);
     const endStr = (info as any).endStr || (info.end ? (info.end as Date).toISOString() : undefined);
 
-    if (jsEvent && (jsEvent.ctrlKey || jsEvent.metaKey)) {
+      if (jsEvent && (jsEvent.ctrlKey || jsEvent.metaKey)) {
       // criar diretamente
       setModalMode('create');
       setCreateChoice('event');
       setFormTitle('');
       setFormDescription('');
       setFormColor('#7C3AED');
-      setFormStart(isoToDatetimeLocal(startStr));
-      setFormEnd(endStr ? isoToDatetimeLocal(endStr) : undefined);
+        const ne = normalizeFormStartEnd(startStr, endStr);
+        setFormStart(ne.s);
+        setFormEnd(ne.e);
       setModalOpen(true);
       return;
     }
@@ -444,18 +508,22 @@ export default function CalendarApp(): JSX.Element {
         setFormTitle('');
         setFormDescription('');
         setFormColor('#7C3AED');
-        setFormStart(isoToDatetimeLocal(startStr));
+        const ne2 = normalizeFormStartEnd(startStr, undefined);
+        setFormStart(ne2.s);
         // sugerir fim 1 hora depois quando houver start
         if (startStr) {
           try {
             const dt = new Date(startStr);
             const end = new Date(dt.getTime() + 60 * 60 * 1000);
-            setFormEnd(isoToDatetimeLocal(end.toISOString()));
+            // convert end datetime to local form string and ensure it's not before start
+            const ne3 = normalizeFormStartEnd(startStr, end.toISOString());
+            setFormEnd(ne3.e);
           } catch {
             setFormEnd(endStr ? isoToDatetimeLocal(endStr) : undefined);
           }
         } else {
-          setFormEnd(endStr || undefined);
+          const ne4 = normalizeFormStartEnd(startStr, endStr);
+          setFormEnd(ne4.e);
         }
         setModalOpen(true);
         return;
@@ -467,8 +535,9 @@ export default function CalendarApp(): JSX.Element {
     } catch {
       // fallback: abrir modal create com dados mínimos
       setModalMode('create');
-      setFormStart(startStr);
-      setFormEnd(endStr || undefined);
+      const nfb = normalizeFormStartEnd(startStr, endStr);
+      setFormStart(nfb.s || startStr);
+      setFormEnd(nfb.e || (endStr || undefined));
       setModalOpen(true);
     }
   }, []);
@@ -499,7 +568,7 @@ export default function CalendarApp(): JSX.Element {
           toast.error('Não foi possível carregar o evento');
           return;
         }
-        if (data) {
+          if (data) {
           // segurança: checar permissão antes de abrir o modal
           const candidate = {
             id: `ce-${data.id}`,
@@ -517,8 +586,9 @@ export default function CalendarApp(): JSX.Element {
           setModalMode('edit');
           setEditingEventId(`ce-${data.id}`);
           setFormTitle(data.title || '');
-          setFormStart(isoToDatetimeLocal(data.start_date || ''));
-          setFormEnd(data.end_date ? isoToDatetimeLocal(data.end_date) : undefined);
+          const ne = normalizeFormStartEnd(data.start_date || null, data.end_date || null);
+          setFormStart(ne.s);
+          setFormEnd(ne.e);
           setFormDescription(data.description || '');
           setFormColor(data.color || '#7C3AED');
           setModalOpen(true);
@@ -529,8 +599,34 @@ export default function CalendarApp(): JSX.Element {
       return;
     }
 
-    // casos restantes: navegar para detalhe de tarefa (id sem prefix)
-    navigate(`/tasks/${id}`);
+    // casos restantes: abrir modal de edição para tarefas (id sem prefix)
+    // em vez de navegar diretamente, abrimos o modal e carregamos a task
+    try {
+      setSelectedTaskId(id);
+      setEditingEventId(`t-${id}`);
+      // buscar diretamente via supabase para preenchimento imediato do modal
+      try {
+        const { data, error } = await supabase.from('tasks').select('*').eq('id', id).single();
+        if (error || !data) {
+          // fallback: navegar se não conseguir carregar
+          navigate(`/tasks/${id}`);
+          return;
+        }
+        setFormTitle(data.title || '');
+        const nTask = normalizeFormStartEnd((data.due_date as any) || null, null);
+        setFormStart(nTask.s);
+        setFormEnd(nTask.e);
+        setFormDescription(data.description || '');
+        setFormColor('#7C3AED');
+        setModalMode('edit');
+        setModalOpen(true);
+      } catch (err) {
+        try { navigate(`/tasks/${id}`); } catch {};
+      }
+    } catch (err) {
+      // fallback para navegação
+      try { navigate(`/tasks/${id}`); } catch {};
+    }
   }, [navigate]);
 
   // Submissão do modal (create/edit)
@@ -614,67 +710,149 @@ export default function CalendarApp(): JSX.Element {
           const dueDateIso = formStart ? datetimeLocalToIso(formStart) : dateToLocalDateOnlyISO(new Date());
           try {
             // Use canonical status keys expected by the backend ('todo' / 'progress' / 'done')
-            await createTask({ title: formTitle, due_date: dueDateIso, status: 'todo' } as any);
+            const newTask = await createTask({ title: formTitle, due_date: dueDateIso, status: 'todo' } as any);
             toast.success('Tarefa criada');
+            // Ensure task list is fresh so taskEvents includes the new task
+            try { if (typeof refetchTasks === 'function') await refetchTasks(); } catch (e) { /* ignore */ }
+
+              // navigation will occur after attempting to create the linked calendar_event
+
+            // Além de criar a task, crie um calendar_event vinculado para aparecer no calendário
+            try {
+              const eventPayload: any = {
+                title: formTitle.trim(),
+                start_date: datetimeLocalToIso(formStart) || null,
+                end_date: formEnd ? datetimeLocalToIso(formEnd) : null,
+                description: formDescription || null,
+                color: formColor || null,
+                owner_id: user?.id || null,
+                task_id: newTask.id,
+                created_at: new Date().toISOString(),
+              };
+
+              const { data: evData, error: evError } = await supabase.from('calendar_events').insert(eventPayload).select().single();
+              if (evError) {
+                console.error('Erro criando calendar_event para task:', evError);
+                if (evError.code === 'PGRST204') {
+                  // fallback: insert sem select e recarregar lista
+                  const ins = await supabase.from('calendar_events').insert(eventPayload);
+                  if (ins.error) {
+                    console.error('Erro secundário criando calendar_event (sem select):', ins.error);
+                  } else {
+                    const reData = await fetchCalendarEvents();
+                    if (reData) setCalendarEvents((reData || []).map((d: any) => ({ id: `ce-${d.id}`, title: d.title, start: d.start_date, end: d.end_date || undefined, color: d.color || '#7C3AED', description: d.description || undefined, owner_id: d.owner_id || null, team_id: d.team_id || null, is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null, task_id: d.task_id || null })));
+                    // refresh tasks list as well
+                    try { if (typeof refetchTasks === 'function') await refetchTasks(); } catch (e) { /* ignore */ }
+                  }
+                }
+              } else if (evData) {
+                setCalendarEvents(prev => [{ id: `ce-${evData.id}`, title: evData.title, start: evData.start_date, end: evData.end_date || undefined, color: evData.color || '#7C3AED', description: evData.description || undefined, owner_id: evData.owner_id || null, team_id: evData.team_id || null, is_private: typeof evData.is_private !== 'undefined' ? !!evData.is_private : null, task_id: evData.task_id || null }, ...prev]);
+                // reload events to ensure full consistency
+                try {
+                  const reData = await fetchCalendarEvents();
+                  if (reData) setCalendarEvents((reData || []).map((d: any) => ({ id: `ce-${d.id}`, title: d.title, start: d.start_date, end: d.end_date || undefined, color: d.color || '#7C3AED', description: d.description || undefined, owner_id: d.owner_id || null, team_id: d.team_id || null, is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null, task_id: d.task_id || null })));
+                } catch (e) {
+                  // ignore reload errors
+                }
+              }
+            } catch (err: any) {
+              console.error('Erro ao criar calendar_event vinculado à task:', err);
+            }
+
+            // After attempting to create the linked calendar_event, navigate to the task detail
+            try {
+              setSelectedTaskId(newTask.id);
+              setModalOpen(false);
+              setModalMode(null);
+              setEditingEventId(`t-${newTask.id}`);
+              navigate(`/tasks/${newTask.id}`);
+            } catch (e) {
+              // ignore navigation errors
+            }
           } catch (err) {
             console.error('Erro criando tarefa:', err);
             toast.error('Erro ao criar tarefa');
           }
         }
       } else if (modalMode === 'edit' && editingEventId) {
-        const realId = editingEventId.replace('ce-', '');
-        const updates: any = {
-          title: formTitle,
-          start_date: datetimeLocalToIso(formStart),
-          end_date: formEnd ? datetimeLocalToIso(formEnd) : null,
-          description: formDescription || null,
-          color: formColor || null,
-        };
-        try {
-          const { data, error } = await supabase.from('calendar_events').update(updates).eq('id', realId).select().single();
-          if (error) {
-            console.error('Erro atualizando calendar_event:', error);
-            if (error.code === 'PGRST204') {
-              try {
-                const up = await supabase.from('calendar_events').update(updates).eq('id', realId);
-                if (up.error) {
-                  console.error('Erro secundário atualizando calendar_event (sem select):', up.error);
-                  toast.error(up.error.message || JSON.stringify(up.error));
-                } else {
-                  const reData = await fetchCalendarEvents();
-                  if (reData) {
-                    setCalendarEvents((reData || []).map((d: any) => ({
-                      id: `ce-${d.id}`,
-                      title: d.title,
-                      start: d.start_date,
-                      end: d.end_date || undefined,
-                      color: d.color || '#7C3AED',
-                      description: d.description || undefined,
-                      owner_id: d.owner_id || null,
-                      team_id: d.team_id || null,
-                      is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
-                      task_id: d.task_id || null,
-                    })));
-                    toast.success('Evento atualizado');
-                  } else {
-                    console.warn('Atualizado mas não foi possível recarregar eventos');
-                    toast.success('Evento atualizado (recarregamento falhou)');
-                  }
-                }
-              } catch (err: any) {
-                console.error('Exceção secundária atualizando calendar_event (sem select):', err);
-                toast.error(err?.message || String(err));
-              }
+        if (editingEventId.startsWith('t-')) {
+          // editing a task
+          const realTaskId = editingEventId.replace('t-', '');
+          const updates: any = {
+            title: formTitle,
+            due_date: formStart ? datetimeLocalToIso(formStart) : null,
+            description: formDescription || null,
+          };
+          try {
+            if (updateSelectedTask) {
+              await updateSelectedTask(updates as any);
             } else {
-              toast.error(error.message || JSON.stringify(error));
+              // fallback: call supabase directly
+              const { error } = await supabase.from('tasks').update(updates).eq('id', realTaskId);
+              if (error) throw error;
             }
-          } else if (data) {
-            setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
-            toast.success('Evento atualizado');
+            try { if (typeof refetchTasks === 'function') await refetchTasks(); } catch {}
+            try { const re = await fetchCalendarEvents(); if (re) setCalendarEvents((re || []).map((d: any) => ({ id: `ce-${d.id}`, title: d.title, start: d.start_date, end: d.end_date || undefined, color: d.color || '#7C3AED', description: d.description || undefined, owner_id: d.owner_id || null, team_id: d.team_id || null, is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null, task_id: d.task_id || null }))); } catch (e) {}
+            toast.success('Tarefa atualizada');
+          } catch (err: any) {
+            console.error('Erro atualizando tarefa:', err);
+            toast.error('Erro ao atualizar tarefa');
           }
-        } catch (err: any) {
-          console.error('Exceção atualizando calendar_event:', err);
-          toast.error(err?.message || String(err));
+        } else {
+          const realId = editingEventId.replace('ce-', '');
+          const updates: any = {
+            title: formTitle,
+            start_date: datetimeLocalToIso(formStart),
+            end_date: formEnd ? datetimeLocalToIso(formEnd) : null,
+            description: formDescription || null,
+            color: formColor || null,
+          };
+          try {
+            const { data, error } = await supabase.from('calendar_events').update(updates).eq('id', realId).select().single();
+            if (error) {
+              console.error('Erro atualizando calendar_event:', error);
+              if (error.code === 'PGRST204') {
+                try {
+                  const up = await supabase.from('calendar_events').update(updates).eq('id', realId);
+                  if (up.error) {
+                    console.error('Erro secundário atualizando calendar_event (sem select):', up.error);
+                    toast.error(up.error.message || JSON.stringify(up.error));
+                  } else {
+                    const reData = await fetchCalendarEvents();
+                    if (reData) {
+                      setCalendarEvents((reData || []).map((d: any) => ({
+                        id: `ce-${d.id}`,
+                        title: d.title,
+                        start: d.start_date,
+                        end: d.end_date || undefined,
+                        color: d.color || '#7C3AED',
+                        description: d.description || undefined,
+                        owner_id: d.owner_id || null,
+                        team_id: d.team_id || null,
+                        is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
+                        task_id: d.task_id || null,
+                      })));
+                      toast.success('Evento atualizado');
+                    } else {
+                      console.warn('Atualizado mas não foi possível recarregar eventos');
+                      toast.success('Evento atualizado (recarregamento falhou)');
+                    }
+                  }
+                } catch (err: any) {
+                  console.error('Exceção secundária atualizando calendar_event (sem select):', err);
+                  toast.error(err?.message || String(err));
+                }
+              } else {
+                toast.error(error.message || JSON.stringify(error));
+              }
+            } else if (data) {
+              setCalendarEvents(prev => prev.map(ev => ev.id === `ce-${data.id}` ? { id: `ce-${data.id}`, title: data.title, start: data.start_date, end: data.end_date || undefined, color: data.color || '#7C3AED', description: data.description || undefined, owner_id: data.owner_id || null, team_id: data.team_id || null, is_private: typeof data.is_private !== 'undefined' ? !!data.is_private : null } : ev));
+              toast.success('Evento atualizado');
+            }
+          } catch (err: any) {
+            console.error('Exceção atualizando calendar_event:', err);
+            toast.error(err?.message || String(err));
+          }
         }
       }
     } finally {
@@ -687,32 +865,77 @@ export default function CalendarApp(): JSX.Element {
 
   const handleDeleteEvent = useCallback(async () => {
     if (!editingEventId) return;
-    // só admin ou owner pode deletar
-    if (!isAdmin) {
-      const ev = calendarEvents.find(ev => ev.id === editingEventId);
-      if (ev && ev.owner_id !== user?.id) {
-        toast.error('Você não tem permissão para excluir este evento');
-        return;
-      }
-    }
-    const realId = editingEventId.replace('ce-', '');
+    // Determine type: calendar_event (ce-) or task (t-)
     try {
-      const { error } = await supabase.from('calendar_events').delete().eq('id', realId);
-      if (error) {
-        console.error('Erro deletando calendar_event:', error);
-        toast.error('Erro ao excluir evento');
+      if (editingEventId.startsWith('ce-')) {
+        const realId = editingEventId.replace('ce-', '');
+        // só admin ou owner pode deletar
+        if (!isAdmin) {
+          const ev = calendarEvents.find(ev => ev.id === editingEventId);
+          if (ev && ev.owner_id !== user?.id) {
+            toast.error('Você não tem permissão para excluir este evento');
+            return;
+          }
+        }
+        const { error } = await supabase.from('calendar_events').delete().eq('id', realId);
+        if (error) {
+          console.error('Erro deletando calendar_event:', error);
+          toast.error('Erro ao excluir evento');
+          return;
+        }
+        setCalendarEvents(prev => prev.filter(ev => ev.id !== editingEventId));
+        setModalOpen(false);
+        setModalMode(null);
+        setEditingEventId(null);
+        toast.success('Evento excluído');
         return;
       }
-      setCalendarEvents(prev => prev.filter(ev => ev.id !== editingEventId));
-      setModalOpen(false);
-      setModalMode(null);
-      setEditingEventId(null);
-      toast.success('Evento excluído');
+
+      if (editingEventId.startsWith('t-')) {
+        const realId = editingEventId.replace('t-', '');
+        // Só owner/admin pode deletar tasks (reutilizar checagem simples)
+        if (!isAdmin) {
+          const t = (tasks || []).find((x: any) => x.id === realId);
+          if (t && t.user_id !== user?.id && t.assignee_id !== user?.id) {
+            toast.error('Você não tem permissão para excluir esta tarefa');
+            return;
+          }
+        }
+        // delete task via hook
+        try {
+          if (typeof deleteTask === 'function') {
+            await deleteTask(realId);
+          } else {
+            const { error } = await supabase.from('tasks').delete().eq('id', realId);
+            if (error) throw error;
+          }
+          // also remove any calendar_events linked to this task
+          try {
+            await supabase.from('calendar_events').delete().eq('task_id', realId);
+          } catch (e) {
+            // non-fatal
+            console.warn('Não foi possível remover calendar_events vinculados à task:', e);
+          }
+          // refresh local caches
+          try { if (typeof refetchTasks === 'function') await refetchTasks(); } catch {}
+          try { const re = await fetchCalendarEvents(); if (re) setCalendarEvents((re || []).map((d: any) => ({ id: `ce-${d.id}`, title: d.title, start: d.start_date, end: d.end_date || undefined, color: d.color || '#7C3AED', description: d.description || undefined, owner_id: d.owner_id || null, team_id: d.team_id || null, is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null, task_id: d.task_id || null }))); } catch (e) {}
+          setModalOpen(false);
+          setModalMode(null);
+          setEditingEventId(null);
+          setSelectedTaskId(null);
+          toast.success('Tarefa excluída');
+          return;
+        } catch (err: any) {
+          console.error('Erro deletando task:', err);
+          toast.error('Erro ao excluir tarefa');
+          return;
+        }
+      }
     } catch (err) {
-      console.error('Erro genérico ao excluir evento:', err);
-      toast.error('Erro ao excluir evento');
+      console.error('Erro genérico ao excluir item:', err);
+      toast.error('Erro ao excluir');
     }
-  }, [editingEventId]);
+  }, [editingEventId, calendarEvents, isAdmin, user, tasks, deleteTask, refetchTasks]);
 
   // Eventos do dia (sidebar)
   const eventsForDay = useMemo(() => {
@@ -768,8 +991,9 @@ export default function CalendarApp(): JSX.Element {
           setModalMode('edit');
           setEditingEventId(`ce-${data.id}`);
           setFormTitle(data.title || '');
-          setFormStart(isoToDatetimeLocal(data.start_date || ''));
-          setFormEnd(data.end_date ? isoToDatetimeLocal(data.end_date) : undefined);
+          const ne2 = normalizeFormStartEnd(data.start_date || null, data.end_date || null);
+          setFormStart(ne2.s);
+          setFormEnd(ne2.e);
           setFormDescription(data.description || '');
           setFormColor(data.color || '#7C3AED');
           setModalOpen(true);
