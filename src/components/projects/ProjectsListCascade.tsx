@@ -157,7 +157,14 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
         <TableBody>
           {/* Portfólios e seus projetos */}
           {(safePortfolios || []).map((portfolio) => {
-            const projectsInPortfolio = safeProjetos.filter(p => p.portfolio_id === portfolio.id);
+            let projectsInPortfolio = safeProjetos.filter(p => p.portfolio_id === portfolio.id);
+            // If focus mode is active, keep only projects that have at least one high-priority task
+            if (modoFoco) {
+              const projectIdsWithHighPriority = new Set(
+                tasks.filter(t => t.priority === 'high' || t.priority === 'alta').map(t => t.project_id)
+              );
+              projectsInPortfolio = projectsInPortfolio.filter(p => projectIdsWithHighPriority.has(p.id));
+            }
             return (
               <React.Fragment key={portfolio.id}>
                 <TableRow className="bg-muted/20 group hover:bg-muted/30 transition-colors">

@@ -1,5 +1,6 @@
 import { FolderOpen, MoreVertical } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
 import { PortfolioFilter } from '@/components/projects/PortfolioFilter';
@@ -21,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 const ProjectsPage = () => {
   const navigate = useNavigate();
   const { projects, loading: projectsLoading, refetch: refetchProjects, error } = useProjects();
+  const { user } = useAuth();
 
   const handleProjectCreated = () => {
     if (refetchProjects) {
@@ -49,6 +51,7 @@ const ProjectsPage = () => {
   const [status, setStatus] = useState("todos");
   const [modoLista, setModoLista] = useState(false);
   const [modoFoco, setModoFoco] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [showPortfolioModal, setShowPortfolioModal] = useState(false);
 
@@ -63,6 +66,10 @@ const ProjectsPage = () => {
     if (portfolioId) portfolioMatch = p.portfolio_id === portfolioId;
     return nomeMatch && statusMatch && portfolioMatch;
   });
+  // Aplicar filtro "Meus Projetos"
+  if (onlyMine && user) {
+    projetosFiltrados = projetosFiltrados.filter((p) => String(p.user_id) === String(user.id));
+  }
   // Modo foco: apenas para visualização em cascata (lista)
   // O filtro será passado como prop para o componente ProjectsListCascade
 
@@ -127,6 +134,20 @@ const ProjectsPage = () => {
             Novo Portfólio
           </button>
           <ViewModeIconToggle modoLista={modoLista} onChange={setModoLista} />
+          <button
+            type="button"
+            className={`px-3 py-2 rounded-md border text-sm font-medium transition ${onlyMine ? 'bg-primary text-white border-primary' : 'bg-white text-primary border-primary'}`}
+            onClick={() => {
+              setOnlyMine(v => {
+                const next = !v;
+                try { localStorage.setItem('projects.onlyMine', String(next)); } catch (e) { /* ignore */ }
+                return next;
+              });
+            }}
+            title={onlyMine ? 'Mostrar todos os projetos' : 'Mostrar apenas meus projetos'}
+          >
+            {onlyMine ? 'Meus Projetos' : 'Todos Projetos'}
+          </button>
           <button
             type="button"
             className={`px-3 py-2 rounded-md border text-sm font-medium transition ${modoFoco ? 'bg-red-600 text-white' : 'bg-white text-red-600 border-red-600'}`}

@@ -28,6 +28,7 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
+import { Trash2, Edit, Check } from 'lucide-react';
 
 
 const ProjectDetailPage = () => {
@@ -42,6 +43,7 @@ const ProjectDetailPage = () => {
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
   // expandedRows removido pois não é utilizado
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
+  const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (data?.tasks) setTasks(data.tasks);
@@ -68,6 +70,45 @@ const ProjectDetailPage = () => {
 
   const handleTaskAdded = (newTask: TaskWithDetails) => {
     setTasks((currentTasks) => [...currentTasks, newTask]);
+  };
+
+  const handleToggleComplete = async (task: TaskWithDetails) => {
+    const taskId = task.id;
+    const newStatus = task.status === 'done' ? 'todo' : 'done';
+    // optimistic update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    setUpdatingTaskIds(prev => new Set(prev).add(taskId));
+    try {
+      const { data, error } = await supabase.from('tasks').update({ status: newStatus, end_date: newStatus === 'done' ? new Date().toISOString() : null }).eq('id', taskId).select('*, assignee:profiles(*), project:projects(*), category:task_categories(*)').single();
+      if (error) throw error;
+      const updated = data as TaskWithDetails;
+      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+      toast.success(newStatus === 'done' ? 'Tarefa marcada como concluída' : 'Tarefa marcada como pendente');
+    } catch (err: any) {
+      console.error('Erro ao atualizar status da tarefa:', err);
+      // revert optimistic
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: task.status } : t));
+      toast.error('Não foi possível atualizar a tarefa', { description: err?.message });
+    } finally {
+      setUpdatingTaskIds(prev => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+    try {
+      const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+      if (error) throw error;
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      toast.success('Tarefa excluída');
+    } catch (err: any) {
+      console.error('Erro ao excluir tarefa:', err);
+      toast.error('Não foi possível excluir a tarefa', { description: err?.message });
+    }
   };
 
   // handleToggleRow removido pois não é utilizado
@@ -204,21 +245,45 @@ const ProjectDetailPage = () => {
                     <Fragment key={task.id}>
                       <tr className="hover:bg-muted/50 group">
                         <td className="align-middle w-0" style={{ width: 48, paddingLeft: 32 }}>
-                          <button
-                            type="button"
-                            className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
-                            onClick={() => setViewingTaskId(task.id)}
-                            aria-label="Abrir detalhes da tarefa"
-                            tabIndex={0}
-                          >
-                            <span className="transition-transform text-lg font-bold">{'>'}</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={task.status === 'done'}
+                              onChange={(e) => { e.stopPropagation(); handleToggleComplete(task); }}
+                              disabled={updatingTaskIds.has(task.id)}
+                              className="w-4 h-4 cursor-pointer"
+                              aria-label={task.status === 'done' ? 'Marcar como não concluída' : 'Marcar como concluída'}
+                            />
+                            <button
+                              type="button"
+                              className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
+                              onClick={() => setViewingTaskId(task.id)}
+                              aria-label="Abrir detalhes da tarefa"
+                              tabIndex={0}
+                            >
+                              <span className="transition-transform text-lg font-bold">{'>'}</span>
+                            </button>
+                          </div>
                           <span className="truncate font-medium text-base ml-2">{task.title}</span>
                           {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
                             <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
                               {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
                             </span>
                           )}
+                            <div className="ml-4 inline-flex items-center gap-2">
+                              <button
+                                className="text-xs text-blue-600 hover:underline"
+                                onClick={(e) => { e.stopPropagation(); setViewingTaskId(task.id); }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                className="text-xs text-red-600 hover:underline"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
+                              >
+                                Excluir
+                              </button>
+                            </div>
                         </td>
                         <td className="align-middle">
                           <span className={task.status === 'done' ? 'text-green-600' : task.status === 'progress' ? 'text-blue-500' : 'text-gray-500'}>
@@ -239,6 +304,7 @@ const ProjectDetailPage = () => {
                       {<SubtasksCascade taskId={task.id} />}
                     </Fragment>
                   ))}
+                  {/* actions: edit / delete buttons are shown inline next to task info */}
                   {expandedSections[sectionName] && (
                     <Fragment>
                       <tr>

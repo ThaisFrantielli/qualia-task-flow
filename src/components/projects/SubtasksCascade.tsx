@@ -1,26 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSubtasks } from '@/hooks/useSubtasks';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/lib/utils';
 import { formatDateSafe } from '@/lib/dateUtils';
+import { toast } from 'sonner';
 
 interface SubtasksCascadeProps {
   taskId: string;
 }
 
 const SubtasksCascade: React.FC<SubtasksCascadeProps> = ({ taskId }) => {
-  const { subtasks, isLoading } = useSubtasks(taskId);
+  const { subtasks, isLoading, update: updateSubtask } = useSubtasks(taskId);
+  const [localSubtasks, setLocalSubtasks] = useState(subtasks || []);
+  const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setLocalSubtasks(subtasks || []);
+  }, [subtasks]);
 
   if (isLoading) return <tr><td colSpan={4} className="pl-12 py-2 text-muted-foreground">Carregando subtarefas...</td></tr>;
   if (!subtasks || subtasks.length === 0) return null;
 
   return (
     <>
-      {subtasks.map(subtask => (
+      {localSubtasks.map(subtask => (
         <tr key={subtask.id} className="bg-muted/20">
           <td className="pl-12 py-2 text-sm" colSpan={2}>
             <div className="flex items-center gap-2">
-              <input type="checkbox" checked={subtask.completed} readOnly className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary" />
+              <input
+                type="checkbox"
+                checked={!!subtask.completed}
+                disabled={updatingIds.has(subtask.id)}
+                onChange={async (e) => {
+                  e.stopPropagation();
+                  const next = !subtask.completed;
+                  // optimistic update
+                  setLocalSubtasks(prev => prev.map(s => s.id === subtask.id ? { ...s, completed: next } : s));
+                  setUpdatingIds(prev => new Set(prev).add(subtask.id));
+                  try {
+                    await updateSubtask({ id: subtask.id, updates: { completed: next } as any });
+                    toast.success(next ? 'Subtarefa concluída' : 'Subtarefa marcada como pendente');
+                  } catch (err: any) {
+                    console.error('Erro atualizando subtarefa:', err);
+                    // revert
+                    setLocalSubtasks(prev => prev.map(s => s.id === subtask.id ? { ...s, completed: subtask.completed } : s));
+                    toast.error('Não foi possível atualizar subtarefa', { description: err?.message });
+                  } finally {
+                    setUpdatingIds(prev => {
+                      const nextSet = new Set(prev);
+                      nextSet.delete(subtask.id);
+                      return nextSet;
+                    });
+                  }
+                }}
+                className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
+              />
               <span className={subtask.completed ? 'line-through text-muted-foreground' : ''}>{subtask.title}</span>
             </div>
           </td>
