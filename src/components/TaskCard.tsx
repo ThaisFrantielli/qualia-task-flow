@@ -1,6 +1,10 @@
 
 import React from 'react';
-import { Clock, MessageCircle, Paperclip } from 'lucide-react';
+import { Clock, MessageCircle, Paperclip, MoreHorizontal } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { useTasks } from '@/hooks/useTasks';
 import TaskTags from './tasks/TaskTags';
 import { formatDateSafe } from '@/lib/dateUtils';
 import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
@@ -26,9 +30,12 @@ interface TaskCardProps {
   attachments?: number;
   onStatusChange?: (newStatus: string) => void;
   onTagsChange?: (tags: string[]) => void;
+  onOpen?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
+  id,
   title,
   description,
   status,
@@ -40,8 +47,34 @@ const TaskCard: React.FC<TaskCardProps> = ({
   subtasks,
   comments,
   attachments,
-  onTagsChange
+  onTagsChange,
+  onOpen, onDelete
 }) => {
+  const navigate = useNavigate();
+  const { deleteTask } = useTasks({});
+  const handleOpen = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (onOpen) return onOpen(String(id));
+    navigate(`/tasks/${id}`);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDelete) return onDelete(String(id));
+    try {
+      if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+      if (typeof deleteTask === 'function') {
+        await deleteTask(String(id));
+        toast.success('Tarefa excluída');
+        if (onDelete) onDelete(String(id));
+      } else {
+        toast.error('Não foi possível excluir (deleteTask não disponível). Abra a tarefa para excluir.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao excluir tarefa:', err);
+      toast.error('Erro ao excluir tarefa');
+    }
+  };
   const statusColors = {
     todo: 'border-l-gray-400',
     progress: 'border-l-blue-500',
@@ -60,10 +93,21 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
         <h3 className="font-semibold text-gray-900 text-sm leading-tight">{title}</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${priorityColors[priority]}`}>
             {priority === 'low' ? 'Baixa' : priority === 'medium' ? 'Média' : 'Alta'}
           </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button aria-label="Ações" onClick={(e) => e.stopPropagation()} className="p-1 rounded hover:bg-muted">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={(e: any) => handleOpen(e)}>Abrir / Editar</DropdownMenuItem>
+              <DropdownMenuItem onSelect={(e: any) => handleDelete(e)}>Excluir</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

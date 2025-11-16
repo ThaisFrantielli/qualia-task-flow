@@ -1,4 +1,4 @@
-
+import React, { useState, useEffect } from 'react';
 import type { TaskWithDetails } from '@/types';
 import { TableRow, TableCell } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';

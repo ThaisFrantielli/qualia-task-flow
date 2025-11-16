@@ -4,7 +4,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, Target } from 'lucide-react'; // <-- 1. Importar o ícone 'Target'
+import { Search, Target } from 'lucide-react'; // icons
+import { useTeams } from '@/hooks/useTeams';
 import type { AllTaskFilters } from '@/types';
 import { cn } from '@/lib/utils'; // <-- 2. Importar o utilitário 'cn'
 
@@ -23,9 +24,11 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
   isFocusMode,         // <-- 4. Receber as novas props
   onToggleFocusMode,
 }) => {
+  const { teams } = useTeams();
+
   return (
     <div className="bg-card p-4 rounded-lg border space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-center"> {/* Ajustado para 5 colunas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 items-center"> {/* Ajustado para 6 colunas */}
         <div className="relative md:col-span-2"> {/* A busca agora ocupa 2 colunas */}
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -51,6 +54,16 @@ const TasksFilters: React.FC<TasksFiltersProps> = ({
             <SelectItem value="low">Baixa</SelectItem>
             <SelectItem value="medium">Média</SelectItem>
             <SelectItem value="high">Alta</SelectItem>
+          </SelectContent>
+        </Select>
+        {/* Filtro por Equipe */}
+        <Select value={'teamFilter' in filters ? (filters.teamFilter as string) || 'all' : 'all'} onValueChange={(v) => onFilterChange('teamFilter' as keyof AllTaskFilters, v)}>
+          <SelectTrigger><SelectValue placeholder="Equipe" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as Equipes</SelectItem>
+            {teams.map((team: any) => (
+              <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         

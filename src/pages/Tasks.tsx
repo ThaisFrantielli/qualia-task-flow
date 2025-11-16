@@ -87,7 +87,12 @@ const TasksPage = () => {
       {/* Cabeçalho */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
+            {isFocusMode && (
+              <span className="inline-flex items-center bg-primary/10 text-primary px-2 py-1 rounded text-sm font-medium">Modo Foco Ativo</span>
+            )}
+          </div>
           <p className="text-gray-600 text-sm">Visualize e gerencie suas atividades.</p>
         </div>
         <Button onClick={handleCreateAndNavigate} disabled={isCreating} className="flex items-center gap-2">
@@ -107,7 +112,7 @@ const TasksPage = () => {
 
       {/* Cascata Portfólio > Projeto > Tarefas > Subtarefas */}
       <div className="mt-4">
-        <ProjectsListCascade projetos={projects} onOpenSubtask={(id) => setViewingSubtaskId(id)} />
+        <ProjectsListCascade projetos={projects} modoFoco={isFocusMode} teamFilter={filters.teamFilter} onOpenSubtask={(id) => setViewingSubtaskId(id)} />
       </div>
 
       {/* Tabela de Tarefas removida. As tarefas agora aparecem apenas dentro do bloco de Portfólio/Projeto na cascata. */}
