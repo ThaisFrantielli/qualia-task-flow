@@ -129,6 +129,24 @@ export function useTasks(filters: Partial<AllTaskFilters> = {}) {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
     });
 
+    const updateTaskMutation = useMutation({
+        mutationFn: async ({ id, updates }: { id: string; updates: Partial<TaskUpdate> }) => {
+            if (!id || !isValidUUID(id)) throw new Error('ID da tarefa inválido.');
+            const { data, error } = await supabase
+                .from('tasks')
+                .update(updates)
+                .eq('id', id)
+                .select(`*, assignee: profiles(*), project: projects(*), category: task_categories(*)`)
+                .single();
+            if (error) throw new Error(error.message);
+            return data as TaskWithDetails;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        onError: (err: any) => {
+            console.error('Erro ao atualizar tarefa:', err);
+        }
+    });
+
     return {
         tasks: data ?? [],
         loading: isLoading,
@@ -136,6 +154,7 @@ export function useTasks(filters: Partial<AllTaskFilters> = {}) {
         refetch,
         createTask: createTaskMutation.mutateAsync,
         deleteTask: deleteTaskMutation.mutateAsync,
+        updateTask: updateTaskMutation.mutateAsync,
     };
 }
 

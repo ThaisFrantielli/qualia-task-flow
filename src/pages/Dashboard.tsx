@@ -1,19 +1,19 @@
-// src/pages/Dashboard.tsx
-
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, Clock, AlertTriangle, Target } from 'lucide-react';
+// Updated Dashboard.tsx with polished layout and refined design
 import { useTasks } from '@/hooks/useTasks';
+import { useUsers } from '@/hooks/useUsers';
+import CardBlock from '@/components/dashboard/DashboardCards';
+import RecentTasks from '@/components/dashboard/RecentTasks';
+import TeamPerformance from '@/components/dashboard/TeamPerformance';
 import ProductivityMetrics from '@/components/dashboard/ProductivityMetrics';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
-import type { Task } from '@/types';
+import { Target, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 
 const Dashboard = () => {
-  
   const { tasks, loading: tasksLoading } = useTasks({});
+  const { users, loading: usersLoading } = useUsers();
 
-  if (tasksLoading) {
+  if (tasksLoading || usersLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -24,67 +24,101 @@ const Dashboard = () => {
     );
   }
 
-  // O '?? []' garante que, se 'tasks' for undefined, usamos um array vazio para evitar erros.
   const safeTasks = tasks ?? [];
-  
-  const totalTasks = safeTasks.length;
-  const completedTasks = safeTasks.filter((task: Task) => task.status === 'done').length;
-  const inProgressTasks = safeTasks.filter((task: Task) => task.status === 'progress').length;
-  const overdueTasks = safeTasks.filter((task: Task) => {
-    if (!task.due_date || task.status === 'done') return false;
-    // Compara apenas a data, ignorando a hora
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return new Date(task.due_date) < today;
-  }).length;
+  const total = safeTasks.length;
+  const done = safeTasks.filter((t: any) => t.status === 'done').length;
+  const progress = safeTasks.filter((t: any) => t.status === 'progress').length;
+  const overdue = safeTasks.filter((t: any) => t.due_date && t.status !== 'done' && (new Date(t.due_date) < new Date())).length;
 
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const percentDone = total ? Math.round((done / total) * 100) : 0;
+  const percentProgress = total ? Math.round((progress / total) * 100) : 0;
+  const percentOverdue = total ? Math.round((overdue / total) * 100) : 0;
+
+  const cards = [
+    {
+      key: 'total',
+      title: 'Total de Tarefas',
+      value: total,
+      icon: <Target className="h-6 w-6 text-gray-700" />,
+      delta: `+${percentDone}%`,
+      accent: '#F8F9FF',
+    },
+    {
+      key: 'done',
+      title: 'Concluídas',
+      value: done,
+      icon: <CheckCircle className="h-6 w-6 text-white" />,
+      delta: `+${percentDone}%`,
+      accent: '#322E5C',
+    },
+    {
+      key: 'progress',
+      title: 'Em andamento',
+      value: progress,
+      icon: <Clock className="h-6 w-6 text-white" />,
+      delta: `+${percentProgress}%`,
+      accent: '#3B82F6',
+    },
+    {
+      key: 'overdue',
+      title: 'Atrasadas',
+      value: overdue,
+      icon: <AlertTriangle className="h-6 w-6 text-white" />,
+      delta: percentOverdue > 0 ? `-${percentOverdue}%` : '0%',
+      accent: '#FFEDEE',
+    },
+  ];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-start">
+    <div className="p-6 space-y-8">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Visão geral da sua produtividade</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
+          <p className="text-gray-500 mt-1">Acompanhe suas tarefas, progresso e desempenho da equipe.</p>
         </div>
-        <div className="flex space-x-2">
-          <Link to="/tasks">
-            <Button variant="outline">Ver Todas as Tarefas</Button>
-          </Link>
-          <Link to="/reports">
-            <Button>Relatórios</Button>
-          </Link>
-        </div>
+        <Link
+          to="/tasks"
+          className="text-sm font-medium text-primary hover:opacity-80 transition"
+        >
+          Ver Todas as Tarefas
+        </Link>
       </div>
 
+      {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="productivity">Produtividade</TabsTrigger>
+        <TabsList className="flex bg-gray-100 p-1 rounded-xl w-fit shadow-inner">
+          <TabsTrigger
+            value="overview"
+            className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow data-[state=active]:text-primary"
+          >
+            Visão Geral
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="productivity"
+            className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow data-[state=active]:text-primary"
+          >
+            Produtividade
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total de Tarefas</CardTitle><Target className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold">{totalTasks}</div></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Tarefas Concluídas</CardTitle><CheckCircle className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold">{completedTasks}</div><p className="text-xs text-muted-foreground">{completionRate}% de conclusão</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Em Progresso</CardTitle><Clock className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold">{inProgressTasks}</div></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Atrasadas</CardTitle><AlertTriangle className="h-4 w-4 text-muted-foreground" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold text-red-600">{overdueTasks}</div></CardContent>
-            </Card>
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-8 pt-6">
+          <CardBlock items={cards} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <RecentTasks tasks={safeTasks} users={users} />
+            </div>
+            <div>
+              <TeamPerformance tasks={safeTasks} users={users} />
+            </div>
           </div>
-          {/* O resto do componente continua igual... */}
         </TabsContent>
-        <TabsContent value="productivity">
+
+        {/* Productivity Tab */}
+        <TabsContent value="productivity" className="pt-6">
           <ProductivityMetrics />
         </TabsContent>
       </Tabs>

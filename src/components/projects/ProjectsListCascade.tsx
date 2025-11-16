@@ -36,6 +36,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 interface ProjectsListCascadeProps {
   projetos: Project[];
   modoFoco?: boolean;
+  teamFilter?: string | null;
   onProjectDeleted?: () => void;
   onOpenSubtask?: (subtaskId: string) => void;
 }
@@ -51,7 +52,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 
 
-const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, onProjectDeleted, onOpenSubtask }) => {
+const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, teamFilter, onProjectDeleted, onOpenSubtask }) => {
   // const navigate = useNavigate();
   const { tasks, deleteTask } = useTasks({});
   const navigate = useNavigate();
@@ -292,6 +293,13 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                 )}
                 {expandedPortfolios.has(portfolio.id) && projectsInPortfolio.map((project) => {
                   let projectTasks = tasks.filter((t) => t.project_id === project.id);
+                  // Apply team filter (if set and not 'all') - check task.team_id, task.project.team_id or project.team_id
+                  if (teamFilter && teamFilter !== 'all') {
+                    projectTasks = projectTasks.filter(t => {
+                      const taskTeam = (t as any).team_id || ((t.project as any)?.team_id) || (project as any).team_id || null;
+                      return taskTeam === teamFilter;
+                    });
+                  }
                   if (modoFoco) {
                     projectTasks = projectTasks.filter(t => t.priority === 'high' || t.priority === 'alta');
                   }
@@ -308,6 +316,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                       <TableRow
                         ref={el => { if (el) projectRefs.current[project.id] = el; }}
                         className={`bg-muted/30 group hover:bg-muted/50 transition-colors ${highlightedProjectId === project.id ? 'ring-2 ring-primary/40 animate-pulse' : ''}`}
+                        onClick={() => navigate(`/projects/${project.id}`)}
                       >
                         <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 32 }}>
                           <button
@@ -375,7 +384,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                             </TableCell>
                           </TableRow>
                           {Array.isArray(sections[sectionName]) && sections[sectionName].length > 0
-                            ? sections[sectionName].map((task: any) => (
+                                    ? sections[sectionName].map((task: any) => (
                                 <React.Fragment key={task.id}>
                                   <TableRow className="hover:bg-muted/50 group">
                                     <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 48 }}>
@@ -453,73 +462,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                                             <TableBody>
                                               <ExpandedSubtasks taskId={task.id} onSubtaskClick={(id) => onOpenSubtask?.(id)} />
                                             </TableBody>
-                                            {/* Tarefas sem projeto */}
-                                            {(() => {
-                                              const noProjectTasks = (tasks || []).filter(t => !t.project_id);
-                                              if (!noProjectTasks || noProjectTasks.length === 0) return null;
-                                              return (
-                                                <>
-                                                  <div className="p-4 border-t">
-                                                    <strong className="text-sm">Sem Projeto</strong>
-                                                  </div>
-                                                  <Table>
-                                                    <TableBody>
-                                                      {noProjectTasks.map((task: any) => (
-                                                        <TableRow key={`nop-${task.id}`} className="hover:bg-muted/50 group">
-                                                          <TableCell className="align-middle font-normal text-sm">
-                                                            <div className="flex items-center gap-2">
-                                                              <span className="truncate font-medium text-base">{task.title}</span>
-                                                              {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
-                                                                <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-                                                                  {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
-                                                                </span>
-                                                              )}
-                                                            </div>
-                                                          </TableCell>
-                                                          <TableCell className="align-middle">
-                                                            <div className="flex items-center gap-2 text-sm text-gray-500">
-                                                              <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
-                                                            </div>
-                                                          </TableCell>
-                                                          <TableCell className="align-middle">
-                                                            <div className="flex items-center gap-2 text-sm">
-                                                              <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
-                                                            </div>
-                                                          </TableCell>
-                                                          <TableCell className="align-middle">
-                                                            <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
-                                                          </TableCell>
-                                                          <TableCell className="align-middle">
-                                                            <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
-                                                          </TableCell>
-                                                          <TableCell className="align-middle text-right">
-                                                            <DropdownMenu>
-                                                              <DropdownMenuTrigger asChild>
-                                                                <button className="p-1 rounded-full hover:bg-gray-200">
-                                                                  <MoreVertical className="h-5 w-5" />
-                                                                </button>
-                                                              </DropdownMenuTrigger>
-                                                              <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>Editar</DropdownMenuItem>
-                                                                <DropdownMenuItem onClick={async () => {
-                                                                  if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
-                                                                  try {
-                                                                    await deleteTask(task.id);
-                                                                    toast.success('Tarefa excluída com sucesso!');
-                                                                  } catch (err: any) {
-                                                                    toast.error('Erro ao excluir tarefa', { description: err?.message });
-                                                                  }
-                                                                }} className="text-red-600">Excluir</DropdownMenuItem>
-                                                              </DropdownMenuContent>
-                                                            </DropdownMenu>
-                                                          </TableCell>
-                                                        </TableRow>
-                                                      ))}
-                                                    </TableBody>
-                                                  </Table>
-                                                </>
-                                              );
-                                            })()}
+                                            
                                           </Table>
                                         </TableCell>
                                       </TableRow>
@@ -539,6 +482,12 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
           {/* Projetos sem portfólio */}
           {(safeProjetos || []).filter(p => !p.portfolio_id).map((project) => {
             let projectTasks = tasks.filter((t) => t.project_id === project.id);
+            if (teamFilter && teamFilter !== 'all') {
+              projectTasks = projectTasks.filter(t => {
+                const taskTeam = (t as any).team_id || ((t.project as any)?.team_id) || (project as any).team_id || null;
+                return taskTeam === teamFilter;
+              });
+            }
             if (modoFoco) {
               projectTasks = projectTasks.filter(t => t.priority === 'high' || t.priority === 'alta');
             }
@@ -555,6 +504,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
                 <TableRow
                   ref={el => { if (el) projectRefs.current[project.id] = el; }}
                   className={`bg-muted/30 group hover:bg-muted/50 transition-colors ${highlightedProjectId === project.id ? 'ring-2 ring-primary/40 animate-pulse' : ''}`}
+                  onClick={() => navigate(`/projects/${project.id}`)}
                 >
                   <TableCell className="align-middle w-0" style={{ width: 48, paddingLeft: 8 }}>
                     <button
@@ -704,6 +654,82 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
               </React.Fragment>
             );
           })}
+          {/* Tarefas sem Projeto (todas as tarefas sem project_id) */}
+          {(() => {
+            let noProjectTasks = (tasks || []).filter(t => !t.project_id);
+            if (teamFilter && teamFilter !== 'all') {
+              noProjectTasks = noProjectTasks.filter(t => {
+                const taskTeam = (t as any).team_id || ((t.project as any)?.team_id) || null;
+                return taskTeam === teamFilter;
+              });
+            }
+            if (modoFoco) {
+              noProjectTasks = noProjectTasks.filter(t => t.priority === 'high' || t.priority === 'alta');
+            }
+            if (!noProjectTasks || noProjectTasks.length === 0) return null;
+            return (
+              <>
+                <TableRow>
+                  <TableCell colSpan={7} className="py-2 pl-4">
+                    <strong className="text-sm">Tarefas sem Projeto</strong>
+                  </TableCell>
+                </TableRow>
+                {noProjectTasks.map((task: any) => (
+                  <TableRow key={`nop-${task.id}`} className="hover:bg-muted/50 group">
+                    <TableCell style={{ width: 48 }} />
+                    <TableCell className="align-middle font-normal text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium text-base">{task.title}</span>
+                        {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                            {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-middle">
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <span className={statusConfig[task.status]?.color || ''}>{statusConfig[task.status]?.label || task.status}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-middle">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${priorityConfig[task.priority]?.color || ''}`}>{priorityConfig[task.priority]?.label || task.priority}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-middle">
+                      <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
+                    </TableCell>
+                    <TableCell className="align-middle">
+                      <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
+                    </TableCell>
+                    <TableCell className="align-middle text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-1 rounded-full hover:bg-gray-200" onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="h-5 w-5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/tasks/${task.id}`)}>Editar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={async () => {
+                            if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+                            try {
+                              await deleteTask(task.id);
+                              toast.success('Tarefa excluída com sucesso!');
+                            } catch (err: any) {
+                              toast.error('Erro ao excluir tarefa', { description: err?.message });
+                            }
+                          }} className="text-red-600">Excluir</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </>
+            );
+          })()}
+
         </TableBody>
       </Table>
       {actionError && <div className="p-4 text-red-500">Erro: {actionError}</div>}

@@ -66,6 +66,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
       assignee_id: assigneeId,
       priority,
       status,
+      completed: status === 'done',
       due_date: dueDate ? calendarDateToISO(dueDate) : null,
     };
 
@@ -164,9 +165,20 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
                         {dueDate ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR }) : <span>Escolha</span>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={dueDate || undefined} onSelect={(d) => setDueDate(d || null)} initialFocus />
-                    </PopoverContent>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={dueDate || undefined}
+                          onSelect={(d) => {
+                            let sel: Date | null = null;
+                            if (!d) sel = null;
+                            else if (Array.isArray(d)) sel = d.length ? (d[0] as Date) : null;
+                            else sel = d as Date;
+                            setDueDate(sel);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
                   </Popover>
                 </div>
                 <div className="space-y-2">
