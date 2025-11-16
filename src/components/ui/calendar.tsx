@@ -247,7 +247,7 @@ export default function CalendarApp(): JSX.Element {
   const navigate = useNavigate();
   const { tasks, createTask, refetch: refetchTasks, deleteTask } = useTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const { task: selectedTask, refetch: refetchSelectedTask, updateTask: updateSelectedTask } = useTask(selectedTaskId || '');
+  const { updateTask: updateSelectedTask } = useTask(selectedTaskId || '');
   const { projects } = useProjects();
   const { teams } = useTeams();
   const { user } = useAuth();

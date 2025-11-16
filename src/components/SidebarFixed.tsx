@@ -69,10 +69,10 @@ const SidebarFixed: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { projects } = useProjects();
+  // projects not needed in this component currently
+  useProjects();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem('sidebar.openGroups');
@@ -90,8 +90,12 @@ const SidebarFixed: React.FC = () => {
     });
   };
 
+  // If needed: open groups can be toggled based on route
   useEffect(() => {
-    if (location.pathname.startsWith('/projects')) setIsProjectsOpen(true);
+    // preserve previous behavior optionally by opening Projects group when on /projects
+    if (location.pathname.startsWith('/projects')) {
+      try { const raw = localStorage.getItem('sidebar.openGroups'); const prev = raw ? JSON.parse(raw) : {}; prev['GERAL'] = true; localStorage.setItem('sidebar.openGroups', JSON.stringify(prev)); setOpenGroups(prev); } catch {}
+    }
   }, [location.pathname]);
 
   const handleLogout = async () => {
@@ -104,7 +108,7 @@ const SidebarFixed: React.FC = () => {
     return user?.email?.[0].toUpperCase() || '?';
   };
 
-  const projectList = (projects ?? []).filter(p => p?.id && p.id !== 'all');
+  // projectList intentionally unused here; projects can be accessed via `projects` hook when necessary
 
   if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
 

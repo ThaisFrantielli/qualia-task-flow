@@ -136,6 +136,7 @@ export type AllTaskFilters = {
   assignee?: string[];
   project?: string[];
   category?: string[];
+  teamFilter?: string;
   dateRange?: {
     start?: Date;
     end?: Date;
