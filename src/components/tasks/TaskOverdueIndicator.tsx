@@ -2,6 +2,7 @@
 import React from 'react';
 import { AlertTriangle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { parseISODateSafe } from '@/lib/dateUtils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface TaskOverdueIndicatorProps {
@@ -17,7 +18,7 @@ const TaskOverdueIndicator: React.FC<TaskOverdueIndicatorProps> = ({
 }) => {
   if (status === 'done') return null;
 
-  const due = new Date(dueDate);
+  const due = parseISODateSafe(dueDate) || new Date(dueDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

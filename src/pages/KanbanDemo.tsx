@@ -3,7 +3,7 @@ import { useAtendimentosKanban } from "../hooks/useAtendimentosKanban";
 import { AnimatedKPICard } from "../components/AnimatedKPICard";
 import KanbanTaskCard from "../components/KanbanTaskCard";
 import { ClipboardDocumentListIcon, ExclamationTriangleIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { formatDateSafe } from '@/lib/dateUtils';
+import { formatDateSafe, dateToLocalISO } from '@/lib/dateUtils';
 
 const kanbanColumns = [
   { key: "solicitacao", title: "Solicitação", color: "bg-blue-50 border-blue-200", border: "border-blue-300", header: "text-blue-700" },
@@ -43,7 +43,7 @@ export default function KanbanDemo() {
       status: "solicitacao",
       avatar: "TC",
       motivo: "Solicitação",
-      created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(), // 3 dias atrás (urgente)
+      created_at: dateToLocalISO(new Date(Date.now() - 72 * 60 * 60 * 1000)), // 3 dias atrás (urgente)
     },
     {
       id: 2,
@@ -53,7 +53,7 @@ export default function KanbanDemo() {
       status: "solicitacao",
       avatar: "S",
       motivo: "Solicitação",
-      created_at: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(), // 1.5 dias atrás (médio)
+      created_at: dateToLocalISO(new Date(Date.now() - 36 * 60 * 60 * 1000)), // 1.5 dias atrás (médio)
     },
     {
       id: 3,
@@ -63,7 +63,7 @@ export default function KanbanDemo() {
       status: "solicitacao",
       avatar: "X",
       motivo: "Solicitação",
-      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 horas atrás (normal)
+      created_at: dateToLocalISO(new Date(Date.now() - 12 * 60 * 60 * 1000)), // 12 horas atrás (normal)
     },
   ];
 

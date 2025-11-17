@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
+import { parseISODateSafe } from '@/lib/dateUtils';
 
 interface RecentTasksProps {
   tasks: any[];
@@ -34,7 +35,7 @@ const RecentTasks: React.FC<RecentTasksProps> = ({ tasks, users }) => {
                   </Avatar>
                   <div>
                     <div className="text-sm font-medium truncate max-w-xs">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">{user?.full_name || 'Não atribuído'} • {t.due_date ? format(new Date(t.due_date), 'dd/MM/yyyy') : '—'}</div>
+                    <div className="text-xs text-muted-foreground">{user?.full_name || 'Não atribuído'} • {t.due_date ? format(parseISODateSafe(t.due_date) || new Date(t.due_date), 'dd/MM/yyyy') : '—'}</div>
                   </div>
                 </div>
                 <div>
