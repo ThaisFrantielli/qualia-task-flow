@@ -35,6 +35,33 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const handleDownload = (attachment: any) => {
+    const path = attachment.file_path || attachment.url || '';
+    // If it's a full URL, open in new tab
+    if (!path) {
+      // fallback: do nothing or show message
+      // For now, just return
+      return;
+    }
+
+    if (/^https?:\/\//i.test(path)) {
+      window.open(path, '_blank');
+      return;
+    }
+
+    // Ensure leading slash
+    const href = path.startsWith('/') ? path : `/${path}`;
+
+    // Create an anchor and trigger download/navigate
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = attachment.filename || '';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -90,7 +117,7 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => handleDownload(attachment)}>
                     <Download className="w-4 h-4" />
                   </Button>
                   <Button
