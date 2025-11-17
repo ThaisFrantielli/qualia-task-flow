@@ -105,7 +105,7 @@ const SurveyAdminPage = () => {
     devolucao: 'Devolução',
   };
 
-  const isAdmin = user?.permissoes?.is_admin === true;
+  const isAdmin = !!user?.isAdmin;
 
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">

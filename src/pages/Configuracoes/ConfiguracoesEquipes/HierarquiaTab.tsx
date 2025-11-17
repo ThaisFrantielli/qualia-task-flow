@@ -122,9 +122,7 @@ const HierarquiaTab: React.FC = () => {
     return <div className="p-6"><p>Carregando...</p></div>;
   }
 
-  const canManageTeam = user.nivelAcesso === 'Admin' || 
-                        user.nivelAcesso === 'Gestão' || 
-                        user.nivelAcesso === 'Supervisão';
+  const canManageTeam = !!user?.isSupervisor || !!user?.isAdmin;
 
   if (!canManageTeam) {
     return (

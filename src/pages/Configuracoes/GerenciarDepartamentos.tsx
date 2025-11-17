@@ -208,7 +208,7 @@ const GerenciarDepartamentosPage: React.FC = () => {
     );
   }
 
-  const isAdmin = user.nivelAcesso === 'Admin';
+  const isAdmin = !!user?.isAdmin;
 
   return (
     <div className="p-6 space-y-6">

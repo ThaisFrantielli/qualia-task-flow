@@ -89,9 +89,7 @@ const GerenciarEquipesPage: React.FC = () => {
     );
   }
 
-  const canManageTeam = user.nivelAcesso === 'Admin' || 
-                        user.nivelAcesso === 'Gestão' || 
-                        user.nivelAcesso === 'Supervisão';
+  const canManageTeam = !!user?.isSupervisor || !!user?.isAdmin;
 
   if (!canManageTeam) {
     return (

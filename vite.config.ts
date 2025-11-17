@@ -22,7 +22,9 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
+    // componentTagger can modify files which may trigger Vite's watcher and cause restart loops.
+    // Enable it only for non-development builds (e.g., production) to avoid HMR loops.
+    mode !== 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
@@ -69,6 +71,12 @@ export default defineConfig(({ mode }) => {
     hmr: {
       protocol: hmrProtocol,
       clientPort: hmrClientPort,
+    },
+    // Prevent external services or build artifacts from triggering Vite's watcher
+    // (e.g., whatsapp-service writing files to the workspace or generated `dist` files).
+    watch: {
+      // ignore heavy folders and external service output
+      ignored: ['**/whatsapp-service/**', '**/dist/**', '**/nome-do-projeto/**']
     },
     }
   }

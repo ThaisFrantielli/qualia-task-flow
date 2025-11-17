@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
-import { Trash2, Edit, Check } from 'lucide-react';
 
 
 const ProjectDetailPage = () => {
@@ -66,6 +65,10 @@ const ProjectDetailPage = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
+  };
+  const [expandedTasksMap, setExpandedTasksMap] = useState<Record<string, boolean>>({});
+  const toggleTaskExpand = (taskId: string) => {
+    setExpandedTasksMap(prev => ({ ...prev, [taskId]: !(prev[taskId] ?? true) }));
   };
 
   const handleTaskAdded = (newTask: TaskWithDetails) => {
@@ -246,6 +249,15 @@ const ProjectDetailPage = () => {
                       <tr className="hover:bg-muted/50 group">
                         <td className="align-middle w-0" style={{ width: 48, paddingLeft: 32 }}>
                           <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); toggleTaskExpand(task.id); }}
+                              aria-label={expandedTasksMap[task.id] ?? true ? 'Recolher subtarefas' : 'Expandir subtarefas'}
+                              tabIndex={0}
+                            >
+                              <span className={`transition-transform text-lg font-bold ${expandedTasksMap[task.id] ?? true ? '' : 'rotate-90'}`}>{'▾'}</span>
+                            </button>
                             <input
                               type="checkbox"
                               checked={task.status === 'done'}
@@ -301,7 +313,7 @@ const ProjectDetailPage = () => {
                         </td>
                       </tr>
                       {/* Subtarefas */}
-                      {<SubtasksCascade taskId={task.id} />}
+                      { (expandedTasksMap[task.id] ?? true) && <SubtasksCascade taskId={task.id} /> }
                     </Fragment>
                   ))}
                   {/* actions: edit / delete buttons are shown inline next to task info */}

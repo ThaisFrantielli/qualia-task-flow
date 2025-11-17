@@ -96,12 +96,12 @@ const Settings: React.FC = () => {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className={`grid w-full ${user?.nivelAcesso === 'Admin' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+        <TabsList className={`grid w-full ${user?.isAdmin ? 'grid-cols-5' : 'grid-cols-4'}`}>
           <TabsTrigger value="profile">Perfil</TabsTrigger>
           <TabsTrigger value="notifications">Notificações</TabsTrigger>
           <TabsTrigger value="appearance">Aparência</TabsTrigger>
           <TabsTrigger value="security">Segurança</TabsTrigger>
-          {user?.nivelAcesso === 'Admin' && (
+          {user?.isAdmin && (
             <TabsTrigger value="categories">Categorias</TabsTrigger>
           )}
           <TabsTrigger value="portfolios">Portfólios</TabsTrigger>
@@ -183,7 +183,7 @@ const Settings: React.FC = () => {
         </TabsContent>
 
         {/* --- NOVO CONTEÚDO DE ABA CONDICIONAL --- */}
-        {user?.nivelAcesso === 'Admin' && (
+        {user?.isAdmin && (
           <TabsContent value="categories">
             <ClassificationManager />
           </TabsContent>

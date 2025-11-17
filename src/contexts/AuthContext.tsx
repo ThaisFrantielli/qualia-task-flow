@@ -53,6 +53,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ...(profileData || {}),
         email: profileData?.email || currentSession.user.email || '',
         permissoes: finalPermissoes,
+        // Derivar isAdmin no frontend de forma consistente com as funções SQL
+        isAdmin: (profileData?.nivelAcesso === 'Admin') || (finalPermissoes?.is_admin === true) || false,
+        // Derivar isSupervisor para simplificar checks: Supervisão ou Gestão ou Admin
+        isSupervisor: ['Supervisão', 'Gestão', 'Admin'].includes(profileData?.nivelAcesso || '') || (finalPermissoes?.is_admin === true) || false,
       };
 
       setUser(updatedUser);
