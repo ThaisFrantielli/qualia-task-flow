@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { calendarDateToISO } from '@/lib/dateUtils';
+import { calendarDateToISO, parseISODateSafe } from '@/lib/dateUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +49,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
       setTitle(subtask.title);
       setDescription(subtask.description || '');
       setAssigneeId(subtask.assignee_id || null);
-      setDueDate(subtask.due_date ? new Date(subtask.due_date) : null);
+      setDueDate(subtask.due_date ? (parseISODateSafe(subtask.due_date) || new Date(subtask.due_date)) : null);
       setPriority(subtask.priority || 'medium');
       setStatus(subtask.status || 'todo');
     }

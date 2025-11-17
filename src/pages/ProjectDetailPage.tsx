@@ -12,7 +12,7 @@ import SubtasksCascade from '@/components/projects/SubtasksCascade';
 import TaskDetailSheet from '@/components/tasks/TaskDetailSheet';
 import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
 import { Button } from '@/components/ui/button';
-import { formatDateSafe } from '@/lib/dateUtils';
+import { formatDateSafe, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
 import { EditProjectForm } from '@/components/EditProjectForm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,7 +82,7 @@ const ProjectDetailPage = () => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
     setUpdatingTaskIds(prev => new Set(prev).add(taskId));
     try {
-      const { data, error } = await supabase.from('tasks').update({ status: newStatus, end_date: newStatus === 'done' ? new Date().toISOString() : null }).eq('id', taskId).select('*, assignee:profiles(*), project:projects(*), category:task_categories(*)').single();
+      const { data, error } = await supabase.from('tasks').update({ status: newStatus, end_date: newStatus === 'done' ? dateToLocalDateOnlyISO(new Date()) : null }).eq('id', taskId).select('*, assignee:profiles(*), project:projects(*), category:task_categories(*)').single();
       if (error) throw error;
       const updated = data as TaskWithDetails;
       setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));

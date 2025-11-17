@@ -1,5 +1,6 @@
 // Updated Dashboard.tsx with polished layout and refined design
 import { useTasks } from '@/hooks/useTasks';
+import { parseISODateSafe } from '@/lib/dateUtils';
 import { useUsers } from '@/hooks/useUsers';
 import CardBlock from '@/components/dashboard/DashboardCards';
 import RecentTasks from '@/components/dashboard/RecentTasks';
@@ -28,7 +29,13 @@ const Dashboard = () => {
   const total = safeTasks.length;
   const done = safeTasks.filter((t: any) => t.status === 'done').length;
   const progress = safeTasks.filter((t: any) => t.status === 'progress').length;
-  const overdue = safeTasks.filter((t: any) => t.due_date && t.status !== 'done' && (new Date(t.due_date) < new Date())).length;
+  const overdue = safeTasks.filter((t: any) => {
+    if (!t.due_date || t.status === 'done') return false;
+    const due = parseISODateSafe(t.due_date) || new Date(t.due_date);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return due < today;
+  }).length;
 
   const percentDone = total ? Math.round((done / total) * 100) : 0;
   const percentProgress = total ? Math.round((progress / total) * 100) : 0;

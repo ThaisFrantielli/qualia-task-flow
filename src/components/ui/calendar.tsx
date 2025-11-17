@@ -21,7 +21,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useTeams } from '@/hooks/useTeams';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { dateToLocalDateOnlyISO } from '@/lib/dateUtils';
+import { dateToLocalDateOnlyISO, dateToLocalISO, createLocalDate, parseISODateSafe } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { ptBR } from 'date-fns/locale';
@@ -481,8 +481,8 @@ export default function CalendarApp(): JSX.Element {
   // -------------------- Handlers --------------------
   const handleSelect = useCallback((info: DateSelectArg) => {
     const jsEvent = (info as any).jsEvent;
-    const startStr = (info as any).startStr || (info.start ? (info.start as Date).toISOString() : undefined);
-    const endStr = (info as any).endStr || (info.end ? (info.end as Date).toISOString() : undefined);
+    const startStr = (info as any).startStr || (info.start ? dateToLocalISO(info.start as Date) : undefined);
+    const endStr = (info as any).endStr || (info.end ? dateToLocalISO(info.end as Date) : undefined);
 
       if (jsEvent && (jsEvent.ctrlKey || jsEvent.metaKey)) {
       // criar diretamente
@@ -511,12 +511,12 @@ export default function CalendarApp(): JSX.Element {
         const ne2 = normalizeFormStartEnd(startStr, undefined);
         setFormStart(ne2.s);
         // sugerir fim 1 hora depois quando houver start
-        if (startStr) {
+            if (startStr) {
           try {
-            const dt = new Date(startStr);
+            const dt = startStr && /^\d{4}-\d{2}-\d{2}$/.test(String(startStr)) ? createLocalDate(String(startStr)) : (parseISODateSafe(String(startStr)) || new Date(String(startStr)));
             const end = new Date(dt.getTime() + 60 * 60 * 1000);
             // convert end datetime to local form string and ensure it's not before start
-            const ne3 = normalizeFormStartEnd(startStr, end.toISOString());
+            const ne3 = normalizeFormStartEnd(startStr, dateToLocalISO(end));
             setFormEnd(ne3.e);
           } catch {
             setFormEnd(endStr ? isoToDatetimeLocal(endStr) : undefined);
@@ -651,7 +651,7 @@ export default function CalendarApp(): JSX.Element {
             description: formDescription || null,
             color: formColor || null,
             owner_id: user?.id || null,
-            created_at: new Date().toISOString(),
+            created_at: dateToLocalISO(new Date()),
           };
 
           try {
@@ -727,7 +727,7 @@ export default function CalendarApp(): JSX.Element {
                 color: formColor || null,
                 owner_id: user?.id || null,
                 task_id: newTask.id,
-                created_at: new Date().toISOString(),
+                created_at: dateToLocalISO(new Date()),
               };
 
               const { data: evData, error: evError } = await supabase.from('calendar_events').insert(eventPayload).select().single();
@@ -1028,7 +1028,7 @@ export default function CalendarApp(): JSX.Element {
               setFormTitle('');
               setFormDescription('');
               setFormColor('#7C3AED');
-              setFormStart(isoToDatetimeLocal(new Date().toISOString()));
+              setFormStart(isoToDatetimeLocal(dateToLocalISO(new Date())));
               setModalOpen(true);
             }}
           >
