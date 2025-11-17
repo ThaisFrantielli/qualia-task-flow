@@ -13,7 +13,16 @@ import { format } from 'date-fns';
 
 export function parseISODateSafe(iso: string | null | undefined): Date | null {
   if (!iso) return null;
-  const dt = new Date(iso);
+  const s = String(iso);
+  // date-only (YYYY-MM-DD) -> create local date at midnight to avoid UTC shift
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const parts = s.split('-').map(p => parseInt(p, 10));
+    if (parts.length === 3 && parts.every(n => !Number.isNaN(n))) {
+      return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+    }
+    return null;
+  }
+  const dt = new Date(s);
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTasks } from '../hooks/useTasks';
 import { useProjects } from '../hooks/useProjects';
 import { Download, FileText, Filter, BarChart3 } from 'lucide-react';
-import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
+import { formatDateSafe, parseISODateSafe, createLocalDate, getTodayDateInput } from '@/lib/dateUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -53,8 +53,8 @@ const Reports = () => {
     let matchesDate = true;
     if (dateRange.start && dateRange.end) {
       const taskDate = parseISODateSafe(task.created_at);
-      const startDate = new Date(dateRange.start);
-      const endDate = new Date(dateRange.end);
+      const startDate = createLocalDate(dateRange.start);
+      const endDate = createLocalDate(dateRange.end);
       if (!taskDate) return false;
       matchesDate = taskDate >= startDate && taskDate <= endDate;
     }
@@ -95,7 +95,7 @@ const Reports = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Relatório de Tarefas');
     
-    const fileName = `relatorio_tarefas_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fileName = `relatorio_tarefas_${getTodayDateInput()}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 

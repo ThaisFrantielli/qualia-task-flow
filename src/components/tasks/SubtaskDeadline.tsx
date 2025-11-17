@@ -4,6 +4,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast } from 'date-fns';
+import { parseISODateSafe } from '@/lib/dateUtils';
 import { ptBR } from 'date-fns/locale';
 import type { SubtaskWithDetails } from '@/types';
 
@@ -16,7 +17,7 @@ const SubtaskDeadline: React.FC<SubtaskDeadlineProps> = ({ subtask }) => {
     return <span className="text-xs text-muted-foreground">Sem prazo</span>;
   }
 
-  const dueDate = new Date(subtask.due_date);
+  const dueDate = parseISODateSafe(subtask.due_date) || new Date(subtask.due_date);
 
   // Se a subtarefa já foi concluída, não mostramos o status de atraso
   if (subtask.completed) {
