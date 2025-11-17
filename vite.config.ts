@@ -4,14 +4,16 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { componentTagger } from "lovable-tagger"
+// Import `lovable-tagger` dynamically below to avoid running it at module-import
+// time (some versions execute file modifications on import which can trigger
+// Vite's watcher and create restart loops). We'll only load it for non-dev builds.
 
 // Define __dirname em ambientes de Módulos ES
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const devPort = Number(env.VITE_DEV_SERVER_PORT || 8080)
   // Allow forcing WSS (useful when running behind HTTPS reverse proxies)
@@ -19,13 +21,16 @@ export default defineConfig(({ mode }) => {
   const hmrProtocol = forceWss ? 'wss' : 'ws'
   const hmrClientPort = forceWss ? 443 : devPort
 
+  // Build plugins list and only import `lovable-tagger` when needed to avoid
+  // side-effects during development that can trigger file watch loops.
+  const plugins = [react()];
+  if (mode !== 'development') {
+    const mod = await import('lovable-tagger');
+    if (mod?.componentTagger) plugins.push(mod.componentTagger());
+  }
+
   return {
-  plugins: [
-    react(),
-    // componentTagger can modify files which may trigger Vite's watcher and cause restart loops.
-    // Enable it only for non-development builds (e.g., production) to avoid HMR loops.
-    mode !== 'development' && componentTagger(),
-  ].filter(Boolean),
+  plugins: plugins.filter(Boolean),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -76,7 +81,14 @@ export default defineConfig(({ mode }) => {
     // (e.g., whatsapp-service writing files to the workspace or generated `dist` files).
     watch: {
       // ignore heavy folders and external service output
-      ignored: ['**/whatsapp-service/**', '**/dist/**', '**/nome-do-projeto/**']
+      ignored: [
+        '**/whatsapp-service/**',
+        '**/whatsapp-service/.wwebjs_cache/**',
+        '**/.wwebjs_cache/**',
+        '**/dist/**',
+        '**/nome-do-projeto/**',
+        '**/whatsapp-session-default/**'
+      ]
     },
     }
   }

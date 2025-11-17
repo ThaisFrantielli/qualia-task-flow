@@ -35,18 +35,32 @@ export const useAttachments = (taskId?: string) => {
 
   const uploadAttachment = async (file: File, taskId: string) => {
     try {
-      // For now, we'll just store the file info in the database
-      // In a real implementation, you'd upload to Supabase Storage first
+      // Upload file to Supabase Storage bucket 'attachments'
+      const bucketName = 'attachments';
+      const filePath = `${taskId}/${Date.now()}_${file.name}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL (assumes the bucket is public). If bucket is private,
+      // consider creating a signed URL on the server instead.
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+      const publicUrl = urlData?.publicUrl || `/${filePath}`;
+
       const { error } = await supabase
         .from('attachments')
         .insert({
           task_id: taskId,
           filename: file.name,
-          file_path: `uploads/${file.name}`, // Placeholder path
+          file_path: publicUrl,
           file_size: file.size
         });
 
       if (error) throw error;
+
       await fetchAttachments();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer upload do anexo');
