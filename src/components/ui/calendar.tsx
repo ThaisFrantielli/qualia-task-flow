@@ -378,7 +378,7 @@ export default function CalendarApp(): JSX.Element {
   }, []);
 
   // Permissões: função utilitária que decide se o usuário atual pode ver um item
-  const isAdmin = !!user?.permissoes?.is_admin;
+  const isAdmin = !!user?.isAdmin;
 
   const canViewItem = useCallback((item: any) => {
     if (isAdmin) return true;

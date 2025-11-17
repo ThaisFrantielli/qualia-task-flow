@@ -202,7 +202,7 @@ const DepartamentosTab: React.FC = () => {
     return <div className="p-6"><p>Carregando...</p></div>;
   }
 
-  const isAdmin = user.nivelAcesso === 'Admin';
+  const isAdmin = !!user?.isAdmin;
 
   return (
     <div className="space-y-6">

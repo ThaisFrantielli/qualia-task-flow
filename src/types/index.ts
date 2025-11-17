@@ -13,6 +13,10 @@ export type Profile = PublicSchema['Tables']['profiles']['Row'];
 // O tipo AppUser combina o usuário do Supabase com o perfil da sua aplicação
 export type AppUser = SupabaseUser & Omit<Profile, 'permissoes'> & {
   permissoes?: Permissoes | null;
+  // campo derivado para facilitar checks no frontend
+  isAdmin?: boolean;
+  // campo derivado para indicar se o usuário tem nível de supervisão (Supervisão/Gestão/Admin)
+  isSupervisor?: boolean;
 };
 
 // Tipo para as permissões do usuário, pode ser expandido conforme necessário
