@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useTeams } from '@/hooks/useTeams';
-import { Target, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Target } from 'lucide-react';
 
 interface TeamPerformanceProps {
   tasks: any[];

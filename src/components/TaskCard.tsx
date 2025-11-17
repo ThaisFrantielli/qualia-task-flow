@@ -9,6 +9,8 @@ import TaskTags from './tasks/TaskTags';
 import { formatDateSafe } from '@/lib/dateUtils';
 import TaskOverdueIndicator from './tasks/TaskOverdueIndicator';
 
+const isFunction = (v: any): v is (...args: any[]) => any => typeof v === 'function';
+
 interface TaskCardProps {
   id: string;
   title: string;
@@ -54,19 +56,19 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const { deleteTask } = useTasks({});
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (onOpen) return onOpen(String(id));
+    if (isFunction(onOpen)) return (onOpen as (id: string) => void)(String(id));
     navigate(`/tasks/${id}`);
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onDelete) return onDelete(String(id));
+    if (isFunction(onDelete)) return (onDelete as (id: string) => void)(String(id));
     try {
       if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
       if (typeof deleteTask === 'function') {
         await deleteTask(String(id));
         toast.success('Tarefa excluída');
-        if (onDelete) onDelete(String(id));
+        if (isFunction(onDelete)) (onDelete as (id: string) => void)(String(id));
       } else {
         toast.error('Não foi possível excluir (deleteTask não disponível). Abra a tarefa para excluir.');
       }

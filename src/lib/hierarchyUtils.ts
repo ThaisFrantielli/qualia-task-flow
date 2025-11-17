@@ -28,8 +28,12 @@ export function canViewUserData(
   targetUserId: string,
   hierarchyData: { user_id: string; supervisor_id: string }[]
 ): boolean {
+  // Derivados que podem ser preenchidos pelo AuthContext: isAdmin / isSupervisor
+  const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
+  const isSupervisor = ((currentUser as any).isSupervisor === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO || currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO || currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
+
   // Admin vê tudo
-  if (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN) {
+  if (isAdmin) {
     return true;
   }
 
@@ -39,10 +43,7 @@ export function canViewUserData(
   }
 
   // Se não for supervisor ou gestor, não pode ver dados de outros
-  if (
-    currentUser.nivelAcesso !== ACCESS_LEVELS.SUPERVISAO &&
-    currentUser.nivelAcesso !== ACCESS_LEVELS.GESTAO
-  ) {
+  if (!isSupervisor) {
     return false;
   }
 
@@ -84,8 +85,10 @@ export function getVisibleUserIds(
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[]
 ): string[] {
+  const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
+
   // Admin vê todos
-  if (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN) {
+  if (isAdmin) {
     // Retornar array vazio indica "ver todos" (não filtrar)
     return [];
   }
@@ -96,10 +99,8 @@ export function getVisibleUserIds(
   visibleIds.add(currentUser.id);
 
   // Se for supervisor ou gestor, adicionar toda a hierarquia
-  if (
-    currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO ||
-    currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO
-  ) {
+  const isSupervisor = ((currentUser as any).isSupervisor === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO || currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO || currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
+  if (isSupervisor) {
     const subordinates = getAllSubordinates(currentUser.id, hierarchyData);
     subordinates.forEach((id) => visibleIds.add(id));
   }
@@ -143,8 +144,9 @@ export function filterTasksByHierarchy(
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[]
 ): TaskWithDetails[] {
+  const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin vê tudo
-  if (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN) {
+  if (isAdmin) {
     return tasks;
   }
 
@@ -183,8 +185,9 @@ export function filterProjectsByHierarchy(
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[]
 ): Project[] {
+  const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin vê tudo
-  if (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN) {
+  if (isAdmin) {
     return projects;
   }
 
@@ -218,8 +221,10 @@ export function canEditTask(
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[]
 ): boolean {
+  const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
+  const isSupervisor = ((currentUser as any).isSupervisor === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO || currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO || currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin pode editar tudo
-  if (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN) {
+  if (isAdmin) {
     return true;
   }
 
@@ -234,10 +239,7 @@ export function canEditTask(
   }
 
   // Supervisor/Gestor pode editar tarefas da sua equipe
-  if (
-    currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO ||
-    currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO
-  ) {
+  if (isSupervisor) {
     if (task.user_id && isInTeamHierarchy(currentUser.id, task.user_id, hierarchyData)) {
       return true;
     }
@@ -257,8 +259,10 @@ export function canEditProject(
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[]
 ): boolean {
+  const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
+  const isSupervisor = ((currentUser as any).isSupervisor === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO || currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO || currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin pode editar tudo
-  if (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN) {
+  if (isAdmin) {
     return true;
   }
 
@@ -268,10 +272,7 @@ export function canEditProject(
   }
 
   // Supervisor/Gestor pode editar projetos da sua equipe
-  if (
-    currentUser.nivelAcesso === ACCESS_LEVELS.SUPERVISAO ||
-    currentUser.nivelAcesso === ACCESS_LEVELS.GESTAO
-  ) {
+  if (isSupervisor) {
     if (project.user_id && isInTeamHierarchy(currentUser.id, project.user_id, hierarchyData)) {
       return true;
     }

@@ -35,6 +35,9 @@ const EquipesHierarquiaUnificada: React.FC = () => {
   // Estados para Departamentos
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
   const [isEditTeamDialogOpen, setIsEditTeamDialogOpen] = useState(false);
+  const [isEditMemberDialogOpen, setIsEditMemberDialogOpen] = useState(false);
+  const [memberToEdit, setMemberToEdit] = useState<any>(null);
+  const [memberNewNivel, setMemberNewNivel] = useState<string>('Usuário');
   const [newTeamName, setNewTeamName] = useState('');
   const [editingTeam, setEditingTeam] = useState<any>(null);
   const [teamMembersSelected, setTeamMembersSelected] = useState<string[]>([]);
@@ -80,9 +83,7 @@ const EquipesHierarquiaUnificada: React.FC = () => {
     }
   };
 
-  const canManageTeam = user?.nivelAcesso === 'Admin' || 
-                        user?.nivelAcesso === 'Gestão' || 
-                        user?.nivelAcesso === 'Supervisão';
+  const canManageTeam = !!user?.isSupervisor || !!user?.isAdmin;
 
   // Handlers para Departamentos
   const handleCreateTeam = async () => {
@@ -279,10 +280,12 @@ const EquipesHierarquiaUnificada: React.FC = () => {
   );
 
   // Filtrar supervisores potenciais (Admin, Gestão, Supervisão)
-  const potentialSupervisors = users.filter(u => 
-    ['Admin', 'Gestão', 'Supervisão'].includes(u.nivelAcesso || '') &&
-    u.id !== selectedUserId
-  );
+  const potentialSupervisors = users.filter(u => {
+    const derivedIsAdmin = (u as any).isAdmin === true;
+    const derivedIsSupervisor = (u as any).isSupervisor === true;
+    const legacyRole = ['Admin', 'Gestão', 'Supervisão'].includes(u.nivelAcesso || '');
+    return (derivedIsAdmin || derivedIsSupervisor || legacyRole) && u.id !== selectedUserId;
+  });
 
   const isLoading = loadingMembers || loadingHierarchy || teamsLoading;
 
@@ -332,7 +335,7 @@ const EquipesHierarquiaUnificada: React.FC = () => {
                 <CardTitle>Departamentos (Equipes)</CardTitle>
                 <CardDescription>Gerencie os departamentos da organização</CardDescription>
               </div>
-              {(user.nivelAcesso === 'Admin' || user.nivelAcesso === 'Gestão') && (
+              {(user?.isAdmin || user?.isSupervisor) && (
                 <Button onClick={() => setIsCreateTeamDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Criar Departamento
@@ -361,7 +364,7 @@ const EquipesHierarquiaUnificada: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                      {(user.nivelAcesso === 'Admin' || user.nivelAcesso === 'Gestão') && (
+                      {(user?.isAdmin || user?.isSupervisor) && (
                         <div className="flex gap-2">
                           <Button
                             variant="ghost"
@@ -706,20 +709,50 @@ const EquipesHierarquiaUnificada: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-auto">
                   {users && users.length > 0 ? users.map(u => (
-                    <label key={u.id} className="flex items-center gap-2 p-2 border rounded">
-                      <input
-                        type="checkbox"
-                        checked={teamMembersSelected.includes(u.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setTeamMembersSelected(prev => [...prev, u.id]);
-                          } else {
-                            setTeamMembersSelected(prev => prev.filter(id => id !== u.id));
-                          }
-                        }}
-                      />
-                      <span className="text-sm">{u.full_name || u.email}</span>
-                    </label>
+                    <div key={u.id} className="flex items-center justify-between gap-2 p-2 border rounded">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={teamMembersSelected.includes(u.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTeamMembersSelected(prev => [...prev, u.id]);
+                            } else {
+                              setTeamMembersSelected(prev => prev.filter(id => id !== u.id));
+                            }
+                          }}
+                        />
+                        <div className="text-sm">
+                          <div className="font-medium">{u.full_name || u.email}</div>
+                          <div className="text-xs text-muted-foreground">{u.nivelAcesso || 'Usuário'}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {teamMembersSelected.includes(u.id) && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => { setMemberToEdit(u); setMemberNewNivel(u.nivelAcesso || 'Usuário'); setIsEditMemberDialogOpen(true); }}>
+                              Editar
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={async () => {
+                              // remover membro imediatamente
+                              if (!editingTeam?.id) return;
+                              if (!confirm(`Remover ${u.full_name || u.email} deste departamento?`)) return;
+                              try {
+                                const { error } = await supabase.from('team_members').delete().eq('team_id', editingTeam.id).eq('user_id', u.id);
+                                if (error) throw error;
+                                setTeamMembersSelected(prev => prev.filter(id => id !== u.id));
+                                toast.success('Membro removido da equipe');
+                              } catch (err) {
+                                console.error('Erro ao remover membro:', err);
+                                toast.error('Erro ao remover membro');
+                              }
+                            }}>
+                              Remover
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   )) : (
                     <p className="text-sm text-muted-foreground">Nenhum usuário disponível.</p>
                   )}
@@ -734,6 +767,66 @@ const EquipesHierarquiaUnificada: React.FC = () => {
             <Button onClick={handleUpdateTeam}>
               Salvar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Editar Membro (altera nivelAcesso globalmente) */}
+      <Dialog open={isEditMemberDialogOpen} onOpenChange={setIsEditMemberDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Membro</DialogTitle>
+            <DialogDescription>Altere o nível de acesso deste usuário (mudança global).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {memberToEdit ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={memberToEdit.avatar_url || ''} />
+                    <AvatarFallback>{getInitials(memberToEdit.full_name)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold">{memberToEdit.full_name}</p>
+                    <p className="text-sm text-muted-foreground">{memberToEdit.email}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Nível de Acesso</Label>
+                  <Select value={memberNewNivel} onValueChange={(v: string) => setMemberNewNivel(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Usuário">Usuário</SelectItem>
+                      <SelectItem value="Supervisão">Supervisão</SelectItem>
+                      <SelectItem value="Gestão">Gestão</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : (
+              <p>Nenhum membro selecionado.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditMemberDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={async () => {
+              if (!memberToEdit) return;
+              try {
+                const { error } = await supabase.from('profiles').update({ nivelAcesso: memberNewNivel }).eq('id', memberToEdit.id);
+                if (error) throw error;
+                toast.success('Nível de acesso atualizado');
+                // refresh users list
+                refetchTeams && refetchTeams();
+                setIsEditMemberDialogOpen(false);
+              } catch (err) {
+                console.error('Erro ao atualizar nível:', err);
+                toast.error('Erro ao atualizar nível de acesso');
+              }
+            }}>Salvar Alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

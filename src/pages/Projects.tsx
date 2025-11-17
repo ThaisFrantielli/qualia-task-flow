@@ -1,5 +1,5 @@
 import { FolderOpen, MoreVertical } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
