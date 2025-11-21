@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSubtasks } from '@/hooks/useSubtasks';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useProfiles } from '@/hooks/useProfiles';
 import { getInitials } from '@/lib/utils';
 import { formatDateSafe } from '@/lib/dateUtils';
 import { toast } from 'sonner';
@@ -11,6 +12,7 @@ interface SubtasksCascadeProps {
 
 const SubtasksCascade: React.FC<SubtasksCascadeProps> = ({ taskId }) => {
   const { subtasks, isLoading, update: updateSubtask } = useSubtasks(taskId);
+  const { profiles } = useProfiles();
   const [localSubtasks, setLocalSubtasks] = useState(subtasks || []);
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
 
@@ -27,7 +29,7 @@ const SubtasksCascade: React.FC<SubtasksCascadeProps> = ({ taskId }) => {
         <tr key={subtask.id} className="bg-muted/20">
           <td className="pl-12 py-2 text-sm" colSpan={2}>
             <div className="flex items-center gap-2">
-              <input
+                <input
                 type="checkbox"
                 checked={!!subtask.completed}
                 disabled={updatingIds.has(subtask.id)}
@@ -56,6 +58,29 @@ const SubtasksCascade: React.FC<SubtasksCascadeProps> = ({ taskId }) => {
                 className="form-checkbox h-4 w-4 rounded text-primary border-gray-300 focus:ring-primary cursor-pointer"
               />
               <span className={subtask.completed ? 'line-through text-muted-foreground' : ''}>{subtask.title}</span>
+              {(() => {
+                const needsApproval = (subtask as any).needs_approval === true || subtask.status === 'awaiting_approval';
+                const approvedAt = (subtask as any).approved_at;
+                const requestedApprover = (subtask as any).requested_approver?.full_name || (subtask as any).requested_approver_name || null;
+                const approvedByField = (subtask as any).approved_by?.full_name || (subtask as any).approved_by_name || (subtask as any).approved_by_id || null;
+                const approvedBy = approvedByField && profiles?.find(p => p.id === approvedByField)?.full_name || approvedByField || null;
+                if (needsApproval) {
+                  if (requestedApprover) {
+                    return (
+                      <span className="ml-2 inline-block text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">Aguardando aprovação de {requestedApprover}</span>
+                    );
+                  }
+                  return (
+                    <span className="ml-2 inline-block text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">Pendente aprovação</span>
+                  );
+                }
+                if (approvedAt) {
+                  return (
+                    <span className="ml-2 inline-block text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">Aprovado por {approvedBy ?? '—'} • {formatDateSafe(approvedAt, 'dd/MM/yyyy HH:mm')}</span>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </td>
           <td className="py-2">

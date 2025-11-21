@@ -10,7 +10,7 @@ type SubtaskUpdate = PublicSchema['Tables']['subtasks']['Update'];
 const fetchSubtasks = async (taskId: string): Promise<SubtaskWithDetails[]> => {
   if (!taskId) return [];
   const { data, error } = await supabase
-    .from('subtasks')
+    .from('subtasks_with_approvers')
     .select('*, assignee:assignee_id(id, full_name, avatar_url)')
     .eq('task_id', taskId)
     .order('created_at');
@@ -32,7 +32,13 @@ export const useSubtasks = (taskId: string | null) => {
     mutationFn: async (newSubtask: SubtaskInsert) => {
       const { data, error } = await supabase.from('subtasks').insert(newSubtask).select().single();
       if (error) throw new Error(error.message);
-      return data;
+      // try to fetch enriched row from view
+      try {
+        const { data: enriched } = await supabase.from('subtasks_with_approvers').select('*, assignee:assignee_id(id, full_name, avatar_url)').eq('id', data.id).single();
+        return enriched || data;
+      } catch (e) {
+        return data;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -44,7 +50,13 @@ export const useSubtasks = (taskId: string | null) => {
     mutationFn: async ({ id, updates }: { id: string; updates: SubtaskUpdate }) => {
       const { data, error } = await supabase.from('subtasks').update(updates).eq('id', id).select().single();
       if (error) throw new Error(error.message);
-      return data;
+      // fetch enriched version from view to keep UI consistent
+      try {
+        const { data: enriched } = await supabase.from('subtasks_with_approvers').select('*, assignee:assignee_id(id, full_name, avatar_url)').eq('id', id).single();
+        return enriched || data;
+      } catch (e) {
+        return data;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -83,7 +95,7 @@ export const useSubtask = (subtaskId: string | null) => {
     queryFn: async () => {
       if (!subtaskId) return null;
       const { data, error: queryError } = await supabase
-        .from('subtasks')
+        .from('subtasks_with_approvers')
         .select('*, assignee:assignee_id(id, full_name, avatar_url)')
         .eq('id', subtaskId)
         .single();
@@ -106,6 +118,17 @@ export const useSubtask = (subtaskId: string | null) => {
         .select('*, assignee:assignee_id(id, full_name, avatar_url)')
         .single();
       if (updateError) throw new Error(updateError.message);
+      // try to fetch enriched row from view to include approver names
+      try {
+        const { data: enriched, error: enrichErr } = await supabase
+          .from('subtasks_with_approvers')
+          .select('*, assignee:assignee_id(id, full_name, avatar_url)')
+          .eq('id', subtaskId)
+          .single();
+        if (!enrichErr && enriched) return enriched;
+      } catch (e) {
+        // ignore and return updatedData
+      }
       return updatedData;
     },
     onSuccess: (updatedSubtask) => {
