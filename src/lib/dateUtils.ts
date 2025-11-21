@@ -132,8 +132,13 @@ export const dateToLocalISO = (date: Date): string => {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  // append timezone offset in ±HH:MM so receivers (DB, parse) interpret the instant correctly
+  const offsetMin = -date.getTimezoneOffset(); // minutes east of UTC
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const absMin = Math.abs(offsetMin);
+  const offHours = String(Math.floor(absMin / 60)).padStart(2, '0');
+  const offMinutes = String(absMin % 60).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${sign}${offHours}:${offMinutes}`;
 };
 
 /**
