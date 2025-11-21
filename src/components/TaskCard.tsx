@@ -21,6 +21,10 @@ interface TaskCardProps {
     name: string;
     avatar?: string;
   };
+  assignees?: {
+    name: string;
+    avatar?: string;
+  }[];
   dueDate?: string;
   tags?: string[];
   estimatedHours?: number;
@@ -43,6 +47,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   status,
   priority,
   assignee,
+  assignees,
   dueDate,
   tags = [],
   estimatedHours,
@@ -165,15 +170,39 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {/* Footer */}
       <div className="flex items-center justify-between text-xs text-gray-500">
         <div className="flex items-center space-x-3">
-          {/* Assignee */}
-          <div className="flex items-center space-x-1">
-            <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-medium">
-                {assignee.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <span className="truncate max-w-20">{assignee.name}</span>
-          </div>
+            {/* Assignee(s) */}
+            {assignees && assignees.length > 0 ? (
+              <div className="flex items-center space-x-2">
+                <div className="flex -space-x-2">
+                  {assignees.slice(0, 3).map((a: { name: string; avatar?: string }, idx: number) => (
+                    <div key={idx} className="w-6 h-6 rounded-full overflow-hidden border-2 border-white" title={a.name}>
+                      {a.avatar ? (
+                        <img src={a.avatar} alt={a.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-primary flex items-center justify-center text-white text-xs font-medium">
+                          {a.name ? a.name.charAt(0).toUpperCase() : '-'}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {assignees.length > 3 && (
+                    <div className="w-6 h-6 rounded-full bg-muted text-xs flex items-center justify-center text-muted-foreground border-2 border-white">
+                      +{assignees.length - 3}
+                    </div>
+                  )}
+                </div>
+                <span className="truncate max-w-20">{assignees[0].name}</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1">
+                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-medium">
+                    {assignee.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="truncate max-w-20">{assignee.name}</span>
+              </div>
+            )}
           
           {/* Attachments */}
           {attachments && attachments > 0 && (

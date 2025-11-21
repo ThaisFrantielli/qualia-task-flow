@@ -138,9 +138,35 @@ const DragDropKanban: React.FC = () => {
                       status={task.status as 'todo' | 'progress' | 'done' | 'late'}
                       priority={task.priority as 'low' | 'medium' | 'high'}
                       assignee={{
-                        name: task.assignee_name || 'Não atribuído',
-                        avatar: task.assignee_avatar || undefined
+                        name: (task.assignee?.full_name as string) || task.assignee_name || 'Não atribuído',
+                        avatar: (task.assignee?.avatar_url as string) || task.assignee_avatar || undefined
                       }}
+                      assignees={(() => {
+                        // Prefer an explicit array if provided by backend
+                        if (Array.isArray((task as any).assignees) && (task as any).assignees.length > 0) {
+                          return (task as any).assignees.map((a: any) => ({
+                            name: a.full_name || a.name || '—',
+                            avatar: a.avatar_url || a.avatar || undefined
+                          }));
+                        }
+
+                        // Fall back to combining known profile fields (assignee + user)
+                        const list: { name: string; avatar?: string }[] = [];
+                        if (task.assignee) {
+                          list.push({
+                            name: task.assignee?.full_name || task.assignee_name || '—',
+                            avatar: task.assignee?.avatar_url || task.assignee_avatar || undefined
+                          });
+                        }
+                        if ((task as any).user && (task as any).user.id !== task.assignee?.id) {
+                          list.push({
+                            name: (task as any).user?.full_name || (task as any).user?.name || '—',
+                            avatar: (task as any).user?.avatar_url || undefined
+                          });
+                        }
+
+                        return list.length > 0 ? list : undefined;
+                      })()}
                       dueDate={task.due_date || undefined}
                       subtasks={{
                         completed: task.subtasks?.filter((st: { completed: boolean }) => st.completed).length || 0,
