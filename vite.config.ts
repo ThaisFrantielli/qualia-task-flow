@@ -17,7 +17,9 @@ export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const devPort = Number(env.VITE_DEV_SERVER_PORT || 8080)
   // Allow forcing WSS (useful when running behind HTTPS reverse proxies)
-  const forceWss = String(env.VITE_FORCE_WSS || 'false').toLowerCase() === 'true'
+  // Por padrão, preferimos WSS para evitar 'Mixed Content' em previews HTTPS.
+  // Pode ser desativado explicitamente definindo VITE_FORCE_WSS=false no .env.
+  const forceWss = String(env.VITE_FORCE_WSS ?? 'true').toLowerCase() === 'true'
   const hmrProtocol = forceWss ? 'wss' : 'ws'
   const hmrClientPort = forceWss ? 443 : devPort
 
@@ -26,7 +28,15 @@ export default defineConfig(async ({ mode }) => {
   const plugins = [react()];
   if (mode !== 'development') {
     const mod = await import('lovable-tagger');
-    if (mod?.componentTagger) plugins.push(mod.componentTagger());
+    if (mod?.componentTagger) {
+      const maybe = mod.componentTagger();
+      // componentTagger may return a single Plugin or an array of Plugin
+      if (Array.isArray(maybe)) {
+        plugins.push(...maybe as any[]);
+      } else {
+        plugins.push(maybe as any);
+      }
+    }
   }
 
   return {

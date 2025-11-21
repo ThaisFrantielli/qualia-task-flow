@@ -39,7 +39,7 @@ export const useAttachments = (taskId?: string) => {
       const bucketName = 'attachments';
       const filePath = `${taskId}/${Date.now()}_${file.name}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(bucketName)
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
