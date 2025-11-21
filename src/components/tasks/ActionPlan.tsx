@@ -201,6 +201,23 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
                   <div className="flex items-center gap-3 cursor-pointer flex-grow" onClick={() => handleToggleComplete(subtask)}>
                     <Checkbox id={`action-plan-cb-${subtask.id}`} checked={subtask.completed} />
                     <label htmlFor={`action-plan-cb-${subtask.id}`} className={`cursor-pointer ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}>{subtask.title}</label>
+                    {(() => {
+                      const needsApproval = (subtask as any).needs_approval === true || subtask.status === 'awaiting_approval';
+                      const requestedApprover = (subtask as any).requested_approver_full_name || (subtask as any).requested_approver?.full_name || (subtask as any).requested_approver_name || null;
+                      const approvedAt = (subtask as any).approved_at || null;
+                      const approvedBy = (subtask as any).approved_by_full_name || (subtask as any).approved_by?.full_name || (subtask as any).approved_by_name || (subtask as any).approved_by_id || null;
+                      if (needsApproval) {
+                        return (
+                          <span className="ml-2 inline-block text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">{requestedApprover ? `Aguardando aprovação de ${requestedApprover}` : 'Pendente aprovação'}</span>
+                        );
+                      }
+                      if (approvedAt) {
+                        return (
+                          <span className="ml-2 inline-block text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">Aprovado por {approvedBy ?? '—'} • {new Date(approvedAt).toLocaleString()}</span>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="w-28 text-right"><SubtaskDeadline subtask={subtask as SubtaskWithDetails} /></div>

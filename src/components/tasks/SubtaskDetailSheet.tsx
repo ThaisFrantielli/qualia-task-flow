@@ -19,6 +19,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useSubtask } from '@/hooks/useSubtasks';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 import { useUsers } from '@/hooks/useUsers';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -34,7 +36,9 @@ interface SubtaskDetailSheetProps {
 
 const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open, onOpenChange }) => {
   const { subtask, isLoading, update, delete: deleteSubtask } = useSubtask(subtaskId);
+  const queryClient = useQueryClient();
   const { users: profiles } = useUsers();
+  const { user } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,6 +46,8 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [priority, setPriority] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('todo');
+  const [approvalNotes, setApprovalNotes] = useState<string>('');
+  const [selectedApproverId, setSelectedApproverId] = useState<string | null>(null);
 
   // Popula o formulário quando a subtarefa é carregada
   useEffect(() => {
@@ -81,6 +87,74 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
     }
   };
 
+  const handleRequestApproval = async () => {
+    if (!subtask) return;
+    const baseUpdates: any = {
+      needs_approval: true,
+      approval_notes: approvalNotes || null,
+    };
+    // Try to send requested_approver_id if user selected one. If DB doesn't have the column
+    // (migration not applied), retry without it and inform the user.
+    const willSendApprover = !!selectedApproverId;
+    try {
+      let updated: any = null;
+      if (willSendApprover) {
+        updated = await update({ ...baseUpdates, requested_approver_id: selectedApproverId } as any);
+      } else {
+        updated = await update(baseUpdates as any);
+      }
+      // Atualiza cache local imediatamente para refletir o estado pendente em todas as views
+      try {
+        if (updated) {
+          // Atualiza a query da subtarefa aberta
+          queryClient.setQueryData(['subtask', subtaskId], updated);
+          // Atualiza a lista de subtarefas do task pai substituindo a subtarefa
+          const parentTaskId = updated.task_id;
+          const currentList: any[] | undefined = queryClient.getQueryData(['subtasks', parentTaskId]);
+          if (Array.isArray(currentList)) {
+            const newList = currentList.map(s => (s.id === updated.id ? updated : s));
+            queryClient.setQueryData(['subtasks', parentTaskId], newList);
+          } else {
+            // força refetch se não existir cache
+            queryClient.invalidateQueries({ queryKey: ['subtasks', parentTaskId] });
+          }
+        }
+      } catch (cacheErr) {
+        console.warn('Erro atualizando cache local após solicitar aprovação', cacheErr);
+      }
+
+      // Debug/feedback: mostra se a API retornou o requested_approver_id
+      try {
+        console.log('[SubtaskDetailSheet] requestApproval result', updated);
+        if (updated && ((updated as any).requested_approver_id || (updated as any).requested_approver)) {
+          const rid = (updated as any).requested_approver_id || (updated as any).requested_approver?.id || (updated as any).requested_approver_name || '—';
+          toast.success(`Solicitação de aprovação enviada. Aprovador solicitado: ${rid}`);
+        } else {
+          toast.success('Solicitação de aprovação enviada. (observação: aprovador não gravado)');
+        }
+      } catch (e) {
+        toast.success('Solicitação de aprovação enviada.');
+      }
+    } catch (err: any) {
+      console.error('Erro solicitando aprovação (tentativa 1):', err);
+      const msg = err?.message || String(err);
+      // detect common message when column is missing in Postgres / Supabase
+      if (willSendApprover && /requested_approver_id|could not find|column .* does not exist/i.test(msg)) {
+        try {
+          await update(baseUpdates as any);
+          toast.success('Solicitação enviada (aprovador não gravado — coluna ausente no banco).');
+        } catch (err2: any) {
+          console.error('Erro solicitando aprovação (tentativa 2):', err2);
+          toast.error('Não foi possível solicitar aprovação.', { description: err2?.message || String(err2) });
+        }
+      } else {
+        toast.error('Não foi possível solicitar aprovação.', { description: msg });
+      }
+
+    }
+
+  };
+
   const handleDelete = async () => {
     if (!subtaskId) return;
 
@@ -95,7 +169,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
+      <SheetContent className="w-[700px] sm:w-[1020px] lg:w-[1200px] flex flex-col">
         {/* Breadcrumbs */}
         {subtask && (
           <nav className="flex items-center text-xs text-muted-foreground mb-2 mt-2" aria-label="Breadcrumb">
@@ -121,6 +195,30 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
           <SheetTitle>Detalhes da Ação</SheetTitle>
           <SheetDescription>Visualize e edite todas as informações da ação do seu plano.</SheetDescription>
         </SheetHeader>
+        {/* Indica quando a subtarefa está aguardando aprovação ou já foi aprovada */}
+        {(() => {
+            const needsApproval = (subtask as any)?.needs_approval === true || (subtask?.status === 'awaiting_approval');
+            // prefer view-provided full_name fields when available
+            const requestedApprover = (subtask as any)?.requested_approver_full_name || (subtask as any)?.requested_approver?.full_name || (subtask as any)?.requested_approver_name || null;
+            const approvedAt = (subtask as any)?.approved_at || null;
+            const approvedBy = (subtask as any)?.approved_by_full_name || (subtask as any)?.approved_by?.full_name || (subtask as any)?.approved_by_name || (subtask as any)?.approved_by_id || null;
+          if (approvedAt) {
+            return (
+              <div className="px-4 py-2 bg-green-50 border-l-4 border-green-400 text-green-800">
+                Aprovado por {approvedBy ?? '—'} em {format(new Date(approvedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                {(subtask as any)?.approval_notes ? ` • ${ (subtask as any).approval_notes }` : ''}
+              </div>
+            );
+          }
+          if (needsApproval) {
+            return (
+              <div className="px-4 py-2 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
+                {requestedApprover ? `Aguardando aprovação de ${requestedApprover}` : 'Pendente de aprovação'}
+              </div>
+            );
+          }
+          return null;
+        })()}
         {isLoading ? (
           <div className="space-y-4 py-4">
             <Skeleton className="h-6 w-3/4" />
@@ -208,6 +306,35 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
                   </Select>
                 </div>
               </div>
+              {subtask && (
+                <div className="space-y-2">
+                  <Label>Nota para aprovador (opcional)</Label>
+                  <Textarea value={approvalNotes} onChange={(e) => setApprovalNotes(e.target.value)} className="min-h-[60px]" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
+                    <div>
+                      <Label>Escolher aprovador (opcional)</Label>
+                      <Select value={selectedApproverId || 'none'} onValueChange={(v) => setSelectedApproverId(v === 'none' ? null : v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um aprovador" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {profiles.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      {subtask.assignee_id === user?.id && (
+                        <Button type="button" variant="secondary" onClick={handleRequestApproval} disabled={(subtask as any).needs_approval === true}>
+                          {(subtask as any).needs_approval ? 'Solicitação enviada' : 'Solicitar aprovação'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <SheetFooter className="mt-auto pt-4 border-t flex justify-between items-center">
               <AlertDialog>
