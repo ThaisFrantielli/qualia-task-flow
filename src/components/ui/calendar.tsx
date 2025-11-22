@@ -811,7 +811,10 @@ export default function CalendarApp(): JSX.Element {
             const { data, error } = await supabase.from('calendar_events').update(updates).eq('id', realId).select().single();
             if (error) {
               console.error('Erro atualizando calendar_event:', error);
-              if (error.code === 'PGRST204') {
+              // Permission/RLS friendly message
+              if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+                toast.error('Você não tem permissão para realizar esta ação');
+              } else if (error.code === 'PGRST204') {
                 try {
                   const up = await supabase.from('calendar_events').update(updates).eq('id', realId);
                   if (up.error) {
@@ -851,7 +854,12 @@ export default function CalendarApp(): JSX.Element {
             }
           } catch (err: any) {
             console.error('Exceção atualizando calendar_event:', err);
-            toast.error(err?.message || String(err));
+            const msg = String(err || '');
+            if (/RLS|policy|permission|forbidden|403/i.test(msg)) {
+              toast.error('Você não tem permissão para realizar esta ação');
+            } else {
+              toast.error(err?.message || String(err));
+            }
           }
         }
       }
@@ -933,9 +941,28 @@ export default function CalendarApp(): JSX.Element {
       }
     } catch (err) {
       console.error('Erro genérico ao excluir item:', err);
-      toast.error('Erro ao excluir');
+      const msg = String(err || 'Erro ao excluir');
+      if (/RLS|policy|permission|forbidden|403/i.test(msg)) {
+        toast.error('Você não tem permissão para realizar esta ação');
+      } else {
+        toast.error('Erro ao excluir');
+      }
     }
   }, [editingEventId, calendarEvents, isAdmin, user, tasks, deleteTask, refetchTasks]);
+
+  // Current calendar event being edited (if any)
+  const currentEditedCalendarEvent = React.useMemo(() => {
+    if (!editingEventId) return null;
+    if (!editingEventId.startsWith('ce-')) return null;
+    return calendarEvents.find(ev => ev.id === editingEventId) || null;
+  }, [editingEventId, calendarEvents]);
+
+  const canEditCurrent = React.useMemo(() => {
+    if (!currentEditedCalendarEvent) return true; // not a calendar event -> allow (task editing handled elsewhere)
+    if (isAdmin) return true;
+    if (!user) return false;
+    return currentEditedCalendarEvent.owner_id === user.id;
+  }, [currentEditedCalendarEvent, isAdmin, user]);
 
   // Eventos do dia (sidebar)
   const eventsForDay = useMemo(() => {
@@ -1214,12 +1241,15 @@ export default function CalendarApp(): JSX.Element {
           </div>
 
           <DialogFooter className="mt-4 flex gap-2">
-            {modalMode === 'edit' && (
+            {modalMode === 'edit' && currentEditedCalendarEvent && (isAdmin || currentEditedCalendarEvent.owner_id === user?.id) && (
               <Button variant="destructive" onClick={handleDeleteEvent} aria-label="Excluir evento">Excluir</Button>
             )}
             <div className="flex-1" />
             <Button variant="outline" onClick={() => { setModalOpen(false); setModalMode(null); setEditingEventId(null); }} aria-label="Cancelar">Cancelar</Button>
-            <Button onClick={handleSubmitModal} aria-label="Salvar evento">Salvar</Button>
+            {/* Hide Save when editing a calendar event the user does not own */}
+            {!(modalMode === 'edit' && editingEventId?.startsWith('ce-') && !canEditCurrent) && (
+              <Button onClick={handleSubmitModal} aria-label="Salvar evento">Salvar</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

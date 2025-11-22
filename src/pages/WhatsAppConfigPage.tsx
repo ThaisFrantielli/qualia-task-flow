@@ -36,22 +36,32 @@ export default function WhatsAppConfigPage() {
   const fetchWhatsAppConfig = async () => {
     try {
       console.log('Fetching WhatsApp config from Supabase...');
-      // Using type assertion to handle table that might not be in generated types
-      const { data, error } = await (supabase as any)
-        .from('whatsapp_config')
-        .select('*')
-        .eq('id', 'default')
-        .single();
+      // Use secure RPC because direct reads on `whatsapp_config` are blocked by RLS
+      const { data, error } = await (supabase as any).rpc('check_whatsapp_status');
 
-      console.log('Supabase response:', { data, error });
+      console.log('RPC response:', { data, error });
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching WhatsApp config:', error);
+      if (error) {
+        // Friendly handling for permission / RLS errors
+        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+          toast({ title: 'Permissão negada', description: 'Você não tem permissão para visualizar o status do WhatsApp', variant: 'destructive' });
+          setConfig(null);
+          return;
+        }
+        console.error('Error fetching WhatsApp status via RPC:', error);
         return;
       }
 
-      console.log('Setting config:', data);
-      setConfig(data || null);
+      // The RPC returns a compact text/status. Map it minimally to the config shape.
+      const statusText = data as any;
+      const isConnected = String(statusText).toLowerCase().includes('connected') || String(statusText).toLowerCase().includes('conectado');
+      setConfig(prev => prev ? ({ ...prev, is_connected: isConnected }) : {
+        id: 'default',
+        qr_code: null,
+        is_connected: isConnected,
+        connected_number: null,
+        last_connection_at: null
+      });
     } catch (error) {
       console.error('Error fetching WhatsApp config:', error);
     } finally {
@@ -191,25 +201,35 @@ export default function WhatsAppConfigPage() {
 
   // Real-time subscription for config changes
   useEffect(() => {
-    const channel = supabase
-      .channel('whatsapp-config-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'whatsapp_config',
-          filter: 'id=eq.default'
-        },
-        (payload) => {
-          console.log('WhatsApp config updated:', payload);
-          setConfig(payload.new as WhatsAppConfig);
-        }
-      )
-      .subscribe();
+    let channel: any = null;
+    try {
+      channel = supabase
+        .channel('whatsapp-config-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'whatsapp_config',
+            filter: 'id=eq.default'
+          },
+          (payload) => {
+            console.log('WhatsApp config updated:', payload);
+            setConfig(payload.new as WhatsAppConfig);
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime subscription to whatsapp_config not permitted or failed:', e);
+      channel = null;
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        if (channel) supabase.removeChannel(channel);
+      } catch (e) {
+        // ignore cleanup errors
+      }
     };
   }, []);
 

@@ -21,6 +21,7 @@ import {
 import { useSubtask } from '@/hooks/useSubtasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useUsers } from '@/hooks/useUsers';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -134,6 +135,23 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
         }
       } catch (e) {
         toast.success('Solicitação de aprovação enviada.');
+      }
+      // Criar notificação para o aprovador (se informado)
+      try {
+        const approverId = (updated as any)?.requested_approver_id || (updated as any)?.requested_approver?.id || selectedApproverId || null;
+        if (approverId) {
+          await supabase.from('notifications').insert({
+            user_id: approverId,
+            title: 'Solicitação de aprovação',
+            message: `${user?.full_name || 'Um usuário'} solicitou sua aprovação na ação "${(updated as any).title || title}".`,
+            type: 'approval_request',
+            task_id: (updated as any).task_id || null,
+            data: { subtask_id: (updated as any).id },
+            read: false
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Erro criando notificação de aprovação:', notifErr);
       }
     } catch (err: any) {
       console.error('Erro solicitando aprovação (tentativa 1):', err);
