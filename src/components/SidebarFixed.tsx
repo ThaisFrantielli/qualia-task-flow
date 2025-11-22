@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
+import { useNotifications } from '@/hooks/useNotifications';
 import type { Permissoes } from '@/types';
 
 interface MenuItem {
@@ -111,6 +112,7 @@ const SidebarFixed: React.FC = () => {
   // projectList intentionally unused here; projects can be accessed via `projects` hook when necessary
 
   if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
+  const { unreadCount } = useNotifications();
 
   return (
     <div className={`h-screen flex flex-col bg-[#1D1B3F] text-white transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
@@ -168,7 +170,11 @@ const SidebarFixed: React.FC = () => {
                               }
                             >
                               <item.icon className="w-5 h-5" />
-                              {!isCollapsed && <span>{item.label}</span>}
+                              {!isCollapsed && <span className="flex items-center gap-2">{item.label}
+                                {item.label === 'Notificações' && unreadCount > 0 && (
+                                  <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-blue-500 text-white">{unreadCount}</span>
+                                )}
+                              </span>}
                             </NavLink>
                           </li>
                         ))}

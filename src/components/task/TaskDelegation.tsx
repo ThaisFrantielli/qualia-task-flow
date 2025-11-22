@@ -118,6 +118,23 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
         setDelegations(prev => [insertData[0], ...prev]);
       }
 
+      // Criar notificação para o novo responsável
+      try {
+        if (selectedUserId) {
+          await supabase.from('notifications').insert({
+            user_id: selectedUserId,
+            title: 'Tarefa atribuída',
+            message: `${delegatedBy} atribuiu a você a tarefa.`,
+            type: 'task_assigned',
+            task_id: taskId,
+            data: { delegation_id: insertData?.[0]?.id || null },
+            read: false
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Erro criando notificação de atribuição:', notifErr);
+      }
+
       toast({ title: "Sucesso!", description: "Tarefa atribuída com sucesso." });
       onDelegationSuccess();
 
@@ -327,6 +344,23 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                                   console.log('[TaskDelegation] approve result', { result });
                                   try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch(e){console.warn(e)}
                                   toast({ title: 'Subtarefa aprovada', description: `${s.title}` });
+                                  // Notificar o solicitante (assignee) que a subtarefa foi aprovada
+                                  try {
+                                    const requesterId = s.assignee_id || (s as any).assignee_id || null;
+                                    if (requesterId) {
+                                      await supabase.from('notifications').insert({
+                                        user_id: requesterId,
+                                        title: 'Subtarefa aprovada',
+                                        message: `${user?.full_name || 'Um usuário'} aprovou a subtarefa "${s.title}".`,
+                                        type: 'approval_granted',
+                                        task_id: taskId,
+                                        data: { subtask_id: s.id },
+                                        read: false
+                                      });
+                                    }
+                                  } catch (notifErr) {
+                                    console.warn('Erro criando notificação de aprovação:', notifErr);
+                                  }
                                 } catch (err: any) {
                                   console.error('Erro aprovando subtarefa', err);
                                   toast({ title: 'Erro', description: err?.message || 'Não foi possível aprovar subtarefa', variant: 'destructive' });
@@ -344,6 +378,23 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                                   console.log('[TaskDelegation] reject result', { result });
                                   try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch(e){console.warn(e)}
                                   toast({ title: 'Subtarefa recusada', description: `${s.title}` });
+                                    // Notificar o solicitante que a subtarefa foi recusada
+                                    try {
+                                      const requesterId = s.assignee_id || (s as any).assignee_id || null;
+                                      if (requesterId) {
+                                        await supabase.from('notifications').insert({
+                                          user_id: requesterId,
+                                          title: 'Subtarefa recusada',
+                                          message: `${user?.full_name || 'Um usuário'} recusou a subtarefa "${s.title}".`,
+                                          type: 'approval_rejected',
+                                          task_id: taskId,
+                                          data: { subtask_id: s.id },
+                                          read: false
+                                        });
+                                      }
+                                    } catch (notifErr) {
+                                      console.warn('Erro criando notificação de recusa:', notifErr);
+                                    }
                                 } catch (err: any) {
                                   console.error('Erro recusando subtarefa', err);
                                   toast({ title: 'Erro', description: err?.message || 'Não foi possível recusar subtarefa', variant: 'destructive' });
@@ -368,6 +419,23 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                                 console.log('[TaskDelegation] cancel request result', { result });
                                 try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch(e){console.warn(e)}
                                 toast({ title: 'Solicitação cancelada', description: `${s.title}` });
+                                  // Notificar o aprovador que a solicitação foi cancelada (se houver)
+                                  try {
+                                    const requestedApproverId = (s as any).requested_approver_id || (s as any).requested_approver?.id || null;
+                                    if (requestedApproverId) {
+                                      await supabase.from('notifications').insert({
+                                        user_id: requestedApproverId,
+                                        title: 'Solicitação cancelada',
+                                        message: `${user?.full_name || 'O solicitante'} cancelou a solicitação de aprovação da subtarefa "${s.title}".`,
+                                        type: 'approval_canceled',
+                                        task_id: taskId,
+                                        data: { subtask_id: s.id },
+                                        read: false
+                                      });
+                                    }
+                                  } catch (notifErr) {
+                                    console.warn('Erro criando notificação de cancelamento:', notifErr);
+                                  }
                               } catch (err: any) {
                                 console.error('Erro cancelando solicitação', err);
                                 toast({ title: 'Erro', description: err?.message || 'Não foi possível cancelar solicitação', variant: 'destructive' });

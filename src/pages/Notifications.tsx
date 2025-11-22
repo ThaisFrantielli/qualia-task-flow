@@ -11,7 +11,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import type { Notification } from '@/types'; // Import the Notification type
 
 const Notifications = () => {
-  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, loading, markAsRead, markAllAsRead, archiveNotification, setNotificationPriority } = useNotifications();
 
   useEffect(() => {
     // Effect can be added later if needed
@@ -53,9 +53,11 @@ const Notifications = () => {
 
 
   // Calculate unread and action required notifications based on actual data
-  const unreadNotifications = notifications.filter(n => !n.read);
+  // Excluir notificações arquivadas da lista principal
+  const visibleNotifications = notifications.filter(n => !(n.data as any)?.archived);
+  const unreadNotifications = visibleNotifications.filter(n => !n.read);
   // Use the requiresAction helper
-  const actionRequiredNotifications = notifications.filter(n => requiresAction(n) && !n.read);
+  const actionRequiredNotifications = visibleNotifications.filter(n => requiresAction(n) && !n.read);
 
 
   // ... (keep getNotificationIcon and getBadgeVariant functions as they were) ...
@@ -160,7 +162,7 @@ const Notifications = () => {
               <p className="text-gray-500">Você está em dia com tudo!</p>
             </div>
           ) : (
-            notifications.map((notification) => (
+            visibleNotifications.map((notification) => (
               <Card key={notification.id} className={`${!notification.read ? 'border-l-4 border-l-blue-500' : ''}`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -200,6 +202,31 @@ const Notifications = () => {
                           <Check className="w-4 h-4" />
                         </Button>
                       )}
+                      {/* Priority selector */}
+                      <select
+                        value={(notification.data as any)?.priority || 'normal'}
+                        onChange={async (e) => {
+                          const v = e.target.value as 'low' | 'normal' | 'high';
+                          try { await setNotificationPriority(notification.id, v); } catch (err) { console.warn(err); }
+                        }}
+                        className="text-xs border rounded px-2 py-1"
+                      >
+                        <option value="low">Baixa</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">Alta</option>
+                      </select>
+
+                      {/* Archive button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          if (!confirm('Arquivar esta notificação?')) return;
+                          try { await archiveNotification(notification.id); } catch (err) { console.warn(err); }
+                        }}
+                      >
+                        Arquivar
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>

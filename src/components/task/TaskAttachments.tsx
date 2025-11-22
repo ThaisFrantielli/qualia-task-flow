@@ -4,6 +4,7 @@ import { Paperclip, Download, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAttachments } from '@/hooks/useAttachments';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TaskAttachmentsProps {
   taskId: string;
@@ -11,6 +12,7 @@ interface TaskAttachmentsProps {
 
 const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
   const { attachments, loading, uploadAttachment, deleteAttachment } = useAttachments(taskId);
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,13 +122,16 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
                   <Button variant="ghost" size="sm" onClick={() => handleDownload(attachment)}>
                     <Download className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteAttachment(attachment.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {(user?.isAdmin || user?.id === attachment.user_id) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteAttachment(attachment.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {/* If user is not owner, do not render delete button to avoid 403 */}
                 </div>
               </div>
             ))}
