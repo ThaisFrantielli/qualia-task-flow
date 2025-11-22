@@ -18,8 +18,14 @@ export const useAttachments = (taskId?: string) => {
         .select('*')
         .eq('task_id', taskId)
         .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      if (error) {
+        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+          setError('Você não tem permissão para realizar esta ação');
+          setAttachments([]);
+          return;
+        }
+        throw error;
+      }
       setAttachments(data?.map(attachment => ({
         ...attachment,
         content_type: 'application/octet-stream',
@@ -27,7 +33,12 @@ export const useAttachments = (taskId?: string) => {
         file_size: attachment.file_size || 0
       })) || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar anexos');
+      const msg = err instanceof Error ? err.message : String(err || 'Erro ao carregar anexos');
+      if (/RLS|policy|permission|forbidden|403/i.test(msg)) {
+        setError('Você não tem permissão para realizar esta ação');
+      } else {
+        setError(msg || 'Erro ao carregar anexos');
+      }
     } finally {
       setLoading(false);
     }
@@ -58,8 +69,13 @@ export const useAttachments = (taskId?: string) => {
           file_path: publicUrl,
           file_size: file.size
         });
-
-      if (error) throw error;
+      if (error) {
+        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+          setError('Você não tem permissão para realizar esta ação');
+          return;
+        }
+        throw error;
+      }
 
       await fetchAttachments();
     } catch (err) {
@@ -73,11 +89,21 @@ export const useAttachments = (taskId?: string) => {
         .from('attachments')
         .delete()
         .eq('id', id);
-
-      if (error) throw error;
+      if (error) {
+        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+          setError('Você não tem permissão para realizar esta ação');
+          return;
+        }
+        throw error;
+      }
       await fetchAttachments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao excluir anexo');
+      const msg = err instanceof Error ? err.message : String(err || 'Erro ao excluir anexo');
+      if (/RLS|policy|permission|forbidden|403/i.test(msg)) {
+        setError('Você não tem permissão para realizar esta ação');
+      } else {
+        setError(msg || 'Erro ao excluir anexo');
+      }
     }
   };
 
