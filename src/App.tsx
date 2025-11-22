@@ -23,6 +23,8 @@ import Notifications from '@/pages/Notifications';
 import CrmPdvPage from '@/pages/CrmPdvPage';
 import CrmDashboardPage from '@/pages/CrmDashboardPage';
 import CreateAtendimentoPage from '@/pages/CreateAtendimentoPage';
+import AnalyticsIndex from '@/pages/analytics';
+import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -78,6 +80,8 @@ function App() {
               <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} />
               
               <Route path="/whatsapp" element={<WhatsAppChatPage />} />
+              <Route path="/analytics" element={<AnalyticsIndex />} />
+              <Route path="/analytics/frota" element={<FleetDashboard />} />
                            
               <Route path="/clientes" element={<CustomerHubPage />} />
               
