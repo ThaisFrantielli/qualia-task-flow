@@ -20,5 +20,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "src/vite-env.d.ts", "vite.config.ts"]
+  "include": ["src", "src/vite-env.d.ts", "vite.config.ts"],
+  "exclude": ["supabase/functions/**"]
 }
