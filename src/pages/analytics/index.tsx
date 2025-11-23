@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { Title, Card, Text } from '@tremor/react';
 
@@ -11,6 +10,9 @@ export default function AnalyticsIndex() {
         <ul className="mt-3 space-y-2">
           <li>
             <Link to="/analytics/frota" className="text-blue-500">Frota</Link>
+          </li>
+          <li>
+            <Link to="/analytics/compras" className="text-blue-500">Compras</Link>
           </li>
           <li>
             <Link to="/analytics/financeiro" className="text-blue-500">Financeiro (em breve)</Link>
