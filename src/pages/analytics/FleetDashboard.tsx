@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Card, Title, Text, Metric, BarChart } from '@tremor/react';
 import useBIData from '@/hooks/useBIData';
 

@@ -34,14 +34,38 @@ const sqlConfig = {
   requestTimeout: 30000,
 };
 
-async function fetchData() {
+// Lista de relatórios a serem extraídos (Static JSON architecture)
+const REPORTS = [
+  {
+    filename: 'compras_full.json',
+    query: `
+      SELECT 
+          v.IdVeiculo,
+          v.Placa,
+          v.Montadora,
+          v.Modelo,
+          v.AnoFabricacao,
+          v.SituacaoVeiculo,
+          FORMAT(vc.DataCompra, 'yyyy-MM-dd') as DataCompra,
+          YEAR(vc.DataCompra) as AnoCompra,
+          MONTH(vc.DataCompra) as MesCompra,
+          COALESCE(vc.Instituicao, 'Recurso Próprio') AS Banco,
+          CAST(vc.ValorCompra AS FLOAT) as ValorCompra,
+          CAST(vc.ValorAtualFIPE AS FLOAT) as ValorFipe,
+          CAST(vc.ValorAlienado AS FLOAT) as ValorAlienado
+      FROM VeiculosComprados vc
+      INNER JOIN Veiculos v ON vc.IdVeiculo = v.IdVeiculo
+      WHERE vc.DataCompra >= DATEADD(year, -5, GETDATE())
+      ORDER BY vc.DataCompra DESC
+    `,
+  },
+];
+async function fetchData(query) {
   let pool;
   try {
     pool = await sql.connect(sqlConfig);
     console.log('Connected to SQL Server:', sqlConfig.server);
 
-    // Query de teste — ajuste para a tabela real do seu DW
-    const query = 'SELECT TOP 100 * FROM Vendas';
     const result = await pool.request().query(query);
 
     const rows = result.recordset || [];
@@ -58,14 +82,12 @@ async function fetchData() {
   }
 }
 
-async function uploadToSupabase(jsonObj) {
+async function uploadToSupabase(jsonObj, path) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     // use default - running in Node.js
   });
 
   const bucket = 'bi-reports';
-  const path = 'dashboard_data.json';
-
   const jsonString = JSON.stringify(jsonObj, null, 2);
   const buffer = Buffer.from(jsonString, 'utf-8');
 
@@ -91,18 +113,24 @@ async function main() {
   try {
     console.log('Starting local ETL sync...');
 
-    const rows = await fetchData();
+    for (const report of REPORTS) {
+      console.log('Running report:', report.filename);
+      const rows = await fetchData(report.query);
 
-    const payload = {
-      generated_at: new Date().toISOString(),
-      source: 'local_etl',
-      row_count: rows.length,
-      data: rows,
-    };
+      const payload = {
+        generated_at: new Date().toISOString(),
+        source: 'local_etl',
+        report: report.filename,
+        row_count: rows.length,
+        data: rows,
+      };
 
-    await uploadToSupabase(payload);
+      const path = report.filename;
+      await uploadToSupabase(payload, path);
+      console.log(`Report uploaded: ${path} (rows: ${rows.length})`);
+    }
 
-    console.log('Sucesso: dados sincronizados para Supabase Storage.');
+    console.log('Sucesso: todos os relatórios sincronizados para Supabase Storage.');
     process.exit(0);
   } catch (err) {
     console.error('Erro durante o sync:', err?.message || err);
