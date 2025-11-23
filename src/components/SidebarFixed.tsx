@@ -38,6 +38,7 @@ const menuGroups: MenuGroup[] = [
       { label: 'Kanban', url: '/kanban', icon: KanbanSquare, permissionKey: 'kanban' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
           { label: 'Analytics', url: '/analytics', icon: BarChart3 },
+          { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },
     ]
   },
