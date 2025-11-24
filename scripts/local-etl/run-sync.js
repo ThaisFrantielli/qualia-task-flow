@@ -1,5 +1,5 @@
 /*
-  run-sync.js
+    
   - Carrega variáveis de ambiente via dotenv
   - Conecta ao SQL Server (rede interna)
   - Executa uma query de teste (SELECT TOP 100 * FROM Vendas)
