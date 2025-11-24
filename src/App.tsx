@@ -7,7 +7,6 @@ import Calendar from '@/pages/Calendar';
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
-import SignupPage from '@/pages/Signup';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import Dashboard from '@/pages/Dashboard';
 import Kanban from '@/pages/Kanban';
@@ -50,7 +49,7 @@ function App() {
         <Routes>
           {/* Rotas Públicas */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
+          {/* Rota /signup removida: sistema fechado (apenas admins criam contas) */}
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
           <Route path="/obrigado" element={<SurveyThankYouPage />} />

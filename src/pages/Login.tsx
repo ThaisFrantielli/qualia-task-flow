@@ -1,7 +1,7 @@
 // src/pages/Login.tsx ou LoginPage.tsx
 
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,12 +135,7 @@ const LoginPage = () => {
             </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm">
-            Não tem uma conta?{' '}
-            <Link to="/signup" className="text-primary hover:underline">
-              Cadastre-se
-            </Link>
-          </div>
+          {/* Cadastro desabilitado: sistema fechado — apenas admins podem criar contas */}
         </CardContent>
       </Card>
     </div>
