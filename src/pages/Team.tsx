@@ -32,6 +32,8 @@ export interface TeamMember {
   nivelAcesso: 'Usuário' | 'Supervisão' | 'Gestão' | 'Admin';
   permissoes: Permissoes;
   tasksCount: number; // Placeholder, pode ser preenchido no futuro
+  supervisorName?: string | null;
+  supervisor_id?: string | null;
 }
 
 const getDefaultPermissions = (nivel: TeamMember['nivelAcesso']): Permissoes => {
@@ -62,6 +64,7 @@ const initialFormData = {
   email: '',
   funcao: '',
   nivelAcesso: 'Usuário' as TeamMember['nivelAcesso'],
+  supervisor_id: null as string | null,
   permissoes: getDefaultPermissions('Usuário'),
 };
 
@@ -81,6 +84,11 @@ const Team = () => {
     if (error) {
       toast.error("Erro ao carregar a equipe.", { description: error.message });
     } else if (profiles) {
+      const lookup = (profiles || []).reduce((acc: Record<string, string>, p: any) => {
+        acc[p.id] = p.full_name || p.email || '';
+        return acc;
+      }, {} as Record<string, string>);
+
       const members = profiles.map(profile => ({
         id: profile.id,
         name: profile.full_name || 'Nome não definido',
@@ -89,8 +97,10 @@ const Team = () => {
         nivelAcesso: (profile.nivelAcesso as any) || 'Usuário',
         permissoes: (profile.permissoes as any) || getDefaultPermissions(profile.nivelAcesso as any || 'Usuário'),
         tasksCount: 0,
+        supervisorName: profile.supervisor_id ? lookup[profile.supervisor_id] || null : null,
+        supervisor_id: profile.supervisor_id || null,
       }));
-      setTeamMembers(members);
+      setTeamMembers(members as any);
     }
     setIsLoading(false);
   }, []);
@@ -118,6 +128,7 @@ const Team = () => {
         email: member.email,
         funcao: member.funcao,
         nivelAcesso: member.nivelAcesso,
+        supervisor_id: (member as any).supervisor_id || null,
         permissoes: member.permissoes,
       });
     } else { // Adicionando (funcionalidade desabilitada por enquanto)
@@ -142,14 +153,21 @@ const Team = () => {
       return;
     }
     
+    const updatePayload: any = {
+      full_name: formData.name,
+      funcao: formData.funcao,
+      nivelAcesso: formData.nivelAcesso,
+      permissoes: formData.permissoes as any,
+    };
+
+    // Incluir supervisor_id se definido (pode ser null para remover)
+    if ('supervisor_id' in formData) {
+      updatePayload.supervisor_id = formData.supervisor_id;
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({
-        full_name: formData.name,
-        funcao: formData.funcao,
-        nivelAcesso: formData.nivelAcesso,
-        permissoes: formData.permissoes as any,
-      })
+      .update(updatePayload)
       .eq('id', editingMember.id);
     
     if (error) {
@@ -194,6 +212,7 @@ const Team = () => {
             <TableRow>
               <TableHead className="w-[40%]">Membro</TableHead>
               <TableHead>Função</TableHead>
+              <TableHead>Supervisor</TableHead>
               <TableHead>Nível de Acesso</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -215,6 +234,7 @@ const Team = () => {
                     </div>
                   </TableCell>
                   <TableCell>{member.funcao}</TableCell>
+                  <TableCell>{(member as any).supervisorName || '-'}</TableCell>
                   <TableCell>
                     <Badge variant={member.nivelAcesso === 'Admin' ? 'destructive' : 'secondary'}>
                       {member.nivelAcesso}
@@ -232,7 +252,7 @@ const Team = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={5} className="h-24 text-center">
                   Nenhum membro encontrado.
                 </TableCell>
               </TableRow>
