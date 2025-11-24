@@ -18,6 +18,7 @@ interface TeamMemberDialogProps {
     email: string;
     funcao: string;
     nivelAcesso: TeamMember['nivelAcesso'];
+    supervisor_id?: string | null;
     permissoes: Permissoes;
   };
   onFormChange: (field: string, value: any) => void;
@@ -35,14 +36,18 @@ const permissionLabels: { key: keyof Permissoes; label: string; description: str
     { key: 'settings', label: 'Configurações', description: 'Ajustes gerais.' },
 ];
 
+import { useUsersContext } from '@/contexts/UsersContext';
+
 const TeamMemberDialog: React.FC<TeamMemberDialogProps> = ({
   isOpen,
   onClose,
+  member,
   formData,
   onFormChange,
   onSubmit,
   isEditing
 }) => {
+  const { users } = useUsersContext();
   const handlePermissionChange = (permissionKey: keyof Permissoes, checked: boolean) => {
     const updatedPermissions = { ...formData.permissoes, [permissionKey]: checked };
     onFormChange('permissoes', updatedPermissions);
@@ -114,6 +119,27 @@ const TeamMemberDialog: React.FC<TeamMemberDialogProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+          <div>
+            <Separator />
+            <h3 className="text-md font-medium">Supervisor</h3>
+            <div className="mt-2">
+              <Label htmlFor="supervisor">Supervisor</Label>
+              <select
+                id="supervisor"
+                value={formData.supervisor_id || ''}
+                onChange={(e) => onFormChange('supervisor_id', e.target.value || null)}
+                className="w-full mt-1 block px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+              >
+                <option value="">Nenhum</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id} disabled={member?.id === u.id}>
+                    {u.full_name || u.email}
+                  </option>
+                ))}
+              </select>
+              {member && <p className="text-xs text-muted-foreground mt-1">Você não pode selecionar o próprio usuário como supervisor.</p>}
             </div>
           </div>
         </div>
