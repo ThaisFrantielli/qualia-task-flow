@@ -25,7 +25,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // --- 2. Estados para o modal de recuperação de senha ---
   const [recoveryEmail, setRecoveryEmail] = useState('');
@@ -34,23 +34,24 @@ const LoginPage = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    
+    setIsLoggingIn(true);
+
     console.log('Tentando login com:', { email, passwordLength: password.length });
-    
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
+
     if (error) {
       console.error('Erro de login:', error);
-      toast.error('Erro ao fazer login', { 
-        description: error.message || 'Verifique suas credenciais e tente novamente.' 
+      toast.error('Erro ao fazer login', {
+        description: error.message || 'Verifique suas credenciais e tente novamente.'
       });
+      setIsLoggingIn(false);
     } else {
       console.log('Login bem-sucedido:', data);
       toast.success('Login realizado com sucesso!');
-      navigate('/');
+      // Navigate directly after successful login
+      navigate('/', { replace: true });
     }
-    setLoading(false);
   };
 
   // --- 3. Função para lidar com a recuperação de senha ---
@@ -60,7 +61,7 @@ const LoginPage = () => {
       return;
     }
     setIsSending(true);
-    
+
     // URL completa e explícita para redirecionamento
     const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
       redirectTo: 'https://qualityconecta.vercel.app/reset-password',
@@ -95,43 +96,43 @@ const LoginPage = () => {
 
             {/* --- 4. Adicionar o link "Esqueci minha senha" --- */}
             <div className="text-right text-sm">
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                        <button type="button" className="text-primary hover:underline">
-                            Esqueci minha senha
-                        </button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Recuperar Senha</DialogTitle>
-                            <DialogDescription>
-                                Digite seu email para receber um link de recuperação.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-4 space-y-2">
-                            <Label htmlFor="recovery-email">Email</Label>
-                            <Input
-                                id="recovery-email"
-                                type="email"
-                                value={recoveryEmail}
-                                onChange={(e) => setRecoveryEmail(e.target.value)}
-                                placeholder="seu.email@exemplo.com"
-                            />
-                        </div>
-                        <DialogFooter>
-                            <DialogClose asChild>
-                                <Button type="button" variant="outline">Cancelar</Button>
-                            </DialogClose>
-                            <Button onClick={handlePasswordRecovery} disabled={isSending}>
-                                {isSending ? 'Enviando...' : 'Enviar Link'}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <button type="button" className="text-primary hover:underline">
+                    Esqueci minha senha
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Recuperar Senha</DialogTitle>
+                    <DialogDescription>
+                      Digite seu email para receber um link de recuperação.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4 space-y-2">
+                    <Label htmlFor="recovery-email">Email</Label>
+                    <Input
+                      id="recovery-email"
+                      type="email"
+                      value={recoveryEmail}
+                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                      placeholder="seu.email@exemplo.com"
+                    />
+                  </div>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button type="button" variant="outline">Cancelar</Button>
+                    </DialogClose>
+                    <Button onClick={handlePasswordRecovery} disabled={isSending}>
+                      {isSending ? 'Enviando...' : 'Enviar Link'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Entrando...' : 'Entrar'}
+            <Button type="submit" className="w-full" disabled={isLoggingIn}>
+              {isLoggingIn ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
 

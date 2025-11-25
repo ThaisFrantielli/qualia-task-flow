@@ -12,7 +12,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { to_number, message_text } = await req.json()
+    const { to_number, message_text, instance_id } = await req.json()
 
     if (!to_number || !message_text) {
       return new Response(
@@ -24,12 +24,17 @@ serve(async (req: Request) => {
     console.log('=== WhatsApp Send Debug ===')
     console.log('To Number:', to_number)
     console.log('Message Text:', message_text)
+    console.log('Instance ID:', instance_id)
 
     // Fazer requisição para o whatsapp-service
-    const whatsappServiceUrl = 'http://localhost:3006/send-message'
-    
+    // If instance_id is provided, use it in the URL
+    const baseUrl = 'http://localhost:3005' // Corrected port from 3006 to 3005
+    const whatsappServiceUrl = instance_id
+      ? `${baseUrl}/send-message/${instance_id}`
+      : `${baseUrl}/send-message/default` // Fallback to default if no instance provided
+
     console.log('Sending to WhatsApp service:', whatsappServiceUrl)
-    
+
     const whatsappResponse = await fetch(whatsappServiceUrl, {
       method: 'POST',
       headers: {
@@ -54,17 +59,17 @@ serve(async (req: Request) => {
     console.log('WhatsApp service response:', whatsappResult)
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Message sent successfully',
-        result: whatsappResult 
+        result: whatsappResult
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('Error sending WhatsApp message:', error)
-    
+
     return new Response(
       JSON.stringify({
         success: false,
