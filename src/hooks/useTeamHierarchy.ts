@@ -45,28 +45,38 @@ export const useTeamMembers = () => {
         .from('user_hierarchy')
         .select('*')
         .eq('supervisor_id', user.id);
-      
+
       if (hierarchyError) throw hierarchyError;
       if (!hierarchyData || hierarchyData.length === 0) return [];
-      
+
+      // Deduplicate user IDs (um usuário pode aparecer com múltiplos registros)
+      const uniqueUserIds = Array.from(new Set(hierarchyData.map((h: any) => h.user_id)));
+
       // Buscar perfis dos usuários
-      const userIds = hierarchyData.map(h => h.user_id);
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, email, avatar_url, nivelAcesso, funcao')
-        .in('id', userIds);
-      
+        .in('id', uniqueUserIds);
+
       if (profilesError) throw profilesError;
-      
-      // Combinar dados
-      return hierarchyData.map(hierarchy => ({
-        id: hierarchy.id,
-        user_id: hierarchy.user_id,
-        supervisor_id: hierarchy.supervisor_id,
-        created_at: hierarchy.created_at,
-        updated_at: hierarchy.updated_at,
-        user: profilesData?.find(p => p.id === hierarchy.user_id) || null
-      })) as TeamMember[];
+
+      // Mapear por user_id (usar primeiro registro de hierarquia para metadados quando necessário)
+      const firstHierarchyByUser: Record<string, any> = {};
+      for (const h of hierarchyData as any[]) {
+        if (!firstHierarchyByUser[h.user_id]) firstHierarchyByUser[h.user_id] = h;
+      }
+
+      return uniqueUserIds.map(uid => {
+        const h = firstHierarchyByUser[uid];
+        return {
+          id: h?.id || uid,
+          user_id: uid,
+          supervisor_id: h?.supervisor_id || user.id,
+          created_at: h?.created_at || null,
+          updated_at: h?.updated_at || null,
+          user: (profilesData || []).find((p: any) => p.id === uid) || null,
+        } as TeamMember;
+      });
     },
     enabled: !!user?.id,
   });
@@ -80,20 +90,21 @@ export const useTeamHierarchyFull = () => {
     queryKey: ['team-hierarchy-full', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .rpc('get_user_team_hierarchy', { user_uuid: user.id });
-      
-      if (error) throw error;
-      
-      // Buscar detalhes dos membros
-      if (!data || data.length === 0) return [];
-      
+      // Para visão de gerente/visão completa, usamos a RPC que retorna os IDs permitidos
+      const { data: ids, error: idsError } = await supabase.rpc('get_my_subordinates_ids');
+      if (idsError) throw idsError;
+      if (!ids || (Array.isArray(ids) && ids.length === 0)) return [];
+
+      // ids pode vir como array de uuids ou objetos dependendo da RPC; garantir array de strings
+      const idList: string[] = Array.isArray(ids) ? ids.map((it: any) => (typeof it === 'string' ? it : (it?.id || it?.team_member_id || String(it)))) : [];
+
+      const uniqueIds = Array.from(new Set(idList.filter(Boolean)));
+
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, email, avatar_url, nivelAcesso, funcao')
-        .in('id', data.map((item: any) => item.team_member_id));
-      
+        .in('id', uniqueIds);
+
       if (profilesError) throw profilesError;
       return profiles;
     },

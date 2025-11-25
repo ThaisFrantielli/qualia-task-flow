@@ -22,6 +22,7 @@ interface MenuItem {
   url: string;
   icon: ElementType;
   permissionKey?: keyof Permissoes;
+  children?: MenuItem[];
 }
 
 interface MenuGroup {
@@ -37,8 +38,15 @@ const menuGroups: MenuGroup[] = [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
       { label: 'Kanban', url: '/kanban', icon: KanbanSquare, permissionKey: 'kanban' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
-          { label: 'Analytics', url: '/analytics', icon: BarChart3 },
-          { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
+          {
+            label: 'Analytics',
+            url: '/analytics',
+            icon: BarChart3,
+            children: [
+              { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
+              { label: 'Performance Veículos', url: '/analytics/performance-vendas', icon: BarChart3 },
+            ],
+          },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },
     ]
   },
@@ -89,6 +97,24 @@ const SidebarFixed: React.FC = () => {
     setOpenGroups(prev => {
       const next = { ...prev, [title]: typeof value === 'boolean' ? value : !prev[title] };
       try { localStorage.setItem('sidebar.openGroups', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  // track open/closed state for menu items that have children (e.g. Analytics -> Compras)
+  const [openItems, setOpenItems] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('sidebar.openItems');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleItem = (label: string, value?: boolean) => {
+    setOpenItems((prev) => {
+      const next = { ...prev, [label]: typeof value === 'boolean' ? value : !prev[label] };
+      try { localStorage.setItem('sidebar.openItems', JSON.stringify(next)); } catch {}
       return next;
     });
   };
@@ -161,25 +187,83 @@ const SidebarFixed: React.FC = () => {
                     </CollapsibleTrigger>
                     <CollapsibleContent asChild>
                       <ul className="pt-1 pl-2 pr-2 space-y-1">
-                        {visibleItems.map((item) => (
-                          <li key={item.label}>
-                            <NavLink
-                              to={item.url}
-                              className={({ isActive }) =>
-                                `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${
-                                  isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
-                                }`
-                              }
-                            >
-                              <item.icon className="w-5 h-5" />
-                              {!isCollapsed && <span className="flex items-center gap-2">{item.label}
-                                {item.label === 'Notificações' && unreadCount > 0 && (
-                                  <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-blue-500 text-white">{unreadCount}</span>
+                        {visibleItems.map((item) => {
+                          const Icon = item.icon;
+                          if (item.children && item.children.length > 0) {
+                            const isOpen = !!openItems[item.label];
+                            return (
+                              <li key={item.label}>
+                                <div className="flex items-center justify-between">
+                                  <NavLink
+                                    to={item.url}
+                                    className={({ isActive }) =>
+                                      `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${
+                                        isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
+                                      }`
+                                    }
+                                  >
+                                    <Icon className="w-5 h-5" />
+                                    {!isCollapsed && <span className="flex items-center gap-2">{item.label}</span>}
+                                  </NavLink>
+
+                                  {!isCollapsed && (
+                                    <button
+                                      onClick={() => toggleItem(item.label)}
+                                      aria-expanded={isOpen}
+                                      aria-label={`Toggle ${item.label}`}
+                                      className="p-1 ml-2 text-[#C7C9D9] hover:text-white rounded"
+                                    >
+                                      <ChevronDown className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                {isOpen && (
+                                  <ul className="pl-6 mt-1 space-y-1">
+                                    {item.children.map((child) => {
+                                      const ChildIcon = child.icon;
+                                      return (
+                                        <li key={child.label}>
+                                          <NavLink
+                                            to={child.url}
+                                            className={({ isActive }) =>
+                                              `flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${
+                                                isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
+                                              }`
+                                            }
+                                          >
+                                            <ChildIcon className="w-4 h-4" />
+                                            {!isCollapsed && <span className="text-sm">{child.label}</span>}
+                                          </NavLink>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
                                 )}
-                              </span>}
-                            </NavLink>
-                          </li>
-                        ))}
+                              </li>
+                            );
+                          }
+
+                          return (
+                            <li key={item.label}>
+                              <NavLink
+                                to={item.url}
+                                className={({ isActive }) =>
+                                  `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${
+                                    isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
+                                  }`
+                                }
+                              >
+                                <Icon className="w-5 h-5" />
+                                {!isCollapsed && <span className="flex items-center gap-2">{item.label}
+                                  {item.label === 'Notificações' && unreadCount > 0 && (
+                                    <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-blue-500 text-white">{unreadCount}</span>
+                                  )}
+                                </span>}
+                              </NavLink>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </CollapsibleContent>
                   </Collapsible>

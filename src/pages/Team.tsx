@@ -89,17 +89,36 @@ const Team = () => {
         return acc;
       }, {} as Record<string, string>);
 
-      const members = profiles.map(profile => ({
-        id: profile.id,
-        name: profile.full_name || 'Nome não definido',
-        email: profile.email || 'Email não definido',
-        funcao: profile.funcao || 'Função não definida',
-        nivelAcesso: (profile.nivelAcesso as any) || 'Usuário',
-        permissoes: (profile.permissoes as any) || getDefaultPermissions(profile.nivelAcesso as any || 'Usuário'),
-        tasksCount: 0,
-        supervisorName: profile.supervisor_id ? lookup[profile.supervisor_id] || null : null,
-        supervisor_id: profile.supervisor_id || null,
-      }));
+      // Fetch user_hierarchy relations for these profiles to list supervisors (many-to-many)
+      const profileIds = profiles.map((p: any) => p.id);
+      const { data: uhData, error: uhError } = await supabase
+        .from('user_hierarchy')
+        .select('user_id, supervisor_id')
+        .in('user_id', profileIds);
+
+      const supervisorsByUser: Record<string, string[]> = {};
+      if (!uhError && Array.isArray(uhData)) {
+        uhData.forEach((r: any) => {
+          if (!supervisorsByUser[r.user_id]) supervisorsByUser[r.user_id] = [];
+          supervisorsByUser[r.user_id].push(r.supervisor_id);
+        });
+      }
+
+      const members = profiles.map(profile => {
+        const supIds = supervisorsByUser[profile.id] || [];
+        const supNames = supIds.map((id: string) => lookup[id]).filter(Boolean).join(', ');
+        return {
+          id: profile.id,
+          name: profile.full_name || 'Nome não definido',
+          email: profile.email || 'Email não definido',
+          funcao: profile.funcao || 'Função não definida',
+          nivelAcesso: (profile.nivelAcesso as any) || 'Usuário',
+          permissoes: (profile.permissoes as any) || getDefaultPermissions(profile.nivelAcesso as any || 'Usuário'),
+          tasksCount: 0,
+          supervisorName: supNames || null,
+          supervisor_id: profile.supervisor_id || null,
+        };
+      });
       setTeamMembers(members as any);
     }
     setIsLoading(false);
