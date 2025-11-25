@@ -34,19 +34,13 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
   const queryClient = useQueryClient();
 
   const handleDelegate = async () => {
-    console.log('[TaskDelegation] handleDelegate called', { selectedUserId, addCoResponsible, isTemporary, startDate, endDate, currentAssigneeId });
-    try {
-      toast({ title: 'Depuração', description: `sel:${selectedUserId ?? 'null'} co:${addCoResponsible} temp:${isTemporary}` });
-    } catch (e) {
-      // ignore toast errors in case hook not available
-    }
     if (!selectedUserId) {
-        toast({ title: "Erro", description: "Selecione um usuário.", variant: "destructive" });
-        return;
+      toast({ title: "Erro", description: "Selecione um usuário.", variant: "destructive" });
+      return;
     }
     if (!addCoResponsible && selectedUserId === currentAssigneeId) {
-        toast({ title: "Aviso", description: "A tarefa já está atribuída a este usuário." });
-        return;
+      toast({ title: "Aviso", description: "A tarefa já está atribuída a este usuário." });
+      return;
     }
 
     // Confirmação se houver reatribuição (substituir responsável)
@@ -64,7 +58,7 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
         const delegatedBy = user?.full_name || user?.email || 'Sistema';
         const delegatedTo = profiles.find(p => p.id === selectedUserId)?.full_name || '';
         const notes = isTemporary ? `Delegação temporária ${startDate || ''} -> ${endDate || ''}` : null;
-        console.log('[TaskDelegation] inserting co-responsible', { delegatedBy, delegatedTo, selectedUserId, taskId, notes, status: isTemporary ? 'temporary_co' : 'co_responsible' });
+
         const insertPayload = {
           delegated_at: new Date().toISOString(),
           delegated_by: delegatedBy,
@@ -76,7 +70,7 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
           status: isTemporary ? 'temporary_co' : 'co_responsible'
         };
         const { data: insertData, error: insertErr } = await supabase.from('task_delegations').insert(insertPayload).select();
-        console.log('[TaskDelegation] insert result', { insertData, insertErr });
+
         if (insertErr) {
           console.error('Insert task_delegations error', insertErr);
           throw insertErr;
@@ -112,7 +106,7 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
         status: isTemporary ? 'temporary' : 'assigned'
       };
       const { data: insertData, error: insertErr } = await supabase.from('task_delegations').insert(insertPayload).select();
-      console.log('[TaskDelegation] delegation insert result', { insertData, insertErr });
+
       if (insertErr) console.warn('Não foi possível registrar delegação:', insertErr);
       if (insertData && insertData.length > 0) {
         setDelegations(prev => [insertData[0], ...prev]);
@@ -273,7 +267,7 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                         )}
                       </div>
                     </li>
-                ))}
+                  ))}
               </ul>
             </div>
           )}
@@ -299,85 +293,85 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                 {subtasks
                   .filter(s => ((s as any).needs_approval === true) || s.status === 'awaiting_approval' || (s.completed && s.status !== 'done'))
                   .map(s => (
-                  <li key={s.id} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="font-medium">{s.title}</div>
-                      <div className="text-xs text-muted-foreground">Responsável: {s.assignee?.full_name || 'N/A'} • Prazo: {s.due_date ? new Date(s.due_date).toLocaleDateString() : '-'}</div>
-                      {(() => {
-                        // prefer the view fields provided by `subtasks_with_approvers`
-                        const requestedApproverName = (s as any).requested_approver_full_name || (s as any).requested_approver?.full_name || (s as any).requested_approver_name || null;
-                        const approvedAt = (s as any).approved_at;
-                        const approvedByField = (s as any).approved_by_full_name || (s as any).approved_by?.full_name || (s as any).approved_by_name || (s as any).approved_by_id || null;
-                        // if approvedByField contains an id, try to resolve via profiles
-                        const resolvedApprovedBy = approvedByField && profiles.find(p => p.id === approvedByField)?.full_name || approvedByField;
-                        if (requestedApproverName) {
-                          return <div className="text-xs text-yellow-700">Aguardando aprovação de {requestedApproverName}</div>;
-                        }
-                        if (approvedAt) {
-                          return <div className="text-xs text-green-700">Aprovado por {resolvedApprovedBy ?? '—'} • {new Date(approvedAt).toLocaleString()}</div>;
-                        }
-                        return null;
-                      })()}
-                    </div>
-                    <div>
-                      {(() => {
-                        const requestedApproverId = (s as any).requested_approver_id || (s as any).requested_approver?.id || null;
-                        const isApprover = !!user && requestedApproverId && user.id === requestedApproverId;
-                        const isAdmin = !!user && !!user.isAdmin;
-                        const isRequester = !!user && user.id === s.assignee_id;
+                    <li key={s.id} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <div className="font-medium">{s.title}</div>
+                        <div className="text-xs text-muted-foreground">Responsável: {s.assignee?.full_name || 'N/A'} • Prazo: {s.due_date ? new Date(s.due_date).toLocaleDateString() : '-'}</div>
+                        {(() => {
+                          // prefer the view fields provided by `subtasks_with_approvers`
+                          const requestedApproverName = (s as any).requested_approver_full_name || (s as any).requested_approver?.full_name || (s as any).requested_approver_name || null;
+                          const approvedAt = (s as any).approved_at;
+                          const approvedByField = (s as any).approved_by_full_name || (s as any).approved_by?.full_name || (s as any).approved_by_name || (s as any).approved_by_id || null;
+                          // if approvedByField contains an id, try to resolve via profiles
+                          const resolvedApprovedBy = approvedByField && profiles.find(p => p.id === approvedByField)?.full_name || approvedByField;
+                          if (requestedApproverName) {
+                            return <div className="text-xs text-yellow-700">Aguardando aprovação de {requestedApproverName}</div>;
+                          }
+                          if (approvedAt) {
+                            return <div className="text-xs text-green-700">Aprovado por {resolvedApprovedBy ?? '—'} • {new Date(approvedAt).toLocaleString()}</div>;
+                          }
+                          return null;
+                        })()}
+                      </div>
+                      <div>
+                        {(() => {
+                          const requestedApproverId = (s as any).requested_approver_id || (s as any).requested_approver?.id || null;
+                          const isApprover = !!user && requestedApproverId && user.id === requestedApproverId;
+                          const isAdmin = !!user && !!user.isAdmin;
+                          const isRequester = !!user && user.id === s.assignee_id;
 
-                        if (isApprover || isAdmin) {
-                          return (
-                            <div className="flex items-center gap-2">
-                              <Button size="sm" onClick={async () => {
-                                const confirmMsg = `Você tem certeza que deseja aprovar "${s.title}"?`;
-                                if (!window.confirm(confirmMsg)) return;
-                                try {
-                                  const updates: any = {
-                                    status: 'done',
-                                    completed: true,
-                                    needs_approval: false,
-                                    approved_by_id: user?.id || null,
-                                    approved_at: new Date().toISOString(),
-                                  };
-                                  const result = await updateSubtask({ id: s.id, updates });
-                                  console.log('[TaskDelegation] approve result', { result });
-                                  try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch(e){console.warn(e)}
-                                  toast({ title: 'Subtarefa aprovada', description: `${s.title}` });
-                                  // Notificar o solicitante (assignee) que a subtarefa foi aprovada
+                          if (isApprover || isAdmin) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" onClick={async () => {
+                                  const confirmMsg = `Você tem certeza que deseja aprovar "${s.title}"?`;
+                                  if (!window.confirm(confirmMsg)) return;
                                   try {
-                                    const requesterId = s.assignee_id || (s as any).assignee_id || null;
-                                    if (requesterId) {
-                                      await supabase.from('notifications').insert({
-                                        user_id: requesterId,
-                                        title: 'Subtarefa aprovada',
-                                        message: `${user?.full_name || 'Um usuário'} aprovou a subtarefa "${s.title}".`,
-                                        type: 'approval_granted',
-                                        task_id: taskId,
-                                        data: { subtask_id: s.id },
-                                        read: false
-                                      });
+                                    const updates: any = {
+                                      status: 'done',
+                                      completed: true,
+                                      needs_approval: false,
+                                      approved_by_id: user?.id || null,
+                                      approved_at: new Date().toISOString(),
+                                    };
+                                    const result = await updateSubtask({ id: s.id, updates });
+                                    console.log('[TaskDelegation] approve result', { result });
+                                    try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch (e) { console.warn(e) }
+                                    toast({ title: 'Subtarefa aprovada', description: `${s.title}` });
+                                    // Notificar o solicitante (assignee) que a subtarefa foi aprovada
+                                    try {
+                                      const requesterId = s.assignee_id || (s as any).assignee_id || null;
+                                      if (requesterId) {
+                                        await supabase.from('notifications').insert({
+                                          user_id: requesterId,
+                                          title: 'Subtarefa aprovada',
+                                          message: `${user?.full_name || 'Um usuário'} aprovou a subtarefa "${s.title}".`,
+                                          type: 'approval_granted',
+                                          task_id: taskId,
+                                          data: { subtask_id: s.id },
+                                          read: false
+                                        });
+                                      }
+                                    } catch (notifErr) {
+                                      console.warn('Erro criando notificação de aprovação:', notifErr);
                                     }
-                                  } catch (notifErr) {
-                                    console.warn('Erro criando notificação de aprovação:', notifErr);
+                                  } catch (err: any) {
+                                    console.error('Erro aprovando subtarefa', err);
+                                    toast({ title: 'Erro', description: err?.message || 'Não foi possível aprovar subtarefa', variant: 'destructive' });
                                   }
-                                } catch (err: any) {
-                                  console.error('Erro aprovando subtarefa', err);
-                                  toast({ title: 'Erro', description: err?.message || 'Não foi possível aprovar subtarefa', variant: 'destructive' });
-                                }
-                              }}>Aprovar</Button>
-                              <Button size="sm" variant="ghost" onClick={async () => {
-                                const confirmMsg = `Você tem certeza que deseja recusar "${s.title}"?`;
-                                if (!window.confirm(confirmMsg)) return;
-                                try {
-                                  const updates: any = {
-                                    needs_approval: false,
-                                    approval_notes: `Rejeitado por ${user?.full_name || user?.email || user?.id} em ${new Date().toISOString()}`,
-                                  };
-                                  const result = await updateSubtask({ id: s.id, updates });
-                                  console.log('[TaskDelegation] reject result', { result });
-                                  try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch(e){console.warn(e)}
-                                  toast({ title: 'Subtarefa recusada', description: `${s.title}` });
+                                }}>Aprovar</Button>
+                                <Button size="sm" variant="ghost" onClick={async () => {
+                                  const confirmMsg = `Você tem certeza que deseja recusar "${s.title}"?`;
+                                  if (!window.confirm(confirmMsg)) return;
+                                  try {
+                                    const updates: any = {
+                                      needs_approval: false,
+                                      approval_notes: `Rejeitado por ${user?.full_name || user?.email || user?.id} em ${new Date().toISOString()}`,
+                                    };
+                                    const result = await updateSubtask({ id: s.id, updates });
+                                    console.log('[TaskDelegation] reject result', { result });
+                                    try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch (e) { console.warn(e) }
+                                    toast({ title: 'Subtarefa recusada', description: `${s.title}` });
                                     // Notificar o solicitante que a subtarefa foi recusada
                                     try {
                                       const requesterId = s.assignee_id || (s as any).assignee_id || null;
@@ -395,30 +389,30 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                                     } catch (notifErr) {
                                       console.warn('Erro criando notificação de recusa:', notifErr);
                                     }
-                                } catch (err: any) {
-                                  console.error('Erro recusando subtarefa', err);
-                                  toast({ title: 'Erro', description: err?.message || 'Não foi possível recusar subtarefa', variant: 'destructive' });
-                                }
-                              }}>Recusar</Button>
-                            </div>
-                          );
-                        }
+                                  } catch (err: any) {
+                                    console.error('Erro recusando subtarefa', err);
+                                    toast({ title: 'Erro', description: err?.message || 'Não foi possível recusar subtarefa', variant: 'destructive' });
+                                  }
+                                }}>Recusar</Button>
+                              </div>
+                            );
+                          }
 
-                        if (isRequester) {
-                          return (
-                            <Button size="sm" variant="ghost" onClick={async () => {
-                              const confirmMsg = `Cancelar solicitação de aprovação para "${s.title}"?`;
-                              if (!window.confirm(confirmMsg)) return;
-                              try {
-                                const updates: any = {
-                                  needs_approval: false,
-                                  requested_approver_id: null,
-                                  approval_notes: null,
-                                };
-                                const result = await updateSubtask({ id: s.id, updates });
-                                console.log('[TaskDelegation] cancel request result', { result });
-                                try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch(e){console.warn(e)}
-                                toast({ title: 'Solicitação cancelada', description: `${s.title}` });
+                          if (isRequester) {
+                            return (
+                              <Button size="sm" variant="ghost" onClick={async () => {
+                                const confirmMsg = `Cancelar solicitação de aprovação para "${s.title}"?`;
+                                if (!window.confirm(confirmMsg)) return;
+                                try {
+                                  const updates: any = {
+                                    needs_approval: false,
+                                    requested_approver_id: null,
+                                    approval_notes: null,
+                                  };
+                                  const result = await updateSubtask({ id: s.id, updates });
+                                  console.log('[TaskDelegation] cancel request result', { result });
+                                  try { queryClient.invalidateQueries({ queryKey: ['subtasks', taskId] }); } catch (e) { console.warn(e) }
+                                  toast({ title: 'Solicitação cancelada', description: `${s.title}` });
                                   // Notificar o aprovador que a solicitação foi cancelada (se houver)
                                   try {
                                     const requestedApproverId = (s as any).requested_approver_id || (s as any).requested_approver?.id || null;
@@ -436,19 +430,19 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
                                   } catch (notifErr) {
                                     console.warn('Erro criando notificação de cancelamento:', notifErr);
                                   }
-                              } catch (err: any) {
-                                console.error('Erro cancelando solicitação', err);
-                                toast({ title: 'Erro', description: err?.message || 'Não foi possível cancelar solicitação', variant: 'destructive' });
-                              }
-                            }}>Cancelar solicitação</Button>
-                          );
-                        }
+                                } catch (err: any) {
+                                  console.error('Erro cancelando solicitação', err);
+                                  toast({ title: 'Erro', description: err?.message || 'Não foi possível cancelar solicitação', variant: 'destructive' });
+                                }
+                              }}>Cancelar solicitação</Button>
+                            );
+                          }
 
-                        return <div className="text-xs text-muted-foreground">Você não pode aprovar</div>;
-                      })()}
-                    </div>
-                  </li>
-                ))}
+                          return <div className="text-xs text-muted-foreground">Você não pode aprovar</div>;
+                        })()}
+                      </div>
+                    </li>
+                  ))}
               </ul>
             </div>
           )}
