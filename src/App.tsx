@@ -26,6 +26,7 @@ import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import SalesPerformance from '@/pages/analytics/SalesPerformance';
+import DataAudit from '@/pages/analytics/DataAudit';
 import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -84,6 +85,7 @@ function App() {
               <Route path="/analytics" element={<AnalyticsIndex />} />
               <Route path="/analytics/frota" element={<FleetDashboard />} />
               <Route path="/analytics/compras" element={<PurchasesDashboard />} />
+              <Route path="/analytics/auditoria" element={<DataAudit />} />
               <Route path="/analytics/performance-vendas" element={<SalesPerformance />} />
                            
               <Route path="/clientes" element={<CustomerHubPage />} />
