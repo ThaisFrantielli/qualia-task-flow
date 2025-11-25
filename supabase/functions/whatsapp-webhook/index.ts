@@ -1,14 +1,6 @@
-// @ts-ignore - Deno edge function runtime
+// @ts-ignore - Deno environment
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts"
-// @ts-ignore - Supabase client import
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
-
-// Deno global for edge functions runtime
-declare const Deno: {
-  env: {
-    get(key: string): string | undefined;
-  };
-}
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,195 +8,106 @@ const corsHeaders = {
 }
 
 serve(async (req: Request) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const { instance_id, from, body, timestamp, messageId } = await req.json()
 
-    const { from, body, timestamp, type = 'text', id: whatsappMessageId, to, instanceId } = await req.json()
+    console.log('=== WhatsApp Webhook Debug ===')
+    console.log('Instance ID:', instance_id)
+    console.log('From:', from)
+    console.log('Body:', body)
+    console.log('Timestamp:', timestamp)
+    console.log('Message ID:', messageId)
 
-    console.log('Received WhatsApp message:', { from, body, timestamp, type, to, instanceId })
+    if (!instance_id || !from || !body) {
+      return new Response(
+        JSON.stringify({ error: 'instance_id, from, and body are required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
 
-    // Extract phone number (remove @c.us suffix)
-    const phoneNumber = from.replace('@c.us', '')
-    const companyWhatsAppNumber = to ? to.replace('@c.us', '') : '0000000000'
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 1. Find or create customer by phone number
-    let customerId: string | null = null
+    // Extract phone number from WhatsApp format (e.g., "5561999887766@c.us" -> "5561999887766")
+    const phoneNumber = from.replace('@c.us', '').replace('@s.whatsapp.net', '')
 
-    // First, try to find existing customer
-    const { data: existingCustomer } = await supabase
-      .from('clientes')
-      .select('id')
-      .eq('telefone', phoneNumber)
+    // Find or create conversation for this instance
+    let { data: conversation, error: convError } = await supabase
+      .from('whatsapp_conversations')
+      .select('*')
+      .eq('customer_phone', phoneNumber)
+      .eq('instance_id', instance_id)
       .single()
 
-    if (existingCustomer) {
-      customerId = existingCustomer.id
-    } else {
-      // Create new customer
-      const { data: newCustomer, error: customerError } = await supabase
-        .from('clientes')
-        .insert({
-          nome: `Cliente ${phoneNumber}`,
-          telefone: phoneNumber,
-          email: null,
-          origem: 'whatsapp',
-          status: 'ativo'
-        })
-        .select('id')
-        .single()
-
-      if (customerError) {
-        console.error('Error creating customer:', customerError)
-        throw customerError
-      }
-
-      customerId = newCustomer.id
-      console.log('Created new customer:', customerId)
-    }
-
-    // 2. Find or create WhatsApp conversation
-    let conversationId: string | null = null
-
-    // Build query to find existing conversation
-    let query = supabase
-      .from('whatsapp_conversations')
-      .select('id')
-      .eq('customer_phone', phoneNumber)
-      .eq('status', 'active')
-
-    // If instanceId is provided, filter by it
-    if (instanceId) {
-      query = query.eq('instance_id', instanceId)
-    } else {
-      // Fallback for legacy or unknown instance
-      query = query.eq('whatsapp_number', companyWhatsAppNumber)
-    }
-
-    const { data: existingConversation } = await query.single()
-
-    if (existingConversation) {
-      conversationId = existingConversation.id
-    } else {
+    if (convError || !conversation) {
       // Create new conversation
-      const { data: newConversation, error: conversationError } = await supabase
+      const { data: newConv, error: createError } = await supabase
         .from('whatsapp_conversations')
         .insert({
-          cliente_id: customerId,
           customer_phone: phoneNumber,
-          customer_name: `Cliente ${phoneNumber}`,
-          whatsapp_number: companyWhatsAppNumber,
-          instance_id: instanceId || null, // Save instance_id
-          status: 'active',
+          customer_name: phoneNumber,
+          instance_id: instance_id,
           last_message: body,
           last_message_at: new Date().toISOString(),
           unread_count: 1
         })
-        .select('id')
+        .select()
         .single()
 
-      if (conversationError) {
-        console.error('Error creating conversation:', conversationError)
-        throw conversationError
+      if (createError) {
+        console.error('Error creating conversation:', createError)
+        throw createError
       }
 
-      conversationId = newConversation.id
-      console.log('Created new conversation:', conversationId)
+      conversation = newConv
+    } else {
+      // Update existing conversation
+      await supabase
+        .from('whatsapp_conversations')
+        .update({
+          last_message: body,
+          last_message_at: new Date().toISOString(),
+          unread_count: (conversation.unread_count || 0) + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', conversation.id)
     }
 
-    // 3. Save the message
-    const { data: message, error: messageError } = await supabase
+    // Create message
+    const { error: messageError } = await supabase
       .from('whatsapp_messages')
       .insert({
-        conversation_id: conversationId,
-        instance_id: instanceId || null, // Save instance_id
+        conversation_id: conversation.id,
+        instance_id: instance_id,
         sender_type: 'customer',
-        sender_phone: phoneNumber,
-        sender_name: `Cliente ${phoneNumber}`,
         content: body,
-        message_type: type,
-        status: 'delivered',
-        whatsapp_message_id: whatsappMessageId
+        message_type: 'text',
+        status: 'received',
+        whatsapp_message_id: messageId
       })
-      .select()
-      .single()
 
     if (messageError) {
-      console.error('Error saving message:', messageError)
+      console.error('Error creating message:', messageError)
       throw messageError
-    }
-
-    // 4. Update conversation with latest message info
-    await supabase
-      .from('whatsapp_conversations')
-      .update({
-        last_message: body,
-        last_message_at: new Date().toISOString(),
-        unread_count: 1, // TODO: Implement proper unread count logic
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', conversationId)
-
-    // 5. Check if we should create an atendimento (support ticket)
-    // This could be configurable based on business rules
-    const shouldCreateAtendimento = true // For now, always create one
-
-    if (shouldCreateAtendimento && customerId) {
-      // Check if there's already an open atendimento for this customer
-      const { data: existingAtendimento } = await supabase
-        .from('atendimentos')
-        .select('id')
-        .eq('cliente_id', customerId)
-        .eq('status', 'aberto')
-        .single()
-
-      if (!existingAtendimento) {
-        // Create new atendimento
-        const { error: atendimentoError } = await supabase
-          .from('atendimentos')
-          .insert({
-            cliente_id: customerId,
-            tipo: 'suporte',
-            status: 'aberto',
-            prioridade: 'media',
-            titulo: `Atendimento WhatsApp - ${phoneNumber}`,
-            descricao: `Atendimento iniciado via WhatsApp.\n\nPrimeira mensagem: ${body}`,
-            origem: 'whatsapp'
-          })
-
-        if (atendimentoError) {
-          console.error('Error creating atendimento:', atendimentoError)
-        } else {
-          console.log('Created new atendimento for customer:', customerId)
-        }
-      }
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'WhatsApp message processed successfully',
-        data: {
-          messageId: message.id,
-          conversationId,
-          customerId
-        }
+        message: 'Webhook processed successfully',
+        conversation_id: conversation.id,
+        instance_id: instance_id
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error processing WhatsApp webhook:', error)
+    console.error('Error processing webhook:', error)
 
     return new Response(
       JSON.stringify({

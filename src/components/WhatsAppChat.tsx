@@ -25,6 +25,7 @@ import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 
 interface WhatsAppChatProps {
   customerId?: string;
+  instanceId?: string;
   className?: string;
 }
 
@@ -64,9 +65,10 @@ const getCustomerInitials = (name: string | null, phone: string) => {
 
 export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
   customerId,
+  instanceId,
   className
 }) => {
-  const { conversations, loading: convLoading, error: convError } = useWhatsAppConversations(customerId);
+  const { conversations, loading: convLoading, error: convError } = useWhatsAppConversations(customerId, instanceId);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const { messages, loading: msgLoading, error: msgError, refetch: refetchMessages } = useWhatsAppMessages(selectedConversationId || undefined);
   const [newMessage, setNewMessage] = useState('');
@@ -232,7 +234,8 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
         body: JSON.stringify({
           phoneNumber: (selectedConv as any).customer_phone,
           message: newMessage.trim(),
-          conversationId: selectedConversationId
+          conversationId: selectedConversationId,
+          instance_id: instanceId || (selectedConv as any).instance_id
         }),
       });
 
