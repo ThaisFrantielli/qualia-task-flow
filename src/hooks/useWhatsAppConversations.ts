@@ -7,7 +7,7 @@ import type { Database } from '@/types';
 
 export type WhatsAppMessage = Database['public']['Tables']['whatsapp_messages']['Row'];
 
-export function useWhatsAppConversations(customerId?: string) {
+export function useWhatsAppConversations(customerId?: string, instanceId?: string) {
   const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,9 +21,14 @@ export function useWhatsAppConversations(customerId?: string) {
         .from('whatsapp_conversations')
         .select('*');
 
-      // If customerId is provided, filter by it, otherwise get all conversations
+      // If customerId is provided, filter by it
       if (customerId) {
         query = query.eq('customer_id', customerId);
+      }
+
+      // If instanceId is provided, filter by it
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
       }
 
       const { data, error } = await query
@@ -39,7 +44,7 @@ export function useWhatsAppConversations(customerId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [customerId]);
+  }, [customerId, instanceId]);
 
   useEffect(() => {
     fetchConversations();
@@ -47,6 +52,10 @@ export function useWhatsAppConversations(customerId?: string) {
 
   // Real-time subscription for conversations
   useEffect(() => {
+    const filters = [];
+    if (customerId) filters.push(`customer_id=eq.${customerId}`);
+    if (instanceId) filters.push(`instance_id=eq.${instanceId}`);
+
     const channel = supabase
       .channel('whatsapp-conversations-changes')
       .on(
@@ -55,7 +64,7 @@ export function useWhatsAppConversations(customerId?: string) {
           event: '*',
           schema: 'public',
           table: 'whatsapp_conversations',
-          filter: customerId ? `customer_id=eq.${customerId}` : undefined
+          filter: filters.length > 0 ? filters.join(',') : undefined
         },
         (payload) => {
           console.log('Conversation updated:', payload);
@@ -63,8 +72,8 @@ export function useWhatsAppConversations(customerId?: string) {
           if (payload.eventType === 'INSERT') {
             setConversations(prev => [payload.new as WhatsAppConversation, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
-            setConversations(prev => 
-              prev.map(conv => 
+            setConversations(prev =>
+              prev.map(conv =>
                 conv.id === payload.new.id ? { ...payload.new as WhatsAppConversation } : conv
               ).sort((a, b) => {
                 const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
@@ -82,7 +91,7 @@ export function useWhatsAppConversations(customerId?: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [customerId]);
+  }, [customerId, instanceId]);
 
   return { conversations, loading, error, refetch: fetchConversations };
 }
