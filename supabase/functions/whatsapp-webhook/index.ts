@@ -27,17 +27,17 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { from, body, timestamp, type = 'text', id: whatsappMessageId, to } = await req.json()
+    const { from, body, timestamp, type = 'text', id: whatsappMessageId, to, instanceId } = await req.json()
 
-    console.log('Received WhatsApp message:', { from, body, timestamp, type, to })
+    console.log('Received WhatsApp message:', { from, body, timestamp, type, to, instanceId })
 
     // Extract phone number (remove @c.us suffix)
     const phoneNumber = from.replace('@c.us', '')
     const companyWhatsAppNumber = to ? to.replace('@c.us', '') : '0000000000'
-    
+
     // 1. Find or create customer by phone number
     let customerId: string | null = null
-    
+
     // First, try to find existing customer
     const { data: existingCustomer } = await supabase
       .from('clientes')
@@ -73,13 +73,22 @@ serve(async (req: Request) => {
     // 2. Find or create WhatsApp conversation
     let conversationId: string | null = null
 
-    const { data: existingConversation } = await supabase
+    // Build query to find existing conversation
+    let query = supabase
       .from('whatsapp_conversations')
       .select('id')
       .eq('customer_phone', phoneNumber)
-      .eq('whatsapp_number', companyWhatsAppNumber)
       .eq('status', 'active')
-      .single()
+
+    // If instanceId is provided, filter by it
+    if (instanceId) {
+      query = query.eq('instance_id', instanceId)
+    } else {
+      // Fallback for legacy or unknown instance
+      query = query.eq('whatsapp_number', companyWhatsAppNumber)
+    }
+
+    const { data: existingConversation } = await query.single()
 
     if (existingConversation) {
       conversationId = existingConversation.id
@@ -92,6 +101,7 @@ serve(async (req: Request) => {
           customer_phone: phoneNumber,
           customer_name: `Cliente ${phoneNumber}`,
           whatsapp_number: companyWhatsAppNumber,
+          instance_id: instanceId || null, // Save instance_id
           status: 'active',
           last_message: body,
           last_message_at: new Date().toISOString(),
@@ -114,6 +124,7 @@ serve(async (req: Request) => {
       .from('whatsapp_messages')
       .insert({
         conversation_id: conversationId,
+        instance_id: instanceId || null, // Save instance_id
         sender_type: 'customer',
         sender_phone: phoneNumber,
         sender_name: `Cliente ${phoneNumber}`,
@@ -194,7 +205,7 @@ serve(async (req: Request) => {
 
   } catch (error) {
     console.error('Error processing WhatsApp webhook:', error)
-    
+
     return new Response(
       JSON.stringify({
         success: false,
