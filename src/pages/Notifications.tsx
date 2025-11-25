@@ -1,14 +1,13 @@
-// src/pages/Notifications.tsx
-
 import { useEffect } from 'react';
 import { Bell, Check, Clock, AlertCircle, Info, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { requiresAction } from '@/utils/notificationUtils';
 
 import { useNotifications } from '@/hooks/useNotifications';
-import type { Notification } from '@/types'; // Import the Notification type
+
 
 const Notifications = () => {
   const { notifications, loading, markAsRead, markAllAsRead, archiveNotification, setNotificationPriority } = useNotifications();
@@ -45,11 +44,8 @@ const Notifications = () => {
   // Since the column doesn't exist, we need another way to determine this.
   // For now, let's assume notifications of type 'warning' or 'error' require action.
   // ADJUST THIS LOGIC based on how you truly determine if a notification requires action.
-  const requiresAction = (notification: Notification): boolean => {
-      return notification.type === 'warning' || notification.type === 'error';
-      // Or maybe check a specific field in the 'data' JSONB column?
-      // return notification.data?.requires_action === true; // Example if data has a requires_action field
-  };
+
+
 
 
   // Calculate unread and action required notifications based on actual data
@@ -61,7 +57,7 @@ const Notifications = () => {
 
 
   // ... (keep getNotificationIcon and getBadgeVariant functions as they were) ...
-   const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'warning':
         return <AlertCircle className="w-5 h-5 text-yellow-500" />;
@@ -80,12 +76,12 @@ const Notifications = () => {
   // Render loading state
   if (loading) {
     return (
-       <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600">Carregando notificações...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando notificações...</p>
         </div>
+      </div>
     );
   }
 
@@ -99,7 +95,7 @@ const Notifications = () => {
           <p className="text-gray-600">Acompanhe atualizações e ações necessárias</p>
         </div>
         <div className="flex space-x-2">
-           {/* Botões usam as funções do hook */}
+          {/* Botões usam as funções do hook */}
           <Button variant="outline" onClick={markAllAsRead} disabled={notifications.length === 0}>
             <Check className="w-4 h-4 mr-2" />
             Marcar todas como lidas
@@ -123,7 +119,7 @@ const Notifications = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Não Lidas</CardTitle>
-             {/* Usar ícone apropriado, talvez um olho ou um ponto */}
+            {/* Usar ícone apropriado, talvez um olho ou um ponto */}
             <AlertCircle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
@@ -135,7 +131,7 @@ const Notifications = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ação Necessária</CardTitle>
-             {/* Usar ícone apropriado, talvez um alerta */}
+            {/* Usar ícone apropriado, talvez um alerta */}
             <Clock className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
@@ -171,7 +167,7 @@ const Notifications = () => {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <CardTitle className="text-base">{notification.title}</CardTitle>
-                           {/* Usar o helper requiresAction */}
+                          {/* Usar o helper requiresAction */}
                           {requiresAction(notification) && (
                             <Badge variant="destructive" className="text-xs">
                               Ação necessária
@@ -254,7 +250,7 @@ const Notifications = () => {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <CardTitle className="text-base">{notification.title}</CardTitle>
-                           {/* Usar o helper requiresAction */}
+                          {/* Usar o helper requiresAction */}
                           {requiresAction(notification) && (
                             <Badge variant="destructive" className="text-xs">
                               Ação necessária
@@ -269,26 +265,26 @@ const Notifications = () => {
                         </CardDescription>
                       </div>
                     </div>
-                     <div className="flex items-center space-x-2">
-                       <span className="text-xs text-gray-500">
-                         {formatTimestamp(notification.created_at)} {/* Use created_at */}
-                       </span>
-                       <Button
-                         variant="ghost"
-                         size="sm"
-                         onClick={() => markAsRead(notification.id)}
-                       >
-                         <Check className="w-4 h-4" />
-                       </Button>
-                     </div>
-                   </div>
-                 </CardHeader>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">
+                        {formatTimestamp(notification.created_at)} {/* Use created_at */}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => markAsRead(notification.id)}
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
             ))
           )}
         </TabsContent>
 
-         {/* Aba Ação Necessária */}
+        {/* Aba Ação Necessária */}
         <TabsContent value="action" className="space-y-4">
           {actionRequiredNotifications.length === 0 ? (
             <div className="text-center py-8">
@@ -312,9 +308,9 @@ const Notifications = () => {
                           </Badge>
                           {/* Manter badge "Nova" apenas se a notificação for nova E não lida */}
                           {!notification.read && (
-                              <Badge variant="secondary" className="text-xs">
-                                Nova
-                              </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              Nova
+                            </Badge>
                           )}
                         </div>
                         <CardDescription className="text-sm text-gray-600 mt-1">
@@ -326,19 +322,19 @@ const Notifications = () => {
                       <span className="text-xs text-gray-500">
                         {formatTimestamp(notification.created_at)} {/* Use created_at */}
                       </span>
-                       {/* Botão Marcar como Lida usa a função do hook */}
-                       {!notification.read && (
-                         <Button
-                           variant="ghost"
-                           size="sm"
-                           onClick={() => markAsRead(notification.id)}
-                         >
-                           <Check className="w-4 h-4" />
-                         </Button>
-                       )}
-                     </div>
-                   </div>
-                 </CardHeader>
+                      {/* Botão Marcar como Lida usa a função do hook */}
+                      {!notification.read && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => markAsRead(notification.id)}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
             ))
           )}
