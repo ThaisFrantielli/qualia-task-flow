@@ -72,6 +72,15 @@ export default function WhatsAppChatPage() {
 
   const selectedInstance = instances.find(i => i.id === selectedInstanceId);
 
+  const getInstanceColor = (id: string) => {
+    const colors = [
+      'bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500',
+      'bg-teal-500', 'bg-orange-500', 'bg-cyan-500', 'bg-rose-500'
+    ];
+    const index = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return colors[index];
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       connected: { label: 'Conectado', variant: 'default' as const, className: 'bg-green-500' },
@@ -117,6 +126,7 @@ export default function WhatsAppChatPage() {
                   {instances.map(instance => (
                     <SelectItem key={instance.id} value={instance.id}>
                       <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${getInstanceColor(instance.id)}`} />
                         <span>{instance.name}</span>
                         {instance.phone_number && (
                           <span className="text-xs text-muted-foreground">({instance.phone_number})</span>
