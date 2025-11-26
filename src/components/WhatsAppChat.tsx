@@ -214,8 +214,49 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
     setContactOptions([]);
   };
 
+  const [instanceStatus, setInstanceStatus] = useState<string>('unknown');
+
+  useEffect(() => {
+    if (!instanceId) return;
+
+    const fetchStatus = async () => {
+      const { data } = await supabase
+        .from('whatsapp_instances')
+        .select('status')
+        .eq('id', instanceId)
+        .single();
+      if (data) setInstanceStatus(data.status);
+    };
+
+    fetchStatus();
+
+    const channel = supabase
+      .channel(`instance-status-${instanceId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'whatsapp_instances', filter: `id=eq.${instanceId}` },
+        (payload) => {
+          setInstanceStatus((payload.new as any).status);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [instanceId]);
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversationId) return;
+
+    if (instanceStatus !== 'connected') {
+      toast({
+        title: "Instância Desconectada",
+        description: "Não é possível enviar mensagens pois a instância do WhatsApp está desconectada.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSending(true);
     try {
@@ -251,13 +292,14 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
           description: "Sua mensagem foi enviada com sucesso!",
         });
       } else {
-        throw new Error('Failed to send message');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to send message');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
         title: "Erro ao enviar mensagem",
-        description: "Não foi possível enviar a mensagem. Tente novamente.",
+        description: error.message || "Não foi possível enviar a mensagem. Tente novamente.",
         variant: "destructive",
       });
     } finally {
