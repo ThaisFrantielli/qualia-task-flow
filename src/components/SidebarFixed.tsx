@@ -38,17 +38,15 @@ const menuGroups: MenuGroup[] = [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
       { label: 'Kanban', url: '/kanban', icon: KanbanSquare, permissionKey: 'kanban' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
-          {
-            label: 'Analytics',
-            url: '/analytics',
-            icon: BarChart3,
-            children: [
-              { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-              { label: 'Veículos Indicados para Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
-              { label: 'Frotas', url: '/analytics/frota', icon: List },
-              { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
-            ],
-          },
+      {
+        label: 'Analytics',
+        url: '/analytics',
+        icon: BarChart3,
+        children: [
+          { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
+          { label: 'Performance Veículos', url: '/analytics/performance-vendas', icon: BarChart3 },
+        ],
+      },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },
     ]
   },
@@ -67,8 +65,7 @@ const menuGroups: MenuGroup[] = [
     title: 'CONFIGURAÇÕES',
     items: [
       { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
-      { label: 'Config. WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
-      { label: 'Multi-WhatsApp', url: '/whatsapp-manager', icon: MessageSquare, permissionKey: 'team' },
+      { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
       { label: 'Configurações de usuário', url: '/team', icon: Users, permissionKey: 'team' },
       { label: 'Notificações', url: '/notifications', icon: Bell },
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
@@ -98,7 +95,7 @@ const SidebarFixed: React.FC = () => {
   const toggleGroup = (title: string, value?: boolean) => {
     setOpenGroups(prev => {
       const next = { ...prev, [title]: typeof value === 'boolean' ? value : !prev[title] };
-      try { localStorage.setItem('sidebar.openGroups', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem('sidebar.openGroups', JSON.stringify(next)); } catch { }
       return next;
     });
   };
@@ -116,7 +113,7 @@ const SidebarFixed: React.FC = () => {
   const toggleItem = (label: string, value?: boolean) => {
     setOpenItems((prev) => {
       const next = { ...prev, [label]: typeof value === 'boolean' ? value : !prev[label] };
-      try { localStorage.setItem('sidebar.openItems', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem('sidebar.openItems', JSON.stringify(next)); } catch { }
       return next;
     });
   };
@@ -125,7 +122,7 @@ const SidebarFixed: React.FC = () => {
   useEffect(() => {
     // preserve previous behavior optionally by opening Projects group when on /projects
     if (location.pathname.startsWith('/projects')) {
-      try { const raw = localStorage.getItem('sidebar.openGroups'); const prev = raw ? JSON.parse(raw) : {}; prev['GERAL'] = true; localStorage.setItem('sidebar.openGroups', JSON.stringify(prev)); setOpenGroups(prev); } catch {}
+      try { const raw = localStorage.getItem('sidebar.openGroups'); const prev = raw ? JSON.parse(raw) : {}; prev['GERAL'] = true; localStorage.setItem('sidebar.openGroups', JSON.stringify(prev)); setOpenGroups(prev); } catch { }
     }
   }, [location.pathname]);
 
@@ -199,8 +196,7 @@ const SidebarFixed: React.FC = () => {
                                   <NavLink
                                     to={item.url}
                                     className={({ isActive }) =>
-                                      `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${
-                                        isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
+                                      `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
                                       }`
                                     }
                                   >
@@ -229,8 +225,7 @@ const SidebarFixed: React.FC = () => {
                                           <NavLink
                                             to={child.url}
                                             className={({ isActive }) =>
-                                              `flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${
-                                                isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
+                                              `flex items-center space-x-3 px-4 py-2 rounded-lg transition-all ${isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
                                               }`
                                             }
                                           >
@@ -251,8 +246,7 @@ const SidebarFixed: React.FC = () => {
                               <NavLink
                                 to={item.url}
                                 className={({ isActive }) =>
-                                  `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${
-                                    isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
+                                  `flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all ${isActive ? 'bg-[#FF8C00] text-white font-semibold' : 'text-[#C7C9D9] hover:bg-[#2C2854]'
                                   }`
                                 }
                               >

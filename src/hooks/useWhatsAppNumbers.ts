@@ -17,14 +17,27 @@ export function useWhatsAppNumbers() {
     const checkWhatsAppService = async () => {
       try {
         setLoading(true);
-        
-  // Verificar se o serviço WhatsApp está conectado
-  const response = await fetch(`${WHATSAPP.SERVICE_URL}/status`);
-        
+
+        // Verificar se o serviço WhatsApp está conectado
+        const response = await fetch(`${WHATSAPP.SERVICE_URL}/status`);
+
         if (response.ok) {
           const data = await response.json();
-          
-          if (data.isConnected && data.connectedNumber) {
+
+          if (data.instances && Array.isArray(data.instances)) {
+            const whatsappNumbers: WhatsAppNumber[] = data.instances
+              .filter((inst: any) => inst.status === 'connected')
+              .map((inst: any) => ({
+                id: inst.id,
+                number: inst.phone_number,
+                displayName: inst.name || `WhatsApp ${inst.phone_number?.slice(-4) || ''}`,
+                isConnected: true,
+                connectedNumber: inst.phone_number
+              }));
+
+            setNumbers(whatsappNumbers);
+          } else if (data.isConnected && data.connectedNumber) {
+            // Fallback para formato antigo (single instance)
             const whatsappNumbers: WhatsAppNumber[] = [{
               id: 'default',
               number: data.connectedNumber,
@@ -32,7 +45,6 @@ export function useWhatsAppNumbers() {
               isConnected: data.isConnected,
               connectedNumber: data.connectedNumber
             }];
-            
             setNumbers(whatsappNumbers);
           } else {
             setNumbers([]);
@@ -51,8 +63,8 @@ export function useWhatsAppNumbers() {
     checkWhatsAppService();
 
     // Polling para verificar status periodicamente
-  const interval = setInterval(checkWhatsAppService, WHATSAPP.STATUS_POLL_INTERVAL_MS);
-    
+    const interval = setInterval(checkWhatsAppService, WHATSAPP.STATUS_POLL_INTERVAL_MS);
+
     return () => clearInterval(interval);
   }, []);
 
