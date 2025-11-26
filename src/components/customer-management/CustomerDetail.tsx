@@ -1,5 +1,3 @@
-// src/components/customer-management/CustomerDetail.tsx (VERSÃO FINAL CORRIGIDA)
-
 import React from 'react';
 import type { ClienteComContatos, Contato, Atendimento } from '@/types';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
@@ -42,7 +40,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
         .select('*')
         .eq('cliente_id', customer.id)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return data || [];
     }
@@ -83,7 +81,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
             <User className="h-4 w-4 mr-2" />
             CLIENTE
           </TabsTrigger>
-          
+
           {/* Tabs dinâmicas para cada WhatsApp */}
           {hasDynamicWhatsApp && whatsappNumbers.map((whatsapp) => (
             <TabsTrigger key={whatsapp.id} value={`whatsapp-${whatsapp.id}`}>
@@ -98,7 +96,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
               WhatsApp
             </TabsTrigger>
           )}
-          
+
           <TabsTrigger value="oportunidades">
             <Target className="h-4 w-4 mr-2" />
             Oportunidades <Badge variant="secondary" className="ml-2">{oportunidades.length}</Badge>
@@ -112,7 +110,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
             Tarefas <Badge variant="secondary" className="ml-2">{detalhes?.tarefas.length ?? 0}</Badge>
           </TabsTrigger>
         </TabsList>
-        
+
         <div className="flex-1 overflow-y-auto p-6">
           <TabsContent value="detalhes" className="mt-0 space-y-6">
             <Card>
@@ -128,7 +126,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                       </div>
                     ))}
                   </div>
-                ) : ( <p className="text-sm text-muted-foreground text-center py-4">Nenhum contato cadastrado.</p> )}
+                ) : (<p className="text-sm text-muted-foreground text-center py-4">Nenhum contato cadastrado.</p>)}
               </CardContent>
             </Card>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -178,9 +176,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-semibold text-base">{opp.titulo}</h4>
                           <Badge variant={
-                            opp.status === 'aberta' ? 'default' : 
-                            opp.status === 'fechada' ? 'secondary' : 
-                            'destructive'
+                            opp.status === 'aberta' ? 'default' :
+                              opp.status === 'fechada' ? 'secondary' :
+                                'destructive'
                           }>
                             {opp.status}
                           </Badge>
@@ -194,9 +192,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
                             <span>
-                              {new Intl.NumberFormat('pt-BR', { 
-                                style: 'currency', 
-                                currency: 'BRL' 
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL'
                               }).format(Number(opp.valor_total) || 0)}
                             </span>
                           </div>
@@ -230,30 +228,30 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="tarefas" className="mt-0">
-             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5" /> Tarefas Relacionadas</CardTitle></CardHeader>
-                <CardContent>
-                    {detalhesLoading ? (
-                        <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-                    ) : (
-                        detalhes && detalhes.tarefas.length > 0 ? (
-                           <div className="space-y-2">
-                            {detalhes.tarefas.map(task => (
-                                <div key={task.id} className="p-3 border rounded-md">
-                                    <p className="font-semibold">{task.title}</p>
-                                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                                    <Badge variant="outline" className="mt-1">{task.status}</Badge>
-                                </div>
-                            ))}
-                           </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa encontrada para os atendimentos deste cliente.</p>
-                        )
-                    )}
-                </CardContent>
-             </Card>
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5" /> Tarefas Relacionadas</CardTitle></CardHeader>
+              <CardContent>
+                {detalhesLoading ? (
+                  <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : (
+                  detalhes && detalhes.tarefas.length > 0 ? (
+                    <div className="space-y-2">
+                      {detalhes.tarefas.map(task => (
+                        <div key={task.id} className="p-3 border rounded-md">
+                          <p className="font-semibold">{task.title}</p>
+                          <p className="text-sm text-muted-foreground">{task.description}</p>
+                          <Badge variant="outline" className="mt-1">{task.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa encontrada para os atendimentos deste cliente.</p>
+                  )
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tabs de WhatsApp dinâmicas */}
@@ -263,6 +261,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                 clienteId={customer.id}
                 whatsappNumber={whatsapp.number}
                 customerName={customer.nome_fantasia || customer.razao_social || undefined}
+                instanceId={whatsapp.id}
               />
             </TabsContent>
           ))}
@@ -273,6 +272,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                 clienteId={customer.id}
                 whatsappNumber={fallbackNumber}
                 customerName={customer.nome_fantasia || customer.razao_social || undefined}
+                instanceId={undefined}
               />
             </TabsContent>
           )}
