@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Send, 
-  Search, 
-  MoreVertical, 
-  Phone, 
-  Video, 
+import {
+  Send,
+  Search,
+  MoreVertical,
+  Phone,
+  Video,
   CheckCheck,
   Check,
   MessageSquare,
@@ -25,6 +25,7 @@ import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
 
 interface WhatsAppChatProps {
   customerId?: string;
+  instanceId?: string;
   className?: string;
 }
 
@@ -56,14 +57,18 @@ const getCustomerInitials = (name: string | null, phone: string) => {
   if (name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
-  return phone.slice(-2);
+  if (phone && phone.length >= 2) {
+    return phone.slice(-2);
+  }
+  return '??';
 };
 
-export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({ 
-  customerId, 
-  className 
+export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
+  customerId,
+  instanceId,
+  className
 }) => {
-  const { conversations, loading: convLoading, error: convError } = useWhatsAppConversations(customerId);
+  const { conversations, loading: convLoading, error: convError } = useWhatsAppConversations(customerId, instanceId);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const { messages, loading: msgLoading, error: msgError, refetch: refetchMessages } = useWhatsAppMessages(selectedConversationId || undefined);
   const [newMessage, setNewMessage] = useState('');
@@ -100,9 +105,9 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
     const displayName = contactName !== clientName ? `${contactName} (${clientName})` : clientName;
     const message = encodeURIComponent(`Olá ${contactName}! Como posso ajudá-lo hoje?`);
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-    
+
     window.open(whatsappUrl, '_blank');
-    
+
     toast({
       title: "WhatsApp aberto",
       description: `Abrindo conversa com ${displayName}`,
@@ -140,7 +145,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
       }
 
       const clientName = cliente.nome_fantasia || cliente.razao_social || 'Cliente';
-      
+
       // Filtrar contatos que têm telefone
       const contatosComTelefone = cliente.cliente_contatos?.filter(
         (contato: any) => contato.telefone_contato && contato.telefone_contato.trim()
@@ -160,23 +165,23 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
 
       let phoneNumber = '';
       let contactName = '';
-      
+
       if (contatosComTelefone.length === 1) {
         phoneNumber = contatosComTelefone[0].telefone_contato?.replace(/\D/g, '') || '';
         contactName = contatosComTelefone[0].nome_contato || 'Contato';
       } else {
         phoneNumber = cliente.whatsapp_number || '';
         contactName = clientName;
-        
+
         if (!phoneNumber) {
           const userPhone = prompt(
             `${clientName} não possui contatos com telefone cadastrados.\nDigite o número do WhatsApp com código do país (ex: 5561999887766):`
           );
-          
+
           if (!userPhone) return;
-          
+
           phoneNumber = userPhone.replace(/\D/g, '');
-          
+
           await supabase
             .from('clientes')
             .update({ whatsapp_number: phoneNumber })
@@ -195,22 +200,63 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
     }
   };
 
-    const handleContactSelection = (index: number) => {
+  const handleContactSelection = (index: number) => {
     if (index < 0 || index >= contactOptions.length || !customerId) return;
-    
+
     const selectedContact = contactOptions[index];
     openWhatsApp(
       selectedContact.telefone.replace(/\D/g, ''),
       selectedContact.nome || 'Contato',
       customerId
     );
-    
+
     setShowContactSelector(false);
     setContactOptions([]);
   };
 
+  const [instanceStatus, setInstanceStatus] = useState<string>('unknown');
+
+  useEffect(() => {
+    if (!instanceId) return;
+
+    const fetchStatus = async () => {
+      const { data } = await supabase
+        .from('whatsapp_instances')
+        .select('status')
+        .eq('id', instanceId)
+        .single();
+      if (data) setInstanceStatus(data.status);
+    };
+
+    fetchStatus();
+
+    const channel = supabase
+      .channel(`instance-status-${instanceId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'whatsapp_instances', filter: `id=eq.${instanceId}` },
+        (payload) => {
+          setInstanceStatus((payload.new as any).status);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [instanceId]);
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversationId) return;
+
+    if (instanceStatus !== 'connected') {
+      toast({
+        title: "Instância Desconectada",
+        description: "Não é possível enviar mensagens pois a instância do WhatsApp está desconectada.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSending(true);
     try {
@@ -219,7 +265,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
 
       const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
       const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw';
-      
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
         method: 'POST',
         headers: {
@@ -229,7 +275,8 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
         body: JSON.stringify({
           phoneNumber: (selectedConv as any).customer_phone,
           message: newMessage.trim(),
-          conversationId: selectedConversationId
+          conversationId: selectedConversationId,
+          instance_id: instanceId || (selectedConv as any).instance_id
         }),
       });
 
@@ -239,19 +286,20 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
         setTimeout(() => {
           refetchMessages();
         }, 500);
-        
+
         toast({
           title: "Mensagem enviada",
           description: "Sua mensagem foi enviada com sucesso!",
         });
       } else {
-        throw new Error('Failed to send message');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to send message');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
         title: "Erro ao enviar mensagem",
-        description: "Não foi possível enviar a mensagem. Tente novamente.",
+        description: error.message || "Não foi possível enviar a mensagem. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -301,7 +349,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
 
         {/* Botão Iniciar Conversa */}
         <div className="p-4 border-b">
-          <Button 
+          <Button
             onClick={handleStartConversation}
             className="w-full"
             variant="default"
@@ -359,7 +407,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
                     )}
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium truncate">
@@ -371,7 +419,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                         </span>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center justify-between mt-1">
                       <p className="text-sm text-muted-foreground truncate">
                         {(conv as any).last_message || 'Nenhuma mensagem'}
@@ -412,7 +460,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <Button variant="ghost" size="sm">
                   <Phone className="h-4 w-4" />
@@ -457,8 +505,8 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                       <div
                         className={cn(
                           "max-w-[70%] rounded-lg p-3 shadow-sm",
-                          msg.sender_type === 'customer' 
-                            ? 'bg-white border' 
+                          msg.sender_type === 'customer'
+                            ? 'bg-white border'
                             : 'bg-primary text-primary-foreground'
                         )}
                       >
@@ -501,7 +549,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
                     className="resize-none min-h-[44px]"
                   />
                 </div>
-                <Button 
+                <Button
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim() || isSending}
                   size="sm"

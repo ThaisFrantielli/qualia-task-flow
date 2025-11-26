@@ -3,13 +3,26 @@
     "allowJs": true,
     "allowUmdGlobalAccess": true,
     "checkJs": false,
-    "lib": ["es2020", "dom"],
+    "lib": [
+      "esnext",
+      "dom"
+    ],
     "noImplicitAny": false,
     "skipLibCheck": true,
     "strict": false,
-    "target": "es2020",
-    "typeRoots": ["."],
-    "types": ["./types.d.ts"]
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "noEmit": true,
+    "typeRoots": [
+      "."
+    ],
+    "types": [
+      "./types.d.ts"
+    ]
   },
-  "include": ["**/*.ts", "types.d.ts"]
+  "include": [
+    "**/*.ts",
+    "types.d.ts"
+  ]
 }
