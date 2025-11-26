@@ -1,0 +1,38 @@
+2025/11/26-10:07:21.259 4cfc Reusing MANIFEST M:\Documents\gravity\qualia-task-flow\.wwebjs_auth\session-1de89d6d-ea8e-46ff-a1f3-786a8f2ed47b\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/11/26-10:07:21.259 4cfc Recovering log #744
+2025/11/26-10:07:21.364 4cfc Reusing old log M:\Documents\gravity\qualia-task-flow\.wwebjs_auth\session-1de89d6d-ea8e-46ff-a1f3-786a8f2ed47b\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000744.log 
+2025/11/26-10:07:23.630 8344 Manual compaction at level-0 from '\x00\x1c\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x1d\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/11/26-10:07:35.698 64a8 Level-0 table #765: started
+2025/11/26-10:07:35.729 64a8 Level-0 table #765: 1161483 bytes OK
+2025/11/26-10:07:35.731 64a8 Delete type=0 #744
+2025/11/26-10:07:40.834 64a8 Compacting 1@0 + 0@1 files
+2025/11/26-10:07:40.872 64a8 Generated table #766@0: 26768 keys, 517396 bytes
+2025/11/26-10:07:40.877 64a8 Generated table #767@0: 2851 keys, 83994 bytes
+2025/11/26-10:07:40.877 64a8 Compacted 1@0 + 0@1 files => 601390 bytes
+2025/11/26-10:07:40.878 64a8 compacted to: files[ 0 2 16 0 0 0 0 ]
+2025/11/26-10:07:40.878 64a8 Delete type=2 #765
+2025/11/26-10:07:48.801 64a8 Compacting 1@1 + 10@2 files
+2025/11/26-10:07:48.896 64a8 Generated table #768@1: 65823 keys, 2227231 bytes
+2025/11/26-10:07:48.958 64a8 Generated table #769@1: 28078 keys, 2190652 bytes
+2025/11/26-10:07:49.063 64a8 Generated table #770@1: 59992 keys, 2229422 bytes
+2025/11/26-10:07:49.102 64a8 Generated table #771@1: 4061 keys, 2154148 bytes
+2025/11/26-10:07:49.135 64a8 Generated table #772@1: 2408 keys, 2145667 bytes
+2025/11/26-10:07:49.169 64a8 Generated table #773@1: 2844 keys, 2152771 bytes
+2025/11/26-10:07:49.200 64a8 Generated table #774@1: 3211 keys, 2158868 bytes
+2025/11/26-10:07:49.257 64a8 Generated table #775@1: 15498 keys, 2178248 bytes
+2025/11/26-10:07:49.346 64a8 Generated table #776@1: 28188 keys, 2268681 bytes
+2025/11/26-10:07:49.420 64a8 Generated table #777@1: 31741 keys, 2233098 bytes
+2025/11/26-10:07:49.426 64a8 Generated table #778@1: 922 keys, 97444 bytes
+2025/11/26-10:07:49.426 64a8 Compacted 1@1 + 10@2 files => 22036230 bytes
+2025/11/26-10:07:49.427 64a8 compacted to: files[ 0 1 17 0 0 0 0 ]
+2025/11/26-10:07:49.427 64a8 Delete type=2 #753
+2025/11/26-10:07:49.427 64a8 Delete type=2 #754
+2025/11/26-10:07:49.427 64a8 Delete type=2 #755
+2025/11/26-10:07:49.427 64a8 Delete type=2 #756
+2025/11/26-10:07:49.427 64a8 Delete type=2 #757
+2025/11/26-10:07:49.427 64a8 Delete type=2 #758
+2025/11/26-10:07:49.427 64a8 Delete type=2 #759
+2025/11/26-10:07:49.427 64a8 Delete type=2 #760
+2025/11/26-10:07:49.427 64a8 Delete type=2 #761
+2025/11/26-10:07:49.427 64a8 Delete type=2 #762
+2025/11/26-10:07:49.427 64a8 Delete type=2 #766
