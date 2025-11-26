@@ -56,10 +56,53 @@ export default function FleetDashboard(): JSX.Element {
     return sum / filtered.length;
   }, [filtered]);
 
-  // Donut: distribution by Situacao
-  const situacaoData = useMemo(() => {
+  // Classify fleet by vehicle status into: produtiva, improdutiva, inativa
+  type FleetCategory = 'produtiva' | 'improdutiva' | 'inativa';
+
+  function classifySituacao(s?: string | null): FleetCategory {
+    const st = String(s || '').toLowerCase();
+    // inativa: vendido, baixa, inativo, retirado
+    if (/vend|baixa|inativ|retir|cancel|baixado/.test(st)) return 'inativa';
+    // improdutiva: manutenção, mobilização, avaria, parado
+    if (/manut|mobil|avaria|reparo|parad|aguard|improd/.test(st)) return 'improdutiva';
+    // produtiva: disponível, locado, alugado, ativo, operando
+    if (/dispon|locad|alug|ativo|operac|venda|locaça|locaç|locado/.test(st)) return 'produtiva';
+    // fallback: treat as improdutiva to be conservative
+    return 'improdutiva';
+  }
+
+  const fleetByCategory = useMemo(() => {
+    const base = { produtiva: { count: 0, totalFipe: 0 }, improdutiva: { count: 0, totalFipe: 0 }, inativa: { count: 0, totalFipe: 0 } } as Record<FleetCategory, { count: number; totalFipe: number }>;
+    filtered.forEach((v) => {
+      const cat = classifySituacao(v.SituacaoVeiculo);
+      base[cat].count += 1;
+      base[cat].totalFipe += Number(v.ValorFipe) || 0;
+    });
+    return base;
+  }, [filtered]);
+
+  const fleetCategoryData = useMemo(() => {
+    return (
+      Object.entries(fleetByCategory).map(([k, v]) => ({ name: k, value: v.count, totalFipe: v.totalFipe }))
+    );
+  }, [fleetByCategory]);
+
+  const fleetPieData = useMemo(() => {
+    const labelMap: Record<string, string> = { produtiva: 'Produtiva', improdutiva: 'Improdutiva', inativa: 'Inativa' };
+    const total = fleetCategoryData.reduce((s, x) => s + (x.value || 0), 0) || 1;
+    return fleetCategoryData.map((d) => ({
+      key: d.name,
+      name: labelMap[d.name] ?? d.name,
+      value: d.value,
+      pct: Math.round(((d.value || 0) / total) * 100),
+      avgFipe: d.value ? (d.totalFipe / d.value) : 0,
+    }));
+  }, [fleetCategoryData]);
+
+  // Donut: distribution by Filial (was situacaoData) — avoids duplication with category pie
+  const filialData = useMemo(() => {
     const map: Record<string, number> = {};
-    filtered.forEach((v) => { const s = v.SituacaoVeiculo || 'Unknown'; map[s] = (map[s] || 0) + 1; });
+    filtered.forEach((v) => { const f = v.Filial || 'Unknown'; map[f] = (map[f] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [filtered]);
 
@@ -112,6 +155,65 @@ export default function FleetDashboard(): JSX.Element {
       <div>
         <Title>Frota - Ativa</Title>
         <Text className="mt-1">Visão da frota por filial, status e métricas principais.</Text>
+      </div>
+
+      {/* Fleet category overview: produtiva / improdutiva / inativa */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div>
+          <Card>
+            <Text>Frota Produtiva</Text>
+            <Metric>{fleetByCategory.produtiva.count} veículos</Metric>
+            <Text className="text-sm text-gray-500">Valor FIPE: {fmtBRL(fleetByCategory.produtiva.totalFipe)}</Text>
+          </Card>
+        </div>
+
+        <div>
+          <Card>
+            <Text>Frota Improdutiva</Text>
+            <Metric>{fleetByCategory.improdutiva.count} veículos</Metric>
+            <Text className="text-sm text-gray-500">Valor FIPE: {fmtBRL(fleetByCategory.improdutiva.totalFipe)}</Text>
+          </Card>
+        </div>
+
+        <div>
+          <Card>
+            <Text>Frota Inativa</Text>
+            <Metric>{fleetByCategory.inativa.count} veículos</Metric>
+            <Text className="text-sm text-gray-500">Valor FIPE: {fmtBRL(fleetByCategory.inativa.totalFipe)}</Text>
+          </Card>
+        </div>
+
+        <div>
+          <Card>
+            <Text>Distribuição por Categoria</Text>
+            <div className="mt-4 flex items-center">
+              <div style={{ width: 160, height: 160 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={fleetPieData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} label={({ name, percent }: any) => `${name} (${Math.round(percent * 100)}%)`}>
+                      {fleetPieData.map((_, idx) => (
+                        <Cell key={idx} fill={["#10b981", "#f59e0b", "#ef4444"][idx % 3]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val: any, name: any, props: any) => {
+                      const item = props && props.payload ? props.payload : null;
+                      if (item && item.payload) {
+                        const p = item.payload;
+                        return [`${p.value} veículos — ${fmtBRL(p.avgFipe)}`, p.name];
+                      }
+                      return [String(val), String(name)];
+                    }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="ml-4 text-sm text-gray-600">
+                {fleetPieData.map((d) => (
+                  <div key={d.key} className="mb-2">{d.name}: {d.value} ({d.pct}%) — FIPE médio: {fmtBRL(d.avgFipe)}</div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
 
       {/* Filters */}
@@ -173,13 +275,13 @@ export default function FleetDashboard(): JSX.Element {
       {/* Charts line 1 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <Text>Distribuição por Situação</Text>
+          <Text>Distribuição por Filial</Text>
           <div className="mt-4 flex items-center">
             <div style={{ width: 180, height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={situacaoData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80}>
-                    {situacaoData.map((_, idx) => (
+                  <Pie data={filialData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80}>
+                    {filialData.map((_, idx) => (
                       <Cell key={idx} fill={["#10b981", "#3b82f6", "#f97316", "#ef4444"][idx % 4]} />
                     ))}
                   </Pie>
@@ -188,17 +290,10 @@ export default function FleetDashboard(): JSX.Element {
               </ResponsiveContainer>
             </div>
             <div className="ml-4 text-sm text-gray-600">
-              {situacaoData.map((d) => (
+              {filialData.map((d) => (
                 <div key={d.name} className="mb-2">{d.name}: {d.value}</div>
               ))}
             </div>
-          </div>
-        </Card>
-
-        <Card>
-          <Text>Top 5 Montadoras</Text>
-          <div className="mt-4">
-            <BarList data={topMontadoras.map((m) => ({ name: m.name, value: m.value }))} />
           </div>
         </Card>
 
@@ -210,10 +305,15 @@ export default function FleetDashboard(): JSX.Element {
             <div>Idade Média: {Math.round(avgAge)} meses</div>
           </div>
         </Card>
+
+        <Card>
+          <Text>Espaço Reservado</Text>
+          <div className="mt-4 text-sm text-gray-500">Aqui você pode adicionar outro visual resumido ou filtros rápidos.</div>
+        </Card>
       </div>
 
-      {/* Charts line 2 - histograms */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Charts line 2 - histograms + Top Montadoras (now shares row) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="h-72">
           <Text>Histograma de Idade (meses)</Text>
           <div className="h-56 mt-4">
@@ -241,6 +341,20 @@ export default function FleetDashboard(): JSX.Element {
                 <Bar dataKey="count" fill="#3b82f6"><LabelList dataKey="count" position="top" /></Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="h-72">
+          <Text>Top 5 Montadoras</Text>
+          <div className="mt-4 h-full">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {topMontadoras.map((m) => (
+                <div key={m.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="text-sm text-gray-800">{m.name}</div>
+                  <div className="text-sm font-medium">{m.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       </div>
@@ -300,82 +414,4 @@ export default function FleetDashboard(): JSX.Element {
     </div>
   );
 }
-import { useMemo } from 'react';
-import { Card, Title, Text, Metric, BarChart } from '@tremor/react';
-import useBIData from '@/hooks/useBIData';
 
-type AnyObject = { [k: string]: any };
-
-export default function FleetDashboard() {
-  const { data, metadata, loading, error } = useBIData<any[]>('frota.json');
-
-  // normalize vehicles array from different payload shapes
-  const vehicles: AnyObject[] = useMemo(() => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data as AnyObject[];
-    // If payload is object with a 'veiculos' key
-    if ((data as any).veiculos && Array.isArray((data as any).veiculos)) return (data as any).veiculos;
-    // If payload contains nested 'data'
-    if ((data as any).data && Array.isArray((data as any).data)) return (data as any).data;
-    // fallback: try to find first array property
-    const keys = Object.keys(data as any);
-    for (const k of keys) {
-      if (Array.isArray((data as any)[k])) return (data as any)[k];
-    }
-    return [];
-  }, [data]);
-
-  const total = vehicles.length;
-
-  // detect category key
-  const categoryKey = useMemo(() => {
-    const preferred = ['modelo', 'marca', 'status', 'model', 'brand'];
-    if (!vehicles || vehicles.length === 0) return null;
-    const first = vehicles[0];
-    const found = preferred.find((p) => p in first) || Object.keys(first).find((k) => typeof first[k] === 'string') || null;
-    return found;
-  }, [vehicles]);
-
-  const chartData = useMemo(() => {
-    if (!categoryKey) return [] as AnyObject[];
-    const map: Record<string, number> = {};
-    vehicles.forEach((v) => {
-      const k = v[categoryKey] ?? 'Unknown';
-      map[String(k)] = (map[String(k)] || 0) + 1;
-    });
-    return Object.entries(map).map(([category, count]) => ({ category, count }));
-  }, [vehicles, categoryKey]);
-
-  return (
-    <div style={{ padding: 16 }}>
-      <Title>Frota - Dashboard</Title>
-
-      <Card style={{ marginTop: 12 }}>
-        <Text>Resumo</Text>
-        {loading && <Text>Loading...</Text>}
-        {error && <Text style={{ color: 'red' }}>{String(error)}</Text>}
-        {!loading && !error && (
-          <div>
-            <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-              <Card>
-                <Text>Total de Veículos</Text>
-                <Metric>{total}</Metric>
-              </Card>
-
-              <div style={{ flex: 1 }}>
-                {categoryKey ? (
-                  <>
-                    <Text>Distribuição por: {categoryKey}</Text>
-                    <BarChart data={chartData} index="category" categories={["count"]} colors={["blue"]} valueFormatter={(v: number) => String(v)} />
-                  </>
-                ) : (
-                  <Text>Coluna de categoria não detectada automaticamente. Verifique os dados.</Text>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
