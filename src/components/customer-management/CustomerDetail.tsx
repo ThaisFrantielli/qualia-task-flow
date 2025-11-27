@@ -2,16 +2,19 @@ import React from 'react';
 import type { ClienteComContatos, Contato, Atendimento } from '@/types';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
 import { useWhatsAppNumbers } from '@/hooks/useWhatsAppNumbers';
+import { useTickets } from '@/hooks/useTickets';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building, User, Mail, Phone, Edit, Trash2, MapPin, CalendarDays, Headset, ListChecks, Target, DollarSign, Package, MessageCircle } from 'lucide-react';
+import { Loader2, Building, User, Mail, Phone, Edit, Trash2, MapPin, CalendarDays, Headset, ListChecks, Target, DollarSign, Package, MessageCircle, Ticket, History } from 'lucide-react';
 import AtendimentosTable from '@/components/crm/AtendimentosTable';
 import { WhatsAppTab } from './WhatsAppTab';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDateSafe } from '@/lib/dateUtils';
+import { TicketCard } from '@/components/tickets/TicketCard';
+import { CustomerTimeline } from './CustomerTimeline';
 
 interface CustomerDetailProps {
   customer: ClienteComContatos;
@@ -22,6 +25,7 @@ interface CustomerDetailProps {
 const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDelete }) => {
   const { detalhes, loading: detalhesLoading } = useClienteDetail(customer);
   const { numbers: whatsappNumbers, loading: whatsappLoading } = useWhatsAppNumbers();
+  const { data: tickets, isLoading: ticketsLoading } = useTickets({ cliente_id: customer.id });
   const hasDynamicWhatsApp = !whatsappLoading && whatsappNumbers.length > 0;
 
   // Fallback: se não houver instância WhatsApp detectada, ainda mostramos a aba usando o telefone do cliente
@@ -81,6 +85,10 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
             <User className="h-4 w-4 mr-2" />
             CLIENTE
           </TabsTrigger>
+          <TabsTrigger value="timeline">
+            <History className="h-4 w-4 mr-2" />
+            Timeline
+          </TabsTrigger>
 
           {/* Tabs dinâmicas para cada WhatsApp */}
           {hasDynamicWhatsApp && whatsappNumbers.map((whatsapp) => (
@@ -109,9 +117,17 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
             <ListChecks className="h-4 w-4 mr-2" />
             Tarefas <Badge variant="secondary" className="ml-2">{detalhes?.tarefas.length ?? 0}</Badge>
           </TabsTrigger>
+          <TabsTrigger value="tickets">
+            <Ticket className="h-4 w-4 mr-2" />
+            Tickets <Badge variant="secondary" className="ml-2">{tickets?.length ?? 0}</Badge>
+          </TabsTrigger>
         </TabsList>
 
         <div className="flex-1 overflow-y-auto p-6">
+          <TabsContent value="timeline" className="mt-0">
+            <CustomerTimeline customer={customer} />
+          </TabsContent>
+
           <TabsContent value="detalhes" className="mt-0 space-y-6">
             <Card>
               <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5" /> Contatos</CardTitle></CardHeader>
@@ -248,6 +264,27 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ customer, onEdit, onDel
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa encontrada para os atendimentos deste cliente.</p>
+                  )
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="tickets" className="mt-0">
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Ticket className="h-5 w-5" /> Tickets de Suporte</CardTitle></CardHeader>
+              <CardContent>
+                {ticketsLoading ? (
+                  <div className="flex justify-center items-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : (
+                  tickets && tickets.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {tickets.map(ticket => (
+                        <TicketCard key={ticket.id} ticket={ticket} onClick={() => window.open(`/tickets/${ticket.id}`, '_blank')} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nenhum ticket encontrado para este cliente.</p>
                   )
                 )}
               </CardContent>
