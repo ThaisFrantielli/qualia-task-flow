@@ -1,7 +1,0 @@
-project_id = "apqrjkobktjcyrxhqwtm"
-
-[functions.whatsapp-send]
-verify_jwt = false
-
-[functions.whatsapp-webhook]
-verify_jwt = false
