@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowUmdGlobalAccess": true,
+    "checkJs": false,
+    "lib": [
+      "esnext",
+      "dom"
+    ],
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "noEmit": true,
+    "typeRoots": [
+      "."
+    ],
+    "types": [
+      "./types.d.ts"
+    ]
+  },
+  "include": [
+    "**/*.ts",
+    "types.d.ts"
+  ]
+}
