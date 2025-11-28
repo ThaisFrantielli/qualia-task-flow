@@ -44,7 +44,12 @@ const menuGroups: MenuGroup[] = [
         icon: BarChart3,
         children: [
           { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-          { label: 'Performance Veículos', url: '/analytics/performance-vendas', icon: BarChart3 },
+          { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
+          { label: 'Gap de Faturamento', url: '/analytics/revenue-gap', icon: BarChart3 },
+          { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
+              { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
+              { label: 'Abertura e Encerramento Contrato', url: '/analytics/churn', icon: BarChart3 },
+              { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
         ],
       },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },
