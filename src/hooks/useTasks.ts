@@ -4,16 +4,16 @@ import { dateToLocalISO, dateToLocalDateOnlyISO, parseISODateSafe } from '@/lib/
 import { calculateNextDate, generateNextOccurrences } from '@/lib/recurrenceUtils';
 import { filterTasksByHierarchy } from '@/lib/hierarchyUtils';
 import { toast } from 'sonner';
-import type { 
-    Task, 
-    TaskWithDetails, 
-    TaskInsert, 
-    TaskUpdate, 
-    AppUser, 
-    AllTaskFilters, 
-    Profile, 
-    Project, 
-    TaskCategory 
+import type {
+    Task,
+    TaskWithDetails,
+    TaskInsert,
+    TaskUpdate,
+    AppUser,
+    AllTaskFilters,
+    Profile,
+    Project,
+    TaskCategory
 } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,16 +23,16 @@ const isValidUUID = (uuid: string): boolean => {
 
 const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | null): Promise<TaskWithDetails[]> => {
     if (!user?.id || !isValidUUID(user.id)) return [];
-    
+
     // Buscar dados da hierarquia para aplicar filtros
     const { data: hierarchyData, error: hierarchyError } = await supabase
         .from('user_hierarchy')
         .select('user_id, supervisor_id');
-    
+
     if (hierarchyError) {
         console.error('Erro ao buscar hierarquia:', hierarchyError);
     }
-    
+
     // RLS (Row Level Security) do Supabase cuida automaticamente das permissões
     // Mas vamos aplicar filtro adicional client-side para hierarquia
     let query = supabase.from('tasks').select(`
@@ -48,7 +48,11 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
     if (filters.searchTerm) {
         query = query.ilike('title', `%${filters.searchTerm}%`);
     }
-    
+
+    if (filters.cliente_id) {
+        query = query.eq('cliente_id', filters.cliente_id);
+    }
+
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
 
@@ -57,7 +61,7 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
         assignee: task.assignee as Profile | null,
         project: task.project as Project | null,
         category: task.category as TaskCategory | null,
-        subtasks_count: task.subtasks[0]?.count || 0, 
+        subtasks_count: task.subtasks[0]?.count || 0,
         completed_subtasks_count: task.completed_subtasks[0]?.count || 0,
     })) || [];
 
@@ -82,28 +86,28 @@ const fetchTaskById = async (taskId: string): Promise<TaskWithDetails | null> =>
 };
 
 const createTaskFn = async (taskData: TaskInsert): Promise<Task> => {
-        const { data, error } = await supabase.from('tasks').insert(taskData).select().single();
-        if (error) throw new Error(error.message);
-        const newTask = data as Task;
+    const { data, error } = await supabase.from('tasks').insert(taskData).select().single();
+    if (error) throw new Error(error.message);
+    const newTask = data as Task;
 
-        // If created task is recurring, generate initial occurrences (window of future tasks)
-        try {
-            if ((taskData as any).is_recurring) {
-                // fetch freshly created task with details to pass to generator
-                const { data: fetched } = await supabase.from('tasks').select('*').eq('id', newTask.id).single();
-                if (fetched) {
-                    const occurrences = generateNextOccurrences(fetched as TaskWithDetails, 5);
-                    if (occurrences.length > 0) {
-                        await supabase.from('tasks').insert(occurrences);
-                    }
+    // If created task is recurring, generate initial occurrences (window of future tasks)
+    try {
+        if ((taskData as any).is_recurring) {
+            // fetch freshly created task with details to pass to generator
+            const { data: fetched } = await supabase.from('tasks').select('*').eq('id', newTask.id).single();
+            if (fetched) {
+                const occurrences = generateNextOccurrences(fetched as TaskWithDetails, 5);
+                if (occurrences.length > 0) {
+                    await supabase.from('tasks').insert(occurrences);
                 }
             }
-        } catch (e) {
-            // don't fail creation if occurrences generation fails, just log
-            console.error('Erro gerando ocorrências iniciais:', e);
         }
+    } catch (e) {
+        // don't fail creation if occurrences generation fails, just log
+        console.error('Erro gerando ocorrências iniciais:', e);
+    }
 
-        return newTask;
+    return newTask;
 };
 
 export function useTasks(filters: Partial<AllTaskFilters> = {}) {
@@ -120,7 +124,7 @@ export function useTasks(filters: Partial<AllTaskFilters> = {}) {
         mutationFn: createTaskFn,
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
     });
-    
+
     const deleteTaskMutation = useMutation({
         mutationFn: async (taskId: string) => {
             const { error } = await supabase.from('tasks').delete().eq('id', taskId);
@@ -239,9 +243,9 @@ export function useTask(taskId: string) {
 
     const startTaskMutation = useMutation({
         mutationFn: async () => {
-            const updates = { 
-                status: 'progress', 
-                start_date: dateToLocalISO(new Date()) 
+            const updates = {
+                status: 'progress',
+                start_date: dateToLocalISO(new Date())
             };
             const { data, error } = await supabase.from('tasks').update(updates).eq('id', taskId);
             if (error) throw new Error(error.message);
@@ -256,9 +260,9 @@ export function useTask(taskId: string) {
 
     const completeTaskMutation = useMutation({
         mutationFn: async () => {
-            const updates = { 
-                status: 'done', 
-                end_date: dateToLocalISO(new Date()) 
+            const updates = {
+                status: 'done',
+                end_date: dateToLocalISO(new Date())
             };
             const { data, error } = await supabase.from('tasks').update(updates).eq('id', taskId);
             if (error) throw new Error(error.message);

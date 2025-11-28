@@ -11,6 +11,7 @@ export interface KanbanTaskCardProps {
   status?: string;
   created_at?: string;
   department?: 'vendas' | 'suporte' | 'financeiro' | 'tecnico';
+  priority?: string;
 }
 
 // Função para calcular prioridade baseada no tempo (SLA)
@@ -18,7 +19,7 @@ const getPriorityFromDate = (dateStr: string): 'urgent' | 'medium' | 'normal' =>
   const date = new Date(dateStr);
   const now = new Date();
   const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-  
+
   if (diffHours > 48) return 'urgent';    // +48h = Urgente
   if (diffHours > 24) return 'medium';    // +24h = Médio
   return 'normal';                        // -24h = Normal
@@ -28,7 +29,7 @@ const getPriorityFromDate = (dateStr: string): 'urgent' | 'medium' | 'normal' =>
 const getAvatarColor = (name: string): string => {
   const colors = [
     'bg-blue-500',
-    'bg-green-500', 
+    'bg-green-500',
     'bg-purple-500',
     'bg-orange-500'
   ];
@@ -36,18 +37,18 @@ const getAvatarColor = (name: string): string => {
   return colors[hash % colors.length];
 };
 
-const KanbanTaskCard = memo(({ 
-  id, 
-  cliente, 
-  resumo, 
-  data, 
-  motivo, 
+const KanbanTaskCard = memo(({
+  id,
+  cliente,
+  resumo,
+  data,
+  motivo,
   avatar,
   created_at
 }: KanbanTaskCardProps) => {
   const priority = getPriorityFromDate(created_at || data);
   const avatarColor = getAvatarColor(cliente);
-  
+
   // Configuração simplificada por prioridade
   const priorityConfig = {
     urgent: {
@@ -56,7 +57,7 @@ const KanbanTaskCard = memo(({
       iconColor: 'text-priority-urgent'
     },
     medium: {
-      border: 'border-priority-medium/50', 
+      border: 'border-priority-medium/50',
       icon: ClockIcon,
       iconColor: 'text-priority-medium'
     },
