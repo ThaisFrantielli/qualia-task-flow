@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList, Callout } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList, PieChart, Pie, Cell } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList, PieChart, Pie, Cell, AreaChart, Area, Legend } from 'recharts';
 import { AlertTriangle } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -30,6 +30,7 @@ export default function SalesPerformance(): JSX.Element {
   const [dateTo, setDateTo] = useState<string | null>(defaultDateTo);
   const modelos = useMemo(() => Array.from(new Set(records.map((r) => String(r.Modelo || '')).filter(Boolean))), [records]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [chartMode, setChartMode] = useState<'financeiro' | 'volume'>('financeiro');
 
   // Filtering by DataVenda and Modelo
   const filtered = useMemo(() => {
@@ -176,6 +177,27 @@ export default function SalesPerformance(): JSX.Element {
     { name: 'Venda Antecipada', value: compliance.antecipadas },
   ];
 
+  // Time series aggregated by month (DataVenda) for ValorCompra vs ValorVenda and volume
+  const seriesByMonth = useMemo(() => {
+    if (!filtered || filtered.length === 0) return [] as AnyObject[];
+    const map: Record<string, { monthKey: string; monthLabel: string; valorCompra: number; valorVenda: number; count: number }> = {};
+    const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    filtered.forEach((r) => {
+      if (!r.DataVenda) return;
+      const d = new Date(r.DataVenda);
+      if (isNaN(d.getTime())) return;
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const key = `${y}-${String(m).padStart(2, '0')}`;
+      if (!map[key]) map[key] = { monthKey: key, monthLabel: `${monthNames[m-1]}/${y}`, valorCompra: 0, valorVenda: 0, count: 0 };
+      map[key].valorCompra += Number(r.ValorCompra) || 0;
+      map[key].valorVenda += Number(r.ValorVenda) || 0;
+      map[key].count += 1;
+    });
+    const arr = Object.values(map).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+    return arr;
+  }, [filtered]);
+
   // model toggle handled via select; retained for compatibility if needed in future
 
   return (
@@ -230,6 +252,57 @@ export default function SalesPerformance(): JSX.Element {
               <div className="text-sm text-gray-500">Dica: clique em um modelo na lista para filtrar rapidamente.</div>
             </div>
           </div>
+        </div>
+      </Card>
+
+      {/* Time series: ValorCompra vs ValorFipe por DataVenda (mensal) */}
+      <Card className="h-80">
+        <div className="flex items-center justify-between">
+          <Text>Evolução (por DataVenda)</Text>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setChartMode('financeiro')} className={`px-3 py-1 rounded ${chartMode === 'financeiro' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>Financeiro (R$)</button>
+            <button onClick={() => setChartMode('volume')} className={`px-3 py-1 rounded ${chartMode === 'volume' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>Volume (Qtd)</button>
+          </div>
+        </div>
+
+        <div className="h-64 mt-4">
+          {seriesByMonth.length === 0 ? (
+            <div>
+              <Callout title="Sem dados" color="amber">Nenhuma venda encontrada no período selecionado.</Callout>
+              <div className="mt-3">
+                <button onClick={() => { setDateFrom(null); setDateTo(null); setPage(1); }} className="px-3 py-1 rounded bg-blue-600 text-white">Mostrar todo o período</button>
+                <span className="ml-3 text-sm text-gray-600">ou ajuste o período acima para incluir as datas de venda.</span>
+              </div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={seriesByMonth} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCompra" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0369a1" stopOpacity={0.65} />
+                    <stop offset="95%" stopColor="#0369a1" stopOpacity={0.06} />
+                  </linearGradient>
+                  <linearGradient id="colorVenda" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#059669" stopOpacity={0.65} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.06} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+                <YAxis />
+                <Tooltip formatter={(v: any) => (chartMode === 'financeiro' ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0) : String(v))} />
+                <Legend />
+                {chartMode === 'financeiro' ? (
+                  <>
+                    <Area type="monotone" dataKey="valorCompra" name="ValorCompra" stroke="#0369a1" fillOpacity={1} fill="url(#colorCompra)" />
+                    <Area type="monotone" dataKey="valorVenda" name="ValorVenda" stroke="#059669" fillOpacity={1} fill="url(#colorVenda)" />
+                  </>
+                ) : (
+                  <Area type="monotone" dataKey="count" name="Quantidade" stroke="#0369a1" fillOpacity={0.9} fill="#0ea5ff" />
+                )}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </Card>
 
