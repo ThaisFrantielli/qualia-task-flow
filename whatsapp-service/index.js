@@ -30,30 +30,21 @@ const activeQRCodes = new Map();
 
 // Function to create a new WhatsApp client instance
 function createWhatsAppClient(instanceId) {
-    console.log(`Creating WhatsApp client for instance: ${instanceId}`);
+    console.log(`[${instanceId}] Starting client creation...`);
+    const sessionPath = path.join(__dirname, `whatsapp-session-${instanceId}`);
+    console.log(`[${instanceId}] Session path: ${sessionPath}`);
 
     const client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: `./whatsapp-session-${instanceId}`,
-            clientId: `whatsapp-client-${instanceId}`
+            dataPath: sessionPath
         }),
         puppeteer: {
             headless: true,
+            dumpio: true,
+            executablePath: process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
             args: [
                 '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu',
-                '--disable-web-security',
-                '--disable-features=VizDisplayCompositor',
-                '--disable-extensions',
-                '--disable-plugins',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding'
+                '--disable-setuid-sandbox'
             ]
         },
         qrMaxRetries: 5,
@@ -62,7 +53,7 @@ function createWhatsAppClient(instanceId) {
 
     // Generate QR code for WhatsApp login
     client.on('qr', async (qr) => {
-        console.log(`QR Code received for instance ${instanceId}`);
+        console.log(`[${instanceId}] QR Code received!`);
 
         // Generate terminal QR code
         qrcode.generate(qr, { small: true });
@@ -83,18 +74,18 @@ function createWhatsAppClient(instanceId) {
                 });
 
             if (result.error) {
-                console.error(`Supabase error for instance ${instanceId}:`, result.error);
+                console.error(`[${instanceId}] Supabase error saving QR:`, result.error);
             } else {
-                console.log(`QR Code saved to Supabase for instance ${instanceId}`);
+                console.log(`[${instanceId}] QR Code saved to Supabase`);
             }
         } catch (error) {
-            console.error(`Failed to save QR Code for instance ${instanceId}:`, error);
+            console.error(`[${instanceId}] Failed to save QR Code:`, error);
         }
     });
 
     // WhatsApp client is ready
     client.on('ready', async () => {
-        console.log(`WhatsApp client is ready for instance ${instanceId}!`);
+        console.log(`[${instanceId}] WhatsApp client is ready!`);
 
         // Update connection status in Supabase
         try {
@@ -108,17 +99,17 @@ function createWhatsAppClient(instanceId) {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', instanceId);
-            console.log(`Instance ${instanceId} connected with number: ${connectedNumber}`);
+            console.log(`[${instanceId}] Connected with number: ${connectedNumber}`);
 
             activeQRCodes.delete(instanceId);
         } catch (error) {
-            console.error(`Failed to update status for instance ${instanceId}:`, error);
+            console.error(`[${instanceId}] Failed to update status:`, error);
         }
     });
 
     // Handle disconnection
     client.on('disconnected', async (reason) => {
-        console.log(`Instance ${instanceId} disconnected:`, reason);
+        console.log(`[${instanceId}] Disconnected:`, reason);
         activeQRCodes.delete(instanceId);
 
         // Update status in Supabase
@@ -132,13 +123,13 @@ function createWhatsAppClient(instanceId) {
                 })
                 .eq('id', instanceId);
         } catch (error) {
-            console.error(`Failed to update disconnection status for instance ${instanceId}:`, error);
+            console.error(`[${instanceId}] Failed to update disconnection status:`, error);
         }
     });
 
     // Handle authentication failure
     client.on('auth_failure', async (msg) => {
-        console.error(`Auth failure for instance ${instanceId}:`, msg);
+        console.error(`[${instanceId}] Auth failure:`, msg);
         activeQRCodes.delete(instanceId);
 
         try {
@@ -151,13 +142,13 @@ function createWhatsAppClient(instanceId) {
                 })
                 .eq('id', instanceId);
         } catch (error) {
-            console.error(`Failed to update auth failure for instance ${instanceId}:`, error);
+            console.error(`[${instanceId}] Failed to update auth failure:`, error);
         }
     });
 
     // Listen for incoming messages
     client.on('message', async (message) => {
-        console.log(`Message received on instance ${instanceId} from ${message.from}: ${message.body}`);
+        console.log(`[${instanceId}] Message from ${message.from}: ${message.body}`);
 
         // Forward message to Supabase Edge Function
         try {
@@ -178,9 +169,9 @@ function createWhatsAppClient(instanceId) {
                     'Content-Type': 'application/json'
                 }
             });
-            console.log(`✓ Message forwarded to webhook for instance ${instanceId}`);
+            console.log(`[${instanceId}] ✓ Message forwarded to webhook`);
         } catch (error) {
-            console.error(`✗ Failed to forward message for instance ${instanceId}:`, error.message);
+            console.error(`[${instanceId}] ✗ Failed to forward message:`, error.message);
         }
     });
 
