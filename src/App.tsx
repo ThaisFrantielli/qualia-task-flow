@@ -43,6 +43,9 @@ import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
 import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
 import GerenciarDepartamentosPage from '@/pages/Configuracoes/GerenciarDepartamentos';
 import ConfiguracoesEquipesPage from '@/pages/Configuracoes/ConfiguracoesEquipes';
+import FilaTriagem from '@/pages/FilaTriagem';
+import TicketsPage from '@/pages/TicketsPage';
+import TicketDetailPage from '@/pages/TicketDetailPage';
 // ...existing imports
 
 function App() {
@@ -56,7 +59,7 @@ function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
           <Route path="/obrigado" element={<SurveyThankYouPage />} />
-          
+
           {/* Rotas Protegidas */}
           <Route element={<ProtectedRoute />}>
             <Route element={
@@ -66,22 +69,22 @@ function App() {
             }>
               <Route path="/" element={<Dashboard />} />
               <Route path="/kanban" element={<Kanban />} />
-              
+
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
 
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/projects/:id/edit" element={<EditProjectPage />} />
-              
+
               <Route path="/oportunidades" element={<OportunidadesPage />} />
               <Route path="/oportunidades/:id" element={<OportunidadeDetalhePage />} />
-              
+
               <Route path="/pos-vendas" element={<CrmPdvPage />} />
               <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
               <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
               <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} />
-              
+
               <Route path="/whatsapp" element={<WhatsAppChatPage />} />
               <Route path="/analytics" element={<AnalyticsIndex />} />
               <Route path="/analytics/frota" element={<FleetDashboard />} />
@@ -89,14 +92,17 @@ function App() {
               <Route path="/analytics/churn" element={<ChurnDashboard />} />
               <Route path="/analytics/auditoria" element={<DataAudit />} />
               <Route path="/analytics/performance-vendas" element={<SalesPerformance />} />
-                           
+
               <Route path="/clientes" element={<CustomerHubPage />} />
-              
+              <Route path="/triagem" element={<FilaTriagem />} />
+              <Route path="/tickets" element={<TicketsPage />} />
+              <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+
               <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
 
               <Route path="/team" element={<Team />} />
               <Route path="/notifications" element={<Notifications />} />
-              <Route path="/settings" element={<Settings />} /> 
+              <Route path="/settings" element={<Settings />} />
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
               <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
               <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
