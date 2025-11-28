@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,36 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
+    // Poll for QR code when instance is not connected
+    useEffect(() => {
+        if (instance.status === 'connected' || instance.qr_code) {
+            return;
+        }
+
+        const pollQRCode = async () => {
+            try {
+                const response = await fetch(`${SERVICE_URL}/instances/${instance.id}/qr`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.qrCode) {
+                        // QR code found, trigger refresh to update UI
+                        onRefresh();
+                    }
+                }
+            } catch (error) {
+                console.error('Error polling QR code:', error);
+            }
+        };
+
+        // Poll immediately
+        pollQRCode();
+
+        // Then poll every 2 seconds
+        const interval = setInterval(pollQRCode, 2000);
+
+        return () => clearInterval(interval);
+    }, [instance.id, instance.status, instance.qr_code, onRefresh]);
+
     const isConnected = instance.status === 'connected';
 
     const handleDisconnect = async () => {
@@ -56,6 +86,46 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
             toast({
                 title: "Erro",
                 description: "Erro ao desconectar instância.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setIsLoading(true);
+        try {
+            // First disconnect if connected
+            if (instance.status === 'connected') {
+                await fetch(`${SERVICE_URL}/instances/${instance.id}/disconnect`, {
+                    method: 'POST'
+                });
+            }
+
+            // Wait a bit for cleanup
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Restart the instance to generate new QR code
+            const response = await fetch(`${SERVICE_URL}/instances`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: instance.id, name: instance.name })
+            });
+
+            if (response.ok) {
+                toast({
+                    title: "Atualizando",
+                    description: "Gerando novo QR Code...",
+                });
+                onRefresh();
+            } else {
+                throw new Error('Falha ao atualizar');
+            }
+        } catch (error) {
+            toast({
+                title: "Erro",
+                description: "Erro ao atualizar instância.",
                 variant: "destructive",
             });
         } finally {
@@ -121,7 +191,7 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={onRefresh} disabled={isLoading}>
+                <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isLoading}>
                     <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 </Button>
 

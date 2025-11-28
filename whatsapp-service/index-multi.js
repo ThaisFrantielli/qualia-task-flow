@@ -1,3 +1,27 @@
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Serve static assets
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+}
+app.use(express.static(publicDir));
+
+// Supabase configuration
+const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw';
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Multiple WhatsApp instances management
@@ -8,10 +32,14 @@ const activeQRCodes = new Map();
 function createWhatsAppClient(instanceId) {
     console.log(`Creating WhatsApp client for instance: ${instanceId}`);
 
+    // Sanitize instanceId for use in file paths and clientId (remove hyphens from UUIDs)
+    const sanitizedId = instanceId.replace(/-/g, '');
+    console.log(`Sanitized ID for LocalAuth: ${sanitizedId}`);
+
     const client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: `./whatsapp-session-${instanceId}`,
-            clientId: `whatsapp-client-${instanceId}`
+            dataPath: `./whatsapp-session-${sanitizedId}`,
+            clientId: `whatsapp-client-${sanitizedId}`
         }),
         puppeteer: {
             headless: true,
@@ -39,7 +67,6 @@ function createWhatsAppClient(instanceId) {
     // Generate QR code for WhatsApp login
     client.on('qr', async (qr) => {
         console.log(`QR Code received for instance ${instanceId}`);
-        console.log(`QR Code length: ${qr.length}`);
 
         // Generate terminal QR code with instance identifier
         console.log(`=== QR CODE FOR INSTANCE ${instanceId} ===`);
@@ -69,11 +96,6 @@ function createWhatsAppClient(instanceId) {
         } catch (error) {
             console.error(`Failed to save QR Code to Supabase for instance ${instanceId}:`, error);
         }
-
-        // QR code expires after 45 seconds, prepare for refresh
-        setTimeout(() => {
-            console.log(`QR Code should refresh soon for instance ${instanceId}...`);
-        }, 45000);
     });
 
     // WhatsApp client is ready
@@ -181,28 +203,44 @@ function initializeDefaultInstance() {
     console.log('Default WhatsApp instance initialized');
 }
 
-// API endpoint to create new WhatsApp instance
-app.post('/create-instance', async (req, res) => {
-    try {
-        const { instanceId } = req.body;
+// API Endpoints
 
-        if (!instanceId) {
-            return res.status(400).json({ error: 'instanceId is required' });
+// Health check
+app.get('/status', (req, res) => {
+    res.json({
+        online: true,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        activeInstances: whatsappInstances.size
+    });
+});
+
+// Create new instance
+app.post('/instances', async (req, res) => {
+    try {
+        console.log('POST /instances body:', req.body);
+        const { instanceId } = req.body; // Frontend sends instanceId or id
+
+        const id = instanceId || req.body.id;
+        console.log('Parsed ID:', id);
+
+        if (!id) {
+            return res.status(400).json({ error: 'Instance ID is required' });
         }
 
-        if (whatsappInstances.has(instanceId)) {
+        if (whatsappInstances.has(id)) {
             return res.status(400).json({ error: 'Instance already exists' });
         }
 
         // Create new client instance
-        const client = createWhatsAppClient(instanceId);
-        whatsappInstances.set(instanceId, client);
+        const client = createWhatsAppClient(id);
+        whatsappInstances.set(id, client);
         client.initialize();
 
         res.json({
             success: true,
-            message: `WhatsApp instance ${instanceId} created successfully`,
-            instanceId: instanceId
+            message: `WhatsApp instance ${id} created successfully`,
+            instanceId: id
         });
     } catch (error) {
         console.error('Failed to create instance:', error);
@@ -210,12 +248,13 @@ app.post('/create-instance', async (req, res) => {
     }
 });
 
-// API endpoint to get QR code for specific instance
-app.get('/qr-code/:instanceId', (req, res) => {
+// Get QR Code
+app.get('/instances/:instanceId/qr', (req, res) => {
     const { instanceId } = req.params;
     const qrCode = activeQRCodes.get(instanceId);
     const client = whatsappInstances.get(instanceId);
 
+    // Frontend expects { qrCode: string }
     res.json({
         instanceId: instanceId,
         qrCode: qrCode,
@@ -223,45 +262,25 @@ app.get('/qr-code/:instanceId', (req, res) => {
     });
 });
 
-// API endpoint to get connection status for specific instance
-app.get('/status/:instanceId', (req, res) => {
+// Get Status
+app.get('/instances/:instanceId/status', (req, res) => {
     const { instanceId } = req.params;
     const client = whatsappInstances.get(instanceId);
 
     if (!client) {
-        return res.status(404).json({ error: 'Instance not found' });
+        return res.json({ status: 'disconnected', connected: false });
     }
 
     res.json({
         instanceId: instanceId,
-        isConnected: client.info?.wid !== undefined,
-        connectedNumber: client.info?.wid?.user || null,
-        clientState: client.getState()
+        status: client.info?.wid !== undefined ? 'connected' : 'connecting',
+        connected: client.info?.wid !== undefined,
+        phoneNumber: client.info?.wid?.user || null
     });
 });
 
-// API endpoint to get all instances
-app.get('/instances', (req, res) => {
-    const instances = Array.from(whatsappInstances.keys()).map(instanceId => {
-        const client = whatsappInstances.get(instanceId);
-        const qrCode = activeQRCodes.get(instanceId);
-
-        return {
-            instanceId: instanceId,
-            isConnected: client ? client.info?.wid !== undefined : false,
-            connectedNumber: client ? client.info?.wid?.user || null : null,
-            hasQRCode: !!qrCode
-        };
-    });
-
-    res.json({
-        instances: instances,
-        total: instances.length
-    });
-});
-
-// API endpoint to disconnect specific WhatsApp instance
-app.post('/disconnect/:instanceId', async (req, res) => {
+// Disconnect
+app.post('/instances/:instanceId/disconnect', async (req, res) => {
     try {
         const { instanceId } = req.params;
         const client = whatsappInstances.get(instanceId);
@@ -274,27 +293,7 @@ app.post('/disconnect/:instanceId', async (req, res) => {
         whatsappInstances.delete(instanceId);
         activeQRCodes.delete(instanceId);
 
-        res.json({
-            success: true,
-            message: `WhatsApp instance ${instanceId} disconnected successfully`
-        });
-    } catch (error) {
-        console.error('Failed to disconnect instance:', error);
-        res.status(500).json({ error: 'Failed to disconnect instance' });
-    }
-});
-
-// API endpoint to reset session for specific instance
-app.post('/reset-session/:instanceId', async (req, res) => {
-    try {
-        const { instanceId } = req.params;
-        const client = whatsappInstances.get(instanceId);
-
-        if (client) {
-            await client.destroy();
-        }
-
-        // Clear QR code in Supabase
+        // Update DB
         await supabase
             .from('whatsapp_config')
             .update({
@@ -305,48 +304,13 @@ app.post('/reset-session/:instanceId', async (req, res) => {
             })
             .eq('id', instanceId);
 
-        activeQRCodes.delete(instanceId);
-        whatsappInstances.delete(instanceId);
-
-        // Create new instance
-        const newClient = createWhatsAppClient(instanceId);
-        whatsappInstances.set(instanceId, newClient);
-
-        setTimeout(() => {
-            newClient.initialize();
-        }, 2000);
-
         res.json({
             success: true,
-            message: `Session reset for instance ${instanceId}, new QR code will be generated`
+            message: `WhatsApp instance ${instanceId} disconnected successfully`
         });
     } catch (error) {
-        console.error(`Failed to reset session for instance ${instanceId}:`, error);
-        res.status(500).json({ error: 'Failed to reset session' });
-    }
-});
-
-// Send message through specific instance
-app.post('/send-message/:instanceId', async (req, res) => {
-    try {
-        const { instanceId } = req.params;
-        const { to, message } = req.body;
-
-        const client = whatsappInstances.get(instanceId);
-
-        if (!client) {
-            return res.status(404).json({ error: 'Instance not found' });
-        }
-
-        if (!client.info?.wid) {
-            return res.status(400).json({ error: 'Instance not connected' });
-        }
-
-        await client.sendMessage(to, message);
-        res.json({ success: true, message: 'Message sent successfully' });
-    } catch (error) {
-        console.error(`Failed to send message through instance ${instanceId}:`, error);
-        res.status(500).json({ error: 'Failed to send message' });
+        console.error('Failed to disconnect instance:', error);
+        res.status(500).json({ error: 'Failed to disconnect instance' });
     }
 });
 
