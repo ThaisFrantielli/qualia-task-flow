@@ -2,9 +2,9 @@
   "name": "whatsapp-service",
   "version": "1.0.0",
   "description": "Service for WhatsApp Web automation",
-  "main": "index.js",
+  "main": "index-multi.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node index-multi.js",
     "dev": "NODE_ENV=development node index.js",
     "test-service": "node test-service.js"
   },
@@ -20,9 +20,9 @@
     "multer": "^2.0.2",
     "qrcode-terminal": "^0.12.0",
     "sharp": "^0.34.4",
-    "whatsapp-web.js": "^1.18.4"
+    "whatsapp-web.js": "^1.34.2"
   },
   "devDependencies": {
-    "puppeteer": "^24.31.0"
+    "puppeteer": "^19.11.1"
   }
 }
