@@ -145,6 +145,7 @@ export type AllTaskFilters = {
     start?: Date;
     end?: Date;
   };
+  cliente_id?: string;
 };
 
 // --- Tipos de Oportunidades ---
