@@ -158,7 +158,7 @@ export default function ChurnDashboard(): JSX.Element {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `churn_events_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+    a.download = `abertura_encerramento_contrato_events_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -168,7 +168,7 @@ export default function ChurnDashboard(): JSX.Element {
   return (
     <div className="bg-slate-50 p-6 min-h-screen">
       <div>
-        <Title>Churn de Contratos</Title>
+        <Title>Abertura e Encerramento Contrato</Title>
         <Text className="mt-1">Visão de entradas, cancelamentos e impacto em receita recorrente.</Text>
       </div>
 
@@ -236,7 +236,7 @@ export default function ChurnDashboard(): JSX.Element {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded bg-red-50"><XCircle className="text-red-600" size={18} /></div>
             <div>
-              <Text className="text-sm">Taxa de Churn</Text>
+              <Text className="text-sm">Taxa de Abertura e Encerramento Contrato</Text>
               <Metric>{totals.churnRate.toFixed(2)}%</Metric>
             </div>
           </div>
@@ -296,7 +296,7 @@ export default function ChurnDashboard(): JSX.Element {
               </thead>
               <tbody>
                 {pageItems.map((r, i) => (
-                  <tr key={`churn-${i}`} className="border-t">
+                  <tr key={`abertura_encerramento-${i}`} className="border-t">
                     <td className="p-2">{r.DataEvento ? new Date(r.DataEvento).toLocaleString() : '-'}</td>
                     <td className="p-2">{String(r.TipoEvento || '') .toLowerCase() === 'iniciado' ? <span className="inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Iniciado</span> : <span className="inline-block bg-red-100 text-red-700 px-2 py-1 rounded">Encerrado</span>}</td>
                     <td className="p-2">{r.Cliente || '-'}</td>
