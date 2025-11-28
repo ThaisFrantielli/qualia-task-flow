@@ -33,13 +33,7 @@ const DEPARTAMENTO_LABELS: Record<string, string> = {
     qualidade: 'Qualidade'
 };
 
-const DEPARTAMENTO_COLORS: Record<string, string> = {
-    comercial: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
-    tecnico: 'bg-purple-500/10 text-purple-700 dark:text-purple-400',
-    logistica: 'bg-orange-500/10 text-orange-700 dark:text-orange-400',
-    financeiro: 'bg-green-500/10 text-green-700 dark:text-green-400',
-    qualidade: 'bg-pink-500/10 text-pink-700 dark:text-pink-400'
-};
+
 
 export function TicketDepartamentoCard({ departamento, onViewTask }: TicketDepartamentoCardProps) {
     // Calcular status baseado em respondido_em

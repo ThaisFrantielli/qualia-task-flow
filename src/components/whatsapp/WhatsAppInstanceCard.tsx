@@ -7,7 +7,6 @@ import {
     CheckCircle,
     AlertCircle,
     Loader2,
-    Power,
     Trash2,
     RefreshCw,
     Smartphone
@@ -127,9 +126,7 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                 </Button>
 
                 {isConnected ? (
-                    <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={isLoading} className="text-amber-600 hover:text-amber-700 hover:bg-amber-50">
-                        <Power className="h-4 w-4 mr-2" /> Desconectar
-                    </Button>
+                    <div className="flex-1"></div>
                 ) : (
                     <div className="flex-1"></div>
                 )}
