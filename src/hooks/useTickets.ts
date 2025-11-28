@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/types/supabase";
 
 type TicketInsert = Database["public"]["Tables"]["tickets"]["Insert"];
-type TicketUpdate = Database["public"]["Tables"]["tickets"]["Update"];
 type TicketInteracaoInsert = Database["public"]["Tables"]["ticket_interacoes"]["Insert"];
 
 export const useTickets = (filters?: { status?: string; cliente_id?: string; atendente_id?: string }) => {
@@ -69,6 +68,15 @@ export const useTicketDetail = (ticketId: string) => {
               full_name,
               avatar_url
             )
+          ),
+          ticket_departamentos (
+            *,
+            solicitado_por:solicitado_por (full_name),
+            respondido_por:respondido_por (full_name)
+          ),
+          ticket_anexos (
+            *,
+            uploaded_by:uploaded_by (full_name)
           )
         `)
                 .eq("id", ticketId)
@@ -105,11 +113,11 @@ export const useUpdateTicket = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, ...updates }: TicketUpdate & { id: string }) => {
+        mutationFn: async ({ ticketId, updates }: { ticketId: string; updates: any; userId: string }) => {
             const { data, error } = await supabase
                 .from("tickets")
                 .update(updates)
-                .eq("id", id)
+                .eq("id", ticketId)
                 .select()
                 .single();
 
@@ -141,6 +149,47 @@ export const useAddTicketInteracao = () => {
             if (data.ticket_id) {
                 queryClient.invalidateQueries({ queryKey: ["ticket", data.ticket_id] });
             }
+        },
+    });
+};
+
+export const useAddTicketDepartamento = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (departamento: any) => {
+            const { data, error } = await supabase
+                .from("ticket_departamentos")
+                .insert(departamento)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ["ticket", data.ticket_id] });
+        },
+    });
+};
+
+export const useUpdateTicketDepartamento = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, ...updates }: { id: string;[key: string]: any }) => {
+            const { data, error } = await supabase
+                .from("ticket_departamentos")
+                .update(updates)
+                .eq("id", id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ["ticket", data.ticket_id] });
         },
     });
 };

@@ -10,6 +10,7 @@ COMMENT ON COLUMN ticket_interacoes.departamento IS 'Departamento que fez a inte
 COMMENT ON COLUMN ticket_interacoes.anexos IS 'Array de anexos da interação (JSON)';
 
 -- Criar view de SLA para monitoramento
+DROP VIEW IF EXISTS tickets_sla;
 CREATE OR REPLACE VIEW tickets_sla AS
 SELECT 
     t.id,

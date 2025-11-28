@@ -157,7 +157,7 @@ function createWhatsAppClient(instanceId) {
 
     // Listen for incoming messages
     client.on('message', async (message) => {
-        console.log(`Message received on instance ${instanceId} from ${message.from}`);
+        console.log(`Message received on instance ${instanceId} from ${message.from}: ${message.body}`);
 
         // Forward message to Supabase Edge Function
         try {
@@ -165,39 +165,39 @@ function createWhatsAppClient(instanceId) {
             const companyNumber = info.wid.user;
 
             await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
-                instanceId: instanceId, // NEW: Send instance ID
+                instance_id: instanceId,
                 from: message.from,
                 to: companyNumber,
                 body: message.body,
                 timestamp: message.timestamp,
                 type: message.type,
-                id: message.id._serialized
+                messageId: message.id._serialized
             }, {
                 headers: {
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                     'Content-Type': 'application/json'
                 }
             });
-            console.log(`Message forwarded to webhook for instance ${instanceId}`);
+            console.log(`✓ Message forwarded to webhook for instance ${instanceId}`);
         } catch (error) {
-            console.error(`Failed to forward message for instance ${instanceId}:`, error);
+            console.error(`✗ Failed to forward message for instance ${instanceId}:`, error.message);
         }
     });
 
     return client;
 }
 
-// Initialize default instance (legacy support or primary instance)
-function initializeDefaultInstance() {
-    // We use a fixed UUID for the default instance to maintain compatibility
-    // Or we can just use 'default' string if the UUID column allows it (it's UUID type, so we need a UUID)
-    // Let's assume the user will create instances via UI, but for dev we might want one.
-    // For now, let's NOT auto-create a default instance to avoid UUID errors if 'default' string is used.
-    // The frontend should drive instance creation.
-    console.log('Waiting for instance creation requests...');
-}
-
 // API Endpoints
+
+// Health check
+app.get('/status', (req, res) => {
+    res.json({
+        online: true,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        activeInstances: whatsappInstances.size
+    });
+});
 
 // Create new instance
 app.post('/instances', async (req, res) => {
@@ -292,5 +292,6 @@ app.post('/send-message/:instanceId', async (req, res) => {
 
 const PORT = 3005;
 app.listen(PORT, () => {
-    console.log(`WhatsApp Multi-Session Service running on port ${PORT}`);
+    console.log(`\n✓ WhatsApp Multi-Session Service running on port ${PORT}`);
+    console.log(`✓ Health check: http://localhost:${PORT}/status\n`);
 });

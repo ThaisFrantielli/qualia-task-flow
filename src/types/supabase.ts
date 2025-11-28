@@ -65,8 +65,8 @@ export type Database = {
           department: Database["public"]["Enums"]["tipo_departamento"] | null
           descricao: string | null
           final_analysis:
-            | Database["public"]["Enums"]["tipo_analise_final"]
-            | null
+          | Database["public"]["Enums"]["tipo_analise_final"]
+          | null
           first_response_at: string | null
           id: number
           initial_message: string | null
@@ -98,8 +98,8 @@ export type Database = {
           department?: Database["public"]["Enums"]["tipo_departamento"] | null
           descricao?: string | null
           final_analysis?:
-            | Database["public"]["Enums"]["tipo_analise_final"]
-            | null
+          | Database["public"]["Enums"]["tipo_analise_final"]
+          | null
           first_response_at?: string | null
           id?: number
           initial_message?: string | null
@@ -131,8 +131,8 @@ export type Database = {
           department?: Database["public"]["Enums"]["tipo_departamento"] | null
           descricao?: string | null
           final_analysis?:
-            | Database["public"]["Enums"]["tipo_analise_final"]
-            | null
+          | Database["public"]["Enums"]["tipo_analise_final"]
+          | null
           first_response_at?: string | null
           id?: number
           initial_message?: string | null
@@ -165,7 +165,266 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
+      tickets: {
+        Row: {
+          id: string
+          numero_ticket: number
+          titulo: string
+          descricao: string | null
+          status: string
+          prioridade: string
+          cliente_id: string | null
+          atendente_id: string | null
+          setor_responsavel: string | null
+          canal_origem: string | null
+          created_at: string
+          updated_at: string
+          tipo_reclamacao: string | null
+          procedencia: string | null
+          solucao_aplicada: string | null
+          acoes_corretivas: string | null
+          tempo_primeira_resposta: string | null
+          tempo_total_resolucao: string | null
+          sla_primeira_resposta: string | null
+          sla_resolucao: string | null
+          feedback_cliente: string | null
+          nota_cliente: number | null
+        }
+        Insert: {
+          id?: string
+          numero_ticket?: number
+          titulo: string
+          descricao?: string | null
+          status?: string
+          prioridade?: string
+          cliente_id?: string | null
+          atendente_id?: string | null
+          setor_responsavel?: string | null
+          canal_origem?: string | null
+          created_at?: string
+          updated_at?: string
+          tipo_reclamacao?: string | null
+          procedencia?: string | null
+          solucao_aplicada?: string | null
+          acoes_corretivas?: string | null
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
+          sla_primeira_resposta?: string | null
+          sla_resolucao?: string | null
+          feedback_cliente?: string | null
+          nota_cliente?: number | null
+        }
+        Update: {
+          id?: string
+          numero_ticket?: number
+          titulo?: string
+          descricao?: string | null
+          status?: string
+          prioridade?: string
+          cliente_id?: string | null
+          atendente_id?: string | null
+          setor_responsavel?: string | null
+          canal_origem?: string | null
+          created_at?: string
+          updated_at?: string
+          tipo_reclamacao?: string | null
+          procedencia?: string | null
+          solucao_aplicada?: string | null
+          acoes_corretivas?: string | null
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
+          sla_primeira_resposta?: string | null
+          sla_resolucao?: string | null
+          feedback_cliente?: string | null
+          nota_cliente?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_atendente_id_fkey"
+            columns: ["atendente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      },
+      ticket_interacoes: {
+        Row: {
+          id: string
+          ticket_id: string | null
+          user_id: string | null
+          tipo: string
+          mensagem: string | null
+          anexos: Json | null
+          status_anterior: string | null
+          status_novo: string | null
+          created_at: string
+          departamento: string | null
+        }
+        Insert: {
+          id?: string
+          ticket_id?: string | null
+          user_id?: string | null
+          tipo: string
+          mensagem?: string | null
+          anexos?: Json | null
+          status_anterior?: string | null
+          status_novo?: string | null
+          created_at?: string
+          departamento?: string | null
+        }
+        Update: {
+          id?: string
+          ticket_id?: string | null
+          user_id?: string | null
+          tipo?: string
+          mensagem?: string | null
+          anexos?: Json | null
+          status_anterior?: string | null
+          status_novo?: string | null
+          created_at?: string
+          departamento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_interacoes_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_interacoes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      },
+      ticket_departamentos: {
+        Row: {
+          id: string
+          ticket_id: string | null
+          departamento: string
+          solicitado_em: string | null
+          solicitado_por: string | null
+          respondido_em: string | null
+          respondido_por: string | null
+          resposta: string | null
+          task_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id?: string | null
+          departamento: string
+          solicitado_em?: string | null
+          solicitado_por?: string | null
+          respondido_em?: string | null
+          respondido_por?: string | null
+          resposta?: string | null
+          task_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_id?: string | null
+          departamento?: string
+          solicitado_em?: string | null
+          solicitado_por?: string | null
+          respondido_em?: string | null
+          respondido_por?: string | null
+          resposta?: string | null
+          task_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_departamentos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_departamentos_solicitado_por_fkey"
+            columns: ["solicitado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_departamentos_respondido_por_fkey"
+            columns: ["respondido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      },
+      ticket_anexos: {
+        Row: {
+          id: string
+          ticket_id: string | null
+          nome_arquivo: string
+          url_arquivo: string
+          tipo_arquivo: string | null
+          tamanho_bytes: number | null
+          uploaded_by: string | null
+          descricao: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id?: string | null
+          nome_arquivo: string
+          url_arquivo: string
+          tipo_arquivo?: string | null
+          tamanho_bytes?: number | null
+          uploaded_by?: string | null
+          descricao?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_id?: string | null
+          nome_arquivo?: string
+          url_arquivo?: string
+          tipo_arquivo?: string | null
+          tamanho_bytes?: number | null
+          uploaded_by?: string | null
+          descricao?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_anexos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_anexos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      },
       atendimentos_pos_venda: {
         Row: {
           analise_final: string | null
@@ -1548,48 +1807,48 @@ export type Database = {
       survey_type: "comercial" | "entrega" | "manutencao" | "devolucao"
       tipo_analise_final: "Procedente" | "Improcedente" | "Dúvida"
       tipo_departamento:
-        | "Manutenção"
-        | "Central de Atendimento"
-        | "Documentação"
-        | "Operação"
-        | "Comercial"
-        | "Financeiro"
-        | "Departamento Pessoal"
-        | "Aberto Erroneamente"
-        | "Dúvida"
-        | "Operação - Filial SP"
+      | "Manutenção"
+      | "Central de Atendimento"
+      | "Documentação"
+      | "Operação"
+      | "Comercial"
+      | "Financeiro"
+      | "Departamento Pessoal"
+      | "Aberto Erroneamente"
+      | "Dúvida"
+      | "Operação - Filial SP"
       tipo_motivo_reclamacao:
-        | "Contestação de Cobrança"
-        | "Demora na Aprovação do Orçamento"
-        | "Agendamento Errôneo"
-        | "Má Qualidade de Serviço"
-        | "Problemas Com Fornecedor"
-        | "Demora em atendimento"
-        | "Atendimento Ineficaz"
-        | "Multas e Notificações"
-        | "Problemas na Entrega"
-        | "Problemas Com Veículo Reserva"
-        | "Atendimento Comercial"
-        | "Oportunidade Aberta Erroneamente"
-        | "Cobrança Indevida"
-        | "Dúvida"
-        | "Erro de processo interno"
-        | "Troca definitiva de veículo"
-        | "Problema recorrente"
-        | "Solicitação de Reembolso"
-        | "Problemas com Terceiro"
+      | "Contestação de Cobrança"
+      | "Demora na Aprovação do Orçamento"
+      | "Agendamento Errôneo"
+      | "Má Qualidade de Serviço"
+      | "Problemas Com Fornecedor"
+      | "Demora em atendimento"
+      | "Atendimento Ineficaz"
+      | "Multas e Notificações"
+      | "Problemas na Entrega"
+      | "Problemas Com Veículo Reserva"
+      | "Atendimento Comercial"
+      | "Oportunidade Aberta Erroneamente"
+      | "Cobrança Indevida"
+      | "Dúvida"
+      | "Erro de processo interno"
+      | "Troca definitiva de veículo"
+      | "Problema recorrente"
+      | "Solicitação de Reembolso"
+      | "Problemas com Terceiro"
       tipo_origem_lead:
-        | "Cliente (Base)"
-        | "Tráfego Pago"
-        | "Indicação"
-        | "Site"
-        | "Ligação"
-        | "Redes Sociais"
-        | "Blip ChatBot"
-        | "E-mail"
-        | "Encerrado - Manutenção"
-        | "Fechada"
-        | "Perdida"
+      | "Cliente (Base)"
+      | "Tráfego Pago"
+      | "Indicação"
+      | "Site"
+      | "Ligação"
+      | "Redes Sociais"
+      | "Blip ChatBot"
+      | "E-mail"
+      | "Encerrado - Manutenção"
+      | "Fechada"
+      | "Perdida"
       tipo_status_atendimento: "Solicitação" | "Em Análise" | "Resolvido"
     }
     CompositeTypes: {
@@ -1604,116 +1863,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {

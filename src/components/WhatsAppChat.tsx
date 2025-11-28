@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -115,7 +116,11 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
   };
 
   const handleStartConversation = async () => {
-    if (!customerId) return;
+    // If no customerId, show manual input dialog
+    if (!customerId) {
+      setShowContactSelector(true);
+      return;
+    }
 
     try {
       // Buscar dados do cliente e seus contatos
@@ -575,40 +580,88 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
         )}
       </div>
 
-      {/* Modal de Seleção de Contatos */}
+      {/* Modal de Seleção de Contatos / Input Manual */}
       <Dialog open={showContactSelector} onOpenChange={setShowContactSelector}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Selecionar Contato</DialogTitle>
+            <DialogTitle>{contactOptions.length > 0 ? 'Selecionar Contato' : 'Iniciar Conversa'}</DialogTitle>
             <DialogDescription>
-              O cliente possui múltiplos contatos de WhatsApp. Selecione qual deseja usar:
+              {contactOptions.length > 0
+                ? 'O cliente possui múltiplos contatos de WhatsApp. Selecione qual deseja usar:'
+                : 'Digite o nome e número do WhatsApp para iniciar a conversa:'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {contactOptions.map((contact, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                className="w-full justify-start p-4 h-auto"
-                onClick={() => handleContactSelection(index)}
-              >
-                <div className="flex flex-col items-start">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    <span className="font-medium">+{contact.telefone}</span>
+
+          {contactOptions.length > 0 ? (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {contactOptions.map((contact, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  className="w-full justify-start p-4 h-auto"
+                  onClick={() => handleContactSelection(index)}
+                >
+                  <div className="flex flex-col items-start">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      <span className="font-medium">+{contact.telefone}</span>
+                    </div>
+                    {contact.nome && (
+                      <span className="text-sm text-muted-foreground">{contact.nome}</span>
+                    )}
+                    {contact.observacoes && (
+                      <span className="text-xs text-muted-foreground italic">
+                        {contact.observacoes}
+                      </span>
+                    )}
                   </div>
-                  {contact.nome && (
-                    <span className="text-sm text-muted-foreground">{contact.nome}</span>
-                  )}
-                  {contact.observacoes && (
-                    <span className="text-xs text-muted-foreground italic">
-                      {contact.observacoes}
-                    </span>
-                  )}
-                </div>
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="manual-name">Nome</Label>
+                <Input
+                  id="manual-name"
+                  placeholder="Nome do contato"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="manual-phone">Número WhatsApp</Label>
+                <Input
+                  id="manual-phone"
+                  placeholder="Ex: 5561999887766"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  const phone = searchTerm.replace(/\D/g, '');
+                  const name = newMessage.trim() || phone;
+                  if (phone) {
+                    openWhatsApp(phone, name, name);
+                    setShowContactSelector(false);
+                    setSearchTerm('');
+                    setNewMessage('');
+                  } else {
+                    toast({
+                      title: "Erro",
+                      description: "Digite um número válido",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Abrir WhatsApp
               </Button>
-            ))}
-          </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

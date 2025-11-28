@@ -1,58 +1,62 @@
-// src/pages/CrmPdvPage.tsx
-
 import React, { useState, useMemo } from 'react';
-import { useAtendimentos } from '@/hooks/useAtendimentos';
-import { supabase } from '@/integrations/supabase/client';
-import { dateToLocalISO, formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
-import { Plus, Grid3X3, Table2 } from 'lucide-react';
+import { useTickets, useUpdateTicket } from '@/hooks/useTickets';
+import { formatDateSafe } from '@/lib/dateUtils';
+import { Plus, Grid3X3, Table2, Clock, CheckCircle, AlertTriangle, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import KanbanTaskCard from '../components/KanbanTaskCard';
-import AtendimentoDetailModal from '@/components/crm/AtendimentoDetailModal';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useDrop } from 'react-dnd';
 import { ItemTypes } from '@/constants/ItemTypes';
 import { toast } from 'sonner';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AnimatedKPICard } from '../components/AnimatedKPICard';
 import { MobileFirstFilters } from '../components/MobileFirstFilters';
-import AtendimentosTable from '@/components/crm/AtendimentosTable';
-import { ExclamationTriangleIcon, CheckCircleIcon, ClockIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
-import { AtendimentoComAssignee } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
+import { startOfDay, startOfWeek, startOfMonth, parseISO, isAfter } from 'date-fns';
 
-export type KanbanColumnStatus = 'Solicitação' | 'Em Análise' | 'Resolvido';
-const kanbanColumns: KanbanColumnStatus[] = ['Solicitação', 'Em Análise', 'Resolvido'];
-
-// Interface para as props do KanbanColumn (sem alterações)
-interface KanbanColumnProps {
-  title: KanbanColumnStatus;
-  atendimentos: AtendimentoComAssignee[]; // <-- CORREÇÃO
-  onDrop: (item: { id: number, status: KanbanColumnStatus }, newStatus: KanbanColumnStatus) => void;
-  onCardClick: (atendimento: AtendimentoComAssignee) => void; // <-- CORREÇÃO
-}
-
-// CORREÇÃO: Definição completa e correta do componente KanbanColumn
-// O erro foi corrigido garantindo que o componente retorne JSX.
-const COLUMN_COLORS: Record<KanbanColumnStatus, string> = {
-  'Solicitação': 'bg-gradient-to-br from-status-pending/5 to-status-pending/10 border-status-pending/20 shadow-status-pending/5',
-  'Em Análise': 'bg-gradient-to-br from-status-analysis/5 to-status-analysis/10 border-status-analysis/20 shadow-status-analysis/5', 
-  'Resolvido': 'bg-gradient-to-br from-status-resolved/5 to-status-resolved/10 border-status-resolved/20 shadow-status-resolved/5',
+// Mapeamento de status para labels amigáveis
+const STATUS_LABELS: Record<string, string> = {
+  'novo': 'Solicitação',
+  'em_analise': 'Em Análise',
+  'aguardando_departamento': 'Aguardando Depto.',
+  'em_tratativa': 'Em Tratativa',
+  'aguardando_cliente': 'Aguardando Cliente',
+  'resolvido': 'Resolvido'
 };
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop, onCardClick }) => {
+const KANBAN_COLUMNS = Object.keys(STATUS_LABELS);
+
+const COLUMN_COLORS: Record<string, string> = {
+  'novo': 'bg-blue-500/5 border-blue-500/20',
+  'em_analise': 'bg-purple-500/5 border-purple-500/20',
+  'aguardando_departamento': 'bg-orange-500/5 border-orange-500/20',
+  'em_tratativa': 'bg-yellow-500/5 border-yellow-500/20',
+  'aguardando_cliente': 'bg-pink-500/5 border-pink-500/20',
+  'resolvido': 'bg-green-500/5 border-green-500/20'
+};
+
+interface KanbanColumnProps {
+  status: string;
+  tickets: any[];
+  onDrop: (item: { id: string, status: string }, newStatus: string) => void;
+  onCardClick: (ticketId: string) => void;
+}
+
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ status, tickets, onDrop, onCardClick }) => {
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: ItemTypes.ATENDIMENTO_CARD,
-    drop: (item: { id: number, status: KanbanColumnStatus }) => onDrop(item, title),
+    accept: ItemTypes.ATENDIMENTO_CARD, // Reusing existing item type or create new one
+    drop: (item: { id: string, status: string }) => onDrop(item, status),
     collect: (monitor) => ({ isOver: !!monitor.isOver() }),
   }));
 
-  // Badge de atrasados: considera atrasado se status não for 'Resolvido' e criado há mais de 3 dias
   const now = Date.now();
-  const atrasados = atendimentos.filter(at => {
-    if (at.status === 'Resolvido') return false;
-    const created = parseISODateSafe(at.created_at);
-    if (!created) return false;
-    return (now - created.getTime()) > 3 * 24 * 60 * 60 * 1000;
+  const atrasados = tickets.filter(t => {
+    if (t.status === 'resolvido' || t.status === 'fechado') return false;
+    // Lógica de SLA simplificada para visualização
+    const sla = t.sla_resolucao ? new Date(t.sla_resolucao).getTime() : 0;
+    return sla > 0 && sla < now;
   }).length;
 
   return (
@@ -61,53 +65,40 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
       className={`
         rounded-lg border-2 transition-all duration-200
         min-h-[500px] w-full md:w-80 flex-shrink-0
-        ${COLUMN_COLORS[title]} 
-        ${isOver ? 'border-primary/50' : ''}
+        ${COLUMN_COLORS[status] || 'bg-gray-100 dark:bg-gray-800'} 
+        ${isOver ? 'border-primary/50 ring-2 ring-primary/20' : ''}
       `}
     >
-      {/* Header da coluna */}
-      <div className="p-3 border-b border-border">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium text-foreground">
-            {title}
-          </h3>
-          
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded text-xs bg-muted text-muted-foreground">
-              {atendimentos.length}
-            </span>
-            {atrasados > 0 && (
-              <span className="px-2 py-1 rounded text-xs bg-priority-urgent/10 text-priority-urgent" title="Atrasados">
-                {atrasados}
-              </span>
-            )}
-          </div>
-        </div>
+      <div className="p-3 border-b border-border/50 flex justify-between items-center sticky top-0 bg-inherit rounded-t-lg z-10 backdrop-blur-sm">
+        <h3 className="font-medium text-foreground flex items-center gap-2">
+          {STATUS_LABELS[status] || status}
+          <Badge variant="secondary" className="text-xs">{tickets.length}</Badge>
+        </h3>
+        {atrasados > 0 && (
+          <Badge variant="destructive" className="text-xs" title="Tickets vencidos">
+            {atrasados} vencidos
+          </Badge>
+        )}
       </div>
 
-      {/* Conteúdo da coluna */}
-            <div className="p-3 space-y-3 h-full overflow-y-auto">
-        {atendimentos.map((at) => (
-          <div 
-            key={at.id} 
-            onClick={() => onCardClick(at)}
-          >
+      <div className="p-3 space-y-3 h-[calc(100%-50px)] overflow-y-auto custom-scrollbar">
+        {tickets.map((ticket) => (
+          <div key={ticket.id} onClick={() => onCardClick(ticket.id)}>
             <KanbanTaskCard
-              id={at.id}
-              cliente={at.cliente?.nome_fantasia || at.cliente?.razao_social || 'Cliente Desconhecido'}
-              resumo={at.summary || undefined}
-              data={at.created_at ? formatDateSafe(at.created_at, 'dd/MM/yyyy') : '-'}
-              motivo={at.reason || '-'}
-              avatar={at.client_name ? at.client_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
-              created_at={at.created_at}
+              id={ticket.id}
+              cliente={ticket.clientes?.nome_fantasia || 'Cliente Desconhecido'}
+              resumo={ticket.titulo}
+              data={formatDateSafe(ticket.created_at, 'dd/MM HH:mm')}
+              motivo={ticket.tipo_reclamacao || ticket.prioridade}
+              avatar={ticket.clientes?.nome_fantasia?.substring(0, 2).toUpperCase() || '?'}
+              created_at={ticket.created_at}
+              priority={ticket.prioridade}
             />
           </div>
         ))}
-        
-        {/* Estado vazio */}
-        {atendimentos.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-            <p className="text-sm">Nenhum atendimento</p>
+        {tickets.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground opacity-50">
+            <p className="text-sm">Vazio</p>
           </div>
         )}
       </div>
@@ -115,241 +106,206 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, atendimentos, onDrop
   );
 };
 
-
 const CrmPdvPage = () => {
-  const { atendimentos, loading, error } = useAtendimentos();
-  const [selectedAtendimento, setSelectedAtendimento] = useState<AtendimentoComAssignee | null>(null);
+  const { data: tickets, isLoading, error } = useTickets();
+  const updateTicket = useUpdateTicket();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-
-  // Filtros de busca
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [view, setView] = useState<'kanban' | 'table'>('kanban');
+
+  // Novos estados para filtros
   const [motivo, setMotivo] = useState('all');
   const [period, setPeriod] = useState('all');
 
-  // Alternância de visualização
-  const [view, setView] = useState<'kanban' | 'table'>('kanban');
+  const filteredTickets = useMemo(() => {
+    if (!tickets) return [];
+    let filtered = tickets;
 
-  // Opções de status, motivo e período (mock, pode ser dinâmico)
-  const statusOptions = ['Solicitação', 'Em Análise', 'Resolvido'];
-  const motivoOptions = Array.from(new Set(atendimentos.map(a => a.reason).filter(Boolean))) as string[];
-  const periodOptions = ['Últimos 7 dias', 'Este mês', 'Últimos 30 dias', 'Todo Período'];
-
-  // Função para limpar filtros
-  const handleClear = () => {
-    setSearch('');
-    setStatus('all');
-    setMotivo('all');
-    setPeriod('all');
-  };
-
-  // Filtragem dos atendimentos
-  const filteredAtendimentos = useMemo(() => {
-    let filtered = atendimentos;
     if (search) {
       const s = search.toLowerCase();
-      filtered = filtered.filter(a =>
-        (a.client_name && a.client_name.toLowerCase().includes(s)) ||
-        (a.contact_person && a.contact_person.toLowerCase().includes(s)) ||
-        (a.summary && a.summary.toLowerCase().includes(s))
+      filtered = filtered.filter((t: any) =>
+        t.titulo?.toLowerCase().includes(s) ||
+        t.clientes?.nome_fantasia?.toLowerCase().includes(s) ||
+        t.numero_ticket?.toString().includes(s)
       );
     }
-    if (status !== 'all') filtered = filtered.filter(a => a.status === status);
-    if (motivo !== 'all') filtered = filtered.filter(a => a.reason === motivo);
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((t: any) => t.status === statusFilter);
+    }
+
+    if (motivo !== 'all') {
+      filtered = filtered.filter((t: any) => t.tipo_reclamacao === motivo);
+    }
+
     if (period !== 'all') {
       const now = new Date();
-      filtered = filtered.filter(a => {
-        const created = new Date(a.created_at);
-        if (period === 'Últimos 7 dias') return (now.getTime() - created.getTime()) < 8 * 24 * 60 * 60 * 1000;
-        if (period === 'Este mês') return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-        if (period === 'Últimos 30 dias') return (now.getTime() - created.getTime()) < 31 * 24 * 60 * 60 * 1000;
-        return true;
-      });
+      let startDate: Date | null = null;
+
+      switch (period) {
+        case 'Hoje':
+          startDate = startOfDay(now);
+          break;
+        case 'Esta Semana':
+          startDate = startOfWeek(now, { weekStartsOn: 0 });
+          break;
+        case 'Este Mês':
+          startDate = startOfMonth(now);
+          break;
+      }
+
+      if (startDate) {
+        filtered = filtered.filter((t: any) => {
+          if (!t.created_at) return false;
+          const ticketDate = parseISO(t.created_at);
+          return isAfter(ticketDate, startDate) || ticketDate.getTime() === startDate.getTime();
+        });
+      }
     }
+
     return filtered;
-  }, [atendimentos, search, status, motivo, period]);
+  }, [tickets, search, statusFilter, motivo, period]);
 
-  const handleDrop = async (item: { id: number, status: KanbanColumnStatus }, newStatus: KanbanColumnStatus) => {
-    if (item.status === newStatus) return;
+  const handleDrop = async (item: { id: string, status: string }, newStatus: string) => {
+    if (item.status === newStatus || !user?.id) return;
 
-    const updatePayload: { status: KanbanColumnStatus; resolved_at?: string } = { status: newStatus };
-    if (newStatus === 'Resolvido') {
-      updatePayload.resolved_at = dateToLocalISO(new Date());
-    }
-    const { error } = await supabase.from('atendimentos').update(updatePayload).eq('id', item.id);
-    if (error) {
-      toast.error('Falha ao mover atendimento', { description: error.message });
-      // setAtendimentos(originalAtendimentos);
-    } else {
-      toast.success(`Atendimento movido para "${newStatus}"`);
+    try {
+      await updateTicket.mutateAsync({
+        ticketId: item.id,
+        updates: { status: newStatus },
+        userId: user.id
+      });
+      toast.success(`Ticket movido para ${STATUS_LABELS[newStatus]}`);
+    } catch (error) {
+      toast.error("Erro ao mover ticket");
     }
   };
 
-  if (loading) return (
-    <div className="p-6 space-y-6">
-      <div className="animate-pulse">
-        <div className="h-8 bg-muted rounded w-1/3 mb-2"></div>
-        <div className="h-4 bg-muted rounded w-1/2"></div>
-      </div>
-      <div className="flex gap-4">
-        {[1,2,3].map(i => (
-          <div key={i} className="flex-1 space-y-3">
-            <div className="h-6 bg-muted rounded"></div>
-            <div className="space-y-2">
-              {[1,2,3].map(j => (
-                <div key={j} className="h-24 bg-muted rounded"></div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-  if (error) return <div className="p-6 text-red-500">Erro ao carregar atendimentos: {error}</div>;
+  if (isLoading) return <div className="p-8 flex justify-center"><Clock className="animate-spin w-8 h-8" /></div>;
+  if (error) return <div className="p-8 text-red-500">Erro ao carregar tickets</div>;
+
+  const totalTickets = filteredTickets.length;
+  const resolvidos = filteredTickets.filter((t: any) => t.status === 'resolvido').length;
+  const emAberto = totalTickets - resolvidos;
+  const atrasados = filteredTickets.filter((t: any) => {
+    if (t.status === 'resolvido' || t.status === 'fechado') return false;
+    const sla = t.sla_resolucao ? new Date(t.sla_resolucao).getTime() : 0;
+    return sla > 0 && sla < Date.now();
+  }).length;
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto p-6">
-          
-          {/* Header Limpo */}
-          <div className="mb-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-semibold text-foreground mb-1">
-                  Pós-Vendas
-                </h1>
-                <p className="text-muted-foreground">
-                  Gerencie atendimentos e solicitações
-                </p>
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-[1600px] mx-auto space-y-6">
+
+          {/* Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Pós-Vendas</h1>
+              <p className="text-muted-foreground">Gestão de tickets e solicitações de clientes</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-muted rounded-md p-1">
+                <Button
+                  variant={view === 'kanban' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('kanban')}
+                >
+                  <Grid3X3 className="mr-2 h-4 w-4" />
+                  Kanban
+                </Button>
+                <Button
+                  variant={view === 'table' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setView('table')}
+                >
+                  <Table2 className="mr-2 h-4 w-4" />
+                  Tabela
+                </Button>
               </div>
-              
-              <div className="flex items-center gap-2">
-                {/* View Toggle */}
-                <div className="flex items-center bg-muted rounded-md p-1">
-                  <Button 
-                    variant={view === 'kanban' ? 'default' : 'ghost'} 
-                    size="sm"
-                    onClick={() => setView('kanban')}
-                  >
-                    <Grid3X3 className="mr-2 h-4 w-4" />
-                    Kanban
-                  </Button>
-                  <Button 
-                    variant={view === 'table' ? 'default' : 'ghost'} 
-                    size="sm"
-                    onClick={() => setView('table')}
-                  >
-                    <Table2 className="mr-2 h-4 w-4" />
-                    Tabela
-                  </Button>
-                </div>
-                
-                <Link to="/pos-vendas/novo">
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Atendimento
-                  </Button>
-                </Link>
-              </div>
+              <Button onClick={() => navigate('/pos-vendas/novo')}>
+                <Plus className="mr-2 h-4 w-4" /> Novo Ticket
+              </Button>
             </div>
           </div>
 
-          {/* Métricas */}
-          <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
-            <AnimatedKPICard 
-              value={filteredAtendimentos.filter(a => a.status === 'Solicitação' || a.status === 'Em Análise').length} 
-              label="Em Aberto" 
+          {/* KPIs */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <AnimatedKPICard
+              value={emAberto}
+              label="Em Aberto"
               color="warning"
-              icon={<ClockIcon className="w-6 h-6" />}
-              trend="up"
-              trendValue="+12%"
+              icon={<Clock className="w-6 h-6" />}
+              trend="stable"
             />
-            <AnimatedKPICard 
-              value={filteredAtendimentos.filter(a => a.status === 'Resolvido').length} 
-              label="Resolvidos" 
+            <AnimatedKPICard
+              value={resolvidos}
+              label="Resolvidos"
               color="success"
-              icon={<CheckCircleIcon className="w-6 h-6" />}
+              icon={<CheckCircle className="w-6 h-6" />}
               trend="up"
-              trendValue="+25%"
+              trendValue="+5%"
             />
-            <AnimatedKPICard 
-              value={filteredAtendimentos.filter(a => {
-                if (a.status === 'Resolvido') return false;
-                const now = Date.now();
-                return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
-              }).length} 
-              label="Atrasados" 
+            <AnimatedKPICard
+              value={atrasados}
+              label="Vencidos"
               color="danger"
-              icon={<ExclamationTriangleIcon className="w-6 h-6" />}
-              trend={filteredAtendimentos.filter(a => {
-                if (a.status === 'Resolvido') return false;
-                const now = Date.now();
-                return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
-              }).length > 3 ? "up" : "down"}
-              trendValue={filteredAtendimentos.filter(a => {
-                if (a.status === 'Resolvido') return false;
-                const now = Date.now();
-                return (now - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000;
-              }).length > 3 ? "+15%" : "-8%"}
-              highlight={filteredAtendimentos.some(a => a.status !== 'Resolvido' && (Date.now() - new Date(a.created_at).getTime()) > 3 * 24 * 60 * 60 * 1000)}
+              icon={<AlertTriangle className="w-6 h-6" />}
+              trend={atrasados > 0 ? "down" : "stable"}
             />
-            <AnimatedKPICard 
-              value={filteredAtendimentos.length} 
-              label="Total" 
+            <AnimatedKPICard
+              value={totalTickets}
+              label="Total"
               color="primary"
-              icon={<ClipboardDocumentListIcon className="w-6 h-6" />}
+              icon={<ClipboardList className="w-6 h-6" />}
               trend="stable"
             />
           </div>
 
-          {/* Filtros */}
-          <div className="mb-6">
-            <MobileFirstFilters
-              search={search}
-              onSearchChange={setSearch}
-              status={status}
-              onStatusChange={setStatus}
-              motivo={motivo}
-              onMotivoChange={setMotivo}
-              period={period}
-              onPeriodChange={setPeriod}
-              onClear={handleClear}
-              statusOptions={statusOptions}
-              motivoOptions={motivoOptions}
-              periodOptions={periodOptions}
-            />
-          </div>
+          {/* Filters */}
+          <MobileFirstFilters
+            search={search}
+            onSearchChange={setSearch}
+            status={statusFilter}
+            onStatusChange={setStatusFilter}
+            statusOptions={Object.keys(STATUS_LABELS).map(k => STATUS_LABELS[k])}
+            motivo={motivo}
+            onMotivoChange={setMotivo}
+            period={period}
+            onPeriodChange={setPeriod}
+            motivoOptions={['Contestação de Cobrança', 'Demora na Aprovação', 'Má Qualidade', 'Outros']} // Exemplo
+            periodOptions={['Hoje', 'Esta Semana', 'Este Mês', 'Todos']}
+            onClear={() => {
+              setSearch('');
+              setStatusFilter('all');
+              setMotivo('all');
+              setPeriod('all');
+            }}
+          />
 
-          {/* Conteúdo Principal */}
+          {/* Kanban Board */}
           {view === 'kanban' ? (
-            <div className="flex gap-4 overflow-x-auto pb-4">
-              {kanbanColumns.map(columnStatus => {
-                const colAtendimentos = filteredAtendimentos.filter(at => at.status === columnStatus);
-                return (
-                  <KanbanColumn
-                    key={columnStatus}
-                    title={columnStatus}
-                    atendimentos={colAtendimentos}
-                    onDrop={handleDrop}
-                    onCardClick={(atendimento) => navigate(`/pos-vendas/${atendimento.id}`)}
-                  />
-                );
-              })}
+            <div className="flex gap-4 overflow-x-auto pb-4 min-h-[600px]">
+              {KANBAN_COLUMNS.map(status => (
+                <KanbanColumn
+                  key={status}
+                  status={status}
+                  tickets={filteredTickets.filter((t: any) => t.status === status)}
+                  onDrop={handleDrop}
+                  onCardClick={(id) => navigate(`/pos-vendas/${id}`)}
+                />
+              ))}
             </div>
           ) : (
             <div className="bg-card rounded-lg border p-4">
-              <AtendimentosTable atendimentos={filteredAtendimentos} onRowClick={setSelectedAtendimento} />
+              <p className="text-center text-muted-foreground">Visualização em tabela em desenvolvimento...</p>
+              {/* Implementar tabela se necessário */}
             </div>
           )}
         </div>
-
-        <AtendimentoDetailModal 
-          atendimento={selectedAtendimento}
-          onClose={() => setSelectedAtendimento(null)}
-          onUpdate={() => { /* refresh list after edit */ }}
-        />
       </div>
     </DndProvider>
   );
