@@ -45,6 +45,22 @@ const createNewOportunidade = async (newOpp: Partial<Oportunidade> & { user_id: 
   return data;
 };
 
+// Atualiza o estágio de uma oportunidade
+const updateOportunidadeEstagioFn = async ({ oportunidadeId, estagioId }: { oportunidadeId: string; estagioId: string }) => {
+  const { data, error } = await supabase
+    .from('oportunidades')
+    .update({ estagio_id: estagioId })
+    .eq('id', oportunidadeId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Erro ao atualizar estágio:", error);
+    throw new Error(error.message);
+  }
+  return data;
+};
+
 
 export function useOportunidades() {
   const { user } = useAuth();
@@ -76,10 +92,22 @@ export function useOportunidades() {
     }
   });
 
+  // Mutation para atualizar o estágio
+  const updateEstagioMutation = useMutation({
+    mutationFn: updateOportunidadeEstagioFn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['oportunidades'] });
+    },
+    onError: (err) => {
+      toast.error('Falha ao mover oportunidade', { description: err.message });
+    }
+  });
+
   return {
     oportunidades: data || [],
     isLoading,
     error: error as Error | null,
     createOportunidade: createMutation.mutateAsync,
+    updateOportunidadeEstagio: updateEstagioMutation.mutateAsync,
   };
 }

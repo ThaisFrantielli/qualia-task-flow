@@ -1,2 +1,3 @@
-2025/11/28-16:32:01.967 539c Creating DB C:\Users\frant\Quality Conecta\qualia-task-flow\whatsapp-service\whatsapp-session-default\session-whatsapp-client-default\Default\Service Worker\Database since it was missing.
-2025/11/28-16:32:01.974 539c Reusing MANIFEST C:\Users\frant\Quality Conecta\qualia-task-flow\whatsapp-service\whatsapp-session-default\session-whatsapp-client-default\Default\Service Worker\Database/MANIFEST-000001
+2025/11/29-21:38:03.470 17bc Reusing MANIFEST C:\Users\frant\Quality Conecta\qualia-task-flow\whatsapp-service\whatsapp-session-default\session-whatsapp-client-default\Default\Service Worker\Database/MANIFEST-000001
+2025/11/29-21:38:03.471 17bc Recovering log #3
+2025/11/29-21:38:03.472 17bc Reusing old log C:\Users\frant\Quality Conecta\qualia-task-flow\whatsapp-service\whatsapp-session-default\session-whatsapp-client-default\Default\Service Worker\Database/000003.log 
