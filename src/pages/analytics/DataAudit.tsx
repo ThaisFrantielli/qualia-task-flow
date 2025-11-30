@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
+import RevenueGap from './RevenueGap';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { AlertOctagon, AlertTriangle, BarChart2, Shield } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export default function DataAudit(): JSX.Element {
     { key: 'vendas', label: 'Vendas & Comercial', count: 38 },
     { key: 'cadastro', label: 'Cadastro & Frota', count: 0 },
     { key: 'financeiro', label: 'Financeiro', count: 0 },
+    { key: 'gap', label: 'Gap de Faturamento', count: 0 },
   ];
   const [activeTab, setActiveTab] = useState<string>('vendas');
 
@@ -200,6 +202,11 @@ export default function DataAudit(): JSX.Element {
                 <Text className="text-xs text-slate-400 mt-1">Todos os registros estão em conformidade.</Text>
               </div>
             </Card>
+          )}
+          {activeTab === 'gap' && (
+            <div>
+              <RevenueGap />
+            </div>
           )}
         </div>
       </div>

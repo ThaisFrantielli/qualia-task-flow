@@ -8,6 +8,7 @@ import {
   Car,
   ShoppingCart,
   Users,
+  FileText,
   BarChart3,
   AlertOctagon,
   Wrench,
@@ -109,18 +110,7 @@ export default function AnalyticsIndex() {
                   </div>
                 </Link>
 
-                <Link to="/analytics/revenue-gap" className="block p-4 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <TrendingUp className="w-5 h-5 text-slate-500 group-hover/item:text-blue-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-blue-900">Revenue Gap</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-blue-700">Análise de Metas vs. Realizado</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-blue-600 transition-colors" />
-                  </div>
-                </Link>
+                {/* Revenue Gap merged into Auditoria de Receita (DataAudit) */}
               </div>
             </div>
           </div>
@@ -156,6 +146,19 @@ export default function AnalyticsIndex() {
                       <div>
                         <div className="font-medium text-slate-700 group-hover/item:text-violet-900">Churn & Retenção</div>
                         <div className="text-xs text-slate-500 group-hover/item:text-violet-700">Análise de Perda de Clientes e LTV</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-violet-600 transition-colors" />
+                  </div>
+                </Link>
+                
+                <Link to="/analytics/contratos" className="block p-4 rounded-xl bg-slate-50 hover:bg-violet-50 border border-slate-100 hover:border-violet-200 transition-all group/item">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-slate-500 group-hover/item:text-violet-600 transition-colors" />
+                      <div>
+                        <div className="font-medium text-slate-700 group-hover/item:text-violet-900">Contratos</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-violet-700">Contratos ativos, movimentação e KPIs</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-violet-600 transition-colors" />

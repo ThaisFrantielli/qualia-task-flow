@@ -16,6 +16,7 @@ import {
     Legend
 } from 'recharts';
 import { FileText, TrendingUp, Users, AlertCircle } from 'lucide-react';
+import ChurnDashboard from './ChurnDashboard';
 
 type AnyObject = { [k: string]: any };
 
@@ -68,7 +69,7 @@ export default function ContractsDashboard(): JSX.Element {
     }, [churnData]);
 
     // Controle de Abas
-    const [activeTab, setActiveTab] = useState<'overview' | 'ativos' | 'movimentacao'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'ativos' | 'movimentacao' | 'churn'>('overview');
 
     // === CÁLCULOS: OVERVIEW ===
     const overviewKpis = useMemo(() => {
@@ -225,14 +226,14 @@ export default function ContractsDashboard(): JSX.Element {
 
             {/* Tabs de Navegação */}
             <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-                {['overview', 'ativos', 'movimentacao'].map((tab) => (
+                {['overview', 'ativos', 'movimentacao', 'churn'].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab as any)}
                         className={`px-4 py-2 text-sm font-medium rounded-md transition-all capitalize ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                             }`}
                     >
-                        {tab === 'overview' ? 'Visão Geral' : tab === 'ativos' ? 'Contratos Ativos' : 'Movimentação'}
+                        {tab === 'overview' ? 'Visão Geral' : tab === 'ativos' ? 'Contratos Ativos' : tab === 'movimentacao' ? 'Movimentação' : 'Abertura e Encerramento Contrato'}
                     </button>
                 ))}
             </div>
@@ -425,6 +426,12 @@ export default function ContractsDashboard(): JSX.Element {
                         </Card>
                     </div>
                 </>
+            )}
+            {/* === CONTEÚDO DA ABA CHURN (embed da página existente) === */}
+            {activeTab === 'churn' && (
+                <div>
+                    <ChurnDashboard />
+                </div>
             )}
         </div>
     );
