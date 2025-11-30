@@ -1,11 +1,25 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, PieChart, Pie, Cell, ComposedChart } from 'recharts';
+import {
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip,
+    CartesianGrid,
+    PieChart,
+    Pie,
+    Cell,
+    LabelList,
+    Legend
+} from 'recharts';
 import { FileText, TrendingUp, Users, AlertCircle } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
+// Formata moeda
 function fmtBRL(v: number) {
     try {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -14,10 +28,12 @@ function fmtBRL(v: number) {
     }
 }
 
+// Gera chave de mês YYYY-MM
 function monthKey(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// Formata label MMM/YY
 function monthLabel(ym: string) {
     const [y, m] = ym.split('-');
     const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -26,20 +42,22 @@ function monthLabel(ym: string) {
 }
 
 export default function ContractsDashboard(): JSX.Element {
+    // Hooks de dados
     const { data: contratosData } = useBIData<AnyObject[]>('contratos_ativos.json');
     const { data: churnData } = useBIData<AnyObject[]>('churn_contratos.json');
 
-    // Normalize contratos data
+    // Normalização de dados (Contratos)
     const contratos: AnyObject[] = useMemo(() => {
         if (!contratosData) return [];
         if (Array.isArray(contratosData)) return contratosData as AnyObject[];
+        // Tratamento para estruturas { data: [...] }
         if ((contratosData as any).data && Array.isArray((contratosData as any).data)) return (contratosData as any).data;
         const keys = Object.keys(contratosData as any);
         for (const k of keys) if (Array.isArray((contratosData as any)[k])) return (contratosData as any)[k];
         return [];
     }, [contratosData]);
 
-    // Normalize churn data
+    // Normalização de dados (Churn)
     const churnRecords: AnyObject[] = useMemo(() => {
         if (!churnData) return [];
         if (Array.isArray(churnData)) return churnData as AnyObject[];
@@ -49,23 +67,26 @@ export default function ContractsDashboard(): JSX.Element {
         return [];
     }, [churnData]);
 
-    // Tabs
+    // Controle de Abas
     const [activeTab, setActiveTab] = useState<'overview' | 'ativos' | 'movimentacao'>('overview');
 
-    // === OVERVIEW TAB ===
+    // === CÁLCULOS: OVERVIEW ===
     const overviewKpis = useMemo(() => {
         const totalAtivos = contratos.length;
+        // Tenta pegar ValorMensal ou ValorVigente
         const totalValorMensal = contratos.reduce((s, c) => s + (Number(c.ValorMensal || c.ValorVigente) || 0), 0);
 
-        // Churn metrics
+        // Métricas de Churn (Histórico total carregado)
         const iniciados = churnRecords.filter(r => String(r.TipoEvento || '').toLowerCase() === 'iniciado').length;
         const encerrados = churnRecords.filter(r => String(r.TipoEvento || '').toLowerCase() === 'encerrado').length;
+
+        // Taxa de Churn simples (Encerrados / Total Movimentado)
         const churnRate = (iniciados + encerrados) ? (encerrados / (iniciados + encerrados)) * 100 : 0;
 
         return { totalAtivos, totalValorMensal, iniciados, encerrados, churnRate };
     }, [contratos, churnRecords]);
 
-    // Contratos por cliente
+    // Contratos por cliente (Top 10)
     const contratosPorCliente = useMemo(() => {
         const map: Record<string, number> = {};
         contratos.forEach(c => {
@@ -78,37 +99,34 @@ export default function ContractsDashboard(): JSX.Element {
             .slice(0, 10);
     }, [contratos]);
 
-    // Distribuição por tipo de contrato (se houver campo)
+    // Distribuição por tipo (Pie Chart)
     const tiposContrato = useMemo(() => {
         const map: Record<string, number> = {};
         contratos.forEach(c => {
-            const tipo = c.TipoContrato || c.Tipo || 'Locação'; // default to Locação
+            // Tenta identificar o tipo, senão assume Locação
+            const tipo = c.TipoContrato || c.Tipo || 'Locação';
             map[tipo] = (map[tipo] || 0) + 1;
         });
         return Object.entries(map).map(([name, value]) => ({ name, value }));
     }, [contratos]);
 
-    // === ATIVOS TAB ===
+    // === CÁLCULOS: ATIVOS ===
     const [ativosDateFrom, setAtivosDateFrom] = useState<string | null>(null);
     const [ativosDateTo, setAtivosDateTo] = useState<string | null>(null);
 
     const contratosFiltered = useMemo(() => {
         return contratos.filter(c => {
-            if (ativosDateFrom) {
-                const inicio = c.InicioContrato || c.DataInicio || c.Inicio;
-                if (!inicio) return false;
-                if (new Date(inicio) < new Date(ativosDateFrom + 'T00:00:00')) return false;
-            }
-            if (ativosDateTo) {
-                const inicio = c.InicioContrato || c.DataInicio || c.Inicio;
-                if (!inicio) return false;
-                if (new Date(inicio) > new Date(ativosDateTo + 'T23:59:59')) return false;
-            }
+            const inicio = c.InicioContrato || c.DataInicio || c.Inicio;
+            if (!inicio) return false;
+
+            if (ativosDateFrom && new Date(inicio) < new Date(ativosDateFrom + 'T00:00:00')) return false;
+            if (ativosDateTo && new Date(inicio) > new Date(ativosDateTo + 'T23:59:59')) return false;
+
             return true;
         });
     }, [contratos, ativosDateFrom, ativosDateTo]);
 
-    // Distribuição de valores mensais
+    // Histograma de Valores
     const valoresDistribution = useMemo(() => {
         const ranges = [
             { key: 'R$ 0-1k', min: 0, max: 1000 },
@@ -131,7 +149,7 @@ export default function ContractsDashboard(): JSX.Element {
         return map;
     }, [contratosFiltered]);
 
-    // Top clientes por valor
+    // Top Clientes Financeiro
     const topClientesPorValor = useMemo(() => {
         const map: Record<string, number> = {};
         contratosFiltered.forEach(c => {
@@ -145,20 +163,15 @@ export default function ContractsDashboard(): JSX.Element {
             .slice(0, 10);
     }, [contratosFiltered]);
 
-    // === MOVIMENTAÇÃO TAB ===
+    // === CÁLCULOS: MOVIMENTAÇÃO ===
     const [movDateFrom, setMovDateFrom] = useState<string | null>(null);
     const [movDateTo, setMovDateTo] = useState<string | null>(null);
 
     const churnFiltered = useMemo(() => {
         return churnRecords.filter(r => {
-            if (movDateFrom) {
-                if (!r.DataEvento) return false;
-                if (new Date(r.DataEvento) < new Date(movDateFrom + 'T00:00:00')) return false;
-            }
-            if (movDateTo) {
-                if (!r.DataEvento) return false;
-                if (new Date(r.DataEvento) > new Date(movDateTo + 'T23:59:59')) return false;
-            }
+            if (!r.DataEvento) return false;
+            if (movDateFrom && new Date(r.DataEvento) < new Date(movDateFrom + 'T00:00:00')) return false;
+            if (movDateTo && new Date(r.DataEvento) > new Date(movDateTo + 'T23:59:59')) return false;
             return true;
         });
     }, [churnRecords, movDateFrom, movDateTo]);
@@ -169,13 +182,12 @@ export default function ContractsDashboard(): JSX.Element {
             const d = r.DataEvento ? new Date(r.DataEvento) : null;
             const month = d ? monthKey(d) : 'unknown';
             if (!map[month]) map[month] = { Novos: 0, Cancelados: 0 };
+
             const tipo = String(r.TipoEvento || '').toLowerCase();
-            if (tipo === 'iniciado') {
-                map[month].Novos += 1;
-            } else if (tipo === 'encerrado') {
-                map[month].Cancelados += 1;
-            }
+            if (tipo === 'iniciado') map[month].Novos += 1;
+            else if (tipo === 'encerrado') map[month].Cancelados += 1;
         });
+
         return Object.keys(map).sort().map(k => ({
             month: monthLabel(k),
             Novos: map[k].Novos,
@@ -184,7 +196,6 @@ export default function ContractsDashboard(): JSX.Element {
         }));
     }, [churnFiltered]);
 
-    // Motivos de encerramento
     const motivosEncerramento = useMemo(() => {
         const map: Record<string, number> = {};
         churnFiltered.forEach(r => {
@@ -212,34 +223,24 @@ export default function ContractsDashboard(): JSX.Element {
                 </div>
             </div>
 
-            {/* Tabs */}
+            {/* Tabs de Navegação */}
             <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-                <button
-                    onClick={() => setActiveTab('overview')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                >
-                    Visão Geral
-                </button>
-                <button
-                    onClick={() => setActiveTab('ativos')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'ativos' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                >
-                    Contratos Ativos
-                </button>
-                <button
-                    onClick={() => setActiveTab('movimentacao')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'movimentacao' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                >
-                    Movimentação
-                </button>
+                {['overview', 'ativos', 'movimentacao'].map((tab) => (
+                    <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab as any)}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all capitalize ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                    >
+                        {tab === 'overview' ? 'Visão Geral' : tab === 'ativos' ? 'Contratos Ativos' : 'Movimentação'}
+                    </button>
+                ))}
             </div>
 
-            {/* OVERVIEW TAB */}
+            {/* === CONTEÚDO DA ABA OVERVIEW === */}
             {activeTab === 'overview' && (
                 <>
+                    {/* KPI Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <Card className="bg-white shadow-sm border border-slate-200">
                             <div className="flex items-center gap-3">
@@ -291,6 +292,7 @@ export default function ContractsDashboard(): JSX.Element {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Top Clientes */}
                         <Card className="bg-white shadow-sm border border-slate-200">
                             <Title className="text-slate-900">Top 10 Clientes (por quantidade)</Title>
                             <div className="mt-4 h-80 overflow-y-auto pr-2">
@@ -298,6 +300,7 @@ export default function ContractsDashboard(): JSX.Element {
                             </div>
                         </Card>
 
+                        {/* Pizza Tipo Contrato */}
                         <Card className="bg-white shadow-sm border border-slate-200">
                             <Title className="text-slate-900">Distribuição por Tipo</Title>
                             <div className="h-80 mt-4">
@@ -312,11 +315,12 @@ export default function ContractsDashboard(): JSX.Element {
                                             label={({ percent }: any) => `${Math.round(percent * 100)}%`}
                                             labelLine={false}
                                         >
-                                            {tiposContrato.map((entry, idx) => (
+                                            {tiposContrato.map((_, idx) => (
                                                 <Cell key={`cell-${idx}`} fill={["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b"][idx % 4]} />
                                             ))}
                                         </Pie>
-                                        <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                        <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                        <Legend verticalAlign="bottom" height={36} />
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
@@ -325,7 +329,7 @@ export default function ContractsDashboard(): JSX.Element {
                 </>
             )}
 
-            {/* ATIVOS TAB */}
+            {/* === CONTEÚDO DA ABA ATIVOS === */}
             {activeTab === 'ativos' && (
                 <>
                     <Card className="bg-white shadow-sm border border-slate-200">
@@ -334,15 +338,12 @@ export default function ContractsDashboard(): JSX.Element {
                             <div>
                                 <Text className="text-slate-500 text-xs mb-1">Data Início (De - Até)</Text>
                                 <div className="flex gap-2">
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={ativosDateFrom || ''} onChange={(e) => setAtivosDateFrom(e.target.value || null)} />
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={ativosDateTo || ''} onChange={(e) => setAtivosDateTo(e.target.value || null)} />
+                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={ativosDateFrom || ''} onChange={(e) => setAtivosDateFrom(e.target.value || null)} />
+                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={ativosDateTo || ''} onChange={(e) => setAtivosDateTo(e.target.value || null)} />
                                 </div>
                             </div>
                             <div className="flex items-end">
-                                <button
-                                    onClick={() => { setAtivosDateFrom(null); setAtivosDateTo(null); }}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors w-full"
-                                >
+                                <button onClick={() => { setAtivosDateFrom(null); setAtivosDateTo(null); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm w-full">
                                     Limpar Filtros
                                 </button>
                             </div>
@@ -358,10 +359,7 @@ export default function ContractsDashboard(): JSX.Element {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                                         <XAxis dataKey="faixa" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                         <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip
-                                            cursor={{ fill: '#f1f5f9' }}
-                                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        />
+                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ backgroundColor: '#fff', borderRadius: '8px' }} />
                                         <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                                             <LabelList dataKey="count" position="top" fill="#64748b" fontSize={12} />
                                         </Bar>
@@ -380,7 +378,7 @@ export default function ContractsDashboard(): JSX.Element {
                 </>
             )}
 
-            {/* MOVIMENTAÇÃO TAB */}
+            {/* === CONTEÚDO DA ABA MOVIMENTAÇÃO === */}
             {activeTab === 'movimentacao' && (
                 <>
                     <Card className="bg-white shadow-sm border border-slate-200">
@@ -389,15 +387,12 @@ export default function ContractsDashboard(): JSX.Element {
                             <div>
                                 <Text className="text-slate-500 text-xs mb-1">Período (De - Até)</Text>
                                 <div className="flex gap-2">
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={movDateFrom || ''} onChange={(e) => setMovDateFrom(e.target.value || null)} />
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={movDateTo || ''} onChange={(e) => setMovDateTo(e.target.value || null)} />
+                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={movDateFrom || ''} onChange={(e) => setMovDateFrom(e.target.value || null)} />
+                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={movDateTo || ''} onChange={(e) => setMovDateTo(e.target.value || null)} />
                                 </div>
                             </div>
                             <div className="flex items-end">
-                                <button
-                                    onClick={() => { setMovDateFrom(null); setMovDateTo(null); }}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors w-full"
-                                >
+                                <button onClick={() => { setMovDateFrom(null); setMovDateTo(null); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm w-full">
                                     Limpar Filtros
                                 </button>
                             </div>
@@ -413,10 +408,8 @@ export default function ContractsDashboard(): JSX.Element {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                                         <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                                         <YAxis allowDecimals={false} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip
-                                            cursor={{ fill: '#f1f5f9' }}
-                                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        />
+                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ backgroundColor: '#fff', borderRadius: '8px' }} />
+                                        <Legend verticalAlign="top" height={36} />
                                         <Bar dataKey="Novos" name="Novos" fill="#10b981" />
                                         <Bar dataKey="Cancelados" name="Cancelados" fill="#ef4444" />
                                     </BarChart>
