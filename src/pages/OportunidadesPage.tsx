@@ -113,8 +113,6 @@ export default function OportunidadesPage() {
         descricao: formData.descricao,
         valor_total: formData.valor_total ? parseFloat(formData.valor_total) : 0,
         status: 'aberta',
-        funil_id: selectedFunilId || undefined,
-        estagio_id: primeiroEstagio?.id || undefined,
       });
 
       setIsDialogOpen(false);
@@ -139,7 +137,7 @@ export default function OportunidadesPage() {
 
     const grupos: Record<string, any[]> = {};
     funilSelecionado.estagios.forEach(estagio => {
-      grupos[estagio.id] = oportunidades.filter(opp => opp.estagio_id === estagio.id);
+      grupos[estagio.id] = oportunidades.filter((opp: any) => opp.estagio_id === estagio.id);
     });
 
     return grupos;

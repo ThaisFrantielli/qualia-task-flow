@@ -59,7 +59,7 @@ export function TicketDepartamentoCard({ departamento, onViewTask }: TicketDepar
                             {DEPARTAMENTO_LABELS[departamento.departamento] || departamento.departamento}
                         </CardTitle>
                     </div>
-                    {getStatusBadge(departamento.status)}
+                    {getStatusBadge(status)}
                 </div>
             </CardHeader>
             <CardContent className="space-y-3">

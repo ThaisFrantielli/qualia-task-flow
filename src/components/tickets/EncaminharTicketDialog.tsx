@@ -37,10 +37,9 @@ const formSchema = z.object({
 
 interface EncaminharTicketDialogProps {
     ticketId: string;
-    currentSetor?: string | null;
 }
 
-export function EncaminharTicketDialog({ ticketId, currentSetor }: EncaminharTicketDialogProps) {
+export function EncaminharTicketDialog({ ticketId }: EncaminharTicketDialogProps) {
     const [open, setOpen] = useState(false);
     const updateTicket = useUpdateTicket();
     const addInteracao = useAddTicketInteracao();
@@ -56,17 +55,18 @@ export function EncaminharTicketDialog({ ticketId, currentSetor }: EncaminharTic
     function onSubmit(values: z.infer<typeof formSchema>) {
         updateTicket.mutate(
             {
-                id: ticketId,
-                setor_responsavel: values.setor,
-                status: "aguardando_setor",
+                ticketId: ticketId,
+                updates: {
+                    setor_responsavel: values.setor,
+                    status: "aguardando_setor",
+                },
+                userId: "", // Will be set by the backend
             },
             {
                 onSuccess: () => {
                     addInteracao.mutate({
                         ticket_id: ticketId,
                         tipo: "encaminhamento",
-                        setor_origem: currentSetor,
-                        setor_destino: values.setor,
                         mensagem: values.mensagem,
                     });
                     toast.success(`Ticket encaminhado para ${values.setor}`);
