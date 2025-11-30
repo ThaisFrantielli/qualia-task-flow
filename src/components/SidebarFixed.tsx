@@ -7,6 +7,7 @@ import {
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
   PanelLeftClose, PanelRightClose, Inbox, Ticket
 } from 'lucide-react';
+import { FileText } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,11 +46,11 @@ const menuGroups: MenuGroup[] = [
         children: [
           { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
           { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
-          { label: 'Gap de Faturamento', url: '/analytics/revenue-gap', icon: BarChart3 },
+          
           { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
               { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
-              { label: 'Abertura e Encerramento Contrato', url: '/analytics/churn', icon: BarChart3 },
               { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
+              { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
         ],
       },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },

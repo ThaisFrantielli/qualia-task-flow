@@ -22,13 +22,13 @@ import CrmDashboardPage from '@/pages/CrmDashboardPage';
 import CreateAtendimentoPage from '@/pages/CreateAtendimentoPage';
 import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
+import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import SalesPerformance from '@/pages/analytics/SalesPerformance';
 import DataAudit from '@/pages/analytics/DataAudit';
 import ChurnDashboard from '@/pages/analytics/ChurnDashboard';
 import FinancialAnalytics from '@/pages/analytics/FinancialAnalytics';
 import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
-import RevenueGap from '@/pages/analytics/RevenueGap';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
 import NotFound from '@/pages/NotFound';
@@ -91,8 +91,8 @@ function App() {
                 <Route path="frota" element={<FleetDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="churn" element={<ChurnDashboard />} />
-                <Route path="revenue-gap" element={<RevenueGap />} />
                 <Route path="financeiro" element={<FinancialAnalytics />} />
+                <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="auditoria" element={<DataAudit />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />
                 <Route path="performance-vendas" element={<SalesPerformance />} />

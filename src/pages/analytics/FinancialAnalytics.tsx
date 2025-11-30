@@ -1,428 +1,563 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList } from '@tremor/react';
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Wallet, TrendingUp, AlertCircle, FileText } from 'lucide-react';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { Wallet, Search } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
-
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-function parseDate(v?: string | null) {
-  if (!v) return null;
-  const d = new Date(String(v));
-  if (isNaN(d.getTime())) return null;
-  return d;
+// --- FUNÇÕES AUXILIARES ---
+
+// Garante chave de mês consistente (YYYY-MM) ignorando fuso horário
+function getMonthKey(dateString?: string): string {
+  if (!dateString || typeof dateString !== 'string') return '';
+  return dateString.split('T')[0].substring(0, 7);
 }
 
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function endOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
-}
-
-function daysBetweenInclusive(a: Date, b: Date) {
-  if (b < a) return 0;
-  return Math.floor((b.getTime() - a.getTime()) / MS_PER_DAY) + 1;
-}
-
-function monthKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function monthLabel(ym: string) {
+function monthLabel(ym: string): string {
+  if (!ym || ym.length < 7) return ym;
   const [y, m] = ym.split('-');
   const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  const mi = Number(m) - 1;
-  return `${months[mi]}/${String(y).slice(2)}`;
+  return `${months[Number(m) - 1]}/${String(y).slice(2)}`;
 }
 
-function fmtBRL(v: number) {
+function fmtBRL(v: number): string {
   try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
   catch (e) { return String(v); }
 }
 
+function fmtCompact(v: number): string {
+  if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `R$ ${(v / 1000).toFixed(0)}k`;
+  return `R$ ${v}`;
+}
+
+// Converte strings financeiras ou números para Float seguro
+function parseCurrency(v: any): number {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim();
+  if (s === '') return 0;
+  // Remove R$ e espaços
+  s = s.replace(/R\$|\s/g, '');
+  // Tratamento para formato brasileiro
+  if (s.includes(',') && !s.includes('.')) {
+    // '1234,56' -> '1234.56'
+    s = s.replace(',', '.');
+  } else if (s.includes('.') && s.includes(',')) {
+    // '1.234.567,89' -> '1234567.89'
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes('.') && !s.includes(',')) {
+    // Ambiguous: could be '1234.56' (decimal) or '1.234' (thousands).
+    // Heuristic: if dot groups look like thousands (e.g. 1.234 or 12.345.678) remove dots.
+    if (/^[-+]?\d{1,3}(?:\.\d{3})+$/.test(s)) {
+     s = s.replace(/\./g, '');
+    }
+    // otherwise keep dot as decimal separator
+  }
+  // Remove tudo que não é dígito, ponto ou sinal
+  s = s.replace(/[^0-9.\-]/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// Tenta ler várias chaves possíveis para quantidade de veículos
+function getQty(row: AnyObject): number {
+  if (!row) return 0;
+  const candidates = ['QtdVeiculos', 'QtdVeiculo', 'QtdVeic', 'QuantidadeVeiculos', 'QuantidadeVeiculo', 'qtdVeiculos', 'qtd', 'Quantidade'];
+  for (const k of candidates) {
+    if (k in row) return parseCurrency(row[k]);
+  }
+  return 0;
+}
+
+// --- COMPONENTE PRINCIPAL ---
 export default function FinancialAnalytics(): JSX.Element {
-  // Data sources
+  // Hooks de Dados (ETL)
   const { data: financeiroData } = useBIData<AnyObject[]>('financeiro_completo.json');
   const { data: contratosData } = useBIData<AnyObject[]>('contratos_ativos.json');
 
-  // Normalize payloads
-  const financeiro: AnyObject[] = useMemo(() => {
-    if (!financeiroData) return [];
-    if (Array.isArray(financeiroData)) return financeiroData as AnyObject[];
-    if ((financeiroData as any).data && Array.isArray((financeiroData as any).data)) return (financeiroData as any).data;
-    const keys = Object.keys(financeiroData as any);
-    for (const k of keys) if (Array.isArray((financeiroData as any)[k])) return (financeiroData as any)[k];
-    return [];
+  // Normalização de Arrays
+  const financeiro = useMemo(() => {
+    const raw = (financeiroData as any)?.data || financeiroData || [];
+    return Array.isArray(raw) ? raw : [];
   }, [financeiroData]);
 
-  const contratos: AnyObject[] = useMemo(() => {
-    if (!contratosData) return [];
-    if (Array.isArray(contratosData)) return contratosData as AnyObject[];
-    if ((contratosData as any).data && Array.isArray((contratosData as any).data)) return (contratosData as any).data;
-    const keys = Object.keys(contratosData as any);
-    for (const k of keys) if (Array.isArray((contratosData as any)[k])) return (contratosData as any)[k];
-    return [];
+  const contratos = useMemo(() => {
+    const raw = (contratosData as any)?.data || contratosData || [];
+    return Array.isArray(raw) ? raw : [];
   }, [contratosData]);
 
-  // Filters used in Visão Geral (tab 1)
-  const clientes = useMemo(() => Array.from(new Set(financeiro.map(r => r.Cliente).filter(Boolean))), [financeiro]);
-  const situacoes = useMemo(() => Array.from(new Set(financeiro.map(r => r.SituacaoNota).filter(Boolean))), [financeiro]);
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
+  // Estados de Controle
+  const [activeTab, setActiveTab] = useState(0);
+  const currentYear = new Date().getFullYear();
+  
+  // Filtros Visão Geral
+  const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
+  const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
   const [selectedClientes, setSelectedClientes] = useState<string[]>([]);
-  const [selectedSituacoes, setSelectedSituacoes] = useState<string[]>([]);
 
+  // Filtros Auditoria
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Debug toggle
+  const [showDebug, setShowDebug] = useState(false);
+
+  // Listas Auxiliares
+  const clientesList = useMemo(() => 
+    Array.from(new Set(financeiro.map(r => r.Cliente).filter(Boolean))).sort()
+  , [financeiro]);
+
+  const availableMonths = useMemo(() => {
+    const s = new Set<string>();
+    financeiro.forEach(r => {
+      const k = getMonthKey(r.DataCompetencia || r.DataEmissao || r.Data || '');
+      if (k.length === 7) s.add(k);
+    });
+    return Array.from(s).sort().reverse();
+  }, [financeiro]);
+
+  // Seleciona mês inicial automaticamente
+  useEffect(() => {
+    if (!selectedMonth && availableMonths.length > 0) setSelectedMonth(availableMonths[0]);
+  }, [availableMonths, selectedMonth]);
+
+
+  // === CÁLCULOS ABA 1: VISÃO GERAL ===
+  
+  // Filtra dados pelo período selecionado (compara strings de data)
   const filteredFin = useMemo(() => {
     return financeiro.filter((r) => {
-      if (dateFrom) {
-        const d = r.DataCompetencia ? new Date(r.DataCompetencia) : null;
-        if (!d) return false;
-        if (d < new Date(dateFrom + 'T00:00:00')) return false;
-      }
-      if (dateTo) {
-        const d = r.DataCompetencia ? new Date(r.DataCompetencia) : null;
-        if (!d) return false;
-        if (d > new Date(dateTo + 'T23:59:59')) return false;
-      }
-      if (selectedClientes.length > 0 && !selectedClientes.includes(String(r.Cliente || ''))) return false;
-      if (selectedSituacoes.length > 0 && !selectedSituacoes.includes(String(r.SituacaoNota || ''))) return false;
+      const d = r.DataCompetencia || r.DataEmissao || r.Data;
+      if (!d) return false;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      if (selectedClientes.length > 0 && !selectedClientes.includes(String(r.Cliente))) return false;
       return true;
     });
-  }, [financeiro, dateFrom, dateTo, selectedClientes, selectedSituacoes]);
+  }, [financeiro, dateFrom, dateTo, selectedClientes]);
 
-  // KPIs for Visão Geral
-  const faturamentoLocacao = useMemo(() => filteredFin.reduce((s, r) => s + (Number(r.ValorLocacao) || 0), 0), [filteredFin]);
-  const totalFaturado = useMemo(() => filteredFin.reduce((s, r) => s + (Number(r.ValorTotal) || 0), 0), [filteredFin]);
-  const totalVeiculos = useMemo(() => filteredFin.reduce((s, r) => s + (Number(r.QtdVeiculos) || 0), 0), [filteredFin]);
-  const ticketMedio = totalVeiculos > 0 ? (totalFaturado / totalVeiculos) : 0;
-
-  // Monthly aggregation
-  const monthly = useMemo(() => {
-    const map: Record<string, { faturamento: number; veiculos: number }> = {};
-    filteredFin.forEach((r) => {
-      const d = r.DataCompetencia ? new Date(r.DataCompetencia) : null;
-      if (!d) return;
-      const k = monthKey(d);
-      if (!map[k]) map[k] = { faturamento: 0, veiculos: 0 };
-      map[k].faturamento += Number(r.ValorTotal) || 0;
-      map[k].veiculos += Number(r.QtdVeiculos) || 0;
-    });
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([k, v]) => ({
-        month: monthLabel(k),
-        faturamento: v.faturamento,
-        ticket: v.veiculos > 0 ? v.faturamento / v.veiculos : 0,
-      }));
+  const kpisOverview = useMemo(() => {
+    const total = filteredFin.reduce((s, r) => s + parseCurrency(r.ValorFaturadoItem || r.ValorTotal || r.ValorLocacao), 0);
+    // Veículos únicos no período (Count Distinct IdVeiculo) ou fallback para soma de qties
+    const veiculosSet = new Set(filteredFin.map(r => r.IdVeiculo).filter(Boolean));
+    const qtdVeiculosFallback = filteredFin.reduce((s, r) => s + getQty(r), 0);
+    const qtdVeiculos = veiculosSet.size > 0 ? veiculosSet.size : Math.round(qtdVeiculosFallback);
+    return { 
+      faturamento: total, 
+      veiculos: qtdVeiculos, 
+      ticket: qtdVeiculos > 0 ? total / qtdVeiculos : 0 
+    };
   }, [filteredFin]);
 
-  // Top 10 clients
+  const monthlyOverview = useMemo(() => {
+    const map: Record<string, { fat: number; veicSet: Set<any> }> = {};
+    filteredFin.forEach((r) => {
+      const k = getMonthKey(r.DataCompetencia || r.DataEmissao || r.Data);
+      if (!k) return;
+      if (!map[k]) map[k] = { fat: 0, veicSet: new Set() };
+      map[k].fat += parseCurrency(r.ValorFaturadoItem || r.ValorTotal || r.ValorLocacao);
+      if (r.IdVeiculo) map[k].veicSet.add(r.IdVeiculo);
+    });
+
+    return Object.keys(map).sort().map(k => ({
+      month: monthLabel(k),
+      faturamento: map[k].fat,
+      ticket: map[k].veicSet.size > 0 ? map[k].fat / map[k].veicSet.size : 0
+    }));
+  }, [filteredFin]);
+
   const topClients = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredFin.forEach((r) => {
+    filteredFin.forEach(r => {
       const c = r.Cliente || 'N/A';
-      map[c] = (map[c] || 0) + (Number(r.ValorTotal) || 0);
+      map[c] = (map[c] || 0) + parseCurrency(r.ValorFaturadoItem || r.ValorTotal || r.ValorLocacao);
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+      .sort((a,b) => b.value - a.value)
       .slice(0, 10);
   }, [filteredFin]);
 
-  // --- TAB 2: AUDITORIA DE RECEITA (GAP) ---
-  // Logic: for a selected month, compare "Contratos Ativos" vs "Faturamento Realizado".
-  // We need a month selector for this tab. Default to current month or last available.
-  const [selectedMonth, setSelectedMonth] = useState<string>('2024-03'); // default example
-  const availableMonths = useMemo(() => {
-    // collect months from contracts and financial data
-    const s = new Set<string>();
-    financeiro.forEach(r => { if (r.DataCompetencia) s.add(monthKey(new Date(r.DataCompetencia))); });
-    contratos.forEach(c => {
-      // contracts have start/end dates. We can just list all months in range? 
-      // For simplicity, let's just pick months present in financeiro for now, 
-      // or we can generate a range. Let's stick to financeiro months + current.
-      if (c.DataInicio) s.add(monthKey(new Date(c.DataInicio)));
-    });
-    return Array.from(s).sort().reverse();
-  }, [financeiro, contratos]);
 
-  // Calculate GAP for selectedMonth
-  // 1. Expected Revenue: Iterate contracts. If active in selectedMonth, calculate pro-rata revenue.
-  // 2. Realized Revenue: Filter financeiro for selectedMonth.
-  // 3. Gap = Expected - Realized.
-
-  const gapAnalysis = useMemo(() => {
+  // === CÁLCULOS ABA 2: AUDITORIA (REVENUE ASSURANCE) ===
+  const auditData = useMemo(() => {
     if (!selectedMonth) return { expected: 0, realized: 0, gap: 0, details: [] };
 
+    // --- 1. REALIZADO (Soma dos Itens da Nota) ---
+    const itemsInMonth = financeiro.filter(f => getMonthKey(f.DataCompetencia || f.DataEmissao || f.Data) === selectedMonth);
+    const realizedTotal = itemsInMonth.reduce((s, i) => s + parseCurrency(i.ValorFaturadoItem || i.ValorTotal || i.ValorLocacao), 0);
+
+    // Mapeia Realizado por Contrato (se IdContratoLocacao disponível)
+    const realizedMap: Record<string, number> = {};
+    itemsInMonth.forEach(item => {
+        const val = parseCurrency(item.ValorFaturadoItem || item.ValorTotal || item.ValorLocacao);
+        if (item.IdContratoLocacao) {
+            realizedMap[String(item.IdContratoLocacao)] = (realizedMap[String(item.IdContratoLocacao)] || 0) + val;
+        }
+    });
+
+    // --- 2. PREVISTO (Cálculo Comercial Base 30) ---
     const [y, m] = selectedMonth.split('-').map(Number);
     const startM = new Date(y, m - 1, 1);
     const endM = new Date(y, m, 0);
-    const daysInMonth = endM.getDate();
+    const COMMERCIAL_BASE = 30;
 
-    // Realized
-    const realizedRecords = financeiro.filter(r => {
-      if (!r.DataCompetencia) return false;
-      return monthKey(new Date(r.DataCompetencia)) === selectedMonth;
-    });
-    const realizedTotal = realizedRecords.reduce((s, r) => s + (Number(r.ValorTotal) || 0), 0);
-
-    // Expected from Contracts
-    // Contract has: DataInicio, DataFim (optional), ValorMensal
     let expectedTotal = 0;
     const contractDetails: any[] = [];
 
     contratos.forEach(c => {
-      const startC = parseDate(c.DataInicio);
-      const endC = parseDate(c.DataFim); // if null, assumes active indefinitely? or check status
-      const val = Number(c.ValorMensal) || 0;
+        const rawStart = c.InicioVigenciaPreco || c.InicioContrato || c.Inicio;
+        const rawEnd = c.FimVigenciaPreco || c.FimContrato || c.Fim;
+        if (!rawStart) return;
 
-      if (!startC) return;
+        const startC = new Date(String(rawStart).split('T')[0] + 'T12:00:00');
+        const endC = rawEnd ? new Date(String(rawEnd).split('T')[0] + 'T12:00:00') : new Date('2099-12-31T12:00:00');
 
-      // Check overlap with selected month
-      // Overlap start: max(startM, startC)
-      // Overlap end: min(endM, endC || infinity)
+        if (endC < startM || startC > endM) return;
 
-      const effectiveEnd = endC || new Date('2099-12-31');
+        const overlapStart = startC > startM ? startC : startM;
+        const overlapEnd = endC < endM ? endC : endM;
 
-      if (effectiveEnd < startM || startC > endM) return; // no overlap
+        let daysActive = COMMERCIAL_BASE;
+        if (overlapStart > startM || overlapEnd < endM) {
+            const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
+            daysActive = Math.ceil(diffTime / MS_PER_DAY) + 1;
+            if (daysActive > COMMERCIAL_BASE) daysActive = COMMERCIAL_BASE;
+            if (daysActive < 1) daysActive = 1;
+        }
 
-      const overlapStart = startC > startM ? startC : startM;
-      const overlapEnd = effectiveEnd < endM ? effectiveEnd : endM;
+        const valMensal = parseCurrency(c.ValorVigente || c.ValorMensal || c.ValorMensalidade || c.Valor);
+        const expected = (valMensal / COMMERCIAL_BASE) * daysActive;
 
-      const daysActive = daysBetweenInclusive(overlapStart, overlapEnd);
-      if (daysActive <= 0) return;
+        expectedTotal += expected;
 
-      // Pro-rata
-      const revenue = (val / 30) * daysActive; // using 30 days base or daysInMonth? Let's use daysInMonth for accuracy or 30 standard.
-      // Let's use daysInMonth of the selected month for pro-rata base if we want exactness, or 30.
-      // Standard commercial often uses 30. Let's use daysInMonth for physical calendar.
-      const proRata = (val / daysInMonth) * daysActive;
-
-      expectedTotal += proRata;
-      contractDetails.push({
-        cliente: c.Cliente,
-        placa: c.Placa,
-        contrato: c.NumeroContrato,
-        diasAtivos: daysActive,
-        valorEsperado: proRata
-      });
+        contractDetails.push({
+            id: c.IdContratoLocacao || c.NumeroContrato || c.Id || null,
+            cliente: c.Cliente || c.NomeCliente || 'N/D',
+            placa: c.Placa || c.PlacaVeiculo || 'N/D',
+            contrato: c.ContratoLocacao || c.NumeroContrato || c.IdContratoLocacao || 'N/D',
+            dias: daysActive,
+            esperado: expected,
+            realizado: 0,
+            gap: 0
+        });
     });
 
-    // Match realized by client/contract to find specific gaps? 
-    // This is complex because financeiro might group by client, not contract.
-    // For now, we show global numbers and list of expected contracts.
+    // --- 3. CRUZAMENTO E GAP ---
+    contractDetails.forEach(d => {
+        if (d.id && realizedMap[String(d.id)]) {
+            d.realizado = realizedMap[String(d.id)];
+        }
+        d.gap = d.realizado - d.esperado; // positivo = mais faturado que esperado
+    });
 
-    return {
-      expected: expectedTotal,
-      realized: realizedTotal,
-      gap: expectedTotal - realizedTotal,
-      details: contractDetails
+    const filteredDetails = contractDetails.filter((d: any) => 
+        searchTerm === '' || 
+        (d.cliente && d.cliente.toLowerCase().includes(searchTerm.toLowerCase())) || 
+        (d.placa && d.placa.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    // Ordenação: maiores gaps negativos primeiro (mais défict)
+    filteredDetails.sort((a: any, b: any) => a.gap - b.gap);
+
+    return { 
+        expected: expectedTotal, 
+        realized: realizedTotal, 
+        gap: realizedTotal - expectedTotal, 
+        details: filteredDetails 
     };
 
-  }, [selectedMonth, financeiro, contratos]);
+  }, [selectedMonth, financeiro, contratos, searchTerm]);
 
-  // Tabs state
-  const [activeTab, setActiveTab] = useState(0);
+  // --- Diagnostic helpers (mostra diferenças de parsing) ---
+  const diagnostics = useMemo(() => {
+    const totalRows = financeiro.length;
+    const sumNum = { valorLocacao: 0, valorTotal: 0, qtdVeiculos: 0 };
+    const sumParsed = { valorLocacao: 0, valorTotal: 0, qtdVeiculos: 0 };
+    let nanCounts = { valorLocacao: 0, valorTotal: 0, qtdVeiculos: 0 };
+    const problematic: AnyObject[] = [];
+
+    let realizedCountForMonth = 0;
+    let realizedSumForMonth = 0;
+
+    financeiro.forEach((r, i) => {
+      const rawLoc = r.ValorLocacao ?? r.ValorFaturadoItem ?? r.ValorTotal;
+      const rawTotal = r.ValorTotal ?? r.ValorFaturadoItem;
+      const rawQtd = r.QtdVeiculos ?? r.QtdVeiculo ?? r.QuantidadeVeiculos ?? r.QuantidadeVeiculo ?? r.QtdVeic ?? r.qtdVeiculos ?? r.qtd ?? 0;
+
+      const nLoc = Number(rawLoc);
+      const nTot = Number(rawTotal);
+      const nQtd = Number(rawQtd);
+
+      const pLoc = parseCurrency(rawLoc);
+      const pTot = parseCurrency(rawTotal);
+      const pQtd = parseCurrency(rawQtd);
+
+      if (!isFinite(nLoc)) nanCounts.valorLocacao++;
+      if (!isFinite(nTot)) nanCounts.valorTotal++;
+      if (!isFinite(nQtd)) nanCounts.qtdVeiculos++;
+
+      sumNum.valorLocacao += isFinite(nLoc) ? nLoc : 0;
+      sumNum.valorTotal += isFinite(nTot) ? nTot : 0;
+      sumNum.qtdVeiculos += isFinite(nQtd) ? nQtd : 0;
+
+      sumParsed.valorLocacao += pLoc;
+      sumParsed.valorTotal += pTot;
+      sumParsed.qtdVeiculos += pQtd;
+
+      if (selectedMonth) {
+        const ds = String(r.DataCompetencia || r.DataEmissao || r.Data || '');
+        if (ds && getMonthKey(ds) === selectedMonth) {
+          realizedCountForMonth += 1;
+          realizedSumForMonth += pLoc;
+        }
+      }
+
+      if (Math.abs((pLoc || 0) - (isFinite(nLoc) ? nLoc : 0)) > 0.001 || Math.abs((pTot || 0) - (isFinite(nTot) ? nTot : 0)) > 0.001 || Math.abs((pQtd || 0) - (isFinite(nQtd) ? nQtd : 0)) > 0.001) {
+        problematic.push({ idx: i, Cliente: r.Cliente, ValorLocacao: rawLoc, ValorTotal: rawTotal, QtdVeiculos: rawQtd, parsed: { pLoc, pTot, pQtd }, num: { nLoc, nTot, nQtd } });
+      }
+    });
+
+    const sampleKeys = financeiro.length > 0 ? Object.keys(financeiro[0]).slice(0, 40) : [];
+    return { totalRows, sumNum, sumParsed, nanCounts, problematic: problematic.slice(0, 20), realizedCountForMonth, realizedSumForMonth, sampleKeys };
+  }, [financeiro, selectedMonth]);
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <Title className="text-slate-900">Financial Core</Title>
-          <Text className="mt-1 text-slate-500">Análise financeira, faturamento e auditoria de receita.</Text>
+          <Text className="mt-1 text-slate-500">Gestão financeira e auditoria de contratos.</Text>
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-            <Wallet className="w-4 h-4" />
-            Hub Financeiro
+            <Wallet className="w-4 h-4" /> Hub Financeiro
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setActiveTab(0)}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 0 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-        >
-          Visão Geral
-        </button>
-        <button
-          onClick={() => setActiveTab(1)}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-        >
-          Auditoria de Receita (Gap)
-        </button>
+      <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
+        <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab===0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
+        <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab===1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Auditoria de Receita</button>
       </div>
 
+      <div className="mt-3">
+        <button onClick={() => setShowDebug(s => !s)} className="px-3 py-1 text-xs bg-slate-100 rounded-md border border-slate-200">{showDebug ? 'Ocultar Diagnóstico' : 'Mostrar Diagnóstico'}</button>
+      </div>
+
+      {showDebug && (
+        <Card className="bg-white shadow-sm border border-red-100 mt-4">
+          <Text className="text-red-600 font-medium mb-2">Diagnostic (ERP mismatch)</Text>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-3 bg-slate-50 rounded">
+              <Text className="text-slate-500 text-xs">Linhas processadas</Text>
+              <Metric className="text-slate-900">{diagnostics.totalRows}</Metric>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <Text className="text-slate-500 text-xs">Soma ValorLocacao (Number)</Text>
+              <Metric className="text-slate-900">{fmtBRL(diagnostics.sumNum.valorLocacao)}</Metric>
+            </div>
+            <div className="p-3 bg-slate-50 rounded">
+              <Text className="text-slate-500 text-xs">Soma ValorLocacao (parse)</Text>
+              <Metric className="text-slate-900">{fmtBRL(diagnostics.sumParsed.valorLocacao)}</Metric>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <Text className="text-slate-500 text-xs">Contagens NaN (Number parsing)</Text>
+            <div className="flex gap-4 mt-2 text-xs text-slate-700">
+              <div>ValorLocacao: {diagnostics.nanCounts.valorLocacao}</div>
+              <div>ValorTotal: {diagnostics.nanCounts.valorTotal}</div>
+              <div>QtdVeiculos: {diagnostics.nanCounts.qtdVeiculos}</div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <Text className="text-slate-500 text-xs mb-2">Amostra de linhas com diferença de parse (até 20)</Text>
+            <div className="overflow-x-auto max-h-48">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500"><th className="p-2">#</th><th>Cliente</th><th>ValorLocacao</th><th>ValorTotal</th><th>QtdVeiculos</th><th>parsed</th></tr>
+                </thead>
+                <tbody>
+                  {diagnostics.problematic.map((p: any, i: number) => (
+                    <tr key={i} className="odd:bg-white even:bg-slate-50">
+                      <td className="p-2">{p.idx}</td>
+                      <td className="p-2">{p.Cliente}</td>
+                      <td className="p-2">{String(p.ValorLocacao)}</td>
+                      <td className="p-2">{String(p.ValorTotal)}</td>
+                      <td className="p-2">{String(p.QtdVeiculos)}</td>
+                      <td className="p-2">Loc:{fmtBRL(p.parsed.pLoc)} Tot:{fmtBRL(p.parsed.pTot)} Qtd:{p.parsed.pQtd}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* === CONTEÚDO DA VISÃO GERAL === */}
       {activeTab === 0 && (
         <>
-          {/* Filters */}
           <Card className="bg-white shadow-sm border border-slate-200">
-            <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Text className="font-medium mb-2">Filtros</Text>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <Text className="text-slate-500 text-xs mb-1">Período (De - Até)</Text>
+                <Text className="text-xs text-slate-500">Período</Text>
                 <div className="flex gap-2">
-                  <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={dateFrom || ''} onChange={e => setDateFrom(e.target.value)} />
-                  <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={dateTo || ''} onChange={e => setDateTo(e.target.value)} />
+                  <input type="date" className="border p-1 rounded w-full text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                  <input type="date" className="border p-1 rounded w-full text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} />
                 </div>
               </div>
               <div>
-                <Text className="text-slate-500 text-xs mb-1">Cliente</Text>
-                <select multiple size={3} className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={selectedClientes} onChange={e => setSelectedClientes(Array.from(e.target.selectedOptions).map(o => o.value))}>
-                  {clientes.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <Text className="text-slate-500 text-xs mb-1">Situação da Nota</Text>
-                <select multiple size={3} className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={selectedSituacoes} onChange={e => setSelectedSituacoes(Array.from(e.target.selectedOptions).map(o => o.value))}>
-                  {situacoes.map(s => <option key={s} value={s}>{s}</option>)}
+                <Text className="text-xs text-slate-500">Cliente</Text>
+                <select multiple className="w-full border rounded p-1 text-sm h-10" value={selectedClientes} onChange={e => setSelectedClientes(Array.from(e.target.selectedOptions).map(o => o.value))}>
+                  {clientesList.slice(0, 50).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="flex items-end">
-                <button onClick={() => { setDateFrom(null); setDateTo(null); setSelectedClientes([]); setSelectedSituacoes([]); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors">
-                  Limpar Filtros
-                </button>
+                <button className="bg-slate-100 hover:bg-slate-200 w-full py-1.5 rounded text-sm transition-colors" onClick={() => {setDateFrom(`${currentYear}-01-01`); setDateTo(`${currentYear}-12-31`); setSelectedClientes([])}}>Ano Atual</button>
               </div>
             </div>
           </Card>
 
-          {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-blue-500">
-              <Text className="text-slate-500">Faturamento Total</Text>
-              <Metric className="text-slate-900">{fmtBRL(totalFaturado)}</Metric>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200">
+              <Text>Faturamento Total</Text>
+              <Metric>{fmtBRL(kpisOverview.faturamento)}</Metric>
             </Card>
-            <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-blue-500">
-              <Text className="text-slate-500">Faturamento Locação</Text>
-              <Metric className="text-slate-900">{fmtBRL(faturamentoLocacao)}</Metric>
+            <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200">
+              <Text>Ticket Médio</Text>
+              <Metric>{fmtBRL(kpisOverview.ticket)}</Metric>
             </Card>
-            <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-blue-500">
-              <Text className="text-slate-500">Ticket Médio</Text>
-              <Metric className="text-slate-900">{fmtBRL(ticketMedio)}</Metric>
-            </Card>
-            <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-blue-500">
-              <Text className="text-slate-500">Veículos Faturados</Text>
-              <Metric className="text-slate-900">{Math.round(totalVeiculos)}</Metric>
+            <Card decoration="top" decorationColor="violet" className="bg-white border border-slate-200">
+              <Text>Veículos Faturados</Text>
+              <Metric>{kpisOverview.veiculos}</Metric>
             </Card>
           </div>
 
-          {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-2 bg-white shadow-sm border border-slate-200">
-              <Title className="text-slate-900">Evolução de Faturamento e Ticket Médio</Title>
+            <Card className="lg:col-span-2 bg-white border border-slate-200">
+              <Title>Evolução Mensal</Title>
               <div className="h-80 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={monthly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="left" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v}`} />
-                    <Tooltip
-                      cursor={{ fill: '#f1f5f9' }}
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
+                  <ComposedChart data={monthlyOverview}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} />
+                    <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} />
+                    <Tooltip formatter={(v:any) => fmtBRL(v)} contentStyle={{borderRadius: '8px'}} />
+                    <Legend />
                     <Bar yAxisId="left" dataKey="faturamento" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Faturamento" />
-                    <Line yAxisId="right" type="monotone" dataKey="ticket" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="Ticket Médio" />
+                    <Line yAxisId="right" type="monotone" dataKey="ticket" stroke="#10b981" strokeWidth={2} dot={{r:4}} name="Ticket Médio" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </Card>
-
-            <Card className="bg-white shadow-sm border border-slate-200">
-              <Title className="text-slate-900">Top 10 Clientes</Title>
+            
+            <Card className="bg-white border border-slate-200">
+              <Title>Top 10 Clientes</Title>
               <div className="mt-4 h-80 overflow-y-auto pr-2">
-                <BarList
-                  data={topClients}
-                  valueFormatter={(v) => fmtBRL(v)}
-                  color="blue"
-                  className="mt-2"
-                />
+                <BarList data={topClients} valueFormatter={(v) => fmtBRL(v)} color="blue" />
               </div>
             </Card>
           </div>
         </>
       )}
 
+      {/* === CONTEÚDO DA AUDITORIA === */}
       {activeTab === 1 && (
-        <>
-          <Card className="bg-white shadow-sm border border-slate-200">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-              <div>
-                <Title className="text-slate-900">Auditoria de Receita (Revenue Gap)</Title>
-                <Text className="text-slate-500">Comparativo entre Receita Esperada (Contratos) e Realizada (Faturamento).</Text>
-              </div>
-              <div className="w-full md:w-48">
-                <Text className="text-slate-500 text-xs mb-1">Mês de Referência</Text>
-                <select
-                  className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                >
-                  {availableMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
-                </select>
+        <Card className="bg-white shadow-sm border border-slate-200">
+          <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
+            <div>
+              <Title className="text-slate-900">Conciliação de Receita (Revenue Assurance)</Title>
+              <Text className="text-slate-500">Comparativo mês a mês: Previsto (Contratos) vs Realizado (Notas Fiscais).</Text>
+            </div>
+            <div className="w-full md:w-48">
+              <Text className="text-xs text-slate-500 mb-1">Mês de Referência</Text>
+              <select className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none bg-white" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                {availableMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+              <Text className="text-slate-500">Receita Esperada (Base 30)</Text>
+              <Metric className="text-blue-600">{fmtBRL(auditData.expected)}</Metric>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+              <Text className="text-slate-500">Receita Realizada (Notas)</Text>
+              <Metric className="text-emerald-600">{fmtBRL(auditData.realized)}</Metric>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+              <Text className="text-slate-500">Gap (Diferença)</Text>
+              <Metric className={`${auditData.gap < -100 ? 'text-red-500' : 'text-emerald-500'}`}>{fmtBRL(auditData.gap)}</Metric>
+            </div>
+          </div>
+
+          {/* Tabela Detalhada */}
+          <div className="border-t border-slate-100 pt-6">
+            <div className="flex justify-between items-center mb-4">
+              <Title>Detalhamento por Contrato ({auditData.details.length})</Title>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                <input type="text" placeholder="Buscar cliente ou placa..." className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <Text className="text-slate-500">Receita Esperada</Text>
-                <Metric className="text-blue-600">{fmtBRL(gapAnalysis.expected)}</Metric>
-                <Text className="text-xs text-slate-400 mt-1">Baseado em contratos ativos</Text>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <Text className="text-slate-500">Receita Realizada</Text>
-                <Metric className="text-emerald-600">{fmtBRL(gapAnalysis.realized)}</Metric>
-                <Text className="text-xs text-slate-400 mt-1">Baseado em notas emitidas</Text>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <Text className="text-slate-500">Gap (Diferença)</Text>
-                <Metric className={`${gapAnalysis.gap > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                  {fmtBRL(gapAnalysis.gap)}
-                </Metric>
-                <Text className="text-xs text-slate-400 mt-1">
-                  {gapAnalysis.gap > 0 ? 'Possível receita não faturada' : 'Faturamento acima do esperado'}
-                </Text>
-              </div>
-            </div>
-
-            <Title className="text-slate-900 mb-4">Detalhamento de Contratos Ativos no Mês</Title>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+            <div className="overflow-auto max-h-[500px] border rounded-lg">
+              <table className="w-full text-sm text-left bg-white">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 sticky top-0 uppercase text-xs">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Cliente</th>
-                    <th className="px-4 py-3 font-medium">Contrato</th>
-                    <th className="px-4 py-3 font-medium">Placa</th>
-                    <th className="px-4 py-3 font-medium text-right">Dias Ativos</th>
-                    <th className="px-4 py-3 font-medium text-right">Valor Esperado</th>
+                    <th className="px-4 py-3 font-semibold">Cliente</th>
+                    <th className="px-4 py-3 font-semibold">Contrato</th>
+                    <th className="px-4 py-3 font-semibold">Placa</th>
+                    <th className="px-4 py-3 font-semibold text-center">Dias Ativos</th>
+                    <th className="px-4 py-3 font-semibold text-right">Esperado</th>
+                    <th className="px-4 py-3 font-semibold text-right">Faturado</th>
+                    <th className="px-4 py-3 font-semibold text-right">Gap</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {gapAnalysis.details.slice(0, 50).map((d: any, i: number) => (
-                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-900">{d.cliente}</td>
-                      <td className="px-4 py-3 text-slate-600">{d.contrato}</td>
-                      <td className="px-4 py-3 text-slate-600">{d.placa}</td>
-                      <td className="px-4 py-3 text-right text-slate-600">{d.diasAtivos}</td>
-                      <td className="px-4 py-3 text-right text-slate-900 font-medium">{fmtBRL(d.valorEsperado)}</td>
+                  {auditData.details.length > 0 ? (
+                    auditData.details.slice(0, 100).map((d: any, i: number) => (
+                      <tr key={i} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-900">{d.cliente}</td>
+                        <td className="px-4 py-3 text-slate-500 font-mono text-xs">{d.contrato}</td>
+                        <td className="px-4 py-3 text-slate-500 font-mono">{d.placa}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${d.dias < 30 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                            {d.dias}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-blue-600">{fmtBRL(d.esperado)}</td>
+                        <td className="px-4 py-3 text-right text-emerald-600">{fmtBRL(d.realizado)}</td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          {Math.abs(d.gap) > 1 ? (
+                            <span className={d.gap < 0 ? 'text-red-500' : 'text-emerald-500'}>{fmtBRL(d.gap)}</span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">Nenhum registro encontrado.</td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
-              <div className="mt-4 text-center text-xs text-slate-400">
-                Mostrando os primeiros 50 registros.
-              </div>
             </div>
-          </Card>
-        </>
+            <div className="mt-4 text-center text-xs text-slate-400">Mostrando os 100 maiores gaps.</div>
+          </div>
+        </Card>
       )}
     </div>
   );
