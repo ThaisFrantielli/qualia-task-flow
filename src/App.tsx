@@ -28,7 +28,7 @@ import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import SalesPerformance from '@/pages/analytics/SalesPerformance';
 import DataAudit from '@/pages/analytics/DataAudit';
 import ChurnDashboard from '@/pages/analytics/ChurnDashboard';
-import FinancialDashboard from '@/pages/analytics/FinancialDashboard';
+import FinancialAnalytics from '@/pages/analytics/FinancialAnalytics';
 import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
 import RevenueGap from '@/pages/analytics/RevenueGap';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
@@ -93,7 +93,7 @@ function App() {
               <Route path="/analytics/compras" element={<PurchasesDashboard />} />
               <Route path="/analytics/churn" element={<ChurnDashboard />} />
               <Route path="/analytics/revenue-gap" element={<RevenueGap />} />
-              <Route path="/analytics/financeiro" element={<FinancialDashboard />} />
+              <Route path="/analytics/financeiro" element={<FinancialAnalytics />} />
               <Route path="/analytics/auditoria" element={<DataAudit />} />
               <Route path="/analytics/performance-vendas" element={<SalesPerformance />} />
 
