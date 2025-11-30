@@ -1,5 +1,3 @@
-// src/App.tsx 
-
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { OportunidadeProvider } from './contexts/OportunidadeContext';
 
@@ -48,7 +46,7 @@ import ConfiguracoesEquipesPage from '@/pages/Configuracoes/ConfiguracoesEquipes
 import FilaTriagem from '@/pages/FilaTriagem';
 import TicketsPage from '@/pages/TicketsPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
-// ...existing imports
+import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
 
 function App() {
   return (
@@ -57,7 +55,6 @@ function App() {
         <Routes>
           {/* Rotas Públicas */}
           <Route path="/login" element={<LoginPage />} />
-          {/* Rota /signup removida: sistema fechado (apenas admins criam contas) */}
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
           <Route path="/obrigado" element={<SurveyThankYouPage />} />
@@ -88,14 +85,18 @@ function App() {
               <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} />
 
               <Route path="/whatsapp" element={<WhatsAppChatPage />} />
-              <Route path="/analytics" element={<AnalyticsIndex />} />
-              <Route path="/analytics/frota" element={<FleetDashboard />} />
-              <Route path="/analytics/compras" element={<PurchasesDashboard />} />
-              <Route path="/analytics/churn" element={<ChurnDashboard />} />
-              <Route path="/analytics/revenue-gap" element={<RevenueGap />} />
-              <Route path="/analytics/financeiro" element={<FinancialAnalytics />} />
-              <Route path="/analytics/auditoria" element={<DataAudit />} />
-              <Route path="/analytics/performance-vendas" element={<SalesPerformance />} />
+
+              <Route path="/analytics">
+                <Route index element={<AnalyticsIndex />} />
+                <Route path="frota" element={<FleetDashboard />} />
+                <Route path="compras" element={<PurchasesDashboard />} />
+                <Route path="churn" element={<ChurnDashboard />} />
+                <Route path="revenue-gap" element={<RevenueGap />} />
+                <Route path="financeiro" element={<FinancialAnalytics />} />
+                <Route path="auditoria" element={<DataAudit />} />
+                <Route path="manutencao" element={<MaintenanceDashboard />} />
+                <Route path="performance-vendas" element={<SalesPerformance />} />
+              </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
@@ -111,7 +112,7 @@ function App() {
               <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
               <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
               <Route path="/configuracoes/equipes-hierarquia" element={<ConfiguracoesEquipesPage />} />
-              {/* Rotas antigas mantidas para compatibilidade */}
+
               <Route path="/configuracoes/equipes" element={<GerenciarEquipesPage />} />
               <Route path="/configuracoes/departamentos" element={<GerenciarDepartamentosPage />} />
               <Route path="/whatsapp-manager" element={<MultiWhatsAppManagerPage />} />
