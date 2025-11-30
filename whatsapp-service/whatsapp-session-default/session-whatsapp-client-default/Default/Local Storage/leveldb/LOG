@@ -1,3 +1,2 @@
-2025/11/07-23:57:13.772 12cea Reusing MANIFEST /home/codespace/qualia-task-flow-4/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/Local Storage/leveldb/MANIFEST-000001
-2025/11/07-23:57:13.772 12cea Recovering log #4
-2025/11/07-23:57:13.778 12cea Reusing old log /home/codespace/qualia-task-flow-4/whatsapp-service/whatsapp-session-default/session-whatsapp-client-default/Default/Local Storage/leveldb/000004.log 
+2025/11/28-16:32:00.433 4910 Creating DB C:\Users\frant\Quality Conecta\qualia-task-flow\whatsapp-service\whatsapp-session-default\session-whatsapp-client-default\Default\Local Storage\leveldb since it was missing.
+2025/11/28-16:32:00.438 4910 Reusing MANIFEST C:\Users\frant\Quality Conecta\qualia-task-flow\whatsapp-service\whatsapp-session-default\session-whatsapp-client-default\Default\Local Storage\leveldb/MANIFEST-000001
