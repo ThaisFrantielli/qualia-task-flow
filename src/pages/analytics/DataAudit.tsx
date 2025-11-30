@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
-import { AlertOctagon, AlertTriangle, BarChart2 } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, BarChart2, Shield } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
@@ -32,7 +32,9 @@ export default function DataAudit(): JSX.Element {
     return records.slice((page - 1) * pageSize, page * pageSize);
   }, [records, page]);
 
-  // Tabs (simple implementation)
+  const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
+
+  // Tabs
   const tabs = [
     { key: 'vendas', label: 'Vendas & Comercial', count: 38 },
     { key: 'cadastro', label: 'Cadastro & Frota', count: 0 },
@@ -41,90 +43,107 @@ export default function DataAudit(): JSX.Element {
   const [activeTab, setActiveTab] = useState<string>('vendas');
 
   return (
-    <div className="bg-slate-50 min-h-screen p-6">
-      <div>
-        <Title>Monitoramento de Qualidade de Dados</Title>
-        <Text className="mt-1">Centro de controle para identificar e priorizar correções de dados.</Text>
+    <div className="bg-slate-50 min-h-screen p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <Title className="text-slate-900">Monitoramento de Qualidade de Dados</Title>
+          <Text className="mt-1 text-slate-500">Centro de controle para identificar e priorizar correções de dados.</Text>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Hub Qualidade & Auditoria
+          </div>
+        </div>
       </div>
 
       {/* KPI cards */}
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="bg-white shadow-sm border border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded bg-red-50">
+            <div className="p-2 rounded-lg bg-red-50">
               <AlertOctagon className="text-red-600" size={20} />
             </div>
             <div>
-              <Text className="text-sm">Erros Críticos</Text>
+              <Text className="text-slate-500 text-sm">Erros Críticos</Text>
               <Metric className="text-red-600">38</Metric>
             </div>
           </div>
         </Card>
 
-        <Card>
+        <Card className="bg-white shadow-sm border border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded bg-amber-50">
+            <div className="p-2 rounded-lg bg-amber-50">
               <AlertTriangle className="text-amber-600" size={20} />
             </div>
             <div>
-              <Text className="text-sm">Alertas de Cadastro</Text>
+              <Text className="text-slate-500 text-sm">Alertas de Cadastro</Text>
               <Metric className="text-amber-700">0</Metric>
             </div>
           </div>
         </Card>
 
-        <Card>
+        <Card className="bg-white shadow-sm border border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded bg-sky-50">
-              <BarChart2 className="text-sky-600" size={20} />
+            <div className="p-2 rounded-lg bg-emerald-50">
+              <BarChart2 className="text-emerald-600" size={20} />
             </div>
             <div>
-              <Text className="text-sm">Score de Qualidade</Text>
-              <Metric className="text-sky-600">98%</Metric>
+              <Text className="text-slate-500 text-sm">Score de Qualidade</Text>
+              <Metric className="text-emerald-600">98%</Metric>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Tabs */}
-      <div className="mt-6">
-        <div className="flex gap-2 border-b pb-2">
+      <div>
+        <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => { setActiveTab(t.key); setPage(1); }}
-              className={`px-3 py-1 rounded-t ${activeTab === t.key ? 'bg-white shadow' : 'bg-transparent text-gray-600'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === t.key ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               {`${t.label} (${t.count})`}
             </button>
           ))}
         </div>
 
-        <div>
+        <div className="mt-4">
           {activeTab === 'vendas' && (
-            <Card className="mt-4">
-              <Text className="mb-3">Registros com datas nulas / inconsistências (prioridade Alta)</Text>
+            <Card className="bg-white shadow-sm border border-slate-200">
+              <Title className="text-slate-900 mb-4">Registros com datas nulas / inconsistências (prioridade Alta)</Title>
               <div className="overflow-x-auto">
-                <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-                  <thead>
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="text-left p-2">Placa</th>
-                      <th className="text-left p-2">Modelo</th>
-                      <th className="text-left p-2">Gravidade</th>
-                      <th className="text-left p-2">Erro</th>
-                      <th className="text-left p-2">Ação Recomendada</th>
+                      <th className="px-4 py-3 font-medium">Placa</th>
+                      <th className="px-4 py-3 font-medium">Modelo</th>
+                      <th className="px-4 py-3 font-medium">Gravidade</th>
+                      <th className="px-4 py-3 font-medium">Erro</th>
+                      <th className="px-4 py-3 font-medium">Ação Recomendada</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {pageItems.map((r, i) => (
-                      <tr key={`audit-${i}`} className="border-t">
-                        <td className="p-2">{r.Placa || <span className="inline-block bg-gray-200 text-gray-600 px-2 py-1 rounded">N/A</span>}</td>
-                        <td className="p-2">{r.Modelo || '-'}</td>
-                        <td className="p-2">
-                          <span className="inline-block bg-red-100 text-red-700 px-2 py-1 rounded">Alta</span>
+                      <tr key={`audit-${i}`} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {r.Placa || <span className="inline-block bg-slate-100 text-slate-500 px-2 py-1 rounded text-xs">N/A</span>}
                         </td>
-                        <td className="p-2 text-sm text-gray-800">{r.Motivo || r.MensagemErro || r.MotivoErro || 'Inconsistência'}</td>
-                        <td className="p-2 text-sm text-gray-500">{r.Recomendacao || 'Verificar Data de Saída no ERP'}</td>
+                        <td className="px-4 py-3 text-slate-600">{r.Modelo || '-'}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
+                            Alta
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {r.Motivo || r.MensagemErro || r.MotivoErro || 'Inconsistência'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">
+                          {r.Recomendacao || 'Verificar Data de Saída no ERP'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -133,27 +152,53 @@ export default function DataAudit(): JSX.Element {
 
               {/* Pagination controls */}
               <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-gray-600">Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, records.length)} de {records.length}</div>
+                <div className="text-sm text-slate-500">
+                  Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, records.length)} de {records.length}
+                </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50">Anterior</button>
-                  <Text>Página {page} / {Math.max(1, Math.ceil(records.length / pageSize))}</Text>
-                  <button onClick={() => setPage((p) => Math.min(Math.max(1, Math.ceil(records.length / pageSize)), p + 1))} disabled={page >= Math.max(1, Math.ceil(records.length / pageSize))} className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50">Próximo</button>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
+                  >
+                    Anterior
+                  </button>
+                  <Text className="text-slate-600">Página {page} / {totalPages}</Text>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
+                  >
+                    Próximo
+                  </button>
                 </div>
               </div>
             </Card>
           )}
 
           {activeTab === 'cadastro' && (
-            <Card className="mt-4">
-              <Text>Cadastro & Frota</Text>
-              <Text className="mt-2 text-sm text-gray-500">Nenhum alerta por enquanto.</Text>
+            <Card className="bg-white shadow-sm border border-slate-200">
+              <Title className="text-slate-900">Cadastro & Frota</Title>
+              <div className="mt-4 p-6 rounded-lg bg-slate-50 border border-slate-100 text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
+                  <BarChart2 className="text-emerald-600" size={24} />
+                </div>
+                <Text className="text-slate-600">Nenhum alerta por enquanto.</Text>
+                <Text className="text-xs text-slate-400 mt-1">Todos os registros estão em conformidade.</Text>
+              </div>
             </Card>
           )}
 
           {activeTab === 'financeiro' && (
-            <Card className="mt-4">
-              <Text>Financeiro</Text>
-              <Text className="mt-2 text-sm text-gray-500">Nenhum alerta por enquanto.</Text>
+            <Card className="bg-white shadow-sm border border-slate-200">
+              <Title className="text-slate-900">Financeiro</Title>
+              <div className="mt-4 p-6 rounded-lg bg-slate-50 border border-slate-100 text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
+                  <BarChart2 className="text-emerald-600" size={24} />
+                </div>
+                <Text className="text-slate-600">Nenhum alerta por enquanto.</Text>
+                <Text className="text-xs text-slate-400 mt-1">Todos os registros estão em conformidade.</Text>
+              </div>
             </Card>
           )}
         </div>

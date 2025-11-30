@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, BarList } from '@tremor/react';
+import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList, PieChart, Pie, Cell } from 'recharts';
+import { Car, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
@@ -99,40 +100,47 @@ export default function FleetDashboard(): JSX.Element {
     }));
   }, [fleetCategoryData]);
 
-  // Donut: distribution by Filial (was situacaoData) — avoids duplication with category pie
-  const filialData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach((v) => { const f = v.Filial || 'Unknown'; map[f] = (map[f] || 0) + 1; });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [filtered]);
-
-  // Top 5 montadoras
-  const topMontadoras = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach((v) => { const m = v.Montadora || 'N/A'; map[m] = (map[m] || 0) + 1; });
-    return Object.entries(map).map(([montadora, count]) => ({ name: montadora, value: count })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [filtered]);
-
-  // Histograms
+  // Age histogram
   const ageHistogram = useMemo(() => {
-    const ranges = [{ key: '0-12m', min: 0, max: 12 }, { key: '12-24m', min: 12, max: 24 }, { key: '24-36m', min: 24, max: 36 }, { key: '+36m', min: 36, max: Infinity }];
-    const map = ranges.map(r => ({ faixa: r.key, count: 0 }));
+    const ranges = [
+      { key: '0-12m', min: 0, max: 12 },
+      { key: '12-24m', min: 12, max: 24 },
+      { key: '24-36m', min: 24, max: 36 },
+      { key: '36-48m', min: 36, max: 48 },
+      { key: '+48m', min: 48, max: Infinity },
+    ];
+    const map = ranges.map((r) => ({ faixa: r.key, count: 0 }));
     filtered.forEach((v) => {
-      const m = Number(v.IdadeMeses) || 0;
+      const age = Number(v.IdadeMeses) || 0;
       for (let i = 0; i < ranges.length; i++) {
-        if (m >= ranges[i].min && m < ranges[i].max) { map[i].count += 1; break; }
+        const r = ranges[i];
+        if (age >= r.min && age < r.max) {
+          map[i].count += 1;
+          break;
+        }
       }
     });
     return map;
   }, [filtered]);
 
+  // KM histogram
   const kmHistogram = useMemo(() => {
-    const ranges = [{ key: '0-20k', min: 0, max: 20000 }, { key: '20k-40k', min: 20000, max: 40000 }, { key: '40k-60k', min: 40000, max: 60000 }, { key: '+60k', min: 60000, max: Infinity }];
-    const map = ranges.map(r => ({ faixa: r.key, count: 0 }));
+    const ranges = [
+      { key: '0-20k', min: 0, max: 20000 },
+      { key: '20k-40k', min: 20000, max: 40000 },
+      { key: '40k-60k', min: 40000, max: 60000 },
+      { key: '60k-80k', min: 60000, max: 80000 },
+      { key: '+80k', min: 80000, max: Infinity },
+    ];
+    const map = ranges.map((r) => ({ faixa: r.key, count: 0 }));
     filtered.forEach((v) => {
       const km = Number(v.KM) || 0;
       for (let i = 0; i < ranges.length; i++) {
-        if (km >= ranges[i].min && km < ranges[i].max) { map[i].count += 1; break; }
+        const r = ranges[i];
+        if (km >= r.min && km < r.max) {
+          map[i].count += 1;
+          break;
+        }
       }
     });
     return map;
@@ -141,274 +149,260 @@ export default function FleetDashboard(): JSX.Element {
   // Table pagination
   const [page, setPage] = useState<number>(1);
   const pageSize = 10;
-  const tableData = filtered.map((v) => ({
-    Placa: v.Placa || '', Modelo: v.Modelo || '', Filial: v.Filial || '', Situacao: v.SituacaoVeiculo || '', KM: Number(v.KM) || 0, IdadeMeses: Number(v.IdadeMeses) || 0, ValorFipe: Number(v.ValorFipe) || 0
-  }));
-  const totalPages = Math.max(1, Math.ceil(tableData.length / pageSize));
-  const pageItems = tableData.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   if (loading) return (<div className="bg-slate-50 min-h-screen p-6"><Title>Frota - Dashboard</Title><Card><Text>Carregando...</Text></Card></div>);
   if (error) return (<div className="bg-slate-50 min-h-screen p-6"><Title>Frota - Dashboard</Title><Card><Text style={{ color: 'red' }}>{String(error)}</Text></Card></div>);
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      <div>
-        <Title>Frota - Ativa</Title>
-        <Text className="mt-1">Visão da frota por filial, status e métricas principais.</Text>
-      </div>
-
-      {/* Fleet category overview: produtiva / improdutiva / inativa */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <Card>
-            <Text>Frota Produtiva</Text>
-            <Metric>{fleetByCategory.produtiva.count} veículos</Metric>
-            <Text className="text-sm text-gray-500">Valor FIPE: {fmtBRL(fleetByCategory.produtiva.totalFipe)}</Text>
-          </Card>
+          <Title className="text-slate-900">Gestão de Frota</Title>
+          <Text className="mt-1 text-slate-500">Visão geral da frota, disponibilidade e perfil.</Text>
         </div>
-
-        <div>
-          <Card>
-            <Text>Frota Improdutiva</Text>
-            <Metric>{fleetByCategory.improdutiva.count} veículos</Metric>
-            <Text className="text-sm text-gray-500">Valor FIPE: {fmtBRL(fleetByCategory.improdutiva.totalFipe)}</Text>
-          </Card>
-        </div>
-
-        <div>
-          <Card>
-            <Text>Frota Inativa</Text>
-            <Metric>{fleetByCategory.inativa.count} veículos</Metric>
-            <Text className="text-sm text-gray-500">Valor FIPE: {fmtBRL(fleetByCategory.inativa.totalFipe)}</Text>
-          </Card>
-        </div>
-
-        <div>
-          <Card>
-            <Text>Distribuição por Categoria</Text>
-            <div className="mt-4 flex items-center">
-              <div style={{ width: 160, height: 160 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={fleetPieData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} label={({ name, percent }: any) => `${name} (${Math.round(percent * 100)}%)`}>
-                      {fleetPieData.map((_, idx) => (
-                        <Cell key={idx} fill={["#10b981", "#f59e0b", "#ef4444"][idx % 3]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(val: any, name: any, props: any) => {
-                      const item = props && props.payload ? props.payload : null;
-                      if (item && item.payload) {
-                        const p = item.payload;
-                        return [`${p.value} veículos — ${fmtBRL(p.avgFipe)}`, p.name];
-                      }
-                      return [String(val), String(name)];
-                    }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="ml-4 text-sm text-gray-600">
-                {fleetPieData.map((d) => (
-                  <div key={d.key} className="mb-2">{d.name}: {d.value} ({d.pct}%) — FIPE médio: {fmtBRL(d.avgFipe)}</div>
-                ))}
-              </div>
-            </div>
-          </Card>
+        <div className="flex items-center gap-2">
+          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+            <Car className="w-4 h-4" />
+            Hub Operacional
+          </div>
         </div>
       </div>
 
       {/* Filters */}
-      <Card>
-        <Text>Filtros</Text>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="bg-white shadow-sm border border-slate-200">
+        <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <Text>Filial</Text>
-            <select multiple size={3} className="border rounded p-2 w-full" value={selectedFiliais} onChange={(e) => { const opts = Array.from(e.target.selectedOptions).map(o => o.value); setSelectedFiliais(opts); setPage(1); }}>
-              {filiais.map((f) => <option key={f} value={f}>{f}</option>)}
+            <Text className="text-slate-500 text-xs mb-1">Filial</Text>
+            <select
+              multiple
+              size={3}
+              className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              value={selectedFiliais}
+              onChange={(e) => {
+                const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
+                setSelectedFiliais(opts);
+                setPage(1);
+              }}
+            >
+              {filiais.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
             </select>
           </div>
-
           <div>
-            <Text>Situação</Text>
-            <select multiple size={3} className="border rounded p-2 w-full" value={selectedSituacoes} onChange={(e) => { const opts = Array.from(e.target.selectedOptions).map(o => o.value); setSelectedSituacoes(opts); setPage(1); }}>
-              {situacoes.map((s) => <option key={s} value={s}>{s}</option>)}
+            <Text className="text-slate-500 text-xs mb-1">Situação</Text>
+            <select
+              multiple
+              size={3}
+              className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              value={selectedSituacoes}
+              onChange={(e) => {
+                const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
+                setSelectedSituacoes(opts);
+                setPage(1);
+              }}
+            >
+              {situacoes.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </div>
-
-          <div>
-            <Text>&nbsp;</Text>
-            <div className="flex items-center gap-2">
-              <button onClick={() => { setSelectedFiliais([]); setSelectedSituacoes([]); setPage(1); }} className="bg-gray-200 px-3 py-1 rounded">Limpar</button>
-              <div>
-                <Text>Total</Text>
-                <Metric>{totalVehicles}</Metric>
-              </div>
-            </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => { setSelectedFiliais([]); setSelectedSituacoes([]); setPage(1); }}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors"
+            >
+              Limpar Filtros
+            </button>
           </div>
-
-          <div>
-            <Text>&nbsp;</Text>
-            <div className="text-sm text-gray-500">Use filtros para refinar a frota mostrada.</div>
+          <div className="flex items-end justify-end">
+            <Text className="text-slate-500">Total Filtrado: <span className="font-semibold text-slate-900">{filtered.length}</span></Text>
           </div>
         </div>
       </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card>
-          <Text>Total de Veículos</Text>
-          <Metric>{totalVehicles}</Metric>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
+          <Text className="text-slate-500">Total Veículos</Text>
+          <Metric className="text-slate-900">{totalVehicles}</Metric>
         </Card>
-        <Card>
-          <Text>Valor Total FIPE</Text>
-          <Metric>{fmtBRL(totalFipe)}</Metric>
+        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
+          <Text className="text-slate-500">Valor FIPE Total</Text>
+          <Metric className="text-slate-900">{fmtBRL(totalFipe)}</Metric>
         </Card>
-        <Card>
-          <Text>Idade Média (meses)</Text>
-          <Metric>{Math.round(avgAge)}</Metric>
+        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
+          <Text className="text-slate-500">Idade Média (Meses)</Text>
+          <Metric className="text-slate-900">{avgAge.toFixed(1)}</Metric>
         </Card>
-        <Card>
-          <Text>KM Médio</Text>
-          <Metric>{Math.round(avgKM).toLocaleString('pt-BR')}</Metric>
-        </Card>
-      </div>
-
-      {/* Charts line 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <Text>Distribuição por Filial</Text>
-          <div className="mt-4 flex items-center">
-            <div style={{ width: 180, height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={filialData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80}>
-                    {filialData.map((_, idx) => (
-                      <Cell key={idx} fill={["#10b981", "#3b82f6", "#f97316", "#ef4444"][idx % 4]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: any) => String(v)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="ml-4 text-sm text-gray-600">
-              {filialData.map((d) => (
-                <div key={d.name} className="mb-2">{d.name}: {d.value}</div>
-              ))}
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <Text>Resumo Rápido</Text>
-          <div className="mt-4 text-sm text-gray-600">
-            <div>Total FIPE: {fmtBRL(totalFipe)}</div>
-            <div>KM Médio: {Math.round(avgKM).toLocaleString('pt-BR')}</div>
-            <div>Idade Média: {Math.round(avgAge)} meses</div>
-          </div>
-        </Card>
-
-        <Card>
-          <Text>Espaço Reservado</Text>
-          <div className="mt-4 text-sm text-gray-500">Aqui você pode adicionar outro visual resumido ou filtros rápidos.</div>
+        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
+          <Text className="text-slate-500">KM Médio</Text>
+          <Metric className="text-slate-900">{Math.round(avgKM).toLocaleString()}</Metric>
         </Card>
       </div>
 
-      {/* Charts line 2 - histograms + Top Montadoras (now shares row) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="h-72">
-          <Text>Histograma de Idade (meses)</Text>
-          <div className="h-56 mt-4">
+      {/* Charts Row 1: Availability Pie & Age Histogram */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-1 bg-white shadow-sm border border-slate-200">
+          <Title className="text-slate-900">Disponibilidade da Frota</Title>
+          <div className="h-64 mt-4 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ageHistogram}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="faixa" />
-                <YAxis allowDecimals={false} />
+              <PieChart>
+                <Pie
+                  data={fleetPieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                >
+                  {fleetPieData.map((entry, index) => {
+                    let color = '#94a3b8'; // default slate-400
+                    if (entry.key === 'produtiva') color = '#10b981'; // emerald-500
+                    if (entry.key === 'improdutiva') color = '#f59e0b'; // amber-500
+                    if (entry.key === 'inativa') color = '#ef4444'; // red-500
+                    return <Cell key={`cell-${index}`} fill={color} />;
+                  })}
+                </Pie>
                 <Tooltip />
-                <Bar dataKey="count" fill="#06b6d4"><LabelList dataKey="count" position="top" /></Bar>
-              </BarChart>
+              </PieChart>
             </ResponsiveContainer>
           </div>
-        </Card>
-
-        <Card className="h-72">
-          <Text>Histograma de KM</Text>
-          <div className="h-56 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={kmHistogram}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="faixa" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6"><LabelList dataKey="count" position="top" /></Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card className="h-72">
-          <Text>Top 5 Montadoras</Text>
-          <div className="mt-4 h-full">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {topMontadoras.map((m) => (
-                <div key={m.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div className="text-sm text-gray-800">{m.name}</div>
-                  <div className="text-sm font-medium">{m.value}</div>
+          <div className="mt-4 space-y-2">
+            {fleetPieData.map((d) => (
+              <div key={d.key} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${d.key === 'produtiva' ? 'bg-emerald-500' : d.key === 'improdutiva' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                  <span className="text-slate-600 capitalize">{d.name}</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-4">
+                  <span className="font-medium text-slate-900">{d.value}</span>
+                  <span className="text-slate-400 w-12 text-right">{d.pct}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="lg:col-span-2 bg-white shadow-sm border border-slate-200">
+          <Title className="text-slate-900">Distribuição por Idade (Meses)</Title>
+          <div className="h-80 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ageHistogram} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="faixa" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip
+                  cursor={{ fill: '#f1f5f9' }}
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="count" position="top" fill="#64748b" fontSize={12} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
-      {/* Table detalhada */}
-      <Card>
-        <Text>Detalhes da Frota</Text>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-            <thead>
+      {/* Charts Row 2: KM Histogram */}
+      <Card className="bg-white shadow-sm border border-slate-200">
+        <Title className="text-slate-900">Distribuição por Quilometragem</Title>
+        <div className="h-72 mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={kmHistogram} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="faixa" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+              <Tooltip
+                cursor={{ fill: '#f1f5f9' }}
+                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+              />
+              <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="count" position="top" fill="#64748b" fontSize={12} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      {/* Detailed Table */}
+      <Card className="bg-white shadow-sm border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <Title className="text-slate-900">Detalhamento da Frota</Title>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-slate-600">Página {page} de {totalPages}</span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
+            >
+              Próximo
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left p-2">Placa</th>
-                <th className="text-left p-2">Modelo</th>
-                <th className="text-left p-2">Filial</th>
-                <th className="text-left p-2">Situação</th>
-                <th className="text-right p-2">KM</th>
-                <th className="text-right p-2">Idade (m)</th>
-                <th className="text-right p-2">Valor FIPE</th>
+                <th className="px-4 py-3 font-medium">Placa</th>
+                <th className="px-4 py-3 font-medium">Modelo</th>
+                <th className="px-4 py-3 font-medium">Filial</th>
+                <th className="px-4 py-3 font-medium">Situação</th>
+                <th className="px-4 py-3 font-medium text-right">KM</th>
+                <th className="px-4 py-3 font-medium text-right">Idade (Meses)</th>
+                <th className="px-4 py-3 font-medium text-right">FIPE</th>
               </tr>
             </thead>
-            <tbody>
-              {pageItems.map((r, idx) => (
-                <tr key={`veh-${idx}`} className="border-t">
-                  <td className="p-2">{r.Placa || '-'}</td>
-                  <td className="p-2">{r.Modelo || '-'}</td>
-                  <td className="p-2">{r.Filial || '-'}</td>
-                  <td className="p-2">
-                    {String(r.Situacao || '').toLowerCase().includes('disp') ? (
-                      <span className="inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded">{r.Situacao}</span>
-                    ) : String(r.Situacao || '').toLowerCase().includes('manut') ? (
-                      <span className="inline-block bg-red-100 text-red-700 px-2 py-1 rounded">{r.Situacao}</span>
-                    ) : String(r.Situacao || '').toLowerCase().includes('locad') ? (
-                      <span className="inline-block bg-amber-100 text-amber-700 px-2 py-1 rounded">{r.Situacao}</span>
-                    ) : (
-                      <span className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded">{r.Situacao}</span>
-                    )}
-                  </td>
-                  <td className="p-2 text-right">{r.KM.toLocaleString('pt-BR')}</td>
-                  <td className="p-2 text-right">{r.IdadeMeses}</td>
-                  <td className="p-2 text-right">{fmtBRL(r.ValorFipe)}</td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-slate-100">
+              {pageItems.map((v, i) => {
+                const cat = classifySituacao(v.SituacaoVeiculo);
+                let statusColor = 'bg-slate-100 text-slate-700';
+                let Icon = null;
+
+                if (cat === 'produtiva') {
+                  statusColor = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+                  Icon = CheckCircle;
+                } else if (cat === 'improdutiva') {
+                  statusColor = 'bg-amber-50 text-amber-700 border border-amber-100';
+                  Icon = AlertTriangle;
+                } else {
+                  statusColor = 'bg-red-50 text-red-700 border border-red-100';
+                  Icon = XCircle;
+                }
+
+                return (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-slate-900">{v.Placa}</td>
+                    <td className="px-4 py-3 text-slate-600">{v.Modelo}</td>
+                    <td className="px-4 py-3 text-slate-600">{v.Filial}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>
+                        {Icon && <Icon className="w-3 h-3" />}
+                        {v.SituacaoVeiculo}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-600">{Number(v.KM).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{v.IdadeMeses}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(Number(v.ValorFipe))}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-
-          {/* Pagination footer */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-gray-600">Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, tableData.length)} de {tableData.length}</div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50">Anterior</button>
-              <Text>Página {page} / {totalPages}</Text>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50">Próximo</button>
-            </div>
-          </div>
         </div>
       </Card>
     </div>
