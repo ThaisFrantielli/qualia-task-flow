@@ -180,7 +180,7 @@ export function useUpdateEstagio() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, funilId, updates }: { id: string; funilId: string; updates: Partial<FunilEstagio> }) => {
+        mutationFn: async ({ id, updates }: { id: string; funilId: string; updates: Partial<FunilEstagio> }) => {
             const { data, error } = await supabase
                 .from('funil_estagios')
                 .update(updates)
@@ -206,7 +206,7 @@ export function useDeleteEstagio() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, funilId }: { id: string; funilId: string }) => {
+        mutationFn: async ({ id }: { id: string; funilId: string }) => {
             const { error } = await supabase
                 .from('funil_estagios')
                 .delete()
@@ -229,7 +229,7 @@ export function useReorderEstagios() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ funilId, estagios }: { funilId: string; estagios: { id: string; ordem: number }[] }) => {
+        mutationFn: async ({ estagios }: { funilId: string; estagios: { id: string; ordem: number }[] }) => {
             // Atualizar ordem de cada estágio
             const promises = estagios.map(({ id, ordem }) =>
                 supabase
