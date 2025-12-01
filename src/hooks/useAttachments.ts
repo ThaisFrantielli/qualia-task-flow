@@ -19,7 +19,7 @@ export const useAttachments = (taskId?: string) => {
         .eq('task_id', taskId)
         .order('created_at', { ascending: false });
       if (error) {
-        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+        if (/RLS|policy|permission|forbidden/i.test(error.message || '')) {
           setError('Você não tem permissão para realizar esta ação');
           setAttachments([]);
           return;
@@ -70,7 +70,7 @@ export const useAttachments = (taskId?: string) => {
           file_size: file.size
         });
       if (error) {
-        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+        if (/RLS|policy|permission|forbidden/i.test(error.message || '')) {
           setError('Você não tem permissão para realizar esta ação');
           return;
         }
@@ -90,7 +90,7 @@ export const useAttachments = (taskId?: string) => {
         .delete()
         .eq('id', id);
       if (error) {
-        if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+        if (/RLS|policy|permission|forbidden/i.test(error.message || '')) {
           setError('Você não tem permissão para realizar esta ação');
           return;
         }

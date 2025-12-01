@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
+import { AlertCircle, DollarSign } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
