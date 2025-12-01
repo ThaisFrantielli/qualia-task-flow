@@ -5,7 +5,7 @@ import {
   LayoutDashboard, KanbanSquare, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Inbox, Ticket
+  PanelLeftClose, PanelRightClose, Inbox, Ticket, Wrench
 } from 'lucide-react';
 import { FileText } from 'lucide-react';
 
@@ -46,11 +46,12 @@ const menuGroups: MenuGroup[] = [
         children: [
           { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
           { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
-          
+
           { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
-              { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
-              { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
-              { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
+          { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
+          { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
+          { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
+          { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
         ],
       },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },

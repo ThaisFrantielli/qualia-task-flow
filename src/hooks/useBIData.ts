@@ -8,6 +8,18 @@ type BIResult<T = any> = {
 };
 
 const PROJECT_REF = 'apqrjkobktjcyrxhqwtm';
+const BASE_URL = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/bi-reports`;
+const YEARS_TO_FETCH = [2020, 2021, 2022, 2023, 2024, 2025];
+
+async function fetchFile(fileName: string, signal?: AbortSignal) {
+  const url = `${BASE_URL}/${fileName}?t=${Date.now()}`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    if (res.status === 404) return null; // Arquivo não existe (ano futuro ou sem dados)
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return await res.json();
+}
 
 export default function useBIData<T = any>(fileName: string): BIResult<T> {
   const [data, setData] = useState<T | null>(null);
@@ -23,27 +35,48 @@ export default function useBIData<T = any>(fileName: string): BIResult<T> {
       setLoading(true);
       setError(null);
       try {
-        const url = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/bi-reports/${fileName}?t=${Date.now()}`;
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        let finalData: any = null;
+        let finalMeta: any = {};
 
-        // payload may have { generated_at, source, data }
-        const payloadData = json?.data ?? json;
-        const meta: Record<string, any> = {};
-        if (json && typeof json === 'object') {
-          if (json.generated_at) meta.generated_at = json.generated_at;
-          if (json.source) meta.source = json.source;
+        // MODO SHARDING (Se tiver '*')
+        if (fileName.includes('*')) {
+          const promises = YEARS_TO_FETCH.map(year => {
+            const file = fileName.replace('*', String(year));
+            return fetchFile(file, controller.signal);
+          });
+
+          const results = await Promise.allSettled(promises);
+          const combinedArray: any[] = [];
+
+          results.forEach(res => {
+            if (res.status === 'fulfilled' && res.value) {
+              const json = res.value;
+              const payloadData = json?.data ?? json;
+              if (Array.isArray(payloadData)) {
+                combinedArray.push(...payloadData);
+              }
+            }
+          });
+          finalData = combinedArray;
+        }
+        // MODO SIMPLES (Arquivo único)
+        else {
+          const json = await fetchFile(fileName, controller.signal);
+          if (json) {
+            finalData = json?.data ?? json;
+            if (json.generated_at) finalMeta.generated_at = json.generated_at;
+          }
         }
 
         if (mounted) {
-          setData(payloadData ?? null);
-          setMetadata(Object.keys(meta).length ? meta : null);
+          setData(finalData);
+          setMetadata(finalMeta);
           setLoading(false);
         }
       } catch (err: any) {
         if (mounted) {
           if (err.name === 'AbortError') return;
+          console.error(`Erro ao carregar ${fileName}:`, err);
           setError(err?.message ?? String(err));
           setLoading(false);
         }
