@@ -1,6 +1,6 @@
 // src/pages/Signup.tsx
 // Página desabilitada: cadastro público foi removido (sistema fechado).
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const SignupPage = () => {
