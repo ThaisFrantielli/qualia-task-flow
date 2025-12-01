@@ -6,11 +6,6 @@ import { AlertOctagon, AlertTriangle, BarChart2, Shield } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
-function formatCurrency(v: number | null | undefined) {
-  if (v == null || Number.isNaN(v)) return '-';
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
 export default function DataAudit(): JSX.Element {
   const { data } = useBIData<AnyObject[]>('auditoria_vendas.json');
 

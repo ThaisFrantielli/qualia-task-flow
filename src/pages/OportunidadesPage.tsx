@@ -105,9 +105,6 @@ export default function OportunidadesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Buscar primeiro estágio do funil selecionado
-      const primeiroEstagio = funilSelecionado?.estagios?.[0];
-
       await createOportunidade({
         titulo: formData.titulo,
         descricao: formData.descricao,
