@@ -3,9 +3,9 @@ import { useTickets } from '@/hooks/useTickets';
 import { useTasks } from '@/hooks/useTasks';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
 import { ClienteComContatos } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Ticket, CheckSquare, MessageSquare, Calendar, ArrowRight, Clock } from 'lucide-react';
+import { Ticket, CheckSquare, MessageSquare, Calendar, Clock } from 'lucide-react';
 import { formatDateSafe } from '@/lib/dateUtils';
 import { Skeleton } from '@/components/ui/skeleton';
 
