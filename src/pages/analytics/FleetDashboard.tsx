@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, DonutChart, BarList } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Car, AlertTriangle, Activity, Filter } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -221,7 +221,6 @@ export default function FleetDashboard(): JSX.Element {
             index="name"
             colors={['emerald', 'amber', 'rose', 'slate', 'blue']}
             className="h-60"
-            onValueChange={(v) => { if (v) setSelectedStatus(v.name); }}
           />
         </Card>
 

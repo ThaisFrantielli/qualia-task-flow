@@ -156,7 +156,7 @@ export function useDescartarLead() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ clienteId, motivo }: { clienteId: string; motivo?: string }) => {
+        mutationFn: async ({ clienteId }: { clienteId: string; motivo?: string }) => {
             const { error } = await supabase
                 .from('clientes')
                 .update({ status_triagem: 'descartado' })
