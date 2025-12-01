@@ -812,7 +812,7 @@ export default function CalendarApp(): JSX.Element {
             if (error) {
               console.error('Erro atualizando calendar_event:', error);
               // Permission/RLS friendly message
-              if (error?.status === 403 || /RLS|policy|permission|forbidden/i.test(error.message || '')) {
+              if (/RLS|policy|permission|forbidden/i.test(error.message || '')) {
                 toast.error('Você não tem permissão para realizar esta ação');
               } else if (error.code === 'PGRST204') {
                 try {

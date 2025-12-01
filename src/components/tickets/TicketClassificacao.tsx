@@ -3,7 +3,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, MinusCircle } from "lucide-react";
 import { useState } from "react";
 
@@ -27,7 +26,7 @@ const PROCEDENCIA_OPTIONS = [
     { value: 'parcial', label: 'Parcialmente Procedente', icon: MinusCircle, color: 'text-yellow-600' }
 ];
 
-export function TicketClassificacao({ ticketId, onSave, initialData }: TicketClassificacaoProps) {
+export function TicketClassificacao({ onSave, initialData }: TicketClassificacaoProps) {
     const [formData, setFormData] = useState<ClassificacaoData>({
         procedencia: initialData?.procedencia || 'procedente',
         solucao_aplicada: initialData?.solucao_aplicada || '',
