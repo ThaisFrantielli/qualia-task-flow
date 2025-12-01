@@ -1,267 +1,267 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import {
-  Card,
-  Title,
-  Text,
-  Metric,
-} from '@tremor/react';
-import { AreaChart as ReAreaChart, Area, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, BarChart as ReBarChart, Bar, CartesianGrid, LabelList, Cell } from 'recharts';
-import { ShoppingCart, TrendingUp, DollarSign, Calendar } from 'lucide-react';
+import { Card, Title, Text, Metric, BarList } from '@tremor/react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ShoppingBag, AlertTriangle, Filter, Download } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
-function formatCurrency(v: number | null | undefined) {
-  if (v == null || Number.isNaN(v)) return '-';
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+// --- HELPERS ---
+function parseCurrency(v: any): number {
+  if (typeof v === 'number') return v;
+  if (!v) return 0;
+  const s = String(v).replace(/[^0-9.\-]/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
 }
 
+function fmtBRL(v: number): string {
+  try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+  catch (e) { return String(v); }
+}
+
+function fmtCompact(v: number): string {
+  if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `R$ ${(v / 1000).toFixed(0)}k`;
+  return `R$ ${v}`;
+}
+
+function getMonthKey(dateString?: string): string {
+  if (!dateString || typeof dateString !== 'string') return '';
+  return dateString.split('T')[0].substring(0, 7);
+}
+
+function monthLabel(ym: string): string {
+  if (!ym || ym.length < 7) return ym;
+  const [y, m] = ym.split('-');
+  const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  return `${months[Number(m) - 1]}/${String(y).slice(2)}`;
+}
+
+// --- COMPONENTE PRINCIPAL ---
 export default function PurchasesDashboard(): JSX.Element {
-  const { data } = useBIData<any[]>('compras_full.json');
+  const { data: comprasData } = useBIData<AnyObject[]>('compras.json');
 
-  const [chartMode, setChartMode] = useState<'financial' | 'volume'>('financial');
+  const compras = useMemo(() => {
+    const raw = (comprasData as any)?.data || comprasData || [];
+    return Array.isArray(raw) ? raw : [];
+  }, [comprasData]);
 
-  // normalize data
-  const records: AnyObject[] = useMemo(() => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data as AnyObject[];
-    if ((data as any).data && Array.isArray((data as any).data)) return (data as any).data;
-    // fallback: find first array prop
-    const keys = Object.keys(data as any);
-    for (const k of keys) {
-      if (Array.isArray((data as any)[k])) return (data as any)[k];
-    }
-    return [];
-  }, [data]);
-
-  // Filters
-  const currentYear = new Date().getFullYear();
-  const defaultDateFrom = `${currentYear}-01-01`;
-  const defaultDateTo = `${currentYear}-12-31`;
-  const [dateFrom, setDateFrom] = useState<string | null>(defaultDateFrom); // 'yyyy-mm-dd'
-  const [dateTo, setDateTo] = useState<string | null>(defaultDateTo);
-  const montadoras = useMemo(() => Array.from(new Set(records.map((r) => r.Montadora).filter(Boolean))), [records]);
-  const statusOptions = useMemo(() => Array.from(new Set(records.map((r) => r.SituacaoVeiculo).filter(Boolean))), [records]);
+  // State
   const [selectedMontadoras, setSelectedMontadoras] = useState<string[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
-
-  // Filtering logic
-  const filtered = useMemo(() => {
-    if (!records || records.length === 0) return [] as AnyObject[];
-    const q = String(search || '').trim().toLowerCase();
-    return records.filter((r) => {
-      // date filter
-      if (dateFrom) {
-        if (!r.DataCompra) return false;
-        if (new Date(r.DataCompra) < new Date(dateFrom + 'T00:00:00')) return false;
-      }
-      if (dateTo) {
-        if (!r.DataCompra) return false;
-        if (new Date(r.DataCompra) > new Date(dateTo + 'T23:59:59')) return false;
-      }
-
-      if (selectedMontadoras.length > 0) {
-        if (!selectedMontadoras.includes(String(r.Montadora))) return false;
-      }
-      if (selectedStatus.length > 0) {
-        if (!selectedStatus.includes(String(r.SituacaoVeiculo))) return false;
-      }
-
-      if (q) {
-        const hay = [r.Placa, r.Montadora, r.Modelo, r.SituacaoVeiculo, r.Banco].map((v) => String(v || '').toLowerCase()).join(' ');
-        if (!hay.includes(q)) return false;
-      }
-
-      return true;
-    });
-  }, [records, dateFrom, dateTo, selectedMontadoras, selectedStatus, search]);
-
-  // Table pagination
+  const [selectedBancos, setSelectedBancos] = useState<string[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<'financial' | 'volume'>('financial');
   const [page, setPage] = useState(1);
   const pageSize = 10;
-  // seleção por modelo/banco (clicando nos gráficos) — agora multi-select
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [selectedBanks, setSelectedBanks] = useState<string[]>([]);
 
-  // aplicar seleções vindas dos gráficos (modelos, bancos)
-  const filteredBySelections = useMemo(() => {
-    let base = filtered;
-    if (selectedModels.length > 0) base = base.filter((r) => selectedModels.includes(String(r.Modelo || '')));
-    if (selectedBanks.length > 0) base = base.filter((r) => selectedBanks.includes(String(r.Banco || 'Recurso Próprio')));
-    return base;
-  }, [filtered, selectedModels, selectedBanks]);
+  // Lists
+  const montadoras = useMemo(() => Array.from(new Set(compras.map(r => r.Montadora).filter(Boolean))).sort(), [compras]);
+  const bancos = useMemo(() => Array.from(new Set(compras.map(r => r.Banco).filter(Boolean))).sort(), [compras]);
 
-  const pageData = filteredBySelections.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(filteredBySelections.length / pageSize);
+  // Filtered Data
+  const filteredData = useMemo(() => {
+    return compras.filter(r => {
+      if (selectedMontadoras.length > 0 && !selectedMontadoras.includes(r.Montadora)) return false;
+      if (selectedBancos.length > 0 && !selectedBancos.includes(r.Banco)) return false;
+      if (selectedMonth && getMonthKey(r.DataCompra) !== selectedMonth) return false;
+      return true;
+    });
+  }, [compras, selectedMontadoras, selectedBancos, selectedMonth]);
 
   // KPIs
-  const totalInvestido = useMemo(() => filteredBySelections.reduce((acc, r) => acc + (Number(r.ValorCompra) || 0), 0), [filteredBySelections]);
-  const totalFipe = useMemo(() => filteredBySelections.reduce((acc, r) => acc + (Number(r.ValorFipe) || 0), 0), [filteredBySelections]);
-  const desagioTotal = totalFipe > 0 ? (1 - totalInvestido / totalFipe) * 100 : 0;
-  const qtdVeiculos = filteredBySelections.length;
-  const qtdAlienados = useMemo(() => filteredBySelections.filter((r) => r.Alienado === 'SIM').length, [filteredBySelections]);
-  const pctAlienados = qtdVeiculos > 0 ? (qtdAlienados / qtdVeiculos) * 100 : 0;
+  const kpis = useMemo(() => {
+    const totalInvest = filteredData.reduce((s, r) => s + parseCurrency(r.ValorCompra), 0);
+    const count = filteredData.length;
+    const avgTicket = count > 0 ? totalInvest / count : 0;
 
-  // Charts Data
+    // Deságio Médio (FIPE vs Compra)
+    let totalDesagio = 0;
+    let validDesagio = 0;
+    filteredData.forEach(r => {
+      const fipe = parseCurrency(r.ValorFipe);
+      const compra = parseCurrency(r.ValorCompra);
+      if (fipe > 0 && compra > 0) {
+        totalDesagio += ((fipe - compra) / fipe);
+        validDesagio++;
+      }
+    });
+    const avgDesagio = validDesagio > 0 ? (totalDesagio / validDesagio) * 100 : 0;
+
+    return { totalInvest, count, avgTicket, avgDesagio };
+  }, [filteredData]);
+
+  // Chart Data (Evolution)
   const monthlyData = useMemo(() => {
-    const map: Record<string, { total: number; count: number }> = {};
-    filteredBySelections.forEach((r) => {
-      if (!r.DataCompra) return;
-      const d = new Date(r.DataCompra);
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!map[k]) map[k] = { total: 0, count: 0 };
-      map[k].total += Number(r.ValorCompra) || 0;
-      map[k].count += 1;
+    const map: Record<string, { val: number; qtd: number }> = {};
+    // Use base filtered data (without month filter) to show trend
+    const base = compras.filter(r => {
+      if (selectedMontadoras.length > 0 && !selectedMontadoras.includes(r.Montadora)) return false;
+      if (selectedBancos.length > 0 && !selectedBancos.includes(r.Banco)) return false;
+      return true;
     });
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([k, v]) => {
-        const [y, m] = k.split('-');
-        return {
-          month: `${m}/${y.slice(2)}`,
-          fullDate: k,
-          Valor: v.total,
-          Qtd: v.count,
-        };
-      });
-  }, [filteredBySelections]);
 
-  const topBanks = useMemo(() => {
+    base.forEach(r => {
+      const k = getMonthKey(r.DataCompra);
+      if (!k) return;
+      if (!map[k]) map[k] = { val: 0, qtd: 0 };
+      map[k].val += parseCurrency(r.ValorCompra);
+      map[k].qtd += 1;
+    });
+
+    return Object.keys(map).sort().map(k => ({
+      key: k,
+      month: monthLabel(k),
+      Valor: map[k].val,
+      Qtd: map[k].qtd
+    }));
+  }, [compras, selectedMontadoras, selectedBancos]);
+
+  // Top Banks
+  const topBancos = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredBySelections.forEach((r) => {
-      const b = r.Banco || 'Recurso Próprio';
-      map[b] = (map[b] || 0) + 1; // count volume
+    filteredData.forEach(r => {
+      const b = r.Banco || 'Outros';
+      map[b] = (map[b] || 0) + parseCurrency(r.ValorCompra);
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [filteredBySelections]);
+      .slice(0, 5);
+  }, [filteredData]);
 
-  const topModels = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredBySelections.forEach((r) => {
-      const m = r.Modelo || 'Unknown';
-      map[m] = (map[m] || 0) + 1;
-    });
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [filteredBySelections]);
+  // Insights
+  const insights = useMemo(() => {
+    const alerts = [];
 
-  // Handlers
-  const handleBankClick = (data: any) => {
-    if (!data || !data.name) return;
-    const name = data.name;
-    setSelectedBanks((prev) => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
-  };
+    // Bank Concentration
+    if (topBancos.length > 0 && kpis.totalInvest > 0) {
+      const topShare = topBancos[0].value / kpis.totalInvest;
+      if (topShare > 0.50) {
+        alerts.push({
+          type: 'warning',
+          title: 'Concentração de Fornecedor',
+          msg: `O banco ${topBancos[0].name} representa ${(topShare * 100).toFixed(1)}% do volume de compras.`
+        });
+      }
+    }
 
-  const handleModelClick = (data: any) => {
-    if (!data || !data.name) return;
-    const name = data.name;
-    setSelectedModels((prev) => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
-  };
+    return alerts;
+  }, [topBancos, kpis.totalInvest]);
 
-  const exportCSV = () => {
-    const headers = ['Placa', 'Modelo', 'Montadora', 'AnoModelo', 'Cor', 'Combustivel', 'Chassi', 'Renavam', 'DataCompra', 'ValorCompra', 'ValorFipe', 'Fornecedor', 'Banco', 'Alienado', 'SituacaoVeiculo'];
-    const csvRows = [headers.join(';')];
-    filteredBySelections.forEach((r) => {
-      const row = headers.map((h) => {
-        let val = r[h];
-        if (h === 'ValorCompra' || h === 'ValorFipe') val = String(val).replace('.', ',');
-        return `"${val || ''}"`;
-      });
-      csvRows.push(row.join(';'));
-    });
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+  // Export CSV
+  const handleExport = () => {
+    const headers = ['Modelo', 'Placa', 'Banco', 'DataCompra', 'ValorCompra', 'ValorFipe'];
+    const csvContent = [
+      headers.join(';'),
+      ...filteredData.map(r => [
+        r.Modelo, r.Placa, r.Banco,
+        r.DataCompra ? new Date(r.DataCompra).toLocaleDateString('pt-BR') : '',
+        parseCurrency(r.ValorCompra).toFixed(2),
+        parseCurrency(r.ValorFipe).toFixed(2)
+      ].join(';'))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'compras_export.csv');
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = 'compras_detalhado.csv';
     link.click();
-    document.body.removeChild(link);
   };
+
+  // Pagination
+  const pageItems = filteredData.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <Title className="text-slate-900">Compras & Desmobilização</Title>
-          <Text className="mt-1 text-slate-500">Pipeline de aquisição, valores investidos e perfil da frota.</Text>
+          <Title className="text-slate-900">Gestão de Compras</Title>
+          <Text className="mt-1 text-slate-500">Detalhamento de aquisições, fornecedores e deságio.</Text>
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4" />
-            Hub Operacional
+            <ShoppingBag className="w-4 h-4" /> Hub Compras
           </div>
         </div>
       </div>
 
       {/* Filters */}
       <Card className="bg-white shadow-sm border border-slate-200">
-        <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Filter className="w-4 h-4 text-slate-500" />
+          <Text className="font-medium text-slate-700">Filtros Avançados</Text>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <Text className="text-slate-500 text-xs mb-1">Período (De - Até)</Text>
-            <div className="flex gap-2">
-              <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={dateFrom || ''} onChange={(e) => setDateFrom(e.target.value || null)} />
-              <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={dateTo || ''} onChange={(e) => setDateTo(e.target.value || null)} />
-            </div>
-          </div>
-          <div>
-            <Text className="text-slate-500 text-xs mb-1">Montadora</Text>
-            <select multiple size={3} className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={selectedMontadoras} onChange={(e) => setSelectedMontadoras(Array.from(e.target.selectedOptions).map(o => o.value))}>
+            <Text className="text-xs text-slate-500 mb-1">Montadora</Text>
+            <select multiple className="w-full border border-slate-300 rounded-md p-2 text-sm h-20 outline-none focus:ring-2 focus:ring-emerald-500" value={selectedMontadoras} onChange={e => { setSelectedMontadoras(Array.from(e.target.selectedOptions).map(o => o.value)); setPage(1); }}>
               {montadoras.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
           <div>
-            <Text className="text-slate-500 text-xs mb-1">Status</Text>
-            <select multiple size={3} className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={selectedStatus} onChange={(e) => setSelectedStatus(Array.from(e.target.selectedOptions).map(o => o.value))}>
-              {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            <Text className="text-xs text-slate-500 mb-1">Banco / Fornecedor</Text>
+            <select multiple className="w-full border border-slate-300 rounded-md p-2 text-sm h-20 outline-none focus:ring-2 focus:ring-emerald-500" value={selectedBancos} onChange={e => { setSelectedBancos(Array.from(e.target.selectedOptions).map(o => o.value)); setPage(1); }}>
+              {bancos.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
-          <div>
-            <Text className="text-slate-500 text-xs mb-1">Busca Rápida</Text>
-            <input type="text" placeholder="Placa, Modelo, Banco..." className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <div className="flex items-end">
+          <div className="flex flex-col justify-end gap-2">
             <button
-              onClick={() => { setDateFrom(defaultDateFrom); setDateTo(defaultDateTo); setSelectedMontadoras([]); setSelectedStatus([]); setSearch(''); setSelectedModels([]); setSelectedBanks([]); }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors w-full"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-600 w-full py-2 rounded-md text-sm transition-colors"
+              onClick={() => { setSelectedMontadoras([]); setSelectedBancos([]); setSelectedMonth(null); setPage(1); }}
             >
               Limpar Filtros
             </button>
+            {selectedMonth && (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-2 rounded-md text-sm flex justify-between items-center">
+                <span>Mês: <strong>{monthLabel(selectedMonth)}</strong></span>
+                <button onClick={() => setSelectedMonth(null)} className="text-emerald-500 hover:text-emerald-800">✕</button>
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
+      {/* Insights */}
+      {insights.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {insights.map((alert, idx) => (
+            <div key={idx} className={`p-4 rounded-lg border flex items-start gap-3 ${alert.type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>
+              <AlertTriangle className="w-5 h-5 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-sm">{alert.title}</h4>
+                <p className="text-xs opacity-90">{alert.msg}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-          <Text className="text-slate-500">Total Investido</Text>
-          <Metric className="text-slate-900">{formatCurrency(totalInvestido)}</Metric>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
+          <Text className="text-slate-500">Investimento Total</Text>
+          <Metric className="text-slate-900">{fmtBRL(kpis.totalInvest)}</Metric>
         </Card>
-        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-          <Text className="text-slate-500">Total FIPE</Text>
-          <Metric className="text-slate-900">{formatCurrency(totalFipe)}</Metric>
+        <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
+          <Text className="text-slate-500">Veículos Comprados</Text>
+          <Metric className="text-slate-900">{kpis.count}</Metric>
         </Card>
-        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
+        <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200 shadow-sm">
+          <Text className="text-slate-500">Ticket Médio</Text>
+          <Metric className="text-slate-900">{fmtBRL(kpis.avgTicket)}</Metric>
+        </Card>
+        <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200 shadow-sm">
           <Text className="text-slate-500">Deságio Médio</Text>
-          <Metric className="text-slate-900">{desagioTotal.toFixed(2)}%</Metric>
-        </Card>
-        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-          <Text className="text-slate-500">Veículos Alienados</Text>
-          <Metric className="text-slate-900">{pctAlienados.toFixed(1)}%</Metric>
-          <Text className="text-xs text-slate-400 mt-1">{qtdAlienados} de {qtdVeiculos}</Text>
+          <Metric className="text-slate-900">{kpis.avgDesagio.toFixed(1)}%</Metric>
         </Card>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 bg-white shadow-sm border border-slate-200">
+        <Card className="lg:col-span-2 bg-white border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <Title className="text-slate-900">Evolução de Compras</Title>
             <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg">
@@ -271,132 +271,93 @@ export default function PurchasesDashboard(): JSX.Element {
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <ReAreaChart data={monthlyData}>
+              <AreaChart
+                data={monthlyData}
+                onClick={(data: any) => {
+                  if (data && data.activePayload && data.activePayload.length > 0) {
+                    const k = data.activePayload[0].payload.key;
+                    setSelectedMonth(prev => prev === k ? null : k);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <defs>
-                  <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorChart" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => chartMode === 'financial' ? `R$${(v / 1000).toFixed(0)}k` : v} />
-                <Tooltip
-                  cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '3 3' }}
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={chartMode === 'financial' ? fmtCompact : undefined} stroke="#64748b" />
+                <Tooltip formatter={(v: any) => chartMode === 'financial' ? fmtBRL(v) : v} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                 <Area
                   type="monotone"
                   dataKey={chartMode === 'financial' ? 'Valor' : 'Qtd'}
                   stroke="#10b981"
                   fillOpacity={1}
-                  fill="url(#colorVal)"
-                  strokeWidth={2}
+                  fill="url(#colorChart)"
                 />
-              </ReAreaChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        <div className="space-y-4">
-          <Card className="bg-white shadow-sm border border-slate-200 h-48">
-            <Title className="text-slate-900 text-sm">Top Bancos (Volume)</Title>
-            <div className="mt-2 h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={topBanks} layout="vertical" onClick={handleBankClick}>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
-                  <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                    {topBanks.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={selectedBanks.includes(entry.name) ? '#2563eb' : '#93c5fd'} />
-                    ))}
-                  </Bar>
-                </ReBarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-          <Card className="bg-white shadow-sm border border-slate-200 h-48">
-            <Title className="text-slate-900 text-sm">Top Modelos (Volume)</Title>
-            <div className="mt-2 h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={topModels} layout="vertical" onClick={handleModelClick}>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
-                  <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]}>
-                    {topModels.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={selectedModels.includes(entry.name) ? '#059669' : '#6ee7b7'} />
-                    ))}
-                  </Bar>
-                </ReBarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </div>
+        <Card className="bg-white border border-slate-200 shadow-sm">
+          <Title className="text-slate-900">Top Bancos</Title>
+          <div className="mt-4 h-80 overflow-y-auto pr-2">
+            <BarList data={topBancos} valueFormatter={(v) => fmtBRL(v)} color="emerald" />
+          </div>
+        </Card>
       </div>
 
       {/* Table */}
       <Card className="bg-white shadow-sm border border-slate-200">
         <div className="flex items-center justify-between mb-4">
-          <Title className="text-slate-900">Detalhamento de Compras</Title>
-          <div className="flex items-center gap-2">
-            <button onClick={exportCSV} className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-md text-sm hover:bg-emerald-100 transition-colors">
-              Exportar CSV
-            </button>
-            <div className="flex items-center gap-1 ml-4">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
-              >
-                Anterior
-              </button>
-              <span className="text-sm text-slate-600">Página {page} de {totalPages}</span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
-              >
-                Próximo
-              </button>
-            </div>
-          </div>
+          <Title className="text-slate-900">Detalhamento de Veículos</Title>
+          <button onClick={handleExport} className="flex items-center gap-2 text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+            <Download className="w-4 h-4" /> Exportar CSV
+          </button>
         </div>
-
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-xs">
               <tr>
-                <th className="px-4 py-3 font-medium">Placa</th>
                 <th className="px-4 py-3 font-medium">Modelo</th>
-                <th className="px-4 py-3 font-medium">Montadora</th>
-                <th className="px-4 py-3 font-medium">Data Compra</th>
+                <th className="px-4 py-3 font-medium">Placa</th>
                 <th className="px-4 py-3 font-medium">Banco</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Data Compra</th>
                 <th className="px-4 py-3 font-medium text-right">Valor Compra</th>
-                <th className="px-4 py-3 font-medium text-right">FIPE</th>
+                <th className="px-4 py-3 font-medium text-right">Valor FIPE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {pageData.map((r, i) => (
-                <tr key={i} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-900">{r.Placa}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.Modelo}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.Montadora}</td>
+              {pageItems.map((r, i) => (
+                <tr key={`compra-${i}`} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-slate-900">{r.Modelo}</td>
+                  <td className="px-4 py-3 text-slate-600">{r.Placa}</td>
+                  <td className="px-4 py-3 text-slate-600">{r.Banco}</td>
                   <td className="px-4 py-3 text-slate-600">{r.DataCompra ? new Date(r.DataCompra).toLocaleDateString('pt-BR') : '-'}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.Banco || 'Próprio'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${r.SituacaoVeiculo === 'Disponível' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {r.SituacaoVeiculo}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-900 font-medium">{formatCurrency(r.ValorCompra)}</td>
-                  <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(r.ValorFipe)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-emerald-600">{fmtBRL(parseCurrency(r.ValorCompra))}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(parseCurrency(r.ValorFipe))}</td>
                 </tr>
               ))}
+              {pageItems.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Nenhum registro encontrado.</td>
+                </tr>
+              )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-slate-500">Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, filteredData.length)} de {filteredData.length}</div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors">Anterior</button>
+            <Text className="text-slate-600">Página {page} / {totalPages}</Text>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors">Próximo</button>
+          </div>
         </div>
       </Card>
     </div>
