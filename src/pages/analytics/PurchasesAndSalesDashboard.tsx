@@ -1,172 +1,157 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList } from '@tremor/react';
-import { AreaChart as ReAreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart as ReBarChart, Bar, CartesianGrid, LabelList, Cell, PieChart, Pie } from 'recharts';
-import { ShoppingCart, TrendingUp, DollarSign } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ShoppingCart, TrendingUp, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
-function formatCurrency(v: number | null | undefined) {
-    if (v == null || Number.isNaN(v)) return '-';
-    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+// --- HELPERS ---
+function parseCurrency(v: any): number {
+    if (typeof v === 'number') return v;
+    if (!v) return 0;
+    const s = String(v).replace(/[^0-9.\-]/g, '');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
 }
 
+function fmtBRL(v: number): string {
+    try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+    catch (e) { return String(v); }
+}
+
+function fmtCompact(v: number): string {
+    if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`;
+    if (v >= 1000) return `R$ ${(v / 1000).toFixed(0)}k`;
+    return `R$ ${v}`;
+}
+
+function getMonthKey(dateString?: string): string {
+    if (!dateString || typeof dateString !== 'string') return '';
+    return dateString.split('T')[0].substring(0, 7);
+}
+
+function monthLabel(ym: string): string {
+    if (!ym || ym.length < 7) return ym;
+    const [y, m] = ym.split('-');
+    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    return `${months[Number(m) - 1]}/${String(y).slice(2)}`;
+}
+
+// --- COMPONENTE PRINCIPAL ---
 export default function PurchasesAndSalesDashboard(): JSX.Element {
-    const { data: comprasData } = useBIData<any[]>('compras_full.json');
-    const { data: vendasData } = useBIData<AnyObject[]>('vendas_indicados.json');
+    const { data: comprasData } = useBIData<AnyObject[]>('compras_*.json');
+    const { data: vendasData } = useBIData<AnyObject[]>('vendas_*.json');
 
-    const [activeTab, setActiveTab] = useState<'compras' | 'vendas'>('compras');
+    const compras = useMemo(() => (Array.isArray((comprasData as any)?.data || comprasData) ? (comprasData as any)?.data || comprasData : []), [comprasData]);
+    const vendas = useMemo(() => (Array.isArray((vendasData as any)?.data || vendasData) ? (vendasData as any)?.data || vendasData : []), [vendasData]);
 
-    // === COMPRAS DATA ===
-    const comprasRecords: AnyObject[] = useMemo(() => {
-        if (!comprasData) return [];
-        if (Array.isArray(comprasData)) return comprasData as AnyObject[];
-        if ((comprasData as any).data && Array.isArray((comprasData as any).data)) return (comprasData as any).data;
-        const keys = Object.keys(comprasData as any);
-        for (const k of keys) {
-            if (Array.isArray((comprasData as any)[k])) return (comprasData as any)[k];
-        }
-        return [];
-    }, [comprasData]);
+    const [activeTab, setActiveTab] = useState<'compras' | 'indicacoes'>('compras');
 
-    const currentYear = new Date().getFullYear();
-    const defaultDateFrom = `${currentYear}-01-01`;
-    const defaultDateTo = `${currentYear}-12-31`;
-    const [comprasDateFrom, setComprasDateFrom] = useState<string | null>(defaultDateFrom);
-    const [comprasDateTo, setComprasDateTo] = useState<string | null>(defaultDateTo);
+    // Cross-filtering
+    const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
-    const comprasFiltered = useMemo(() => {
-        if (!comprasRecords || comprasRecords.length === 0) return [] as AnyObject[];
-        return comprasRecords.filter((r) => {
-            if (comprasDateFrom) {
-                if (!r.DataCompra) return false;
-                if (new Date(r.DataCompra) < new Date(comprasDateFrom + 'T00:00:00')) return false;
-            }
-            if (comprasDateTo) {
-                if (!r.DataCompra) return false;
-                if (new Date(r.DataCompra) > new Date(comprasDateTo + 'T23:59:59')) return false;
-            }
-            return true;
-        });
-    }, [comprasRecords, comprasDateFrom, comprasDateTo]);
+    // Data Processing based on Active Tab
+    const currentData = useMemo(() => activeTab === 'compras' ? compras : vendas, [activeTab, compras, vendas]);
+    const dateField = activeTab === 'compras' ? 'DataCompra' : 'DataVenda';
+    const valField = activeTab === 'compras' ? 'ValorCompra' : 'ValorVenda';
 
-    const comprasKpis = useMemo(() => {
-        const totalInvestido = comprasFiltered.reduce((acc, r) => acc + (Number(r.ValorCompra) || 0), 0);
-        const totalFipe = comprasFiltered.reduce((acc, r) => acc + (Number(r.ValorFipe) || 0), 0);
-        const desagioTotal = totalFipe > 0 ? (1 - totalInvestido / totalFipe) * 100 : 0;
-        const qtdVeiculos = comprasFiltered.length;
-        return { totalInvestido, totalFipe, desagioTotal, qtdVeiculos };
-    }, [comprasFiltered]);
+    // Filtered Data
+    const filteredData = useMemo(() => {
+        if (!selectedMonth) return currentData;
+        return currentData.filter((r: AnyObject) => getMonthKey(r[dateField]) === selectedMonth);
+    }, [currentData, selectedMonth, dateField]);
 
-    const comprasMonthly = useMemo(() => {
-        const map: Record<string, { total: number; count: number }> = {};
-        comprasFiltered.forEach((r) => {
-            if (!r.DataCompra) return;
-            const d = new Date(r.DataCompra);
-            const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (!map[k]) map[k] = { total: 0, count: 0 };
-            map[k].total += Number(r.ValorCompra) || 0;
-            map[k].count += 1;
-        });
-        return Object.entries(map)
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([k, v]) => {
-                const [y, m] = k.split('-');
-                return { month: `${m}/${y.slice(2)}`, Valor: v.total, Qtd: v.count };
-            });
-    }, [comprasFiltered]);
+    // KPIs
+    const kpis = useMemo(() => {
+        const totalVal = filteredData.reduce((s: number, r: AnyObject) => s + parseCurrency(r[valField]), 0);
+        const count = filteredData.length;
+        const avgTicket = count > 0 ? totalVal / count : 0;
+        return { totalVal, count, avgTicket };
+    }, [filteredData, valField]);
 
-    const comprasTopModels = useMemo(() => {
+    // Chart Data (Monthly Evolution) - Always shows full history to allow selection
+    const chartData = useMemo(() => {
         const map: Record<string, number> = {};
-        comprasFiltered.forEach((r) => {
-            const m = r.Modelo || 'Unknown';
-            map[m] = (map[m] || 0) + 1;
+        currentData.forEach((r: AnyObject) => {
+            const k = getMonthKey(r[dateField]);
+            if (!k) return;
+            map[k] = (map[k] || 0) + parseCurrency(r[valField]);
+        });
+        return Object.keys(map).sort().map(k => ({
+            key: k,
+            month: monthLabel(k),
+            Valor: map[k]
+        }));
+    }, [currentData, dateField, valField]);
+
+    // Top Models (Based on Filtered Data)
+    const topModels = useMemo(() => {
+        const map: Record<string, number> = {};
+        filteredData.forEach((r: AnyObject) => {
+            const m = r.Modelo || 'Outros';
+            map[m] = (map[m] || 0) + parseCurrency(r[valField]);
         });
         return Object.entries(map)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
             .slice(0, 10);
-    }, [comprasFiltered]);
+    }, [filteredData, valField]);
 
-    // === VENDAS DATA ===
-    const vendasRecords: AnyObject[] = useMemo(() => {
-        if (!vendasData) return [];
-        if (Array.isArray(vendasData)) return vendasData as AnyObject[];
-        if ((vendasData as any).data && Array.isArray((vendasData as any).data)) return (vendasData as any).data;
-        const keys = Object.keys(vendasData as any);
-        for (const k of keys) {
-            if (Array.isArray((vendasData as any)[k])) return (vendasData as any)[k];
+    // Insights
+    const insights = useMemo(() => {
+        const alerts = [];
+        if (activeTab === 'compras') {
+            // Example Insight for Purchases: High Concentration
+            if (topModels.length > 0) {
+                const topShare = topModels[0].value / kpis.totalVal;
+                if (topShare > 0.30) {
+                    alerts.push({
+                        type: 'warning',
+                        title: 'Concentração de Modelo',
+                        msg: `O modelo ${topModels[0].name} representa ${(topShare * 100).toFixed(1)}% do volume de compras.`
+                    });
+                }
+            }
+        } else {
+            // Example Insight for Indications: Volume Spike
+            if (chartData.length >= 2) {
+                const last = chartData[chartData.length - 1].Valor;
+                const prev = chartData[chartData.length - 2].Valor;
+                if (last > prev * 1.5) {
+                    alerts.push({
+                        type: 'info',
+                        title: 'Pico de Desmobilização',
+                        msg: `O volume de indicações deste mês é 50% maior que o anterior.`
+                    });
+                }
+            }
         }
-        return [];
-    }, [vendasData]);
+        return alerts;
+    }, [activeTab, topModels, kpis.totalVal, chartData]);
 
-    const [vendasDateFrom, setVendasDateFrom] = useState<string | null>(defaultDateFrom);
-    const [vendasDateTo, setVendasDateTo] = useState<string | null>(defaultDateTo);
-
-    const vendasFiltered = useMemo(() => {
-        if (!vendasRecords || vendasRecords.length === 0) return [] as AnyObject[];
-        return vendasRecords.filter((r) => {
-            if (vendasDateFrom) {
-                if (!r.DataVenda) return false;
-                if (new Date(r.DataVenda) < new Date(vendasDateFrom + 'T00:00:00')) return false;
+    // Handlers
+    const handleChartClick = (data: any) => {
+        if (data && data.activePayload && data.activePayload.length > 0) {
+            const payload = data.activePayload[0].payload;
+            if (payload && payload.key) {
+                setSelectedMonth(prev => prev === payload.key ? null : payload.key);
             }
-            if (vendasDateTo) {
-                if (!r.DataVenda) return false;
-                if (new Date(r.DataVenda) > new Date(vendasDateTo + 'T23:59:59')) return false;
-            }
-            return true;
-        });
-    }, [vendasRecords, vendasDateFrom, vendasDateTo]);
-
-    const vendasKpis = useMemo(() => {
-        const totalCompra = vendasFiltered.reduce((s, r) => s + (Number(r.ValorCompra) || 0), 0);
-        const totalVenda = vendasFiltered.reduce((s, r) => s + (Number(r.ValorVenda) || 0), 0);
-        const qtd = vendasFiltered.length;
-        const roi = totalCompra ? ((totalVenda - totalCompra) / totalCompra) * 100 : 0;
-        return { totalCompra, totalVenda, qtd, roi };
-    }, [vendasFiltered]);
-
-    const vendasMonthly = useMemo(() => {
-        const map: Record<string, { totalVenda: number; count: number }> = {};
-        vendasFiltered.forEach((r) => {
-            if (!r.DataVenda) return;
-            const d = new Date(r.DataVenda);
-            const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (!map[k]) map[k] = { totalVenda: 0, count: 0 };
-            map[k].totalVenda += Number(r.ValorVenda) || 0;
-            map[k].count += 1;
-        });
-        return Object.entries(map)
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([k, v]) => {
-                const [y, m] = k.split('-');
-                return { month: `${m}/${y.slice(2)}`, totalVenda: v.totalVenda, count: v.count };
-            });
-    }, [vendasFiltered]);
-
-    const vendasTopModels = useMemo(() => {
-        const map: Record<string, number> = {};
-        vendasFiltered.forEach((r) => {
-            const m = r.Modelo || 'Unknown';
-            map[m] = (map[m] || 0) + 1;
-        });
-        return Object.entries(map)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
-    }, [vendasFiltered]);
+        }
+    };
 
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <Title className="text-slate-900">Compras & Vendas</Title>
-                    <Text className="mt-1 text-slate-500">Análise integrada de aquisição e desmobilização de ativos.</Text>
+                    <Title className="text-slate-900">Movimentação de Ativos</Title>
+                    <Text className="mt-1 text-slate-500">Gestão de aquisições e desmobilização da frota.</Text>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-                        <ShoppingCart className="w-4 h-4" />
-                        Hub Operacional
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 ${activeTab === 'compras' ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-100 text-violet-700'}`}>
+                        {activeTab === 'compras' ? <ShoppingCart className="w-4 h-4" /> : <ArrowRightLeft className="w-4 h-4" />}
+                        {activeTab === 'compras' ? 'Hub Compras' : 'Hub Desmobilização'}
                     </div>
                 </div>
             </div>
@@ -174,176 +159,99 @@ export default function PurchasesAndSalesDashboard(): JSX.Element {
             {/* Tabs */}
             <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
                 <button
-                    onClick={() => setActiveTab('compras')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'compras' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                    onClick={() => { setActiveTab('compras'); setSelectedMonth(null); }}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'compras' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                     Compras
                 </button>
                 <button
-                    onClick={() => setActiveTab('vendas')}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'vendas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                    onClick={() => { setActiveTab('indicacoes'); setSelectedMonth(null); }}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'indicacoes' ? 'bg-white text-violet-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
                 >
-                    Vendas
+                    Indicações / Desmobilização
                 </button>
             </div>
 
-            {/* COMPRAS TAB */}
-            {activeTab === 'compras' && (
-                <>
-                    <Card className="bg-white shadow-sm border border-slate-200">
-                        <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <Text className="text-slate-500 text-xs mb-1">Período (De - Até)</Text>
-                                <div className="flex gap-2">
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={comprasDateFrom || ''} onChange={(e) => setComprasDateFrom(e.target.value || null)} />
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={comprasDateTo || ''} onChange={(e) => setComprasDateTo(e.target.value || null)} />
-                                </div>
-                            </div>
-                            <div className="flex items-end">
-                                <button
-                                    onClick={() => { setComprasDateFrom(defaultDateFrom); setComprasDateTo(defaultDateTo); }}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors w-full"
-                                >
-                                    Limpar Filtros
-                                </button>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Total Investido</Text>
-                            <Metric className="text-slate-900">{formatCurrency(comprasKpis.totalInvestido)}</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Total FIPE</Text>
-                            <Metric className="text-slate-900">{formatCurrency(comprasKpis.totalFipe)}</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Deságio Médio</Text>
-                            <Metric className="text-slate-900">{comprasKpis.desagioTotal.toFixed(2)}%</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Veículos Comprados</Text>
-                            <Metric className="text-slate-900">{comprasKpis.qtdVeiculos}</Metric>
-                        </Card>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <Card className="lg:col-span-2 bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Evolução de Compras</Title>
-                            <div className="h-80 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ReAreaChart data={comprasMonthly}>
-                                        <defs>
-                                            <linearGradient id="colorCompras" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
-                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                                        <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                                        <Tooltip
-                                            cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '3 3' }}
-                                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        />
-                                        <Area type="monotone" dataKey="Valor" stroke="#10b981" fillOpacity={1} fill="url(#colorCompras)" strokeWidth={2} />
-                                    </ReAreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Top 10 Modelos</Title>
-                            <div className="mt-4 h-80 overflow-y-auto pr-2">
-                                <BarList data={comprasTopModels} valueFormatter={(v) => `${v} compras`} color="emerald" className="mt-2" />
-                            </div>
-                        </Card>
-                    </div>
-                </>
+            {/* Filter Status */}
+            {selectedMonth && (
+                <div className="bg-blue-50 border border-blue-100 text-blue-700 px-4 py-2 rounded-md text-sm flex justify-between items-center">
+                    <span>Filtrando por Mês: <strong>{monthLabel(selectedMonth)}</strong></span>
+                    <button onClick={() => setSelectedMonth(null)} className="text-blue-500 hover:text-blue-800 ml-2">Limpar Filtro</button>
+                </div>
             )}
 
-            {/* VENDAS TAB */}
-            {activeTab === 'vendas' && (
-                <>
-                    <Card className="bg-white shadow-sm border border-slate-200">
-                        <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Insights */}
+            {insights.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {insights.map((alert, idx) => (
+                        <div key={idx} className={`p-4 rounded-lg border flex items-start gap-3 ${alert.type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>
+                            {alert.type === 'warning' ? <AlertTriangle className="w-5 h-5 mt-0.5" /> : <TrendingUp className="w-5 h-5 mt-0.5" />}
                             <div>
-                                <Text className="text-slate-500 text-xs mb-1">Período (De - Até)</Text>
-                                <div className="flex gap-2">
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={vendasDateFrom || ''} onChange={(e) => setVendasDateFrom(e.target.value || null)} />
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={vendasDateTo || ''} onChange={(e) => setVendasDateTo(e.target.value || null)} />
-                                </div>
-                            </div>
-                            <div className="flex items-end">
-                                <button
-                                    onClick={() => { setVendasDateFrom(defaultDateFrom); setVendasDateTo(defaultDateTo); }}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm transition-colors w-full"
-                                >
-                                    Limpar Filtros
-                                </button>
+                                <h4 className="font-semibold text-sm">{alert.title}</h4>
+                                <p className="text-xs opacity-90">{alert.msg}</p>
                             </div>
                         </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Total Vendido</Text>
-                            <Metric className="text-slate-900">{formatCurrency(vendasKpis.totalVenda)}</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Custo de Aquisição</Text>
-                            <Metric className="text-slate-900">{formatCurrency(vendasKpis.totalCompra)}</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">ROI Médio</Text>
-                            <Metric className={`${vendasKpis.roi >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{vendasKpis.roi.toFixed(2)}%</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200 decoration-t-4 decoration-emerald-500">
-                            <Text className="text-slate-500">Veículos Vendidos</Text>
-                            <Metric className="text-slate-900">{vendasKpis.qtd}</Metric>
-                        </Card>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <Card className="lg:col-span-2 bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Evolução de Vendas</Title>
-                            <div className="h-80 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ReAreaChart data={vendasMonthly}>
-                                        <defs>
-                                            <linearGradient id="colorVendas" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.1} />
-                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                                        <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                                        <Tooltip
-                                            cursor={{ stroke: '#8b5cf6', strokeWidth: 1, strokeDasharray: '3 3' }}
-                                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        />
-                                        <Area type="monotone" dataKey="totalVenda" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorVendas)" strokeWidth={2} />
-                                    </ReAreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Top 10 Modelos</Title>
-                            <div className="mt-4 h-80 overflow-y-auto pr-2">
-                                <BarList data={vendasTopModels} valueFormatter={(v) => `${v} vendas`} color="violet" className="mt-2" />
-                            </div>
-                        </Card>
-                    </div>
-                </>
+                    ))}
+                </div>
             )}
+
+            {/* KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card decoration="top" decorationColor={activeTab === 'compras' ? 'emerald' : 'violet'} className="bg-white border border-slate-200 shadow-sm">
+                    <Text className="text-slate-500">Volume Financeiro</Text>
+                    <Metric className="text-slate-900">{fmtBRL(kpis.totalVal)}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor={activeTab === 'compras' ? 'emerald' : 'violet'} className="bg-white border border-slate-200 shadow-sm">
+                    <Text className="text-slate-500">Quantidade de Veículos</Text>
+                    <Metric className="text-slate-900">{kpis.count}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor={activeTab === 'compras' ? 'emerald' : 'violet'} className="bg-white border border-slate-200 shadow-sm">
+                    <Text className="text-slate-500">Ticket Médio</Text>
+                    <Metric className="text-slate-900">{fmtBRL(kpis.avgTicket)}</Metric>
+                </Card>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <Card className="lg:col-span-2 bg-white border border-slate-200 shadow-sm">
+                    <Title className="text-slate-900">Evolução Mensal</Title>
+                    <Text className="text-slate-500 text-sm mb-4">Clique na área para filtrar detalhes.</Text>
+                    <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
+                                <defs>
+                                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={activeTab === 'compras' ? '#10b981' : '#8b5cf6'} stopOpacity={0.1} />
+                                        <stop offset="95%" stopColor={activeTab === 'compras' ? '#10b981' : '#8b5cf6'} stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" />
+                                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} stroke="#64748b" />
+                                <Tooltip formatter={(v: any) => fmtBRL(v)} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                <Area
+                                    type="monotone"
+                                    dataKey="Valor"
+                                    stroke={activeTab === 'compras' ? '#10b981' : '#8b5cf6'}
+                                    fillOpacity={1}
+                                    fill="url(#colorVal)"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                <Card className="bg-white border border-slate-200 shadow-sm">
+                    <Title className="text-slate-900">Top Modelos</Title>
+                    <div className="mt-4 h-80 overflow-y-auto pr-2">
+                        <BarList
+                            data={topModels}
+                            valueFormatter={(v) => fmtBRL(v)}
+                            color={activeTab === 'compras' ? 'emerald' : 'violet'}
+                        />
+                    </div>
+                </Card>
+            </div>
         </div>
     );
 }
