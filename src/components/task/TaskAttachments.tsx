@@ -122,7 +122,7 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
                   <Button variant="ghost" size="sm" onClick={() => handleDownload(attachment)}>
                     <Download className="w-4 h-4" />
                   </Button>
-                  {(user?.isAdmin || user?.id === attachment.user_id) && (
+                  {user?.isAdmin && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -131,7 +131,6 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
-                  {/* If user is not owner, do not render delete button to avoid 403 */}
                 </div>
               </div>
             ))}
