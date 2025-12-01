@@ -78,11 +78,11 @@ function createWhatsAppClient(instanceId) {
         // Save QR Code to Supabase
         try {
             const result = await supabase
-                .from('whatsapp_config')
+                .from('whatsapp_instances')
                 .upsert({
                     id: instanceId,
                     qr_code: qr,
-                    is_connected: false,
+                    status: 'connecting',
                     updated_at: new Date().toISOString()
                 }, {
                     onConflict: 'id'
@@ -106,12 +106,11 @@ function createWhatsAppClient(instanceId) {
         try {
             const connectedNumber = client.info?.wid?.user || 'unknown';
             await supabase
-                .from('whatsapp_config')
+                .from('whatsapp_instances')
                 .update({
-                    is_connected: true,
-                    connected_number: connectedNumber,
+                    status: 'connected',
+                    phone_number: connectedNumber,
                     qr_code: null,
-                    last_connection_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', instanceId);
@@ -132,10 +131,10 @@ function createWhatsAppClient(instanceId) {
         // Update status in Supabase
         try {
             await supabase
-                .from('whatsapp_config')
+                .from('whatsapp_instances')
                 .update({
-                    is_connected: false,
-                    connected_number: null,
+                    status: 'disconnected',
+                    phone_number: null,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', instanceId);
@@ -153,10 +152,10 @@ function createWhatsAppClient(instanceId) {
         // Clear session and force new QR
         try {
             await supabase
-                .from('whatsapp_config')
+                .from('whatsapp_instances')
                 .update({
-                    is_connected: false,
-                    connected_number: null,
+                    status: 'disconnected',
+                    phone_number: null,
                     qr_code: null,
                     updated_at: new Date().toISOString()
                 })
@@ -195,13 +194,7 @@ function createWhatsAppClient(instanceId) {
     return client;
 }
 
-// Initialize default instance
-function initializeDefaultInstance() {
-    const defaultClient = createWhatsAppClient('default');
-    whatsappInstances.set('default', defaultClient);
-    defaultClient.initialize();
-    console.log('Default WhatsApp instance initialized');
-}
+// Removed default instance initialization - instances are now created on-demand via API
 
 // API Endpoints
 
@@ -295,11 +288,11 @@ app.post('/instances/:instanceId/disconnect', async (req, res) => {
 
         // Update DB
         await supabase
-            .from('whatsapp_config')
+            .from('whatsapp_instances')
             .update({
-                is_connected: false,
+                status: 'disconnected',
                 qr_code: null,
-                connected_number: null,
+                phone_number: null,
                 updated_at: new Date().toISOString()
             })
             .eq('id', instanceId);
@@ -317,8 +310,7 @@ app.post('/instances/:instanceId/disconnect', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 3005;
 app.listen(PORT, () => {
-    console.log(`Multi-WhatsApp service is running on http://localhost:${PORT}`);
-
-    // Initialize default instance on startup
-    initializeDefaultInstance();
+    console.log(`\n✓ Multi-WhatsApp service is running on http://localhost:${PORT}`);
+    console.log(`✓ Health check: http://localhost:${PORT}/status`);
+    console.log(`✓ Ready to create instances via POST /instances\n`);
 });
