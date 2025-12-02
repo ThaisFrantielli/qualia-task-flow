@@ -1,27 +1,24 @@
-import { useLeadsTriagem, useEncaminharParaComercial, useCriarTicketAtendimento, useDescartarLead } from "@/hooks/useLeadsTriagem";
+import { useLeadsTriagem, useEncaminharParaComercial, useCriarTicketAtendimento, useDescartarLead, LeadTriagem } from "@/hooks/useLeadsTriagem";
 import { useFunis } from "@/hooks/useFunis";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, UserPlus, Ticket, X, Clock, Mail, Phone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Ticket, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { TriagemLeadCard } from "@/components/triagem/TriagemLeadCard";
 
 export default function FilaTriagem() {
-    const { data: leads, isLoading } = useLeadsTriagem();
+    const { data: leads, isLoading, refetch } = useLeadsTriagem();
     const { data: funis } = useFunis();
     const encaminharComercial = useEncaminharParaComercial();
     const criarTicket = useCriarTicketAtendimento();
     const descartarLead = useDescartarLead();
 
     const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
-    const [selectedLead, setSelectedLead] = useState<any>(null);
+    const [selectedLead, setSelectedLead] = useState<LeadTriagem | null>(null);
     const [ticketForm, setTicketForm] = useState({
         titulo: "",
         descricao: "",
@@ -51,6 +48,15 @@ export default function FilaTriagem() {
         setTicketForm({ titulo: "", descricao: "", prioridade: "media" });
     };
 
+    const handleOpenTicketDialog = (lead: LeadTriagem) => {
+        setSelectedLead(lead);
+        setTicketForm({
+            ...ticketForm,
+            titulo: `Atendimento - ${lead.nome_fantasia || lead.razao_social || lead.whatsapp_number || 'Cliente'}`
+        });
+        setTicketDialogOpen(true);
+    };
+
     const handleDescartar = async (clienteId: string) => {
         if (confirm("Tem certeza que deseja descartar este lead?")) {
             await descartarLead.mutateAsync({ clienteId });
@@ -65,110 +71,100 @@ export default function FilaTriagem() {
         );
     }
 
+    // Ordenar leads - WhatsApp primeiro, depois por data
+    const sortedLeads = [...(leads || [])].sort((a, b) => {
+        const aIsWhatsApp = a.origem === 'whatsapp_inbound' || !!a.whatsapp_number;
+        const bIsWhatsApp = b.origem === 'whatsapp_inbound' || !!b.whatsapp_number;
+        
+        if (aIsWhatsApp && !bIsWhatsApp) return -1;
+        if (!aIsWhatsApp && bIsWhatsApp) return 1;
+        
+        const aDate = a.created_at || a.cadastro_cliente || '';
+        const bDate = b.created_at || b.cadastro_cliente || '';
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+    });
+
+    const whatsappLeads = sortedLeads.filter(l => l.origem === 'whatsapp_inbound' || !!l.whatsapp_number);
+    const otherLeads = sortedLeads.filter(l => l.origem !== 'whatsapp_inbound' && !l.whatsapp_number);
+
     return (
         <div className="container mx-auto p-6 space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold">Fila de Triagem</h1>
-                <p className="text-muted-foreground mt-1">
-                    {leads?.length || 0} lead(s) aguardando classificação e direcionamento
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold">Fila de Triagem</h1>
+                    <p className="text-muted-foreground mt-1">
+                        {leads?.length || 0} lead(s) aguardando classificação e direcionamento
+                        {whatsappLeads.length > 0 && (
+                            <span className="ml-2 text-green-600">
+                                ({whatsappLeads.length} via WhatsApp)
+                            </span>
+                        )}
+                    </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Atualizar
+                </Button>
             </div>
 
-            {/* Leads Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {leads?.map((lead) => (
-                    <Card key={lead.id} className="hover:shadow-lg transition-shadow">
-                        <CardHeader className="pb-3">
-                            <div className="flex justify-between items-start gap-2">
-                                <CardTitle className="text-lg">
-                                    {lead.nome_fantasia || lead.razao_social || "Lead sem nome"}
-                                </CardTitle>
-                                <Badge variant="secondary" className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {formatDistanceToNow(new Date(lead.created_at), {
-                                        addSuffix: true,
-                                        locale: ptBR
-                                    })}
-                                </Badge>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {/* Informações do Lead */}
-                            <div className="text-sm space-y-2">
-                                {lead.email && (
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Mail className="w-4 h-4" />
-                                        <span className="truncate">{lead.email}</span>
-                                    </div>
-                                )}
-                                {(lead.whatsapp_number || lead.telefone) && (
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Phone className="w-4 h-4" />
-                                        <span>{lead.whatsapp_number || lead.telefone}</span>
-                                    </div>
-                                )}
-                                {lead.origem && (
-                                    <div className="text-xs">
-                                        <span className="font-semibold">Origem:</span> {lead.origem}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Ações */}
-                            <div className="flex flex-col gap-2 pt-2 border-t">
-                                <Button
-                                    className="w-full justify-start"
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => handleEncaminharComercial(lead.id)}
-                                    disabled={encaminharComercial.isPending}
-                                >
-                                    <UserPlus className="w-4 h-4 mr-2" />
-                                    Enviar para Comercial
-                                </Button>
-                                <Button
-                                    className="w-full justify-start"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        setSelectedLead(lead);
-                                        setTicketForm({
-                                            ...ticketForm,
-                                            titulo: `Atendimento - ${lead.nome_fantasia || lead.razao_social}`
-                                        });
-                                        setTicketDialogOpen(true);
-                                    }}
-                                >
-                                    <Ticket className="w-4 h-4 mr-2" />
-                                    Criar Ticket (Suporte)
-                                </Button>
-                                <Button
-                                    className="w-full justify-start"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDescartar(lead.id)}
-                                    disabled={descartarLead.isPending}
-                                >
-                                    <X className="w-4 h-4 mr-2" />
-                                    Descartar
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-
-                {/* Empty State */}
-                {leads?.length === 0 && (
-                    <div className="col-span-full text-center py-16">
-                        <div className="text-muted-foreground space-y-2">
-                            <Ticket className="w-16 h-16 mx-auto opacity-20" />
-                            <p className="text-lg font-semibold">Nenhum lead na fila</p>
-                            <p className="text-sm">Todos os leads foram processados!</p>
-                        </div>
+            {/* WhatsApp Leads Section */}
+            {whatsappLeads.length > 0 && (
+                <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-green-600 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        Mensagens WhatsApp ({whatsappLeads.length})
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {whatsappLeads.map((lead) => (
+                            <TriagemLeadCard
+                                key={lead.id}
+                                lead={lead}
+                                onEncaminharComercial={handleEncaminharComercial}
+                                onCriarTicket={handleOpenTicketDialog}
+                                onDescartar={handleDescartar}
+                                isEncaminhando={encaminharComercial.isPending}
+                                isDescartando={descartarLead.isPending}
+                            />
+                        ))}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {/* Other Leads Section */}
+            {otherLeads.length > 0 && (
+                <div className="space-y-4">
+                    {whatsappLeads.length > 0 && (
+                        <h2 className="text-lg font-semibold text-muted-foreground">
+                            Outros Leads ({otherLeads.length})
+                        </h2>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {otherLeads.map((lead) => (
+                            <TriagemLeadCard
+                                key={lead.id}
+                                lead={lead}
+                                onEncaminharComercial={handleEncaminharComercial}
+                                onCriarTicket={handleOpenTicketDialog}
+                                onDescartar={handleDescartar}
+                                isEncaminhando={encaminharComercial.isPending}
+                                isDescartando={descartarLead.isPending}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Empty State */}
+            {leads?.length === 0 && (
+                <div className="text-center py-16">
+                    <div className="text-muted-foreground space-y-2">
+                        <Ticket className="w-16 h-16 mx-auto opacity-20" />
+                        <p className="text-lg font-semibold">Nenhum lead na fila</p>
+                        <p className="text-sm">Todos os leads foram processados!</p>
+                    </div>
+                </div>
+            )}
 
             {/* Dialog para Criar Ticket */}
             <Dialog open={ticketDialogOpen} onOpenChange={setTicketDialogOpen}>
