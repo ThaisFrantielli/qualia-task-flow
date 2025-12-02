@@ -273,16 +273,19 @@ npm update
 - 🚀 [Documentação Supabase](https://supabase.com/docs)
 - 💬 [Issues do Projeto](https://github.com/seu-repo/issues)
 
-## ⚙️ Variáveis de Ambiente (Opcional)
+## ⚙️ Variáveis de Ambiente
 
-Crie um arquivo `.env` na pasta `whatsapp-service`:
+1. Copie o modelo: `cp .env.example .env` (ou copie manualmente no Windows)
+2. Preencha `SUPABASE_ANON_KEY` com a sua chave anônima
+3. Ajuste `SUPABASE_URL` e `PORT` se necessário
 
 ```env
-PORT=3005
 SUPABASE_URL=https://apqrjkobktjcyrxhqwtm.supabase.co
 SUPABASE_ANON_KEY=sua_chave_aqui
-NODE_ENV=production
+PORT=3005
 ```
+
+> ⚠️ O serviço não inicia sem `SUPABASE_ANON_KEY`. As variáveis são carregadas automaticamente via `dotenv`.
 
 ## 🎯 Próximos Passos
 

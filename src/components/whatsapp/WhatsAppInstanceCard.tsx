@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import {
     CheckCircle,
@@ -32,6 +33,8 @@ const SERVICE_URL = WHATSAPP.SERVICE_URL;
 
 export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsAppInstanceCardProps) {
     const [isLoading, setIsLoading] = useState(false);
+    const [qrExpired, setQrExpired] = useState(false);
+    const [timeLeft, setTimeLeft] = useState(40);
     const { toast } = useToast();
 
     // Poll for QR code when instance is not connected
@@ -64,7 +67,34 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
         return () => clearInterval(interval);
     }, [instance.id, instance.status, instance.qr_code, onRefresh]);
 
+    useEffect(() => {
+        if (!instance.qr_code || !instance.updated_at) {
+            setQrExpired(false);
+            setTimeLeft(40);
+            return;
+        }
+
+        const createdAt = new Date(instance.updated_at).getTime();
+        if (Number.isNaN(createdAt)) {
+            setQrExpired(false);
+            setTimeLeft(40);
+            return;
+        }
+
+        const updateTimer = () => {
+            const elapsed = (Date.now() - createdAt) / 1000;
+            const remaining = Math.max(0, 40 - Math.floor(elapsed));
+            setTimeLeft(remaining);
+            setQrExpired(remaining <= 0);
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [instance.qr_code, instance.updated_at]);
+
     const isConnected = instance.status === 'connected';
+    const qrProgress = Math.max(0, Math.min(100, (timeLeft / 40) * 100));
 
     const handleDisconnect = async () => {
         setIsLoading(true);
@@ -174,11 +204,16 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                     {!isConnected && instance.qr_code && (
                         <div className="flex flex-col items-center justify-center p-4 border rounded-md bg-slate-50">
                             <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(instance.qr_code)}`}
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(instance.qr_code)}`}
                                 alt="QR Code"
-                                className="w-32 h-32 mb-2"
+                                className="w-48 h-48 mb-3"
                             />
-                            <p className="text-xs text-center text-muted-foreground">Escaneie para conectar</p>
+                            <div className="w-full max-w-[200px]">
+                                <Progress value={qrProgress} className="h-1.5" />
+                                <p className="text-xs text-center text-muted-foreground mt-1">
+                                    {qrExpired ? 'QR expirado, gere outro' : `Expira em ${timeLeft}s`}
+                                </p>
+                            </div>
                         </div>
                     )}
 
@@ -191,8 +226,20 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isLoading}>
-                    <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <Button
+                    variant={qrExpired ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={handleRefresh}
+                    disabled={isLoading}
+                >
+                    {qrExpired ? (
+                        <span className="flex items-center gap-2">
+                            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                            Gerar novo QR
+                        </span>
+                    ) : (
+                        <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    )}
                 </Button>
 
                 {isConnected ? (
