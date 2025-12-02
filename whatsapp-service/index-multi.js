@@ -1,4 +1,7 @@
+require('dotenv').config();
+const winston = require('winston');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const puppeteerLib = require('puppeteer');
 const qrcode = require('qrcode-terminal');
 const express = require('express');
 const cors = require('cors');
@@ -11,6 +14,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Logger (winston)
+const logger = winston.createLogger({
+    level: process.env.LOG_LEVEL || 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.File({ filename: 'whatsapp-error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'whatsapp-combined.log' }),
+        new winston.transports.Console({ format: winston.format.simple() })
+    ]
+});
+
+// Redirect console to logger for structured logs
+console.log = (...args) => logger.info(args.map(a => (typeof a === 'object' ? JSON.stringify(a, Object.getOwnPropertyNames(a)) : String(a))).join(' '));
+console.info = console.log;
+console.warn = (...args) => logger.warn(args.map(a => (typeof a === 'object' ? JSON.stringify(a, Object.getOwnPropertyNames(a)) : String(a))).join(' '));
+console.error = (...args) => logger.error(args.map(a => (typeof a === 'object' ? JSON.stringify(a, Object.getOwnPropertyNames(a)) : String(a))).join(' '));
+
 // Serve static assets
 const publicDir = path.join(__dirname, 'public');
 if (!fs.existsSync(publicDir)) {
@@ -19,49 +42,117 @@ if (!fs.existsSync(publicDir)) {
 app.use(express.static(publicDir));
 
 // Supabase configuration
-const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://apqrjkobktjcyrxhqwtm.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+if (!SUPABASE_KEY) {
+    throw new Error('SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY environment variable is required. Check whatsapp-service/.env');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Multiple WhatsApp instances management
 const whatsappInstances = new Map();
 const activeQRCodes = new Map();
 
-// Function to create a new WhatsApp client instance
-function createWhatsAppClient(instanceId) {
-    console.log(`Creating WhatsApp client for instance: ${instanceId}`);
+function resolveBrowserExecutable() {
+    const candidates = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:/Program Files/Google/Chrome/Application/chrome.exe',
+        'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+    ].filter(Boolean);
+    for (const p of candidates) {
+        try {
+            if (p && fs.existsSync(p)) return p;
+        } catch {}
+    }
+    try {
+        return puppeteerLib.executablePath();
+    } catch {
+        return undefined;
+    }
+}
 
+const BROWSER_PATH = resolveBrowserExecutable();
+console.log(`Using browser executable: ${BROWSER_PATH || 'default (puppeteer)'}`);
+
+async function restoreActiveInstances() {
+    try {
+        const { data: instances, error } = await supabase
+            .from('whatsapp_instances')
+            .select('id, name, status')
+            .in('status', ['connected', 'connecting']);
+
+        if (error) {
+            throw error;
+        }
+
+        for (const instance of instances || []) {
+            if (whatsappInstances.has(instance.id)) {
+                continue;
+            }
+
+            console.log(`Restoring WhatsApp instance ${instance.name || instance.id}`);
+
+            const client = createWhatsAppClient(instance.id, instance.name);
+            whatsappInstances.set(instance.id, client);
+
+            try {
+                await supabase
+                    .from('whatsapp_instances')
+                    .update({
+                        status: 'connecting',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', instance.id);
+            } catch (updateError) {
+                console.error(`Failed to update status while restoring ${instance.id}:`, updateError);
+            }
+
+            client.initialize().catch((e) => {
+                console.error(`Failed to initialize client during restore for ${instance.id}`, e);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to restore WhatsApp instances on startup:', error);
+    }
+}
+
+// Function to create a new WhatsApp client instance
+function createWhatsAppClient(instanceId, instanceName = null) {
     // Sanitize instanceId for use in file paths and clientId (remove hyphens from UUIDs)
     const sanitizedId = instanceId.replace(/-/g, '');
     console.log(`Sanitized ID for LocalAuth: ${sanitizedId}`);
 
     const client = new Client({
         authStrategy: new LocalAuth({
-            dataPath: `./whatsapp-session-${sanitizedId}`,
-            clientId: `whatsapp-client-${sanitizedId}`
+            dataPath: `./whatsapp-session-${sanitizedId}`
         }),
+        // webVersionCache: {
+        //     type: 'local'
+        // },
+        // takeoverOnConflict: true,
+        // authTimeoutMs: 120000,
         puppeteer: {
             headless: true,
+            executablePath: BROWSER_PATH,
             args: [
                 '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu',
-                '--disable-web-security',
-                '--disable-features=VizDisplayCompositor',
-                '--disable-extensions',
-                '--disable-plugins',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding'
+                '--disable-setuid-sandbox'
             ]
         },
-        qrMaxRetries: 5,
-        restartOnAuthFail: false
+        // qrMaxRetries: 10,
+        // restartOnAuthFail: false
+    });
+
+    client.on('loading_screen', (percent, message) => {
+        console.log(`Instance ${instanceId} loading ${percent}% - ${message}`);
+    });
+
+    client.on('change_state', (state) => {
+        console.log(`Instance ${instanceId} state changed: ${state}`);
     });
 
     // Generate QR code for WhatsApp login
@@ -77,14 +168,20 @@ function createWhatsAppClient(instanceId) {
 
         // Save QR Code to Supabase
         try {
+            const upsertData = {
+                id: instanceId,
+                qr_code: qr,
+                status: 'connecting',
+                updated_at: new Date().toISOString()
+            };
+
+            if (instanceName) {
+                upsertData.name = instanceName;
+            }
+
             const result = await supabase
                 .from('whatsapp_instances')
-                .upsert({
-                    id: instanceId,
-                    qr_code: qr,
-                    status: 'connecting',
-                    updated_at: new Date().toISOString()
-                }, {
+                .upsert(upsertData, {
                     onConflict: 'id'
                 });
 
@@ -96,6 +193,10 @@ function createWhatsAppClient(instanceId) {
         } catch (error) {
             console.error(`Failed to save QR Code to Supabase for instance ${instanceId}:`, error);
         }
+    });
+
+    client.on('authenticated', () => {
+        console.log(`Instance ${instanceId} authenticated event fired`);
     });
 
     // WhatsApp client is ready
@@ -168,27 +269,42 @@ function createWhatsAppClient(instanceId) {
 
     // Listen for incoming messages
     client.on('message', async (message) => {
-        console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body}`);
+            console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body}`);
 
-        // Forward message to Supabase Edge Function
-        try {
-            await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
-                instanceId: instanceId,
-                from: message.from,
-                body: message.body,
-                timestamp: message.timestamp,
-                type: message.type,
-                id: message.id._serialized
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                    'Content-Type': 'application/json'
+            // Skip empty or whitespace-only messages (these cause validation 400s in the webhook)
+            if (!message.body || String(message.body).trim() === '') {
+                console.log(`Skipping empty-body message from ${message.from} on instance ${instanceId}`);
+                return;
+            }
+
+            // Forward message to Supabase Edge Function
+            try {
+                await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
+                    instance_id: instanceId,
+                    from: message.from,
+                    body: message.body,
+                    timestamp: message.timestamp,
+                    type: message.type,
+                    messageId: message.id._serialized
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
+            } catch (error) {
+                // Improve error logging so we can see status and response body from the Edge Function
+                if (error && error.response) {
+                    try {
+                        console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`);
+                    } catch (e) {
+                        console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: response status=${error.response.status}`);
+                    }
+                } else {
+                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}:`, error);
                 }
-            });
-            console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
-        } catch (error) {
-            console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}:`, error);
-        }
+            }
     });
 
     return client;
@@ -197,6 +313,66 @@ function createWhatsAppClient(instanceId) {
 // Removed default instance initialization - instances are now created on-demand via API
 
 // API Endpoints
+
+// Get all instances
+app.get('/instances', async (req, res) => {
+    try {
+        const { data: dbInstances, error } = await supabase
+            .from('whatsapp_instances')
+            .select('*');
+
+        if (error) throw error;
+
+        const instances = dbInstances.map(inst => {
+            const client = whatsappInstances.get(inst.id);
+            const isConnected = client?.info?.wid !== undefined;
+            const hasQRCode = activeQRCodes.has(inst.id);
+            
+            return {
+                instanceId: inst.id,
+                isConnected: isConnected || inst.status === 'connected',
+                connectedNumber: inst.phone_number,
+                hasQRCode: hasQRCode || (inst.qr_code !== null && inst.status !== 'connected')
+            };
+        });
+
+        res.json({ instances });
+    } catch (error) {
+        console.error('Failed to fetch instances:', error);
+        res.status(500).json({ error: 'Failed to fetch instances' });
+    }
+});
+
+// Reset/Restart instance
+app.post('/instances/:instanceId/reset', async (req, res) => {
+    try {
+        const { instanceId } = req.params;
+        console.log(`Resetting instance ${instanceId}...`);
+
+        // 1. Disconnect if exists
+        if (whatsappInstances.has(instanceId)) {
+            const client = whatsappInstances.get(instanceId);
+            try {
+                await client.destroy();
+            } catch (e) {
+                console.error(`Error destroying client ${instanceId}:`, e);
+            }
+            whatsappInstances.delete(instanceId);
+            activeQRCodes.delete(instanceId);
+        }
+
+        // 2. Create new
+        const client = createWhatsAppClient(instanceId);
+        whatsappInstances.set(instanceId, client);
+        
+        client.initialize().catch(e => console.error(`Failed to re-initialize ${instanceId}:`, e));
+
+        res.json({ success: true, message: `Instance ${instanceId} reset` });
+    } catch (error) {
+        console.error('Failed to reset instance:', error);
+        res.status(500).json({ error: 'Failed to reset instance' });
+    }
+});
 
 // Health check
 app.get('/status', (req, res) => {
@@ -215,6 +391,7 @@ app.post('/instances', async (req, res) => {
         const { instanceId } = req.body; // Frontend sends instanceId or id
 
         const id = instanceId || req.body.id;
+        const name = req.body.name || `Instance ${id.slice(0, 8)}`;
         console.log('Parsed ID:', id);
 
         if (!id) {
@@ -226,9 +403,15 @@ app.post('/instances', async (req, res) => {
         }
 
         // Create new client instance
-        const client = createWhatsAppClient(id);
+        const client = createWhatsAppClient(id, name);
         whatsappInstances.set(id, client);
-        client.initialize();
+        
+        console.log(`Initializing client for ${id}...`);
+        client.initialize()
+            .then(() => console.log(`Client initialization command sent for ${id}`))
+            .catch((e) => {
+                console.error(`Failed to initialize client for ${id}`, e);
+            });
 
         res.json({
             success: true,
@@ -272,6 +455,38 @@ app.get('/instances/:instanceId/status', (req, res) => {
     });
 });
 
+// Detailed health check
+app.get('/health', (req, res) => {
+    const health = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        browserPath: BROWSER_PATH || null,
+        instances: {
+            total: whatsappInstances.size,
+            connected: 0,
+            connecting: 0,
+            disconnected: 0
+        },
+        memory: {
+            usedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+            totalMB: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+        }
+    };
+
+    for (const [id, client] of whatsappInstances.entries()) {
+        if (client.info?.wid) {
+            health.instances.connected++;
+        } else if (activeQRCodes.has(id)) {
+            health.instances.connecting++;
+        } else {
+            health.instances.disconnected++;
+        }
+    }
+
+    res.json(health);
+});
+
 // Disconnect
 app.post('/instances/:instanceId/disconnect', async (req, res) => {
     try {
@@ -313,4 +528,8 @@ app.listen(PORT, () => {
     console.log(`\n✓ Multi-WhatsApp service is running on http://localhost:${PORT}`);
     console.log(`✓ Health check: http://localhost:${PORT}/status`);
     console.log(`✓ Ready to create instances via POST /instances\n`);
+
+    restoreActiveInstances().catch((error) => {
+        console.error('Failed to restore instances after startup:', error);
+    });
 });
