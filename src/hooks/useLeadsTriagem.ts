@@ -12,7 +12,8 @@ export type LeadTriagem = {
     whatsapp_number: string | null;
     origem: string | null;
     status_triagem: string | null;
-    created_at: string;
+    created_at?: string;
+    cadastro_cliente?: string;
 };
 
 // Hook para buscar leads aguardando triagem
