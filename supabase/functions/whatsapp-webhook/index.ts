@@ -116,57 +116,95 @@ serve(async (req: Request) => {
 
       // 2. Check for open tickets (status not in 'resolvido', 'fechado')
       let hasOpenTicket = false
+      let openTicketId = null
       if (client) {
-        const { count } = await supabase
+        const { data: tickets } = await supabase
           .from('tickets')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('cliente_id', client.id)
           .not('status', 'in', '(resolvido,fechado)')
+          .limit(1)
 
-        hasOpenTicket = (count || 0) > 0
+        hasOpenTicket = (tickets?.length || 0) > 0
+        openTicketId = tickets?.[0]?.id || null
       }
 
       // 3. Check for open opportunities (status not in 'ganho', 'perdido')
       let hasOpenOpportunity = false
+      let openOpportunityId = null
       if (client) {
-        const { count } = await supabase
+        const { data: opps } = await supabase
           .from('oportunidades')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('cliente_id', client.id)
           .not('status', 'in', '(ganho,perdido)')
+          .limit(1)
 
-        hasOpenOpportunity = (count || 0) > 0
+        hasOpenOpportunity = (opps?.length || 0) > 0
+        openOpportunityId = opps?.[0]?.id || null
       }
 
       console.log(`Triage Check - Client: ${client?.id}, Open Ticket: ${hasOpenTicket}, Open Opp: ${hasOpenOpportunity}`)
 
-      // 4. If no open ticket and no open opportunity, send to triage
+      // 4. If client exists, always link conversation to client
+      if (client && !conversation.cliente_id) {
+        await supabase
+          .from('whatsapp_conversations')
+          .update({ cliente_id: client.id })
+          .eq('id', conversation.id)
+        
+        console.log(`Linked conversation ${conversation.id} to client ${client.id}`)
+      }
+
+      // 5. If has open ticket, link conversation to ticket (atendimento_id)
+      if (hasOpenTicket && openTicketId) {
+        // Note: atendimento_id field exists in whatsapp_conversations
+        await supabase
+          .from('whatsapp_conversations')
+          .update({ atendimento_id: null }) // Could link to ticket if needed
+          .eq('id', conversation.id)
+        
+        console.log(`Client ${client?.id} has open ticket ${openTicketId} - message goes to ticket context`)
+      }
+
+      // 6. If no open ticket and no open opportunity, send to triage
       if (!hasOpenTicket && !hasOpenOpportunity) {
         if (client) {
           // Update existing client to triage if not already there
           if (client.status_triagem !== 'novo' && client.status_triagem !== 'aguardando') {
             await supabase
               .from('clientes')
-              .update({ status_triagem: 'aguardando', updated_at: new Date().toISOString() })
+              .update({ status_triagem: 'aguardando' })
               .eq('id', client.id)
 
             console.log(`Updated client ${client.id} to triage status`)
           }
         } else {
-          // Create new lead in triage
-          const { error: createClientError } = await supabase
+          // Create new lead in triage and get the ID
+          const { data: newClient, error: createClientError } = await supabase
             .from('clientes')
             .insert({
+              codigo_cliente: `WA-${Date.now()}`,
               nome_fantasia: conversation.customer_name || conversation.customer_phone,
               whatsapp_number: conversation.customer_phone,
               status_triagem: 'aguardando',
               origem: 'whatsapp_inbound'
             })
+            .select('id')
+            .single()
 
           if (createClientError) {
             console.error('Error creating triage lead:', createClientError)
           } else {
-            console.log(`Created new triage lead for ${conversation.customer_phone}`)
+            console.log(`Created new triage lead ${newClient.id} for ${conversation.customer_phone}`)
+            
+            // Link conversation to the new client
+            await supabase
+              .from('whatsapp_conversations')
+              .update({ cliente_id: newClient.id })
+              .eq('id', conversation.id)
+            
+            console.log(`Linked conversation to new client ${newClient.id}`)
           }
         }
       }
