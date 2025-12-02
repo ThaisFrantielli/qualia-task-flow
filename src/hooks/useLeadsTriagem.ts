@@ -25,7 +25,9 @@ export function useLeadsTriagem() {
                 .from('clientes')
                 .select('*')
                 .eq('status_triagem', 'aguardando')
-                .order('created_at', { ascending: true }); // Mais antigos primeiro
+                // Some deployments use `cadastro_cliente` instead of `created_at`.
+                // Order by `cadastro_cliente` to be compatible with the DB schema.
+                .order('cadastro_cliente', { ascending: true }); // Mais antigos primeiro
 
             if (error) throw error;
             return data as LeadTriagem[];
