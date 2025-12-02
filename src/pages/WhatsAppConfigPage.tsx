@@ -118,6 +118,25 @@ export default function WhatsAppConfigPage() {
 
   const handleDeleteInstance = async (id: string) => {
     try {
+      // Clean up any references before deleting to avoid foreign-key / policy errors
+      try {
+        await supabase
+          .from('whatsapp_conversations')
+          .update({ instance_id: null })
+          .eq('instance_id', id);
+      } catch (err) {
+        console.warn('Falha ao limpar whatsapp_conversations.instance_id:', err);
+      }
+
+      try {
+        await supabase
+          .from('whatsapp_messages')
+          .update({ instance_id: null })
+          .eq('instance_id', id);
+      } catch (err) {
+        console.warn('Falha ao limpar whatsapp_messages.instance_id:', err);
+      }
+
       const { error } = await supabase
         .from('whatsapp_instances')
         .delete()

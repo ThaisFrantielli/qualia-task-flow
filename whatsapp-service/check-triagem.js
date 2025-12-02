@@ -13,7 +13,8 @@ async function checkTriagem() {
         .from('clientes')
         .select('*')
         .eq('status_triagem', 'aguardando')
-        .order('created_at', { ascending: false });
+        // Some databases don't have `created_at` on clientes; use `cadastro_cliente`.
+        .order('cadastro_cliente', { ascending: false });
 
     if (leadsError) {
         console.error('Erro ao buscar leads:', leadsError);
