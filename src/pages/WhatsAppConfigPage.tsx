@@ -146,7 +146,17 @@ export default function WhatsAppConfigPage() {
           if (payload.eventType === 'INSERT') {
             setInstances(prev => [...prev, payload.new as WhatsAppInstance]);
           } else if (payload.eventType === 'UPDATE') {
-            setInstances(prev => prev.map(i => i.id === payload.new.id ? payload.new as WhatsAppInstance : i));
+            const updatedInstance = payload.new as WhatsAppInstance;
+            const previousInstance = payload.old as WhatsAppInstance | undefined;
+
+            if (updatedInstance.status === 'connected' && previousInstance?.status !== 'connected') {
+              toast({
+                title: '✅ WhatsApp Conectado!',
+                description: `${updatedInstance.name || 'Instância'} está pronto para uso.`
+              });
+            }
+
+            setInstances(prev => prev.map(i => i.id === updatedInstance.id ? updatedInstance : i));
           } else if (payload.eventType === 'DELETE') {
             setInstances(prev => prev.filter(i => i.id !== payload.old.id));
           }
@@ -157,7 +167,7 @@ export default function WhatsAppConfigPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [toast]);
 
   return (
     <div className="container mx-auto py-8 space-y-6">

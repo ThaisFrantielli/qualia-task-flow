@@ -1,5 +1,7 @@
 node_modules/
 whatsapp-session/
+whatsapp-session*/
+test-session*/
 .wwebjs_auth/
 .wwebjs_cache/
 *.log

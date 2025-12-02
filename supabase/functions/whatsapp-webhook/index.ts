@@ -24,9 +24,10 @@ serve(async (req: Request) => {
     console.log('Timestamp:', timestamp)
     console.log('Message ID:', messageId)
 
-    if (!instance_id || !from || !body) {
+    // require instance_id and from, but allow empty body (some WhatsApp events may not include text)
+    if (!instance_id || !from) {
       return new Response(
-        JSON.stringify({ error: 'instance_id, from, and body are required' }),
+        JSON.stringify({ error: 'instance_id and from are required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
@@ -36,30 +37,33 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Extract phone number from WhatsApp format (e.g., "5561999887766@c.us" -> "5561999887766")
-    const phoneNumber = from.replace('@c.us', '').replace('@s.whatsapp.net', '')
+    const phoneNumber = String(from).replace('@c.us', '').replace('@s.whatsapp.net', '')
 
     // Find or create conversation for this instance
+    // Try to find conversation by whatsapp_number OR customer_phone for resilience
     let { data: conversation, error: convError } = await supabase
       .from('whatsapp_conversations')
       .select('*')
-      .eq('customer_phone', phoneNumber)
+      .or(`whatsapp_number.eq.${phoneNumber},customer_phone.eq.${phoneNumber}`)
       .eq('instance_id', instance_id)
-      .single()
+      .maybeSingle()
 
     if (convError || !conversation) {
       // Create new conversation
       const { data: newConv, error: createError } = await supabase
         .from('whatsapp_conversations')
         .insert({
+          // Fill both customer_phone and whatsapp_number to satisfy schemas that require whatsapp_number
           customer_phone: phoneNumber,
+          whatsapp_number: phoneNumber,
           customer_name: phoneNumber,
           instance_id: instance_id,
-          last_message: body,
+          last_message: body || null,
           last_message_at: new Date().toISOString(),
           unread_count: 1
         })
         .select()
-        .single()
+        .maybeSingle()
 
       if (createError) {
         console.error('Error creating conversation:', createError)
@@ -72,7 +76,9 @@ serve(async (req: Request) => {
       await supabase
         .from('whatsapp_conversations')
         .update({
-          last_message: body,
+          // ensure whatsapp_number is set if present
+          whatsapp_number: phoneNumber,
+          last_message: body || null,
           last_message_at: new Date().toISOString(),
           unread_count: (conversation.unread_count || 0) + 1,
           updated_at: new Date().toISOString()
@@ -87,7 +93,7 @@ serve(async (req: Request) => {
         conversation_id: conversation.id,
         instance_id: instance_id,
         sender_type: 'customer',
-        content: body,
+        content: body || null,
         message_type: 'text',
         status: 'received',
         whatsapp_message_id: messageId

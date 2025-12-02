@@ -24,7 +24,7 @@ interface WhatsAppInstance {
   hasQRCode: boolean;
 }
 
-const WHATSAPP_SERVICE_URL = 'http://localhost:3005';
+const WHATSAPP_SERVICE_URL = 'http://localhost:3006';
 
 export default function MultiWhatsAppManagerPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
@@ -72,7 +72,7 @@ export default function MultiWhatsAppManagerPage() {
       });
 
       // Create instance via WhatsApp service
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/create-instance`, {
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/instances`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +107,7 @@ export default function MultiWhatsAppManagerPage() {
 
   const disconnectInstance = async (instanceId: string, instanceName: string) => {
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/disconnect/${instanceId}`, {
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/instances/${instanceId}/disconnect`, {
         method: 'POST'
       });
 
@@ -134,7 +134,7 @@ export default function MultiWhatsAppManagerPage() {
 
   const resetSession = async (instanceId: string, instanceName: string) => {
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/reset-session/${instanceId}`, {
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/instances/${instanceId}/reset`, {
         method: 'POST'
       });
 
@@ -162,7 +162,7 @@ export default function MultiWhatsAppManagerPage() {
   const showQRCode = async (instance: WhatsAppInstance) => {
     try {
       // Get QR code from API
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/qr/${instance.instanceId}`);
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/instances/${instance.instanceId}/qr`);
       if (!response.ok) {
         alert('Erro ao obter QR Code. Tente gerar um novo QR.');
         return;
