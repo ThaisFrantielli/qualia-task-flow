@@ -14,21 +14,18 @@ import {
     Cell,
     Legend,
     LineChart,
-    Line,
-    ComposedChart
+    Line
 } from 'recharts';
 import {
     FileText,
     TrendingUp,
     Car,
-    AlertCircle,
     Calendar,
     Download,
-    Filter,
     CheckCircle,
-    XCircle,
     AlertTriangle,
-    DollarSign
+    DollarSign,
+    Wrench
 } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -292,6 +289,64 @@ export default function ContractPerformanceDashboard(): JSX.Element {
         };
     }, [filteredContratos, dateFrom, dateTo]);
 
+    // === CÁLCULOS: MANUTENÇÃO ===
+    const { data: osData } = useBIData<AnyObject[]>('manutencao_os_*.json');
+
+    const osList = useMemo(() => {
+        const raw = (osData as any)?.data || osData || [];
+        return Array.isArray(raw) ? raw : [];
+    }, [osData]);
+
+    const maintenanceFiltered = useMemo(() => {
+        // Tenta filtrar OS pelas placas dos contratos filtrados
+        const activePlates = new Set(filteredContratos.map(c => c.Placa || c.PlacaVeiculo).filter(Boolean));
+
+        return osList.filter(r => {
+            const d = r.DataEntrada;
+            if (d && dateFrom && d < dateFrom) return false;
+            if (d && dateTo && d > dateTo) return false;
+
+            // Se houver placas identificadas nos contratos, filtra por elas
+            if (selectedContract !== 'all' && activePlates.size > 0) {
+                if (!activePlates.has(r.Placa)) return false;
+            }
+
+            return true;
+        });
+    }, [osList, dateFrom, dateTo, selectedContract, filteredContratos]);
+
+    const maintenanceKpis = useMemo(() => {
+        const totalCost = maintenanceFiltered.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
+        const count = maintenanceFiltered.length;
+        const avgCost = count > 0 ? totalCost / count : 0;
+        const totalDays = maintenanceFiltered.reduce((s, r) => s + (parseCurrency(r.DiasParado) || 0), 0);
+        const avgTime = count > 0 ? totalDays / count : 0;
+        const stopped = maintenanceFiltered.filter(r => !r.DataSaida).length;
+
+        return { totalCost, avgCost, avgTime, stopped };
+    }, [maintenanceFiltered]);
+
+    const maintenanceTypeData = useMemo(() => {
+        const map: Record<string, number> = {};
+        maintenanceFiltered.forEach(r => {
+            const t = r.TipoManutencao || 'Outros';
+            map[t] = (map[t] || 0) + parseCurrency(r.ValorTotal);
+        });
+        return Object.entries(map).map(([name, value]) => ({ name, value }));
+    }, [maintenanceFiltered]);
+
+    const maintenanceTopOffenders = useMemo(() => {
+        const map: Record<string, number> = {};
+        maintenanceFiltered.forEach(r => {
+            const p = r.Placa || 'N/A';
+            map[p] = (map[p] || 0) + parseCurrency(r.ValorTotal);
+        });
+        return Object.entries(map)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5);
+    }, [maintenanceFiltered]);
+
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6 font-sans">
             {/* Header */}
@@ -503,8 +558,8 @@ export default function ContractPerformanceDashboard(): JSX.Element {
                         {alertas.map((alert, idx) => (
                             <div key={idx} className="flex gap-3 items-start">
                                 <div className={`mt-0.5 p-1 rounded-full ${alert.type === 'critical' ? 'bg-red-100 text-red-600' :
-                                        alert.type === 'warning' ? 'bg-amber-100 text-amber-600' :
-                                            'bg-emerald-100 text-emerald-600'
+                                    alert.type === 'warning' ? 'bg-amber-100 text-amber-600' :
+                                        'bg-emerald-100 text-emerald-600'
                                     }`}>
                                     {alert.type === 'success' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
                                 </div>
@@ -625,8 +680,8 @@ export default function ContractPerformanceDashboard(): JSX.Element {
                                         <td className="px-4 py-3 text-slate-600">{fmtPercent(row.Execucao)}</td>
                                         <td className="px-4 py-3">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${row.Status === 'OK' ? 'bg-emerald-100 text-emerald-700' :
-                                                    row.Status === 'Atenção' ? 'bg-amber-100 text-amber-700' :
-                                                        'bg-red-100 text-red-700'
+                                                row.Status === 'Atenção' ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-red-100 text-red-700'
                                                 }`}>
                                                 {row.Status}
                                             </span>
@@ -637,6 +692,74 @@ export default function ContractPerformanceDashboard(): JSX.Element {
                         </table>
                     </div>
                 </Card>
+            </div>
+
+            {/* === SEÇÃO DE MANUTENÇÃO === */}
+            <div className="pt-6 border-t border-slate-200">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-amber-100 rounded-lg">
+                        <Wrench className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                        <Title className="text-slate-900 text-xl font-bold">Análise de Manutenção da Frota</Title>
+                        <Text className="text-slate-500">Custos e indicadores de manutenção vinculados aos contratos filtrados</Text>
+                    </div>
+                </div>
+
+                {/* KPIs Manutenção */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200 shadow-sm rounded-xl">
+                        <Text className="text-slate-500 text-xs font-medium uppercase">Custo Total Manutenção</Text>
+                        <Metric className="text-slate-900 mt-1">{fmtBRL(maintenanceKpis.totalCost)}</Metric>
+                    </Card>
+                    <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200 shadow-sm rounded-xl">
+                        <Text className="text-slate-500 text-xs font-medium uppercase">Custo Médio / OS</Text>
+                        <Metric className="text-slate-900 mt-1">{fmtBRL(maintenanceKpis.avgCost)}</Metric>
+                    </Card>
+                    <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm rounded-xl">
+                        <Text className="text-slate-500 text-xs font-medium uppercase">Tempo Médio Reparo</Text>
+                        <Metric className="text-slate-900 mt-1">{maintenanceKpis.avgTime.toFixed(1)} dias</Metric>
+                    </Card>
+                    <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200 shadow-sm rounded-xl">
+                        <Text className="text-slate-500 text-xs font-medium uppercase">Veículos Parados Hoje</Text>
+                        <Metric className="text-slate-900 mt-1">{maintenanceKpis.stopped}</Metric>
+                    </Card>
+                </div>
+
+                {/* Gráficos Manutenção */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <Card className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+                        <Title className="text-slate-900 text-sm font-bold mb-4">Custo por Tipo de Manutenção</Title>
+                        <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={maintenanceTypeData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {maintenanceTypeData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={['#f59e0b', '#ef4444', '#3b82f6', '#64748b'][index % 4]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(v: number) => fmtBRL(v)} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                    <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
+                    <Card className="bg-white border border-slate-200 shadow-sm rounded-xl p-5">
+                        <Title className="text-slate-900 text-sm font-bold mb-4">Top 5 Veículos com Maior Custo</Title>
+                        <div className="mt-4">
+                            <BarList data={maintenanceTopOffenders} valueFormatter={(v) => fmtBRL(v)} color="amber" />
+                        </div>
+                    </Card>
+                </div>
             </div>
         </div>
     );
