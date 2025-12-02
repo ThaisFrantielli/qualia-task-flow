@@ -23,3 +23,26 @@ dist-ssr
 *.sln
 *.sw?
 .wwebjs_auth/
+whatsapp-session*/
+test-session*/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# WhatsApp service session and temp data
+whatsapp-service/test-session/
+whatsapp-service/whatsapp-session*/
+whatsapp-session-default/
+session-whatsapp-client-default/
+
+# Local database / browser storage files created by sessions
+*.ldb
+*.localstorage
+*.sqlite
+*.db
+
+# Error and service logs
+*.err
+
