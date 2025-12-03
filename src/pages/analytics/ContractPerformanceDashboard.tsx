@@ -49,7 +49,7 @@ function monthKey(d: Date) {
 
 function monthLabel(ym: string) {
     if (!ym) return '';
-    const [y, m] = ym.split('-');
+    const [, m] = ym.split('-');
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const mi = Number(m) - 1;
     return `${months[mi]}`; // Retorna apenas o mês como na imagem
@@ -642,7 +642,7 @@ export default function ContractPerformanceDashboard(): JSX.Element {
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
-                                    {veiculosData.map((entry, index) => (
+                                    {veiculosData.map((_, index) => (
                                         <Cell key={`cell-${index}`} fill={['#60a5fa', '#34d399', '#ffb74d', '#a78bfa', '#f87171'][index % 5]} />
                                     ))}
                                 </Pie>
@@ -742,7 +742,7 @@ export default function ContractPerformanceDashboard(): JSX.Element {
                                         paddingAngle={5}
                                         dataKey="value"
                                     >
-                                        {maintenanceTypeData.map((entry, index) => (
+                                        {maintenanceTypeData.map((_, index) => (
                                             <Cell key={`cell-${index}`} fill={['#f59e0b', '#ef4444', '#3b82f6', '#64748b'][index % 4]} />
                                         ))}
                                     </Pie>
