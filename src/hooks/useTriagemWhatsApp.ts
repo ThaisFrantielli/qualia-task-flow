@@ -10,6 +10,7 @@ export interface TriagemConversation {
   last_message_at: string | null;
   unread_count: number;
   created_at: string;
+  is_online?: boolean;
 }
 
 export interface TriagemMessage {
