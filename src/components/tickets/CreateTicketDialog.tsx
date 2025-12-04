@@ -32,13 +32,21 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+    TICKET_ORIGEM_OPTIONS,
+    TICKET_MOTIVO_OPTIONS,
+    TICKET_DEPARTAMENTO_OPTIONS
+} from "@/constants/ticketOptions";
 
 const formSchema = z.object({
     titulo: z.string().min(1, "Título é obrigatório"),
-    descricao: z.string().optional(),
+    sintese: z.string().optional(),
     cliente_id: z.string().min(1, "Cliente é obrigatório"),
     prioridade: z.string(),
-    tipo: z.string(),
+    origem: z.string().min(1, "Origem é obrigatória"),
+    motivo: z.string().min(1, "Motivo é obrigatório"),
+    departamento: z.string().min(1, "Departamento é obrigatório"),
+    placa: z.string().optional(),
 });
 
 export function CreateTicketDialog() {
@@ -60,9 +68,12 @@ export function CreateTicketDialog() {
         resolver: zodResolver(formSchema),
         defaultValues: {
             titulo: "",
-            descricao: "",
+            sintese: "",
             prioridade: "media",
-            tipo: "pos_venda",
+            placa: "",
+            origem: "",
+            motivo: "",
+            departamento: "",
         },
     });
 
@@ -71,7 +82,9 @@ export function CreateTicketDialog() {
             {
                 ...values,
                 status: "aguardando_triagem",
-            },
+                fase: "Análise do caso", // Fase inicial padrão para Pós-Venda
+                tipo: "pos_venda"
+            } as any,
             {
                 onSuccess: () => {
                     toast.success("Ticket criado com sucesso!");
@@ -93,9 +106,9 @@ export function CreateTicketDialog() {
                     Novo Ticket
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Novo Ticket</DialogTitle>
+                    <DialogTitle>Novo Ticket de Pós-Venda</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -104,35 +117,10 @@ export function CreateTicketDialog() {
                             name="titulo"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Título</FormLabel>
+                                    <FormLabel>Assunto</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Resumo do problema" {...field} />
+                                        <Input placeholder="Resumo curto do problema" {...field} />
                                     </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        <FormField
-                            control={form.control}
-                            name="cliente_id"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Cliente</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione um cliente" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {clientes?.map((cliente) => (
-                                                <SelectItem key={cliente.id} value={cliente.id}>
-                                                    {cliente.nome_fantasia || cliente.razao_social}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -141,20 +129,115 @@ export function CreateTicketDialog() {
                         <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
-                                name="tipo"
+                                name="cliente_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tipo</FormLabel>
+                                        <FormLabel>Cliente</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
-                                                    <SelectValue />
+                                                    <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="pos_venda">Pós-Venda</SelectItem>
-                                                <SelectItem value="suporte">Suporte</SelectItem>
-                                                <SelectItem value="reclamacao">Reclamação</SelectItem>
+                                                {clientes?.map((cliente) => (
+                                                    <SelectItem key={cliente.id} value={cliente.id}>
+                                                        {cliente.nome_fantasia || cliente.razao_social}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="placa"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Placa do Veículo</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="ABC-1234" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="origem"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Origem</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {TICKET_ORIGEM_OPTIONS.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="departamento"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Departamento</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {TICKET_DEPARTAMENTO_OPTIONS.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="motivo"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Motivo</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {TICKET_MOTIVO_OPTIONS.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -189,14 +272,14 @@ export function CreateTicketDialog() {
 
                         <FormField
                             control={form.control}
-                            name="descricao"
+                            name="sintese"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Descrição</FormLabel>
+                                    <FormLabel>Síntese (Detalhes do Caso)</FormLabel>
                                     <FormControl>
                                         <Textarea
-                                            placeholder="Detalhes do ticket..."
-                                            className="resize-none"
+                                            placeholder="Descreva o problema detalhadamente..."
+                                            className="resize-none min-h-[100px]"
                                             {...field}
                                         />
                                     </FormControl>

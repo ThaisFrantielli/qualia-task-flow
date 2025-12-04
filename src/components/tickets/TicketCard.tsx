@@ -70,9 +70,16 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
                         <Clock className="w-3 h-3 mr-1" />
                         {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                     </div>
-                    <Badge variant="outline" className={`${statusColors[ticket.status || "aguardando_triagem"]} text-white border-none`}>
-                        {ticket.status?.replace("_", " ")}
-                    </Badge>
+                    <div className="flex gap-2">
+                        {(ticket as any).departamento && (
+                            <Badge variant="secondary" className="text-[10px] h-5">
+                                {(ticket as any).departamento}
+                            </Badge>
+                        )}
+                        <Badge variant="outline" className={`${statusColors[ticket.status || "aguardando_triagem"]} text-white border-none`}>
+                            {((ticket as any).fase || ticket.status)?.replace("_", " ")}
+                        </Badge>
+                    </div>
                 </div>
             </CardContent>
         </Card>
