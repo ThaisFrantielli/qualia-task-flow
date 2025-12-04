@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
-import { 
-  useTriagemLeads, 
-  useEncaminharParaComercial, 
-  useCriarTicket, 
+import {
+  useTriagemLeads,
+  useEncaminharParaComercial,
+  useCriarTicket,
   useDescartarLead,
   useAtribuirLead,
   type TriagemLead
@@ -19,6 +19,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Ticket, Inbox, MessageSquare, Users } from "lucide-react";
 import { TriagemLeadCardV2 } from "@/components/triagem/TriagemLeadCardV2";
 import { TriagemFilters } from "@/components/triagem/TriagemFilters";
+import {
+  TICKET_ORIGEM_OPTIONS,
+  TICKET_MOTIVO_OPTIONS,
+  TICKET_DEPARTAMENTO_OPTIONS
+} from "@/constants/ticketOptions";
 
 export default function FilaTriagem() {
   const { user } = useAuth();
@@ -40,8 +45,12 @@ export default function FilaTriagem() {
   const [selectedLead, setSelectedLead] = useState<TriagemLead | null>(null);
   const [ticketForm, setTicketForm] = useState({
     titulo: "",
-    descricao: "",
-    prioridade: "media"
+    sintese: "",
+    prioridade: "media",
+    origem: "",
+    motivo: "",
+    departamento: "",
+    placa: ""
   });
 
   // Filter and sort leads
@@ -113,20 +122,39 @@ export default function FilaTriagem() {
     await criarTicket.mutateAsync({
       clienteId: selectedLead.id,
       titulo: ticketForm.titulo,
-      descricao: ticketForm.descricao,
-      prioridade: ticketForm.prioridade
-    });
+      sintese: ticketForm.sintese,
+      prioridade: ticketForm.prioridade,
+      origem: ticketForm.origem,
+      motivo: ticketForm.motivo,
+      departamento: ticketForm.departamento,
+      placa: ticketForm.placa,
+      fase: "Análise do caso",
+      status: "aguardando_triagem"
+    } as any);
 
     setTicketDialogOpen(false);
     setSelectedLead(null);
-    setTicketForm({ titulo: "", descricao: "", prioridade: "media" });
+    setTicketForm({
+      titulo: "",
+      sintese: "",
+      prioridade: "media",
+      origem: "",
+      motivo: "",
+      departamento: "",
+      placa: ""
+    });
   };
 
   const handleOpenTicketDialog = (lead: TriagemLead) => {
     setSelectedLead(lead);
     setTicketForm({
-      ...ticketForm,
-      titulo: `Atendimento - ${lead.nome_fantasia || lead.razao_social || lead.whatsapp_number || 'Cliente'}`
+      titulo: `Atendimento - ${lead.nome_fantasia || lead.razao_social || lead.whatsapp_number || 'Cliente'}`,
+      sintese: "",
+      prioridade: "media",
+      origem: lead.origem === 'whatsapp_inbound' ? 'Whatsapp' : 'Site', // Tenta inferir origem
+      motivo: "",
+      departamento: "",
+      placa: ""
     });
     setTicketDialogOpen(true);
   };
@@ -213,8 +241,8 @@ export default function FilaTriagem() {
                   {activeTab === 'all' ? 'Nenhum lead na fila' : 'Nenhum lead encontrado'}
                 </p>
                 <p className="text-sm">
-                  {activeTab === 'all' 
-                    ? 'Todos os leads foram processados!' 
+                  {activeTab === 'all'
+                    ? 'Todos os leads foram processados!'
                     : 'Tente ajustar os filtros'}
                 </p>
               </div>
@@ -242,7 +270,7 @@ export default function FilaTriagem() {
 
       {/* Dialog para Criar Ticket */}
       <Dialog open={ticketDialogOpen} onOpenChange={setTicketDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Ticket de Atendimento</DialogTitle>
           </DialogHeader>
@@ -256,40 +284,99 @@ export default function FilaTriagem() {
                 placeholder="Assunto do ticket"
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Origem *</Label>
+                <Select
+                  value={ticketForm.origem}
+                  onValueChange={(value) => setTicketForm({ ...ticketForm, origem: value })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {TICKET_ORIGEM_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Departamento *</Label>
+                <Select
+                  value={ticketForm.departamento}
+                  onValueChange={(value) => setTicketForm({ ...ticketForm, departamento: value })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {TICKET_DEPARTAMENTO_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Motivo *</Label>
+                <Select
+                  value={ticketForm.motivo}
+                  onValueChange={(value) => setTicketForm({ ...ticketForm, motivo: value })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {TICKET_MOTIVO_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Prioridade</Label>
+                <Select
+                  value={ticketForm.prioridade}
+                  onValueChange={(value) => setTicketForm({ ...ticketForm, prioridade: value })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div>
-              <Label htmlFor="descricao">Descrição *</Label>
-              <Textarea
-                id="descricao"
-                value={ticketForm.descricao}
-                onChange={(e) => setTicketForm({ ...ticketForm, descricao: e.target.value })}
-                placeholder="Descreva o problema ou solicitação..."
-                rows={4}
+              <Label htmlFor="placa">Placa do Veículo</Label>
+              <Input
+                id="placa"
+                value={ticketForm.placa}
+                onChange={(e) => setTicketForm({ ...ticketForm, placa: e.target.value })}
+                placeholder="ABC-1234"
               />
             </div>
+
             <div>
-              <Label htmlFor="prioridade">Prioridade</Label>
-              <Select
-                value={ticketForm.prioridade}
-                onValueChange={(value) => setTicketForm({ ...ticketForm, prioridade: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="baixa">Baixa</SelectItem>
-                  <SelectItem value="media">Média</SelectItem>
-                  <SelectItem value="alta">Alta</SelectItem>
-                  <SelectItem value="urgente">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="sintese">Síntese (Detalhes) *</Label>
+              <Textarea
+                id="sintese"
+                value={ticketForm.sintese}
+                onChange={(e) => setTicketForm({ ...ticketForm, sintese: e.target.value })}
+                placeholder="Descreva o problema ou solicitação..."
+                rows={4}
+                className="resize-none"
+              />
             </div>
+
             <div className="flex gap-2 justify-end pt-4">
               <Button variant="outline" onClick={() => setTicketDialogOpen(false)}>
                 Cancelar
               </Button>
               <Button
                 onClick={handleCriarTicket}
-                disabled={!ticketForm.titulo || !ticketForm.descricao || criarTicket.isPending}
+                disabled={!ticketForm.titulo || !ticketForm.sintese || !ticketForm.origem || !ticketForm.motivo || !ticketForm.departamento || criarTicket.isPending}
               >
                 {criarTicket.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Criar Ticket

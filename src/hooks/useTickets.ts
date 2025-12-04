@@ -54,35 +54,39 @@ export const useTicketDetail = (ticketId: string) => {
             id,
             nome_fantasia,
             razao_social,
+            nome_contratante,
             whatsapp_number,
             email
           ),
-          profiles:atendente_id (
+          profiles:profiles!tickets_atendente_id_fkey (
             id,
             full_name,
             avatar_url
           ),
           ticket_interacoes (
             *,
-            profiles:usuario_id (
+            profiles:profiles!ticket_interacoes_usuario_id_fkey (
               full_name,
               avatar_url
             )
           ),
           ticket_departamentos (
             *,
-            solicitado_por:solicitado_por (full_name),
-            respondido_por:respondido_por (full_name)
+            solicitado_por:profiles!ticket_departamentos_solicitado_por_fkey (full_name),
+            respondido_por:profiles!ticket_departamentos_respondido_por_fkey (full_name)
           ),
           ticket_anexos (
             *,
-            uploaded_by:uploaded_by (full_name)
+            uploaded_by:profiles!ticket_anexos_uploaded_by_fkey (full_name)
           )
         `)
                 .eq("id", ticketId)
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("Error fetching ticket details:", error);
+                throw error;
+            }
             return data;
         },
         enabled: !!ticketId,
