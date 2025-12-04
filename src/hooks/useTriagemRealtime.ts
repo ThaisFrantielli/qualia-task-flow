@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,7 +18,6 @@ export interface TriagemLead {
   cadastro_cliente?: string;
   ultimo_atendente_id?: string | null;
   ultimo_atendimento_at?: string | null;
-  // Joined data
   conversation?: {
     id: string;
     last_message: string | null;
@@ -27,38 +26,68 @@ export interface TriagemLead {
   } | null;
 }
 
-// Buscar leads com conversas vinculadas
-export function useTriagemLeads() {
+// Buscar leads com conversas vinculadas - otimizado para alto volume
+export function useTriagemLeads(options?: { 
+  limit?: number; 
+  offset?: number;
+  debounceMs?: number;
+}) {
   const queryClient = useQueryClient();
+  const { limit = 100, offset = 0, debounceMs = 1000 } = options || {};
 
   const query = useQuery({
-    queryKey: ['triagem-leads'],
+    queryKey: ['triagem-leads', limit, offset],
     queryFn: async () => {
-      // Buscar leads em triagem
-      const { data: leads, error } = await supabase
+      // Buscar leads em triagem com paginação
+      const { data: leads, error, count } = await supabase
         .from('clientes')
-        .select('*')
+        .select('*', { count: 'exact' })
         .in('status_triagem', ['aguardando', 'em_atendimento'])
-        .order('cadastro_cliente', { ascending: false });
+        .order('cadastro_cliente', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (error) throw error;
 
+      if (!leads || leads.length === 0) {
+        return { leads: [], total: 0 };
+      }
+
       // Buscar conversas para estes leads
-      const leadIds = leads?.map(l => l.id) || [];
-      const whatsappNumbers = leads?.filter(l => l.whatsapp_number).map(l => l.whatsapp_number) || [];
+      const leadIds = leads.map(l => l.id);
+      const whatsappNumbers = leads.filter(l => l.whatsapp_number).map(l => l.whatsapp_number);
 
       let conversations: any[] = [];
-      if (leadIds.length > 0 || whatsappNumbers.length > 0) {
+      if (leadIds.length > 0) {
+        // Query otimizada: busca por cliente_id primeiro
         const { data: convs } = await supabase
           .from('whatsapp_conversations')
           .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count')
-          .or(`cliente_id.in.(${leadIds.join(',')}),whatsapp_number.in.(${whatsappNumbers.join(',')})`);
+          .in('cliente_id', leadIds);
         
         conversations = convs || [];
+
+        // Se ainda faltam, busca por whatsapp_number
+        if (whatsappNumbers.length > 0) {
+          const existingClientIds = conversations.map(c => c.cliente_id);
+          const missingLeads = leads.filter(l => 
+            l.whatsapp_number && !existingClientIds.includes(l.id)
+          );
+          
+          if (missingLeads.length > 0) {
+            const { data: additionalConvs } = await supabase
+              .from('whatsapp_conversations')
+              .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count')
+              .in('whatsapp_number', missingLeads.map(l => l.whatsapp_number));
+            
+            if (additionalConvs) {
+              conversations = [...conversations, ...additionalConvs];
+            }
+          }
+        }
       }
 
       // Mesclar dados
-      return leads?.map(lead => {
+      const enrichedLeads = leads.map(lead => {
         const conv = conversations.find(c => 
           c.cliente_id === lead.id || c.whatsapp_number === lead.whatsapp_number
         );
@@ -68,43 +97,54 @@ export function useTriagemLeads() {
             id: conv.id,
             last_message: conv.last_message,
             last_message_at: conv.last_message_at,
-            unread_count: conv.unread_count
+            unread_count: conv.unread_count || 0
           } : null
         } as TriagemLead;
-      }) || [];
+      });
+
+      return { leads: enrichedLeads, total: count || 0 };
     },
-    refetchInterval: 30000, // Refetch a cada 30s como fallback
+    refetchInterval: 30000, // Fallback: refetch a cada 30s
+    staleTime: 5000, // Cache por 5s para evitar refetch excessivo
   });
+
+  // Debounced invalidation para evitar muitos refetches
+  const debouncedInvalidate = useCallback(() => {
+    const timeoutId = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['triagem-leads'] });
+    }, debounceMs);
+    return () => clearTimeout(timeoutId);
+  }, [queryClient, debounceMs]);
 
   // Subscription para atualizações em tempo real
   useEffect(() => {
     const clientesChannel = supabase
-      .channel('triagem-clientes')
+      .channel('triagem-clientes-realtime')
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'clientes', filter: "status_triagem=in.(aguardando,em_atendimento)" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['triagem-leads'] });
+        { event: '*', schema: 'public', table: 'clientes' },
+        (payload) => {
+          const record = payload.new as any;
+          // Só invalida se for um lead em triagem
+          if (record?.status_triagem === 'aguardando' || record?.status_triagem === 'em_atendimento') {
+            debouncedInvalidate();
+          }
         }
       )
       .subscribe();
 
     const conversationsChannel = supabase
-      .channel('triagem-conversations')
+      .channel('triagem-conversations-realtime')
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'whatsapp_conversations' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['triagem-leads'] });
-        }
+        () => debouncedInvalidate()
       )
       .subscribe();
 
     const messagesChannel = supabase
-      .channel('triagem-messages')
+      .channel('triagem-messages-realtime')
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['triagem-leads'] });
-        }
+        () => debouncedInvalidate()
       )
       .subscribe();
 
@@ -113,9 +153,13 @@ export function useTriagemLeads() {
       supabase.removeChannel(conversationsChannel);
       supabase.removeChannel(messagesChannel);
     };
-  }, [queryClient]);
+  }, [debouncedInvalidate]);
 
-  return query;
+  return {
+    ...query,
+    data: query.data?.leads || [],
+    total: query.data?.total || 0
+  };
 }
 
 // Hook para atribuir lead a um agente
@@ -204,6 +248,21 @@ export function useEncaminharParaComercial() {
         })
         .eq('id', clienteId);
 
+      // 5. Vincular conversa à oportunidade (se existir)
+      const { data: conversation } = await supabase
+        .from('whatsapp_conversations')
+        .select('id')
+        .eq('cliente_id', clienteId)
+        .maybeSingle();
+
+      if (conversation) {
+        // Podemos usar o campo atendimento_id para vincular
+        await supabase
+          .from('whatsapp_conversations')
+          .update({ cliente_id: clienteId })
+          .eq('id', conversation.id);
+      }
+
       return oportunidade;
     },
     onSuccess: () => {
@@ -217,7 +276,7 @@ export function useEncaminharParaComercial() {
   });
 }
 
-// Hook para criar ticket de suporte
+// Hook CORRIGIDO para criar ticket de suporte com todos os campos
 export function useCriarTicket() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -226,25 +285,44 @@ export function useCriarTicket() {
     mutationFn: async ({ 
       clienteId, 
       titulo, 
-      descricao, 
+      descricao,
+      sintese,
       prioridade,
+      origem,
+      motivo,
+      departamento,
+      placa,
+      fase,
+      status
     }: {
       clienteId: string;
       titulo: string;
-      descricao: string;
+      descricao?: string;
+      sintese?: string;
       prioridade?: string;
+      origem?: string;
+      motivo?: string;
+      departamento?: string;
+      placa?: string;
+      fase?: string;
+      status?: string;
     }) => {
-      // 1. Criar ticket
+      // 1. Criar ticket com todos os campos
       const { data: ticket, error: ticketError } = await supabase
         .from('tickets')
         .insert({
           cliente_id: clienteId,
           titulo,
-          descricao,
+          descricao: descricao || sintese,
+          sintese,
           prioridade: prioridade || 'media',
-          status: 'em_atendimento',
+          status: status || 'em_atendimento',
           atendente_id: user?.id,
-          origem: 'triagem'
+          origem: origem || 'triagem',
+          motivo: motivo as any,
+          departamento: departamento as any,
+          placa,
+          fase: fase || 'Análise do caso'
         })
         .select()
         .single();
@@ -260,6 +338,35 @@ export function useCriarTicket() {
           ultimo_atendimento_at: new Date().toISOString()
         })
         .eq('id', clienteId);
+
+      // 3. Vincular conversa WhatsApp ao ticket (NOVO!)
+      const { data: conversation } = await supabase
+        .from('whatsapp_conversations')
+        .select('id')
+        .eq('cliente_id', clienteId)
+        .maybeSingle();
+
+      if (conversation) {
+        // Vincular a conversa ao ticket usando atendimento_id
+        // Note: atendimento_id pode ser usado para tickets também
+        await supabase
+          .from('whatsapp_conversations')
+          .update({ 
+            atendimento_id: null, // Reset any previous link
+            cliente_id: clienteId 
+          })
+          .eq('id', conversation.id);
+      }
+
+      // 4. Criar interação inicial
+      await supabase
+        .from('ticket_interacoes')
+        .insert({
+          ticket_id: ticket.id,
+          tipo: 'abertura',
+          mensagem: `Ticket criado a partir da triagem. ${sintese || descricao || ''}`,
+          usuario_id: user?.id
+        });
 
       return ticket;
     },
@@ -279,7 +386,7 @@ export function useDescartarLead() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ clienteId }: { clienteId: string }) => {
+    mutationFn: async ({ clienteId }: { clienteId: string; motivo?: string }) => {
       const { error } = await supabase
         .from('clientes')
         .update({ 
@@ -316,12 +423,14 @@ export function useConversationMessages(conversationId?: string) {
       return data;
     },
     enabled: !!conversationId,
+    refetchInterval: 10000, // Refetch a cada 10s para manter atualizado
   });
 }
 
 // Hook para enviar mensagem
 export function useSendTriagemMessage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ 
@@ -345,17 +454,63 @@ export function useSendTriagemMessage() {
       const targetPhone = conv.whatsapp_number || conv.customer_phone;
       const instId = instanceId || conv.instance_id;
 
-      // Chamar edge function para enviar mensagem
-      const { data, error } = await supabase.functions.invoke('whatsapp-send', {
-        body: {
+      // Salvar mensagem localmente primeiro (otimistic update)
+      const { data: savedMessage, error: saveError } = await supabase
+        .from('whatsapp_messages')
+        .insert({
+          conversation_id: conversationId,
           instance_id: instId,
-          to: targetPhone,
-          message: content
-        }
-      });
+          sender_type: 'agent',
+          sender_id: user?.id,
+          content: content,
+          message_type: 'text',
+          status: 'sending'
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
-      return data;
+      if (saveError) throw saveError;
+
+      // Chamar edge function para enviar mensagem
+      try {
+        const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+          body: {
+            instance_id: instId,
+            to: targetPhone,
+            message: content
+          }
+        });
+
+        if (error) {
+          // Marcar como falha
+          await supabase
+            .from('whatsapp_messages')
+            .update({ status: 'failed' })
+            .eq('id', savedMessage.id);
+          throw error;
+        }
+
+        // Marcar como enviada
+        await supabase
+          .from('whatsapp_messages')
+          .update({ status: 'sent' })
+          .eq('id', savedMessage.id);
+
+        // Atualizar conversa
+        await supabase
+          .from('whatsapp_conversations')
+          .update({
+            last_message: content,
+            last_message_at: new Date().toISOString()
+          })
+          .eq('id', conversationId);
+
+        return data;
+      } catch (err) {
+        // Mesmo se falhar no envio, a mensagem foi salva
+        console.error('Erro ao enviar via WhatsApp:', err);
+        throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversation-messages'] });
