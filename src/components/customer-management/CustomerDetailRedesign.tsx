@@ -21,6 +21,7 @@ import {
   Info,
   History,
   DollarSign,
+  Star,
 } from 'lucide-react';
 import { WhatsAppTab } from './WhatsAppTab';
 import { useQuery } from '@tanstack/react-query';
@@ -30,6 +31,7 @@ import { CustomerSummaryCards } from './CustomerSummaryCards';
 import { CustomerQuickActions } from './CustomerQuickActions';
 import { CustomerTimeline } from './CustomerTimeline';
 import { TicketCard } from '@/components/tickets/TicketCard';
+import { CustomerSurveysTab } from '@/components/surveys/CustomerSurveysTab';
 
 interface CustomerDetailRedesignProps {
   customer: ClienteComContatos;
@@ -154,6 +156,10 @@ export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
                 {oportunidades.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="pesquisas" className="text-xs">
+            <Star className="h-3.5 w-3.5 mr-1.5" />
+            Pesquisas
           </TabsTrigger>
         </TabsList>
 
@@ -365,6 +371,16 @@ export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Surveys Tab */}
+          <TabsContent value="pesquisas" className="mt-0">
+            <CustomerSurveysTab
+              clienteId={customer.id}
+              clienteName={customer.nome_fantasia || customer.razao_social || 'Cliente'}
+              clientePhone={customer.telefone || customer.whatsapp_number}
+              clienteEmail={customer.email}
+            />
           </TabsContent>
         </div>
       </Tabs>
