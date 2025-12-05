@@ -52,7 +52,7 @@ function parseCurrency(v: any): number {
     // Ambiguous: could be '1234.56' (decimal) or '1.234' (thousands).
     // Heuristic: if dot groups look like thousands (e.g. 1.234 or 12.345.678) remove dots.
     if (/^[-+]?\d{1,3}(?:\.\d{3})+$/.test(s)) {
-     s = s.replace(/\./g, '');
+      s = s.replace(/\./g, '');
     }
     // otherwise keep dot as decimal separator
   }
@@ -75,7 +75,7 @@ function getQty(row: AnyObject): number {
 // --- COMPONENTE PRINCIPAL ---
 export default function FinancialAnalytics(): JSX.Element {
   // Hooks de Dados (ETL)
-  const { data: financeiroData } = useBIData<AnyObject[]>('financeiro_completo.json');
+  const { data: financeiroData } = useBIData<AnyObject[]>('financeiro_completo_*.json');
   const { data: contratosData } = useBIData<AnyObject[]>('contratos_ativos.json');
 
   // Normalização de Arrays
@@ -92,7 +92,7 @@ export default function FinancialAnalytics(): JSX.Element {
   // Estados de Controle
   const [activeTab, setActiveTab] = useState(0);
   const currentYear = new Date().getFullYear();
-  
+
   // Filtros Visão Geral
   const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
   const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
@@ -106,9 +106,9 @@ export default function FinancialAnalytics(): JSX.Element {
   const [showDebug, setShowDebug] = useState(false);
 
   // Listas Auxiliares
-  const clientesList = useMemo(() => 
+  const clientesList = useMemo(() =>
     Array.from(new Set(financeiro.map(r => r.Cliente).filter(Boolean))).sort()
-  , [financeiro]);
+    , [financeiro]);
 
   const availableMonths = useMemo(() => {
     const s = new Set<string>();
@@ -126,7 +126,7 @@ export default function FinancialAnalytics(): JSX.Element {
 
 
   // === CÁLCULOS ABA 1: VISÃO GERAL ===
-  
+
   // Filtra dados pelo período selecionado (compara strings de data)
   const filteredFin = useMemo(() => {
     return financeiro.filter((r) => {
@@ -145,10 +145,10 @@ export default function FinancialAnalytics(): JSX.Element {
     const veiculosSet = new Set(filteredFin.map(r => r.IdVeiculo).filter(Boolean));
     const qtdVeiculosFallback = filteredFin.reduce((s, r) => s + getQty(r), 0);
     const qtdVeiculos = veiculosSet.size > 0 ? veiculosSet.size : Math.round(qtdVeiculosFallback);
-    return { 
-      faturamento: total, 
-      veiculos: qtdVeiculos, 
-      ticket: qtdVeiculos > 0 ? total / qtdVeiculos : 0 
+    return {
+      faturamento: total,
+      veiculos: qtdVeiculos,
+      ticket: qtdVeiculos > 0 ? total / qtdVeiculos : 0
     };
   }, [filteredFin]);
 
@@ -177,7 +177,7 @@ export default function FinancialAnalytics(): JSX.Element {
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
-      .sort((a,b) => b.value - a.value)
+      .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filteredFin]);
 
@@ -193,10 +193,10 @@ export default function FinancialAnalytics(): JSX.Element {
     // Mapeia Realizado por Contrato (se IdContratoLocacao disponível)
     const realizedMap: Record<string, number> = {};
     itemsInMonth.forEach(item => {
-        const val = parseCurrency(item.ValorFaturadoItem || item.ValorTotal || item.ValorLocacao);
-        if (item.IdContratoLocacao) {
-            realizedMap[String(item.IdContratoLocacao)] = (realizedMap[String(item.IdContratoLocacao)] || 0) + val;
-        }
+      const val = parseCurrency(item.ValorFaturadoItem || item.ValorTotal || item.ValorLocacao);
+      if (item.IdContratoLocacao) {
+        realizedMap[String(item.IdContratoLocacao)] = (realizedMap[String(item.IdContratoLocacao)] || 0) + val;
+      }
     });
 
     // --- 2. PREVISTO (Cálculo Comercial Base 30) ---
@@ -209,65 +209,65 @@ export default function FinancialAnalytics(): JSX.Element {
     const contractDetails: any[] = [];
 
     contratos.forEach(c => {
-        const rawStart = c.InicioVigenciaPreco || c.InicioContrato || c.Inicio;
-        const rawEnd = c.FimVigenciaPreco || c.FimContrato || c.Fim;
-        if (!rawStart) return;
+      const rawStart = c.InicioVigenciaPreco || c.InicioContrato || c.Inicio;
+      const rawEnd = c.FimVigenciaPreco || c.FimContrato || c.Fim;
+      if (!rawStart) return;
 
-        const startC = new Date(String(rawStart).split('T')[0] + 'T12:00:00');
-        const endC = rawEnd ? new Date(String(rawEnd).split('T')[0] + 'T12:00:00') : new Date('2099-12-31T12:00:00');
+      const startC = new Date(String(rawStart).split('T')[0] + 'T12:00:00');
+      const endC = rawEnd ? new Date(String(rawEnd).split('T')[0] + 'T12:00:00') : new Date('2099-12-31T12:00:00');
 
-        if (endC < startM || startC > endM) return;
+      if (endC < startM || startC > endM) return;
 
-        const overlapStart = startC > startM ? startC : startM;
-        const overlapEnd = endC < endM ? endC : endM;
+      const overlapStart = startC > startM ? startC : startM;
+      const overlapEnd = endC < endM ? endC : endM;
 
-        let daysActive = COMMERCIAL_BASE;
-        if (overlapStart > startM || overlapEnd < endM) {
-            const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
-            daysActive = Math.ceil(diffTime / MS_PER_DAY) + 1;
-            if (daysActive > COMMERCIAL_BASE) daysActive = COMMERCIAL_BASE;
-            if (daysActive < 1) daysActive = 1;
-        }
+      let daysActive = COMMERCIAL_BASE;
+      if (overlapStart > startM || overlapEnd < endM) {
+        const diffTime = Math.abs(overlapEnd.getTime() - overlapStart.getTime());
+        daysActive = Math.ceil(diffTime / MS_PER_DAY) + 1;
+        if (daysActive > COMMERCIAL_BASE) daysActive = COMMERCIAL_BASE;
+        if (daysActive < 1) daysActive = 1;
+      }
 
-        const valMensal = parseCurrency(c.ValorVigente || c.ValorMensal || c.ValorMensalidade || c.Valor);
-        const expected = (valMensal / COMMERCIAL_BASE) * daysActive;
+      const valMensal = parseCurrency(c.ValorVigente || c.ValorMensal || c.ValorMensalidade || c.Valor);
+      const expected = (valMensal / COMMERCIAL_BASE) * daysActive;
 
-        expectedTotal += expected;
+      expectedTotal += expected;
 
-        contractDetails.push({
-            id: c.IdContratoLocacao || c.NumeroContrato || c.Id || null,
-            cliente: c.Cliente || c.NomeCliente || 'N/D',
-            placa: c.Placa || c.PlacaVeiculo || 'N/D',
-            contrato: c.ContratoLocacao || c.NumeroContrato || c.IdContratoLocacao || 'N/D',
-            dias: daysActive,
-            esperado: expected,
-            realizado: 0,
-            gap: 0
-        });
+      contractDetails.push({
+        id: c.IdContratoLocacao || c.NumeroContrato || c.Id || null,
+        cliente: c.Cliente || c.NomeCliente || 'N/D',
+        placa: c.Placa || c.PlacaVeiculo || 'N/D',
+        contrato: c.ContratoLocacao || c.NumeroContrato || c.IdContratoLocacao || 'N/D',
+        dias: daysActive,
+        esperado: expected,
+        realizado: 0,
+        gap: 0
+      });
     });
 
     // --- 3. CRUZAMENTO E GAP ---
     contractDetails.forEach(d => {
-        if (d.id && realizedMap[String(d.id)]) {
-            d.realizado = realizedMap[String(d.id)];
-        }
-        d.gap = d.realizado - d.esperado; // positivo = mais faturado que esperado
+      if (d.id && realizedMap[String(d.id)]) {
+        d.realizado = realizedMap[String(d.id)];
+      }
+      d.gap = d.realizado - d.esperado; // positivo = mais faturado que esperado
     });
 
-    const filteredDetails = contractDetails.filter((d: any) => 
-        searchTerm === '' || 
-        (d.cliente && d.cliente.toLowerCase().includes(searchTerm.toLowerCase())) || 
-        (d.placa && d.placa.toLowerCase().includes(searchTerm.toLowerCase()))
+    const filteredDetails = contractDetails.filter((d: any) =>
+      searchTerm === '' ||
+      (d.cliente && d.cliente.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (d.placa && d.placa.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     // Ordenação: maiores gaps negativos primeiro (mais défict)
     filteredDetails.sort((a: any, b: any) => a.gap - b.gap);
 
-    return { 
-        expected: expectedTotal, 
-        realized: realizedTotal, 
-        gap: realizedTotal - expectedTotal, 
-        details: filteredDetails 
+    return {
+      expected: expectedTotal,
+      realized: realizedTotal,
+      gap: realizedTotal - expectedTotal,
+      details: filteredDetails
     };
 
   }, [selectedMonth, financeiro, contratos, searchTerm]);
@@ -341,8 +341,8 @@ export default function FinancialAnalytics(): JSX.Element {
       </div>
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
-        <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab===0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
-        <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab===1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Auditoria de Receita</button>
+        <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
+        <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Auditoria de Receita</button>
       </div>
 
       <div className="mt-3">
@@ -421,7 +421,7 @@ export default function FinancialAnalytics(): JSX.Element {
                 </select>
               </div>
               <div className="flex items-end">
-                <button className="bg-slate-100 hover:bg-slate-200 w-full py-1.5 rounded text-sm transition-colors" onClick={() => {setDateFrom(`${currentYear}-01-01`); setDateTo(`${currentYear}-12-31`); setSelectedClientes([])}}>Ano Atual</button>
+                <button className="bg-slate-100 hover:bg-slate-200 w-full py-1.5 rounded text-sm transition-colors" onClick={() => { setDateFrom(`${currentYear}-01-01`); setDateTo(`${currentYear}-12-31`); setSelectedClientes([]) }}>Ano Atual</button>
               </div>
             </div>
           </Card>
@@ -451,15 +451,15 @@ export default function FinancialAnalytics(): JSX.Element {
                     <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis yAxisId="left" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} />
                     <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} />
-                    <Tooltip formatter={(v:any) => fmtBRL(v)} contentStyle={{borderRadius: '8px'}} />
+                    <Tooltip formatter={(v: any) => fmtBRL(v)} contentStyle={{ borderRadius: '8px' }} />
                     <Legend />
                     <Bar yAxisId="left" dataKey="faturamento" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Faturamento" />
-                    <Line yAxisId="right" type="monotone" dataKey="ticket" stroke="#10b981" strokeWidth={2} dot={{r:4}} name="Ticket Médio" />
+                    <Line yAxisId="right" type="monotone" dataKey="ticket" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} name="Ticket Médio" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </Card>
-            
+
             <Card className="bg-white border border-slate-200">
               <Title>Top 10 Clientes</Title>
               <div className="mt-4 h-80 overflow-y-auto pr-2">

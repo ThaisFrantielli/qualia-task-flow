@@ -49,7 +49,7 @@ function fmtBRL(v: number) {
 
 export default function RevenueGap(): JSX.Element {
   const { data: contratosData } = useBIData<AnyObject[]>('contratos_ativos.json');
-  const { data: financeiroData } = useBIData<AnyObject[]>('financeiro_completo.json');
+  const { data: financeiroData } = useBIData<AnyObject[]>('financeiro_completo_*.json');
 
   // normalize payloads
   const contratos: AnyObject[] = useMemo(() => {

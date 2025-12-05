@@ -34,7 +34,7 @@ function monthLabel(ym: string): string {
 
 // --- COMPONENTE PRINCIPAL ---
 export default function SalesPerformance(): JSX.Element {
-  const { data: vendasData } = useBIData<AnyObject[]>('vendas_*.json');
+  const { data: vendasData } = useBIData<AnyObject[]>('vendas.json');
 
   const vendas = useMemo(() => {
     const raw = (vendasData as any)?.data || vendasData || [];
@@ -56,7 +56,7 @@ export default function SalesPerformance(): JSX.Element {
 
   // KPIs
   const kpis = useMemo(() => {
-    const totalVal = filteredData.reduce((s, r) => s + parseCurrency(r.ValorVenda), 0);
+    const totalVal = filteredData.reduce((s, r) => s + parseCurrency(r.ValorTotalVenda), 0);
     const count = filteredData.length;
     const avgTicket = count > 0 ? totalVal / count : 0;
 
@@ -88,7 +88,7 @@ export default function SalesPerformance(): JSX.Element {
     base.forEach(r => {
       const k = getMonthKey(r.DataVenda);
       if (!k) return;
-      map[k] = (map[k] || 0) + parseCurrency(r.ValorVenda);
+      map[k] = (map[k] || 0) + parseCurrency(r.ValorTotalVenda);
     });
     return Object.keys(map).sort().map(k => ({
       key: k,
@@ -104,7 +104,7 @@ export default function SalesPerformance(): JSX.Element {
 
     base.forEach(r => {
       const m = r.Modelo || 'Outros';
-      map[m] = (map[m] || 0) + parseCurrency(r.ValorVenda);
+      map[m] = (map[m] || 0) + parseCurrency(r.ValorTotalVenda);
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
