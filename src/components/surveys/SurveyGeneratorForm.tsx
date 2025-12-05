@@ -1,4 +1,4 @@
-// src/components/surveys/SurveyGeneratorForm.tsx
+// src/components/surveys/SurveyGeneratorForm.tsx - Survey generation with prefill support
 
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
