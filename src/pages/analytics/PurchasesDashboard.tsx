@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, DonutChart, BarList } from '@tremor/react';
+import { Card, Title, Text, Metric, DonutChart } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ScatterChart, Scatter, Cell } from 'recharts';
 import { ShoppingBag, Filter, ShieldAlert } from 'lucide-react';
 
