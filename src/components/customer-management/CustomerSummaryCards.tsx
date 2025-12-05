@@ -1,4 +1,4 @@
-
+import React from 'react';
 import { Ticket, Target, Calendar, ListTodo } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -9,7 +9,7 @@ interface CustomerSummaryCardsProps {
   loading?: boolean;
 }
 
-export function CustomerSummaryCards({ stats, loading }: CustomerSummaryCardsProps) {
+export const CustomerSummaryCards: React.FC<CustomerSummaryCardsProps> = ({ stats, loading }) => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',

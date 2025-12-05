@@ -1,3 +1,4 @@
+import React from 'react';
 import type { ClienteComContatos, Contato } from '@/types';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
 import { useWhatsAppNumbers } from '@/hooks/useWhatsAppNumbers';
@@ -36,11 +37,11 @@ interface CustomerDetailRedesignProps {
   onDelete: () => void;
 }
 
-export function CustomerDetailRedesign({
+export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
   customer,
   onEdit,
   onDelete,
-}: CustomerDetailRedesignProps) {
+}) => {
   useClienteDetail(customer);
   const { numbers: whatsappNumbers, loading: whatsappLoading } = useWhatsAppNumbers();
   const { data: tickets, isLoading: ticketsLoading } = useTickets({ cliente_id: customer.id });
