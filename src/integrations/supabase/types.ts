@@ -1828,8 +1828,10 @@ export type Database = {
           departamento: string
           id: string
           respondido_em: string | null
+          respondido_por: string | null
           resposta: string | null
           solicitado_em: string | null
+          solicitado_por: string | null
           task_id: string | null
           ticket_id: string | null
         }
@@ -1838,8 +1840,10 @@ export type Database = {
           departamento: string
           id?: string
           respondido_em?: string | null
+          respondido_por?: string | null
           resposta?: string | null
           solicitado_em?: string | null
+          solicitado_por?: string | null
           task_id?: string | null
           ticket_id?: string | null
         }
@@ -1848,12 +1852,28 @@ export type Database = {
           departamento?: string
           id?: string
           respondido_em?: string | null
+          respondido_por?: string | null
           resposta?: string | null
           solicitado_em?: string | null
+          solicitado_por?: string | null
           task_id?: string | null
           ticket_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ticket_departamentos_respondido_por_fkey"
+            columns: ["respondido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_departamentos_solicitado_por_fkey"
+            columns: ["solicitado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ticket_departamentos_task_id_fkey"
             columns: ["task_id"]
