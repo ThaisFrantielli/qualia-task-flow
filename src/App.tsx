@@ -30,6 +30,7 @@ import ContractPerformanceDashboard from '@/pages/analytics/ContractPerformanceD
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
+import SurveyReportsPage from '@/pages/SurveyReportsPage';
 import NotFound from '@/pages/NotFound';
 import CustomerHubPage from '@/pages/CustomerHubPage';
 import OportunidadesPage from '@/pages/OportunidadesPage';
@@ -104,6 +105,7 @@ function App() {
               <Route path="/triagem" element={<FilaTriagem />} />
 
               <Route path="/pesquisas" element={<SurveyAdminPage />} />
+              <Route path="/pesquisas/relatorios" element={<SurveyReportsPage />} />
 
               <Route path="/team" element={<Team />} />
               <Route path="/notifications" element={<Notifications />} />
