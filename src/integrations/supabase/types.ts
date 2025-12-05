@@ -2292,6 +2292,7 @@ export type Database = {
           last_message: string | null
           last_message_at: string | null
           status: string
+          ticket_id: string | null
           unread_count: number | null
           updated_at: string | null
           whatsapp_number: string
@@ -2308,6 +2309,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           status?: string
+          ticket_id?: string | null
           unread_count?: number | null
           updated_at?: string | null
           whatsapp_number: string
@@ -2324,6 +2326,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           status?: string
+          ticket_id?: string | null
           unread_count?: number | null
           updated_at?: string | null
           whatsapp_number?: string
@@ -2348,6 +2351,20 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
         ]
