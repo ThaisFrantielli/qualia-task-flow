@@ -34,7 +34,7 @@ import CustomerHubPage from '@/pages/CustomerHubPage';
 import OportunidadesPage from '@/pages/OportunidadesPage';
 import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
 import WhatsAppConfigPage from '@/pages/WhatsAppConfigPage';
-import WhatsAppChatPage from '@/pages/WhatsAppChatPage';
+import WhatsAppCentralPage from '@/pages/WhatsAppCentralPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
 import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
 import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
@@ -82,7 +82,7 @@ function App() {
               <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
               <Route path="/tickets/reports" element={<TicketsReportsDashboard />} />
 
-              <Route path="/whatsapp" element={<WhatsAppChatPage />} />
+              <Route path="/whatsapp" element={<WhatsAppCentralPage />} />
 
               <Route path="/analytics">
                 <Route index element={<AnalyticsIndex />} />
