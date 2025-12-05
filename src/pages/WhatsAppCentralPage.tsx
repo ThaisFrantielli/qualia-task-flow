@@ -26,6 +26,7 @@ import {
   Settings,
   RefreshCw
 } from 'lucide-react';
+import { AgentStatusSelector } from '@/components/presence/AgentStatusSelector';
 
 interface WhatsAppInstance {
   id: string;
@@ -182,6 +183,9 @@ export default function WhatsAppCentralPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Agent Status Selector */}
+            <AgentStatusSelector variant="compact" />
+
             {/* Instance Selector */}
             {instances.length > 0 && (
               <Select value={selectedInstanceId || undefined} onValueChange={setSelectedInstanceId}>
