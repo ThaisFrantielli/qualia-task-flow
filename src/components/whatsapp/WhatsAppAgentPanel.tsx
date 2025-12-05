@@ -1,26 +1,15 @@
-import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Users, MessageSquare } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { PresenceIndicator } from '@/components/presence/PresenceIndicator';
 import type { WhatsAppAgent } from '@/hooks/useWhatsAppAgents';
 
 interface WhatsAppAgentPanelProps {
   agents: WhatsAppAgent[];
   loading?: boolean;
 }
-
-const getStatusColor = (status: WhatsAppAgent['status']) => {
-  switch (status) {
-    case 'online': return 'bg-green-500';
-    case 'busy': return 'bg-yellow-500';
-    case 'away': return 'bg-orange-500';
-    case 'offline': return 'bg-muted';
-    default: return 'bg-muted';
-  }
-};
 
 const getStatusLabel = (status: WhatsAppAgent['status']) => {
   switch (status) {
@@ -36,7 +25,7 @@ export const WhatsAppAgentPanel: React.FC<WhatsAppAgentPanelProps> = ({
   agents,
   loading
 }) => {
-  const onlineCount = agents.filter(a => a.status === 'online').length;
+  const onlineCount = agents.filter(a => a.status === 'online' || a.status === 'busy').length;
 
   if (loading) {
     return (
@@ -97,10 +86,9 @@ export const WhatsAppAgentPanel: React.FC<WhatsAppAgentPanelProps> = ({
                         {agent.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '??'}
                       </AvatarFallback>
                     </Avatar>
-                    <span className={cn(
-                      "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background",
-                      getStatusColor(agent.status)
-                    )} />
+                    <span className="absolute -bottom-0.5 -right-0.5">
+                      <PresenceIndicator status={agent.status} size="sm" showTooltip={false} />
+                    </span>
                   </div>
 
                   <div className="flex-1 min-w-0">

@@ -1,5 +1,5 @@
 // src/components/SidebarFixed.tsx
-import React, { useState, useEffect, ElementType } from 'react';
+import { useState, useEffect, ElementType } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, KanbanSquare, List, Settings,
@@ -16,6 +16,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
 import { useNotifications } from '@/hooks/useNotifications';
+import { TeamPresenceWidget } from '@/components/presence/TeamPresenceWidget';
 import type { Permissoes } from '@/types';
 
 interface MenuItem {
@@ -281,6 +282,13 @@ const SidebarFixed: React.FC = () => {
       </nav>
 
       <div className="p-4 border-t border-[#322E5C]">
+        {/* Online Team Widget */}
+        {!isCollapsed && (
+          <div className="mb-4 py-2">
+            <TeamPresenceWidget maxDisplay={4} />
+          </div>
+        )}
+
         <div className="flex items-center space-x-3 mb-4">
           <Avatar className="w-10 h-10">
             <AvatarImage src={user.user_metadata?.avatar_url ?? undefined} />
