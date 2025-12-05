@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { OportunidadeProvider } from './contexts/OportunidadeContext';
+import { PresenceProvider } from './contexts/PresenceContext';
 
 import Calendar from '@/pages/Calendar';
 import AppLayout from '@/components/layout/AppLayout';
@@ -60,9 +61,11 @@ function App() {
           {/* Rotas Protegidas */}
           <Route element={<ProtectedRoute />}>
             <Route element={
-              <OportunidadeProvider>
-                <AppLayout />
-              </OportunidadeProvider>
+              <PresenceProvider>
+                <OportunidadeProvider>
+                  <AppLayout />
+                </OportunidadeProvider>
+              </PresenceProvider>
             }>
               <Route path="/" element={<Dashboard />} />
               <Route path="/kanban" element={<Kanban />} />
