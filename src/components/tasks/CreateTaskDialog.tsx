@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { ptBR } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { ClienteCombobox } from '@/components/common/ClienteCombobox';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -53,7 +54,6 @@ export function CreateTaskDialog({
   const [users, setUsers] = useState<Profile[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState(defaultProjectId || '');
@@ -61,6 +61,7 @@ export function CreateTaskDialog({
   const [assigneeId, setAssigneeId] = useState('');
   const [priority, setPriority] = useState('medium');
   const [categoryId, setCategoryId] = useState('');
+  const [clienteId, setClienteId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [dueDate, setDueDate] = useState<Date | undefined>();
 
@@ -92,6 +93,7 @@ export function CreateTaskDialog({
     setAssigneeId('');
     setPriority('medium');
     setCategoryId('');
+    setClienteId(null);
     setStartDate(undefined);
     setDueDate(undefined);
   };
@@ -117,6 +119,7 @@ export function CreateTaskDialog({
         assignee_id: assigneeId || null,
         priority,
         category_id: categoryId || null,
+        cliente_id: clienteId || null,
         start_date: startDate ? startDate.toISOString() : null,
         due_date: dueDate ? dueDate.toISOString().split('T')[0] : null,
         status: 'todo',
@@ -250,6 +253,15 @@ export function CreateTaskDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cliente Relacionado</Label>
+              <ClienteCombobox
+                value={clienteId}
+                onChange={setClienteId}
+                placeholder="Selecionar cliente..."
+              />
             </div>
           </div>
 
