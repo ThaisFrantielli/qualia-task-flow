@@ -145,8 +145,9 @@ const SidebarFixed: React.FC = () => {
 
   // projectList intentionally unused here; projects can be accessed via `projects` hook when necessary
 
-  if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
   const { unreadCount } = useNotifications();
+
+  if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
 
   return (
     <div className={`h-screen flex flex-col bg-[#1D1B3F] text-white transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
