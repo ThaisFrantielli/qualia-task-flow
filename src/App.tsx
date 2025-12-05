@@ -27,7 +27,7 @@ import DataAudit from '@/pages/analytics/DataAudit';
 import ChurnDashboard from '@/pages/analytics/ChurnDashboard';
 import FinancialAnalytics from '@/pages/analytics/FinancialAnalytics';
 import ContractPerformanceDashboard from '@/pages/analytics/ContractPerformanceDashboard';
-import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
+import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
 import NotFound from '@/pages/NotFound';
@@ -103,7 +103,7 @@ function App() {
               <Route path="/clientes" element={<CustomerHubPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
 
-              <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
+              <Route path="/pesquisas" element={<SurveyAdminPage />} />
 
               <Route path="/team" element={<Team />} />
               <Route path="/notifications" element={<Notifications />} />
