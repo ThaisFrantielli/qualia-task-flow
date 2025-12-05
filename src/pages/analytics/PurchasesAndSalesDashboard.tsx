@@ -41,7 +41,7 @@ function monthLabel(ym: string): string {
 // --- COMPONENTE PRINCIPAL ---
 export default function PurchasesAndSalesDashboard(): JSX.Element {
     const { data: comprasData } = useBIData<AnyObject[]>('compras_*.json');
-    const { data: vendasData } = useBIData<AnyObject[]>('vendas_*.json');
+    const { data: vendasData } = useBIData<AnyObject[]>('vendas.json');
 
     const compras = useMemo(() => (Array.isArray((comprasData as any)?.data || comprasData) ? (comprasData as any)?.data || comprasData : []), [comprasData]);
     const vendas = useMemo(() => (Array.isArray((vendasData as any)?.data || vendasData) ? (vendasData as any)?.data || vendasData : []), [vendasData]);
@@ -54,7 +54,7 @@ export default function PurchasesAndSalesDashboard(): JSX.Element {
     // Data Processing based on Active Tab
     const currentData = useMemo(() => activeTab === 'compras' ? compras : vendas, [activeTab, compras, vendas]);
     const dateField = activeTab === 'compras' ? 'DataCompra' : 'DataVenda';
-    const valField = activeTab === 'compras' ? 'ValorCompra' : 'ValorVenda';
+    const valField = activeTab === 'compras' ? 'ValorCompra' : 'ValorTotalVenda';
 
     // Filtered Data
     const filteredData = useMemo(() => {

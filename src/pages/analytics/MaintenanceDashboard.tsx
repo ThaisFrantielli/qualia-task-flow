@@ -147,25 +147,7 @@ export default function MaintenanceDashboard(): JSX.Element {
         }));
     }, [filteredOS]);
 
-    // Table: Workshop Ranking
-    const workshopData = useMemo(() => {
-        const map: Record<string, { count: number; val: number; days: number }> = {};
-        filteredOS.forEach((r: AnyObject) => {
-            const f = r.Fornecedor || 'Desconhecido';
-            if (!map[f]) map[f] = { count: 0, val: 0, days: 0 };
-            map[f].count++;
-            map[f].val += parseCurrency(r.ValorTotal);
-            map[f].days += (parseCurrency(r.DiasParado) || 0);
-        });
-        return Object.entries(map)
-            .map(([name, d]) => ({
-                name,
-                count: d.count,
-                val: d.val,
-                avgTime: d.count > 0 ? d.days / d.count : 0
-            }))
-            .sort((a, b) => b.val - a.val);
-    }, [filteredOS]);
+
 
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
@@ -297,26 +279,32 @@ export default function MaintenanceDashboard(): JSX.Element {
                 </Card>
             </div>
 
-            {/* Table */}
+            {/* Table: Lista de OSs recentes */}
             <Card className="bg-white shadow-sm border border-slate-200">
-                <Title className="text-slate-900 mb-4">Ranking de Oficinas</Title>
+                <Title className="text-slate-900 mb-4">Lista de OSs Recentes</Title>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-xs">
                             <tr>
+                                <th className="px-4 py-3 font-medium">OS</th>
+                                <th className="px-4 py-3 font-medium">Placa</th>
+                                <th className="px-4 py-3 font-medium">Entrada</th>
+                                <th className="px-4 py-3 font-medium">Tipo</th>
                                 <th className="px-4 py-3 font-medium">Fornecedor</th>
-                                <th className="px-4 py-3 font-medium text-right">Qtd OS</th>
                                 <th className="px-4 py-3 font-medium text-right">Valor Total</th>
-                                <th className="px-4 py-3 font-medium text-right">Tempo Médio</th>
+                                <th className="px-4 py-3 font-medium text-right">Dias Parado</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {workshopData.slice(0, 10).map((r, i) => (
-                                <tr key={`oficina-${i}`} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-4 py-3 font-medium text-slate-900">{r.name}</td>
-                                    <td className="px-4 py-3 text-right text-slate-600">{r.count}</td>
-                                    <td className="px-4 py-3 text-right font-medium text-amber-700">{fmtBRL(r.val)}</td>
-                                    <td className="px-4 py-3 text-right text-slate-600">{r.avgTime.toFixed(1)} dias</td>
+                            {filteredOS.sort((a, b) => (b.DataEntrada || '').localeCompare(a.DataEntrada || '')).slice(0, 10).map((r, i) => (
+                                <tr key={`os-${i}`} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-4 py-3 font-medium text-slate-900">{r.NumeroOS}</td>
+                                    <td className="px-4 py-3 text-slate-600">{r.Placa}</td>
+                                    <td className="px-4 py-3 text-slate-600">{r.DataEntrada ? new Date(r.DataEntrada).toLocaleDateString('pt-BR') : '-'}</td>
+                                    <td className="px-4 py-3 text-slate-600">{r.TipoManutencao}</td>
+                                    <td className="px-4 py-3 text-slate-600 truncate max-w-[200px]">{r.Fornecedor}</td>
+                                    <td className="px-4 py-3 text-right font-medium text-amber-700">{fmtBRL(parseCurrency(r.ValorTotal))}</td>
+                                    <td className="px-4 py-3 text-right text-slate-600">{r.DiasParado}</td>
                                 </tr>
                             ))}
                         </tbody>
