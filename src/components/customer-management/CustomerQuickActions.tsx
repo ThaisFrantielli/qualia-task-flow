@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Ticket, Target, ListTodo, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +9,10 @@ interface CustomerQuickActionsProps {
   whatsappNumber?: string | null;
 }
 
-export function CustomerQuickActions({
+export const CustomerQuickActions: React.FC<CustomerQuickActionsProps> = ({
   clienteId,
   whatsappNumber,
-}: CustomerQuickActionsProps) {
+}) => {
   const navigate = useNavigate();
 
   const handleCreateTicket = () => {

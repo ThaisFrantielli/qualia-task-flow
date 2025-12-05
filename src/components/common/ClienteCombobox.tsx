@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, ChevronsUpDown, Building2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,12 +31,12 @@ interface ClienteComboboxProps {
   disabled?: boolean;
 }
 
-export function ClienteCombobox({
+export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
   value,
   onChange,
   placeholder = 'Selecionar cliente...',
   disabled = false,
-}: ClienteComboboxProps) {
+}) => {
   const [open, setOpen] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
