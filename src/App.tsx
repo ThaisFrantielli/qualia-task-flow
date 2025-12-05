@@ -17,9 +17,6 @@ import Team from '@/pages/Team';
 import Settings from '@/pages/Settings';
 import TaskSettingsPage from '@/pages/TaskSettingsPage';
 import Notifications from '@/pages/Notifications';
-import CrmPdvPage from '@/pages/CrmPdvPage';
-import CrmDashboardPage from '@/pages/CrmDashboardPage';
-import CreateAtendimentoPage from '@/pages/CreateAtendimentoPage';
 import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
@@ -33,7 +30,6 @@ import SurveyGeneratorPage from '@/pages/SurveyGeneratorPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
 import NotFound from '@/pages/NotFound';
-import AtendimentoDetailPage from '@/pages/AtendimentoDetailPage';
 import CustomerHubPage from '@/pages/CustomerHubPage';
 import OportunidadesPage from '@/pages/OportunidadesPage';
 import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
@@ -45,8 +41,9 @@ import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
 import GerenciarDepartamentosPage from '@/pages/Configuracoes/GerenciarDepartamentos';
 import ConfiguracoesEquipesPage from '@/pages/Configuracoes/ConfiguracoesEquipes';
 import FilaTriagem from '@/pages/FilaTriagem';
-import TicketsPage from '@/pages/TicketsPage';
+import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
+import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
 import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
 
 function App() {
@@ -80,10 +77,10 @@ function App() {
               <Route path="/oportunidades" element={<OportunidadesPage />} />
               <Route path="/oportunidades/:id" element={<OportunidadeDetalhePage />} />
 
-              <Route path="/pos-vendas" element={<CrmPdvPage />} />
-              <Route path="/pos-vendas/dashboard" element={<CrmDashboardPage />} />
-              <Route path="/pos-vendas/novo" element={<CreateAtendimentoPage />} />
-              <Route path="/pos-vendas/:id" element={<AtendimentoDetailPage />} />
+              {/* Central de Tickets Unificada */}
+              <Route path="/tickets" element={<TicketsUnifiedPage />} />
+              <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+              <Route path="/tickets/reports" element={<TicketsReportsDashboard />} />
 
               <Route path="/whatsapp" element={<WhatsAppChatPage />} />
 
@@ -102,8 +99,6 @@ function App() {
 
               <Route path="/clientes" element={<CustomerHubPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
-              <Route path="/tickets" element={<TicketsPage />} />
-              <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
 
               <Route path="/pesquisas" element={<SurveyGeneratorPage />} />
 
