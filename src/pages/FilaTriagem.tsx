@@ -9,6 +9,7 @@ import {
 } from "@/hooks/useTriagemRealtime";
 import { useFunis } from "@/hooks/useFunis";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePresenceOptional } from "@/contexts/PresenceContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Ticket, Inbox, MessageSquare, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Ticket, Inbox, MessageSquare, Users, Eye } from "lucide-react";
 import { TriagemLeadCardV2 } from "@/components/triagem/TriagemLeadCardV2";
 import { TriagemFilters } from "@/components/triagem/TriagemFilters";
 import {
@@ -27,6 +29,7 @@ import {
 
 export default function FilaTriagem() {
   const { user } = useAuth();
+  const presence = usePresenceOptional();
   const { data: leads, isLoading, refetch, isFetching } = useTriagemLeads();
   const { data: funis } = useFunis();
   const encaminharComercial = useEncaminharParaComercial();
@@ -106,6 +109,9 @@ export default function FilaTriagem() {
       urgent: leads.filter(l => (l.conversation?.unread_count || 0) > 0).length
     };
   }, [leads]);
+
+  // Count users viewing triagem page
+  const viewersInTriagem = presence?.getUsersInPage('/triagem').length || 0;
 
   // Handlers
   const handleEncaminharComercial = async (clienteId: string) => {
@@ -187,6 +193,12 @@ export default function FilaTriagem() {
             Classifique e direcione leads para os fluxos corretos
           </p>
         </div>
+        {viewersInTriagem > 0 && (
+          <Badge variant="outline" className="flex items-center gap-1.5 w-fit">
+            <Eye className="h-3 w-3" />
+            {viewersInTriagem} atendente{viewersInTriagem > 1 ? 's' : ''} na triagem
+          </Badge>
+        )}
       </div>
 
       {/* Filters */}

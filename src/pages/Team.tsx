@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner'; // Usando sonner para toasts
+import { toast } from 'sonner';
 import TeamMemberDialog from '@/components/team/TeamMemberDialog';
+import { usePresenceOptional } from '@/contexts/PresenceContext';
+import { PresenceIndicator } from '@/components/presence/PresenceIndicator';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -74,6 +76,7 @@ const Team = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [formData, setFormData] = useState(initialFormData);
+  const presence = usePresenceOptional();
   
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
 
@@ -229,7 +232,8 @@ const Team = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[40%]">Membro</TableHead>
+              <TableHead className="w-[35%]">Membro</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Função</TableHead>
               <TableHead>Supervisor</TableHead>
               <TableHead>Nível de Acesso</TableHead>
@@ -238,19 +242,45 @@ const Team = () => {
           </TableHeader>
           <TableBody>
             {teamMembers.length > 0 ? (
-              teamMembers.map((member) => (
+              teamMembers.map((member) => {
+                const userPresence = presence?.getUserPresence(member.id);
+                return (
                 <TableRow key={member.id}>
                   <TableCell>
                     <div className="flex items-center space-x-3">
-                      <Avatar>
-                        {/* <AvatarImage src={undefined} /> */}
-                        <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar>
+                          <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+                        </Avatar>
+                        {userPresence && (
+                          <span className="absolute -bottom-0.5 -right-0.5">
+                            <PresenceIndicator 
+                              status={userPresence.status} 
+                              size="sm" 
+                              showTooltip={false} 
+                            />
+                          </span>
+                        )}
+                      </div>
                       <div>
                         <div className="font-medium">{member.name}</div>
                         <div className="text-sm text-muted-foreground">{member.email}</div>
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {userPresence ? (
+                      <div className="flex items-center gap-2">
+                        <PresenceIndicator status={userPresence.status} size="md" />
+                        <span className="text-xs text-muted-foreground">
+                          {userPresence.currentPage && userPresence.currentPage !== '/' && (
+                            <>Em: {userPresence.currentPage.split('/')[1] || 'Dashboard'}</>
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Offline</span>
+                    )}
                   </TableCell>
                   <TableCell>{member.funcao}</TableCell>
                   <TableCell>{(member as any).supervisorName || '-'}</TableCell>
@@ -268,10 +298,10 @@ const Team = () => {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))
+              )})
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   Nenhum membro encontrado.
                 </TableCell>
               </TableRow>

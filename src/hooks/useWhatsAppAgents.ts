@@ -1,18 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { usePresenceOptional, type PresenceStatus } from '@/contexts/PresenceContext';
 
 export interface WhatsAppAgent {
   id: string;
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  status: 'online' | 'busy' | 'away' | 'offline';
+  status: PresenceStatus;
   activeConversations: number;
+  currentPage?: string;
+}
+
+interface ProfileData {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
 }
 
 export function useWhatsAppAgents() {
-  const [agents, setAgents] = useState<WhatsAppAgent[]>([]);
+  const [profilesData, setProfilesData] = useState<ProfileData[]>([]);
+  const [conversationCounts, setConversationCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const presence = usePresenceOptional();
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -49,16 +60,8 @@ export function useWhatsAppAgents() {
         }
       });
 
-      const mappedAgents: WhatsAppAgent[] = (profiles || []).map(p => ({
-        id: p.id,
-        full_name: p.full_name,
-        email: p.email,
-        avatar_url: p.avatar_url,
-        status: 'online' as const, // Default - would need presence system
-        activeConversations: agentConvCounts[p.id] || 0
-      }));
-
-      setAgents(mappedAgents);
+      setProfilesData(profiles || []);
+      setConversationCounts(agentConvCounts);
     } catch (error) {
       console.error('Error fetching agents:', error);
     } finally {
@@ -69,6 +72,28 @@ export function useWhatsAppAgents() {
   useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  // Combine profiles with real-time presence data
+  const agents = useMemo((): WhatsAppAgent[] => {
+    return profilesData.map(p => {
+      // Get real-time presence status
+      const userPresence = presence?.getUserPresence(p.id);
+      
+      return {
+        id: p.id,
+        full_name: p.full_name,
+        email: p.email,
+        avatar_url: p.avatar_url,
+        status: userPresence?.status || 'offline',
+        activeConversations: conversationCounts[p.id] || 0,
+        currentPage: userPresence?.currentPage
+      };
+    }).sort((a, b) => {
+      // Sort: online first, then busy, then away, then offline
+      const statusOrder: Record<PresenceStatus, number> = { online: 0, busy: 1, away: 2, offline: 3 };
+      return statusOrder[a.status] - statusOrder[b.status];
+    });
+  }, [profilesData, conversationCounts, presence]);
 
   return { agents, loading, refetch: fetchAgents };
 }
