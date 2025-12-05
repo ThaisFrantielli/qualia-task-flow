@@ -1,97 +1,152 @@
-// src/pages/ProjectDetailPage.tsx (VERSÃO FINAL COM CAMINHOS CORRIGIDOS)
+// src/pages/ProjectDetailPage.tsx - Refatorado com design moderno
 
-import { Fragment, useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import type { TaskWithDetails } from '@/types';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectDetails } from '@/hooks/useProjectDetails';
-import AddTaskInline from '@/components/projects/AddTaskInline';
-import SubtasksCascade from '@/components/projects/SubtasksCascade';
+import { useProjectSections } from '@/hooks/useProjectSections';
+import { useTasksRealtime } from '@/hooks/useRealtimeUpdates';
 import TaskDetailSheet from '@/components/tasks/TaskDetailSheet';
 import SubtaskDetailSheet from '@/components/tasks/SubtaskDetailSheet';
-import { Button } from '@/components/ui/button';
-import { formatDateSafe, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
+import { CreateTaskDialog } from '@/components/tasks/CreateTaskDialog';
+import { SectionManager } from '@/components/projects/SectionManager';
+import { TaskProgressBar } from '@/components/tasks/TaskProgressBar';
 import { EditProjectForm } from '@/components/EditProjectForm';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
-  AlertDialogAction,
-  AlertDialogFooter,
-} from '@/components/ui/alert-dialog';
-import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { formatDateSafe, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
+import { getInitials, cn } from '@/lib/utils';
+import { 
+  ArrowLeft, 
+  Plus, 
+  Loader2, 
+  ChevronDown, 
+  ChevronRight,
+  MoreHorizontal,
+  Calendar,
+  Edit,
+  Trash2,
+  Settings,
+  ListTodo
+} from 'lucide-react';
 
+const priorityConfig = {
+  high: { label: 'Alta', className: 'bg-destructive/10 text-destructive border-destructive/20' },
+  medium: { label: 'Média', className: 'bg-warning/10 text-warning border-warning/20' },
+  low: { label: 'Baixa', className: 'bg-muted text-muted-foreground border-border' },
+};
+
+const statusConfig = {
+  done: { label: 'Concluída', className: 'text-success' },
+  progress: { label: 'Em Progresso', className: 'text-primary' },
+  todo: { label: 'A Fazer', className: 'text-muted-foreground' },
+};
 
 const ProjectDetailPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { user } = useAuth();
   const { data, isLoading, isError, refetch } = useProjectDetails(projectId);
+  const { sections, refetch: refetchSections } = useProjectSections(projectId);
   const project = data?.project;
 
   const [tasks, setTasks] = useState<TaskWithDetails[]>([]);
-  const [newSectionName, setNewSectionName] = useState('');
-  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
   const [viewingTaskId, setViewingTaskId] = useState<string | null>(null);
-  // expandedRows removido pois não é utilizado
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
   const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [showSectionManager, setShowSectionManager] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
+
+  // Real-time updates
+  useTasksRealtime(projectId);
 
   useEffect(() => {
     if (data?.tasks) setTasks(data.tasks);
   }, [data?.tasks]);
 
-  const sections = useMemo(() => {
-    return tasks.reduce((acc, task) => {
-      const sectionName = task.section || 'Tarefas Gerais';
-      if (!acc[sectionName]) acc[sectionName] = [];
-      acc[sectionName].push(task);
-      return acc;
-    }, {} as Record<string, TaskWithDetails[]>);
-  }, [tasks]);
-
-  const sectionOrder = useMemo(() => {
-    return ['Tarefas Gerais', ...Object.keys(sections).filter((s) => s !== 'Tarefas Gerais').sort()];
+  // Inicializa seções expandidas
+  useEffect(() => {
+    if (sections.length > 0) {
+      const expanded: Record<string, boolean> = {};
+      sections.forEach(s => {
+        expanded[s.id] = true;
+      });
+      // Seção "Geral" sempre expandida
+      expanded['general'] = true;
+      setExpandedSections(expanded);
+    }
   }, [sections]);
 
-  // Estado para expandir/recolher seções
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const toggleSection = (sectionName: string) => {
-    setExpandedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
-  };
-  const [expandedTasksMap, setExpandedTasksMap] = useState<Record<string, boolean>>({});
-  const toggleTaskExpand = (taskId: string) => {
-    setExpandedTasksMap(prev => ({ ...prev, [taskId]: !(prev[taskId] ?? true) }));
+  // Agrupa tarefas por seção
+  const tasksBySection = useMemo(() => {
+    const grouped: Record<string, TaskWithDetails[]> = { general: [] };
+    
+    sections.forEach(s => {
+      grouped[s.id] = [];
+    });
+
+    tasks.forEach(task => {
+      const sectionId = task.section || 'general';
+      if (!grouped[sectionId]) {
+        grouped[sectionId] = [];
+      }
+      grouped[sectionId].push(task);
+    });
+
+    return grouped;
+  }, [tasks, sections]);
+
+  // Calcula progresso geral
+  const projectProgress = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.status === 'done').length;
+    return { total, completed, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 };
+  }, [tasks]);
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
   const handleTaskAdded = (newTask: TaskWithDetails) => {
-    setTasks((currentTasks) => [...currentTasks, newTask]);
+    setTasks(prev => [...prev, newTask]);
+    toast.success('Tarefa criada!');
   };
 
   const handleToggleComplete = async (task: TaskWithDetails) => {
     const taskId = task.id;
     const newStatus = task.status === 'done' ? 'todo' : 'done';
-    // optimistic update
+    
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
     setUpdatingTaskIds(prev => new Set(prev).add(taskId));
+    
     try {
-      const { data, error } = await supabase.from('tasks').update({ status: newStatus, end_date: newStatus === 'done' ? dateToLocalDateOnlyISO(new Date()) : null }).eq('id', taskId).select('*, assignee:profiles(*), project:projects(*), category:task_categories(*)').single();
+      const { error } = await supabase
+        .from('tasks')
+        .update({ 
+          status: newStatus, 
+          end_date: newStatus === 'done' ? dateToLocalDateOnlyISO(new Date()) : null 
+        })
+        .eq('id', taskId);
+        
       if (error) throw error;
-      const updated = data as TaskWithDetails;
-      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
-      toast.success(newStatus === 'done' ? 'Tarefa marcada como concluída' : 'Tarefa marcada como pendente');
-    } catch (err: any) {
-      console.error('Erro ao atualizar status da tarefa:', err);
-      // revert optimistic
+      toast.success(newStatus === 'done' ? 'Tarefa concluída!' : 'Tarefa reaberta');
+    } catch (err: unknown) {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: task.status } : t));
-      toast.error('Não foi possível atualizar a tarefa', { description: err?.message });
+      toast.error('Erro ao atualizar tarefa');
     } finally {
       setUpdatingTaskIds(prev => {
         const next = new Set(prev);
@@ -102,244 +157,311 @@ const ProjectDetailPage = () => {
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
     try {
       const { error } = await supabase.from('tasks').delete().eq('id', taskId);
       if (error) throw error;
       setTasks(prev => prev.filter(t => t.id !== taskId));
       toast.success('Tarefa excluída');
-    } catch (err: any) {
-      console.error('Erro ao excluir tarefa:', err);
-      toast.error('Não foi possível excluir a tarefa', { description: err?.message });
+    } catch (err: unknown) {
+      toast.error('Erro ao excluir tarefa');
     }
   };
 
-  // handleToggleRow removido pois não é utilizado
+  const renderTaskRow = (task: TaskWithDetails) => {
+    const priority = priorityConfig[task.priority as keyof typeof priorityConfig] || priorityConfig.low;
+    const status = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
+    const isCompleted = task.status === 'done';
+    const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !isCompleted;
 
-  const handleAddSection = () => {
-    if (!user || !newSectionName.trim()) return;
+    return (
+      <div
+        key={task.id}
+        className={cn(
+          "group flex items-center gap-3 px-4 py-3 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer",
+          isCompleted && "opacity-60"
+        )}
+        onClick={() => setViewingTaskId(task.id)}
+      >
+        {/* Checkbox */}
+        <Checkbox
+          checked={isCompleted}
+          disabled={updatingTaskIds.has(task.id)}
+          onClick={(e) => e.stopPropagation()}
+          onCheckedChange={() => handleToggleComplete(task)}
+          className="h-5 w-5"
+        />
 
-    const createSectionPromise = async (): Promise<TaskWithDetails> => {
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert({
-          title: `Nova tarefa em ${newSectionName.trim()}`,
-          project_id: projectId,
-          section: newSectionName.trim(),
-          status: 'todo',
-          user_id: user.id,
-        })
-        .select('*, assignee:profiles(*), project:projects(*), category:task_categories(*)')
-        .single();
+        {/* Task Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "font-medium truncate",
+              isCompleted && "line-through text-muted-foreground"
+            )}>
+              {task.title}
+            </span>
+            {task.subtasks_count && task.subtasks_count > 0 && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                <ListTodo className="h-3 w-3" />
+                {task.completed_subtasks_count || 0}/{task.subtasks_count}
+              </span>
+            )}
+          </div>
+        </div>
 
-      if (error) {
-        throw error;
-      }
+        {/* Priority Badge */}
+        <Badge variant="outline" className={cn("text-xs", priority.className)}>
+          {priority.label}
+        </Badge>
 
-      return data as TaskWithDetails;
-    };
+        {/* Status */}
+        <span className={cn("text-sm hidden md:block", status.className)}>
+          {status.label}
+        </span>
 
-    toast.promise(createSectionPromise(), {
-      loading: 'Criando seção...',
-      success: (newTask) => {
-        handleTaskAdded(newTask);
-        setNewSectionName('');
-        setIsSectionModalOpen(false);
-        return `Seção "${newSectionName.trim()}" criada!`;
-      },
-      error: (err: any) => `Erro ao criar seção: ${err.message}`,
-    });
+        {/* Assignee */}
+        <div className="hidden sm:flex items-center gap-2">
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={task.assignee?.avatar_url ?? undefined} />
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {getInitials(task.assignee?.full_name || task.assignee_name)}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+
+        {/* Due Date */}
+        <div className={cn(
+          "hidden lg:flex items-center gap-1 text-sm",
+          isOverdue ? "text-destructive" : "text-muted-foreground"
+        )}>
+          <Calendar className="h-3.5 w-3.5" />
+          {task.due_date ? formatDateSafe(task.due_date, 'dd/MM') : '-'}
+        </div>
+
+        {/* Actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setViewingTaskId(task.id); }}>
+              <Edit className="h-4 w-4 mr-2" /> Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
   };
 
   if (isLoading) {
     return (
-      <div className="p-6 flex justify-center items-center h-full">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="flex items-center justify-center h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (isError || !project) {
     return (
-      <div className="p-6 text-center">
-        <h2 className="text-xl font-semibold">Projeto não encontrado</h2>
-        <Link to="/projects" className="text-primary hover:underline mt-4 inline-block">
-          Voltar para a lista de projetos
+      <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
+        <h2 className="text-xl font-semibold text-foreground">Projeto não encontrado</h2>
+        <Link to="/projects">
+          <Button variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar para projetos
+          </Button>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Cabeçalho modernizado */}
-      <div className="flex justify-between items-center">
-        <div>
-          <nav className="flex items-center text-sm text-muted-foreground mb-2" aria-label="Breadcrumb">
-            <ol className="inline-flex items-center space-x-1">
-              <li>
-                <Link to="/projects" className="hover:underline flex items-center gap-1">
-                  <ArrowLeft className="h-4 w-4" />
-                  Projetos
-                </Link>
-              </li>
-              <li>
-                <span className="mx-2">/</span>
-                <span className="font-semibold text-foreground">{project.name}</span>
-              </li>
-            </ol>
-          </nav>
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-          {project.description && <p className="text-gray-600 text-sm mt-1">{project.description}</p>}
-        </div>
-        <EditProjectForm project={project} onProjectUpdated={refetch} />
-      </div>
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="space-y-4">
+        {/* Breadcrumb */}
+        <nav className="flex items-center text-sm text-muted-foreground">
+          <Link to="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            Projetos
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="font-medium text-foreground">{project.name}</span>
+        </nav>
 
-      {/* Botão de adicionar seção */}
-      <div className="flex items-center gap-2">
-        <AlertDialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
-          <AlertDialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Adicionar Seção</Button></AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Criar Nova Seção</AlertDialogTitle><AlertDialogDescription>Digite o nome da nova seção para organizar suas tarefas.</AlertDialogDescription></AlertDialogHeader>
-            <div className="py-2">
-              <Label htmlFor="section-name" className="sr-only">Nome da Seção</Label>
-              <Input id="section-name" placeholder="Ex: Planejamento" value={newSectionName} onChange={(e) => setNewSectionName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSection(); } }} />
+        {/* Title and Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-3 h-3 rounded-full" 
+                style={{ backgroundColor: project.color || 'hsl(var(--primary))' }}
+              />
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">{project.name}</h1>
             </div>
-            <AlertDialogFooter><AlertDialogCancel onClick={() => setNewSectionName('')}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleAddSection}>Criar Seção</AlertDialogAction></AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-
-      {/* Tabela de tarefas com visual moderno */}
-      <div className="border rounded-lg bg-white shadow-sm overflow-hidden mt-4">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="p-3 text-left font-semibold text-gray-600 w-1/3">Tarefa</th>
-              <th className="p-3 text-left font-semibold text-gray-600">Status / Progresso</th>
-              <th className="p-3 text-left font-semibold text-gray-600">Prioridade</th>
-              <th className="p-3 text-left font-semibold text-gray-600">Responsável</th>
-              <th className="p-3 text-left font-semibold text-gray-600">Prazo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.length === 0 ? (
-              <tr><td colSpan={5} className="text-center p-8 text-gray-400">Este projeto ainda não tem tarefas.</td></tr>
-            ) : (
-              sectionOrder.map(sectionName => (
-                <Fragment key={sectionName}>
-                  <tr className="bg-gray-100/60">
-                    <td colSpan={5} className="py-2 px-3">
-                      <div className="flex items-center gap-2 group">
-                        <button
-                          type="button"
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition cursor-pointer"
-                          onClick={() => toggleSection(sectionName)}
-                          aria-label={expandedSections[sectionName] ? 'Recolher seção' : 'Expandir seção'}
-                          tabIndex={0}
-                        >
-                          <span className={`transition-transform text-lg font-bold ${expandedSections[sectionName] ? 'rotate-90' : ''}`}>{'>'}</span>
-                        </button>
-                        <h4 className="font-semibold text-gray-700">{sectionName}</h4>
-                      </div>
-                    </td>
-                  </tr>
-                  {expandedSections[sectionName] && sections[sectionName]?.map((task: TaskWithDetails) => (
-                    <Fragment key={task.id}>
-                      <tr className="hover:bg-muted/50 group">
-                        <td className="align-middle w-0" style={{ width: 48, paddingLeft: 32 }}>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
-                              onClick={(e) => { e.stopPropagation(); toggleTaskExpand(task.id); }}
-                              aria-label={expandedTasksMap[task.id] ?? true ? 'Recolher subtarefas' : 'Expandir subtarefas'}
-                              tabIndex={0}
-                            >
-                              <span className={`transition-transform text-lg font-bold ${expandedTasksMap[task.id] ?? true ? '' : 'rotate-90'}`}>{'▾'}</span>
-                            </button>
-                            <input
-                              type="checkbox"
-                              checked={task.status === 'done'}
-                              onChange={(e) => { e.stopPropagation(); handleToggleComplete(task); }}
-                              disabled={updatingTaskIds.has(task.id)}
-                              className="w-4 h-4 cursor-pointer"
-                              aria-label={task.status === 'done' ? 'Marcar como não concluída' : 'Marcar como concluída'}
-                            />
-                            <button
-                              type="button"
-                              className="flex items-center justify-center w-6 h-6 rounded hover:bg-muted transition cursor-pointer"
-                              onClick={() => setViewingTaskId(task.id)}
-                              aria-label="Abrir detalhes da tarefa"
-                              tabIndex={0}
-                            >
-                              <span className="transition-transform text-lg font-bold">{'>'}</span>
-                            </button>
-                          </div>
-                          <span className="truncate font-medium text-base ml-2">{task.title}</span>
-                          {typeof task.subtasks_count === 'number' && task.subtasks_count > 0 && (
-                            <span className="ml-2 text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-                              {(task.completed_subtasks_count || 0)}/{task.subtasks_count}
-                            </span>
-                          )}
-                            <div className="ml-4 inline-flex items-center gap-2">
-                              <button
-                                className="text-xs text-blue-600 hover:underline"
-                                onClick={(e) => { e.stopPropagation(); setViewingTaskId(task.id); }}
-                              >
-                                Editar
-                              </button>
-                              <button
-                                className="text-xs text-red-600 hover:underline"
-                                onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
-                              >
-                                Excluir
-                              </button>
-                            </div>
-                        </td>
-                        <td className="align-middle">
-                          <span className={task.status === 'done' ? 'text-green-600' : task.status === 'progress' ? 'text-blue-500' : 'text-gray-500'}>
-                            {task.status === 'done' ? 'Concluída' : task.status === 'progress' ? 'Em Progresso' : 'A Fazer'}
-                          </span>
-                        </td>
-                        <td className="align-middle">
-                          <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${task.priority === 'high' ? 'text-red-600' : task.priority === 'medium' ? 'text-yellow-600' : 'text-gray-500'}`}>{task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}</span>
-                        </td>
-                        <td className="align-middle">
-                          <span className="text-xs text-muted-foreground">{task.assignee?.full_name || 'N/A'}</span>
-                        </td>
-                        <td className="align-middle">
-                          <span className="text-xs text-muted-foreground">{task.due_date ? formatDateSafe(task.due_date, 'dd/MM/yyyy') : '-'}</span>
-                        </td>
-                      </tr>
-                      {/* Subtarefas */}
-                      { (expandedTasksMap[task.id] ?? true) && <SubtasksCascade taskId={task.id} /> }
-                    </Fragment>
-                  ))}
-                  {/* actions: edit / delete buttons are shown inline next to task info */}
-                  {expandedSections[sectionName] && (
-                    <Fragment>
-                      <tr>
-                        <td colSpan={5}>
-                          <AddTaskInline projectId={projectId!} sectionName={sectionName} onTaskAdded={handleTaskAdded} />
-                        </td>
-                      </tr>
-                    </Fragment>
-                  )}
-                </Fragment>
-              ))
+            {project.description && (
+              <p className="text-muted-foreground text-sm max-w-xl">{project.description}</p>
             )}
-          </tbody>
-        </table>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowSectionManager(true)}>
+              <Settings className="h-4 w-4 mr-2" />
+              Seções
+            </Button>
+            <EditProjectForm project={project} onProjectUpdated={refetch} />
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-foreground">Progresso do Projeto</span>
+            <span className="text-sm text-muted-foreground">
+              {projectProgress.completed} de {projectProgress.total} tarefas
+            </span>
+          </div>
+          <TaskProgressBar 
+            completed={projectProgress.completed} 
+            total={projectProgress.total} 
+            className="h-2"
+          />
+        </div>
       </div>
 
-      {/* Detalhes da tarefa e subtarefa */}
+      {/* Add Task Button */}
+      <div className="flex items-center gap-2">
+        <Button onClick={() => setShowCreateTask(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Tarefa
+        </Button>
+      </div>
+
+      {/* Task Sections */}
+      <div className="space-y-4">
+        {/* General Section (tasks without section) */}
+        {tasksBySection.general && tasksBySection.general.length > 0 && (
+          <Collapsible 
+            open={expandedSections.general !== false}
+            onOpenChange={() => toggleSection('general')}
+          >
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <CollapsibleTrigger className="w-full">
+                <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                  {expandedSections.general !== false ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="font-semibold text-foreground">Tarefas Gerais</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {tasksBySection.general.length}
+                  </Badge>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                {tasksBySection.general.map(renderTaskRow)}
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        )}
+
+        {/* Custom Sections */}
+        {sections.map(section => {
+          const sectionTasks = tasksBySection[section.id] || [];
+          const completedCount = sectionTasks.filter(t => t.status === 'done').length;
+          
+          return (
+            <Collapsible 
+              key={section.id}
+              open={expandedSections[section.id] !== false}
+              onOpenChange={() => toggleSection(section.id)}
+            >
+              <div className="bg-card border border-border rounded-lg overflow-hidden">
+                <CollapsibleTrigger className="w-full">
+                  <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    {expandedSections[section.id] !== false ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <div 
+                      className="w-2.5 h-2.5 rounded-full" 
+                      style={{ backgroundColor: section.color || 'hsl(var(--primary))' }}
+                    />
+                    <span className="font-semibold text-foreground">{section.name}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {completedCount}/{sectionTasks.length}
+                    </Badge>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {sectionTasks.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                      Nenhuma tarefa nesta seção
+                    </div>
+                  ) : (
+                    sectionTasks.map(renderTaskRow)
+                  )}
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          );
+        })}
+
+        {/* Empty State */}
+        {tasks.length === 0 && (
+          <div className="bg-card border border-border rounded-lg p-12 text-center">
+            <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma tarefa ainda</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Comece adicionando tarefas a este projeto
+            </p>
+            <Button onClick={() => setShowCreateTask(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar primeira tarefa
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Create Task Dialog */}
+      <CreateTaskDialog 
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        defaultProjectId={projectId}
+        onTaskCreated={handleTaskAdded}
+      />
+
+      {/* Section Manager Dialog */}
+      {projectId && (
+        <SectionManager 
+          open={showSectionManager}
+          onOpenChange={(open) => {
+            setShowSectionManager(open);
+            if (!open) refetchSections();
+          }}
+          projectId={projectId}
+        />
+      )}
+
+      {/* Task Detail Sheet */}
       <TaskDetailSheet
         taskId={viewingTaskId}
         open={!!viewingTaskId}
         onOpenChange={(isOpen) => !isOpen && setViewingTaskId(null)}
         onTaskUpdate={refetch}
       />
+
+      {/* Subtask Detail Sheet */}
       <SubtaskDetailSheet
         subtaskId={viewingSubtaskId}
         open={!!viewingSubtaskId}
