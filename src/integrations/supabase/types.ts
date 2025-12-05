@@ -1151,6 +1151,44 @@ export type Database = {
           },
         ]
       }
+      project_sections: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          id: string
+          name: string
+          order: number | null
+          project_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          order?: number | null
+          project_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          order?: number | null
+          project_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_sections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           color: string | null
@@ -1217,6 +1255,7 @@ export type Database = {
           end_date: string | null
           id: string
           needs_approval: boolean
+          order: number | null
           priority: string | null
           requested_approver_id: string | null
           secondary_assignee_id: string | null
@@ -1237,6 +1276,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           needs_approval?: boolean
+          order?: number | null
           priority?: string | null
           requested_approver_id?: string | null
           secondary_assignee_id?: string | null
@@ -1257,6 +1297,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           needs_approval?: boolean
+          order?: number | null
           priority?: string | null
           requested_approver_id?: string | null
           secondary_assignee_id?: string | null
@@ -1594,6 +1635,7 @@ export type Database = {
           id: string
           is_recurring: boolean | null
           occurrence_date: string | null
+          order: number | null
           parent_task_id: string | null
           priority: string
           project_id: string | null
@@ -1627,6 +1669,7 @@ export type Database = {
           id?: string
           is_recurring?: boolean | null
           occurrence_date?: string | null
+          order?: number | null
           parent_task_id?: string | null
           priority?: string
           project_id?: string | null
@@ -1660,6 +1703,7 @@ export type Database = {
           id?: string
           is_recurring?: boolean | null
           occurrence_date?: string | null
+          order?: number | null
           parent_task_id?: string | null
           priority?: string
           project_id?: string | null
