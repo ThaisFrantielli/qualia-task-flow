@@ -1,3 +1,4 @@
+import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Ticket, Target, AlertCircle } from 'lucide-react';
@@ -30,11 +31,11 @@ const getStatusColor = (status: string) => {
   }
 };
 
-export function CustomerListEnhanced({
+export const CustomerListEnhanced: React.FC<CustomerListEnhancedProps> = ({
   customers,
   selectedId,
   onSelect,
-}: CustomerListEnhancedProps) {
+}) => {
   const clienteIds = customers.map((c) => c.id);
   const { data: statsMap, isLoading: statsLoading } = useClientesStats(clienteIds);
 
