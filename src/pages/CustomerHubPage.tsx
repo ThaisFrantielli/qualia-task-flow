@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useClientes } from '@/hooks/useClientes';
 import { CustomerListEnhanced, CustomerDisplayInfo } from '@/components/customer-management/CustomerListEnhanced';
 import { CustomerDetailRedesign } from '@/components/customer-management/CustomerDetailRedesign';
@@ -27,7 +27,7 @@ function getInitials(name: string | null) {
     .join('');
 }
 
-const CustomerHubPage = () => {
+const CustomerHubPage: React.FC = () => {
   const { clientes, loading, error, refetch } = useClientes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
