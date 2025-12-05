@@ -117,12 +117,6 @@ export default function PurchasesDashboard(): JSX.Element {
   };
 
   // ========== CHART CLICK HANDLERS (PowerBI-style) ==========
-  const handleSupplierClick = (fornecedor: string) => {
-    setActiveFilters(prev => ({
-      ...prev,
-      fornecedor: prev.fornecedor === fornecedor ? null : fornecedor // Toggle
-    }));
-  };
 
   const handleMonthClick = (mes: string) => {
     setActiveFilters(prev => ({
@@ -421,7 +415,6 @@ export default function PurchasesDashboard(): JSX.Element {
                     data={supplierRanking}
                     valueFormatter={(v) => fmtCompact(v)}
                     color="emerald"
-                    onValueChange={(item) => item && handleSupplierClick(item.name)}
                   />
                 </div>
               </Card>
