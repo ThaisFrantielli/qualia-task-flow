@@ -8,6 +8,7 @@ const availablePages = [
   { key: 'dashboard', name: 'Dashboard', route: '/dashboard' },
   { key: 'tasks', name: 'Tarefas', route: '/tasks' },
   { key: 'crm', name: 'CRM', route: '/crm' },
+  { key: 'analytics', name: 'Analytics', route: '/analytics' },
   { key: 'team', name: 'Equipe', route: '/equipe' },
   { key: 'settings', name: 'Configurações', route: '/settings' },
   // Adicione outras páginas conforme necessário
