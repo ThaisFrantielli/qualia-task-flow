@@ -48,6 +48,7 @@ import FilaTriagem from '@/pages/FilaTriagem';
 import TicketsPage from '@/pages/TicketsPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
+import FundingDashboard from '@/pages/analytics/FundingDashboard';
 
 function App() {
   return (
@@ -91,6 +92,7 @@ function App() {
                 <Route index element={<AnalyticsIndex />} />
                 <Route path="frota" element={<FleetDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
+                <Route path="funding" element={<FundingDashboard />} />
                 <Route path="churn" element={<ChurnDashboard />} />
                 <Route path="financeiro" element={<FinancialAnalytics />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
