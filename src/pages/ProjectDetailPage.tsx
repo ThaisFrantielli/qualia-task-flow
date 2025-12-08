@@ -1,5 +1,3 @@
-// src/pages/ProjectDetailPage.tsx - Refatorado com design moderno
-
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { TaskWithDetails } from '@/types';
@@ -14,10 +12,14 @@ import { CreateTaskDialog } from '@/components/tasks/CreateTaskDialog';
 import { SectionManager } from '@/components/projects/SectionManager';
 import { TaskProgressBar } from '@/components/tasks/TaskProgressBar';
 import { EditProjectForm } from '@/components/EditProjectForm';
+import { ProjectCalendarTab } from '@/components/projects/ProjectCalendarTab';
+import { ProjectKanbanTab } from '@/components/projects/ProjectKanbanTab';
+import { ProjectAnalytics } from '@/components/projects/ProjectAnalytics';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +44,10 @@ import {
   Edit,
   Trash2,
   Settings,
-  ListTodo
+  ListTodo,
+  LayoutGrid,
+  BarChart3,
+  List
 } from 'lucide-react';
 
 const priorityConfig = {
@@ -70,6 +75,9 @@ const ProjectDetailPage = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showSectionManager, setShowSectionManager] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    return localStorage.getItem('project-view-preference') || 'list';
+  });
 
   // Real-time updates
   useTasksRealtime(projectId);
@@ -85,11 +93,15 @@ const ProjectDetailPage = () => {
       sections.forEach(s => {
         expanded[s.id] = true;
       });
-      // Seção "Geral" sempre expandida
       expanded['general'] = true;
       setExpandedSections(expanded);
     }
   }, [sections]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    localStorage.setItem('project-view-preference', value);
+  };
 
   // Agrupa tarefas por seção
   const tasksBySection = useMemo(() => {
@@ -167,6 +179,10 @@ const ProjectDetailPage = () => {
     }
   };
 
+  const handleTaskClick = (taskId: string) => {
+    setViewingTaskId(taskId);
+  };
+
   const renderTaskRow = (task: TaskWithDetails) => {
     const priority = priorityConfig[task.priority as keyof typeof priorityConfig] || priorityConfig.low;
     const status = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
@@ -182,7 +198,6 @@ const ProjectDetailPage = () => {
         )}
         onClick={() => setViewingTaskId(task.id)}
       >
-        {/* Checkbox */}
         <Checkbox
           checked={isCompleted}
           disabled={updatingTaskIds.has(task.id)}
@@ -191,7 +206,6 @@ const ProjectDetailPage = () => {
           className="h-5 w-5"
         />
 
-        {/* Task Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn(
@@ -209,17 +223,14 @@ const ProjectDetailPage = () => {
           </div>
         </div>
 
-        {/* Priority Badge */}
         <Badge variant="outline" className={cn("text-xs", priority.className)}>
           {priority.label}
         </Badge>
 
-        {/* Status */}
         <span className={cn("text-sm hidden md:block", status.className)}>
           {status.label}
         </span>
 
-        {/* Assignee */}
         <div className="hidden sm:flex items-center gap-2">
           <Avatar className="h-6 w-6">
             <AvatarImage src={task.assignee?.avatar_url ?? undefined} />
@@ -229,7 +240,6 @@ const ProjectDetailPage = () => {
           </Avatar>
         </div>
 
-        {/* Due Date */}
         <div className={cn(
           "hidden lg:flex items-center gap-1 text-sm",
           isOverdue ? "text-destructive" : "text-muted-foreground"
@@ -238,7 +248,6 @@ const ProjectDetailPage = () => {
           {task.due_date ? formatDateSafe(task.due_date, 'dd/MM') : '-'}
         </div>
 
-        {/* Actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100">
@@ -337,101 +346,149 @@ const ProjectDetailPage = () => {
         </div>
       </div>
 
-      {/* Add Task Button */}
-      <div className="flex items-center gap-2">
-        <Button onClick={() => setShowCreateTask(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Tarefa
-        </Button>
-      </div>
+      {/* Tabs de Visualização */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <TabsList className="bg-muted p-1 rounded-lg w-fit">
+            <TabsTrigger value="list" className="flex items-center gap-2 data-[state=active]:bg-background">
+              <List className="h-4 w-4" />
+              Lista
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="flex items-center gap-2 data-[state=active]:bg-background">
+              <LayoutGrid className="h-4 w-4" />
+              Kanban
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="flex items-center gap-2 data-[state=active]:bg-background">
+              <Calendar className="h-4 w-4" />
+              Calendário
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2 data-[state=active]:bg-background">
+              <BarChart3 className="h-4 w-4" />
+              Análise
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Task Sections */}
-      <div className="space-y-4">
-        {/* General Section (tasks without section) */}
-        {tasksBySection.general && tasksBySection.general.length > 0 && (
-          <Collapsible 
-            open={expandedSections.general !== false}
-            onOpenChange={() => toggleSection('general')}
-          >
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
-              <CollapsibleTrigger className="w-full">
-                <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
-                  {expandedSections.general !== false ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <span className="font-semibold text-foreground">Tarefas Gerais</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {tasksBySection.general.length}
-                  </Badge>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                {tasksBySection.general.map(renderTaskRow)}
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-        )}
+          <Button onClick={() => setShowCreateTask(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Tarefa
+          </Button>
+        </div>
 
-        {/* Custom Sections */}
-        {sections.map(section => {
-          const sectionTasks = tasksBySection[section.id] || [];
-          const completedCount = sectionTasks.filter(t => t.status === 'done').length;
-          
-          return (
+        {/* List View */}
+        <TabsContent value="list" className="mt-4 space-y-4">
+          {/* General Section */}
+          {tasksBySection.general && tasksBySection.general.length > 0 && (
             <Collapsible 
-              key={section.id}
-              open={expandedSections[section.id] !== false}
-              onOpenChange={() => toggleSection(section.id)}
+              open={expandedSections.general !== false}
+              onOpenChange={() => toggleSection('general')}
             >
               <div className="bg-card border border-border rounded-lg overflow-hidden">
                 <CollapsibleTrigger className="w-full">
                   <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
-                    {expandedSections[section.id] !== false ? (
+                    {expandedSections.general !== false ? (
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     ) : (
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
-                    <div 
-                      className="w-2.5 h-2.5 rounded-full" 
-                      style={{ backgroundColor: section.color || 'hsl(var(--primary))' }}
-                    />
-                    <span className="font-semibold text-foreground">{section.name}</span>
+                    <span className="font-semibold text-foreground">Tarefas Gerais</span>
                     <Badge variant="secondary" className="text-xs">
-                      {completedCount}/{sectionTasks.length}
+                      {tasksBySection.general.length}
                     </Badge>
                   </div>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  {sectionTasks.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-                      Nenhuma tarefa nesta seção
-                    </div>
-                  ) : (
-                    sectionTasks.map(renderTaskRow)
-                  )}
+                  {tasksBySection.general.map(renderTaskRow)}
                 </CollapsibleContent>
               </div>
             </Collapsible>
-          );
-        })}
+          )}
 
-        {/* Empty State */}
-        {tasks.length === 0 && (
-          <div className="bg-card border border-border rounded-lg p-12 text-center">
-            <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma tarefa ainda</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Comece adicionando tarefas a este projeto
-            </p>
-            <Button onClick={() => setShowCreateTask(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Criar primeira tarefa
-            </Button>
-          </div>
-        )}
-      </div>
+          {/* Custom Sections */}
+          {sections.map(section => {
+            const sectionTasks = tasksBySection[section.id] || [];
+            const completedCount = sectionTasks.filter(t => t.status === 'done').length;
+            
+            return (
+              <Collapsible 
+                key={section.id}
+                open={expandedSections[section.id] !== false}
+                onOpenChange={() => toggleSection(section.id)}
+              >
+                <div className="bg-card border border-border rounded-lg overflow-hidden">
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors">
+                      {expandedSections[section.id] !== false ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <div 
+                        className="w-2.5 h-2.5 rounded-full" 
+                        style={{ backgroundColor: section.color || 'hsl(var(--primary))' }}
+                      />
+                      <span className="font-semibold text-foreground">{section.name}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {completedCount}/{sectionTasks.length}
+                      </Badge>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {sectionTasks.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-muted-foreground text-sm">
+                        Nenhuma tarefa nesta seção
+                      </div>
+                    ) : (
+                      sectionTasks.map(renderTaskRow)
+                    )}
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })}
+
+          {/* Empty State */}
+          {tasks.length === 0 && (
+            <div className="bg-card border border-border rounded-lg p-12 text-center">
+              <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma tarefa ainda</h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                Comece adicionando tarefas a este projeto
+              </p>
+              <Button onClick={() => setShowCreateTask(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar primeira tarefa
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Kanban View */}
+        <TabsContent value="kanban" className="mt-4">
+          <ProjectKanbanTab 
+            tasks={tasks}
+            sections={sections}
+            onTaskClick={handleTaskClick}
+            onTaskUpdate={refetch}
+          />
+        </TabsContent>
+
+        {/* Calendar View */}
+        <TabsContent value="calendar" className="mt-4">
+          <ProjectCalendarTab 
+            tasks={tasks}
+            onTaskClick={handleTaskClick}
+            onTaskUpdate={refetch}
+          />
+        </TabsContent>
+
+        {/* Analytics View */}
+        <TabsContent value="analytics" className="mt-4">
+          <ProjectAnalytics 
+            tasks={tasks}
+            sections={sections}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Create Task Dialog */}
       <CreateTaskDialog 
