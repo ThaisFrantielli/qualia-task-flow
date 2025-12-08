@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, DonutChart } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ScatterChart, Scatter, Cell, ComposedChart } from 'recharts';
+import { Card, Title, Text, Metric, BarList, DonutChart } from '@tremor/react';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 import { ShoppingBag, Filter, ShieldAlert } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -10,9 +10,12 @@ type AnyObject = { [k: string]: any };
 function parseCurrency(v: any): number {
   if (typeof v === 'number') return v;
   if (!v) return 0;
-  const s = String(v).replace(/[^0-9.\-]/g, '');
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+  if (typeof v === 'string') {
+    const s = v.replace(/[R$\s.]/g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  return 0;
 }
 
 function fmtBRL(v: number): string {
@@ -26,75 +29,41 @@ function fmtCompact(v: number): string {
   return `R$ ${v}`;
 }
 
-// Helper to safely get FIPE value with fallbacks
-function getFipeValue(record: any): number {
-  // Try multiple possible field names
-  const fipeValue = record.ValorFipeNaCompra
-    || record.ValorFipeCompra
-    || record.ValorAtualFIPE
-    || record.ValorFipe
-    || 0;
-
-  return parseCurrency(fipeValue);
-}
-
 function getMonthKey(dateString?: string): string {
   if (!dateString || typeof dateString !== 'string') return '';
   return dateString.split('T')[0].substring(0, 7);
 }
 
+function monthLabel(ym: string): string {
+  if (!ym || ym.length < 7) return ym;
+  const [y, m] = ym.split('-');
+  const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  return `${months[Number(m) - 1]}/${String(y).slice(2)}`;
+}
+
 // --- COMPONENTE PRINCIPAL ---
 export default function PurchasesDashboard(): JSX.Element {
-  // Novo Hook com dados ricos
+  // Hooks de Dados
   const { data: rawData } = useBIData<AnyObject[]>('compras_full.json');
-
-  // Hook para dados de Alienação (Funding)
   const { data: rawAlienacoes } = useBIData<AnyObject[]>('alienacoes.json');
 
-  const compras = useMemo(() => {
-    const raw = (rawData as any)?.data || rawData || [];
-    const result = Array.isArray(raw) ? raw : [];
-
-    // Debug: Log first record to understand data structure
-    if (result.length > 0) {
-      console.log('🔍 DEBUG - First purchase record:', result[0]);
-      console.log('🔍 DEBUG - ValorFipeNaCompra value:', result[0].ValorFipeNaCompra);
-      console.log('🔍 DEBUG - Available fields:', Object.keys(result[0]));
-
-      // Check for FIPE code variations
-      console.log('🔍 DEBUG - CodigoFIPE:', result[0].CodigoFIPE);
-      console.log('🔍 DEBUG - CodigoFipe:', result[0].CodigoFipe);
-      console.log('🔍 DEBUG - codigoFIPE:', result[0].codigoFIPE);
-
-      // Check for Situacao variations
-      console.log('🔍 DEBUG - SituacaoVeiculo:', result[0].SituacaoVeiculo);
-      console.log('🔍 DEBUG - SituacaoFinanceiraVeiculo:', result[0].SituacaoFinanceiraVeiculo);
-    }
-
-    return result;
+  const compras: AnyObject[] = useMemo(() => {
+    if (Array.isArray(rawData)) return rawData;
+    return (rawData as any)?.data || [];
   }, [rawData]);
 
-  const alienacoes = useMemo(() => {
-    const raw = (rawAlienacoes as any)?.data || rawAlienacoes || [];
-    const result = Array.isArray(raw) ? raw : [];
-
-    if (result.length > 0) {
-      console.log('💰 DEBUG - First alienacao record:', result[0]);
-      console.log('💰 DEBUG - Available alienacao fields:', Object.keys(result[0]));
-    }
-
-    return result;
+  const alienacoes: AnyObject[] = useMemo(() => {
+    if (Array.isArray(rawAlienacoes)) return rawAlienacoes;
+    return (rawAlienacoes as any)?.data || [];
   }, [rawAlienacoes]);
 
   // Filtros Globais
   const currentYear = new Date().getFullYear();
   const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
   const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
-
-  // Tab State
   const [activeTab, setActiveTab] = useState(0);
 
-  // ========== INTERACTIVE FILTERS (PowerBI-style) ==========
+  // Estados de Filtros Interativos
   const [activeFilters, setActiveFilters] = useState<{
     fornecedor: string | null;
     mes: string | null;
@@ -109,559 +78,217 @@ export default function PurchasesDashboard(): JSX.Element {
     banco: []
   });
 
-  // Check if any interactive filter is active
+  // Toggle de Visualização (Valor vs Qtd)
+  const [viewModeFornecedor, setViewModeFornecedor] = useState<'valor' | 'qtd'>('valor');
+  const [viewModeBanco, setViewModeBanco] = useState<'valor' | 'qtd'>('valor');
+
   const hasActiveFilters = useMemo(() => {
-    return !!(
-      activeFilters.fornecedor ||
-      activeFilters.mes ||
-      activeFilters.montadora.length > 0 ||
-      activeFilters.modelo.length > 0 ||
-      activeFilters.banco.length > 0
-    );
+    return !!(activeFilters.fornecedor || activeFilters.mes || activeFilters.montadora.length > 0 || activeFilters.modelo.length > 0 || activeFilters.banco.length > 0);
   }, [activeFilters]);
 
-  // Extract unique values for multi-select filters
+  // Listas para Selects
   const filterOptions = useMemo(() => {
-    const montadoras = [...new Set(compras.map(r => r.Montadora).filter(Boolean))].sort();
-    const modelos = [...new Set(compras.map(r => r.Modelo).filter(Boolean))].sort();
-    const fornecedores = [...new Set(compras.map(r => r.Fornecedor).filter(Boolean))].sort();
-    const bancos = [...new Set(compras.map(r => r.Banco).filter(Boolean))].sort();
-    return { montadoras, modelos, fornecedores, bancos };
+    return {
+      montadoras: [...new Set(compras.map((r: AnyObject) => r.Montadora).filter(Boolean))].sort(),
+      modelos: [...new Set(compras.map((r: AnyObject) => r.Modelo).filter(Boolean))].sort(),
+      bancos: [...new Set(compras.map((r: AnyObject) => r.Banco).filter(Boolean))].sort(),
+    };
   }, [compras]);
 
-  // Multi-select filter handlers
   const handleMultiSelectChange = (field: 'montadora' | 'modelo' | 'banco', value: string) => {
     setActiveFilters(prev => {
-      const currentValues = prev[field];
-      const newValues = currentValues.includes(value)
-        ? currentValues.filter(v => v !== value)
-        : [...currentValues, value];
-      return { ...prev, [field]: newValues };
+      const current = prev[field];
+      const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+      return { ...prev, [field]: next };
     });
   };
 
-  // Clear all interactive filters
   const clearInteractiveFilters = () => {
-    setActiveFilters({
-      fornecedor: null,
-      mes: null,
-      montadora: [],
-      modelo: [],
-      banco: []
-    });
+    setActiveFilters({ fornecedor: null, mes: null, montadora: [], modelo: [], banco: [] });
   };
 
-  // ========== CHART CLICK HANDLERS (PowerBI-style) ==========
-
-  const handleMonthClick = (mes: string) => {
-    setActiveFilters(prev => ({
-      ...prev,
-      mes: prev.mes === mes ? null : mes // Toggle
-    }));
-  };
-
-  const handleSupplierClick = (fornecedor: string) => {
-    setActiveFilters(prev => ({
-      ...prev,
-      fornecedor: prev.fornecedor === fornecedor ? null : fornecedor // Toggle
-    }));
-  };
-
-  // Dados Filtrados (Date Range + Interactive Filters with AND logic)
-  const filteredData = useMemo(() => {
-    return compras.filter(r => {
-      // Date range filter
+  // --- FILTRAGEM MESTRA (COMPRAS) ---
+  const filteredCompras = useMemo(() => {
+    return compras.filter((r: AnyObject) => {
       const d = r.DataCompra;
       if (!d) return false;
+
+      // Filtro de Data
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
 
-      // Interactive filter: Fornecedor (single selection from chart click)
-      if (activeFilters.fornecedor && r.Fornecedor !== activeFilters.fornecedor) {
-        return false;
-      }
-
-      // Interactive filter: Mes (single selection from chart click)
-      if (activeFilters.mes) {
-        const recordMonth = getMonthKey(r.DataCompra);
-        if (recordMonth !== activeFilters.mes) return false;
-      }
-
-      // Multi-select filter: Montadora (AND logic - must be in selected list)
-      if (activeFilters.montadora.length > 0) {
-        if (!activeFilters.montadora.includes(r.Montadora)) return false;
-      }
-
-      // Multi-select filter: Modelo (AND logic)
-      if (activeFilters.modelo.length > 0) {
-        if (!activeFilters.modelo.includes(r.Modelo)) return false;
-      }
-
-      // Multi-select filter: Banco (AND logic)
-      if (activeFilters.banco.length > 0) {
-        if (!activeFilters.banco.includes(r.Banco)) return false;
-      }
+      // Filtros Interativos (AND Logic)
+      if (activeFilters.fornecedor && r.Fornecedor !== activeFilters.fornecedor) return false;
+      if (activeFilters.mes && getMonthKey(r.DataCompra) !== activeFilters.mes) return false;
+      if (activeFilters.montadora.length > 0 && !activeFilters.montadora.includes(r.Montadora)) return false;
+      if (activeFilters.modelo.length > 0 && !activeFilters.modelo.includes(r.Modelo)) return false;
+      if (activeFilters.banco.length > 0 && !activeFilters.banco.includes(r.Banco)) return false;
 
       return true;
     });
   }, [compras, dateFrom, dateTo, activeFilters]);
 
-  // --- ABA 1: AQUISIÇÃO E EFICIÊNCIA ---
-  const acquisitionKPIs = useMemo(() => {
-    const totalInvest = filteredData.reduce((s, r) => s + parseCurrency(r.ValorCompra), 0);
-    const count = filteredData.length;
-    const totalAcessorios = filteredData.reduce((s, r) => s + parseCurrency(r.ValorAcessorios), 0);
+  // --- FILTRAGEM CRUZADA (ALIENAÇÕES) ---
+  const filteredAlienacoes = useMemo(() => {
+    const placasVisiveis = new Set(filteredCompras.map((c: AnyObject) => c.Placa));
+    const isFiltering = hasActiveFilters || (dateFrom !== `${currentYear}-01-01`);
 
-    // % FIPE/Compra Médio (quanto pagamos em relação à FIPE)
-    let totalFipeCompra = 0;
-    let validCount = 0;
-    filteredData.forEach(r => {
-      const fipe = getFipeValue(r);
+    if (!isFiltering) return alienacoes;
+
+    return alienacoes.filter((a: AnyObject) => placasVisiveis.has(a.Placa));
+  }, [alienacoes, filteredCompras, hasActiveFilters, dateFrom, currentYear]);
+
+
+  // --- CÁLCULOS ABA 1: AQUISIÇÃO ---
+  const acquisitionKPIs = useMemo(() => {
+    const totalInvest = filteredCompras.reduce((s: number, r: AnyObject) => s + parseCurrency(r.ValorCompra), 0);
+    const count = filteredCompras.length;
+    const totalAcessorios = filteredCompras.reduce((s: number, r: AnyObject) => s + parseCurrency(r.ValorAcessorios), 0);
+
+    let somaDesagio = 0;
+    let countDesagio = 0;
+    filteredCompras.forEach((r: AnyObject) => {
       const compra = parseCurrency(r.ValorCompra);
+      const fipe = parseCurrency(r.ValorFipeNaCompra || r.ValorFipeCompra || 0);
       if (fipe > 0 && compra > 0) {
-        totalFipeCompra += (compra / fipe) * 100;
-        validCount++;
+        somaDesagio += (1 - (compra / fipe));
+        countDesagio++;
       }
     });
-    const avgFipeCompra = validCount > 0 ? totalFipeCompra / validCount : 0;
+    const avgDesagio = countDesagio > 0 ? (somaDesagio / countDesagio) * 100 : 0;
 
-    return { totalInvest, count, totalAcessorios, avgFipeCompra };
-  }, [filteredData]);
+    return { totalInvest, count, totalAcessorios, avgDesagio };
+  }, [filteredCompras]);
 
   const supplierRanking = useMemo(() => {
     const map: Record<string, number> = {};
-    filteredData.forEach(r => {
+    filteredCompras.forEach((r: AnyObject) => {
       const f = r.Fornecedor || 'Desconhecido';
-      map[f] = (map[f] || 0) + parseCurrency(r.ValorCompra);
+      const val = viewModeFornecedor === 'valor' ? parseCurrency(r.ValorCompra) : 1;
+      map[f] = (map[f] || 0) + val;
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [filteredData]);
+  }, [filteredCompras, viewModeFornecedor]);
 
   const evolutionData = useMemo(() => {
-    const mapValor: Record<string, number> = {};
-    const mapQtd: Record<string, number> = {};
-
-    filteredData.forEach(r => {
+    const map: Record<string, { Valor: number, Qtd: number }> = {};
+    filteredCompras.forEach((r: AnyObject) => {
       const k = getMonthKey(r.DataCompra);
       if (!k) return;
-      mapValor[k] = (mapValor[k] || 0) + parseCurrency(r.ValorCompra);
-      mapQtd[k] = (mapQtd[k] || 0) + 1;
-    });
-
-    return Object.keys(mapValor).sort().map(k => ({
-      date: k,
-      Valor: mapValor[k],
-      Quantidade: mapQtd[k] || 0
-    }));
-  }, [filteredData]);
-
-
-
-
-
-  const scatterData = useMemo(() => {
-    return filteredData.map(r => ({
-      x: new Date(r.DataCompra).getTime(),
-      y: parseCurrency(r.ValorCompra),
-      name: r.Modelo || 'Veículo'
-    }));
-  }, [filteredData]);
-
-  // --- DETAILED ACQUISITIONS TABLE DATA ---
-  const [acquisitionPage, setAcquisitionPage] = useState(0);
-  const ACQUISITION_PAGE_SIZE = 15;
-
-  const detailedAcquisitions = useMemo(() => {
-    const hoje = new Date();
-
-    return filteredData.map(r => {
-      const valorCompra = parseCurrency(r.ValorCompra);
-      const valorFipe = getFipeValue(r);
-      const percentFipe = valorFipe > 0 ? (valorCompra / valorFipe) * 100 : 0;
-
-      // Calcular tempo em frota (em meses)
-      const dataCompra = r.DataCompra ? new Date(r.DataCompra) : null;
-      let tempoEmFrota = 0;
-      if (dataCompra && !isNaN(dataCompra.getTime())) {
-        const diffTime = hoje.getTime() - dataCompra.getTime();
-        tempoEmFrota = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30)); // meses aproximados
-      }
-
-      return {
-        placa: r.Placa || 'N/A',
-        montadora: r.Montadora || 'N/A',
-        modelo: r.Modelo || 'N/A',
-        ano: r.AnoFabricacao || 'N/A',
-        cor: r.Cor || 'N/A',
-        km: r.Km || r.Quilometragem || 'N/A',
-        dataCompra: r.DataCompra,
-        codigoFipe: r.CodigoFIPE || r.CodigoFipe || 'N/A',
-        fornecedor: r.Fornecedor || 'N/A',
-        valorCompra,
-        valorFipe,
-        percentFipe,
-        situacao: r.SituacaoVeiculo || 'N/A',
-        tempoEmFrota
-      };
-    }).sort((a, b) => b.valorCompra - a.valorCompra);
-  }, [filteredData]);
-
-  const paginatedAcquisitions = useMemo(() => {
-    const start = acquisitionPage * ACQUISITION_PAGE_SIZE;
-    return detailedAcquisitions.slice(start, start + ACQUISITION_PAGE_SIZE);
-  }, [detailedAcquisitions, acquisitionPage]);
-
-  const totalAcquisitionPages = Math.ceil(detailedAcquisitions.length / ACQUISITION_PAGE_SIZE);
-
-  // --- ABA 2: FUNDING E DÍVIDA ---
-  const fundingKPIs = useMemo(() => {
-    const totalFinanced = filteredData.reduce((s, r) => s + parseCurrency(r.ValorFinanciado), 0);
-    const totalCompra = filteredData.reduce((s, r) => s + parseCurrency(r.ValorCompra), 0);
-    const leverage = totalCompra > 0 ? (totalFinanced / totalCompra) * 100 : 0;
-
-    const totalParcela = filteredData.reduce((s, r) => s + parseCurrency(r.ValorParcela), 0);
-    // Média de parcela por contrato financiado
-    const financedCount = filteredData.filter(r => parseCurrency(r.ValorFinanciado) > 0).length;
-    const avgParcela = financedCount > 0 ? totalParcela / financedCount : 0;
-
-    return { totalFinanced, leverage, avgParcela };
-  }, [filteredData]);
-
-  const capitalMix = useMemo(() => {
-    const totalCompra = filteredData.reduce((s, r) => s + parseCurrency(r.ValorCompra), 0);
-    const totalFinanced = filteredData.reduce((s, r) => s + parseCurrency(r.ValorFinanciado), 0);
-    const ownCapital = Math.max(0, totalCompra - totalFinanced);
-
-    return [
-      { name: 'Recurso Próprio', value: ownCapital },
-      { name: 'Financiado (Dívida)', value: totalFinanced }
-    ];
-  }, [filteredData]);
-
-  const debtByBank = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredData.forEach(r => {
-      const b = r.Banco || 'N/A';
-      map[b] = (map[b] || 0) + parseCurrency(r.ValorFinanciado);
-    });
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [filteredData]);
-
-  const maturitySchedule = useMemo(() => {
-    // Estimativa: DataCompra + 36 meses
-    const map: Record<string, number> = {};
-    filteredData.forEach(r => {
-      if (!r.DataCompra || parseCurrency(r.ValorFinanciado) <= 0) return;
-      const d = new Date(r.DataCompra);
-      d.setMonth(d.getMonth() + 36); // +3 anos
-      const k = getMonthKey(d.toISOString());
-      map[k] = (map[k] || 0) + parseCurrency(r.ValorFinanciado); // Valor total vencendo (simplificado)
+      if (!map[k]) map[k] = { Valor: 0, Qtd: 0 };
+      map[k].Valor += parseCurrency(r.ValorCompra);
+      map[k].Qtd += 1;
     });
     return Object.keys(map).sort().map(k => ({
       date: k,
-      Vencimento: map[k]
+      label: monthLabel(k),
+      ...map[k]
     }));
-  }, [filteredData]);
+  }, [filteredCompras]);
 
-  // --- ABA 3: AUDITORIA ---
-  const [auditPage, setAuditPage] = useState(1);
-  const AUDIT_PAGE_SIZE = 10;
+  // --- CÁLCULOS ABA 2: FUNDING (ORIGEM) ---
+  const fundingKPIs = useMemo(() => {
+    const totalFinanced = filteredCompras.reduce((s: number, r: AnyObject) => s + parseCurrency(r.ValorFinanciado), 0);
+    const totalInvest = acquisitionKPIs.totalInvest;
+    const leverage = totalInvest > 0 ? (totalFinanced / totalInvest) * 100 : 0;
+    return { totalFinanced, leverage };
+  }, [filteredCompras, acquisitionKPIs]);
 
+  const capitalMix = useMemo(() => {
+    const totalInvest = acquisitionKPIs.totalInvest;
+    const totalFinanced = fundingKPIs.totalFinanced;
+    return [
+      { name: 'Recurso Próprio', value: Math.max(0, totalInvest - totalFinanced) },
+      { name: 'Financiado', value: totalFinanced }
+    ];
+  }, [acquisitionKPIs, fundingKPIs]);
+
+  // --- CÁLCULOS ABA 3: SAÚDE FINANCEIRA (DÍVIDA ATUAL) ---
+  const debtKPIs = useMemo(() => {
+    const saldoDevedor = filteredAlienacoes.reduce((s: number, r: AnyObject) => s + parseCurrency(r.SaldoRemanescente || r.SaldoDevedor), 0);
+    const fluxoMensal = filteredAlienacoes.reduce((s: number, r: AnyObject) => s + parseCurrency(r.ValorParcela), 0);
+    const contratos = filteredAlienacoes.length;
+    return { saldoDevedor, fluxoMensal, contratos };
+  }, [filteredAlienacoes]);
+
+  const debtByBank = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredAlienacoes.forEach((r: AnyObject) => {
+      const b = r.Banco || r.Instituicao || 'Outros';
+      const val = viewModeBanco === 'valor' ? parseCurrency(r.SaldoRemanescente || r.SaldoDevedor) : 1;
+      map[b] = (map[b] || 0) + val;
+    });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [filteredAlienacoes, viewModeBanco]);
+
+  // --- CÁLCULOS ABA 4: AUDITORIA ---
   const auditList = useMemo(() => {
-    return filteredData.map(r => {
+    return filteredCompras.map((r: AnyObject) => {
       const compra = parseCurrency(r.ValorCompra);
-      const fipe = getFipeValue(r);
+      const fipe = parseCurrency(r.ValorFipeNaCompra || r.ValorFipeCompra || 0);
       const acessorios = parseCurrency(r.ValorAcessorios);
-      const anoFabricacao = parseInt(r.AnoFabricacao);
-      const dataCompra = r.DataCompra ? new Date(r.DataCompra) : null;
-      const hoje = new Date();
 
       const anomalies = [];
-
-      // 1. Dados Incompletos
-      if (!r.Placa || !r.Modelo) anomalies.push('Dados Incompletos (Placa/Modelo)');
-      if (!r.Fornecedor) anomalies.push('Fornecedor N/A');
-
-      // 2. Valores Zerados ou Suspeitos
-      if (compra <= 1000) anomalies.push('Valor Compra Baixo/Zero');
-      if (fipe <= 0) anomalies.push('FIPE Não Mapeada');
-      if (anoFabricacao < 1990 || anoFabricacao > (hoje.getFullYear() + 2)) anomalies.push('Ano Fabricação Inválido');
-
-      // 3. Datas Estranhas
-      if (dataCompra && dataCompra > hoje) anomalies.push('Data Futura');
-      if (dataCompra && dataCompra.getFullYear() < 2010) anomalies.push('Data Muito Antiga');
-
-      // 4. Regras de Negócio
-      if (compra > 0 && (acessorios / compra) > 0.20) anomalies.push('Acessórios Excessivos (>20%)');
-
-      // Ágio apenas se for muito significativo (> 5% acima da FIPE)
-      if (fipe > 0 && compra > (fipe * 1.05)) anomalies.push('Preço Acima da FIPE (>5%)');
+      if (fipe > 0 && compra > fipe) anomalies.push('Ágio (Acima da FIPE)');
+      if (compra > 0 && (acessorios / compra) > 0.15) anomalies.push('Acessórios Excessivos (> 15%)');
 
       if (anomalies.length === 0) return null;
 
-      const percentFipe = fipe > 0 ? (compra / fipe) * 100 : 0;
-
       return {
-        placa: r.Placa || 'N/A',
-        modelo: r.Modelo || 'N/A',
-        fornecedor: r.Fornecedor || 'N/A',
-        dataCompra: r.DataCompra,
-        codigoFipe: r.CodigoFIPE || r.CodigoFipe || 'N/A',
-        situacao: r.SituacaoVeiculo || 'N/A',
-        compra,
-        fipe,
-        percentFipe,
+        ...r,
+        compra, fipe,
         diff: compra - fipe,
-        reason: anomalies.join(', ') // Join multiple errors
+        reason: anomalies.join(', ')
       };
-    }).filter(Boolean) as any[];
-  }, [filteredData]);
-
-  // Paginated audit list
-  const paginatedAuditList = useMemo(() => {
-    const start = (auditPage - 1) * AUDIT_PAGE_SIZE;
-    return auditList.slice(start, start + AUDIT_PAGE_SIZE);
-  }, [auditList, auditPage]);
-
-  const totalAuditPages = Math.ceil(auditList.length / AUDIT_PAGE_SIZE);
-
-  // --- ABA 3: SAÚDE FINANCEIRA (FUNDING) ---
-
-  // KPIs de Saúde Financeira
-  const financialHealthKPIs = useMemo(() => {
-    if (!alienacoes || alienacoes.length === 0) {
-      return {
-        saldoDevedorTotal: 0,
-        parcelaMedia: 0,
-        percentualEmDia: 0,
-        prazoMedioRestante: 0,
-        veiculosFinanciados: 0
-      };
-    }
-
-    const veiculosAtivos = alienacoes.filter((a: any) => parseCurrency(a.SaldoRemanescente || a.SaldoDevedor) > 0);
-
-    const saldoTotal = veiculosAtivos.reduce((sum: number, a: any) =>
-      sum + parseCurrency(a.SaldoRemanescente || a.SaldoDevedor || 0), 0);
-
-    const parcelaTotal = veiculosAtivos.reduce((sum: number, a: any) =>
-      sum + parseCurrency(a.ValorParcela || 0), 0);
-
-    const emDia = veiculosAtivos.filter((a: any) =>
-      (a.SituacaoFinanceiraVeiculo || '').toLowerCase().includes('em dia') ||
-      (a.SituacaoFinanceiraVeiculo || '').toLowerCase() === 'regular'
-    ).length;
-
-    const prazoSomado = veiculosAtivos.reduce((sum: number, a: any) =>
-      sum + (a.QuantidadeParcelasRemanescentes || 0), 0);
-
-    return {
-      saldoDevedorTotal: saldoTotal,
-      parcelaMedia: veiculosAtivos.length > 0 ? parcelaTotal / veiculosAtivos.length : 0,
-      percentualEmDia: veiculosAtivos.length > 0 ? (emDia / veiculosAtivos.length) * 100 : 0,
-      prazoMedioRestante: veiculosAtivos.length > 0 ? prazoSomado / veiculosAtivos.length : 0,
-      veiculosFinanciados: veiculosAtivos.length
-    };
-  }, [alienacoes]);
-
-  // Cronograma de Vencimentos (36 meses)
-  const paymentSchedule = useMemo(() => {
-    if (!alienacoes || alienacoes.length === 0) return [];
-
-    const hoje = new Date();
-    const schedule: { [key: string]: number } = {};
-
-    // Inicializar próximos 36 meses
-    for (let i = 0; i < 36; i++) {
-      const futureDate = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
-      const key = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
-      schedule[key] = 0;
-    }
-
-    // Projetar parcelas futuras
-    alienacoes.forEach((a: any) => {
-      const parcelasRestantes = a.QuantidadeParcelasRemanescentes || 0;
-      const valorParcela = parseCurrency(a.ValorParcela || 0);
-      const vencimento = a.VencimentoPrimeiraParcela || a.VencimentoPrimeira;
-
-      if (parcelasRestantes > 0 && valorParcela > 0 && vencimento) {
-        const dataVenc = new Date(vencimento);
-
-        for (let i = 0; i < Math.min(parcelasRestantes, 36); i++) {
-          const mesVenc = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + i, 1);
-          const key = `${mesVenc.getFullYear()}-${String(mesVenc.getMonth() + 1).padStart(2, '0')}`;
-
-          if (schedule[key] !== undefined) {
-            schedule[key] += valorParcela;
-          }
-        }
-      }
-    });
-
-    return Object.keys(schedule)
-      .sort()
-      .map(key => ({
-        mes: key,
-        valor: schedule[key]
-      }))
-      .filter(item => item.valor > 0);
-  }, [alienacoes]);
-
-  // Exposição por Banco
-  const bankExposure = useMemo(() => {
-    if (!alienacoes || alienacoes.length === 0) return [];
-
-    const exposureMap: { [key: string]: number } = {};
-
-    alienacoes.forEach((a: any) => {
-      const saldo = parseCurrency(a.SaldoRemanescente || a.SaldoDevedor || 0);
-      if (saldo > 0) {
-        const banco = a.Instituicao || 'Outros';
-        exposureMap[banco] = (exposureMap[banco] || 0) + saldo;
-      }
-    });
-
-    return Object.entries(exposureMap)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [alienacoes]);
-
-  // Veículos em Risco (Atrasados)
-  const riskVehicles = useMemo(() => {
-    if (!alienacoes || alienacoes.length === 0) return [];
-
-    return alienacoes
-      .filter((a: any) => {
-        const situacao = (a.SituacaoFinanceiraVeiculo || '').toLowerCase();
-        return situacao.includes('atrasado') || situacao.includes('inadimplente');
-      })
-      .map((a: any) => ({
-        placa: a.Placa,
-        modelo: a.Modelo,
-        banco: a.Instituicao,
-        saldoDevedor: parseCurrency(a.SaldoRemanescente || a.SaldoDevedor || 0),
-        parcelasRestantes: a.QuantidadeParcelasRemanescentes || 0,
-        situacao: a.SituacaoFinanceiraVeiculo
-      }));
-  }, [alienacoes]);
-
+    }).filter(Boolean);
+  }, [filteredCompras]);
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex justify-between items-center">
         <div>
           <Title className="text-slate-900">Gestão de Compras 2.0</Title>
-          <Text className="mt-1 text-slate-500">Visão integrada de aquisição, funding e compliance.</Text>
+          <Text className="text-slate-500">Visão integrada de aquisição, funding e compliance.</Text>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-            <ShoppingBag className="w-4 h-4" /> Hub Compras
-          </div>
+        <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex gap-2">
+          <ShoppingBag className="w-4 h-4" /> Hub Compras
         </div>
       </div>
 
-      {/* Global Filters */}
+      {/* FILTROS GLOBAIS */}
       <Card className="bg-white shadow-sm border border-slate-200">
         <div className="flex items-center gap-2 mb-4">
           <Filter className="w-4 h-4 text-slate-500" />
           <Text className="font-medium text-slate-700">Filtros de Análise</Text>
-          {hasActiveFilters && (
-            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full ml-2">
-              Filtros ativos
-            </span>
-          )}
+          {hasActiveFilters && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Ativos</span>}
         </div>
-
-        {/* Date Range */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Data Início</label>
-            <input type="date" className="border p-2 rounded text-sm w-full" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            <label className="text-xs text-slate-500 block mb-1">Período</label>
+            <div className="flex gap-2">
+              <input type="date" className="border rounded p-2 text-sm w-full" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+              <input type="date" className="border rounded p-2 text-sm w-full" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-slate-500 mb-1 block">Data Fim</label>
-            <input type="date" className="border p-2 rounded text-sm w-full" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-          </div>
-
-          {/* Multi-select: Montadora */}
-          <div className="relative">
-            <label className="text-xs text-slate-500 mb-1 block">Montadora</label>
-            <select
-              className="border p-2 rounded text-sm w-full"
-              onChange={e => e.target.value && handleMultiSelectChange('montadora', e.target.value)}
-              value=""
-            >
-              <option value="">Selecione...</option>
-              {filterOptions.montadoras.map(m => (
-                <option key={m} value={m} className={activeFilters.montadora.includes(m) ? 'bg-emerald-100' : ''}>
-                  {activeFilters.montadora.includes(m) ? '✓ ' : ''}{m}
-                </option>
-              ))}
-            </select>
-            {activeFilters.montadora.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {activeFilters.montadora.length}
-              </span>
-            )}
-          </div>
-
-          {/* Multi-select: Modelo */}
-          <div className="relative">
-            <label className="text-xs text-slate-500 mb-1 block">Modelo</label>
-            <select
-              className="border p-2 rounded text-sm w-full"
-              onChange={e => e.target.value && handleMultiSelectChange('modelo', e.target.value)}
-              value=""
-            >
-              <option value="">Selecione...</option>
-              {filterOptions.modelos.slice(0, 50).map(m => (
-                <option key={m} value={m}>
-                  {activeFilters.modelo.includes(m) ? '✓ ' : ''}{m}
-                </option>
-              ))}
-            </select>
-            {activeFilters.modelo.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {activeFilters.modelo.length}
-              </span>
-            )}
-          </div>
-
-          {/* Multi-select: Banco */}
-          <div className="relative">
-            <label className="text-xs text-slate-500 mb-1 block">Banco</label>
-            <select
-              className="border p-2 rounded text-sm w-full"
-              onChange={e => e.target.value && handleMultiSelectChange('banco', e.target.value)}
-              value=""
-            >
-              <option value="">Selecione...</option>
-              {filterOptions.bancos.map(b => (
-                <option key={b} value={b}>
-                  {activeFilters.banco.includes(b) ? '✓ ' : ''}{b}
-                </option>
-              ))}
-            </select>
-            {activeFilters.banco.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {activeFilters.banco.length}
-              </span>
-            )}
-          </div>
-
-          {/* Clear button inline */}
+          {['montadora', 'modelo', 'banco'].map((field) => (
+            <div key={field}>
+              <label className="text-xs text-slate-500 block mb-1 capitalize">{field}</label>
+              <select className="border rounded p-2 text-sm w-full" onChange={e => e.target.value && handleMultiSelectChange(field as any, e.target.value)} value="">
+                <option value="">Selecione...</option>
+                {(filterOptions[field + 's' as keyof typeof filterOptions] as string[]).map((opt: string) => (
+                  <option key={opt} value={opt} className={activeFilters[field as keyof typeof activeFilters]?.includes(opt) ? 'bg-emerald-100' : ''}>
+                    {activeFilters[field as keyof typeof activeFilters]?.includes(opt) ? '✓ ' : ''}{opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
           <div className="flex items-end">
             {hasActiveFilters && (
-              <button
-                onClick={clearInteractiveFilters}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded text-sm transition-all"
-              >
+              <button onClick={clearInteractiveFilters} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded text-sm w-full transition-all">
                 Limpar Filtros
               </button>
             )}
@@ -669,613 +296,165 @@ export default function PurchasesDashboard(): JSX.Element {
         </div>
       </Card>
 
-      {/* Custom Tabs */}
+      {/* TABS */}
       <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-        {['Aquisição e Eficiência', 'Funding e Saúde Financeira', 'Auditoria (Compliance)'].map((tab, idx) => (
-          <button
-            key={idx}
-            onClick={() => setActiveTab(idx)}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === idx
-              ? 'bg-white text-emerald-600 shadow-sm'
-              : 'text-slate-600 hover:text-slate-900'
-              }`}
-          >
+        {['Aquisição e Eficiência', 'Funding (Origem)', 'Saúde Financeira (Dívida)', 'Auditoria (Compliance)'].map((tab, idx) => (
+          <button key={idx} onClick={() => setActiveTab(idx)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === idx ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
             {tab}
           </button>
         ))}
       </div>
 
-      <div className="mt-4">
-        {/* ABA 1: AQUISIÇÃO */}
-        {activeTab === 0 && (
-          <div className="space-y-6">
-            {/* KPIs */}
-            {/* Compact KPIs Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="mx-auto max-w-full p-4 flex items-center justify-between shadow-sm border border-slate-200 decoration-l-4 decoration-emerald-500">
-                <div>
-                  <p className="text-xs text-slate-500 font-medium">Total Investido</p>
-                  <p className="text-lg font-bold text-slate-900">{fmtCompact(acquisitionKPIs.totalInvest)}</p>
-                </div>
-                <ShoppingBag className="w-5 h-5 text-emerald-100 bg-emerald-600 rounded p-1" />
-              </Card>
-              <Card className="mx-auto max-w-full p-4 flex items-center justify-between shadow-sm border border-slate-200 decoration-l-4 decoration-blue-500">
-                <div>
-                  <p className="text-xs text-slate-500 font-medium">Veículos</p>
-                  <p className="text-lg font-bold text-slate-900">{acquisitionKPIs.count}</p>
-                </div>
-                <div className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  {fmtBRL(acquisitionKPIs.totalInvest / (acquisitionKPIs.count || 1))} med
-                </div>
-              </Card>
-              <Card className="mx-auto max-w-full p-4 flex items-center justify-between shadow-sm border border-slate-200 decoration-l-4 decoration-amber-500">
-                <div>
-                  <p className="text-xs text-slate-500 font-medium">% Médio FIPE</p>
-                  <p className="text-lg font-bold text-slate-900">{acquisitionKPIs.avgFipeCompra.toFixed(1)}%</p>
-                </div>
-                <div className={`text-xs font-medium px-2 py-1 rounded ${acquisitionKPIs.avgFipeCompra < 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                  {acquisitionKPIs.avgFipeCompra < 100 ? 'Bom' : 'Atenção'}
-                </div>
-              </Card>
-              <Card className="mx-auto max-w-full p-4 flex items-center justify-between shadow-sm border border-slate-200 decoration-l-4 decoration-violet-500">
-                <div>
-                  <p className="text-xs text-slate-500 font-medium">Acessórios</p>
-                  <p className="text-lg font-bold text-slate-900">{fmtCompact(acquisitionKPIs.totalAcessorios)}</p>
-                </div>
-              </Card>
-            </div>
+      {/* ABA 0: AQUISIÇÃO */}
+      {activeTab === 0 && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card decoration="top" decorationColor="emerald"><Text>Total Investido</Text><Metric>{fmtCompact(acquisitionKPIs.totalInvest)}</Metric></Card>
+            <Card decoration="top" decorationColor="emerald"><Text>Veículos</Text><Metric>{acquisitionKPIs.count}</Metric></Card>
+            <Card decoration="top" decorationColor="blue"><Text>Deságio Médio</Text><Metric>{acquisitionKPIs.avgDesagio.toFixed(2)}%</Metric></Card>
+            <Card decoration="top" decorationColor="violet"><Text>Acessórios</Text><Metric>{fmtCompact(acquisitionKPIs.totalAcessorios)}</Metric></Card>
+          </div>
 
-            {/* Charts Row 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2 bg-white border border-slate-200">
-                <Title>Evolução de Compras</Title>
-                <Text className="text-xs text-slate-500 mt-1">Clique em uma barra para filtrar por mês</Text>
-                <div className="h-80 mt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={evolutionData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="date" fontSize={12} tickFormatter={(v) => v.slice(5)} />
-                      <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
-                      <YAxis yAxisId="right" orientation="right" fontSize={12} tickFormatter={(v) => `${v} un`} />
-                      <Tooltip formatter={(v: any, name: string) => name === 'Quantidade' ? `${v} un` : fmtBRL(v)} />
-                      <Bar
-                        yAxisId="left"
-                        dataKey="Valor"
-                        radius={[4, 4, 0, 0]}
-                        barSize={50}
-                        onClick={(data) => handleMonthClick(data.date)}
-                        cursor="pointer"
-                      >
-                        {evolutionData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={activeFilters.mes === entry.date ? '#059669' : '#10b981'}
-                          />
-                        ))}
-                      </Bar>
-                      <Line yAxisId="right" type="monotone" dataKey="Quantidade" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-
-              <div className="space-y-6">
-                <Card className="bg-white border border-slate-200">
-                  <Title>Top Fornecedores</Title>
-                  <Text className="text-xs text-slate-500 mt-1">Clique em um fornecedor para filtrar</Text>
-                  <div className="mt-4 h-40 overflow-y-auto space-y-2">
-                    {supplierRanking.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => handleSupplierClick(item.name)}
-                        className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${activeFilters.fornecedor === item.name
-                          ? 'bg-emerald-100 border border-emerald-500'
-                          : 'bg-slate-50 hover:bg-slate-100 border border-transparent'
-                          }`}
-                      >
-                        <span className="text-xs font-medium text-slate-700 truncate flex-1">{item.name}</span>
-                        <span className="text-xs font-bold text-emerald-600 ml-2">{fmtCompact(item.value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-
-
-                <Card className="bg-white border border-slate-200">
-                  <Title>Dispersão de Preços (Scatter)</Title>
-                  <Text className="text-xs text-slate-500 mt-1">Relação Data vs Valor</Text>
-                  <div className="h-48 mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ScatterChart margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
-                        <CartesianGrid />
-                        <XAxis type="number" dataKey="x" name="Data" domain={['auto', 'auto']} tickFormatter={(v) => new Date(v).toLocaleDateString()} fontSize={10} />
-                        <YAxis type="number" dataKey="y" name="Valor" tickFormatter={fmtCompact} fontSize={10} width={40} />
-                        <Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(v: any, name: string) => name === 'Data' ? new Date(v).toLocaleDateString() : fmtBRL(v)} />
-                        <Scatter name="Compras" data={scatterData} fill="#8884d8">
-                          {scatterData.map((_entry, index) => (
-                            <Cell key={`cell-${index}`} fill="#10b981" />
-                          ))}
-                        </Scatter>
-                      </ScatterChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2">
+              <Title>Evolução de Compras (Clique para filtrar)</Title>
+              <div className="h-80 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={evolutionData} onClick={(e) => e && e.activePayload && setActiveFilters(prev => ({ ...prev, mes: prev.mes === e.activePayload![0].payload.date ? null : e.activePayload![0].payload.date }))}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" fontSize={12} />
+                    <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
+                    <YAxis yAxisId="right" orientation="right" fontSize={12} />
+                    <Tooltip />
+                    <Bar yAxisId="left" dataKey="Valor" fill="#10b981" radius={[4, 4, 0, 0]} cursor="pointer">
+                      {evolutionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={activeFilters.mes === entry.date ? '#047857' : '#10b981'} />
+                      ))}
+                    </Bar>
+                    <Line yAxisId="right" type="monotone" dataKey="Qtd" stroke="#f59e0b" strokeWidth={3} />
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-
-            <Card className="mt-6 p-0">
-              <div className="flex items-center justify-between p-6 border-b border-slate-100">
-                <div>
-                  <Title>Detalhamento de Aquisições</Title>
-                  <Text className="text-slate-500">Visão completa de cada veículo adquirido</Text>
+            </Card>
+            <Card>
+              <div className="flex justify-between items-center mb-4">
+                <Title>Top Fornecedores</Title>
+                <div className="flex text-xs bg-slate-100 rounded p-1">
+                  <button onClick={() => setViewModeFornecedor('valor')} className={`px-2 py-1 rounded ${viewModeFornecedor === 'valor' ? 'bg-white shadow' : ''}`}>R$</button>
+                  <button onClick={() => setViewModeFornecedor('qtd')} className={`px-2 py-1 rounded ${viewModeFornecedor === 'qtd' ? 'bg-white shadow' : ''}`}>Qtd</button>
                 </div>
-                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">
-                  {detailedAcquisitions.length} veículos
-                </span>
               </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-emerald-50 text-emerald-700 uppercase text-xs">
-                    <tr>
-                      <th className="px-4 py-3">Placa</th>
-                      <th className="px-4 py-3">Montadora</th>
-                      <th className="px-4 py-3">Modelo</th>
-                      <th className="px-4 py-3">Ano/Cor</th>
-                      <th className="px-4 py-3">Km</th>
-                      <th className="px-4 py-3">Data Compra</th>
-                      <th className="px-4 py-3">Fornecedor</th>
-                      <th className="px-4 py-3 text-right">Valor Compra</th>
-                      <th className="px-4 py-3 text-center">% FIPE</th>
-                      <th className="px-4 py-3 text-center">Situação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {paginatedAcquisitions.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-emerald-50/50">
-                        <td className="px-4 py-3 font-mono font-semibold text-slate-900">{item.placa}</td>
-                        <td className="px-4 py-3 text-slate-700">{item.montadora}</td>
-                        <td className="px-4 py-3 text-slate-700">{item.modelo}</td>
-                        <td className="px-4 py-3 text-slate-600 text-xs">
-                          {item.ano} <span className="text-slate-400">|</span> {item.cor}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 text-xs">{item.km}</td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {item.dataCompra ? new Date(item.dataCompra).toLocaleDateString('pt-BR') : 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 max-w-[150px] truncate" title={item.fornecedor}>
-                          {item.fornecedor}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-900">{fmtBRL(item.valorCompra)}</td>
-                        <td className="px-4 py-3 text-center">
-                          {item.percentFipe > 0 ? (
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.percentFipe < 85 ? 'bg-emerald-100 text-emerald-700' :
-                              item.percentFipe < 100 ? 'bg-blue-100 text-blue-700' :
-                                item.percentFipe < 105 ? 'bg-amber-100 text-amber-700' :
-                                  'bg-red-100 text-red-700'
-                              }`}>
-                              {item.percentFipe.toFixed(1)}%
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.situacao === 'Vendido' ? 'bg-slate-100 text-slate-600' :
-                            item.situacao === 'Locado' ? 'bg-emerald-100 text-emerald-700' :
-                              item.situacao === 'Bloqueado' ? 'bg-red-100 text-red-700' :
-                                'bg-blue-100 text-blue-700'
-                            }`}>
-                            {item.situacao}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.tempoEmFrota < 12 ? 'bg-emerald-100 text-emerald-700' :
-                            item.tempoEmFrota < 24 ? 'bg-blue-100 text-blue-700' :
-                              item.tempoEmFrota < 36 ? 'bg-amber-100 text-amber-700' :
-                                'bg-red-100 text-red-700'
-                            }`}>
-                            {item.tempoEmFrota} meses
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="h-80 overflow-y-auto">
+                <BarList data={supplierRanking} valueFormatter={viewModeFornecedor === 'valor' ? fmtCompact : undefined} color="emerald" />
               </div>
-
-              {/* Pagination */}
-              {totalAcquisitionPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
-                  <Text className="text-slate-500">
-                    Página {acquisitionPage + 1} de {totalAcquisitionPages}
-                  </Text>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setAcquisitionPage(p => Math.max(0, p - 1))}
-                      disabled={acquisitionPage === 0}
-                      className="px-3 py-1 bg-slate-100 text-slate-600 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-200"
-                    >
-                      ← Anterior
-                    </button>
-                    <button
-                      onClick={() => setAcquisitionPage(p => Math.min(totalAcquisitionPages - 1, p + 1))}
-                      disabled={acquisitionPage >= totalAcquisitionPages - 1}
-                      className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-200"
-                    >
-                      Próxima →
-                    </button>
-                  </div>
-                </div>
-              )}
             </Card>
           </div>
-        )
-        }
+        </div>
+      )}
 
-        {/* ABA 2: FUNDING */}
-        {
-          activeTab === 1 && (
-            <>
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
-                    <Text className="text-slate-500">Total Financiado</Text>
-                    <Metric className="text-slate-900">{fmtCompact(fundingKPIs.totalFinanced)}</Metric>
-                  </Card>
-                  <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
-                    <Text className="text-slate-500">Alavancagem (LTV)</Text>
-                    <Metric className="text-slate-900">{fundingKPIs.leverage.toFixed(1)}%</Metric>
-                  </Card>
-                  <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
-                    <Text className="text-slate-500">Parcela Média</Text>
-                    <Metric className="text-slate-900">{fmtBRL(fundingKPIs.avgParcela)}</Metric>
-                  </Card>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card className="bg-white border border-slate-200">
-                    <Title>Mix de Capital</Title>
-                    <DonutChart
-                      className="mt-6 h-60"
-                      data={capitalMix}
-                      category="value"
-                      index="name"
-                      valueFormatter={fmtCompact}
-                      colors={['emerald', 'indigo']}
-                    />
-                  </Card>
-                  <Card className="bg-white border border-slate-200">
-                    <Title>Exposição por Banco</Title>
-                    <div className="mt-4 h-60 overflow-y-auto space-y-2">
-                      {debtByBank.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-2 rounded bg-slate-50"
-                        >
-                          <span className="text-sm font-medium text-slate-700 truncate flex-1">{item.name}</span>
-                          <span className="text-sm font-bold text-indigo-600 ml-2">{fmtCompact(item.value)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
-
-                <Card className="bg-white border border-slate-200">
-                  <Title>Cronograma Estimado de Vencimento (36 meses)</Title>
-                  <div className="h-72 mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={maturitySchedule}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="date" fontSize={12} tickFormatter={(v) => v.slice(5)} />
-                        <YAxis fontSize={12} tickFormatter={fmtCompact} />
-                        <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                        <Line type="monotone" dataKey="Vencimento" stroke="#6366f1" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
+      {/* ABA 1: FUNDING (ORIGEM) */}
+      {activeTab === 1 && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card decoration="top" decorationColor="indigo">
+              <Text>Total Financiado (Neste Período)</Text>
+              <Metric>{fmtBRL(fundingKPIs.totalFinanced)}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="indigo">
+              <Text>Alavancagem (LTV)</Text>
+              <Metric>{fundingKPIs.leverage.toFixed(1)}%</Metric>
+            </Card>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <Title>Mix de Capital</Title>
+              <DonutChart className="mt-6 h-60" data={capitalMix} category="value" index="name" valueFormatter={fmtCompact} colors={['emerald', 'indigo']} />
+            </Card>
+            <Card>
+              <Title>Bancos Utilizados na Compra</Title>
+              <Text className="text-xs text-slate-500">Baseado nos veículos filtrados</Text>
+              <div className="mt-6 h-60 overflow-y-auto">
+                <BarList
+                  data={Object.entries(filteredCompras.reduce((acc: any, r: AnyObject) => {
+                    const b = r.Banco || 'N/A';
+                    acc[b] = (acc[b] || 0) + parseCurrency(r.ValorFinanciado);
+                    return acc;
+                  }, {})).map(([name, value]: any) => ({ name, value })).sort((a, b) => b.value - a.value)}
+                  valueFormatter={fmtCompact}
+                  color="indigo"
+                />
               </div>
+            </Card>
+          </div>
+        </div>
+      )}
 
-              {/* SEÇÃO: SAÚDE FINANCEIRA */}
-              <div className="mt-6 space-y-6">
-                {/* Header with Link to Full Dashboard */}
-                <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Text className="font-semibold text-indigo-900">Visão Resumida da Saúde Financeira</Text>
-                      <Text className="text-sm text-indigo-600 mt-1">
-                        Acesse a Gestão Completa de Passivo para análises avançadas, alertas e simulações
-                      </Text>
-                    </div>
-                    <a
-                      href="/analytics/funding"
-                      className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-                    >
-                      Ver Gestão Completa →
-                    </a>
-                  </div>
-                </Card>
-
-                {/* KPIs Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card className="bg-white border border-slate-200">
-                    <Text className="text-slate-600">Saldo Devedor Total</Text>
-                    <Metric className="text-indigo-600">{fmtCompact(financialHealthKPIs.saldoDevedorTotal)}</Metric>
-                    <Text className="text-xs text-slate-500 mt-2">{financialHealthKPIs.veiculosFinanciados} veículos financiados</Text>
-                  </Card>
-
-                  <Card className="bg-white border border-slate-200">
-                    <Text className="text-slate-600">Parcela Média</Text>
-                    <Metric className="text-blue-600">{fmtBRL(financialHealthKPIs.parcelaMedia)}</Metric>
-                    <Text className="text-xs text-slate-500 mt-2">Por veículo</Text>
-                  </Card>
-
-                  <Card className="bg-white border border-slate-200">
-                    <Text className="text-slate-600">% Em Dia</Text>
-                    <Metric className={financialHealthKPIs.percentualEmDia >= 90 ? "text-emerald-600" : "text-amber-600"}>
-                      {financialHealthKPIs.percentualEmDia.toFixed(1)}%
-                    </Metric>
-                    <Text className="text-xs text-slate-500 mt-2">
-                      {financialHealthKPIs.percentualEmDia >= 90 ? '✅ Excelente' : '⚠️ Atenção'}
-                    </Text>
-                  </Card>
-
-                  <Card className="bg-white border border-slate-200">
-                    <Text className="text-slate-600">Prazo Médio Restante</Text>
-                    <Metric className="text-slate-700">{financialHealthKPIs.prazoMedioRestante.toFixed(0)} meses</Metric>
-                    <Text className="text-xs text-slate-500 mt-2">Tempo médio para quitação</Text>
-                  </Card>
-                </div>
-
-                {/* Charts Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Payment Schedule Chart */}
-                  <Card className="bg-white border border-slate-200">
-                    <Title>Cronograma de Vencimentos (36 meses)</Title>
-                    <Text className="mb-4">Projeção de fluxo de caixa futuro</Text>
-                    <div className="h-80 mt-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={paymentSchedule.slice(0, 24)}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis
-                            dataKey="mes"
-                            fontSize={11}
-                            tickFormatter={(v) => {
-                              const [year, month] = v.split('-');
-                              return `${month}/${year.slice(2)}`;
-                            }}
-                          />
-                          <YAxis fontSize={12} tickFormatter={fmtCompact} />
-                          <Tooltip
-                            formatter={(v: any) => fmtBRL(v)}
-                            labelFormatter={(label) => {
-                              const [year, month] = label.split('-');
-                              return `${month}/${year}`;
-                            }}
-                          />
-                          <Bar dataKey="valor" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  {/* Bank Exposure Chart */}
-                  <Card className="bg-white border border-slate-200">
-                    <Title>Exposição por Banco</Title>
-                    <Text className="mb-4">Saldo devedor por instituição financeira</Text>
-                    <div className="h-80 mt-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={bankExposure}
-                          layout="vertical"
-                        >
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                          <XAxis type="number" fontSize={12} tickFormatter={fmtCompact} />
-                          <YAxis
-                            type="category"
-                            dataKey="name"
-                            width={120}
-                            fontSize={12}
-                            tick={{ fill: '#475569' }}
-                          />
-                          <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                          <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Risk Vehicles Table */}
-                {riskVehicles.length > 0 && (
-                  <Card className="bg-white border border-red-200">
-                    <div className="flex items-center gap-2 mb-4">
-                      <ShieldAlert className="w-5 h-5 text-red-600" />
-                      <Title className="text-red-700">Veículos em Situação de Risco</Title>
-                    </div>
-                    <Text className="mb-4 text-red-600">
-                      {riskVehicles.length} {riskVehicles.length === 1 ? 'veículo identificado' : 'veículos identificados'} com pagamento atrasado
-                    </Text>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-red-50 text-red-700 uppercase text-xs">
-                          <tr>
-                            <th className="px-4 py-3">Placa</th>
-                            <th className="px-4 py-3">Modelo</th>
-                            <th className="px-4 py-3">Banco</th>
-                            <th className="px-4 py-3 text-right">Saldo Devedor</th>
-                            <th className="px-4 py-3 text-center">Parcelas Restantes</th>
-                            <th className="px-4 py-3 text-center">Situação</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-red-100">
-                          {riskVehicles.map((v, i) => (
-                            <tr key={i} className="hover:bg-red-50">
-                              <td className="px-4 py-3 font-medium text-slate-900">{v.placa}</td>
-                              <td className="px-4 py-3 text-slate-600">{v.modelo}</td>
-                              <td className="px-4 py-3 text-slate-600">{v.banco}</td>
-                              <td className="px-4 py-3 text-right font-medium text-red-600">{fmtBRL(v.saldoDevedor)}</td>
-                              <td className="px-4 py-3 text-center text-slate-700">{v.parcelasRestantes}</td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                  {v.situacao}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Card>
-                )}
-
-                {/* Empty State */}
-                {riskVehicles.length === 0 && (
-                  <Card className="bg-white border border-emerald-200">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                        <span className="text-white text-xs font-bold">✓</span>
-                      </div>
-                      <Title className="text-emerald-700">Saúde Financeira Excelente</Title>
-                    </div>
-                    <Text className="text-emerald-600">
-                      Nenhum veículo com pagamento atrasado identificado no momento.
-                    </Text>
-                  </Card>
-                )}
-              </div>
-            </>
-          )
-        }
-
-        {/* ABA 4: AUDITORIA */}
-        {
-          activeTab === 2 && (
-            <div className="mt-6">
-              <Card className="bg-white border border-slate-200">
-                <div className="flex items-center gap-2 mb-4">
-                  <ShieldAlert className="w-5 h-5 text-red-600" />
-                  <Title>Compras Fora do Padrão</Title>
-                </div>
-                <Text className="mb-4">Listando compras com dados incompletos, valores suspeitos, datas inválidas ou discrepâncias financeiras acentuadas.</Text>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
-                      <tr>
-                        <th className="px-4 py-3">Placa</th>
-                        <th className="px-4 py-3">Modelo</th>
-                        <th className="px-4 py-3">Data Compra</th>
-                        <th className="px-4 py-3">Código FIPE</th>
-                        <th className="px-4 py-3">Fornecedor</th>
-                        <th className="px-4 py-3 text-right">Compra</th>
-                        <th className="px-4 py-3 text-right">FIPE na Data</th>
-                        <th className="px-4 py-3 text-center">% Fipe</th>
-                        <th className="px-4 py-3 text-right">Diferença</th>
-                        <th className="px-4 py-3 text-center">Situação</th>
-                        <th className="px-4 py-3 text-center">Motivo Auditoria</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {paginatedAuditList.map((r, i) => {
-                        const getBadgeColor = (situacao: string) => {
-                          if (!situacao) return 'bg-slate-100 text-slate-700';
-                          const s = situacao.toLowerCase();
-                          if (s.includes('disponível') || s.includes('disponivel')) return 'bg-emerald-100 text-emerald-700';
-                          if (s.includes('locado') || s.includes('alugado')) return 'bg-blue-100 text-blue-700';
-                          if (s.includes('manutenção') || s.includes('manutencao')) return 'bg-amber-100 text-amber-700';
-                          if (s.includes('vendido') || s.includes('baixado')) return 'bg-slate-100 text-slate-700';
-                          return 'bg-slate-100 text-slate-700';
-                        };
-
-                        return (
-                          <tr key={i} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 font-medium">{r.placa}</td>
-                            <td className="px-4 py-3 text-slate-600">{r.modelo}</td>
-                            <td className="px-4 py-3 text-slate-500 text-sm">{r.dataCompra ? new Date(r.dataCompra).toLocaleDateString('pt-BR') : '-'}</td>
-                            <td className="px-4 py-3 text-slate-600 font-mono text-xs">{r.codigoFipe || '-'}</td>
-                            <td className="px-4 py-3 text-slate-600">{r.fornecedor}</td>
-                            <td className="px-4 py-3 text-right font-medium text-slate-900">{fmtBRL(r.compra)}</td>
-                            <td className="px-4 py-3 text-right text-slate-500">{fmtBRL(r.fipe)}</td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${r.percentFipe < 100 ? 'bg-emerald-100 text-emerald-700' :
-                                r.percentFipe <= 105 ? 'bg-amber-100 text-amber-700' :
-                                  'bg-red-100 text-red-700'
-                                }`}>
-                                {r.percentFipe.toFixed(1)}%
-                              </span>
-                            </td>
-                            <td className={`px-4 py-3 text-right font-medium ${r.diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {r.diff > 0 ? '+' : ''}{fmtBRL(r.diff)}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(r.situacao)}`}>
-                                {r.situacao || 'N/A'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                {r.reason}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {auditList.length === 0 && (
-                        <tr>
-                          <td colSpan={11} className="px-4 py-8 text-center text-slate-400">Nenhuma inconformidade encontrada.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination Controls */}
-                {totalAuditPages > 1 && (
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
-                    <div className="text-sm text-slate-500">
-                      Mostrando {((auditPage - 1) * AUDIT_PAGE_SIZE) + 1} - {Math.min(auditPage * AUDIT_PAGE_SIZE, auditList.length)} de {auditList.length} registros
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setAuditPage(p => Math.max(1, p - 1))}
-                        disabled={auditPage === 1}
-                        className="px-3 py-1 text-sm border rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Anterior
-                      </button>
-                      <span className="text-sm text-slate-600">
-                        Página {auditPage} de {totalAuditPages}
-                      </span>
-                      <button
-                        onClick={() => setAuditPage(p => Math.min(totalAuditPages, p + 1))}
-                        disabled={auditPage === totalAuditPages}
-                        className="px-3 py-1 text-sm border rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Próxima
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-              </Card>
+      {/* ABA 2: SAÚDE FINANCEIRA (DÍVIDA ATUAL) */}
+      {activeTab === 2 && (
+        <div className="space-y-6">
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex gap-3">
+            <ShieldAlert className="text-blue-600 w-6 h-6" />
+            <div>
+              <Text className="text-blue-900 font-medium">Filtro Inteligente Ativo</Text>
+              <Text className="text-blue-700 text-sm">
+                Os dados abaixo mostram a dívida atual APENAS dos veículos selecionados nos filtros acima (Ex: Se filtrou "Toyota", mostra a dívida dos Toyotas).
+              </Text>
             </div>
-          )
-        }
+          </div>
 
-        {/* Floating Clear Filters Button */}
-        {
-          hasActiveFilters && (
-            <button
-              onClick={clearInteractiveFilters}
-              className="fixed bottom-6 right-6 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all z-50"
-            >
-              <Filter className="w-5 h-5" />
-              Limpar Filtros
-            </button>
-          )
-        }
-      </div>
-    </div >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card decoration="top" decorationColor="rose"><Text>Saldo Devedor Atual</Text><Metric>{fmtBRL(debtKPIs.saldoDevedor)}</Metric></Card>
+            <Card decoration="top" decorationColor="rose"><Text>Fluxo Mensal (Parcelas)</Text><Metric>{fmtBRL(debtKPIs.fluxoMensal)}</Metric></Card>
+            <Card decoration="top" decorationColor="rose"><Text>Contratos Ativos</Text><Metric>{debtKPIs.contratos}</Metric></Card>
+          </div>
+
+          <Card>
+            <div className="flex justify-between items-center mb-4">
+              <Title>Exposição por Banco (Saldo Devedor)</Title>
+              <div className="flex text-xs bg-slate-100 rounded p-1">
+                <button onClick={() => setViewModeBanco('valor')} className={`px-2 py-1 rounded ${viewModeBanco === 'valor' ? 'bg-white shadow' : ''}`}>R$</button>
+                <button onClick={() => setViewModeBanco('qtd')} className={`px-2 py-1 rounded ${viewModeBanco === 'qtd' ? 'bg-white shadow' : ''}`}>Qtd</button>
+              </div>
+            </div>
+            <div className="h-80 overflow-y-auto">
+              <BarList data={debtByBank} valueFormatter={viewModeBanco === 'valor' ? fmtCompact : undefined} color="rose" />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ABA 3: AUDITORIA */}
+      {activeTab === 3 && (
+        <Card>
+          <Title className="mb-4">Compras Fora do Padrão</Title>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
+                <tr>
+                  <th className="px-4 py-2">Placa</th>
+                  <th className="px-4 py-2">Modelo</th>
+                  <th className="px-4 py-2 text-right">Compra</th>
+                  <th className="px-4 py-2 text-right">FIPE Data</th>
+                  <th className="px-4 py-2 text-center">Alerta</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {auditList.map((r: any, i: number) => (
+                  <tr key={i} className="hover:bg-slate-50">
+                    <td className="px-4 py-2 font-medium">{r.Placa}</td>
+                    <td className="px-4 py-2 text-slate-500">{r.Modelo}</td>
+                    <td className="px-4 py-2 text-right">{fmtBRL(r.compra)}</td>
+                    <td className="px-4 py-2 text-right">{fmtBRL(r.fipe)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">{r.reason}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
   );
 }

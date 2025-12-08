@@ -39,22 +39,20 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
-      {
-        label: 'Analytics',
-        url: '/analytics',
-        icon: BarChart3,
-        children: [
-          { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-          { label: 'Gestão de Passivo', url: '/analytics/funding', icon: BarChart3 },
-          { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
-          { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
-          { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
-          { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
-          { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
-          { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
-        ],
-      },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },
+    ]
+  },
+  {
+    title: 'ANALYTICS',
+    items: [
+      { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
+      { label: 'Gestão de Passivo', url: '/analytics/funding', icon: BarChart3 },
+      { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
+      { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
+      { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
+      { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
+      { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
+      { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
     ]
   },
   {
