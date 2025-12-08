@@ -4,6 +4,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Interface para subordinados diretos com informação de equipe
+export interface DirectReportWithTeam {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  nivel_acesso: string | null;
+  has_subordinates: boolean;
+  subordinates_count: number;
+}
+
 // Tipos
 export interface TeamMember {
   id: string;
@@ -82,23 +92,66 @@ export const useTeamMembers = () => {
   });
 };
 
-// Hook para obter toda a hierarquia da equipe (recursivo)
-export const useTeamHierarchyFull = () => {
+// Hook para obter subordinados diretos COM informação de quem tem equipe própria
+export const useDirectReportsWithTeams = () => {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['team-hierarchy-full', user?.id],
+    queryKey: ['direct-reports-with-teams', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      // Para visão de gerente/visão completa, usamos a RPC que retorna os IDs permitidos
-      const { data: ids, error: idsError } = await supabase.rpc('get_my_subordinates_ids');
-      if (idsError) throw idsError;
-      if (!ids || (Array.isArray(ids) && ids.length === 0)) return [];
+      
+      const { data, error } = await supabase.rpc('get_direct_reports', { 
+        supervisor_uuid: user.id 
+      });
+      
+      if (error) throw error;
+      return (data || []) as DirectReportWithTeam[];
+    },
+    enabled: !!user?.id,
+  });
+};
 
-      // ids pode vir como array de uuids ou objetos dependendo da RPC; garantir array de strings
-      const idList: string[] = Array.isArray(ids) ? ids.map((it: any) => (typeof it === 'string' ? it : (it?.id || it?.team_member_id || String(it)))) : [];
-
-      const uniqueIds = Array.from(new Set(idList.filter(Boolean)));
+// Hook para obter toda a hierarquia da equipe (recursivo)
+// Aceita managerId opcional para buscar subordinados de um gerente específico
+export const useTeamHierarchyFull = (managerId?: string | null) => {
+  const { user } = useAuth();
+  const targetId = managerId || user?.id;
+  
+  return useQuery({
+    queryKey: ['team-hierarchy-full', targetId, managerId],
+    queryFn: async () => {
+      if (!targetId) return [];
+      
+      let ids: string[] = [];
+      
+      // Se managerId foi passado, usa a RPC específica para buscar subordinados dele
+      if (managerId && managerId !== 'direct') {
+        const { data, error } = await supabase.rpc('get_subordinates_of_manager', { 
+          manager_id: managerId 
+        });
+        if (error) throw error;
+        ids = (data || []).map((id: any) => String(id));
+      } else if (managerId === 'direct') {
+        // Apenas subordinados diretos do usuário logado
+        const { data, error } = await supabase
+          .from('user_hierarchy')
+          .select('user_id')
+          .eq('supervisor_id', user?.id || '');
+        if (error) throw error;
+        ids = (data || []).map((d: any) => d.user_id);
+      } else {
+        // Comportamento padrão: todos os subordinados do usuário logado
+        const { data, error } = await supabase.rpc('get_my_subordinates_ids');
+        if (error) throw error;
+        ids = Array.isArray(data) 
+          ? data.map((it: any) => (typeof it === 'string' ? it : (it?.id || it?.team_member_id || String(it))))
+          : [];
+      }
+      
+      if (!ids || ids.length === 0) return [];
+      
+      const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
 
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
@@ -108,7 +161,7 @@ export const useTeamHierarchyFull = () => {
       if (profilesError) throw profilesError;
       return profiles;
     },
-    enabled: !!user?.id,
+    enabled: !!targetId,
   });
 };
 
