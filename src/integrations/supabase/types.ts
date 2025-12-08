@@ -2746,6 +2746,17 @@ export type Database = {
     Functions: {
       check_whatsapp_status: { Args: never; Returns: string }
       generate_ticket_number: { Args: never; Returns: string }
+      get_direct_reports: {
+        Args: { supervisor_uuid: string }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          has_subordinates: boolean
+          nivel_acesso: string
+          subordinates_count: number
+          user_id: string
+        }[]
+      }
       get_direct_supervisor: {
         Args: { user_uuid: string }
         Returns: {
@@ -2779,6 +2790,10 @@ export type Database = {
           updated_at: string
           user_id: string
         }[]
+      }
+      get_subordinates_of_manager: {
+        Args: { manager_id: string }
+        Returns: string[]
       }
       get_team_count: { Args: { user_uuid: string }; Returns: number }
       get_user_modules: {

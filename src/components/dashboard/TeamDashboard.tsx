@@ -6,11 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { useTeamHierarchyFull, useTeamCount } from '@/hooks/useTeamHierarchy';
+import { useTeamHierarchyFull, useTeamCount, useDirectReportsWithTeams } from '@/hooks/useTeamHierarchy';
 import { useTasks } from '@/hooks/useTasks';
 import { useAuth } from '@/contexts/AuthContext';
 import { getInitials, cn } from '@/lib/utils';
 import { parseISODateSafe } from '@/lib/dateUtils';
+import { TeamSelector } from './TeamSelector';
+import { TeamViewBanner } from './TeamViewBanner';
 import { 
   Users, 
   Target, 
@@ -41,10 +43,22 @@ type PeriodFilter = '7d' | '30d' | '90d' | 'all';
 
 export function TeamDashboard() {
   const { user } = useAuth();
-  const { data: teamMembers, isLoading: loadingTeam } = useTeamHierarchyFull();
+  const [period, setPeriod] = useState<PeriodFilter>('30d');
+  const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null);
+  
+  // Buscar subordinados diretos com informação de quem tem equipe
+  const { data: directReports, isLoading: loadingDirectReports } = useDirectReportsWithTeams();
+  
+  // Buscar membros da equipe (filtrando por gerente se selecionado)
+  const { data: teamMembers, isLoading: loadingTeam } = useTeamHierarchyFull(selectedManagerId);
   const { data: teamCount } = useTeamCount();
   const { tasks, loading: loadingTasks } = useTasks({});
-  const [period, setPeriod] = useState<PeriodFilter>('30d');
+  
+  // Encontrar o gerente selecionado para exibir informações no banner
+  const selectedManager = useMemo(() => {
+    if (!selectedManagerId || selectedManagerId === 'direct') return null;
+    return directReports?.find(r => r.user_id === selectedManagerId) || null;
+  }, [selectedManagerId, directReports]);
 
   // Filtra tarefas por período
   const filteredTasks = useMemo(() => {
@@ -143,7 +157,7 @@ export function TeamDashboard() {
     );
   }
 
-  if (loadingTeam || loadingTasks) {
+  if (loadingTeam || loadingTasks || loadingDirectReports) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -159,10 +173,13 @@ export function TeamDashboard() {
       </div>
     );
   }
+  
+  // Verificar se há gerentes com equipes para mostrar o seletor
+  const hasManagersWithTeams = directReports && directReports.some(r => r.has_subordinates);
 
   return (
     <div className="space-y-6">
-      {/* Header com Filtro de Período */}
+      {/* Header com Filtros */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -174,18 +191,41 @@ export function TeamDashboard() {
           </p>
         </div>
         
-        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="30d">Últimos 30 dias</SelectItem>
-            <SelectItem value="90d">Últimos 90 dias</SelectItem>
-            <SelectItem value="all">Todo o período</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {/* Seletor de Equipe - só aparece se houver gerentes com equipes */}
+          {hasManagersWithTeams && (
+            <TeamSelector 
+              directReports={directReports || []}
+              selectedTeam={selectedManagerId}
+              onSelectTeam={setSelectedManagerId}
+              isLoading={loadingDirectReports}
+            />
+          )}
+          
+          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodFilter)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Últimos 7 dias</SelectItem>
+              <SelectItem value="30d">Últimos 30 dias</SelectItem>
+              <SelectItem value="90d">Últimos 90 dias</SelectItem>
+              <SelectItem value="all">Todo o período</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+      
+      {/* Banner de contexto quando visualizando equipe específica */}
+      {selectedManagerId && (
+        <TeamViewBanner
+          managerName={selectedManager?.full_name || null}
+          managerAvatar={selectedManager?.avatar_url}
+          membersCount={teamMembers?.length || 0}
+          isDirectReports={selectedManagerId === 'direct'}
+          onBack={() => setSelectedManagerId(null)}
+        />
+      )}
 
       {/* KPIs Consolidados */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
