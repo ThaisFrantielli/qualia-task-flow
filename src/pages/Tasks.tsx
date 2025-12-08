@@ -211,7 +211,8 @@ const TasksPage = () => {
           <ProjectsListCascade 
             projetos={projects} 
             modoFoco={!!focusMode} 
-            teamFilter={filters.teamFilter} 
+            teamFilter={filters.teamFilter}
+            assigneeFilter={assigneeFilter}
             onOpenSubtask={(id) => setViewingSubtaskId(id)} 
           />
         ) : currentView === 'kanban' ? (
