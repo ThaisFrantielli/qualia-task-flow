@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProjects } from '@/hooks/useProjects';
 import ProjectsListCascade from '@/components/projects/ProjectsListCascade';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,12 +23,18 @@ import { ViewToggle, type ViewType } from '@/components/tasks/ViewToggle';
 import { FocusModeSelector, type FocusModeType } from '@/components/tasks/FocusModeSelector';
 import { TasksKanbanView } from '@/components/tasks/TasksKanbanView';
 import { TasksCalendarView } from '@/components/tasks/TasksCalendarView';
+import { AssigneeFilterBanner } from '@/components/tasks/AssigneeFilterBanner';
 
 const TasksPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const assigneeFilter = searchParams.get('assignee');
+  
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
-  const [filters, setFilters] = useState<AllTaskFilters>({});
+  const [filters, setFilters] = useState<AllTaskFilters>(() => ({
+    assignee_id: assigneeFilter || undefined,
+  }));
   const [focusMode, setFocusMode] = useState<FocusModeType>('none');
   const [taskToDelete, setTaskToDelete] = useState<TaskWithDetails | null>(null);
   const [viewingSubtaskId, setViewingSubtaskId] = useState<string | null>(null);
@@ -37,6 +43,14 @@ const TasksPage = () => {
   });
   const { projects } = useProjects();
   const { tasks, deleteTask, createTask, loading, updateTask } = useTasks(filters);
+
+  // Sincronizar filtro com URL quando assignee muda
+  useEffect(() => {
+    setFilters(prev => ({
+      ...prev,
+      assignee_id: assigneeFilter || undefined,
+    }));
+  }, [assigneeFilter]);
 
   // Aplica filtro do modo foco
   const getFilteredTasks = () => {
@@ -88,6 +102,12 @@ const TasksPage = () => {
   const handleClearFilters = () => {
     setFilters({});
     setFocusMode('none');
+    setSearchParams({});
+  };
+
+  const handleClearAssigneeFilter = () => {
+    setSearchParams({});
+    setFilters(prev => ({ ...prev, assignee_id: undefined }));
   };
 
   const handleCreateAndNavigate = async () => {
@@ -165,6 +185,14 @@ const TasksPage = () => {
           </Button>
         </div>
       </div>
+
+      {/* Banner de Filtro por Membro */}
+      {assigneeFilter && (
+        <AssigneeFilterBanner 
+          userId={assigneeFilter} 
+          onClear={handleClearAssigneeFilter} 
+        />
+      )}
 
       {/* Filtros */}
       <TasksFilters
