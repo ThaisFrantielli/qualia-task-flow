@@ -37,6 +37,7 @@ interface ProjectsListCascadeProps {
   projetos: Project[];
   modoFoco?: boolean;
   teamFilter?: string | null;
+  assigneeFilter?: string | null;
   onProjectDeleted?: () => void;
   onOpenSubtask?: (subtaskId: string) => void;
 }
@@ -52,9 +53,10 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 
 
-const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, teamFilter, onProjectDeleted, onOpenSubtask }) => {
+const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, teamFilter, assigneeFilter, onProjectDeleted, onOpenSubtask }) => {
   // const navigate = useNavigate();
-  const { tasks, deleteTask } = useTasks({});
+  // Passa o filtro de assignee para useTasks para filtrar corretamente
+  const { tasks, deleteTask } = useTasks({ assignee_id: assigneeFilter || undefined });
   const navigate = useNavigate();
   const { portfolios, loading: loadingPortfolios, error: errorPortfolios } = usePortfolios();
   const [expandedPortfolios, setExpandedPortfolios] = useState<Set<string>>(new Set());
@@ -129,12 +131,32 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
   // Fallback defensivo para garantir arrays
   const safePortfolios = Array.isArray(portfolios) ? portfolios : [];
   const safeProjetos = Array.isArray(projetos) ? projetos : [];
-  if (safePortfolios.length === 0 && safeProjetos.length === 0) {
+  
+  // Quando há filtro de assignee, identificar quais projetos têm tarefas do assignee
+  const projectIdsWithAssigneeTasks = assigneeFilter
+    ? new Set(tasks.filter(t => t.assignee_id === assigneeFilter).map(t => t.project_id).filter(Boolean))
+    : null;
+  
+  // Filtrar projetos: se há assigneeFilter, mostrar apenas projetos com tarefas do assignee
+  const filteredProjetos = assigneeFilter
+    ? safeProjetos.filter(p => projectIdsWithAssigneeTasks?.has(p.id))
+    : safeProjetos;
+  
+  // Verificar se há tarefas sem projeto do assignee (para mostrar na seção "Sem Projeto")
+  const hasOrphanTasks = assigneeFilter
+    ? tasks.some(t => t.assignee_id === assigneeFilter && !t.project_id)
+    : tasks.some(t => !t.project_id);
+  
+  if (safePortfolios.length === 0 && filteredProjetos.length === 0 && !hasOrphanTasks) {
     return (
       <div className="text-center py-16 border-2 border-dashed rounded-lg mt-8">
         <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold">Nenhum portfólio ou projeto encontrado</h3>
-        <p className="text-gray-500 mt-2 mb-4">Crie um portfólio ou projeto para começar a organizar.</p>
+        <h3 className="text-xl font-semibold">
+          {assigneeFilter ? 'Nenhuma tarefa encontrada para este membro' : 'Nenhum portfólio ou projeto encontrado'}
+        </h3>
+        <p className="text-gray-500 mt-2 mb-4">
+          {assigneeFilter ? 'Este membro não possui tarefas atribuídas.' : 'Crie um portfólio ou projeto para começar a organizar.'}
+        </p>
       </div>
     );
   }
@@ -157,7 +179,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
         <TableBody>
           {/* Portfólios e seus projetos */}
           {(safePortfolios || []).map((portfolio) => {
-            let projectsInPortfolio = safeProjetos.filter(p => p.portfolio_id === portfolio.id);
+            let projectsInPortfolio = filteredProjetos.filter(p => p.portfolio_id === portfolio.id);
             // If focus mode is active, keep only projects that have at least one high-priority task
             if (modoFoco) {
               const projectIdsWithHighPriority = new Set(
@@ -165,6 +187,8 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
               );
               projectsInPortfolio = projectsInPortfolio.filter(p => projectIdsWithHighPriority.has(p.id));
             }
+            // Skip empty portfolios when filtering by assignee
+            if (assigneeFilter && projectsInPortfolio.length === 0) return null;
             return (
               <React.Fragment key={portfolio.id}>
                 <TableRow className="bg-muted/20 group hover:bg-muted/30 transition-colors">
@@ -487,7 +511,7 @@ const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, mod
             );
           })}
           {/* Projetos sem portfólio */}
-          {(safeProjetos || []).filter(p => !p.portfolio_id).map((project) => {
+          {(filteredProjetos || []).filter(p => !p.portfolio_id).map((project) => {
             let projectTasks = tasks.filter((t) => t.project_id === project.id);
             if (teamFilter && teamFilter !== 'all') {
               projectTasks = projectTasks.filter(t => {

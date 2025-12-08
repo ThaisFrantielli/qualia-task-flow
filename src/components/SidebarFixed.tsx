@@ -1,9 +1,9 @@
 // src/components/SidebarFixed.tsx
-import React, { useState, useEffect, ElementType } from 'react';
+import { useState, useEffect, ElementType } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, KanbanSquare, List, Settings,
-  Users, Bell, LogOut, FolderOpen, ChevronDown, Headset, BarChart3,
+  LayoutDashboard, List, Settings,
+  Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
   PanelLeftClose, PanelRightClose, Inbox, Ticket, Wrench
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
 import { useNotifications } from '@/hooks/useNotifications';
+import { TeamPresenceWidget } from '@/components/presence/TeamPresenceWidget';
 import type { Permissoes } from '@/types';
 
 interface MenuItem {
@@ -37,7 +38,6 @@ const menuGroups: MenuGroup[] = [
     title: 'GERAL',
     items: [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
-      { label: 'Kanban', url: '/kanban', icon: KanbanSquare, permissionKey: 'kanban' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
       {
         label: 'Analytics',
@@ -47,7 +47,6 @@ const menuGroups: MenuGroup[] = [
           { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
           { label: 'Gestão de Passivo', url: '/analytics/funding', icon: BarChart3 },
           { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
-
           { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
           { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
           { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
@@ -61,13 +60,12 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'CRM',
     items: [
-      { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
       { label: 'Fila de Triagem', url: '/triagem', icon: Inbox, permissionKey: 'crm' },
-      { label: 'Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' },
-      { label: 'WhatsApp', url: '/whatsapp', icon: MessageSquare, permissionKey: 'crm' },
+      { label: 'Central de Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' },
       { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
-      { label: 'Pós-Vendas', url: '/pos-vendas', icon: Headset, permissionKey: 'crm' },
-      { label: 'Dashboard PDV', url: '/pos-vendas/dashboard', icon: BarChart3, permissionKey: 'crm' },
+      { label: 'WhatsApp', url: '/whatsapp', icon: MessageSquare, permissionKey: 'crm' },
+      { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
+      { label: 'Relatórios', url: '/tickets/reports', icon: BarChart3, permissionKey: 'crm' },
       { label: 'Pesquisas', url: '/pesquisas', icon: ClipboardList, permissionKey: 'crm' },
     ]
   },
@@ -148,8 +146,9 @@ const SidebarFixed: React.FC = () => {
 
   // projectList intentionally unused here; projects can be accessed via `projects` hook when necessary
 
-  if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
   const { unreadCount } = useNotifications();
+
+  if (!user) return <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-[#1E1B3A] to-[#14122A] animate-pulse`}></div>;
 
   return (
     <div className={`h-screen flex flex-col bg-[#1D1B3F] text-white transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
@@ -283,6 +282,13 @@ const SidebarFixed: React.FC = () => {
       </nav>
 
       <div className="p-4 border-t border-[#322E5C]">
+        {/* Online Team Widget */}
+        {!isCollapsed && (
+          <div className="mb-4 py-2">
+            <TeamPresenceWidget maxDisplay={4} />
+          </div>
+        )}
+
         <div className="flex items-center space-x-3 mb-4">
           <Avatar className="w-10 h-10">
             <AvatarImage src={user.user_metadata?.avatar_url ?? undefined} />
