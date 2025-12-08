@@ -1344,6 +1344,130 @@ export type Database = {
           },
         ]
       }
+      survey_campaigns: {
+        Row: {
+          auto_send_delay_hours: number | null
+          created_at: string | null
+          created_by_id: string | null
+          csat_question: string
+          description: string | null
+          expires_after_days: number | null
+          factors_label: string | null
+          id: string
+          include_nps: boolean | null
+          include_open_feedback: boolean | null
+          influencing_factors: Json | null
+          is_active: boolean | null
+          max_reminders: number | null
+          name: string
+          nps_question: string | null
+          open_feedback_question: string | null
+          reminder_delay_hours: number | null
+          reminder_enabled: boolean | null
+          send_via: string | null
+          type: Database["public"]["Enums"]["survey_type"]
+          updated_at: string | null
+          welcome_message: string | null
+        }
+        Insert: {
+          auto_send_delay_hours?: number | null
+          created_at?: string | null
+          created_by_id?: string | null
+          csat_question: string
+          description?: string | null
+          expires_after_days?: number | null
+          factors_label?: string | null
+          id?: string
+          include_nps?: boolean | null
+          include_open_feedback?: boolean | null
+          influencing_factors?: Json | null
+          is_active?: boolean | null
+          max_reminders?: number | null
+          name: string
+          nps_question?: string | null
+          open_feedback_question?: string | null
+          reminder_delay_hours?: number | null
+          reminder_enabled?: boolean | null
+          send_via?: string | null
+          type: Database["public"]["Enums"]["survey_type"]
+          updated_at?: string | null
+          welcome_message?: string | null
+        }
+        Update: {
+          auto_send_delay_hours?: number | null
+          created_at?: string | null
+          created_by_id?: string | null
+          csat_question?: string
+          description?: string | null
+          expires_after_days?: number | null
+          factors_label?: string | null
+          id?: string
+          include_nps?: boolean | null
+          include_open_feedback?: boolean | null
+          influencing_factors?: Json | null
+          is_active?: boolean | null
+          max_reminders?: number | null
+          name?: string
+          nps_question?: string | null
+          open_feedback_question?: string | null
+          reminder_delay_hours?: number | null
+          reminder_enabled?: boolean | null
+          send_via?: string | null
+          type?: Database["public"]["Enums"]["survey_type"]
+          updated_at?: string | null
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_campaigns_created_by_id_fkey"
+            columns: ["created_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_question_templates: {
+        Row: {
+          campaign_id: string | null
+          created_at: string | null
+          id: string
+          is_required: boolean | null
+          options: Json | null
+          order_position: number | null
+          question_text: string
+          question_type: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_required?: boolean | null
+          options?: Json | null
+          order_position?: number | null
+          question_text: string
+          question_type: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_required?: boolean | null
+          options?: Json | null
+          order_position?: number | null
+          question_text?: string
+          question_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_question_templates_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "survey_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       survey_responses: {
         Row: {
           created_at: string
@@ -1352,7 +1476,9 @@ export type Database = {
           id: number
           influencing_factors: string[] | null
           nps_score: number | null
+          open_feedback: string | null
           other_factor_text: string | null
+          response_time_seconds: number | null
           survey_id: string
           survey_type: Database["public"]["Enums"]["survey_type"]
         }
@@ -1363,7 +1489,9 @@ export type Database = {
           id?: number
           influencing_factors?: string[] | null
           nps_score?: number | null
+          open_feedback?: string | null
           other_factor_text?: string | null
+          response_time_seconds?: number | null
           survey_id: string
           survey_type: Database["public"]["Enums"]["survey_type"]
         }
@@ -1374,7 +1502,9 @@ export type Database = {
           id?: number
           influencing_factors?: string[] | null
           nps_score?: number | null
+          open_feedback?: string | null
           other_factor_text?: string | null
+          response_time_seconds?: number | null
           survey_id?: string
           survey_type?: Database["public"]["Enums"]["survey_type"]
         }
@@ -1390,48 +1520,96 @@ export type Database = {
       }
       surveys: {
         Row: {
+          campaign_id: string | null
           client_email: string | null
           client_name: string
           client_phone: string | null
+          cliente_id: string | null
           created_at: string
           created_by_id: string | null
           driver_name: string | null
+          expires_at: string | null
+          follow_up_at: string | null
+          follow_up_by_id: string | null
+          follow_up_notes: string | null
+          follow_up_status: string | null
           id: string
           license_plate: string | null
+          reminder_count: number | null
           responded_at: string | null
           sent_at: string | null
+          sent_via: string | null
           type: Database["public"]["Enums"]["survey_type"]
         }
         Insert: {
+          campaign_id?: string | null
           client_email?: string | null
           client_name: string
           client_phone?: string | null
+          cliente_id?: string | null
           created_at?: string
           created_by_id?: string | null
           driver_name?: string | null
+          expires_at?: string | null
+          follow_up_at?: string | null
+          follow_up_by_id?: string | null
+          follow_up_notes?: string | null
+          follow_up_status?: string | null
           id?: string
           license_plate?: string | null
+          reminder_count?: number | null
           responded_at?: string | null
           sent_at?: string | null
+          sent_via?: string | null
           type: Database["public"]["Enums"]["survey_type"]
         }
         Update: {
+          campaign_id?: string | null
           client_email?: string | null
           client_name?: string
           client_phone?: string | null
+          cliente_id?: string | null
           created_at?: string
           created_by_id?: string | null
           driver_name?: string | null
+          expires_at?: string | null
+          follow_up_at?: string | null
+          follow_up_by_id?: string | null
+          follow_up_notes?: string | null
+          follow_up_status?: string | null
           id?: string
           license_plate?: string | null
+          reminder_count?: number | null
           responded_at?: string | null
           sent_at?: string | null
+          sent_via?: string | null
           type?: Database["public"]["Enums"]["survey_type"]
         }
         Relationships: [
           {
+            foreignKeyName: "surveys_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "survey_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "surveys_created_by_id_fkey"
             columns: ["created_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_follow_up_by_id_fkey"
+            columns: ["follow_up_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2292,6 +2470,7 @@ export type Database = {
           last_message: string | null
           last_message_at: string | null
           status: string
+          ticket_id: string | null
           unread_count: number | null
           updated_at: string | null
           whatsapp_number: string
@@ -2308,6 +2487,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           status?: string
+          ticket_id?: string | null
           unread_count?: number | null
           updated_at?: string | null
           whatsapp_number: string
@@ -2324,6 +2504,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           status?: string
+          ticket_id?: string | null
           unread_count?: number | null
           updated_at?: string | null
           whatsapp_number?: string
@@ -2348,6 +2529,20 @@ export type Database = {
             columns: ["instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
         ]
@@ -2551,6 +2746,17 @@ export type Database = {
     Functions: {
       check_whatsapp_status: { Args: never; Returns: string }
       generate_ticket_number: { Args: never; Returns: string }
+      get_direct_reports: {
+        Args: { supervisor_uuid: string }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          has_subordinates: boolean
+          nivel_acesso: string
+          subordinates_count: number
+          user_id: string
+        }[]
+      }
       get_direct_supervisor: {
         Args: { user_uuid: string }
         Returns: {
@@ -2584,6 +2790,10 @@ export type Database = {
           updated_at: string
           user_id: string
         }[]
+      }
+      get_subordinates_of_manager: {
+        Args: { manager_id: string }
+        Returns: string[]
       }
       get_team_count: { Args: { user_uuid: string }; Returns: number }
       get_user_modules: {
