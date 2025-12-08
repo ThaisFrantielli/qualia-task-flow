@@ -37,6 +37,7 @@ interface ProjectsListCascadeProps {
   projetos: Project[];
   modoFoco?: boolean;
   teamFilter?: string | null;
+  assigneeFilter?: string | null;
   onProjectDeleted?: () => void;
   onOpenSubtask?: (subtaskId: string) => void;
 }
@@ -52,9 +53,10 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 import ExpandedSubtasks from '@/components/tasks/ExpandedSubtasks';
 
 
-const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, teamFilter, onProjectDeleted, onOpenSubtask }) => {
+const ProjectsListCascade: React.FC<ProjectsListCascadeProps> = ({ projetos, modoFoco, teamFilter, assigneeFilter, onProjectDeleted, onOpenSubtask }) => {
   // const navigate = useNavigate();
-  const { tasks, deleteTask } = useTasks({});
+  // Passa o filtro de assignee para useTasks para filtrar corretamente
+  const { tasks, deleteTask } = useTasks({ assignee_id: assigneeFilter || undefined });
   const navigate = useNavigate();
   const { portfolios, loading: loadingPortfolios, error: errorPortfolios } = usePortfolios();
   const [expandedPortfolios, setExpandedPortfolios] = useState<Set<string>>(new Set());
