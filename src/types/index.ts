@@ -134,10 +134,11 @@ export type Survey = PublicSchema['Tables']['surveys']['Row'];
 // --- Tipos de Filtros ---
 export type AllTaskFilters = {
   search?: string;
-  searchTerm?: string; // Added property
+  searchTerm?: string;
   status?: string[];
   priority?: string[];
   assignee?: string[];
+  assignee_id?: string; // Filtro por usuário específico
   project?: string[];
   category?: string[];
   teamFilter?: string;
