@@ -1,5 +1,5 @@
 // src/components/tasks/ViewToggle.tsx
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Button } from '@/components/ui/button';
 import { List, LayoutGrid, Calendar, GanttChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,48 +12,34 @@ interface ViewToggleProps {
   className?: string;
 }
 
+const views: { key: ViewType; icon: React.ReactNode; label: string }[] = [
+  { key: 'list', icon: <List className="h-4 w-4" />, label: 'Lista' },
+  { key: 'kanban', icon: <LayoutGrid className="h-4 w-4" />, label: 'Kanban' },
+  { key: 'calendar', icon: <Calendar className="h-4 w-4" />, label: 'Calendário' },
+];
+
 export function ViewToggle({ value, onChange, showTimeline = false, className }: ViewToggleProps) {
+  const allViews = showTimeline 
+    ? [...views, { key: 'timeline' as ViewType, icon: <GanttChart className="h-4 w-4" />, label: 'Timeline' }]
+    : views;
+
   return (
-    <ToggleGroup
-      type="single"
-      value={value}
-      onValueChange={(v) => v && onChange(v as ViewType)}
-      className={cn("bg-muted p-1 rounded-lg", className)}
-    >
-      <ToggleGroupItem
-        value="list"
-        aria-label="Visualização em Lista"
-        className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 py-1.5"
-      >
-        <List className="h-4 w-4 mr-1.5" />
-        <span className="text-sm hidden sm:inline">Lista</span>
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="kanban"
-        aria-label="Visualização Kanban"
-        className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 py-1.5"
-      >
-        <LayoutGrid className="h-4 w-4 mr-1.5" />
-        <span className="text-sm hidden sm:inline">Kanban</span>
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="calendar"
-        aria-label="Visualização Calendário"
-        className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 py-1.5"
-      >
-        <Calendar className="h-4 w-4 mr-1.5" />
-        <span className="text-sm hidden sm:inline">Calendário</span>
-      </ToggleGroupItem>
-      {showTimeline && (
-        <ToggleGroupItem
-          value="timeline"
-          aria-label="Visualização Timeline"
-          className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 py-1.5"
+    <div className={cn("flex bg-muted p-1 rounded-lg", className)}>
+      {allViews.map((view) => (
+        <Button
+          key={view.key}
+          variant="ghost"
+          size="sm"
+          onClick={() => onChange(view.key)}
+          className={cn(
+            "px-3 py-1.5 h-auto gap-1.5",
+            value === view.key && "bg-background shadow-sm"
+          )}
         >
-          <GanttChart className="h-4 w-4 mr-1.5" />
-          <span className="text-sm hidden sm:inline">Timeline</span>
-        </ToggleGroupItem>
-      )}
-    </ToggleGroup>
+          {view.icon}
+          <span className="text-sm hidden sm:inline">{view.label}</span>
+        </Button>
+      ))}
+    </div>
   );
 }
