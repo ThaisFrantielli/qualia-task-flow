@@ -44,13 +44,18 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
         completed_subtasks:subtasks ( count )
     `).eq('completed_subtasks.completed', true);
 
-    // Aplicar apenas filtros de busca do usuário
+    // Aplicar filtros de busca do usuário
     if (filters.searchTerm) {
         query = query.ilike('title', `%${filters.searchTerm}%`);
     }
 
     if (filters.cliente_id) {
         query = query.eq('cliente_id', filters.cliente_id);
+    }
+
+    // Filtro por assignee específico (usado quando visualiza tarefas de membro da equipe)
+    if (filters.assignee_id) {
+        query = query.eq('assignee_id', filters.assignee_id);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
