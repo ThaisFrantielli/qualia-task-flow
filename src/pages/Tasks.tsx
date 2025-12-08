@@ -199,8 +199,6 @@ const TasksPage = () => {
         filters={filters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
-        isFocusMode={focusMode !== 'none'}
-        onToggleFocusMode={() => setFocusMode(focusMode !== 'none' ? 'none' : 'high_priority')}
       />
 
       {/* Conteúdo baseado na visualização */}

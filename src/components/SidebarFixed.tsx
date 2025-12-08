@@ -2,7 +2,7 @@
 import { useState, useEffect, ElementType } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, KanbanSquare, List, Settings,
+  LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
   PanelLeftClose, PanelRightClose, Inbox, Ticket, Wrench
@@ -38,7 +38,6 @@ const menuGroups: MenuGroup[] = [
     title: 'GERAL',
     items: [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
-      { label: 'Kanban', url: '/kanban', icon: KanbanSquare, permissionKey: 'kanban' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
       {
         label: 'Analytics',
