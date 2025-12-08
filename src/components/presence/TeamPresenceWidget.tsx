@@ -24,10 +24,10 @@ const pageLabels: Record<string, string> = {
   '/clientes': 'Clientes',
 };
 
-export function TeamPresenceWidget({ 
-  maxDisplay = 5, 
+export function TeamPresenceWidget({
+  maxDisplay = 5,
   className,
-  showLabel = true 
+  showLabel = true
 }: TeamPresenceWidgetProps) {
   const presence = usePresenceOptional();
 
@@ -36,10 +36,20 @@ export function TeamPresenceWidget({
   const { onlineUsers } = presence;
   const onlineOnly = onlineUsers.filter(u => u.status !== 'offline');
 
-  if (onlineOnly.length === 0) return null;
+  // Deduplicate users by userId to avoid showing the same user multiple times (e.g. multiple tabs)
+  const uniqueUsers = onlineOnly.reduce((acc, current) => {
+    const x = acc.find(item => item.userId === current.userId);
+    if (!x) {
+      return acc.concat([current]);
+    } else {
+      return acc;
+    }
+  }, [] as typeof onlineUsers);
 
-  const displayUsers = onlineOnly.slice(0, maxDisplay);
-  const remainingCount = onlineOnly.length - maxDisplay;
+  if (uniqueUsers.length === 0) return null;
+
+  const displayUsers = uniqueUsers.slice(0, maxDisplay);
+  const remainingCount = uniqueUsers.length - maxDisplay;
 
   const getInitials = (name: string | null) => {
     if (!name) return '?';
@@ -49,12 +59,12 @@ export function TeamPresenceWidget({
   const getPageLabel = (path: string) => {
     // Check for exact match first
     if (pageLabels[path]) return pageLabels[path];
-    
+
     // Check for partial matches
     for (const [key, label] of Object.entries(pageLabels)) {
       if (path.startsWith(key) && key !== '/') return label;
     }
-    
+
     return path;
   };
 
@@ -64,7 +74,7 @@ export function TeamPresenceWidget({
         {showLabel && (
           <div className="flex items-center gap-1.5 text-[#C7C9D9]">
             <Users className="h-4 w-4" />
-            <span className="text-xs">{onlineOnly.length}</span>
+            <span className="text-xs">{uniqueUsers.length}</span>
           </div>
         )}
         <div className="flex -space-x-1.5">

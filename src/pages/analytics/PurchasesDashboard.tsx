@@ -258,18 +258,7 @@ export default function PurchasesDashboard(): JSX.Element {
     }));
   }, [filteredData]);
 
-  const modelQuantityData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredData.forEach(r => {
-      const m = r.Modelo || 'Desconhecido';
-      map[m] = (map[m] || 0) + 1;
-    });
 
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10); // Top 10 Models
-  }, [filteredData]);
 
 
 
@@ -925,367 +914,368 @@ export default function PurchasesDashboard(): JSX.Element {
         {/* ABA 2: FUNDING */}
         {
           activeTab === 1 && (
+            <>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
+                    <Text className="text-slate-500">Total Financiado</Text>
+                    <Metric className="text-slate-900">{fmtCompact(fundingKPIs.totalFinanced)}</Metric>
+                  </Card>
+                  <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
+                    <Text className="text-slate-500">Alavancagem (LTV)</Text>
+                    <Metric className="text-slate-900">{fundingKPIs.leverage.toFixed(1)}%</Metric>
+                  </Card>
+                  <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
+                    <Text className="text-slate-500">Parcela Média</Text>
+                    <Metric className="text-slate-900">{fmtBRL(fundingKPIs.avgParcela)}</Metric>
+                  </Card>
+                </div>
 
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
-                  <Text className="text-slate-500">Total Financiado</Text>
-                  <Metric className="text-slate-900">{fmtCompact(fundingKPIs.totalFinanced)}</Metric>
-                </Card>
-                <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
-                  <Text className="text-slate-500">Alavancagem (LTV)</Text>
-                  <Metric className="text-slate-900">{fundingKPIs.leverage.toFixed(1)}%</Metric>
-                </Card>
-                <Card decoration="top" decorationColor="indigo" className="bg-white border border-slate-200">
-                  <Text className="text-slate-500">Parcela Média</Text>
-                  <Metric className="text-slate-900">{fmtBRL(fundingKPIs.avgParcela)}</Metric>
-                </Card>
-              </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="bg-white border border-slate-200">
+                    <Title>Mix de Capital</Title>
+                    <DonutChart
+                      className="mt-6 h-60"
+                      data={capitalMix}
+                      category="value"
+                      index="name"
+                      valueFormatter={fmtCompact}
+                      colors={['emerald', 'indigo']}
+                    />
+                  </Card>
+                  <Card className="bg-white border border-slate-200">
+                    <Title>Exposição por Banco</Title>
+                    <div className="mt-4 h-60 overflow-y-auto space-y-2">
+                      {debtByBank.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded bg-slate-50"
+                        >
+                          <span className="text-sm font-medium text-slate-700 truncate flex-1">{item.name}</span>
+                          <span className="text-sm font-bold text-indigo-600 ml-2">{fmtCompact(item.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="bg-white border border-slate-200">
-                  <Title>Mix de Capital</Title>
-                  <DonutChart
-                    className="mt-6 h-60"
-                    data={capitalMix}
-                    category="value"
-                    index="name"
-                    valueFormatter={fmtCompact}
-                    colors={['emerald', 'indigo']}
-                  />
-                </Card>
-                <Card className="bg-white border border-slate-200">
-                  <Title>Exposição por Banco</Title>
-                  <div className="mt-4 h-60 overflow-y-auto space-y-2">
-                    {debtByBank.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2 rounded bg-slate-50"
-                      >
-                        <span className="text-sm font-medium text-slate-700 truncate flex-1">{item.name}</span>
-                        <span className="text-sm font-bold text-indigo-600 ml-2">{fmtCompact(item.value)}</span>
-                      </div>
-                    ))}
+                  <Title>Cronograma Estimado de Vencimento (36 meses)</Title>
+                  <div className="h-72 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={maturitySchedule}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="date" fontSize={12} tickFormatter={(v) => v.slice(5)} />
+                        <YAxis fontSize={12} tickFormatter={fmtCompact} />
+                        <Tooltip formatter={(v: any) => fmtBRL(v)} />
+                        <Line type="monotone" dataKey="Vencimento" stroke="#6366f1" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
                   </div>
                 </Card>
               </div>
 
-              <Card className="bg-white border border-slate-200">
-                <Title>Cronograma Estimado de Vencimento (36 meses)</Title>
-                <div className="h-72 mt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={maturitySchedule}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="date" fontSize={12} tickFormatter={(v) => v.slice(5)} />
-                      <YAxis fontSize={12} tickFormatter={fmtCompact} />
-                      <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                      <Line type="monotone" dataKey="Vencimento" stroke="#6366f1" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+              {/* SEÇÃO: SAÚDE FINANCEIRA */}
+              <div className="mt-6 space-y-6">
+                {/* Header with Link to Full Dashboard */}
+                <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Text className="font-semibold text-indigo-900">Visão Resumida da Saúde Financeira</Text>
+                      <Text className="text-sm text-indigo-600 mt-1">
+                        Acesse a Gestão Completa de Passivo para análises avançadas, alertas e simulações
+                      </Text>
+                    </div>
+                    <a
+                      href="/analytics/funding"
+                      className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                    >
+                      Ver Gestão Completa →
+                    </a>
+                  </div>
+                </Card>
+
+                {/* KPIs Row */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="bg-white border border-slate-200">
+                    <Text className="text-slate-600">Saldo Devedor Total</Text>
+                    <Metric className="text-indigo-600">{fmtCompact(financialHealthKPIs.saldoDevedorTotal)}</Metric>
+                    <Text className="text-xs text-slate-500 mt-2">{financialHealthKPIs.veiculosFinanciados} veículos financiados</Text>
+                  </Card>
+
+                  <Card className="bg-white border border-slate-200">
+                    <Text className="text-slate-600">Parcela Média</Text>
+                    <Metric className="text-blue-600">{fmtBRL(financialHealthKPIs.parcelaMedia)}</Metric>
+                    <Text className="text-xs text-slate-500 mt-2">Por veículo</Text>
+                  </Card>
+
+                  <Card className="bg-white border border-slate-200">
+                    <Text className="text-slate-600">% Em Dia</Text>
+                    <Metric className={financialHealthKPIs.percentualEmDia >= 90 ? "text-emerald-600" : "text-amber-600"}>
+                      {financialHealthKPIs.percentualEmDia.toFixed(1)}%
+                    </Metric>
+                    <Text className="text-xs text-slate-500 mt-2">
+                      {financialHealthKPIs.percentualEmDia >= 90 ? '✅ Excelente' : '⚠️ Atenção'}
+                    </Text>
+                  </Card>
+
+                  <Card className="bg-white border border-slate-200">
+                    <Text className="text-slate-600">Prazo Médio Restante</Text>
+                    <Metric className="text-slate-700">{financialHealthKPIs.prazoMedioRestante.toFixed(0)} meses</Metric>
+                    <Text className="text-xs text-slate-500 mt-2">Tempo médio para quitação</Text>
+                  </Card>
                 </div>
+
+                {/* Charts Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Payment Schedule Chart */}
+                  <Card className="bg-white border border-slate-200">
+                    <Title>Cronograma de Vencimentos (36 meses)</Title>
+                    <Text className="mb-4">Projeção de fluxo de caixa futuro</Text>
+                    <div className="h-80 mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={paymentSchedule.slice(0, 24)}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis
+                            dataKey="mes"
+                            fontSize={11}
+                            tickFormatter={(v) => {
+                              const [year, month] = v.split('-');
+                              return `${month}/${year.slice(2)}`;
+                            }}
+                          />
+                          <YAxis fontSize={12} tickFormatter={fmtCompact} />
+                          <Tooltip
+                            formatter={(v: any) => fmtBRL(v)}
+                            labelFormatter={(label) => {
+                              const [year, month] = label.split('-');
+                              return `${month}/${year}`;
+                            }}
+                          />
+                          <Bar dataKey="valor" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  {/* Bank Exposure Chart */}
+                  <Card className="bg-white border border-slate-200">
+                    <Title>Exposição por Banco</Title>
+                    <Text className="mb-4">Saldo devedor por instituição financeira</Text>
+                    <div className="h-80 mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={bankExposure}
+                          layout="vertical"
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" fontSize={12} tickFormatter={fmtCompact} />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={120}
+                            fontSize={12}
+                            tick={{ fill: '#475569' }}
+                          />
+                          <Tooltip formatter={(v: any) => fmtBRL(v)} />
+                          <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Risk Vehicles Table */}
+                {riskVehicles.length > 0 && (
+                  <Card className="bg-white border border-red-200">
+                    <div className="flex items-center gap-2 mb-4">
+                      <ShieldAlert className="w-5 h-5 text-red-600" />
+                      <Title className="text-red-700">Veículos em Situação de Risco</Title>
+                    </div>
+                    <Text className="mb-4 text-red-600">
+                      {riskVehicles.length} {riskVehicles.length === 1 ? 'veículo identificado' : 'veículos identificados'} com pagamento atrasado
+                    </Text>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-red-50 text-red-700 uppercase text-xs">
+                          <tr>
+                            <th className="px-4 py-3">Placa</th>
+                            <th className="px-4 py-3">Modelo</th>
+                            <th className="px-4 py-3">Banco</th>
+                            <th className="px-4 py-3 text-right">Saldo Devedor</th>
+                            <th className="px-4 py-3 text-center">Parcelas Restantes</th>
+                            <th className="px-4 py-3 text-center">Situação</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-red-100">
+                          {riskVehicles.map((v, i) => (
+                            <tr key={i} className="hover:bg-red-50">
+                              <td className="px-4 py-3 font-medium text-slate-900">{v.placa}</td>
+                              <td className="px-4 py-3 text-slate-600">{v.modelo}</td>
+                              <td className="px-4 py-3 text-slate-600">{v.banco}</td>
+                              <td className="px-4 py-3 text-right font-medium text-red-600">{fmtBRL(v.saldoDevedor)}</td>
+                              <td className="px-4 py-3 text-center text-slate-700">{v.parcelasRestantes}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  {v.situacao}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Empty State */}
+                {riskVehicles.length === 0 && (
+                  <Card className="bg-white border border-emerald-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">✓</span>
+                      </div>
+                      <Title className="text-emerald-700">Saúde Financeira Excelente</Title>
+                    </div>
+                    <Text className="text-emerald-600">
+                      Nenhum veículo com pagamento atrasado identificado no momento.
+                    </Text>
+                  </Card>
+                )}
+              </div>
+            </>
+          )
+        }
+
+        {/* ABA 4: AUDITORIA */}
+        {
+          activeTab === 2 && (
+            <div className="mt-6">
+              <Card className="bg-white border border-slate-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <ShieldAlert className="w-5 h-5 text-red-600" />
+                  <Title>Compras Fora do Padrão</Title>
+                </div>
+                <Text className="mb-4">Listando compras com dados incompletos, valores suspeitos, datas inválidas ou discrepâncias financeiras acentuadas.</Text>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
+                      <tr>
+                        <th className="px-4 py-3">Placa</th>
+                        <th className="px-4 py-3">Modelo</th>
+                        <th className="px-4 py-3">Data Compra</th>
+                        <th className="px-4 py-3">Código FIPE</th>
+                        <th className="px-4 py-3">Fornecedor</th>
+                        <th className="px-4 py-3 text-right">Compra</th>
+                        <th className="px-4 py-3 text-right">FIPE na Data</th>
+                        <th className="px-4 py-3 text-center">% Fipe</th>
+                        <th className="px-4 py-3 text-right">Diferença</th>
+                        <th className="px-4 py-3 text-center">Situação</th>
+                        <th className="px-4 py-3 text-center">Motivo Auditoria</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {paginatedAuditList.map((r, i) => {
+                        const getBadgeColor = (situacao: string) => {
+                          if (!situacao) return 'bg-slate-100 text-slate-700';
+                          const s = situacao.toLowerCase();
+                          if (s.includes('disponível') || s.includes('disponivel')) return 'bg-emerald-100 text-emerald-700';
+                          if (s.includes('locado') || s.includes('alugado')) return 'bg-blue-100 text-blue-700';
+                          if (s.includes('manutenção') || s.includes('manutencao')) return 'bg-amber-100 text-amber-700';
+                          if (s.includes('vendido') || s.includes('baixado')) return 'bg-slate-100 text-slate-700';
+                          return 'bg-slate-100 text-slate-700';
+                        };
+
+                        return (
+                          <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-medium">{r.placa}</td>
+                            <td className="px-4 py-3 text-slate-600">{r.modelo}</td>
+                            <td className="px-4 py-3 text-slate-500 text-sm">{r.dataCompra ? new Date(r.dataCompra).toLocaleDateString('pt-BR') : '-'}</td>
+                            <td className="px-4 py-3 text-slate-600 font-mono text-xs">{r.codigoFipe || '-'}</td>
+                            <td className="px-4 py-3 text-slate-600">{r.fornecedor}</td>
+                            <td className="px-4 py-3 text-right font-medium text-slate-900">{fmtBRL(r.compra)}</td>
+                            <td className="px-4 py-3 text-right text-slate-500">{fmtBRL(r.fipe)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${r.percentFipe < 100 ? 'bg-emerald-100 text-emerald-700' :
+                                r.percentFipe <= 105 ? 'bg-amber-100 text-amber-700' :
+                                  'bg-red-100 text-red-700'
+                                }`}>
+                                {r.percentFipe.toFixed(1)}%
+                              </span>
+                            </td>
+                            <td className={`px-4 py-3 text-right font-medium ${r.diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {r.diff > 0 ? '+' : ''}{fmtBRL(r.diff)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(r.situacao)}`}>
+                                {r.situacao || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                {r.reason}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {auditList.length === 0 && (
+                        <tr>
+                          <td colSpan={11} className="px-4 py-8 text-center text-slate-400">Nenhuma inconformidade encontrada.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {totalAuditPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
+                    <div className="text-sm text-slate-500">
+                      Mostrando {((auditPage - 1) * AUDIT_PAGE_SIZE) + 1} - {Math.min(auditPage * AUDIT_PAGE_SIZE, auditList.length)} de {auditList.length} registros
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAuditPage(p => Math.max(1, p - 1))}
+                        disabled={auditPage === 1}
+                        className="px-3 py-1 text-sm border rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Anterior
+                      </button>
+                      <span className="text-sm text-slate-600">
+                        Página {auditPage} de {totalAuditPages}
+                      </span>
+                      <button
+                        onClick={() => setAuditPage(p => Math.min(totalAuditPages, p + 1))}
+                        disabled={auditPage === totalAuditPages}
+                        className="px-3 py-1 text-sm border rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </Card>
             </div>
+          )
+        }
 
-      {/* SEÇÃO: SAÚDE FINANCEIRA */}
-        <div className="mt-6 space-y-6">
-          {/* Header with Link to Full Dashboard */}
-          <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <Text className="font-semibold text-indigo-900">Visão Resumida da Saúde Financeira</Text>
-                <Text className="text-sm text-indigo-600 mt-1">
-                  Acesse a Gestão Completa de Passivo para análises avançadas, alertas e simulações
-                </Text>
-              </div>
-              <a
-                href="/analytics/funding"
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-              >
-                Ver Gestão Completa →
-              </a>
-            </div>
-          </Card>
-
-          {/* KPIs Row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-white border border-slate-200">
-              <Text className="text-slate-600">Saldo Devedor Total</Text>
-              <Metric className="text-indigo-600">{fmtCompact(financialHealthKPIs.saldoDevedorTotal)}</Metric>
-              <Text className="text-xs text-slate-500 mt-2">{financialHealthKPIs.veiculosFinanciados} veículos financiados</Text>
-            </Card>
-
-            <Card className="bg-white border border-slate-200">
-              <Text className="text-slate-600">Parcela Média</Text>
-              <Metric className="text-blue-600">{fmtBRL(financialHealthKPIs.parcelaMedia)}</Metric>
-              <Text className="text-xs text-slate-500 mt-2">Por veículo</Text>
-            </Card>
-
-            <Card className="bg-white border border-slate-200">
-              <Text className="text-slate-600">% Em Dia</Text>
-              <Metric className={financialHealthKPIs.percentualEmDia >= 90 ? "text-emerald-600" : "text-amber-600"}>
-                {financialHealthKPIs.percentualEmDia.toFixed(1)}%
-              </Metric>
-              <Text className="text-xs text-slate-500 mt-2">
-                {financialHealthKPIs.percentualEmDia >= 90 ? '✅ Excelente' : '⚠️ Atenção'}
-              </Text>
-            </Card>
-
-            <Card className="bg-white border border-slate-200">
-              <Text className="text-slate-600">Prazo Médio Restante</Text>
-              <Metric className="text-slate-700">{financialHealthKPIs.prazoMedioRestante.toFixed(0)} meses</Metric>
-              <Text className="text-xs text-slate-500 mt-2">Tempo médio para quitação</Text>
-            </Card>
-          </div>
-
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Payment Schedule Chart */}
-            <Card className="bg-white border border-slate-200">
-              <Title>Cronograma de Vencimentos (36 meses)</Title>
-              <Text className="mb-4">Projeção de fluxo de caixa futuro</Text>
-              <div className="h-80 mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={paymentSchedule.slice(0, 24)}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="mes"
-                      fontSize={11}
-                      tickFormatter={(v) => {
-                        const [year, month] = v.split('-');
-                        return `${month}/${year.slice(2)}`;
-                      }}
-                    />
-                    <YAxis fontSize={12} tickFormatter={fmtCompact} />
-                    <Tooltip
-                      formatter={(v: any) => fmtBRL(v)}
-                      labelFormatter={(label) => {
-                        const [year, month] = label.split('-');
-                        return `${month}/${year}`;
-                      }}
-                    />
-                    <Bar dataKey="valor" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Bank Exposure Chart */}
-            <Card className="bg-white border border-slate-200">
-              <Title>Exposição por Banco</Title>
-              <Text className="mb-4">Saldo devedor por instituição financeira</Text>
-              <div className="h-80 mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={bankExposure}
-                    layout="vertical"
-                  >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" fontSize={12} tickFormatter={fmtCompact} />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={120}
-                      fontSize={12}
-                      tick={{ fill: '#475569' }}
-                    />
-                    <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </div>
-
-          {/* Risk Vehicles Table */}
-          {riskVehicles.length > 0 && (
-            <Card className="bg-white border border-red-200">
-              <div className="flex items-center gap-2 mb-4">
-                <ShieldAlert className="w-5 h-5 text-red-600" />
-                <Title className="text-red-700">Veículos em Situação de Risco</Title>
-              </div>
-              <Text className="mb-4 text-red-600">
-                {riskVehicles.length} {riskVehicles.length === 1 ? 'veículo identificado' : 'veículos identificados'} com pagamento atrasado
-              </Text>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-red-50 text-red-700 uppercase text-xs">
-                    <tr>
-                      <th className="px-4 py-3">Placa</th>
-                      <th className="px-4 py-3">Modelo</th>
-                      <th className="px-4 py-3">Banco</th>
-                      <th className="px-4 py-3 text-right">Saldo Devedor</th>
-                      <th className="px-4 py-3 text-center">Parcelas Restantes</th>
-                      <th className="px-4 py-3 text-center">Situação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-red-100">
-                    {riskVehicles.map((v, i) => (
-                      <tr key={i} className="hover:bg-red-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{v.placa}</td>
-                        <td className="px-4 py-3 text-slate-600">{v.modelo}</td>
-                        <td className="px-4 py-3 text-slate-600">{v.banco}</td>
-                        <td className="px-4 py-3 text-right font-medium text-red-600">{fmtBRL(v.saldoDevedor)}</td>
-                        <td className="px-4 py-3 text-center text-slate-700">{v.parcelasRestantes}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                            {v.situacao}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
-
-          {/* Empty State */}
-          {riskVehicles.length === 0 && (
-            <Card className="bg-white border border-emerald-200">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">✓</span>
-                </div>
-                <Title className="text-emerald-700">Saúde Financeira Excelente</Title>
-              </div>
-              <Text className="text-emerald-600">
-                Nenhum veículo com pagamento atrasado identificado no momento.
-              </Text>
-            </Card>
-          )}
-        </div>
+        {/* Floating Clear Filters Button */}
+        {
+          hasActiveFilters && (
+            <button
+              onClick={clearInteractiveFilters}
+              className="fixed bottom-6 right-6 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all z-50"
+            >
+              <Filter className="w-5 h-5" />
+              Limpar Filtros
+            </button>
+          )
+        }
       </div>
-      )}
-
-      {/* ABA 4: AUDITORIA */}
-      {
-        activeTab === 2 && (
-          <div className="mt-6">
-            <Card className="bg-white border border-slate-200">
-              <div className="flex items-center gap-2 mb-4">
-                <ShieldAlert className="w-5 h-5 text-red-600" />
-                <Title>Compras Fora do Padrão</Title>
-              </div>
-              <Text className="mb-4">Listando compras com dados incompletos, valores suspeitos, datas inválidas ou discrepâncias financeiras acentuadas.</Text>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
-                    <tr>
-                      <th className="px-4 py-3">Placa</th>
-                      <th className="px-4 py-3">Modelo</th>
-                      <th className="px-4 py-3">Data Compra</th>
-                      <th className="px-4 py-3">Código FIPE</th>
-                      <th className="px-4 py-3">Fornecedor</th>
-                      <th className="px-4 py-3 text-right">Compra</th>
-                      <th className="px-4 py-3 text-right">FIPE na Data</th>
-                      <th className="px-4 py-3 text-center">% Fipe</th>
-                      <th className="px-4 py-3 text-right">Diferença</th>
-                      <th className="px-4 py-3 text-center">Situação</th>
-                      <th className="px-4 py-3 text-center">Motivo Auditoria</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {paginatedAuditList.map((r, i) => {
-                      const getBadgeColor = (situacao: string) => {
-                        if (!situacao) return 'bg-slate-100 text-slate-700';
-                        const s = situacao.toLowerCase();
-                        if (s.includes('disponível') || s.includes('disponivel')) return 'bg-emerald-100 text-emerald-700';
-                        if (s.includes('locado') || s.includes('alugado')) return 'bg-blue-100 text-blue-700';
-                        if (s.includes('manutenção') || s.includes('manutencao')) return 'bg-amber-100 text-amber-700';
-                        if (s.includes('vendido') || s.includes('baixado')) return 'bg-slate-100 text-slate-700';
-                        return 'bg-slate-100 text-slate-700';
-                      };
-
-                      return (
-                        <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium">{r.placa}</td>
-                          <td className="px-4 py-3 text-slate-600">{r.modelo}</td>
-                          <td className="px-4 py-3 text-slate-500 text-sm">{r.dataCompra ? new Date(r.dataCompra).toLocaleDateString('pt-BR') : '-'}</td>
-                          <td className="px-4 py-3 text-slate-600 font-mono text-xs">{r.codigoFipe || '-'}</td>
-                          <td className="px-4 py-3 text-slate-600">{r.fornecedor}</td>
-                          <td className="px-4 py-3 text-right font-medium text-slate-900">{fmtBRL(r.compra)}</td>
-                          <td className="px-4 py-3 text-right text-slate-500">{fmtBRL(r.fipe)}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${r.percentFipe < 100 ? 'bg-emerald-100 text-emerald-700' :
-                              r.percentFipe <= 105 ? 'bg-amber-100 text-amber-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
-                              {r.percentFipe.toFixed(1)}%
-                            </span>
-                          </td>
-                          <td className={`px-4 py-3 text-right font-medium ${r.diff > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {r.diff > 0 ? '+' : ''}{fmtBRL(r.diff)}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(r.situacao)}`}>
-                              {r.situacao || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                              {r.reason}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {auditList.length === 0 && (
-                      <tr>
-                        <td colSpan={11} className="px-4 py-8 text-center text-slate-400">Nenhuma inconformidade encontrada.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination Controls */}
-              {totalAuditPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
-                  <div className="text-sm text-slate-500">
-                    Mostrando {((auditPage - 1) * AUDIT_PAGE_SIZE) + 1} - {Math.min(auditPage * AUDIT_PAGE_SIZE, auditList.length)} de {auditList.length} registros
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setAuditPage(p => Math.max(1, p - 1))}
-                      disabled={auditPage === 1}
-                      className="px-3 py-1 text-sm border rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Anterior
-                    </button>
-                    <span className="text-sm text-slate-600">
-                      Página {auditPage} de {totalAuditPages}
-                    </span>
-                    <button
-                      onClick={() => setAuditPage(p => Math.min(totalAuditPages, p + 1))}
-                      disabled={auditPage === totalAuditPages}
-                      className="px-3 py-1 text-sm border rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Próxima
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </Card>
-          </div>
-        )
-      }
-
-      {/* Floating Clear Filters Button */}
-      {
-        hasActiveFilters && (
-          <button
-            onClick={clearInteractiveFilters}
-            className="fixed bottom-6 right-6 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all z-50"
-          >
-            <Filter className="w-5 h-5" />
-            Limpar Filtros
-          </button>
-        )
-      }
-    </div>
     </div >
   );
 }
