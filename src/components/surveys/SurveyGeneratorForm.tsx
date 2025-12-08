@@ -1,4 +1,4 @@
-// src/components/surveys/SurveyGeneratorForm.tsx
+// src/components/surveys/SurveyGeneratorForm.tsx - Survey generation with prefill support
 
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,11 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Upload, Copy, Check, Send } from 'lucide-react';
 
-interface SurveyGeneratorFormProps {
-  onSuccess: () => void;
+interface PrefillData {
+  clienteId?: string;
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
 }
 
-const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess }) => {
+interface SurveyGeneratorFormProps {
+  onSuccess: () => void;
+  prefillData?: PrefillData;
+}
+
+const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess, prefillData }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
@@ -23,11 +31,12 @@ const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess }) 
   
   const [formData, setFormData] = useState({
     type: '' as Survey['type'],
-    client_name: '',
+    client_name: prefillData?.clientName || '',
     driver_name: '',
     license_plate: '',
-    client_email: '',
-    client_phone: '',
+    client_email: prefillData?.clientEmail || '',
+    client_phone: prefillData?.clientPhone || '',
+    cliente_id: prefillData?.clienteId || '',
   });
 
   const handleChange = (id: keyof typeof formData, value: string) => {
@@ -80,6 +89,7 @@ const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess }) 
         license_plate: formData.license_plate.trim() || null,
         client_email: formData.client_email.trim() || null,
         client_phone: formData.client_phone.trim() || null,
+        cliente_id: formData.cliente_id || null,
         created_by_id: user?.id,
       }).select().single();
 
