@@ -81,6 +81,8 @@ export default function PurchasesDashboard(): JSX.Element {
   // Toggle de Visualização (Valor vs Qtd)
   const [viewModeFornecedor, setViewModeFornecedor] = useState<'valor' | 'qtd'>('valor');
   const [viewModeBanco, setViewModeBanco] = useState<'valor' | 'qtd'>('valor');
+  const [acquisitionPage, setAcquisitionPage] = useState(0);
+  const ACQUISITION_PAGE_SIZE = 10;
 
   const hasActiveFilters = useMemo(() => {
     return !!(activeFilters.fornecedor || activeFilters.mes || activeFilters.montadora.length > 0 || activeFilters.modelo.length > 0 || activeFilters.banco.length > 0);
@@ -149,7 +151,9 @@ export default function PurchasesDashboard(): JSX.Element {
     let countDesagio = 0;
     filteredCompras.forEach((r: AnyObject) => {
       const compra = parseCurrency(r.ValorCompra);
-      const fipe = parseCurrency(r.ValorFipeNaCompra || r.ValorFipeCompra || 0);
+      // FIPE logic switched to Current Value per user request
+      const fipe = parseCurrency(r.ValorFipeAtual || 0);
+
       if (fipe > 0 && compra > 0) {
         somaDesagio += (1 - (compra / fipe));
         countDesagio++;
@@ -173,6 +177,18 @@ export default function PurchasesDashboard(): JSX.Element {
       .slice(0, 10);
   }, [filteredCompras, viewModeFornecedor]);
 
+  const modelRanking = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredCompras.forEach((r: AnyObject) => {
+      const m = r.Modelo || 'Desconhecido';
+      map[m] = (map[m] || 0) + 1;
+    });
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [filteredCompras]);
+
   const evolutionData = useMemo(() => {
     const map: Record<string, { Valor: number, Qtd: number }> = {};
     filteredCompras.forEach((r: AnyObject) => {
@@ -188,6 +204,44 @@ export default function PurchasesDashboard(): JSX.Element {
       ...map[k]
     }));
   }, [filteredCompras]);
+
+  const detailedAcquisitions = useMemo(() => {
+    return filteredCompras.map((r: AnyObject) => {
+      const compra = parseCurrency(r.ValorCompra);
+      const fipeAtual = parseCurrency(r.ValorFipeAtual || 0);
+
+      // % FIPE based on Current Value
+      const percentFipe = fipeAtual > 0 ? (compra / fipeAtual) * 100 : 0;
+
+      const dataCompra = r.DataCompra ? new Date(r.DataCompra) : new Date();
+      const now = new Date();
+      // Diff in months
+      const months = (now.getFullYear() - dataCompra.getFullYear()) * 12 + (now.getMonth() - dataCompra.getMonth());
+
+      return {
+        placa: r.Placa,
+        montadora: r.Montadora,
+        modelo: r.Modelo,
+        ano: r.AnoModelo || r.AnoFabricacao,
+        cor: r.Cor,
+        km: r.KM,
+        dataCompra: r.DataCompra,
+        fornecedor: r.Fornecedor,
+        valorCompra: compra,
+        valorAcessorios: r.ValorAcessorios ? parseCurrency(r.ValorAcessorios) : 0,
+        valorFipeAtual: r.ValorFipeAtual ? parseCurrency(r.ValorFipeAtual) : 0,
+        percentFipe,
+        situacao: r.Situacao || r.SituacaoVeiculo || 'Desconhecido',
+        tempoEmFrota: Math.max(0, months)
+      };
+    });
+  }, [filteredCompras]);
+
+  const paginatedAcquisitions = useMemo(() => {
+    const start = acquisitionPage * ACQUISITION_PAGE_SIZE;
+    return detailedAcquisitions.slice(start, start + ACQUISITION_PAGE_SIZE);
+  }, [detailedAcquisitions, acquisitionPage]);
+
 
   // --- CÁLCULOS ABA 2: FUNDING (ORIGEM) ---
   const fundingKPIs = useMemo(() => {
@@ -228,19 +282,20 @@ export default function PurchasesDashboard(): JSX.Element {
   const auditList = useMemo(() => {
     return filteredCompras.map((r: AnyObject) => {
       const compra = parseCurrency(r.ValorCompra);
-      const fipe = parseCurrency(r.ValorFipeNaCompra || r.ValorFipeCompra || 0);
+      const fipeAtual = parseCurrency(r.ValorFipeAtual || 0);
       const acessorios = parseCurrency(r.ValorAcessorios);
 
       const anomalies = [];
-      if (fipe > 0 && compra > fipe) anomalies.push('Ágio (Acima da FIPE)');
+      // Audit logic: > 10% above Current FIPE
+      if (fipeAtual > 0 && compra > (fipeAtual * 1.10)) anomalies.push('Valor > 110% da FIPE Atual');
       if (compra > 0 && (acessorios / compra) > 0.15) anomalies.push('Acessórios Excessivos (> 15%)');
 
       if (anomalies.length === 0) return null;
 
       return {
         ...r,
-        compra, fipe,
-        diff: compra - fipe,
+        compra, fipe: fipeAtual,
+        diff: compra - fipeAtual,
         reason: anomalies.join(', ')
       };
     }).filter(Boolean);
@@ -316,7 +371,7 @@ export default function PurchasesDashboard(): JSX.Element {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-3">
               <Title>Evolução de Compras (Clique para filtrar)</Title>
               <div className="h-80 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
@@ -344,117 +399,276 @@ export default function PurchasesDashboard(): JSX.Element {
                   <button onClick={() => setViewModeFornecedor('qtd')} className={`px-2 py-1 rounded ${viewModeFornecedor === 'qtd' ? 'bg-white shadow' : ''}`}>Qtd</button>
                 </div>
               </div>
-              <div className="h-80 overflow-y-auto">
-                <BarList data={supplierRanking} valueFormatter={viewModeFornecedor === 'valor' ? fmtCompact : undefined} color="emerald" />
+              <div className="h-80 overflow-y-auto space-y-2">
+                {supplierRanking.map((item) => {
+                  const isSelected = activeFilters.fornecedor === item.name;
+                  const maxVal = Math.max(...supplierRanking.map(i => i.value));
+                  const width = `${(item.value / maxVal) * 100}%`;
+
+                  return (
+                    <div
+                      key={item.name}
+                      onClick={() => setActiveFilters(prev => ({ ...prev, fornecedor: isSelected ? null : item.name }))}
+                      className={`group cursor-pointer p-2 rounded hover:bg-slate-50 transition-all ${isSelected ? 'bg-emerald-50 ring-1 ring-emerald-500' : ''}`}
+                    >
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className={`font-medium ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>{item.name}</span>
+                        <span className="text-slate-500">{viewModeFornecedor === 'valor' ? fmtCompact(item.value) : item.value}</span>
+                      </div>
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div style={{ width }} className={`h-full rounded-full transition-all duration-500 ${isSelected ? 'bg-emerald-500' : 'bg-emerald-400 group-hover:bg-emerald-500'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            <Card>
+              <Title className="mb-4">Top Modelos (Quantidade)</Title>
+              <div className="h-80 overflow-y-auto space-y-2">
+                {modelRanking.map((item) => {
+                  const isSelected = activeFilters.modelo.includes(item.name);
+                  const maxVal = Math.max(...modelRanking.map(i => i.value));
+                  const width = `${(item.value / maxVal) * 100}%`;
+
+                  return (
+                    <div
+                      key={item.name}
+                      onClick={() => handleMultiSelectChange('modelo', item.name)}
+                      className={`group cursor-pointer p-2 rounded hover:bg-slate-50 transition-all ${isSelected ? 'bg-blue-50 ring-1 ring-blue-500' : ''}`}
+                    >
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{item.name}</span>
+                        <span className="text-slate-500">{item.value}</span>
+                      </div>
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div style={{ width }} className={`h-full rounded-full transition-all duration-500 ${isSelected ? 'bg-blue-500' : 'bg-blue-400 group-hover:bg-blue-500'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           </div>
-        </div>
-      )}
+
+          <Card className="mt-6 p-0">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <div>
+                <Title>Detalhamento de Aquisições</Title>
+                <Text className="text-slate-500">Visão completa de cada veículo adquirido</Text>
+              </div>
+              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">
+                {detailedAcquisitions.length} veículos
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-emerald-50 text-emerald-700 uppercase text-xs">
+                  <tr>
+                    <th className="px-4 py-3">Placa</th>
+                    <th className="px-4 py-3">Montadora</th>
+                    <th className="px-4 py-3">Modelo</th>
+                    <th className="px-4 py-3">Ano</th>
+                    <th className="px-4 py-3">Cor</th>
+                    {/* KM Removed */}
+                    <th className="px-4 py-3">Data Compra</th>
+                    <th className="px-4 py-3">Fornecedor</th>
+                    <th className="px-4 py-3 text-right">Valor Compra</th>
+                    <th className="px-4 py-3 text-right">Acessórios</th>
+                    <th className="px-4 py-3 text-right">FIPE Atual</th>
+                    <th className="px-4 py-3 text-center">% FIPE (vs Atual)</th>
+                    <th className="px-4 py-3 text-center">Situação</th>
+                    <th className="px-4 py-3 text-center">Tempo de Casa</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedAcquisitions.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-emerald-50/50">
+                      <td className="px-4 py-3 font-mono font-semibold text-slate-900">{item.placa}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.montadora}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.modelo}</td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">{item.ano}</td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">{item.cor || '-'}</td>
+                      {/* KM Removed */}
+                      <td className="px-4 py-3 text-slate-600">
+                        {item.dataCompra ? new Date(item.dataCompra).toLocaleDateString('pt-BR') : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[150px] truncate" title={item.fornecedor}>
+                        {item.fornecedor}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-900">{fmtBRL(item.valorCompra)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(item.valorAcessorios)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(item.valorFipeAtual)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {item.percentFipe > 0 ? (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.percentFipe < 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                            {item.percentFipe.toFixed(1)}%
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.situacao === 'Vendido' ? 'bg-slate-100 text-slate-600' :
+                          item.situacao === 'Locado' ? 'bg-emerald-100 text-emerald-700' :
+                            item.situacao === 'Bloqueado' ? 'bg-red-100 text-red-700' :
+                              'bg-blue-100 text-blue-700'
+                          }`}>
+                          {item.situacao}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.tempoEmFrota < 12 ? 'bg-emerald-100 text-emerald-700' :
+                          item.tempoEmFrota < 24 ? 'bg-blue-100 text-blue-700' :
+                            item.tempoEmFrota < 36 ? 'bg-amber-100 text-amber-700' :
+                              'bg-red-100 text-red-700'
+                          }`}>
+                          {item.tempoEmFrota} meses
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination Controls */}
+            {Math.ceil(detailedAcquisitions.length / ACQUISITION_PAGE_SIZE) > 1 && (
+              <div className="flex items-center justify-between mt-4 p-4 border-t border-slate-200">
+                <Text className="text-slate-500">
+                  Página {acquisitionPage + 1} de {Math.ceil(detailedAcquisitions.length / ACQUISITION_PAGE_SIZE)}
+                </Text>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAcquisitionPage(p => Math.max(0, p - 1))}
+                    disabled={acquisitionPage === 0}
+                    className="px-3 py-1 bg-slate-100 text-slate-600 rounded text-sm disabled:opacity-50 hover:bg-slate-200"
+                  >
+                    ← Anterior
+                  </button>
+                  <button
+                    onClick={() => setAcquisitionPage(p => Math.min(Math.ceil(detailedAcquisitions.length / ACQUISITION_PAGE_SIZE) - 1, p + 1))}
+                    disabled={acquisitionPage >= Math.ceil(detailedAcquisitions.length / ACQUISITION_PAGE_SIZE) - 1}
+                    className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded text-sm disabled:opacity-50 hover:bg-emerald-200"
+                  >
+                    Próxima →
+                  </button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div >
+      )
+      }
 
       {/* ABA 1: FUNDING (ORIGEM) */}
-      {activeTab === 1 && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card decoration="top" decorationColor="indigo">
-              <Text>Total Financiado (Neste Período)</Text>
-              <Metric>{fmtBRL(fundingKPIs.totalFinanced)}</Metric>
-            </Card>
-            <Card decoration="top" decorationColor="indigo">
-              <Text>Alavancagem (LTV)</Text>
-              <Metric>{fundingKPIs.leverage.toFixed(1)}%</Metric>
-            </Card>
+      {
+        activeTab === 1 && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card decoration="top" decorationColor="indigo">
+                <Text>Total Financiado (Neste Período)</Text>
+                <Metric>{fmtBRL(fundingKPIs.totalFinanced)}</Metric>
+              </Card>
+              <Card decoration="top" decorationColor="indigo">
+                <Text>Alavancagem (LTV)</Text>
+                <Metric>{fundingKPIs.leverage.toFixed(1)}%</Metric>
+              </Card>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <Title>Mix de Capital</Title>
+                <DonutChart className="mt-6 h-60" data={capitalMix} category="value" index="name" valueFormatter={fmtCompact} colors={['emerald', 'indigo']} />
+              </Card>
+              <Card>
+                <Title>Bancos Utilizados na Compra</Title>
+                <Text className="text-xs text-slate-500">Baseado nos veículos filtrados</Text>
+                <div className="mt-6 h-60 overflow-y-auto">
+                  <BarList
+                    data={Object.entries(filteredCompras.reduce((acc: any, r: AnyObject) => {
+                      const b = r.Banco || 'N/A';
+                      acc[b] = (acc[b] || 0) + parseCurrency(r.ValorFinanciado);
+                      return acc;
+                    }, {})).map(([name, value]: any) => ({ name, value })).sort((a, b) => b.value - a.value)}
+                    valueFormatter={fmtCompact}
+                    color="indigo"
+                  />
+                </div>
+              </Card>
+            </div>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <Title>Mix de Capital</Title>
-              <DonutChart className="mt-6 h-60" data={capitalMix} category="value" index="name" valueFormatter={fmtCompact} colors={['emerald', 'indigo']} />
-            </Card>
-            <Card>
-              <Title>Bancos Utilizados na Compra</Title>
-              <Text className="text-xs text-slate-500">Baseado nos veículos filtrados</Text>
-              <div className="mt-6 h-60 overflow-y-auto">
-                <BarList
-                  data={Object.entries(filteredCompras.reduce((acc: any, r: AnyObject) => {
-                    const b = r.Banco || 'N/A';
-                    acc[b] = (acc[b] || 0) + parseCurrency(r.ValorFinanciado);
-                    return acc;
-                  }, {})).map(([name, value]: any) => ({ name, value })).sort((a, b) => b.value - a.value)}
-                  valueFormatter={fmtCompact}
-                  color="indigo"
-                />
-              </div>
-            </Card>
-          </div>
-        </div>
-      )}
+        )
+      }
 
       {/* ABA 2: SAÚDE FINANCEIRA (DÍVIDA ATUAL) */}
-      {activeTab === 2 && (
-        <div className="space-y-6">
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex gap-3">
-            <ShieldAlert className="text-blue-600 w-6 h-6" />
-            <div>
-              <Text className="text-blue-900 font-medium">Filtro Inteligente Ativo</Text>
-              <Text className="text-blue-700 text-sm">
-                Os dados abaixo mostram a dívida atual APENAS dos veículos selecionados nos filtros acima (Ex: Se filtrou "Toyota", mostra a dívida dos Toyotas).
-              </Text>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card decoration="top" decorationColor="rose"><Text>Saldo Devedor Atual</Text><Metric>{fmtBRL(debtKPIs.saldoDevedor)}</Metric></Card>
-            <Card decoration="top" decorationColor="rose"><Text>Fluxo Mensal (Parcelas)</Text><Metric>{fmtBRL(debtKPIs.fluxoMensal)}</Metric></Card>
-            <Card decoration="top" decorationColor="rose"><Text>Contratos Ativos</Text><Metric>{debtKPIs.contratos}</Metric></Card>
-          </div>
-
-          <Card>
-            <div className="flex justify-between items-center mb-4">
-              <Title>Exposição por Banco (Saldo Devedor)</Title>
-              <div className="flex text-xs bg-slate-100 rounded p-1">
-                <button onClick={() => setViewModeBanco('valor')} className={`px-2 py-1 rounded ${viewModeBanco === 'valor' ? 'bg-white shadow' : ''}`}>R$</button>
-                <button onClick={() => setViewModeBanco('qtd')} className={`px-2 py-1 rounded ${viewModeBanco === 'qtd' ? 'bg-white shadow' : ''}`}>Qtd</button>
+      {
+        activeTab === 2 && (
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex gap-3">
+              <ShieldAlert className="text-blue-600 w-6 h-6" />
+              <div>
+                <Text className="text-blue-900 font-medium">Filtro Inteligente Ativo</Text>
+                <Text className="text-blue-700 text-sm">
+                  Os dados abaixo mostram a dívida atual APENAS dos veículos selecionados nos filtros acima (Ex: Se filtrou "Toyota", mostra a dívida dos Toyotas).
+                </Text>
               </div>
             </div>
-            <div className="h-80 overflow-y-auto">
-              <BarList data={debtByBank} valueFormatter={viewModeBanco === 'valor' ? fmtCompact : undefined} color="rose" />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card decoration="top" decorationColor="rose"><Text>Saldo Devedor Atual</Text><Metric>{fmtBRL(debtKPIs.saldoDevedor)}</Metric></Card>
+              <Card decoration="top" decorationColor="rose"><Text>Fluxo Mensal (Parcelas)</Text><Metric>{fmtBRL(debtKPIs.fluxoMensal)}</Metric></Card>
+              <Card decoration="top" decorationColor="rose"><Text>Contratos Ativos</Text><Metric>{debtKPIs.contratos}</Metric></Card>
             </div>
-          </Card>
-        </div>
-      )}
+
+            <Card>
+              <div className="flex justify-between items-center mb-4">
+                <Title>Exposição por Banco (Saldo Devedor)</Title>
+                <div className="flex text-xs bg-slate-100 rounded p-1">
+                  <button onClick={() => setViewModeBanco('valor')} className={`px-2 py-1 rounded ${viewModeBanco === 'valor' ? 'bg-white shadow' : ''}`}>R$</button>
+                  <button onClick={() => setViewModeBanco('qtd')} className={`px-2 py-1 rounded ${viewModeBanco === 'qtd' ? 'bg-white shadow' : ''}`}>Qtd</button>
+                </div>
+              </div>
+              <div className="h-80 overflow-y-auto">
+                <BarList data={debtByBank} valueFormatter={viewModeBanco === 'valor' ? fmtCompact : undefined} color="rose" />
+              </div>
+            </Card>
+          </div>
+        )
+      }
 
       {/* ABA 3: AUDITORIA */}
-      {activeTab === 3 && (
-        <Card>
-          <Title className="mb-4">Compras Fora do Padrão</Title>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
-                <tr>
-                  <th className="px-4 py-2">Placa</th>
-                  <th className="px-4 py-2">Modelo</th>
-                  <th className="px-4 py-2 text-right">Compra</th>
-                  <th className="px-4 py-2 text-right">FIPE Data</th>
-                  <th className="px-4 py-2 text-center">Alerta</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {auditList.map((r: any, i: number) => (
-                  <tr key={i} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 font-medium">{r.Placa}</td>
-                    <td className="px-4 py-2 text-slate-500">{r.Modelo}</td>
-                    <td className="px-4 py-2 text-right">{fmtBRL(r.compra)}</td>
-                    <td className="px-4 py-2 text-right">{fmtBRL(r.fipe)}</td>
-                    <td className="px-4 py-2 text-center">
-                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">{r.reason}</span>
-                    </td>
+      {
+        activeTab === 3 && (
+          <Card>
+            <Title className="mb-4">Compras Fora do Padrão</Title>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-500 uppercase text-xs">
+                  <tr>
+                    <th className="px-4 py-2">Placa</th>
+                    <th className="px-4 py-2">Modelo</th>
+                    <th className="px-4 py-2 text-right">Compra</th>
+                    <th className="px-4 py-2 text-right">FIPE Data</th>
+                    <th className="px-4 py-2 text-center">Alerta</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-    </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditList.map((r: any, i: number) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium">{r.Placa}</td>
+                      <td className="px-4 py-2 text-slate-500">{r.Modelo}</td>
+                      <td className="px-4 py-2 text-right">{fmtBRL(r.compra)}</td>
+                      <td className="px-4 py-2 text-right">{fmtBRL(r.fipe)}</td>
+                      <td className="px-4 py-2 text-center">
+                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">{r.reason}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )
+      }
+    </div >
   );
 }
