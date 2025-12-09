@@ -165,10 +165,38 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
 
     const handleDelete = async () => {
         if (confirm('Tem certeza que deseja remover esta conexão?')) {
-            if (isConnected) {
-                await handleDisconnect();
+            setIsLoading(true);
+            try {
+                // First disconnect if connected
+                if (isConnected) {
+                    await handleDisconnect();
+                }
+                
+                // Delete from WhatsApp service
+                try {
+                    await fetch(`${SERVICE_URL}/instances/${instance.id}`, {
+                        method: 'DELETE'
+                    });
+                } catch (serviceError) {
+                    console.warn('Could not delete from WhatsApp service:', serviceError);
+                }
+                
+                // Delete from database via callback
+                onDelete(instance.id);
+                
+                toast({
+                    title: "Removido",
+                    description: "Instância removida com sucesso.",
+                });
+            } catch (error) {
+                toast({
+                    title: "Erro",
+                    description: "Erro ao remover instância.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsLoading(false);
             }
-            onDelete(instance.id);
         }
     };
 

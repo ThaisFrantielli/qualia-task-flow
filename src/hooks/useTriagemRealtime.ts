@@ -23,6 +23,7 @@ export interface TriagemLead {
     last_message: string | null;
     last_message_at: string | null;
     unread_count: number;
+    instance_id?: string | null;
   } | null;
 }
 
@@ -58,10 +59,10 @@ export function useTriagemLeads(options?: {
 
       let conversations: any[] = [];
       if (leadIds.length > 0) {
-        // Query otimizada: busca por cliente_id primeiro
+        // Query otimizada: busca por cliente_id primeiro (incluindo instance_id)
         const { data: convs } = await supabase
           .from('whatsapp_conversations')
-          .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count')
+          .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count, instance_id')
           .in('cliente_id', leadIds);
         
         conversations = convs || [];
@@ -76,7 +77,7 @@ export function useTriagemLeads(options?: {
           if (missingLeads.length > 0) {
             const { data: additionalConvs } = await supabase
               .from('whatsapp_conversations')
-              .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count')
+              .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count, instance_id')
               .in('whatsapp_number', missingLeads.map(l => l.whatsapp_number));
             
             if (additionalConvs) {
@@ -97,7 +98,8 @@ export function useTriagemLeads(options?: {
             id: conv.id,
             last_message: conv.last_message,
             last_message_at: conv.last_message_at,
-            unread_count: conv.unread_count || 0
+            unread_count: conv.unread_count || 0,
+            instance_id: conv.instance_id || null
           } : null
         } as TriagemLead;
       });

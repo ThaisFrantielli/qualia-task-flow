@@ -29,8 +29,8 @@ export const CustomerQuickActions: React.FC<CustomerQuickActionsProps> = ({
 
   const handleWhatsApp = () => {
     if (whatsappNumber) {
-      const cleanNumber = whatsappNumber.replace(/\D/g, '');
-      window.open(`https://wa.me/${cleanNumber}`, '_blank');
+      // Navegar para o chat interno do sistema ao invés de abrir WhatsApp Web
+      navigate(`/whatsapp?cliente_id=${clienteId}&telefone=${encodeURIComponent(whatsappNumber)}`);
     } else {
       toast.info('Cliente não possui número de WhatsApp cadastrado');
     }
