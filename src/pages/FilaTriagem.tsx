@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useTriagemLeads,
   useEncaminharParaComercial,
@@ -21,11 +21,19 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Ticket, Inbox, MessageSquare, Users, Eye } from "lucide-react";
 import { TriagemLeadCardV2 } from "@/components/triagem/TriagemLeadCardV2";
 import { TriagemFilters } from "@/components/triagem/TriagemFilters";
+import { supabase } from "@/integrations/supabase/client";
 import {
   TICKET_ORIGEM_OPTIONS,
   TICKET_MOTIVO_OPTIONS,
   TICKET_DEPARTAMENTO_OPTIONS
 } from "@/constants/ticketOptions";
+
+interface WhatsAppInstance {
+  id: string;
+  name: string;
+  status: string;
+  phone_number: string | null;
+}
 
 export default function FilaTriagem() {
   const { user } = useAuth();
@@ -37,11 +45,30 @@ export default function FilaTriagem() {
   const descartarLead = useDescartarLead();
   const atribuirLead = useAtribuirLead();
 
+  // WhatsApp instances state
+  const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
+  const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
+
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [origemFilter, setOrigemFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
+
+  // Fetch WhatsApp instances
+  useEffect(() => {
+    const fetchInstances = async () => {
+      const { data } = await supabase
+        .from('whatsapp_instances')
+        .select('id, name, status, phone_number')
+        .order('name');
+      
+      if (data) {
+        setInstances(data);
+      }
+    };
+    fetchInstances();
+  }, []);
 
   // Dialog state
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
@@ -81,6 +108,19 @@ export default function FilaTriagem() {
         if (origemFilter === 'import' && lead.origem !== 'import') return false;
       }
 
+      // Instance filter - if specific instances are selected, filter by them
+      if (selectedInstanceIds.length > 0 && selectedInstanceIds.length < instances.length) {
+        // Only filter if user selected specific instances (not all)
+        const leadInstanceId = lead.conversation?.instance_id;
+        if (leadInstanceId && !selectedInstanceIds.includes(leadInstanceId)) {
+          return false;
+        }
+        // If lead has no conversation/instance, show it only if "all" is selected
+        if (!leadInstanceId && lead.origem === 'whatsapp_inbound') {
+          return false;
+        }
+      }
+
       // Tab filter
       if (activeTab === 'whatsapp' && lead.origem !== 'whatsapp_inbound' && !lead.whatsapp_number) return false;
       if (activeTab === 'unread' && (!lead.conversation || lead.conversation.unread_count === 0)) return false;
@@ -98,7 +138,7 @@ export default function FilaTriagem() {
       const bDate = b.created_at || b.cadastro_cliente || '';
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
-  }, [leads, searchTerm, statusFilter, origemFilter, activeTab, user?.id]);
+  }, [leads, searchTerm, statusFilter, origemFilter, activeTab, user?.id, selectedInstanceIds, instances.length]);
 
   // Stats
   const stats = useMemo(() => {
@@ -214,6 +254,9 @@ export default function FilaTriagem() {
         totalLeads={stats.total}
         whatsappCount={stats.whatsapp}
         urgentCount={stats.urgent}
+        instances={instances}
+        selectedInstanceIds={selectedInstanceIds}
+        onInstancesChange={setSelectedInstanceIds}
       />
 
       {/* Tabs */}
