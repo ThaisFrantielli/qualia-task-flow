@@ -1,143 +1,298 @@
-/*
-    
-  - Carrega variáveis de ambiente via dotenv
-  - Conecta ao SQL Server (rede interna)
-  - Executa uma query de teste (SELECT TOP 100 * FROM Vendas)
-  - Converte resultado em JSON
-  - Faz upload para Supabase Storage no bucket 'bi-reports' como 'dashboard_data.json'
-*/
-
 require('dotenv').config();
 const sql = require('mssql');
 const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
+// Configuração do Supabase
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('ERROR: SUPABASE_URL and SUPABASE_KEY must be set in .env');
-  process.exit(1);
-}
-
+// Configuração do SQL Server
 const sqlConfig = {
-  user: process.env.SQL_USER,
-  password: process.env.SQL_PASSWORD,
-  server: process.env.SQL_SERVER,
-  database: process.env.SQL_DATABASE,
-  port: process.env.SQL_PORT ? parseInt(process.env.SQL_PORT, 10) : 1433,
-  options: {
-    encrypt: process.env.SQL_ENCRYPT === 'true' || false,
-    trustServerCertificate: process.env.SQL_TRUST_SERVER_CERTIFICATE === 'true' || true,
-  },
-  connectionTimeout: 30000,
-  requestTimeout: 30000,
+    user: process.env.SQL_USER,
+    password: process.env.SQL_PASSWORD,
+    server: '200.219.192.34',
+    port: 3494,
+    database: process.env.SQL_DATABASE,
+    connectionTimeout: 120000,
+    requestTimeout: 120000,
+    options: { encrypt: false, trustServerCertificate: true }
 };
 
-// Lista de relatórios a serem extraídos (Static JSON architecture)
-const REPORTS = [
-  {
-    filename: 'compras_full.json',
-    query: `
-      SELECT 
-          v.IdVeiculo,
-          v.Placa,
-          v.Montadora,
-          v.Modelo,
-          v.AnoFabricacao,
-          v.SituacaoVeiculo,
-          FORMAT(vc.DataCompra, 'yyyy-MM-dd') as DataCompra,
-          YEAR(vc.DataCompra) as AnoCompra,
-          MONTH(vc.DataCompra) as MesCompra,
-          COALESCE(vc.Instituicao, 'Recurso Próprio') AS Banco,
-          CAST(vc.ValorCompra AS FLOAT) as ValorCompra,
-          CAST(vc.ValorAtualFIPE AS FLOAT) as ValorFipe,
-          CAST(vc.ValorAlienado AS FLOAT) as ValorAlienado
-      FROM VeiculosComprados vc
-      INNER JOIN Veiculos v ON vc.IdVeiculo = v.IdVeiculo
-      WHERE vc.DataCompra >= DATEADD(year, -5, GETDATE())
-      ORDER BY vc.DataCompra DESC
-    `,
-  },
+// --- BLOCO 1: RELATÓRIOS LEVES (Arquivo Único) ---
+const SIMPLE_REPORTS = [
+    // 1. FROTA ATIVA
+    {
+        filename: 'frota.json',
+        query: `
+            SELECT 
+                v.IdVeiculo, v.Placa, v.Modelo, v.Montadora, v.AnoFabricacao, 
+                v.SituacaoVeiculo, v.Filial, v.Cor,
+                COALESCE(v.OdometroInformado, 0) as KM,
+                COALESCE(v.IdadeEmMeses, 0) as IdadeMeses,
+                CAST(v.ValorCompra AS FLOAT) as ValorCompra, 
+                CAST(v.ValorAtualFIPE AS FLOAT) as ValorFipe
+            FROM Veiculos v
+            WHERE v.SituacaoVeiculo <> 'Vendido'
+            ORDER BY v.Modelo
+        `
+    },
+
+    // 2. COMPRAS (Com FIPE ATUAL e FIPE HISTÓRICA)
+    {
+        filename: 'compras_full.json',
+        query: `
+            SELECT DISTINCT
+                vc.IdVeiculo,
+                vc.Placa,
+                v.Modelo,
+                v.Montadora,
+                v.AnoFabricacao,
+                v.Cor,
+                v.SituacaoVeiculo,
+                
+                -- KM
+                COALESCE(v.OdometroInformado, 0) as KM,
+                
+                -- Datas
+                FORMAT(vc.DataCompra, 'yyyy-MM-dd') as DataCompra,
+                
+                -- Valores
+                CAST(vc.ValorCompra AS FLOAT) as ValorCompra,
+                CAST(vc.ValorAcessorios AS FLOAT) as ValorAcessorios,
+                
+                -- FIPES (As duas, para você escolher)
+                CAST(v.ValorAtualFIPE AS FLOAT) as ValorFipeAtual,       -- Valor HOJE
+                CAST(COALESCE(FipeData.PrecoFIPE, 0) AS FLOAT) as ValorFipeNaCompra, -- Valor na época
+                
+                -- Funding e Fornecedor
+                COALESCE(FundingData.Instituicao, vc.Instituicao, 'Recurso Próprio') AS Banco,
+                CAST(COALESCE(FundingData.ValorAlienado, vc.ValorAlienado, 0) AS FLOAT) as ValorFinanciado,
+                CAST(COALESCE(FundingData.ValorParcela, vc.ValorPrimeiraParcela, 0) AS FLOAT) as ValorParcela,
+                COALESCE(Forn.NomeFantasia, Forn.Nome, vc.NomeFornecedorNotaFiscal, 'Fornecedor N/D') as Fornecedor
+
+            FROM VeiculosComprados vc
+            INNER JOIN Veiculos v ON vc.IdVeiculo = v.IdVeiculo
+            
+            -- APPLYS (Mantém igual para evitar duplicação)
+            OUTER APPLY (SELECT TOP 1 Nome, NomeFantasia FROM Fornecedores f WHERE f.IdFornecedor = vc.IdFornecedorNotaFiscal) Forn
+            OUTER APPLY (SELECT TOP 1 Instituicao, ValorAlienado, ValorParcela FROM Alienacoes ali WHERE ali.IdAlienacao = vc.IdAlienacao) FundingData
+            OUTER APPLY (SELECT TOP 1 PrecoFIPE FROM PrecosFIPE pf WHERE pf.CodigoFIPE = v.CodigoFIPE AND pf.AnoModelo = v.AnoModelo AND YEAR(pf.DataMesFIPE) = YEAR(vc.DataCompra) AND MONTH(pf.DataMesFIPE) = MONTH(vc.DataCompra)) FipeData
+
+            WHERE vc.DataCompra >= DATEADD(year, -5, GETDATE())
+        `
+    },
+
+    // 10. FUNDING & ALIENAÇÕES (Gestão de Dívida)
+    {
+        filename: 'alienacoes.json',
+        query: `
+            SELECT 
+                a.IdAlienacao,
+                a.Instituicao as Banco,
+                a.NumeroContrato,
+                a.Placa,
+                a.Modelo,
+                a.SituacaoFinanceiraVeiculo as Situacao,
+                
+                -- Valores
+                CAST(a.ValorContratoVeiculo AS FLOAT) as ValorOriginal,
+                CAST(a.ValorParcelaVeiculo AS FLOAT) as ValorParcela,
+                CAST(a.SaldoRemanescente AS FLOAT) as SaldoDevedor,
+                
+                -- Prazos
+                a.QuantidadeParcelas as PrazoTotal,
+                a.QuantidadeParcelasRemanescentes as PrazoRestante,
+                
+                -- Datas
+                FORMAT(a.Inicio, 'yyyy-MM-dd') as DataInicio,
+                FORMAT(a.Termino, 'yyyy-MM-dd') as DataFim,
+                FORMAT(a.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimeiroVencimento
+
+            FROM Alienacoes a
+            WHERE a.SaldoRemanescente > 0 -- Traz apenas dívida ativa
+            ORDER BY a.SaldoRemanescente DESC
+        `
+    },
+    // 3. AUDITORIA DE VENDAS
+    {
+        filename: 'auditoria_vendas.json',
+        query: `
+            SELECT 
+                vv.IdVeiculo, vv.Placa, vv.Modelo,
+                FORMAT(vv.DataCompra, 'yyyy-MM-dd') as DataCompra,
+                FORMAT(vv.DataVenda, 'yyyy-MM-dd') as DataVenda,
+                DATEDIFF(day, vv.DataCompra, vv.DataVenda) as DiasEmFrota,
+                CAST(vv.ValorCompra AS FLOAT) as ValorCompra,
+                CAST(vv.ValorVenda AS FLOAT) as ValorVenda,
+                CAST(vv.ValorTotal AS FLOAT) as ValorTotalRecebido,
+                -- Resultado Financeiro
+                (CAST(vv.ValorVenda AS FLOAT) - CAST(vv.ValorCompra AS FLOAT)) as ResultadoBruto,
+                vv.Comprador
+            FROM VeiculosVendidos vv
+            WHERE vv.DataVenda IS NOT NULL
+            ORDER BY vv.DataVenda DESC
+        `
+    },
+
+    // 4. VENDAS (Histórico Simples de Saída)
+    {
+        filename: 'vendas.json',
+        query: `
+            SELECT 
+                vv.IdVeiculo, vv.Placa, vv.Modelo, vv.Montadora, vv.Comprador,
+                FORMAT(vv.DataVenda, 'yyyy-MM-dd') as DataVenda,
+                CAST(vv.ValorVenda AS FLOAT) as ValorVenda,
+                CAST(vv.ValorCompra AS FLOAT) as ValorCompra, 
+                CAST(vv.ValorTotal AS FLOAT) as ValorTotalVenda,
+                DATEDIFF(month, vv.DataCompra, vv.DataVenda) as MesesDeUso
+            FROM VeiculosVendidos vv
+            WHERE vv.DataVenda IS NOT NULL
+        `
+    },
+
+    // 5. CONTRATOS E PREÇOS (Base para Gap Analysis)
+    {
+        filename: 'contratos_ativos.json',
+        query: `
+            SELECT 
+                cl.IdContratoLocacao,
+                COALESCE(cc.NomeRequisitante, 'Cliente ' + CAST(cc.IdCliente as VARCHAR)) as Cliente,
+                cl.PlacaPrincipal as Placa, cl.SituacaoContratoLocacao as Status,
+                FORMAT(cl.DataInicial, 'yyyy-MM-dd') as InicioContrato,
+                FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as FimContrato,
+                -- Dados do Preço
+                FORMAT(cp.DataInicial, 'yyyy-MM-dd') as InicioVigenciaPreco,
+                FORMAT(cp.DataFinal, 'yyyy-MM-dd') as FimVigenciaPreco,
+                CAST(cp.PrecoUnitario AS FLOAT) as ValorVigente
+            FROM ContratosLocacao cl
+            INNER JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
+            INNER JOIN ContratosLocacaoPrecos cp ON cl.IdContratoLocacao = cp.IdContratoLocacao
+            WHERE (cl.DataEncerramento IS NULL OR cl.DataEncerramento >= DATEADD(year, -3, GETDATE()))
+        `
+    },
+
+    // 6. CHURN (Eventos de Entrada e Saída)
+    {
+        filename: 'churn_contratos.json',
+        query: `
+            -- Entradas
+            SELECT cl.IdContratoLocacao, cl.PlacaPrincipal as Placa, 
+                   FORMAT(cl.DataInicial, 'yyyy-MM-dd') as DataEvento, 'Iniciado' as TipoEvento,
+                   CAST(cl.CustoAtual AS FLOAT) as Valor
+            FROM ContratosLocacao cl WHERE cl.DataInicial >= DATEADD(year, -3, GETDATE())
+            UNION ALL
+            -- Saídas
+            SELECT cl.IdContratoLocacao, cl.PlacaPrincipal as Placa, 
+                   FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataEvento, 'Encerrado' as TipoEvento,
+                   CAST(cl.CustoAtual AS FLOAT) as Valor
+            FROM ContratosLocacao cl WHERE cl.DataEncerramento >= DATEADD(year, -3, GETDATE())
+        `
+    }
 ];
-async function fetchData(query) {
-  let pool;
-  try {
-    pool = await sql.connect(sqlConfig);
-    console.log('Connected to SQL Server:', sqlConfig.server);
 
-    const result = await pool.request().query(query);
+async function runSync() {
+    console.log(`[${new Date().toISOString()}] 🚀 Iniciando ETL Definitivo...`);
 
-    const rows = result.recordset || [];
-    return rows;
-  } catch (err) {
-    console.error('SQL Error:', err.message || err);
-    throw err;
-  } finally {
     try {
-      if (pool) await pool.close();
-    } catch (e) {
-      // ignore
+        await sql.connect(sqlConfig);
+        console.log("✅ Conectado ao SQL Server (Base: " + process.env.SQL_DATABASE + ")");
+
+        // === FASE 1: Relatórios Leves ===
+        for (const report of SIMPLE_REPORTS) {
+            await processReport(report.filename, report.query);
+        }
+
+        // === FASE 2: Relatórios Pesados (Fatiados por Ano) ===
+        const years = [2021, 2022, 2023, 2024, 2025];
+
+        for (const year of years) {
+            console.log(`\n✂️  Processando Ano Base: ${year}...`);
+
+            // 1. FINANCEIRO (FaturamentoItems é a tabela pesada)
+            await processReport(`financeiro_completo_${year}.json`, `
+                SELECT 
+                    f.IdNota, f.Cliente, f.SituacaoNota,
+                    FORMAT(f.DataEmissao, 'yyyy-MM-dd') as DataEmissao,
+                    FORMAT(f.DataCompetencia, 'yyyy-MM-dd') as DataCompetencia,
+                    CAST(f.ValorLocacao AS FLOAT) as ValorLocacao,
+                    CAST(f.ValorTotal AS FLOAT) as ValorTotal,
+                    fi.IdVeiculo, fi.Descricao as ItemDescricao,
+                    CAST(fi.ValorTotal AS FLOAT) as ValorFaturadoItem
+                FROM Faturamentos f
+                LEFT JOIN FaturamentoItems fi ON f.IdNota = fi.IdNota
+                WHERE YEAR(f.DataEmissao) = ${year}
+                AND f.SituacaoNota <> 'Cancelada'
+            `);
+
+            // 2. MANUTENÇÃO - HEADER (OrdensServico)
+            await processReport(`manutencao_os_${year}.json`, `
+                SELECT 
+                    os.IdOrdemServico, os.Placa, os.ModeloVeiculo, os.Fornecedor,
+                    os.SituacaoOrdemServico, os.Tipo as TipoManutencao, os.Motivo,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
+                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
+                    CAST(os.ValorTotal AS FLOAT) as ValorTotal,
+                    os.OdometroConfirmado as KM,
+                    DATEDIFF(day, os.DataInicioServico, os.DataConclusaoOcorrencia) as DiasParado
+                FROM OrdensServico os
+                WHERE YEAR(os.DataInicioServico) = ${year}
+                AND os.SituacaoOrdemServico <> 'Cancelada'
+            `);
+
+            // 3. MANUTENÇÃO - ITENS (ItensOrdemServico - A mais pesada!)
+            await processReport(`manutencao_itens_${year}.json`, `
+                SELECT 
+                    ios.IdItemOrdemServico, ios.IdOrdemServico, 
+                    ios.GrupoDespesa, ios.DescricaoItem, ios.TipoItem,
+                    ios.Quantidade, CAST(ios.ValorTotal AS FLOAT) as ValorItem
+                FROM ItensOrdemServico ios
+                INNER JOIN OrdensServico os ON ios.IdOrdemServico = os.IdOrdemServico
+                WHERE YEAR(os.DataInicioServico) = ${year}
+                AND os.SituacaoOrdemServico <> 'Cancelada'
+            `);
+        }
+
+        console.log("\n🏁 Sincronização Finalizada com Sucesso!");
+
+    } catch (err) {
+        console.error("❌ Erro Fatal:", err.message);
+    } finally {
+        if (sql) await sql.close();
     }
-  }
 }
 
-async function uploadToSupabase(jsonObj, path) {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-    // use default - running in Node.js
-  });
+// Função de Upload Genérica
+async function processReport(filename, query) {
+    console.log(`   ⏳ Querying: ${filename}...`);
+    try {
+        const result = await sql.query(query);
+        const data = result.recordset;
 
-  const bucket = 'bi-reports';
-  const jsonString = JSON.stringify(jsonObj, null, 2);
-  const buffer = Buffer.from(jsonString, 'utf-8');
+        if (!data || data.length === 0) {
+            console.log(`      ⚠️  Sem dados para ${filename}, pulando.`);
+            return;
+        }
 
-  try {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(path, buffer, { upsert: true, contentType: 'application/json' });
+        const jsonContent = {
+            generated_at: new Date().toISOString(),
+            row_count: data.length,
+            data: data
+        };
 
-    if (error) {
-      console.error('Upload error:', error.message || error);
-      throw error;
+        const sizeMB = (JSON.stringify(jsonContent).length / 1024 / 1024).toFixed(2);
+        console.log(`      📦 Uploading ${sizeMB} MB...`);
+
+        const { error } = await supabase.storage
+            .from('bi-reports')
+            .upload(filename, JSON.stringify(jsonContent), {
+                contentType: 'application/json',
+                upsert: true
+            });
+
+        if (error) throw error;
+        console.log(`      ✅ Sucesso: ${filename} (${data.length} rows)`);
+    } catch (err) {
+        console.error(`      ❌ Erro em ${filename}:`, err.message);
     }
-
-    console.log('Upload successful, path:', data?.path || `${bucket}/${path}`);
-    return data;
-  } catch (err) {
-    console.error('Supabase upload failed:', err.message || err);
-    throw err;
-  }
 }
 
-async function main() {
-  try {
-    console.log('Starting local ETL sync...');
-
-    for (const report of REPORTS) {
-      console.log('Running report:', report.filename);
-      const rows = await fetchData(report.query);
-
-      const payload = {
-        generated_at: new Date().toISOString(),
-        source: 'local_etl',
-        report: report.filename,
-        row_count: rows.length,
-        data: rows,
-      };
-
-      const path = report.filename;
-      await uploadToSupabase(payload, path);
-      console.log(`Report uploaded: ${path} (rows: ${rows.length})`);
-    }
-
-    console.log('Sucesso: todos os relatórios sincronizados para Supabase Storage.');
-    process.exit(0);
-  } catch (err) {
-    console.error('Erro durante o sync:', err?.message || err);
-    process.exit(2);
-  }
-}
-
-if (require.main === module) {
-  main();
-}
+runSync();
