@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,11 @@ interface WhatsAppInstance {
 export default function WhatsAppCentralPage() {
   useAuth(); // ensure auth context
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  
+  // Get URL parameters for direct chat opening
+  const urlClienteId = searchParams.get('cliente_id');
+  const urlTelefone = searchParams.get('telefone');
   
   // State
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
@@ -46,6 +52,9 @@ export default function WhatsAppCentralPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'queue' | 'mine' | 'unread'>('all');
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
+  const [pendingAutoOpen, setPendingAutoOpen] = useState<{clienteId: string; telefone: string} | null>(
+    urlClienteId && urlTelefone ? { clienteId: urlClienteId, telefone: urlTelefone } : null
+  );
 
   // Hooks
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, selectedInstanceId || undefined);
@@ -99,6 +108,38 @@ export default function WhatsAppCentralPage() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Auto-open conversation from URL parameters
+  useEffect(() => {
+    if (pendingAutoOpen && conversations.length > 0 && !convLoading) {
+      const { clienteId, telefone } = pendingAutoOpen;
+      
+      // Find existing conversation for this client/phone
+      const existingConv = conversations.find(c => 
+        c.cliente_id === clienteId || 
+        c.whatsapp_number === telefone ||
+        c.whatsapp_number === telefone.replace(/\D/g, '')
+      );
+      
+      if (existingConv) {
+        setSelectedConversationId(existingConv.id);
+        toast({
+          title: 'Conversa aberta',
+          description: `Abrindo conversa com ${existingConv.customer_name || telefone}`,
+        });
+      } else {
+        // Show notification that a new conversation can be started
+        toast({
+          title: 'Cliente selecionado',
+          description: 'Nenhuma conversa existente encontrada. Use o painel para iniciar uma nova.',
+        });
+        // Set the search term to help find/filter
+        setSearchTerm(telefone);
+      }
+      
+      setPendingAutoOpen(null);
+    }
+  }, [pendingAutoOpen, conversations, convLoading, toast]);
 
   // Filter conversations
   const filteredConversations = useMemo(() => {

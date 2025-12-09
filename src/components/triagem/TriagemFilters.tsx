@@ -2,7 +2,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, RefreshCw, Filter } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Search, RefreshCw, Filter, Smartphone } from "lucide-react";
+
+interface WhatsAppInstance {
+  id: string;
+  name: string;
+  status: string;
+  phone_number?: string | null;
+}
 
 interface TriagemFiltersProps {
   searchTerm: string;
@@ -16,6 +25,10 @@ interface TriagemFiltersProps {
   totalLeads: number;
   whatsappCount: number;
   urgentCount: number;
+  // Novos props para filtro de instâncias
+  instances?: WhatsAppInstance[];
+  selectedInstanceIds?: string[];
+  onInstancesChange?: (ids: string[]) => void;
 }
 
 export function TriagemFilters({
@@ -29,8 +42,30 @@ export function TriagemFilters({
   isRefreshing,
   totalLeads,
   whatsappCount,
-  urgentCount
+  urgentCount,
+  instances = [],
+  selectedInstanceIds = [],
+  onInstancesChange
 }: TriagemFiltersProps) {
+  const handleInstanceToggle = (instanceId: string) => {
+    if (!onInstancesChange) return;
+    
+    if (selectedInstanceIds.includes(instanceId)) {
+      onInstancesChange(selectedInstanceIds.filter(id => id !== instanceId));
+    } else {
+      onInstancesChange([...selectedInstanceIds, instanceId]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (!onInstancesChange) return;
+    if (selectedInstanceIds.length === instances.length) {
+      onInstancesChange([]);
+    } else {
+      onInstancesChange(instances.map(i => i.id));
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Stats Row */}
@@ -88,6 +123,65 @@ export function TriagemFilters({
             <SelectItem value="import">Importação</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Instance Filter - Multi-select */}
+        {instances.length > 0 && onInstancesChange && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-[200px] justify-start">
+                <Smartphone className="w-4 h-4 mr-2" />
+                <span className="truncate">
+                  {selectedInstanceIds.length === 0 
+                    ? 'Todas instâncias' 
+                    : selectedInstanceIds.length === instances.length
+                    ? 'Todas instâncias'
+                    : `${selectedInstanceIds.length} instância(s)`}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px] p-3">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Filtrar por instância</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSelectAll}
+                    className="text-xs h-7"
+                  >
+                    {selectedInstanceIds.length === instances.length ? 'Limpar' : 'Todas'}
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {instances.map(instance => (
+                    <label
+                      key={instance.id}
+                      className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={selectedInstanceIds.length === 0 || selectedInstanceIds.includes(instance.id)}
+                        onCheckedChange={() => handleInstanceToggle(instance.id)}
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm">{instance.name}</span>
+                        {instance.phone_number && (
+                          <span className="text-xs text-muted-foreground">
+                            {instance.phone_number}
+                          </span>
+                        )}
+                      </div>
+                      <span 
+                        className={`ml-auto w-2 h-2 rounded-full ${
+                          instance.status === 'connected' ? 'bg-green-500' : 'bg-gray-400'
+                        }`} 
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
 
         {/* Refresh Button */}
         <Button 
