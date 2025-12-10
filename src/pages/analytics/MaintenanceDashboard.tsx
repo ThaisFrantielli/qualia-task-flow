@@ -103,7 +103,9 @@ export default function MaintenanceDashboard(): JSX.Element {
         const totalKm = filteredOS.reduce((s: number, r: AnyObject) => s + parseCurrency(r.Km || r.KmRodado || r.Kilometragem || r.KmPercorrido || r.KmRodadoTotal || 0), 0);
         const cpk = totalKm > 0 ? totalCost / totalKm : 0;
 
-        return { totalCost, avgCost, avgTime, stopped, valorReembolsavel, totalKm, cpk };
+        const percReembolsavel = totalCost > 0 ? (valorReembolsavel / totalCost) * 100 : 0;
+
+        return { totalCost, avgCost, avgTime, stopped, valorReembolsavel, percReembolsavel, totalKm, cpk };
     }, [filteredOS]);
 
     // Chart 1: Preventive vs Corrective (Donut by Value)
@@ -232,16 +234,16 @@ export default function MaintenanceDashboard(): JSX.Element {
                     <Metric className="text-slate-900">{fmtBRL(kpis.avgCost)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
-                    <Text className="text-slate-500">Tempo Médio Reparo</Text>
+                    <Text className="text-slate-500">MTTR (Tempo Médio)</Text>
                     <Metric className="text-slate-900">{kpis.avgTime.toFixed(1)} dias</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200 shadow-sm">
                     <Text className="text-slate-500">Veículos Parados Hoje</Text>
                     <Metric className="text-slate-900">{kpis.stopped}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
-                    <Text className="text-slate-500">Valor Reembolsável</Text>
-                    <Metric className="text-slate-900">{fmtBRL(kpis.valorReembolsavel || 0)}</Metric>
+                <Card decoration="top" decorationColor="teal" className="bg-white border border-slate-200 shadow-sm">
+                    <Text className="text-slate-500">% Reembolsável</Text>
+                    <Metric className="text-slate-900">{kpis.percReembolsavel.toFixed(1)}%</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="slate" className="bg-white border border-slate-200 shadow-sm">
                     <Text className="text-slate-500">CPK (R$/km)</Text>

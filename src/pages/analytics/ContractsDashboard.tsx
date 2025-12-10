@@ -46,6 +46,7 @@ export default function ContractsDashboard(): JSX.Element {
     // Hooks de dados
     const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
     const { data: churnData } = useBIData<AnyObject[]>('dim_churn.json');
+    const { data: rentabilidadeData } = useBIData<AnyObject[]>('dim_rentabilidade.json');
 
     // Normalização de dados (Contratos)
     const contratos: AnyObject[] = useMemo(() => {
@@ -69,7 +70,7 @@ export default function ContractsDashboard(): JSX.Element {
     }, [churnData]);
 
     // Controle de Abas
-    const [activeTab, setActiveTab] = useState<'overview' | 'ativos' | 'movimentacao' | 'churn'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'ativos' | 'movimentacao' | 'churn' | 'rentabilidade'>('overview');
 
     // === CÁLCULOS: OVERVIEW ===
     const overviewKpis = useMemo(() => {
@@ -209,6 +210,63 @@ export default function ContractsDashboard(): JSX.Element {
             .sort((a, b) => b.value - a.value);
     }, [churnFiltered]);
 
+    // === CÁLCULOS: RENTABILIDADE ===
+    const rentabilidade = useMemo(() => {
+        if (!rentabilidadeData) return [];
+        if (Array.isArray(rentabilidadeData)) return rentabilidadeData as AnyObject[];
+        if ((rentabilidadeData as any).data && Array.isArray((rentabilidadeData as any).data)) return (rentabilidadeData as any).data;
+        const keys = Object.keys(rentabilidadeData as any);
+        for (const k of keys) if (Array.isArray((rentabilidadeData as any)[k])) return (rentabilidadeData as any)[k];
+        return [];
+    }, [rentabilidadeData]);
+
+    // Curva ABC por Margem Total
+    const curvaABC = useMemo(() => {
+        const sorted = [...rentabilidade]
+            .map(r => ({
+                cliente: r.Cliente || r.Nome || 'N/A',
+                margem: Number(r.MargemTotal || r.Margem || 0),
+                receita: Number(r.ReceitaTotal || r.Receita || 0),
+            }))
+            .sort((a, b) => b.margem - a.margem);
+
+        const totalMargem = sorted.reduce((s, r) => s + r.margem, 0);
+        let acumulado = 0;
+
+        return sorted.map((r, i) => {
+            acumulado += r.margem;
+            const percAcumulado = totalMargem > 0 ? (acumulado / totalMargem) * 100 : 0;
+            let classe = 'C';
+            if (percAcumulado <= 80) classe = 'A';
+            else if (percAcumulado <= 95) classe = 'B';
+
+            return {
+                rank: i + 1,
+                cliente: r.cliente,
+                margem: r.margem,
+                receita: r.receita,
+                percAcumulado,
+                classe,
+            };
+        });
+    }, [rentabilidade]);
+
+    // Top 10 Clientes por Rentabilidade
+    const topRentabilidade = useMemo(() => {
+        return curvaABC.slice(0, 10).map(r => ({ name: r.cliente, value: r.margem }));
+    }, [curvaABC]);
+
+    // Distribuição ABC (count)
+    const distribuicaoABC = useMemo(() => {
+        const counts = { A: 0, B: 0, C: 0 };
+        curvaABC.forEach(r => counts[r.classe as 'A' | 'B' | 'C']++);
+        return [
+            { name: 'Classe A', value: counts.A },
+            { name: 'Classe B', value: counts.B },
+            { name: 'Classe C', value: counts.C },
+        ];
+    }, [curvaABC]);
+
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
             <div className="flex items-center justify-between">
@@ -226,14 +284,14 @@ export default function ContractsDashboard(): JSX.Element {
 
             {/* Tabs de Navegação */}
             <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-                {['overview', 'ativos', 'movimentacao', 'churn'].map((tab) => (
+                {['overview', 'ativos', 'movimentacao', 'churn', 'rentabilidade'].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab as any)}
                         className={`px-4 py-2 text-sm font-medium rounded-md transition-all capitalize ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
                             }`}
                     >
-                        {tab === 'overview' ? 'Visão Geral' : tab === 'ativos' ? 'Contratos Ativos' : tab === 'movimentacao' ? 'Movimentação' : 'Abertura e Encerramento Contrato'}
+                        {tab === 'overview' ? 'Visão Geral' : tab === 'ativos' ? 'Contratos Ativos' : tab === 'movimentacao' ? 'Movimentação' : tab === 'churn' ? 'Abertura e Encerramento Contrato' : 'Rentabilidade'}
                     </button>
                 ))}
             </div>
@@ -432,6 +490,89 @@ export default function ContractsDashboard(): JSX.Element {
                 <div>
                     <ChurnDashboard />
                 </div>
+            )}
+
+            {/* === CONTEÚDO DA ABA RENTABILIDADE === */}
+            {activeTab === 'rentabilidade' && (
+                <>
+                    {/* KPIs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <Card className="bg-white shadow-sm border border-slate-200">
+                            <Text className="text-slate-500">Total Clientes</Text>
+                            <Metric className="text-slate-900">{curvaABC.length}</Metric>
+                        </Card>
+                        <Card className="bg-white shadow-sm border border-slate-200">
+                            <Text className="text-slate-500">Margem Total</Text>
+                            <Metric className="text-slate-900">{fmtBRL(curvaABC.reduce((s, r) => s + r.margem, 0))}</Metric>
+                        </Card>
+                        <Card className="bg-white shadow-sm border border-slate-200">
+                            <Text className="text-slate-500">Receita Total</Text>
+                            <Metric className="text-slate-900">{fmtBRL(curvaABC.reduce((s, r) => s + r.receita, 0))}</Metric>
+                        </Card>
+                    </div>
+
+                    {/* Row 1: Top 10 + Distribuição ABC */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <Card className="bg-white shadow-sm border border-slate-200">
+                            <Title className="text-slate-900">Top 10 Clientes por Rentabilidade</Title>
+                            <div className="mt-4">
+                                <BarList data={topRentabilidade} valueFormatter={(v) => fmtBRL(v)} color="emerald" />
+                            </div>
+                        </Card>
+
+                        <Card className="bg-white shadow-sm border border-slate-200">
+                            <Title className="text-slate-900">Distribuição Curva ABC</Title>
+                            <div className="h-64 mt-4">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie data={distribuicaoABC} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                            <Cell fill="#10b981" />
+                                            <Cell fill="#f59e0b" />
+                                            <Cell fill="#ef4444" />
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* Tabela Curva ABC Completa */}
+                    <Card className="bg-white shadow-sm border border-slate-200">
+                        <Title className="text-slate-900 mb-4">Tabela Curva ABC por Cliente</Title>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-xs">
+                                    <tr>
+                                        <th className="px-4 py-3 font-medium">Rank</th>
+                                        <th className="px-4 py-3 font-medium">Cliente</th>
+                                        <th className="px-4 py-3 font-medium text-right">Margem (R$)</th>
+                                        <th className="px-4 py-3 font-medium text-right">Receita (R$)</th>
+                                        <th className="px-4 py-3 font-medium text-right">% Acumulado</th>
+                                        <th className="px-4 py-3 font-medium text-center">Classe ABC</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {curvaABC.map((r, i) => (
+                                        <tr key={`abc-${i}`} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-3 text-slate-600">{r.rank}</td>
+                                            <td className="px-4 py-3 font-medium text-slate-900 truncate max-w-xs">{r.cliente}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-emerald-700">{fmtBRL(r.margem)}</td>
+                                            <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(r.receita)}</td>
+                                            <td className="px-4 py-3 text-right text-slate-600">{r.percAcumulado.toFixed(1)}%</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${r.classe === 'A' ? 'bg-emerald-100 text-emerald-700' : r.classe === 'B' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {r.classe}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </>
             )}
         </div>
     );
