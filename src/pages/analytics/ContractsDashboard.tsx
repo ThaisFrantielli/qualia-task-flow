@@ -44,8 +44,8 @@ function monthLabel(ym: string) {
 
 export default function ContractsDashboard(): JSX.Element {
     // Hooks de dados
-    const { data: contratosData } = useBIData<AnyObject[]>('contratos_ativos.json');
-    const { data: churnData } = useBIData<AnyObject[]>('churn_contratos.json');
+    const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
+    const { data: churnData } = useBIData<AnyObject[]>('dim_churn.json');
 
     // Normalização de dados (Contratos)
     const contratos: AnyObject[] = useMemo(() => {

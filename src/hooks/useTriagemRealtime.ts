@@ -386,17 +386,36 @@ export function useCriarTicket() {
 // Hook para descartar lead
 export function useDescartarLead() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ clienteId }: { clienteId: string; motivo?: string }) => {
-      const { error } = await supabase
+    mutationFn: async ({ clienteId, motivo }: { clienteId: string; motivo?: string }) => {
+      // 1) Update client status
+      const { error: updateError } = await supabase
         .from('clientes')
         .update({ 
           status_triagem: 'descartado',
+          descartado_motivo: motivo || null,
+          descartado_em: new Date().toISOString()
         })
         .eq('id', clienteId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // 2) Insert audit record in triagem_descartes
+      try {
+        await supabase
+          .from('triagem_descartes')
+          .insert({
+            cliente_id: clienteId,
+            atendente_id: user?.id || null,
+            motivo: motivo || null,
+            origem: 'triagem',
+          });
+      } catch (err) {
+        // Don't block user flow if audit insert fails, but log it
+        console.warn('Falha ao inserir triagem_descartes:', err);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['triagem-leads'] });

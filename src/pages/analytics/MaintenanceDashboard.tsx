@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, DonutChart, BarList } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Line } from 'recharts';
 import { Wrench, Filter } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -40,8 +40,8 @@ function monthLabel(ym: string): string {
 
 // --- COMPONENTE PRINCIPAL ---
 export default function MaintenanceDashboard(): JSX.Element {
-    const { data: osData } = useBIData<AnyObject[]>('manutencao_os_*.json');
-    const { data: itensData } = useBIData<AnyObject[]>('manutencao_itens_*.json');
+    const { data: osData } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
+    const { data: itensData } = useBIData<AnyObject[]>('fat_manutencao_itens_*.json');
 
     const osList = useMemo((): AnyObject[] => {
         const raw = (osData as any)?.data || osData;
@@ -94,7 +94,16 @@ export default function MaintenanceDashboard(): JSX.Element {
         // Vehicles Stopped Today (Open OS)
         const stopped = filteredOS.filter((r: AnyObject) => !r.DataSaida).length;
 
-        return { totalCost, avgCost, avgTime, stopped };
+        // Valor Reembolsável (fallbacks for different field names)
+        const valorReembolsavel = filteredOS.reduce((s: number, r: AnyObject) => {
+            return s + parseCurrency(r.ValorReembolsavel || r.ValorReembolsadoCliente || r.ValorReembolsado || r.ValorReembolso);
+        }, 0);
+
+        // Total km for filtered OS (fallbacks)
+        const totalKm = filteredOS.reduce((s: number, r: AnyObject) => s + parseCurrency(r.Km || r.KmRodado || r.Kilometragem || r.KmPercorrido || r.KmRodadoTotal || 0), 0);
+        const cpk = totalKm > 0 ? totalCost / totalKm : 0;
+
+        return { totalCost, avgCost, avgTime, stopped, valorReembolsavel, totalKm, cpk };
     }, [filteredOS]);
 
     // Chart 1: Preventive vs Corrective (Donut by Value)
@@ -133,17 +142,23 @@ export default function MaintenanceDashboard(): JSX.Element {
             .slice(0, 10);
     }, [filteredItens]);
 
-    // Chart 4: Monthly Evolution
+    // Chart 4: Monthly Evolution (includes Km and CPK)
     const monthlyData = useMemo(() => {
-        const map: Record<string, number> = {};
+        const map: Record<string, { valor: number; km: number }> = {};
         filteredOS.forEach((r: AnyObject) => {
             const k = getMonthKey(r.DataEntrada);
             if (!k) return;
-            map[k] = (map[k] || 0) + parseCurrency(r.ValorTotal);
+            const valor = parseCurrency(r.ValorTotal);
+            const km = parseCurrency(r.Km || r.KmRodado || r.Kilometragem || r.KmPercorrido || r.KmRodadoTotal || 0);
+            if (!map[k]) map[k] = { valor: 0, km: 0 };
+            map[k].valor += valor;
+            map[k].km += km;
         });
         return Object.keys(map).sort().map(k => ({
             name: monthLabel(k),
-            Valor: map[k]
+            Valor: map[k].valor,
+            Km: map[k].km,
+            CPK: map[k].km > 0 ? map[k].valor / map[k].km : 0
         }));
     }, [filteredOS]);
 
@@ -207,7 +222,7 @@ export default function MaintenanceDashboard(): JSX.Element {
             </Card>
 
             {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200 shadow-sm">
                     <Text className="text-slate-500">Custo Total</Text>
                     <Metric className="text-slate-900">{fmtBRL(kpis.totalCost)}</Metric>
@@ -223,6 +238,14 @@ export default function MaintenanceDashboard(): JSX.Element {
                 <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200 shadow-sm">
                     <Text className="text-slate-500">Veículos Parados Hoje</Text>
                     <Metric className="text-slate-900">{kpis.stopped}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
+                    <Text className="text-slate-500">Valor Reembolsável</Text>
+                    <Metric className="text-slate-900">{fmtBRL(kpis.valorReembolsavel || 0)}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor="slate" className="bg-white border border-slate-200 shadow-sm">
+                    <Text className="text-slate-500">CPK (R$/km)</Text>
+                    <Metric className="text-slate-900">{kpis.cpk ? kpis.cpk.toFixed(2) : '0.00'}</Metric>
                 </Card>
             </div>
 
@@ -267,13 +290,18 @@ export default function MaintenanceDashboard(): JSX.Element {
                     <Title className="text-slate-900">Evolução de Custo Mensal</Title>
                     <div className="h-64 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyData}>
+                            <ComposedChart data={monthlyData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} stroke="#64748b" />
-                                <Tooltip formatter={(v: any) => fmtBRL(v)} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                                <Bar dataKey="Valor" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                            </BarChart>
+                                <YAxis yAxisId="left" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} stroke="#64748b" />
+                                <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v:any) => v ? v.toFixed(2) : '0.00'} stroke="#0ea5e9" />
+                                <Tooltip formatter={(v: any, name: any) => {
+                                    if (name === 'CPK') return [`${v ? v.toFixed(2) : '0.00'}`, 'CPK (R$/km)'];
+                                    return [fmtBRL(v), name];
+                                }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                <Bar dataKey="Valor" fill="#f59e0b" radius={[4, 4, 0, 0]} yAxisId="left" />
+                                <Line type="monotone" dataKey="CPK" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} yAxisId="right" />
+                            </ComposedChart>
                         </ResponsiveContainer>
                     </div>
                 </Card>
