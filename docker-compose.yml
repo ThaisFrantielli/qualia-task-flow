@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  whatsapp-service:
+    build:
+      context: ./whatsapp-service
+      dockerfile: Dockerfile
+    container_name: qualia-whatsapp-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - PORT=3005
+    volumes:
+      # Persistir sessões WhatsApp entre restarts
+      - whatsapp-sessions:/app/.wwebjs_auth
+      - whatsapp-cache:/app/.wwebjs_cache
+    networks:
+      - qualia-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3005/status', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+volumes:
+  whatsapp-sessions:
+    driver: local
+  whatsapp-cache:
+    driver: local
+
+networks:
+  qualia-network:
+    driver: bridge

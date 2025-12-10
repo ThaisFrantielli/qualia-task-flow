@@ -36,6 +36,9 @@ import CustomerHubPage from '@/pages/CustomerHubPage';
 import OportunidadesPage from '@/pages/OportunidadesPage';
 import OportunidadeDetalhePage from '@/pages/OportunidadeDetalhePage';
 import WhatsAppConfigPage from '@/pages/WhatsAppConfigPage';
+import WhatsAppTemplatesPage from '@/pages/WhatsAppTemplatesPage';
+import WhatsAppDistributionConfigPage from '@/pages/WhatsAppDistributionConfigPage';
+import WhatsAppDistributionDashboard from '@/pages/WhatsAppDistributionDashboard';
 import WhatsAppCentralPage from '@/pages/WhatsAppCentralPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
 import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
@@ -114,6 +117,9 @@ function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
               <Route path="/configuracoes/whatsapp" element={<WhatsAppConfigPage />} />
+              <Route path="/configuracoes/whatsapp/templates" element={<WhatsAppTemplatesPage />} />
+              <Route path="/configuracoes/whatsapp/distribuicao" element={<WhatsAppDistributionConfigPage />} />
+              <Route path="/configuracoes/whatsapp/distribuicao/dashboard" element={<WhatsAppDistributionDashboard />} />
               <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
               <Route path="/configuracoes/equipes-hierarquia" element={<ConfiguracoesEquipesPage />} />
 
