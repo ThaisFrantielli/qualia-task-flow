@@ -195,7 +195,7 @@ export default function AnalyticsIndex() {
             </div>
           </div>
 
-          {/* HUB 4: AUDITORIA (mantendo links extras) */}
+          {/* HUB 4: AUDITORIA */}
           <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
@@ -212,7 +212,20 @@ export default function AnalyticsIndex() {
                       <AlertOctagon className="w-5 h-5 text-slate-500 group-hover/item:text-rose-600 transition-colors" />
                       <div>
                         <div className="font-medium text-slate-700 group-hover/item:text-rose-900">Auditoria de Dados</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Inconsistências, Revenue Gap e Qualidade</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Inconsistências e Qualidade de Dados</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-rose-600 transition-colors" />
+                  </div>
+                </Link>
+
+                <Link to="/analytics/revenue-gap" className="block p-4 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 transition-all group/item">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="w-5 h-5 text-slate-500 group-hover/item:text-rose-600 transition-colors" />
+                      <div>
+                        <div className="font-medium text-slate-700 group-hover/item:text-rose-900">Revenue Gap</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Previsto vs Realizado (Pro-rata)</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-rose-600 transition-colors" />
@@ -225,7 +238,7 @@ export default function AnalyticsIndex() {
                       <FileText className="w-5 h-5 text-slate-500 group-hover/item:text-rose-600 transition-colors" />
                       <div>
                         <div className="font-medium text-slate-700 group-hover/item:text-rose-900">Performance de Contratos</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Análise financeira e operacional detalhada</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Análise financeira e operacional</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-rose-600 transition-colors" />
@@ -238,10 +251,64 @@ export default function AnalyticsIndex() {
                       <Users className="w-5 h-5 text-slate-500 group-hover/item:text-rose-600 transition-colors" />
                       <div>
                         <div className="font-medium text-slate-700 group-hover/item:text-rose-900">Churn & Retenção</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Análise de Perda de Clientes e LTV</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Análise de Perda de Clientes</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-rose-600 transition-colors" />
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* HUB 5: CLIENTES */}
+          <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <Users className="w-6 h-6 text-amber-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-800">Hub de Clientes</h2>
+              </div>
+
+              <div className="space-y-3">
+                <Link to="/analytics/clientes" className="block p-4 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-100 hover:border-amber-200 transition-all group/item">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Users className="w-5 h-5 text-slate-500 group-hover/item:text-amber-600 transition-colors" />
+                      <div>
+                        <div className="font-medium text-slate-700 group-hover/item:text-amber-900">Dashboard de Clientes</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-amber-700">Carteira, Rentabilidade e Curva ABC</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-amber-600 transition-colors" />
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* HUB 6: EXECUTIVE */}
+          <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <LayoutDashboard className="w-6 h-6 text-indigo-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-800">Executive Summary</h2>
+              </div>
+
+              <div className="space-y-3">
+                <Link to="/analytics/executive" className="block p-4 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 transition-all group/item">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <LayoutDashboard className="w-5 h-5 text-slate-500 group-hover/item:text-indigo-600 transition-colors" />
+                      <div>
+                        <div className="font-medium text-slate-700 group-hover/item:text-indigo-900">Painel Executivo</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-indigo-700">Scorecard consolidado e alertas</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-indigo-600 transition-colors" />
                   </div>
                 </Link>
               </div>
