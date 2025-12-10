@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList } from '@tremor/react';
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, BarChart } from 'recharts';
 import { Wallet, Search } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -77,6 +77,7 @@ export default function FinancialAnalytics(): JSX.Element {
   // Hooks de Dados (ETL)
   const { data: financeiroData } = useBIData<AnyObject[]>('fat_faturamento_*.json');
   const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
+  const { data: lancamentosData } = useBIData<AnyObject[]>('fat_lancamentos_*.json');
 
   // Normalização de Arrays
   const financeiro = useMemo(() => {
@@ -88,6 +89,11 @@ export default function FinancialAnalytics(): JSX.Element {
     const raw = (contratosData as any)?.data || contratosData || [];
     return Array.isArray(raw) ? raw : [];
   }, [contratosData]);
+
+  const lancamentos = useMemo(() => {
+    const raw = (lancamentosData as any)?.data || lancamentosData || [];
+    return Array.isArray(raw) ? raw : [];
+  }, [lancamentosData]);
 
   // Estados de Controle
   const [activeTab, setActiveTab] = useState(0);
@@ -183,6 +189,81 @@ export default function FinancialAnalytics(): JSX.Element {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filteredFin]);
+
+  // === CÁLCULOS ABA 3: INADIMPLÊNCIA (AGING) ===
+  const inadimplenciaData = useMemo(() => {
+    const hoje = new Date();
+    const aging = {
+      'A Vencer': 0,
+      '1-30 dias': 0,
+      '31-60 dias': 0,
+      '61-90 dias': 0,
+      '+90 dias': 0
+    };
+    
+    const devedoresList: any[] = [];
+    const clienteMap: Record<string, number> = {};
+    
+    lancamentos.forEach(l => {
+      // Filtrar apenas contas a receber não pagas
+      if (l.TipoLancamento !== 'Receber' && l.TipoLancamento !== 'Receita') return;
+      if (l.PagoRecebido === 'Sim' || l.PagoRecebido === true) return;
+      
+      const valor = parseCurrency(l.ValorBruto || l.ValorLiquido || l.ValorPagoRecebido);
+      if (valor <= 0) return;
+      
+      const dataVencimento = l.DataVencimento || l.DataCompetencia;
+      if (!dataVencimento) return;
+      
+      const venc = new Date(dataVencimento);
+      const diffTime = hoje.getTime() - venc.getTime();
+      const diffDays = Math.floor(diffTime / MS_PER_DAY);
+      
+      if (diffDays < 0) aging['A Vencer'] += valor;
+      else if (diffDays <= 30) aging['1-30 dias'] += valor;
+      else if (diffDays <= 60) aging['31-60 dias'] += valor;
+      else if (diffDays <= 90) aging['61-90 dias'] += valor;
+      else aging['+90 dias'] += valor;
+      
+      const cliente = l.PagarReceberDe || 'N/D';
+      clienteMap[cliente] = (clienteMap[cliente] || 0) + valor;
+    });
+    
+    Object.entries(clienteMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .forEach(([name, value]) => {
+        devedoresList.push({ name, value });
+      });
+    
+    const agingChart = Object.entries(aging).map(([name, value]) => ({ name, value }));
+    
+    return {
+      aging: agingChart,
+      topDevedores: devedoresList,
+      totalInadimplencia: Object.values(aging).reduce((s, v) => s + v, 0)
+    };
+  }, [lancamentos]);
+
+  // === CÁLCULOS ABA 4: MIX DE RECEITA ===
+  const mixReceitaData = useMemo(() => {
+    const map: Record<string, number> = {};
+    
+    lancamentos.forEach(l => {
+      if (l.TipoLancamento !== 'Receber' && l.TipoLancamento !== 'Receita') return;
+      
+      const natureza = l.Natureza || 'Outros';
+      const valor = parseCurrency(l.ValorBruto || l.ValorLiquido || l.ValorPagoRecebido);
+      
+      if (valor > 0) {
+        map[natureza] = (map[natureza] || 0) + valor;
+      }
+    });
+    
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [lancamentos]);
 
 
   // === CÁLCULOS ABA 2: AUDITORIA (REVENUE ASSURANCE) ===
@@ -346,6 +427,8 @@ export default function FinancialAnalytics(): JSX.Element {
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
         <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
         <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Auditoria de Receita</button>
+        <button onClick={() => setActiveTab(2)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 2 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Inadimplência</button>
+        <button onClick={() => setActiveTab(3)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 3 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Mix de Receita</button>
       </div>
 
       <div className="mt-3">
@@ -565,6 +648,116 @@ export default function FinancialAnalytics(): JSX.Element {
             <div className="mt-4 text-center text-xs text-slate-400">Mostrando os 100 maiores gaps.</div>
           </div>
         </Card>
+      )}
+
+      {/* === ABA 3: INADIMPLÊNCIA === */}
+      {activeTab === 2 && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200">
+              <Text>Total Inadimplência</Text>
+              <Metric className="text-rose-600">{fmtBRL(inadimplenciaData.totalInadimplencia)}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200">
+              <Text>Vencido +90 dias</Text>
+              <Metric className="text-amber-600">{fmtBRL(inadimplenciaData.aging.find(a => a.name === '+90 dias')?.value || 0)}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="orange" className="bg-white border border-slate-200">
+              <Text>Vencido 61-90 dias</Text>
+              <Metric>{fmtBRL(inadimplenciaData.aging.find(a => a.name === '61-90 dias')?.value || 0)}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="yellow" className="bg-white border border-slate-200">
+              <Text>Vencido 1-60 dias</Text>
+              <Metric>{fmtBRL((inadimplenciaData.aging.find(a => a.name === '1-30 dias')?.value || 0) + (inadimplenciaData.aging.find(a => a.name === '31-60 dias')?.value || 0))}</Metric>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+            <Card className="bg-white border border-slate-200">
+              <Title>Aging List - Distribuição por Faixa</Title>
+              <div className="mt-4 h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={inadimplenciaData.aging}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} />
+                    <Tooltip formatter={(v: any) => fmtBRL(v)} contentStyle={{ borderRadius: '8px' }} />
+                    <Bar dataKey="value" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="bg-white border border-slate-200">
+              <Title>Top 10 Clientes Devedores</Title>
+              <div className="mt-4 h-80 overflow-y-auto pr-2">
+                <BarList data={inadimplenciaData.topDevedores} valueFormatter={(v) => fmtBRL(v)} color="rose" />
+              </div>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* === ABA 4: MIX DE RECEITA === */}
+      {activeTab === 3 && (
+        <>
+          <Card className="bg-white border border-slate-200 mb-6">
+            <Title>Composição da Receita por Natureza</Title>
+            <Text className="text-slate-500 mb-4">Distribuição da receita entre diferentes fontes (Locação, Multas, Reembolsos, etc.)</Text>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <div className="flex items-center justify-center h-full">
+                    <div className="w-full max-w-md">
+                      {mixReceitaData.slice(0, 6).map((item, idx) => {
+                        const total = mixReceitaData.reduce((s, i) => s + i.value, 0);
+                        const percent = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                        return (
+                          <div key={idx} className="mb-4">
+                            <div className="flex justify-between items-center mb-1">
+                              <Text className="text-sm font-medium text-slate-700">{item.name}</Text>
+                              <Text className="text-sm font-bold text-slate-900">{percent}%</Text>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-3">
+                              <div 
+                                className="h-3 rounded-full transition-all"
+                                style={{ 
+                                  width: `${percent}%`, 
+                                  backgroundColor: colors[idx % colors.length] 
+                                }}
+                              />
+                            </div>
+                            <Text className="text-xs text-slate-500 mt-1">{fmtBRL(item.value)}</Text>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </ResponsiveContainer>
+              </div>
+
+              <div>
+                <Title className="text-lg mb-4">Detalhamento por Natureza</Title>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {mixReceitaData.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                      <Text className="font-medium text-slate-700">{item.name}</Text>
+                      <Metric className="text-slate-900 text-lg">{fmtBRL(item.value)}</Metric>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="bg-white border border-slate-200">
+            <Title>Evolução Mensal por Natureza (Top 5)</Title>
+            <div className="h-80 mt-4">
+              <Text className="text-sm text-slate-500 mb-2">Gráfico temporal em desenvolvimento - requer agregação por mês</Text>
+            </div>
+          </Card>
+        </>
       )}
     </div>
   );
