@@ -106,10 +106,13 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
         whatsappNumber: cliente?.whatsapp_number || null,
       };
 
-      // Buscar mensagens da conversação
+      // Buscar mensagens da conversação com mídia
       const { data: messagesData, error: messagesError } = await supabase
         .from('whatsapp_messages')
-        .select('*')
+        .select(`
+          *,
+          media:whatsapp_media(*)
+        `)
         .eq('conversation_id', convData.id)
         .order('created_at', { ascending: true });
 

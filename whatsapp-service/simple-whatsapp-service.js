@@ -117,7 +117,8 @@ const initializeInstance = async (instanceId, name) => {
             console.log(`[Message] Nova mensagem de ${msg.from} para ${instanceId}: ${msg.body}`);
 
             const fromNumber = msg.from.replace('@c.us', '');
-            const content = msg.body;
+            const content = msg.body || (msg.hasMedia ? '[MÍDIA]' : '');
+            const hasMedia = msg.hasMedia;
 
             // 1. Buscar ou criar conversação
             let conversationId = null;
@@ -146,9 +147,9 @@ const initializeInstance = async (instanceId, name) => {
                     .insert({
                         instance_id: instanceId,
                         whatsapp_number: fromNumber,
-                        cliente_id: client ? client.id : null, // CORRIGIDO: customer_id -> cliente_id
-                        status: 'active',
-                        customer_name: msg._data?.notifyName || fromNumber // Tentar pegar nome do contato
+                        cliente_id: client ? client.id : null,
+                        status: 'waiting', // Set to waiting for auto-distribution
+                        customer_name: msg._data?.notifyName || fromNumber
                     })
                     .select()
                     .single();
@@ -160,27 +161,91 @@ const initializeInstance = async (instanceId, name) => {
                 conversationId = newConv.id;
             }
 
-            // 2. Salvar mensagem
-            const { error: msgError } = await supabase
+            // 2. Processar mídia se houver
+            let mediaMetadata = null;
+            if (hasMedia) {
+                try {
+                    console.log(`[Media] Baixando mídia da mensagem ${msg.id.id}...`);
+                    const media = await msg.downloadMedia();
+                    
+                    if (media) {
+                        const buffer = Buffer.from(media.data, 'base64');
+                        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${media.mimetype.split('/')[1]}`;
+                        const filePath = `whatsapp/${fileName}`;
+
+                        // Upload to Supabase Storage
+                        const { error: uploadError } = await supabase.storage
+                            .from('whatsapp-media')
+                            .upload(filePath, buffer, {
+                                contentType: media.mimetype,
+                                cacheControl: '3600',
+                                upsert: false
+                            });
+
+                        if (uploadError) {
+                            console.error('[Media] Erro ao fazer upload:', uploadError);
+                        } else {
+                            // Get public URL
+                            const { data: { publicUrl } } = supabase.storage
+                                .from('whatsapp-media')
+                                .getPublicUrl(filePath);
+
+                            mediaMetadata = {
+                                media_type: media.mimetype.startsWith('image/') ? 'image' :
+                                           media.mimetype.startsWith('video/') ? 'video' :
+                                           media.mimetype.startsWith('audio/') ? 'audio' : 'document',
+                                file_name: media.filename || fileName,
+                                mime_type: media.mimetype,
+                                storage_url: publicUrl,
+                                file_size: buffer.length
+                            };
+
+                            console.log('[Media] Upload concluído:', publicUrl);
+                        }
+                    }
+                } catch (mediaErr) {
+                    console.error('[Media] Erro ao processar mídia:', mediaErr);
+                }
+            }
+
+            // 3. Salvar mensagem
+            const { data: savedMessage, error: msgError } = await supabase
                 .from('whatsapp_messages')
                 .insert({
                     conversation_id: conversationId,
                     instance_id: instanceId,
                     content: content,
                     sender_type: 'customer',
-                    message_type: msg.type || 'text',
+                    message_type: mediaMetadata ? mediaMetadata.media_type : (msg.type || 'text'),
                     whatsapp_message_id: msg.id.id,
                     status: 'delivered',
+                    has_media: hasMedia,
                     created_at: new Date().toISOString()
-                });
+                })
+                .select()
+                .single();
 
-            if (msgError) console.error('Erro ao salvar mensagem:', msgError);
+            if (msgError) {
+                console.error('Erro ao salvar mensagem:', msgError);
+            } else if (mediaMetadata && savedMessage) {
+                // 4. Salvar metadata da mídia
+                const { error: mediaDbError } = await supabase
+                    .from('whatsapp_media')
+                    .insert({
+                        message_id: savedMessage.id,
+                        conversation_id: conversationId,
+                        ...mediaMetadata,
+                        caption: msg.body || null
+                    });
 
-            // 3. Atualizar conversa
+                if (mediaDbError) console.error('Erro ao salvar metadata da mídia:', mediaDbError);
+            }
+
+            // 5. Atualizar conversa
             await supabase
                 .from('whatsapp_conversations')
                 .update({
-                    last_message: content,
+                    last_message: hasMedia ? `📎 ${mediaMetadata?.media_type || 'Arquivo'}` : content,
                     last_message_at: new Date().toISOString(),
                     unread_count: (existingConv?.unread_count || 0) + 1
                 })
@@ -355,6 +420,50 @@ app.post('/send-message', async (req, res) => {
         res.json({ success: true, id: sentMsg.id.id });
     } catch (err) {
         console.error('[Send] Erro ao enviar mensagem:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Envio de mídia
+app.post('/send-media', async (req, res) => {
+    const { phoneNumber, mediaUrl, mediaType, caption, instance_id, fileName, mimeType } = req.body;
+
+    console.log(`[SendMedia] Tentando enviar ${mediaType} para ${phoneNumber} via ${instance_id || 'default'}`);
+
+    // Se não passar instance_id, tenta pegar a primeira conectada (fallback)
+    let targetInstanceId = instance_id;
+    if (!targetInstanceId && instances.size > 0) {
+        targetInstanceId = instances.keys().next().value;
+    }
+
+    const record = instances.get(targetInstanceId);
+    if (!record || record.status !== 'connected') {
+        console.error('[SendMedia] Instância não conectada:', targetInstanceId);
+        return res.status(400).json({ error: 'Instância não encontrada ou desconectada' });
+    }
+
+    try {
+        const formattedPhone = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+        
+        // WhatsApp Web.js MessageMedia
+        const { MessageMedia } = require('whatsapp-web.js');
+        
+        // Download media from URL
+        const axios = require('axios');
+        const response = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data, 'binary');
+        const base64Data = buffer.toString('base64');
+
+        // Create MessageMedia object
+        const media = new MessageMedia(mimeType, base64Data, fileName);
+
+        // Send media with optional caption
+        const sentMsg = await record.client.sendMessage(formattedPhone, media, { caption: caption || '' });
+        console.log('[SendMedia] Mídia enviada no WhatsApp. ID:', sentMsg.id.id);
+
+        res.json({ success: true, id: sentMsg.id.id });
+    } catch (err) {
+        console.error('[SendMedia] Erro ao enviar mídia:', err);
         res.status(500).json({ error: err.message });
     }
 });
