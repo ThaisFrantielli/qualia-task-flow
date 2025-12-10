@@ -1,15 +1,13 @@
 import { useMemo, useState, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, BarList } from '@tremor/react';
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { Wallet, Search } from 'lucide-react';
+import { Card, Title, Text, Metric } from '@tremor/react';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Cell } from 'recharts';
+import { Wallet, Search, X, Filter } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 // --- FUNÇÕES AUXILIARES ---
-
-// Garante chave de mês consistente (YYYY-MM) ignorando fuso horário
 function getMonthKey(dateString?: string): string {
   if (!dateString || typeof dateString !== 'string') return '';
   return dateString.split('T')[0].substring(0, 7);
@@ -33,36 +31,26 @@ function fmtCompact(v: number): string {
   return `R$ ${v}`;
 }
 
-// Converte strings financeiras ou números para Float seguro
 function parseCurrency(v: any): number {
   if (v == null) return 0;
   if (typeof v === 'number') return v;
   let s = String(v).trim();
   if (s === '') return 0;
-  // Remove R$ e espaços
   s = s.replace(/R\$|\s/g, '');
-  // Tratamento para formato brasileiro
   if (s.includes(',') && !s.includes('.')) {
-    // '1234,56' -> '1234.56'
     s = s.replace(',', '.');
   } else if (s.includes('.') && s.includes(',')) {
-    // '1.234.567,89' -> '1234567.89'
     s = s.replace(/\./g, '').replace(',', '.');
   } else if (s.includes('.') && !s.includes(',')) {
-    // Ambiguous: could be '1234.56' (decimal) or '1.234' (thousands).
-    // Heuristic: if dot groups look like thousands (e.g. 1.234 or 12.345.678) remove dots.
     if (/^[-+]?\d{1,3}(?:\.\d{3})+$/.test(s)) {
       s = s.replace(/\./g, '');
     }
-    // otherwise keep dot as decimal separator
   }
-  // Remove tudo que não é dígito, ponto ou sinal
   s = s.replace(/[^0-9.\-]/g, '');
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
 
-// Tenta ler várias chaves possíveis para quantidade de veículos
 function getQty(row: AnyObject): number {
   if (!row) return 0;
   const candidates = ['QtdVeiculos', 'QtdVeiculo', 'QtdVeic', 'QuantidadeVeiculos', 'QuantidadeVeiculo', 'qtdVeiculos', 'qtd', 'Quantidade'];
@@ -74,11 +62,10 @@ function getQty(row: AnyObject): number {
 
 // --- COMPONENTE PRINCIPAL ---
 export default function FinancialAnalytics(): JSX.Element {
-  // Hooks de Dados (ETL)
+  // *** MIGRAÇÃO: Usa fat_faturamento_*.json e dim_contratos.json ***
   const { data: financeiroData } = useBIData<AnyObject[]>('fat_faturamento_*.json');
   const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
 
-  // Normalização de Arrays
   const financeiro = useMemo(() => {
     const raw = (financeiroData as any)?.data || financeiroData || [];
     return Array.isArray(raw) ? raw : [];
@@ -89,7 +76,7 @@ export default function FinancialAnalytics(): JSX.Element {
     return Array.isArray(raw) ? raw : [];
   }, [contratosData]);
 
-  // Estados de Controle
+  // *** ESTADOS ***
   const [activeTab, setActiveTab] = useState(0);
   const currentYear = new Date().getFullYear();
 
@@ -98,17 +85,31 @@ export default function FinancialAnalytics(): JSX.Element {
   const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
   const [selectedClientes, setSelectedClientes] = useState<string[]>([]);
 
+  // *** ESTADO DE FILTROS INTERATIVOS (PowerBI Style) ***
+  const [filterState, setFilterState] = useState<{
+    mes: string | null;
+    cliente: string | null;
+  }>({
+    mes: null,
+    cliente: null
+  });
+
   // Filtros Auditoria
   const [selectedMonth, setSelectedMonth] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Debug toggle
-  const [showDebug, setShowDebug] = useState(false);
+  const hasActiveFilters = useMemo(() => {
+    return !!(filterState.mes || filterState.cliente);
+  }, [filterState]);
+
+  const clearFilters = () => {
+    setFilterState({ mes: null, cliente: null });
+  };
 
   // Listas Auxiliares
   const clientesList = useMemo(() =>
     Array.from(new Set(financeiro.map(r => r.Cliente).filter(Boolean))).sort()
-    , [financeiro]);
+  , [financeiro]);
 
   const availableMonths = useMemo(() => {
     const s = new Set<string>();
@@ -119,15 +120,13 @@ export default function FinancialAnalytics(): JSX.Element {
     return Array.from(s).sort().reverse();
   }, [financeiro]);
 
-  // Seleciona mês inicial automaticamente
   useEffect(() => {
     if (!selectedMonth && availableMonths.length > 0) setSelectedMonth(availableMonths[0]);
   }, [availableMonths, selectedMonth]);
 
-
   // === CÁLCULOS ABA 1: VISÃO GERAL ===
 
-  // Filtra dados pelo período selecionado (compara strings de data)
+  // Filtra dados pelo período e filtros interativos
   const filteredFin = useMemo(() => {
     return financeiro.filter((r) => {
       const d = r.DataCompetencia || r.DataEmissao || r.Data;
@@ -135,9 +134,14 @@ export default function FinancialAnalytics(): JSX.Element {
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
       if (selectedClientes.length > 0 && !selectedClientes.includes(String(r.Cliente))) return false;
+      
+      // Filtros Interativos
+      if (filterState.mes && getMonthKey(d) !== filterState.mes) return false;
+      if (filterState.cliente && r.Cliente !== filterState.cliente) return false;
+      
       return true;
     });
-  }, [financeiro, dateFrom, dateTo, selectedClientes]);
+  }, [financeiro, dateFrom, dateTo, selectedClientes, filterState]);
 
   const kpisOverview = useMemo(() => {
     const totalLocacao = filteredFin.reduce((s, r) => s + parseCurrency(r.ValorLocacao || r.ValorFaturadoItem || 0), 0);
@@ -165,6 +169,7 @@ export default function FinancialAnalytics(): JSX.Element {
     });
 
     return Object.keys(map).sort().map(k => ({
+      date: k,
       month: monthLabel(k),
       faturamentoLocacao: map[k].fatLoc,
       faturamentoTotal: map[k].fatTotal,
@@ -184,16 +189,14 @@ export default function FinancialAnalytics(): JSX.Element {
       .slice(0, 10);
   }, [filteredFin]);
 
-
   // === CÁLCULOS ABA 2: AUDITORIA (REVENUE ASSURANCE) ===
   const auditData = useMemo(() => {
     if (!selectedMonth) return { expected: 0, realized: 0, gap: 0, details: [] };
 
-    // --- 1. REALIZADO (Soma dos Itens da Nota) ---
+    // Realizado
     const itemsInMonth = financeiro.filter(f => getMonthKey(f.DataCompetencia || f.DataEmissao || f.Data) === selectedMonth);
     const realizedTotal = itemsInMonth.reduce((s, i) => s + parseCurrency(i.ValorFaturadoItem || i.ValorTotal || i.ValorLocacao), 0);
 
-    // Mapeia Realizado por Contrato (se IdContratoLocacao disponível)
     const realizedMap: Record<string, number> = {};
     itemsInMonth.forEach(item => {
       const val = parseCurrency(item.ValorFaturadoItem || item.ValorTotal || item.ValorLocacao);
@@ -202,7 +205,7 @@ export default function FinancialAnalytics(): JSX.Element {
       }
     });
 
-    // --- 2. PREVISTO (Cálculo Comercial Base 30) ---
+    // Previsto (Base 30)
     const [y, m] = selectedMonth.split('-').map(Number);
     const startM = new Date(y, m - 1, 1);
     const endM = new Date(y, m, 0);
@@ -249,12 +252,12 @@ export default function FinancialAnalytics(): JSX.Element {
       });
     });
 
-    // --- 3. CRUZAMENTO E GAP ---
+    // Cruzamento e Gap
     contractDetails.forEach(d => {
       if (d.id && realizedMap[String(d.id)]) {
         d.realizado = realizedMap[String(d.id)];
       }
-      d.gap = d.realizado - d.esperado; // positivo = mais faturado que esperado
+      d.gap = d.realizado - d.esperado;
     });
 
     const filteredDetails = contractDetails.filter((d: any) =>
@@ -263,7 +266,6 @@ export default function FinancialAnalytics(): JSX.Element {
       (d.placa && d.placa.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    // Ordenação: maiores gaps negativos primeiro (mais défict)
     filteredDetails.sort((a: any, b: any) => a.gap - b.gap);
 
     return {
@@ -275,66 +277,24 @@ export default function FinancialAnalytics(): JSX.Element {
 
   }, [selectedMonth, financeiro, contratos, searchTerm]);
 
-  // --- Diagnostic helpers (mostra diferenças de parsing) ---
-  const diagnostics = useMemo(() => {
-    const totalRows = financeiro.length;
-    const sumNum = { valorLocacao: 0, valorTotal: 0, qtdVeiculos: 0 };
-    const sumParsed = { valorLocacao: 0, valorTotal: 0, qtdVeiculos: 0 };
-    let nanCounts = { valorLocacao: 0, valorTotal: 0, qtdVeiculos: 0 };
-    const problematic: AnyObject[] = [];
+  // === HANDLERS DE CLIQUE (Interatividade PowerBI) ===
+  const handleMonthClick = (data: any) => {
+    setFilterState(prev => ({ ...prev, mes: prev.mes === data.date ? null : data.date }));
+  };
 
-    let realizedCountForMonth = 0;
-    let realizedSumForMonth = 0;
-
-    financeiro.forEach((r, i) => {
-      const rawLoc = r.ValorLocacao ?? r.ValorFaturadoItem ?? r.ValorTotal;
-      const rawTotal = r.ValorTotal ?? r.ValorFaturadoItem;
-      const rawQtd = r.QtdVeiculos ?? r.QtdVeiculo ?? r.QuantidadeVeiculos ?? r.QuantidadeVeiculo ?? r.QtdVeic ?? r.qtdVeiculos ?? r.qtd ?? 0;
-
-      const nLoc = Number(rawLoc);
-      const nTot = Number(rawTotal);
-      const nQtd = Number(rawQtd);
-
-      const pLoc = parseCurrency(rawLoc);
-      const pTot = parseCurrency(rawTotal);
-      const pQtd = parseCurrency(rawQtd);
-
-      if (!isFinite(nLoc)) nanCounts.valorLocacao++;
-      if (!isFinite(nTot)) nanCounts.valorTotal++;
-      if (!isFinite(nQtd)) nanCounts.qtdVeiculos++;
-
-      sumNum.valorLocacao += isFinite(nLoc) ? nLoc : 0;
-      sumNum.valorTotal += isFinite(nTot) ? nTot : 0;
-      sumNum.qtdVeiculos += isFinite(nQtd) ? nQtd : 0;
-
-      sumParsed.valorLocacao += pLoc;
-      sumParsed.valorTotal += pTot;
-      sumParsed.qtdVeiculos += pQtd;
-
-      if (selectedMonth) {
-        const ds = String(r.DataCompetencia || r.DataEmissao || r.Data || '');
-        if (ds && getMonthKey(ds) === selectedMonth) {
-          realizedCountForMonth += 1;
-          realizedSumForMonth += pLoc;
-        }
-      }
-
-      if (Math.abs((pLoc || 0) - (isFinite(nLoc) ? nLoc : 0)) > 0.001 || Math.abs((pTot || 0) - (isFinite(nTot) ? nTot : 0)) > 0.001 || Math.abs((pQtd || 0) - (isFinite(nQtd) ? nQtd : 0)) > 0.001) {
-        problematic.push({ idx: i, Cliente: r.Cliente, ValorLocacao: rawLoc, ValorTotal: rawTotal, QtdVeiculos: rawQtd, parsed: { pLoc, pTot, pQtd }, num: { nLoc, nTot, nQtd } });
-      }
-    });
-
-    const sampleKeys = financeiro.length > 0 ? Object.keys(financeiro[0]).slice(0, 40) : [];
-    return { totalRows, sumNum, sumParsed, nanCounts, problematic: problematic.slice(0, 20), realizedCountForMonth, realizedSumForMonth, sampleKeys };
-  }, [financeiro, selectedMonth]);
+  const handleClienteClick = (data: any) => {
+    setFilterState(prev => ({ ...prev, cliente: prev.cliente === data.name ? null : data.name }));
+  };
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <Title className="text-slate-900">Financial Core</Title>
-          <Text className="mt-1 text-slate-500">Gestão financeira e auditoria de contratos.</Text>
+          <Title className="text-slate-900">Financial Core Dashboard</Title>
+          <Text className="mt-1 text-slate-500">
+            Gestão financeira e auditoria de contratos. Clique nos gráficos para filtrar.
+          </Text>
         </div>
         <div className="flex items-center gap-2">
           <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
@@ -343,70 +303,50 @@ export default function FinancialAnalytics(): JSX.Element {
         </div>
       </div>
 
+      {/* Botão Limpar Filtros (Flutuante) */}
+      {hasActiveFilters && activeTab === 0 && (
+        <div className="fixed bottom-8 right-8 z-50">
+          <button
+            onClick={clearFilters}
+            className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <X className="w-5 h-5" />
+            Limpar Filtros
+          </button>
+        </div>
+      )}
+
+      {/* Filtros Ativos */}
+      {hasActiveFilters && activeTab === 0 && (
+        <Card className="bg-blue-50 border-blue-200">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 text-blue-600" />
+            <Text className="font-medium text-blue-700">Filtros Ativos:</Text>
+            {filterState.mes && (
+              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                Mês: <strong>{monthLabel(filterState.mes)}</strong>
+                <X className="w-3 h-3 cursor-pointer" onClick={() => setFilterState(prev => ({ ...prev, mes: null }))} />
+              </span>
+            )}
+            {filterState.cliente && (
+              <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                Cliente: <strong>{filterState.cliente}</strong>
+                <X className="w-3 h-3 cursor-pointer" onClick={() => setFilterState(prev => ({ ...prev, cliente: null }))} />
+              </span>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Abas */}
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
         <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
         <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Auditoria de Receita</button>
       </div>
 
-      <div className="mt-3">
-        <button onClick={() => setShowDebug(s => !s)} className="px-3 py-1 text-xs bg-slate-100 rounded-md border border-slate-200">{showDebug ? 'Ocultar Diagnóstico' : 'Mostrar Diagnóstico'}</button>
-      </div>
-
-      {showDebug && (
-        <Card className="bg-white shadow-sm border border-red-100 mt-4">
-          <Text className="text-red-600 font-medium mb-2">Diagnostic (ERP mismatch)</Text>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3 bg-slate-50 rounded">
-              <Text className="text-slate-500 text-xs">Linhas processadas</Text>
-              <Metric className="text-slate-900">{diagnostics.totalRows}</Metric>
-            </div>
-            <div className="p-3 bg-slate-50 rounded">
-              <Text className="text-slate-500 text-xs">Soma ValorLocacao (Number)</Text>
-              <Metric className="text-slate-900">{fmtBRL(diagnostics.sumNum.valorLocacao)}</Metric>
-            </div>
-            <div className="p-3 bg-slate-50 rounded">
-              <Text className="text-slate-500 text-xs">Soma ValorLocacao (parse)</Text>
-              <Metric className="text-slate-900">{fmtBRL(diagnostics.sumParsed.valorLocacao)}</Metric>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Text className="text-slate-500 text-xs">Contagens NaN (Number parsing)</Text>
-            <div className="flex gap-4 mt-2 text-xs text-slate-700">
-              <div>ValorLocacao: {diagnostics.nanCounts.valorLocacao}</div>
-              <div>ValorTotal: {diagnostics.nanCounts.valorTotal}</div>
-              <div>QtdVeiculos: {diagnostics.nanCounts.qtdVeiculos}</div>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Text className="text-slate-500 text-xs mb-2">Amostra de linhas com diferença de parse (até 20)</Text>
-            <div className="overflow-x-auto max-h-48">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-slate-500"><th className="p-2">#</th><th>Cliente</th><th>ValorLocacao</th><th>ValorTotal</th><th>QtdVeiculos</th><th>parsed</th></tr>
-                </thead>
-                <tbody>
-                  {diagnostics.problematic.map((p: any, i: number) => (
-                    <tr key={i} className="odd:bg-white even:bg-slate-50">
-                      <td className="p-2">{p.idx}</td>
-                      <td className="p-2">{p.Cliente}</td>
-                      <td className="p-2">{String(p.ValorLocacao)}</td>
-                      <td className="p-2">{String(p.ValorTotal)}</td>
-                      <td className="p-2">{String(p.QtdVeiculos)}</td>
-                      <td className="p-2">Loc:{fmtBRL(p.parsed.pLoc)} Tot:{fmtBRL(p.parsed.pTot)} Qtd:{p.parsed.pQtd}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </Card>
-      )}
-
       {/* === CONTEÚDO DA VISÃO GERAL === */}
       {activeTab === 0 && (
-        <>
+        <div className="space-y-6">
           <Card className="bg-white shadow-sm border border-slate-200">
             <Text className="font-medium mb-2">Filtros</Text>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -429,29 +369,32 @@ export default function FinancialAnalytics(): JSX.Element {
             </div>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200">
               <Text>Receita Core (Locação)</Text>
-              <Metric>{fmtBRL(kpisOverview.faturamentoLocacao)}</Metric>
+              <Metric>{fmtCompact(kpisOverview.faturamentoLocacao)}</Metric>
             </Card>
             <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200">
               <Text>Receita Total (com Multas)</Text>
-              <Metric>{fmtBRL(kpisOverview.faturamentoTotal)}</Metric>
+              <Metric>{fmtCompact(kpisOverview.faturamentoTotal)}</Metric>
             </Card>
             <Card decoration="top" decorationColor="violet" className="bg-white border border-slate-200">
               <Text>Ticket Médio (Locação)</Text>
               <Metric>{fmtBRL(kpisOverview.ticket)}</Metric>
             </Card>
-            <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200">
+            <Card decoration="top" decorationColor="violet" className="bg-white border border-slate-200">
               <Text>Veículos Faturados</Text>
               <Metric>{kpisOverview.veiculos}</Metric>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-2 bg-white border border-slate-200">
+            <Card className="lg:col-span-2 bg-white border border-slate-200 hover:shadow-md transition-shadow">
               <Title>Evolução Mensal</Title>
-              <div className="h-80 mt-4">
+              <Text className="text-slate-500 text-sm mb-4">
+                {filterState.mes ? `Filtrado: ${monthLabel(filterState.mes)}` : 'Clique nas barras para filtrar'}
+              </Text>
+              <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={monthlyOverview}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -460,21 +403,45 @@ export default function FinancialAnalytics(): JSX.Element {
                     <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} tickFormatter={fmtCompact} />
                     <Tooltip formatter={(v: any) => fmtBRL(v)} contentStyle={{ borderRadius: '8px' }} />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="faturamentoLocacao" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Receita (Locação)" />
+                    <Bar yAxisId="left" dataKey="faturamento" radius={[4, 4, 0, 0]} name="Faturamento" onClick={(data) => handleMonthClick(data)}>
+                      {monthlyOverview.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={filterState.mes === entry.date ? '#dc2626' : '#3b82f6'}
+                          cursor="pointer"
+                        />
+                      ))}
+                    </Bar>
                     <Line yAxisId="right" type="monotone" dataKey="ticket" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} name="Ticket Médio" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </Card>
 
-            <Card className="bg-white border border-slate-200">
+            <Card className="bg-white border border-slate-200 hover:shadow-md transition-shadow">
               <Title>Top 10 Clientes</Title>
-              <div className="mt-4 h-80 overflow-y-auto pr-2">
-                <BarList data={topClients} valueFormatter={(v) => fmtBRL(v)} color="blue" />
+              <Text className="text-slate-500 text-sm mb-4">
+                {filterState.cliente ? `Filtrado: ${filterState.cliente}` : 'Clique para filtrar'}
+              </Text>
+              <div className="mt-4 max-h-80 overflow-y-auto space-y-2">
+                {topClients.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex justify-between items-center p-2 rounded cursor-pointer transition-colors ${
+                      filterState.cliente === item.name
+                        ? 'bg-blue-100 border-l-4 border-blue-500'
+                        : 'hover:bg-slate-50'
+                    }`}
+                    onClick={() => handleClienteClick(item)}
+                  >
+                    <Text className="text-slate-700 text-sm font-medium truncate">{item.name}</Text>
+                    <Text className="text-slate-900 font-bold ml-2">{fmtCompact(item.value)}</Text>
+                  </div>
+                ))}
               </div>
             </Card>
           </div>
-        </>
+        </div>
       )}
 
       {/* === CONTEÚDO DA AUDITORIA === */}

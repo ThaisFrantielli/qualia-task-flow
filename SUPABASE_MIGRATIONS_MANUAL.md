@@ -298,7 +298,52 @@ COMMENT ON FUNCTION auto_assign_conversation IS 'Automatically assigns a convers
 
 ---
 
-## 4. Como Configurar Atendentes para Distribuição Automática
+## 4. Corrigir Foreign Keys para CASCADE Delete
+
+Esta migration adiciona `ON DELETE CASCADE` às foreign keys para permitir exclusão automática de registros relacionados.
+
+```sql
+-- Migration: Add CASCADE delete to WhatsApp foreign keys
+-- Description: Allow automatic deletion of related records when instance is deleted
+
+-- Drop existing foreign key constraints
+ALTER TABLE public.whatsapp_conversations 
+DROP CONSTRAINT IF EXISTS whatsapp_conversations_instance_id_fkey;
+
+ALTER TABLE public.whatsapp_messages 
+DROP CONSTRAINT IF EXISTS whatsapp_messages_instance_id_fkey;
+
+-- Re-add with ON DELETE CASCADE
+ALTER TABLE public.whatsapp_conversations
+ADD CONSTRAINT whatsapp_conversations_instance_id_fkey 
+FOREIGN KEY (instance_id) 
+REFERENCES public.whatsapp_instances(id) 
+ON DELETE CASCADE;
+
+ALTER TABLE public.whatsapp_messages
+ADD CONSTRAINT whatsapp_messages_instance_id_fkey 
+FOREIGN KEY (instance_id) 
+REFERENCES public.whatsapp_instances(id) 
+ON DELETE CASCADE;
+
+-- Also add CASCADE to templates if it exists
+ALTER TABLE public.whatsapp_templates 
+DROP CONSTRAINT IF EXISTS whatsapp_templates_instance_id_fkey;
+
+ALTER TABLE public.whatsapp_templates
+ADD CONSTRAINT whatsapp_templates_instance_id_fkey 
+FOREIGN KEY (instance_id) 
+REFERENCES public.whatsapp_instances(id) 
+ON DELETE CASCADE;
+
+COMMENT ON CONSTRAINT whatsapp_conversations_instance_id_fkey ON public.whatsapp_conversations IS 'Cascade delete conversations when instance is deleted';
+COMMENT ON CONSTRAINT whatsapp_messages_instance_id_fkey ON public.whatsapp_messages IS 'Cascade delete messages when instance is deleted';
+COMMENT ON CONSTRAINT whatsapp_templates_instance_id_fkey ON public.whatsapp_templates IS 'Cascade delete templates when instance is deleted';
+```
+
+---
+
+## 5. Como Configurar Atendentes para Distribuição Automática
 
 Depois de executar as migrations, adicione atendentes às regras de distribuição:
 
@@ -335,7 +380,9 @@ VALUES ('UUID-DO-USUARIO-AQUI', true, 5, 10);
 1. ✅ Execute o **SQL #1** (whatsapp_media)
 2. ✅ Crie o **bucket de storage** (SQL #2 ou via interface)
 3. ✅ Execute o **SQL #3** (whatsapp_distribution)
-4. ✅ Configure ao menos 1 atendente (SQL #4)
+4. ✅ Execute o **SQL #4** (cascade_delete_fix) - **IMPORTANTE para permitir exclusão**
+5. ✅ Execute o **SQL #5** (add_discard_columns) - adiciona colunas `descartado_motivo` e `descartado_em` em `clientes`
+6. ✅ Execute o **SQL #6** (triagem_descartes) - cria tabela `triagem_descartes` para histórico de descartes
 
 ---
 
@@ -352,6 +399,9 @@ SELECT * FROM get_eligible_agents_for_distribution();
 
 -- Ver log de distribuições
 SELECT * FROM public.whatsapp_distribution_log ORDER BY created_at DESC LIMIT 10;
+
+-- Ver logs de descartes
+SELECT * FROM public.triagem_descartes ORDER BY created_at DESC LIMIT 50;
 ```
 
 ---

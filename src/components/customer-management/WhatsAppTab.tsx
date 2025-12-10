@@ -12,7 +12,6 @@ import { WHATSAPP } from '@/integrations/whatsapp/config';
 import { TemplatePicker } from '@/components/whatsapp/TemplatePicker';
 import { WhatsAppMediaUpload } from '@/components/whatsapp/WhatsAppMediaUpload';
 import { WhatsAppMessageMedia } from '@/components/whatsapp/WhatsAppMessageMedia';
-import { supabase } from '@/integrations/supabase/client';
 
 interface WhatsAppTabProps {
   clienteId: string;
@@ -354,7 +353,7 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName, instanceI
       <div className="p-4 border-t bg-muted/30 space-y-2">
         {/* Media Upload */}
         <WhatsAppMediaUpload
-          conversationId={conversation?.id}
+          conversationId={clienteId}
           whatsappNumber={whatsappNumber}
           instanceId={instanceId}
           caption={messageText}
