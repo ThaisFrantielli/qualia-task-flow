@@ -1,7 +1,7 @@
-import { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList } from '@tremor/react';
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, BarChart } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Legend } from 'recharts';
 import { Wallet, Search } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -78,6 +78,7 @@ export default function FinancialAnalytics(): JSX.Element {
   const { data: financeiroData } = useBIData<AnyObject[]>('fat_faturamento_*.json');
   const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
   const { data: lancamentosData } = useBIData<AnyObject[]>('fat_lancamentos_*.json');
+  const { data: alienacoesData } = useBIData<AnyObject[]>('dim_alienacoes.json');
 
   // Normalização de Arrays
   const financeiro = useMemo(() => {
@@ -89,6 +90,11 @@ export default function FinancialAnalytics(): JSX.Element {
     const raw = (contratosData as any)?.data || contratosData || [];
     return Array.isArray(raw) ? raw : [];
   }, [contratosData]);
+
+  const alienacoes = useMemo(() => {
+    const raw = (alienacoesData as any)?.data || alienacoesData || [];
+    return Array.isArray(raw) ? raw : [];
+  }, [alienacoesData]);
 
   const lancamentos = useMemo(() => {
     const raw = (lancamentosData as any)?.data || lancamentosData || [];
@@ -110,6 +116,8 @@ export default function FinancialAnalytics(): JSX.Element {
 
   // Debug toggle
   const [showDebug, setShowDebug] = useState(false);
+  // Contracts expansion state for passivo tab
+  const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
 
   // Listas Auxiliares
   const clientesList = useMemo(() =>
@@ -245,26 +253,49 @@ export default function FinancialAnalytics(): JSX.Element {
     };
   }, [lancamentos]);
 
-  // === CÁLCULOS ABA 4: MIX DE RECEITA ===
-  const mixReceitaData = useMemo(() => {
-    const map: Record<string, number> = {};
-    
-    lancamentos.forEach(l => {
-      if (l.TipoLancamento !== 'Receber' && l.TipoLancamento !== 'Receita') return;
-      
-      const natureza = l.Natureza || 'Outros';
-      const valor = parseCurrency(l.ValorBruto || l.ValorLiquido || l.ValorPagoRecebido);
-      
-      if (valor > 0) {
-        map[natureza] = (map[natureza] || 0) + valor;
-      }
-    });
-    
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [lancamentos]);
+  // === CÁLCULOS PASSIVO: GESTÃO DE PASSIVO (ALIENAÇÕES) ===
+  const passivoKPIs = useMemo(() => {
+    const saldoTotal = alienacoes.reduce((s: number, a: AnyObject) => s + parseCurrency(a.SaldoRemanescente || a.SaldoDevedor || a.Saldo || 0), 0);
+    const fluxoMensal = alienacoes.reduce((s: number, a: AnyObject) => s + parseCurrency(a.ValorParcela || a.ValorParcelaAtual || a.ValorParcelaPrevista || 0), 0);
+    const total = alienacoes.length;
+    const emDiaCount = alienacoes.reduce((c: number, a: AnyObject) => {
+      const sitRaw = a.Situacao || a.SituacaoFinanceira || a.SituacaoFinanceiraVeiculo || '';
+      const sit = String(sitRaw || '').toLowerCase();
+      return c + (sit === 'em dia' || sit.includes('em dia') ? 1 : 0);
+    }, 0);
+    const pctEmDia = total > 0 ? (emDiaCount / total) * 100 : 0;
+    return { saldoTotal, fluxoMensal, pctEmDia };
+  }, [alienacoes]);
 
+  const groupedContracts = useMemo(() => {
+    const map: Record<string, { banco: string | null; numeroContrato: string; placas: Set<string>; saldoTotal: number; totalParcelas: number; parcelasRestantes: number; veiculos: AnyObject[] } > = {};
+    alienacoes.forEach((a: AnyObject) => {
+      const numero = a.NumeroContrato || a.Numero || a.Contrato || 'SEM_CONTRATO';
+      const banco = a.Instituicao || a.Banco || null;
+      const placa = a.Placa || a.PlacaVeiculo || null;
+      const saldo = parseCurrency(a.SaldoRemanescente || a.SaldoDevedor || a.Saldo || 0);
+      const totalP = Number(a.QuantidadeParcelas || a.TotalParcelas || a.PrazoTotal || 0) || 0;
+      const remP = Number(a.QuantidadeParcelasRemanescentes || a.ParcelasRemanescentes || a.PrazoRestante || 0) || 0;
+
+      if (!map[numero]) map[numero] = { banco: banco || null, numeroContrato: numero, placas: new Set(), saldoTotal: 0, totalParcelas: totalP, parcelasRestantes: remP, veiculos: [] };
+      if (placa) map[numero].placas.add(placa);
+      map[numero].saldoTotal += saldo;
+      // prefer larger totals if multiple rows
+      if (totalP > map[numero].totalParcelas) map[numero].totalParcelas = totalP;
+      if (remP > map[numero].parcelasRestantes) map[numero].parcelasRestantes = remP;
+      map[numero].veiculos.push(a);
+    });
+
+    return Object.values(map).map(c => ({
+      banco: c.banco || null,
+      numeroContrato: c.numeroContrato,
+      qtdVeiculos: c.placas.size,
+      saldoTotal: c.saldoTotal,
+      totalParcelas: c.totalParcelas,
+      parcelasRestantes: c.parcelasRestantes,
+      veiculos: c.veiculos
+    })).sort((a, b) => b.saldoTotal - a.saldoTotal);
+  }, [alienacoes]);
 
   // === CÁLCULOS ABA 2: AUDITORIA (REVENUE ASSURANCE) ===
   const auditData = useMemo(() => {
@@ -424,12 +455,11 @@ export default function FinancialAnalytics(): JSX.Element {
         </div>
       </div>
 
-      <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
-        <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
-        <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Auditoria de Receita</button>
-        <button onClick={() => setActiveTab(2)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 2 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Inadimplência</button>
-        <button onClick={() => setActiveTab(3)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 3 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Mix de Receita</button>
-      </div>
+          <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
+            <button onClick={() => setActiveTab(0)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 0 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Visão Geral</button>
+            <button onClick={() => setActiveTab(1)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 1 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Gestão de Passivo (Dívida)</button>
+            <button onClick={() => setActiveTab(2)} className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === 2 ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>Inadimplência</button>
+          </div>
 
       <div className="mt-3">
         <button onClick={() => setShowDebug(s => !s)} className="px-3 py-1 text-xs bg-slate-100 rounded-md border border-slate-200">{showDebug ? 'Ocultar Diagnóstico' : 'Mostrar Diagnóstico'}</button>
@@ -561,103 +591,203 @@ export default function FinancialAnalytics(): JSX.Element {
       )}
 
       {/* === CONTEÚDO DA AUDITORIA === */}
-      {activeTab === 1 && (
-        <Card className="bg-white shadow-sm border border-slate-200">
-          <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
-            <div>
-              <Title className="text-slate-900">Conciliação de Receita (Revenue Assurance)</Title>
-              <Text className="text-slate-500">Comparativo mês a mês: Previsto (Contratos) vs Realizado (Notas Fiscais).</Text>
-            </div>
-            <div className="w-full md:w-48">
-              <Text className="text-xs text-slate-500 mb-1">Mês de Referência</Text>
-              <select className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none bg-white" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                {availableMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <Text className="text-slate-500">Receita Esperada (Base 30)</Text>
-              <Metric className="text-blue-600">{fmtBRL(auditData.expected)}</Metric>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <Text className="text-slate-500">Receita Realizada (Notas)</Text>
-              <Metric className="text-emerald-600">{fmtBRL(auditData.realized)}</Metric>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <Text className="text-slate-500">Gap (Diferença)</Text>
-              <Metric className={`${auditData.gap < -100 ? 'text-red-500' : 'text-emerald-500'}`}>{fmtBRL(auditData.gap)}</Metric>
-            </div>
-          </div>
-
-          {/* Tabela Detalhada */}
-          <div className="border-t border-slate-100 pt-6">
-            <div className="flex justify-between items-center mb-4">
-              <Title>Detalhamento por Contrato ({auditData.details.length})</Title>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
-                <input type="text" placeholder="Buscar cliente ou placa..." className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+      {activeTab === 0 && (
+        <>
+          {/* Auditoria (moved into Visão Geral) */}
+          <Card className="bg-white shadow-sm border border-slate-200 mt-6">
+            <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
+              <div>
+                <Title className="text-slate-900">Conciliação de Receita (Revenue Assurance)</Title>
+                <Text className="text-slate-500">Comparativo mês a mês: Previsto (Contratos) vs Realizado (Notas Fiscais).</Text>
+              </div>
+              <div className="w-full md:w-48">
+                <Text className="text-xs text-slate-500 mb-1">Mês de Referência</Text>
+                <select className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none bg-white" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                  {availableMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+                </select>
               </div>
             </div>
 
-            <div className="overflow-auto max-h-[500px] border rounded-lg">
-              <table className="w-full text-sm text-left bg-white">
-                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 sticky top-0 uppercase text-xs">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Cliente</th>
-                    <th className="px-4 py-3 font-semibold">Contrato</th>
-                    <th className="px-4 py-3 font-semibold">Placa</th>
-                    <th className="px-4 py-3 font-semibold text-center">Dias Ativos</th>
-                    <th className="px-4 py-3 font-semibold text-right">Esperado</th>
-                    <th className="px-4 py-3 font-semibold text-right">Faturado</th>
-                    <th className="px-4 py-3 font-semibold text-right">Gap</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {auditData.details.length > 0 ? (
-                    auditData.details.slice(0, 100).map((d: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900">{d.cliente}</td>
-                        <td className="px-4 py-3 text-slate-500 font-mono text-xs">{d.contrato}</td>
-                        <td className="px-4 py-3 text-slate-500 font-mono">{d.placa}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${d.dias < 30 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
-                            {d.dias}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-blue-600">{fmtBRL(d.esperado)}</td>
-                        <td className="px-4 py-3 text-right text-emerald-600">{fmtBRL(d.realizado)}</td>
-                        <td className="px-4 py-3 text-right font-medium">
-                          {Math.abs(d.gap) > 1 ? (
-                            <span className={d.gap < 0 ? 'text-red-500' : 'text-emerald-500'}>{fmtBRL(d.gap)}</span>
-                          ) : (
-                            <span className="text-slate-300">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">Nenhum registro encontrado.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <Text className="text-slate-500">Receita Esperada (Base 30)</Text>
+                <Metric className="text-blue-600">{fmtBRL(auditData.expected)}</Metric>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <Text className="text-slate-500">Receita Realizada (Notas)</Text>
+                <Metric className="text-emerald-600">{fmtBRL(auditData.realized)}</Metric>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <Text className="text-slate-500">Gap (Diferença)</Text>
+                <Metric className={`${auditData.gap < -100 ? 'text-red-500' : 'text-emerald-500'}`}>{fmtBRL(auditData.gap)}</Metric>
+              </div>
             </div>
-            <div className="mt-4 text-center text-xs text-slate-400">Mostrando os 100 maiores gaps.</div>
-          </div>
-        </Card>
+
+            {/* Tabela Detalhada */}
+            <div className="border-t border-slate-100 pt-6">
+              <div className="flex justify-between items-center mb-4">
+                <Title>Detalhamento por Contrato ({auditData.details.length})</Title>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                  <input type="text" placeholder="Buscar cliente ou placa..." className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md text-sm outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="overflow-auto max-h-[500px] border rounded-lg">
+                <table className="w-full text-sm text-left bg-white">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 sticky top-0 uppercase text-xs">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Cliente</th>
+                      <th className="px-4 py-3 font-semibold">Contrato</th>
+                      <th className="px-4 py-3 font-semibold">Placa</th>
+                      <th className="px-4 py-3 font-semibold text-center">Dias Ativos</th>
+                      <th className="px-4 py-3 font-semibold text-right">Esperado</th>
+                      <th className="px-4 py-3 font-semibold text-right">Faturado</th>
+                      <th className="px-4 py-3 font-semibold text-right">Gap</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {auditData.details.length > 0 ? (
+                      auditData.details.slice(0, 100).map((d: any, i: number) => (
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-900">{d.cliente}</td>
+                          <td className="px-4 py-3 text-slate-500 font-mono text-xs">{d.contrato}</td>
+                          <td className="px-4 py-3 text-slate-500 font-mono">{d.placa}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${d.dias < 30 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                              {d.dias}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-blue-600">{fmtBRL(d.esperado)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-600">{fmtBRL(d.realizado)}</td>
+                          <td className="px-4 py-3 text-right font-medium">
+                            {Math.abs(d.gap) > 1 ? (
+                              <span className={d.gap < 0 ? 'text-red-500' : 'text-emerald-500'}>{fmtBRL(d.gap)}</span>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400">Nenhum registro encontrado.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 text-center text-xs text-slate-400">Mostrando os 100 maiores gaps.</div>
+            </div>
+          </Card>
+        </>
       )}
 
       {/* === ABA 3: INADIMPLÊNCIA === */}
+      {/* === ABA 1 (NEW): GESTÃO DE PASSIVO (DÍVIDA) === */}
+      {activeTab === 1 && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200">
+              <Text>Saldo Devedor Total</Text>
+              <Metric className="text-rose-600">{fmtBRL(passivoKPIs.saldoTotal)}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200">
+              <Text>Fluxo Mensal (Parcelas)</Text>
+              <Metric className="text-amber-600">{fmtBRL(passivoKPIs.fluxoMensal)}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="violet" className="bg-white border border-slate-200">
+              <Text>% Em Dia</Text>
+              <Metric className="text-violet-600">{passivoKPIs.pctEmDia.toFixed(1)}%</Metric>
+            </Card>
+          </div>
+
+          <Card className="mt-6 bg-white border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <Title>Contratos e Veículos ({groupedContracts.length})</Title>
+            </div>
+            <div className="overflow-auto max-h-[520px]">
+              <table className="w-full text-sm text-left bg-white">
+                <thead className="bg-slate-50 text-slate-500 uppercase text-xs sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3">Banco</th>
+                    <th className="px-4 py-3">Contrato</th>
+                    <th className="px-4 py-3 text-center">Qtd Veículos</th>
+                    <th className="px-4 py-3 text-right">Saldo Devedor</th>
+                    <th className="px-4 py-3">Prazo (rest/total)</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {groupedContracts.map((c, i) => {
+                    const key = String(c.numeroContrato || i);
+                    const isOpen = expandedContracts.has(key);
+                    const total = Number(c.totalParcelas) || 0;
+                    const rest = Number(c.parcelasRestantes) || 0;
+                    const done = total > 0 ? Math.min(1, Math.max(0, (total - rest) / total)) : 0;
+                    return (
+                      <React.Fragment key={`frag-${key}`}>
+                        <tr key={`p-${key}`} className="hover:bg-slate-50 cursor-pointer" onClick={() => {
+                          setExpandedContracts(prev => {
+                            const next = new Set(prev);
+                            if (next.has(key)) next.delete(key); else next.add(key);
+                            return next;
+                          });
+                        }}>
+                          <td className="px-4 py-3 font-medium">{c.banco || '-'}</td>
+                          <td className="px-4 py-3 font-mono text-xs">{c.numeroContrato}</td>
+                          <td className="px-4 py-3 text-center">{c.qtdVeiculos}</td>
+                          <td className="px-4 py-3 text-right font-bold">{fmtBRL(c.saldoTotal)}</td>
+                          <td className="px-4 py-3">
+                            <div className="text-xs text-slate-500 mb-1">{`${Math.max(0, total - rest)} / ${total}`}</div>
+                            <div className="w-full bg-slate-100 rounded h-2">
+                              <div className="h-2 rounded bg-emerald-400" style={{ width: `${done * 100}%` }} />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">{isOpen ? '▾' : '▸'}</td>
+                        </tr>
+                        {isOpen && (
+                          <tr key={`c-${key}`} className="bg-slate-50">
+                            <td colSpan={6} className="p-0">
+                              <div className="p-4">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="text-slate-500 text-xs">
+                                      <th className="px-2 py-2">Placa</th>
+                                      <th className="px-2 py-2">Modelo</th>
+                                      <th className="px-2 py-2 text-right">Valor Parcela</th>
+                                      <th className="px-2 py-2 text-right">Saldo Devedor</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {c.veiculos.map((v: AnyObject, vi: number) => (
+                                      <tr key={vi} className="odd:bg-white even:bg-slate-100">
+                                        <td className="px-2 py-2 font-mono">{v.Placa || '-'}</td>
+                                        <td className="px-2 py-2">{v.Modelo || v.ModeloVeiculo || '-'}</td>
+                                        <td className="px-2 py-2 text-right">{fmtBRL(parseCurrency(v.ValorParcela || v.ValorParcelaAtual || 0))}</td>
+                                        <td className="px-2 py-2 text-right">{fmtBRL(parseCurrency(v.SaldoRemanescente || v.SaldoDevedor || v.Saldo || 0))}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* === ABA 2: INADIMPLÊNCIA === */}
       {activeTab === 2 && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200">
-              <Text>Total Inadimplência</Text>
-              <Metric className="text-rose-600">{fmtBRL(inadimplenciaData.totalInadimplencia)}</Metric>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200">
               <Text>Vencido +90 dias</Text>
               <Metric className="text-amber-600">{fmtBRL(inadimplenciaData.aging.find(a => a.name === '+90 dias')?.value || 0)}</Metric>
@@ -699,66 +829,7 @@ export default function FinancialAnalytics(): JSX.Element {
       )}
 
       {/* === ABA 4: MIX DE RECEITA === */}
-      {activeTab === 3 && (
-        <>
-          <Card className="bg-white border border-slate-200 mb-6">
-            <Title>Composição da Receita por Natureza</Title>
-            <Text className="text-slate-500 mb-4">Distribuição da receita entre diferentes fontes (Locação, Multas, Reembolsos, etc.)</Text>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <div className="flex items-center justify-center h-full">
-                    <div className="w-full max-w-md">
-                      {mixReceitaData.slice(0, 6).map((item, idx) => {
-                        const total = mixReceitaData.reduce((s, i) => s + i.value, 0);
-                        const percent = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
-                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-                        return (
-                          <div key={idx} className="mb-4">
-                            <div className="flex justify-between items-center mb-1">
-                              <Text className="text-sm font-medium text-slate-700">{item.name}</Text>
-                              <Text className="text-sm font-bold text-slate-900">{percent}%</Text>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-3">
-                              <div 
-                                className="h-3 rounded-full transition-all"
-                                style={{ 
-                                  width: `${percent}%`, 
-                                  backgroundColor: colors[idx % colors.length] 
-                                }}
-                              />
-                            </div>
-                            <Text className="text-xs text-slate-500 mt-1">{fmtBRL(item.value)}</Text>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </ResponsiveContainer>
-              </div>
-
-              <div>
-                <Title className="text-lg mb-4">Detalhamento por Natureza</Title>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {mixReceitaData.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                      <Text className="font-medium text-slate-700">{item.name}</Text>
-                      <Metric className="text-slate-900 text-lg">{fmtBRL(item.value)}</Metric>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="bg-white border border-slate-200">
-            <Title>Evolução Mensal por Natureza (Top 5)</Title>
-            <div className="h-80 mt-4">
-              <Text className="text-sm text-slate-500 mb-2">Gráfico temporal em desenvolvimento - requer agregação por mês</Text>
-            </div>
-          </Card>
-        </>
-      )}
+      {/** Mix de receita e outros detalhes foram mesclados em Visão Geral para manter 3 abas. */}
     </div>
   );
 }
