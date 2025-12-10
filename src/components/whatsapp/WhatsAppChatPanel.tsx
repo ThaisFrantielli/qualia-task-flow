@@ -104,38 +104,28 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
     setIsSending(true);
     try {
-      const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw';
-
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { error } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
           phoneNumber: conversation.customer_phone,
           message: newMessage.trim(),
           conversationId: conversation.id,
           instance_id: instanceId
-        }),
+        }
       });
 
-      if (response.ok) {
-        setNewMessage('');
-        setTimeout(() => refetch(), 500);
-        toast({
-          title: 'Mensagem enviada',
-          description: 'Sua mensagem foi enviada com sucesso!'
-        });
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Falha ao enviar mensagem');
-      }
+      if (error) throw error;
+
+      setNewMessage('');
+      setTimeout(() => refetch(), 500);
+      toast({
+        title: 'Mensagem enviada',
+        description: 'Sua mensagem foi enviada com sucesso!'
+      });
     } catch (error: any) {
+      console.error('Error sending message:', error);
       toast({
         title: 'Erro ao enviar',
-        description: error.message,
+        description: error.message || 'Falha ao enviar mensagem',
         variant: 'destructive'
       });
     } finally {
@@ -282,7 +272,12 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       {/* Input */}
       <div className="p-3 border-t bg-background">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-9 w-9 shrink-0"
+            onClick={() => toast({ title: "Em breve", description: "Envio de anexos estará disponível em breve." })}
+          >
             <Paperclip className="h-4 w-4" />
           </Button>
           <Input
@@ -293,7 +288,12 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
             disabled={isSending || instanceStatus !== 'connected'}
             className="flex-1"
           />
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-9 w-9 shrink-0"
+            onClick={() => toast({ title: "Em breve", description: "Seletor de emojis estará disponível em breve." })}
+          >
             <Smile className="h-4 w-4" />
           </Button>
           <Button
