@@ -9,6 +9,10 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { WHATSAPP } from '@/integrations/whatsapp/config';
+import { TemplatePicker } from '@/components/whatsapp/TemplatePicker';
+import { WhatsAppMediaUpload } from '@/components/whatsapp/WhatsAppMediaUpload';
+import { WhatsAppMessageMedia } from '@/components/whatsapp/WhatsAppMessageMedia';
+import { supabase } from '@/integrations/supabase/client';
 
 interface WhatsAppTabProps {
   clienteId: string;
@@ -278,8 +282,10 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName, instanceI
               <p>Nenhuma mensagem ainda. Inicie a conversa!</p>
             </div>
           ) : (
-            messages.map((message) => {
+            messages.map((message: any) => {
               const isCustomer = message.sender_type === 'customer';
+              const hasMedia = message.has_media && message.media && message.media.length > 0;
+              
               return (
                 <div
                   key={message.id}
@@ -304,9 +310,24 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName, instanceI
                         Você
                       </p>
                     )}
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
+                    
+                    {/* Media preview */}
+                    {hasMedia && (
+                      <div className="mb-2">
+                        <WhatsAppMessageMedia 
+                          media={message.media[0]} 
+                          className={isCustomer ? '' : 'filter brightness-110'}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Text content */}
+                    {message.content && !message.content.startsWith('[') && (
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {message.content}
+                      </p>
+                    )}
+                    
                     <p
                       className={`text-xs mt-1 ${isCustomer ? 'text-muted-foreground' : 'opacity-70'
                         }`}
@@ -330,16 +351,39 @@ export function WhatsAppTab({ clienteId, whatsappNumber, customerName, instanceI
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="p-4 border-t bg-muted/30">
-        <div className="flex gap-2">
-          <Textarea
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Digite sua mensagem..."
-            className="min-h-[60px] max-h-[120px] resize-none"
-            disabled={isSending}
-          />
+      <div className="p-4 border-t bg-muted/30 space-y-2">
+        {/* Media Upload */}
+        <WhatsAppMediaUpload
+          conversationId={conversation?.id}
+          whatsappNumber={whatsappNumber}
+          instanceId={instanceId}
+          caption={messageText}
+          onMediaSent={() => {
+            setMessageText('');
+            refreshMessages();
+          }}
+        />
+        
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-2">
+            <TemplatePicker
+              onSelect={(message) => setMessageText(message)}
+              clientName={customerName}
+              customerData={{
+                nome: customerName || '',
+                empresa: 'Quality Conecta',
+                telefone: whatsappNumber
+              }}
+            />
+            <Textarea
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Digite sua mensagem ou use um template..."
+              className="min-h-[60px] max-h-[120px] resize-none"
+              disabled={isSending}
+            />
+          </div>
           <Button
             onClick={handleSendMessage}
             disabled={!messageText.trim() || isSending || !serviceOnline || !whatsappConnected}
