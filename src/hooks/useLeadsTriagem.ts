@@ -159,15 +159,17 @@ export function useDescartarLead() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ clienteId }: { clienteId: string; motivo?: string }) => {
+        mutationFn: async ({ clienteId, motivo }: { clienteId: string; motivo?: string }) => {
             const { error } = await supabase
                 .from('clientes')
-                .update({ status_triagem: 'descartado' })
+                .update({ 
+                    status_triagem: 'descartado',
+                    descartado_motivo: motivo || null,
+                    descartado_em: new Date().toISOString()
+                })
                 .eq('id', clienteId);
 
             if (error) throw error;
-
-            // TODO: Opcionalmente, registrar motivo em uma tabela de histórico
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['leads-triagem'] });

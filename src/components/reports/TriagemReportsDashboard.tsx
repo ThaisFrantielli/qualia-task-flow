@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { 
   BarChart, 
   Bar, 
@@ -200,6 +201,62 @@ export function TriagemReportsDashboard({ dateRange }: TriagemReportsDashboardPr
     );
   }
 
+  // Export discarded leads as CSV
+  const exportDiscarded = async () => {
+    try {
+      const { data: discarded, error } = await supabase
+        .from('clientes')
+        .select('id, nome_fantasia, razao_social, whatsapp_number, cadastro_cliente, descartado_motivo, descartado_em')
+        .eq('status_triagem', 'descartado')
+        .gte('descartado_em', from.toISOString())
+        .lte('descartado_em', to.toISOString());
+
+      if (error) throw error;
+
+      const clientIds = (discarded || []).map((c: any) => c.id);
+      let convMap: Record<string, any> = {};
+      if (clientIds.length > 0) {
+        const { data: convs } = await supabase
+          .from('whatsapp_conversations')
+          .select('cliente_id, last_message, last_message_at')
+          .in('cliente_id', clientIds);
+
+        (convs || []).forEach((cv: any) => {
+          convMap[cv.cliente_id] = cv;
+        });
+      }
+
+      // Build CSV
+      const headers = ['descartado_em','cliente_id','nome','whatsapp_number','last_message','last_message_at','motivo'];
+      const rows = (discarded || []).map((c: any) => {
+        const conv = convMap[c.id];
+        return [
+          c.descartado_em || '',
+          c.id || '',
+          (c.nome_fantasia || c.razao_social) || '',
+          c.whatsapp_number || '',
+          conv?.last_message || '',
+          conv?.last_message_at || '',
+          c.descartado_motivo || ''
+        ];
+      });
+
+      const csvContent = [headers, ...rows].map(r => r.map(field => `"${String(field).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads_descartados_${from.toISOString().split('T')[0]}_to_${to.toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erro ao exportar descartados:', err);
+      alert('Falha ao exportar descartados: ' + (err as any).message);
+    }
+  };
+
   const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
   const statusChartData = Object.entries(metrics.leadsByStatus).map(([status, count]) => ({
@@ -230,6 +287,9 @@ export function TriagemReportsDashboard({ dateRange }: TriagemReportsDashboardPr
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button onClick={exportDiscarded} variant="outline">Exportar Leads Descartados (CSV)</Button>
+      </div>
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         <Card>

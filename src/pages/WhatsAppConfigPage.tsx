@@ -117,38 +117,43 @@ export default function WhatsAppConfigPage() {
   };
 
   const handleDeleteInstance = async (id: string) => {
+    if (!confirm('Tem certeza que deseja remover esta conexão? Todas as conversas e mensagens associadas serão perdidas.')) {
+      return;
+    }
+
     try {
-      // Clean up any references before deleting to avoid foreign-key / policy errors
-      try {
-        await supabase
-          .from('whatsapp_conversations')
-          .update({ instance_id: null })
-          .eq('instance_id', id);
-      } catch (err) {
-        console.warn('Falha ao limpar whatsapp_conversations.instance_id:', err);
-      }
-
-      try {
-        await supabase
-          .from('whatsapp_messages')
-          .update({ instance_id: null })
-          .eq('instance_id', id);
-      } catch (err) {
-        console.warn('Falha ao limpar whatsapp_messages.instance_id:', err);
-      }
-
-      const { error } = await supabase
+      console.log('🗑️ Iniciando exclusão da instância:', id);
+      
+      // With CASCADE foreign keys, we can simply delete the instance
+      // and all related records will be automatically deleted
+      const { error, count } = await supabase
         .from('whatsapp_instances')
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao deletar instância:', error);
+        throw error;
+      }
+
+      console.log('✅ Instância deletada com sucesso. Registros afetados:', count);
 
       setInstances(prev => prev.filter(i => i.id !== id));
-      toast({ title: "Removido", description: "Conexão removida com sucesso." });
-    } catch (error) {
-      console.error('Error deleting instance:', error);
-      toast({ title: "Erro", description: "Falha ao remover conexão.", variant: "destructive" });
+      toast({ 
+        title: "Removido", 
+        description: "Conexão e todos os dados relacionados foram removidos com sucesso." 
+      });
+    } catch (error: any) {
+      console.error('❌ Error deleting instance:', error);
+      
+      // Show detailed error message
+      const errorMessage = error?.message || error?.details || 'Falha ao remover conexão';
+      
+      toast({ 
+        title: "Erro ao Remover", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
     }
   };
 

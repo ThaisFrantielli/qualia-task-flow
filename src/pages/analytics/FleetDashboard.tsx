@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, DonutChart, BarList } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Car, AlertTriangle, Activity, Filter } from 'lucide-react';
+import { Card, Title, Text, Metric, DonutChart } from '@tremor/react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
+import { Car, AlertTriangle, Activity, X } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
@@ -15,279 +15,209 @@ function parseNum(v: any): number {
   return isNaN(n) ? 0 : n;
 }
 
+function parseCurrency(v: any): number {
+  if (typeof v === 'number') return v;
+  if (!v) return 0;
+  if (typeof v === 'string') {
+    const s = v.replace(/[R$\s.]/g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  return 0;
+}
+
+function fmtBRL(v: number): string {
+  try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+  catch (e) { return String(v); }
+}
+
+function fmtCompact(v: number): string {
+  if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `R$ ${(v / 1000).toFixed(0)}k`;
+  return `R$ ${v}`;
+}
+
 // --- COMPONENTE PRINCIPAL ---
 export default function FleetDashboard(): JSX.Element {
-  const { data: frotaData } = useBIData<AnyObject[]>('frota.json');
+  // *** MIGRAÇÃO: Usa dim_frota.json ***
+  const { data: frotaData } = useBIData<AnyObject[]>('dim_frota.json');
 
   const frota = useMemo(() => {
     const raw = (frotaData as any)?.data || frotaData || [];
     return Array.isArray(raw) ? raw : [];
   }, [frotaData]);
 
-  // State
-  const [selectedFilial, setSelectedFilial] = useState<string[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null); // Cross-filter from Donut
+  // *** ESTADO DE FILTROS INTERATIVOS (PowerBI Style) ***
+  const [filterState, setFilterState] = useState<{ status: string | null; modelo: string | null; ageRange: string | null; }>({ status: null, modelo: null, ageRange: null });
+
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // Lists
-  const filiais = useMemo(() => Array.from(new Set(frota.map(r => r.Filial).filter(Boolean))).sort(), [frota]);
-
-  // Base Filter
-  const baseFiltered = useMemo(() => {
+  // *** DADOS FILTRADOS (Derivados do filterState) ***
+  const filteredData = useMemo(() => {
     return frota.filter(r => {
-      if (selectedFilial.length > 0 && !selectedFilial.includes(r.Filial)) return false;
+      if (filterState.status && r.Status !== filterState.status) return false;
+      if (filterState.modelo && r.Modelo !== filterState.modelo) return false;
+      if (filterState.ageRange) {
+        const age = parseNum(r.IdadeVeiculo || r.IdadeMeses);
+        if (filterState.ageRange === '0-12' && age > 12) return false;
+        if (filterState.ageRange === '13-24' && (age <= 12 || age > 24)) return false;
+        if (filterState.ageRange === '25-36' && (age <= 24 || age > 36)) return false;
+        if (filterState.ageRange === '37-48' && (age <= 36 || age > 48)) return false;
+        if (filterState.ageRange === '48+' && age <= 48) return false;
+      }
       return true;
     });
-  }, [frota, selectedFilial]);
+  }, [frota, filterState]);
 
-  // Final Filter (Cross-filter)
-  const finalFiltered = useMemo(() => {
-    if (!selectedStatus) return baseFiltered;
-    return baseFiltered.filter(r => r.Situacao === selectedStatus);
-  }, [baseFiltered, selectedStatus]);
+  const hasActiveFilters = useMemo(() => !!(filterState.status || filterState.modelo || filterState.ageRange), [filterState]);
 
-  // KPIs
+  const clearFilters = () => { setFilterState({ status: null, modelo: null, ageRange: null }); setPage(1); };
+
+  // *** KPIs (Baseados em filteredData) ***
   const kpis = useMemo(() => {
-    const total = finalFiltered.length;
-    const active = finalFiltered.filter(r => r.Situacao === 'Produtivo' || r.Situacao === 'Locado').length;
-    const inactive = total - active;
-    const avgAge = total > 0 ? finalFiltered.reduce((s, r) => s + parseNum(r.IdadeVeiculo), 0) / total : 0;
-    const avgKm = total > 0 ? finalFiltered.reduce((s, r) => s + parseNum(r.KmVeiculo), 0) / total : 0;
-    return { total, active, inactive, avgAge, avgKm };
-  }, [finalFiltered]);
+    const total = filteredData.length;
+    const patrimonioFipe = filteredData.reduce((s, r) => s + parseCurrency(r.ValorFipeAtual || r.FipeAtual), 0);
+    const custoAquisicao = filteredData.reduce((s, r) => s + parseCurrency(r.ValorCompra || r.CustoAquisicao), 0);
+    const idadeMedia = total > 0 ? filteredData.reduce((s, r) => s + parseNum(r.IdadeVeiculo || r.IdadeMeses), 0) / total : 0;
+    const ociosos = filteredData.filter(r => r.Status !== 'Locado' && r.Status !== 'Em OperaÃ§Ã£o').length;
+    const percOciosidade = total > 0 ? (ociosos / total) * 100 : 0;
+    const custoTotal = custoAquisicao;
+    const mercadoTotal = patrimonioFipe;
+    const diff = mercadoTotal - custoTotal;
+    return { total, patrimonioFipe, custoAquisicao, idadeMedia, percOciosidade, custoTotal, mercadoTotal, mercadoDiff: diff };
+  }, [filteredData]);
 
-  // Charts Data
+  // Donut: Status
   const statusData = useMemo(() => {
     const map: Record<string, number> = {};
-    baseFiltered.forEach(r => {
-      const s = r.Situacao || 'Indefinido';
-      map[s] = (map[s] || 0) + 1;
-    });
+    filteredData.forEach(r => { const s = r.Status || r.Situacao || 'Indefinido'; map[s] = (map[s] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [baseFiltered]);
+  }, [filteredData]);
 
+  // Top modelos
+  const modelosData = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredData.forEach(r => { const m = r.Modelo || 'Outros'; map[m] = (map[m] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
+  }, [filteredData]);
+
+  // Age histogram
   const ageData = useMemo(() => {
     const ranges = { '0-12': 0, '13-24': 0, '25-36': 0, '37-48': 0, '48+': 0 };
-    finalFiltered.forEach(r => {
-      const age = parseNum(r.IdadeVeiculo);
-      if (age <= 12) ranges['0-12']++;
-      else if (age <= 24) ranges['13-24']++;
-      else if (age <= 36) ranges['25-36']++;
-      else if (age <= 48) ranges['37-48']++;
-      else ranges['48+']++;
-    });
+    filteredData.forEach(r => { const age = parseNum(r.IdadeVeiculo || r.IdadeMeses); if (age <= 12) ranges['0-12']++; else if (age <= 24) ranges['13-24']++; else if (age <= 36) ranges['25-36']++; else if (age <= 48) ranges['37-48']++; else ranges['48+']++; });
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
-  }, [finalFiltered]);
+  }, [filteredData]);
 
-  const categoryData = useMemo(() => {
-    const map: Record<string, number> = {};
-    finalFiltered.forEach(r => {
-      const c = r.Categoria || 'Outros';
-      map[c] = (map[c] || 0) + 1;
+  // Table
+  const tableData = useMemo(() => {
+    return filteredData.map(r => {
+      const compra = parseCurrency(r.ValorCompra || r.CustoAquisicao);
+      const fipeAtual = parseCurrency(r.ValorFipeAtual || r.FipeAtual);
+      const variacao = compra > 0 && fipeAtual > 0 ? ((fipeAtual - compra) / compra) * 100 : 0;
+      const valorizacao = fipeAtual - compra;
+      return { placa: r.Placa, modelo: r.Modelo, status: r.Status || r.Situacao, valorCompra: compra, fipeAtual, variacao, valorizacao, idade: parseNum(r.IdadeVeiculo || r.IdadeMeses) };
     });
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [finalFiltered]);
+  }, [filteredData]);
+
+  const pageItems = useMemo(() => tableData.slice((page - 1) * pageSize, page * pageSize), [tableData, page]);
+  const totalPages = Math.max(1, Math.ceil(tableData.length / pageSize));
 
   // Insights
   const insights = useMemo(() => {
-    const alerts = [];
-
-    // 1. Aging Fleet
-    const oldVehicles = finalFiltered.filter(r => parseNum(r.IdadeVeiculo) > 48 || parseNum(r.KmVeiculo) > 80000).length;
-    if (oldVehicles > 0) {
-      alerts.push({
-        type: 'warning',
-        title: 'Frota Envelhecida',
-        msg: `${oldVehicles} veículos têm mais de 48 meses ou 80k KM. Considere renovação.`
-      });
-    }
-
-    // 2. High Idleness
-    if (kpis.total > 0) {
-      const idleRate = kpis.inactive / kpis.total;
-      if (idleRate > 0.10) {
-        alerts.push({
-          type: 'danger',
-          title: 'Alta Ociosidade',
-          msg: `A taxa de ociosidade está em ${(idleRate * 100).toFixed(1)}%, acima do limite de 10%.`
-        });
-      }
-    }
-
+    const alerts: any[] = [];
+    const oldVehicles = filteredData.filter(r => parseNum(r.IdadeVeiculo || r.IdadeMeses) > 48).length;
+    if (oldVehicles > 0) alerts.push({ type: 'warning', title: 'Frota Envelhecida', msg: `${oldVehicles} veículos têm mais de 48 meses. Considere renovação.` });
+    if (kpis.percOciosidade > 10) alerts.push({ type: 'danger', title: 'Alta Ociosidade', msg: `A taxa de ociosidade está em ${kpis.percOciosidade.toFixed(1)}%, acima do limite de 10%.` });
+    const depreciatedCount = tableData.filter(t => t.variacao < -20).length; if (depreciatedCount > 0) alerts.push({ type: 'warning', title: 'Depreciação Acentuada', msg: `${depreciatedCount} veículos depreciaram mais de 20% em relação ao custo de aquisição.` });
     return alerts;
-  }, [finalFiltered, kpis]);
+  }, [filteredData, kpis, tableData]);
 
-  // Table Pagination
-  const pageItems = useMemo(() => {
-    return finalFiltered.slice((page - 1) * pageSize, page * pageSize);
-  }, [finalFiltered, page]);
-
-  const totalPages = Math.max(1, Math.ceil(finalFiltered.length / pageSize));
+  const handleStatusClick = (data: any) => { setFilterState(prev => ({ ...prev, status: prev.status === data.name ? null : data.name })); setPage(1); };
+  const handleModeloClick = (data: any) => { setFilterState(prev => ({ ...prev, modelo: prev.modelo === data.name ? null : data.name })); setPage(1); };
+  const handleAgeClick = (data: any) => { setFilterState(prev => ({ ...prev, ageRange: prev.ageRange === data.name ? null : data.name })); setPage(1); };
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <Title className="text-slate-900">Fleet Management</Title>
-          <Text className="mt-1 text-slate-500">Monitoramento da frota, disponibilidade e perfil dos veículos.</Text>
+          <Title className="text-slate-900">Fleet Management Dashboard</Title>
+          <Text className="mt-1 text-slate-500">Análise completa da frota com interatividade total. Clique nos gráficos para filtrar.</Text>
         </div>
         <div className="flex items-center gap-2">
-          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-            <Car className="w-4 h-4" /> Hub Operacional
-          </div>
+          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><Car className="w-4 h-4" /> Hub de Ativos</div>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="bg-white shadow-sm border border-slate-200">
-        <div className="flex items-center gap-2 mb-2">
-          <Filter className="w-4 h-4 text-slate-500" />
-          <Text className="font-medium text-slate-700">Filtros</Text>
+      {hasActiveFilters && (
+        <div className="fixed bottom-8 right-8 z-50">
+          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105"><X className="w-5 h-5" /> Limpar Filtros</button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <Text className="text-xs text-slate-500 mb-1">Filial</Text>
-            <select multiple className="w-full border border-slate-300 rounded-md p-2 text-sm h-10 outline-none focus:ring-2 focus:ring-emerald-500" value={selectedFilial} onChange={e => { setSelectedFilial(Array.from(e.target.selectedOptions).map(o => o.value)); setPage(1); }}>
-              {filiais.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <button
-              className="bg-slate-100 hover:bg-slate-200 text-slate-600 w-full py-2 rounded-md text-sm transition-colors"
-              onClick={() => { setSelectedFilial([]); setSelectedStatus(null); setPage(1); }}
-            >
-              Limpar Filtros
-            </button>
-          </div>
-          {selectedStatus && (
-            <div className="flex items-end">
-              <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-4 py-2 rounded-md text-sm w-full flex justify-between items-center">
-                <span>Situação: <strong>{selectedStatus}</strong></span>
-                <button onClick={() => setSelectedStatus(null)} className="text-emerald-500 hover:text-emerald-800 ml-2">✕</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
+      )}
 
-      {/* Insights */}
       {insights.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {insights.map((alert, idx) => (
-            <div key={idx} className={`p-4 rounded-lg border flex items-start gap-3 ${alert.type === 'danger' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
-              {alert.type === 'danger' ? <Activity className="w-5 h-5 mt-0.5" /> : <AlertTriangle className="w-5 h-5 mt-0.5" />}
-              <div>
-                <h4 className="font-semibold text-sm">{alert.title}</h4>
-                <p className="text-xs opacity-90">{alert.msg}</p>
-              </div>
+            <div key={idx} className={`p-4 rounded-lg border flex items-start gap-3 ${alert.type === 'danger' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              {alert.type === 'danger' ? <Activity className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
+              <div><h4 className="font-semibold text-sm">{alert.title}</h4><p className="text-xs opacity-90 mt-1">{alert.msg}</p></div>
             </div>
           ))}
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
-          <Text className="text-slate-500">Total Frota</Text>
-          <Metric className="text-slate-900">{kpis.total}</Metric>
-        </Card>
-        <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200 shadow-sm">
-          <Text className="text-slate-500">Ativos</Text>
-          <Metric className="text-slate-900">{kpis.active}</Metric>
-        </Card>
-        <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200 shadow-sm">
-          <Text className="text-slate-500">Idade Média (Meses)</Text>
-          <Metric className="text-slate-900">{kpis.avgAge.toFixed(1)}</Metric>
-        </Card>
-        <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200 shadow-sm">
-          <Text className="text-slate-500">KM Médio</Text>
-          <Metric className="text-slate-900">{(kpis.avgKm / 1000).toFixed(1)}k</Metric>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm"><Text className="text-slate-500">Patrimônio Total (FIPE)</Text><Metric className="text-slate-900">{fmtCompact(kpis.patrimonioFipe)}</Metric><Text className="text-xs text-slate-400 mt-1">{kpis.total} veículos</Text></Card>
+        <Card decoration="top" decorationColor="blue" className="bg-white border border-slate-200 shadow-sm"><Text className="text-slate-500">Custo Aquisição</Text><Metric className="text-slate-900">{fmtCompact(kpis.custoAquisicao)}</Metric><Text className="text-xs text-slate-400 mt-1">Total investido</Text></Card>
+        <Card decoration="top" decorationColor="amber" className="bg-white border border-slate-200 shadow-sm"><Text className="text-slate-500">Idade Média</Text><Metric className="text-slate-900">{kpis.idadeMedia.toFixed(1)} meses</Metric><Text className="text-xs text-slate-400 mt-1">Idade da frota</Text></Card>
+        <Card decoration="top" decorationColor="rose" className="bg-white border border-slate-200 shadow-sm"><Text className="text-slate-500">% Ociosidade</Text><Metric className="text-slate-900">{kpis.percOciosidade.toFixed(1)}%</Metric><Text className="text-xs text-slate-400 mt-1">Não locados</Text></Card>
+        <Card decoration="top" decorationColor="slate" className="bg-white border border-slate-200 shadow-sm"><Text className="text-slate-500">Custo vs Mercado</Text><Metric className="text-slate-900">{fmtCompact(kpis.custoTotal)} / {fmtCompact(kpis.mercadoTotal)}</Metric><Text className="text-xs text-slate-400 mt-1">Diferença: {fmtBRL(kpis.mercadoDiff)}</Text></Card>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="bg-white border border-slate-200 shadow-sm">
-          <Title className="text-slate-900">Disponibilidade</Title>
-          <Text className="text-slate-500 text-sm mb-4">Clique para filtrar detalhes.</Text>
-          <DonutChart
-            data={statusData}
-            category="value"
-            index="name"
-            colors={['emerald', 'amber', 'rose', 'slate', 'blue']}
-            className="h-60"
-          />
-        </Card>
+        <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"><Title className="text-slate-900">Status da Frota</Title><Text className="text-slate-500 text-sm mb-4">{filterState.status ? `Filtrado: ${filterState.status}` : 'Clique para filtrar'}</Text><DonutChart data={statusData} category="value" index="name" colors={['emerald','amber','rose','slate','blue']} className="h-60" onVolumeChange={(v: any) => v && handleStatusClick(v)} /></Card>
 
-        <Card className="bg-white border border-slate-200 shadow-sm">
-          <Title className="text-slate-900">Distribuição por Idade</Title>
-          <div className="h-60 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ageData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" />
-                <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
+        <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow"><Title className="text-slate-900">Distribuição por Idade</Title><Text className="text-slate-500 text-sm mb-4">{filterState.ageRange ? `Filtrado: ${filterState.ageRange} meses` : 'Clique nas barras para filtrar'}</Text><div className="h-60"><ResponsiveContainer width="100%" height="100%"><BarChart data={ageData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" /><YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" /><Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} /><Bar dataKey="value" radius={[4,4,0,0]} onClick={(data) => handleAgeClick(data)}>{ageData.map((entry, index) => (<Cell key={`cell-${index}`} fill={filterState.ageRange === entry.name ? '#ef4444' : '#10b981'} cursor="pointer" />))}</Bar></BarChart></ResponsiveContainer></div></Card>
 
-        <Card className="bg-white border border-slate-200 shadow-sm">
-          <Title className="text-slate-900">Top Categorias</Title>
-          <div className="mt-4">
-            <BarList data={categoryData} color="emerald" />
-          </div>
-        </Card>
+        <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow"><Title className="text-slate-900">Top 10 Modelos</Title><Text className="text-slate-500 text-sm mb-4">{filterState.modelo ? `Filtrado: ${filterState.modelo}` : 'Clique para filtrar'}</Text><div className="mt-4 space-y-2">{modelosData.map((item, idx) => (<div key={idx} className={`flex justify-between items-center p-2 rounded cursor-pointer transition-colors ${filterState.modelo === item.name ? 'bg-emerald-100 border-l-4 border-emerald-500' : 'hover:bg-slate-50'}`} onClick={() => handleModeloClick(item)}><Text className="text-slate-700 text-sm font-medium truncate">{item.name}</Text><Text className="text-slate-900 font-bold ml-2">{item.value}</Text></div>))}</div></Card>
       </div>
 
-      {/* Table */}
       <Card className="bg-white shadow-sm border border-slate-200">
-        <Title className="text-slate-900 mb-4">Detalhamento da Frota</Title>
+        <Title className="text-slate-900 mb-4">Detalhamento da Frota (Compra vs FIPE Atual)</Title>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-xs">
               <tr>
                 <th className="px-4 py-3 font-medium">Placa</th>
                 <th className="px-4 py-3 font-medium">Modelo</th>
-                <th className="px-4 py-3 font-medium">Filial</th>
-                <th className="px-4 py-3 font-medium">Situação</th>
-                <th className="px-4 py-3 font-medium text-right">KM</th>
-                <th className="px-4 py-3 font-medium text-right">Idade</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium text-right">Valor Compra</th>
+                <th className="px-4 py-3 font-medium text-right">FIPE Atual</th>
+                <th className="px-4 py-3 font-medium text-right">Valorização</th>
+                <th className="px-4 py-3 font-medium text-right">Variação %</th>
+                <th className="px-4 py-3 font-medium text-right">Idade (m)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {pageItems.map((r, i) => (
                 <tr key={`frota-${i}`} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-900">{r.Placa}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.Modelo}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.Filial}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.Situacao === 'Produtivo' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {r.Situacao}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-600">{parseNum(r.KmVeiculo).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right text-slate-600">{parseNum(r.IdadeVeiculo)} m</td>
+                  <td className="px-4 py-3 font-medium text-slate-900">{r.placa}</td>
+                  <td className="px-4 py-3 text-slate-600">{r.modelo}</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${r.status === 'Locado' || r.status === 'Em Operação' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{r.status}</span></td>
+                  <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(r.valorCompra)}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(r.fipeAtual)}</td>
+                  <td className={`px-4 py-3 text-right font-medium ${r.valorizacao >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{r.valorizacao >= 0 ? '+' : ''}{fmtBRL(r.valorizacao)}</td>
+                  <td className={`px-4 py-3 text-right font-medium ${r.variacao >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{r.variacao >= 0 ? '+' : ''}{r.variacao.toFixed(1)}%</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{r.idade}</td>
                 </tr>
               ))}
-              {pageItems.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Nenhum veículo encontrado.</td>
-                </tr>
-              )}
+              {pageItems.length === 0 && (<tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Nenhum veículo encontrado com os filtros selecionados.</td></tr>)}
             </tbody>
           </table>
         </div>
 
         <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-slate-500">Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, finalFiltered.length)} de {finalFiltered.length}</div>
+          <div className="text-sm text-slate-500">Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, tableData.length)} de {tableData.length}</div>
           <div className="flex items-center gap-2">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors">Anterior</button>
             <Text className="text-slate-600">Página {page} / {totalPages}</Text>
@@ -297,4 +227,5 @@ export default function FleetDashboard(): JSX.Element {
       </Card>
     </div>
   );
+
 }

@@ -10,7 +10,7 @@ import {
 import { useFunis } from "@/hooks/useFunis";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePresenceOptional } from "@/contexts/PresenceContext";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +48,8 @@ export default function FilaTriagem() {
   // WhatsApp instances state
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
+  // Local cache of removed leads to remove them from the list immediately
+  const [removedLeadIds, setRemovedLeadIds] = useState<string[]>([]);
 
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
@@ -86,8 +88,9 @@ export default function FilaTriagem() {
   // Filter and sort leads
   const filteredLeads = useMemo(() => {
     if (!leads) return [];
-
     return leads.filter(lead => {
+      // Exclude leads that were removed locally after discard
+      if (removedLeadIds.includes(lead.id)) return false;
       // Search filter
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
@@ -138,7 +141,7 @@ export default function FilaTriagem() {
       const bDate = b.created_at || b.cadastro_cliente || '';
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
-  }, [leads, searchTerm, statusFilter, origemFilter, activeTab, user?.id, selectedInstanceIds, instances.length]);
+  }, [leads, searchTerm, statusFilter, origemFilter, activeTab, user?.id, selectedInstanceIds, instances.length, removedLeadIds]);
 
   // Stats
   const stats = useMemo(() => {
@@ -206,8 +209,30 @@ export default function FilaTriagem() {
   };
 
   const handleDescartar = async (clienteId: string) => {
-    if (confirm("Tem certeza que deseja descartar este lead?")) {
-      await descartarLead.mutateAsync({ clienteId });
+    // Open discard reason dialog
+    setDiscardingLeadId(clienteId);
+    setDiscardDialogOpen(true);
+  };
+
+  // Discard modal state
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [discardReason, setDiscardReason] = useState("");
+  const [discardingLeadId, setDiscardingLeadId] = useState<string | null>(null);
+  
+
+  const submitDiscard = async () => {
+    if (!discardingLeadId) return;
+    try {
+      await descartarLead.mutateAsync({ clienteId: discardingLeadId, motivo: discardReason });
+      // Remove immediately from UI before refetch completes
+      setRemovedLeadIds((s) => Array.from(new Set([...s, discardingLeadId])));
+      // Refresh leads immediately so the discarded lead is removed from the source of truth
+      try { await refetch(); } catch (e) { console.warn('Refetch after discard failed', e); }
+      setDiscardDialogOpen(false);
+      setDiscardReason("");
+      setDiscardingLeadId(null);
+    } catch (err) {
+      console.error('Erro ao descartar com motivo:', err);
     }
   };
 
@@ -440,6 +465,36 @@ export default function FilaTriagem() {
           </div>
         </DialogContent>
       </Dialog>
+        {/* Dialog para Descartar Lead (motivo) */}
+        <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+          <DialogContent className="sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle>Descartar Lead</DialogTitle>
+                <DialogDescription id="desc-discard">Informe o motivo do descarte para registro no histórico.</DialogDescription>
+              </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="discardReason">Motivo do Descarte *</Label>
+                <Textarea
+                  id="discardReason"
+                  value={discardReason}
+                  onChange={(e) => setDiscardReason(e.target.value)}
+                  placeholder="Informe o motivo pelo qual este lead está sendo descartado"
+                  rows={4}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setDiscardDialogOpen(false); setDiscardReason(''); setDiscardingLeadId(null); }}>
+                  Cancelar
+                </Button>
+                <Button onClick={submitDiscard} disabled={!discardReason || descartarLead.isPending}>
+                  {descartarLead.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Descartar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }

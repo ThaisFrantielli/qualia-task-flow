@@ -51,11 +51,15 @@ import TicketDetailPage from '@/pages/TicketDetailPage';
 import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
 import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
 import FundingDashboard from '@/pages/analytics/FundingDashboard';
+import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
+import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
+import FinancialResult from '@/pages/analytics/FinancialResult';
+import SalesDashboard from '@/pages/analytics/SalesDashboard';
 
 function App() {
   return (
     <>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           {/* Rotas Públicas */}
           <Route path="/login" element={<LoginPage />} />
@@ -96,13 +100,17 @@ function App() {
                 <Route index element={<AnalyticsIndex />} />
                 <Route path="frota" element={<FleetDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
+                <Route path="vendas" element={<SalesDashboard />} />
                 <Route path="funding" element={<FundingDashboard />} />
                 <Route path="churn" element={<ChurnDashboard />} />
                 <Route path="financeiro" element={<FinancialAnalytics />} />
+                <Route path="resultado" element={<FinancialResult />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="performance-contratos" element={<ContractPerformanceDashboard />} />
                 <Route path="auditoria" element={<DataAudit />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />
+                <Route path="multas" element={<InfractionsDashboard />} />
+                <Route path="sinistros" element={<ClaimsDashboard />} />
                 <Route path="performance-vendas" element={<SalesPerformance />} />
               </Route>
 

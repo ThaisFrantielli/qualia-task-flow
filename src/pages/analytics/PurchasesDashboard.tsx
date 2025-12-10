@@ -44,8 +44,8 @@ function monthLabel(ym: string): string {
 // --- COMPONENTE PRINCIPAL ---
 export default function PurchasesDashboard(): JSX.Element {
   // Hooks de Dados
-  const { data: rawData } = useBIData<AnyObject[]>('compras_full.json');
-  const { data: rawAlienacoes } = useBIData<AnyObject[]>('alienacoes.json');
+  const { data: rawData } = useBIData<AnyObject[]>('dim_compras.json');
+  const { data: rawAlienacoes } = useBIData<AnyObject[]>('dim_alienacoes.json');
 
   const compras: AnyObject[] = useMemo(() => {
     if (Array.isArray(rawData)) return rawData;
