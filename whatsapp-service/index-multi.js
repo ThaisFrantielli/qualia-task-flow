@@ -140,7 +140,9 @@ function createWhatsAppClient(instanceId, instanceName = null) {
             executablePath: BROWSER_PATH,
             args: [
                 '--no-sandbox',
-                '--disable-setuid-sandbox'
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
             ]
         },
         // qrMaxRetries: 10,
@@ -234,7 +236,7 @@ function createWhatsAppClient(instanceId, instanceName = null) {
             await supabase
                 .from('whatsapp_instances')
                 .update({
-                    status: 'disconnected',
+                    status: 'reconnecting',
                     phone_number: null,
                     updated_at: new Date().toISOString()
                 })
@@ -243,6 +245,30 @@ function createWhatsAppClient(instanceId, instanceName = null) {
         } catch (error) {
             console.error(`Failed to update disconnection status in Supabase for instance ${instanceId}:`, error);
         }
+
+        // Reconnection Logic
+        console.log(`Attempting to reconnect instance ${instanceId} in 5 seconds...`);
+        setTimeout(async () => {
+            try {
+                // Destroy old client if it exists
+                if (whatsappInstances.has(instanceId)) {
+                    const oldClient = whatsappInstances.get(instanceId);
+                    try { await oldClient.destroy(); } catch (e) { console.error('Error destroying old client:', e); }
+                    whatsappInstances.delete(instanceId);
+                }
+
+                // Create and initialize new client
+                console.log(`Recreating client for instance ${instanceId}...`);
+                const newClient = createWhatsAppClient(instanceId, instanceName);
+                whatsappInstances.set(instanceId, newClient);
+                
+                newClient.initialize().catch(e => {
+                    console.error(`Failed to re-initialize client for ${instanceId}:`, e);
+                });
+            } catch (err) {
+                console.error(`Critical error during reconnection for ${instanceId}:`, err);
+            }
+        }, 5000);
     });
 
     // Handle authentication failure

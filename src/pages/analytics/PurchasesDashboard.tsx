@@ -57,6 +57,18 @@ export default function PurchasesDashboard(): JSX.Element {
     return (rawAlienacoes as any)?.data || [];
   }, [rawAlienacoes]);
 
+  // mapa placa -> SituacaoFinanceira (preferencialmente vindo das alienacoes)
+  const placaSituacaoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    alienacoes.forEach((a: AnyObject) => {
+      const placa = a.Placa;
+      if (!placa) return;
+      const sit = a.SituacaoFinanceiraVeiculo || a.SituacaoFinanceira || null;
+      if (sit) map[placa] = sit;
+    });
+    return map;
+  }, [alienacoes]);
+
   // Filtros Globais
   const currentYear = new Date().getFullYear();
   const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
@@ -164,6 +176,47 @@ export default function PurchasesDashboard(): JSX.Element {
     return { totalInvest, count, totalAcessorios, avgDesagio };
   }, [filteredCompras]);
 
+  // --- Comparação com período equivalente do ano anterior ---
+  const acquisitionComparison = useMemo(() => {
+    // helper to shift year in YYYY-MM-DD
+    const shiftYear = (dateStr: string, delta: number) => {
+      if (!dateStr || typeof dateStr !== 'string') return dateStr;
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return dateStr;
+      const y = Number(parts[0]) + delta;
+      return `${y.toString().padStart(4, '0')}-${parts[1]}-${parts[2]}`;
+    };
+
+    const prevFrom = shiftYear(dateFrom, -1);
+    const prevTo = shiftYear(dateTo, -1);
+
+    // prevMes if activeFilters.mes is set (replace year)
+    let prevMes: string | null = null;
+    if (activeFilters.mes) {
+      const [y, m] = activeFilters.mes.split('-');
+      prevMes = `${Number(y) - 1}-${m}`;
+    }
+
+    const prevTotal = compras.reduce((s: number, r: AnyObject) => {
+      const d = r.DataCompra;
+      if (!d) return s;
+      if (prevFrom && d < prevFrom) return s;
+      if (prevTo && d > prevTo) return s;
+
+      // same interactive filters (but month shifted)
+      if (activeFilters.fornecedor && r.Fornecedor !== activeFilters.fornecedor) return s;
+      if (prevMes && getMonthKey(r.DataCompra) !== prevMes) return s;
+      if (activeFilters.montadora.length > 0 && !activeFilters.montadora.includes(r.Montadora)) return s;
+      if (activeFilters.modelo.length > 0 && !activeFilters.modelo.includes(r.Modelo)) return s;
+      if (activeFilters.banco.length > 0 && !activeFilters.banco.includes(r.Banco)) return s;
+
+      return s + parseCurrency(r.ValorCompra);
+    }, 0);
+
+    const pct = prevTotal > 0 ? ((acquisitionKPIs.totalInvest - prevTotal) / prevTotal) * 100 : 0;
+    return { prevTotal, pct };
+  }, [compras, dateFrom, dateTo, activeFilters, acquisitionKPIs.totalInvest]);
+
   const supplierRanking = useMemo(() => {
     const map: Record<string, number> = {};
     filteredCompras.forEach((r: AnyObject) => {
@@ -187,6 +240,27 @@ export default function PurchasesDashboard(): JSX.Element {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
+  }, [filteredCompras]);
+
+  // --- NOVO: Agregação por Situação Financeira ---
+  const situacaoData = useMemo(() => {
+    const map: Record<string, { valorCompra: number; somaFipe: number; countFipe: number; count: number }> = {};
+    filteredCompras.forEach((r: AnyObject) => {
+      const sit = placaSituacaoMap[r.Placa] || r.SituacaoFinanceiraVeiculo || r.SituacaoFinanceira || r.Situacao || r.SituacaoVeiculo || 'Desconhecido';
+      const compra = parseCurrency(r.ValorCompra);
+      const fipe = parseCurrency(r.ValorFipeAtual || 0);
+      if (!map[sit]) map[sit] = { valorCompra: 0, somaFipe: 0, countFipe: 0, count: 0 };
+      map[sit].valorCompra += compra;
+      if (fipe > 0) { map[sit].somaFipe += fipe; map[sit].countFipe += 1; }
+      map[sit].count += 1;
+    });
+
+    return Object.entries(map).map(([situacao, v]) => ({
+      situacao,
+      valorCompra: v.valorCompra,
+      avgFipe: v.countFipe > 0 ? v.somaFipe / v.countFipe : 0,
+      count: v.count
+    })).sort((a, b) => b.valorCompra - a.valorCompra);
   }, [filteredCompras]);
 
   const evolutionData = useMemo(() => {
@@ -231,7 +305,7 @@ export default function PurchasesDashboard(): JSX.Element {
         valorAcessorios: r.ValorAcessorios ? parseCurrency(r.ValorAcessorios) : 0,
         valorFipeAtual: r.ValorFipeAtual ? parseCurrency(r.ValorFipeAtual) : 0,
         percentFipe,
-        situacao: r.Situacao || r.SituacaoVeiculo || 'Desconhecido',
+        situacao: placaSituacaoMap[r.Placa] || r.SituacaoFinanceiraVeiculo || r.SituacaoFinanceira || r.Situacao || r.SituacaoVeiculo || 'Desconhecido',
         tempoEmFrota: Math.max(0, months)
       };
     });
@@ -364,10 +438,14 @@ export default function PurchasesDashboard(): JSX.Element {
       {activeTab === 0 && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card decoration="top" decorationColor="emerald"><Text>Total Investido</Text><Metric>{fmtCompact(acquisitionKPIs.totalInvest)}</Metric></Card>
+            <Card decoration="top" decorationColor="emerald">
+              <Text>Total Investido</Text>
+              <Metric>{fmtBRL(acquisitionKPIs.totalInvest)}</Metric>
+              <Text className="text-xs mt-1 text-slate-500">{acquisitionComparison.pct >= 0 ? `+${acquisitionComparison.pct.toFixed(1)}% vs ano anterior` : `${acquisitionComparison.pct.toFixed(1)}% vs ano anterior`}</Text>
+            </Card>
             <Card decoration="top" decorationColor="emerald"><Text>Veículos</Text><Metric>{acquisitionKPIs.count}</Metric></Card>
             <Card decoration="top" decorationColor="blue"><Text>Deságio Médio</Text><Metric>{acquisitionKPIs.avgDesagio.toFixed(2)}%</Metric></Card>
-            <Card decoration="top" decorationColor="violet"><Text>Acessórios</Text><Metric>{fmtCompact(acquisitionKPIs.totalAcessorios)}</Metric></Card>
+            <Card decoration="top" decorationColor="violet"><Text>Acessórios</Text><Metric>{fmtBRL(acquisitionKPIs.totalAcessorios)}</Metric></Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -380,7 +458,11 @@ export default function PurchasesDashboard(): JSX.Element {
                     <XAxis dataKey="label" fontSize={12} />
                     <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
                     <YAxis yAxisId="right" orientation="right" fontSize={12} />
-                    <Tooltip />
+                    <Tooltip formatter={(value: any, name: string) => {
+                      if (name === 'Valor') return [fmtBRL(Number(value)), 'Valor'];
+                      if (name === 'Qtd') return [Number(value), 'Qtd'];
+                      return [value, name];
+                    }} />
                     <Bar yAxisId="left" dataKey="Valor" fill="#10b981" radius={[4, 4, 0, 0]} cursor="pointer">
                       {evolutionData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={activeFilters.mes === entry.date ? '#047857' : '#10b981'} />
@@ -423,7 +505,6 @@ export default function PurchasesDashboard(): JSX.Element {
                 })}
               </div>
             </Card>
-
             <Card>
               <Title className="mb-4">Top Modelos (Quantidade)</Title>
               <div className="h-80 overflow-y-auto space-y-2">
@@ -449,6 +530,29 @@ export default function PurchasesDashboard(): JSX.Element {
                   );
                 })}
               </div>
+            </Card>
+            
+            <Card>
+              <Title className="mb-4">Valor Compra · FIPE · Qt por Situação</Title>
+              <div className="h-64 mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={situacaoData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="situacao" fontSize={12} />
+                    <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
+                    <YAxis yAxisId="right" orientation="right" fontSize={12} />
+                    <Tooltip formatter={(value: any, name: string) => {
+                      if (name === 'valorCompra' || name === 'avgFipe') return [fmtBRL(Number(value)), name === 'valorCompra' ? 'Valor Compra' : 'FIPE Médio'];
+                      if (name === 'count') return [value, 'Qt Veículo'];
+                      return [value, name];
+                    }} />
+                    <Bar yAxisId="left" dataKey="valorCompra" fill="#10b981" radius={[4, 4, 0, 0]} name="valorCompra" />
+                    <Bar yAxisId="right" dataKey="avgFipe" fill="#6366f1" radius={[4, 4, 0, 0]} name="avgFipe" />
+                    <Line yAxisId="right" type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={3} name="count" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-2 text-xs text-slate-500">Valores agregados por Situação Financeira (soma Valor Compra, FIPE médio e quantidade).</div>
             </Card>
           </div>
 
@@ -509,13 +613,21 @@ export default function PurchasesDashboard(): JSX.Element {
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.situacao === 'Vendido' ? 'bg-slate-100 text-slate-600' :
-                          item.situacao === 'Locado' ? 'bg-emerald-100 text-emerald-700' :
-                            item.situacao === 'Bloqueado' ? 'bg-red-100 text-red-700' :
-                              'bg-blue-100 text-blue-700'
-                          }`}>
-                          {item.situacao}
-                        </span>
+                        {(() => {
+                          const s = String(item.situacao || 'Desconhecido');
+                          const sLower = s.toLowerCase();
+                          let situacaoClass = 'bg-blue-100 text-blue-700';
+                          if (sLower.includes('alien') || sLower.includes('financ')) situacaoClass = 'bg-rose-100 text-rose-700';
+                          else if (sLower.includes('propr') || sLower.includes('própr')) situacaoClass = 'bg-emerald-100 text-emerald-700';
+                          else if (sLower.includes('quit')) situacaoClass = 'bg-indigo-100 text-indigo-700';
+                          else if (sLower.includes('bloque') || sLower.includes('restr')) situacaoClass = 'bg-red-100 text-red-700';
+
+                          return (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${situacaoClass}`}>
+                              {s}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.tempoEmFrota < 12 ? 'bg-emerald-100 text-emerald-700' :
