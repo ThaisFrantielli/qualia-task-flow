@@ -384,6 +384,8 @@ export type Database = {
           cidade: string | null
           codigo_cliente: string
           cpf_cnpj: string | null
+          descartado_em: string | null
+          descartado_motivo: string | null
           email: string | null
           endereco: string | null
           estado: string | null
@@ -411,6 +413,8 @@ export type Database = {
           cidade?: string | null
           codigo_cliente: string
           cpf_cnpj?: string | null
+          descartado_em?: string | null
+          descartado_motivo?: string | null
           email?: string | null
           endereco?: string | null
           estado?: string | null
@@ -438,6 +442,8 @@ export type Database = {
           cidade?: string | null
           codigo_cliente?: string
           cpf_cnpj?: string | null
+          descartado_em?: string | null
+          descartado_motivo?: string | null
           email?: string | null
           endereco?: string | null
           estado?: string | null
@@ -2309,6 +2315,51 @@ export type Database = {
           },
         ]
       }
+      triagem_descartes: {
+        Row: {
+          atendente_id: string | null
+          cliente_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          motivo: string | null
+          origem: string | null
+        }
+        Insert: {
+          atendente_id?: string | null
+          cliente_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          motivo?: string | null
+          origem?: string | null
+        }
+        Update: {
+          atendente_id?: string | null
+          cliente_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          motivo?: string | null
+          origem?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "triagem_descartes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "triagem_descartes_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_groups: {
         Row: {
           created_at: string | null
@@ -2459,7 +2510,10 @@ export type Database = {
       }
       whatsapp_conversations: {
         Row: {
+          assigned_agent_id: string | null
+          assigned_at: string | null
           atendimento_id: number | null
+          auto_assigned: boolean | null
           cliente_id: string | null
           created_at: string | null
           customer_name: string | null
@@ -2476,7 +2530,10 @@ export type Database = {
           whatsapp_number: string
         }
         Insert: {
+          assigned_agent_id?: string | null
+          assigned_at?: string | null
           atendimento_id?: number | null
+          auto_assigned?: boolean | null
           cliente_id?: string | null
           created_at?: string | null
           customer_name?: string | null
@@ -2493,7 +2550,10 @@ export type Database = {
           whatsapp_number: string
         }
         Update: {
+          assigned_agent_id?: string | null
+          assigned_at?: string | null
           atendimento_id?: number | null
+          auto_assigned?: boolean | null
           cliente_id?: string | null
           created_at?: string | null
           customer_name?: string | null
@@ -2547,6 +2607,80 @@ export type Database = {
           },
         ]
       }
+      whatsapp_distribution_log: {
+        Row: {
+          agent_id: string | null
+          assignment_reason: string | null
+          conversation_id: string | null
+          created_at: string | null
+          distribution_type: string
+          id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          assignment_reason?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          distribution_type: string
+          id?: string
+        }
+        Update: {
+          agent_id?: string | null
+          assignment_reason?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          distribution_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_distribution_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_distribution_rules: {
+        Row: {
+          agent_id: string | null
+          available_hours: Json | null
+          created_at: string | null
+          id: string
+          instance_ids: string[] | null
+          is_active: boolean | null
+          max_concurrent_conversations: number | null
+          priority: number | null
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          available_hours?: Json | null
+          created_at?: string | null
+          id?: string
+          instance_ids?: string[] | null
+          is_active?: boolean | null
+          max_concurrent_conversations?: number | null
+          priority?: number | null
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          available_hours?: Json | null
+          created_at?: string | null
+          id?: string
+          instance_ids?: string[] | null
+          is_active?: boolean | null
+          max_concurrent_conversations?: number | null
+          priority?: number | null
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           created_at: string | null
@@ -2577,11 +2711,72 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_media: {
+        Row: {
+          caption: string | null
+          conversation_id: string | null
+          created_at: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          media_type: string
+          message_id: string | null
+          mime_type: string | null
+          storage_url: string | null
+          thumbnail_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          caption?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          media_type: string
+          message_id?: string | null
+          mime_type?: string | null
+          storage_url?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          caption?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          media_type?: string
+          message_id?: string | null
+          mime_type?: string | null
+          storage_url?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_media_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_media_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           content: string
           conversation_id: string
           created_at: string | null
+          has_media: boolean | null
           id: string
           instance_id: string | null
           message_type: string
@@ -2599,6 +2794,7 @@ export type Database = {
           content: string
           conversation_id: string
           created_at?: string | null
+          has_media?: boolean | null
           id?: string
           instance_id?: string | null
           message_type?: string
@@ -2616,6 +2812,7 @@ export type Database = {
           content?: string
           conversation_id?: string
           created_at?: string | null
+          has_media?: boolean | null
           id?: string
           instance_id?: string | null
           message_type?: string
@@ -2744,6 +2941,10 @@ export type Database = {
       }
     }
     Functions: {
+      auto_assign_conversation: {
+        Args: { p_conversation_id: string }
+        Returns: string
+      }
       check_whatsapp_status: { Args: never; Returns: string }
       generate_ticket_number: { Args: never; Returns: string }
       get_direct_reports: {
@@ -2766,6 +2967,15 @@ export type Database = {
           funcao: string
           id: string
           nivelacesso: string
+        }[]
+      }
+      get_eligible_agents_for_distribution: {
+        Args: { p_instance_id?: string; p_tags?: string[] }
+        Returns: {
+          agent_id: string
+          current_conversations: number
+          max_conversations: number
+          priority: number
         }[]
       }
       get_is_admin: { Args: never; Returns: boolean }
