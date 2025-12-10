@@ -55,6 +55,9 @@ import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
 import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
 import FinancialResult from '@/pages/analytics/FinancialResult';
 import SalesDashboard from '@/pages/analytics/SalesDashboard';
+import RevenueGap from '@/pages/analytics/RevenueGap';
+import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
+import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
 
 function App() {
   return (
@@ -112,6 +115,9 @@ function App() {
                 <Route path="multas" element={<InfractionsDashboard />} />
                 <Route path="sinistros" element={<ClaimsDashboard />} />
                 <Route path="performance-vendas" element={<SalesPerformance />} />
+                <Route path="revenue-gap" element={<RevenueGap />} />
+                <Route path="clientes" element={<ClientsDashboard />} />
+                <Route path="executive" element={<ExecutiveDashboard />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
