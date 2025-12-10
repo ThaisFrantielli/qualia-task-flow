@@ -30,4 +30,4 @@ echo.
 echo Pressione Ctrl+C para encerrar o servico
 echo.
 
-npm start
+powershell -ExecutionPolicy Bypass -File "%~dp0run-forever.ps1"

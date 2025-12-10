@@ -50,7 +50,6 @@ import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
 import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
-import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
 import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
 import FinancialResult from '@/pages/analytics/FinancialResult';
@@ -104,7 +103,6 @@ function App() {
                 <Route path="frota" element={<FleetDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="vendas" element={<SalesDashboard />} />
-                <Route path="funding" element={<FundingDashboard />} />
                 <Route path="churn" element={<ChurnDashboard />} />
                 <Route path="financeiro" element={<FinancialAnalytics />} />
                 <Route path="resultado" element={<FinancialResult />} />

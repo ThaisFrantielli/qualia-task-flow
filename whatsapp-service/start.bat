@@ -40,5 +40,5 @@ echo.
 echo --------------------------------------------------------
 echo.
 
-REM Iniciar o serviço
-call npm start
+REM Iniciar o serviço com monitoramento de reinício automático
+powershell -ExecutionPolicy Bypass -File "%~dp0run-forever.ps1"

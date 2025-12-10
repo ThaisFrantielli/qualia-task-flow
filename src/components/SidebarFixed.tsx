@@ -46,7 +46,6 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: 'Executive Summary', url: '/analytics/executive', icon: Crown },
       { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-      { label: 'Gestão de Passivo', url: '/analytics/funding', icon: BarChart3 },
       { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
       { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
       { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
