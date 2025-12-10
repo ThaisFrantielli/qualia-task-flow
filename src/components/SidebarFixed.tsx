@@ -5,9 +5,8 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Inbox, Ticket, Wrench
+  PanelLeftClose, PanelRightClose, Inbox, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown
 } from 'lucide-react';
-import { FileText } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,13 +44,16 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'ANALYTICS',
     items: [
+      { label: 'Executive Summary', url: '/analytics/executive', icon: Crown },
       { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
       { label: 'Gestão de Passivo', url: '/analytics/funding', icon: BarChart3 },
       { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
       { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
       { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
       { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
+      { label: 'Clientes', url: '/analytics/clientes', icon: Briefcase },
       { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
+      { label: 'Revenue Gap', url: '/analytics/revenue-gap', icon: TrendingUp },
       { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
     ]
   },
