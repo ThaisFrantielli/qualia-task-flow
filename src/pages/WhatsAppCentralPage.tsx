@@ -176,10 +176,16 @@ export default function WhatsAppCentralPage() {
 
   // Handle assign conversation
   const handleAssignConversation = async (conversationId: string) => {
+    if (!user?.id) return;
+    
     try {
       await supabase
         .from('whatsapp_conversations')
-        .update({ status: 'active' })
+        .update({ 
+          status: 'active',
+          assigned_agent_id: user.id,
+          assigned_at: new Date().toISOString()
+        })
         .eq('id', conversationId);
 
       toast({
