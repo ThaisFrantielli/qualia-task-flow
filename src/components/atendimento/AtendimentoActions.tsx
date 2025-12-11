@@ -517,6 +517,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
         open={transferDialogOpen}
         onOpenChange={setTransferDialogOpen}
         conversationId={conversation.id}
+        customerName={conversation.customer_name}
         currentAgentId={conversation.assigned_agent_id}
         onTransferComplete={onActionComplete}
       />
