@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION public.trigger_notify_whatsapp_conversation_transfer(
 RETURNS TRIGGER AS $$
 DECLARE
     from_agent_name TEXT;
-    customer_name TEXT;
+    v_customer_name TEXT;
 BEGIN
     -- Somente notificar se assigned_agent_id mudou e não é nulo
     IF NEW.assigned_agent_id IS NOT NULL AND 
@@ -24,10 +24,10 @@ BEGIN
             WHERE id = OLD.assigned_agent_id;
         END IF;
         
-        -- Obter nome do cliente da conversa
-        SELECT COALESCE(customer_name, customer_phone) INTO customer_name
-        FROM public.whatsapp_conversations
-        WHERE id = NEW.id;
+        -- Obter nome do cliente da conversa (qualificar colunas e usar variável local)
+        SELECT COALESCE(wc.customer_name, wc.customer_phone) INTO v_customer_name
+        FROM public.whatsapp_conversations wc
+        WHERE wc.id = NEW.id;
         
         -- Criar notificação
         INSERT INTO public.notifications (user_id, type, title, message, data, read, created_at)
@@ -40,13 +40,13 @@ BEGIN
             END,
             CASE 
                 WHEN OLD.assigned_agent_id IS NULL THEN 
-                    'Uma conversa de ' || COALESCE(customer_name, 'Cliente') || ' foi atribuída a você'
+                    'Uma conversa de ' || COALESCE(v_customer_name, 'Cliente') || ' foi atribuída a você'
                 ELSE 
-                    COALESCE(from_agent_name, 'Um agente') || ' transferiu uma conversa de ' || COALESCE(customer_name, 'Cliente') || ' para você'
+                    COALESCE(from_agent_name, 'Um agente') || ' transferiu uma conversa de ' || COALESCE(v_customer_name, 'Cliente') || ' para você'
             END,
             jsonb_build_object(
                 'conversation_id', NEW.id,
-                'client_name', customer_name,
+                'client_name', v_customer_name,
                 'from_agent_id', OLD.assigned_agent_id,
                 'from_agent', from_agent_name,
                 'auto_assigned', COALESCE(NEW.auto_assigned, false),
