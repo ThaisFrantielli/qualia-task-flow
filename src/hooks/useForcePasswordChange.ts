@@ -9,27 +9,27 @@ import { useAuth } from '@/contexts/AuthContext';
 export function useForcePasswordChange() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     // Não fazer nada se ainda estiver carregando
     if (loading) return;
 
-    // Não fazer nada se não houver usuário ou perfil
-    if (!user || !profile) return;
+    // Não fazer nada se não houver usuário
+    if (!user) return;
 
     // Não redirecionar se já estiver na página de troca de senha
     if (location.pathname === '/force-password-change') return;
 
     // Se o perfil exigir troca de senha, redirecionar
-    if (profile.force_password_change === true) {
+    if (user.force_password_change === true) {
       console.log('Redirecionando para troca obrigatória de senha');
       navigate('/force-password-change', { replace: true });
     }
-  }, [user, profile, loading, navigate, location.pathname]);
+  }, [user, loading, navigate, location.pathname]);
 
   return {
-    needsPasswordChange: profile?.force_password_change === true,
+    needsPasswordChange: user?.force_password_change === true,
     isLoading: loading,
   };
 }
