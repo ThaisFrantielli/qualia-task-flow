@@ -109,17 +109,29 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
 
     setIsTransferring(true);
     try {
-      // Update conversation with new agent
-      const { error: updateError } = await supabase
+      // Update conversation with new agent and return updated row to inspect
+      const { data: updatedRow, error: updateError, status, statusText } = await supabase
         .from('whatsapp_conversations')
         .update({
           assigned_agent_id: selectedAgentId,
           assigned_at: new Date().toISOString(),
           status: 'active'
         })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        // Log details to help debugging the 400 from Supabase REST
+        console.error('Transfer update error:', {
+          message: updateError.message,
+          details: (updateError as any).details,
+          hint: (updateError as any).hint,
+          status,
+          statusText
+        });
+        throw updateError;
+      }
 
       // Get selected agent info and send notification
       const selectedAgent = agents.find(a => a.id === selectedAgentId);

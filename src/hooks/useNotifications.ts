@@ -234,8 +234,7 @@ export function useNotifications() {
       })
       .subscribe();
 
-    // Request browser notification permission on mount
-    notificationService.requestPermission();
+    // Browser permission is requested on user gesture (bell click) in NotificationCenter
 
     return () => {
       try { supabase.removeChannel(channel); } catch (e) { /* ignore */ }
