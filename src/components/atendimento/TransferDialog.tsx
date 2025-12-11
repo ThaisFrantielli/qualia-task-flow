@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Search, Users, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { notificationService } from '@/utils/notificationService';
 
 interface Agent {
   id: string;
@@ -31,6 +32,7 @@ interface TransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   conversationId: string;
+  customerName?: string | null;
   currentAgentId?: string | null;
   onTransferComplete: () => void;
 }
@@ -39,6 +41,7 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
   open,
   onOpenChange,
   conversationId,
+  customerName,
   currentAgentId,
   onTransferComplete
 }) => {
@@ -50,12 +53,24 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [transferNote, setTransferNote] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState<Agent | null>(null);
 
   useEffect(() => {
     if (open) {
       fetchAgents();
+      fetchCurrentUserProfile();
     }
   }, [open]);
+
+  const fetchCurrentUserProfile = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, avatar_url, funcao')
+      .eq('id', user.id)
+      .single();
+    if (data) setCurrentUserProfile(data);
+  };
 
   const fetchAgents = async () => {
     setLoading(true);
@@ -106,8 +121,16 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
 
       if (updateError) throw updateError;
 
-      // Log the transfer (optional - could be in a separate table)
+      // Get selected agent info and send notification
       const selectedAgent = agents.find(a => a.id === selectedAgentId);
+      
+      // Send notification to the new agent
+      await notificationService.notifyConversationTransfer({
+        toAgentId: selectedAgentId,
+        fromAgentName: currentUserProfile?.full_name || 'Agente',
+        clientName: customerName || 'Cliente',
+        conversationId: conversationId,
+      });
       
       toast({
         title: 'Conversa transferida',
