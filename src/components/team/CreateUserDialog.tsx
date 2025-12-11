@@ -51,6 +51,16 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
     nivelAcesso: 'Usuário' as NivelAcesso,
   });
 
+  const resetForm = () => {
+    setFormData({
+      email: '',
+      password: '',
+      fullName: '',
+      funcao: '',
+      nivelAcesso: 'Usuário',
+    });
+  };
+
   const handleSubmit = async () => {
     if (!formData.email || !formData.password || !formData.fullName) {
       toast.error('Preencha todos os campos obrigatórios');
@@ -64,55 +74,54 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
     setIsLoading(true);
     try {
-      // Build functions URL from project URL
-      const supabaseUrl = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
-      const functionsUrl = `${supabaseUrl}/functions/v1/create-user`;
-
-      // Get current session token (admin must be logged in)
+      // Obter sessão para enviar token de autenticação
       const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      if (!token) {
-        throw new Error('Você precisa estar logado como administrador para criar usuários.');
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error('Você precisa estar logado para criar usuários');
       }
 
-      const res = await fetch(functionsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          full_name: formData.fullName,
-          funcao: formData.funcao,
-          nivelAcesso: formData.nivelAcesso,
-        }),
-      });
+      // Chamar Edge Function com header de Authorization explícito
+      const response = await fetch(
+        `https://apqrjkobktjcyrxhqwtm.supabase.co/functions/v1/create-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            fullName: formData.fullName,
+            funcao: formData.funcao || null,
+            nivelAcesso: formData.nivelAcesso,
+            permissoes: getDefaultPermissions(formData.nivelAcesso),
+          }),
+        }
+      );
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Erro ao criar usuário');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Erro ao criar usuário');
       }
 
       toast.success('Usuário criado com sucesso!', {
-        description: 'O usuário poderá fazer login e será forçado a trocar a senha no primeiro acesso.',
+        description: `${formData.fullName} poderá fazer login com ${formData.email}. Será solicitada a troca de senha no primeiro acesso.`,
+        duration: 6000,
       });
 
-      // Resetar formulário
-      setFormData({
-        email: '',
-        password: '',
-        fullName: '',
-        funcao: '',
-        nivelAcesso: 'Usuário',
-      });
-
-      onUserCreated();
+      resetForm();
       onOpenChange(false);
+      onUserCreated();
     } catch (error: any) {
       console.error('Erro ao criar usuário:', error);
-      toast.error('Erro ao criar usuário', { description: error.message });
+      toast.error('Erro ao criar usuário', {
+        description: error.message,
+      });
     } finally {
       setIsLoading(false);
     }

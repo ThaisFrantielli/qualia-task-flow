@@ -1054,6 +1054,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           email: string | null
+          force_password_change: boolean | null
           full_name: string | null
           funcao: string | null
           id: string
@@ -1065,6 +1066,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           email?: string | null
+          force_password_change?: boolean | null
           full_name?: string | null
           funcao?: string | null
           id: string
@@ -1076,6 +1078,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           email?: string | null
+          force_password_change?: boolean | null
           full_name?: string | null
           funcao?: string | null
           id?: string
@@ -2192,6 +2195,33 @@ export type Database = {
           },
         ]
       }
+      ticket_motivos: {
+        Row: {
+          created_at: string | null
+          id: string
+          label: string
+          parent_value: string | null
+          sort_order: number | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          label: string
+          parent_value?: string | null
+          sort_order?: number | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          label?: string
+          parent_value?: string | null
+          sort_order?: number | null
+          value?: string
+        }
+        Relationships: []
+      }
       tickets: {
         Row: {
           acoes_corretivas: string | null
@@ -2955,6 +2985,27 @@ export type Database = {
         Returns: string
       }
       check_whatsapp_status: { Args: never; Returns: string }
+      create_user_admin: {
+        Args: {
+          user_email: string
+          user_full_name: string
+          user_funcao?: string
+          user_nivel?: string
+          user_password: string
+        }
+        Returns: Json
+      }
+      create_user_as_admin: {
+        Args: {
+          user_email: string
+          user_full_name: string
+          user_funcao?: string
+          user_nivel_acesso?: string
+          user_password: string
+          user_permissoes?: Json
+        }
+        Returns: Json
+      }
       generate_ticket_number: { Args: never; Returns: string }
       get_direct_reports: {
         Args: { supervisor_uuid: string }
@@ -3047,6 +3098,7 @@ export type Database = {
       is_member_of_project: { Args: { _project_id: string }; Returns: boolean }
       is_owner_of_project: { Args: { _project_id: string }; Returns: boolean }
       is_user_admin: { Args: never; Returns: boolean }
+      notify_sla_at_risk: { Args: never; Returns: undefined }
       notify_user: {
         Args: {
           _data?: Json
@@ -3057,6 +3109,16 @@ export type Database = {
           _user_id: string
         }
         Returns: undefined
+      }
+      prepare_user_profile: {
+        Args: {
+          user_full_name: string
+          user_funcao?: string
+          user_id: string
+          user_nivel_acesso?: string
+          user_permissoes?: Json
+        }
+        Returns: Json
       }
       send_whatsapp_message: {
         Args: { message_text: string; to_number: string }

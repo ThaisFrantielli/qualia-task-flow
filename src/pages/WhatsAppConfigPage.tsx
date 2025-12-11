@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-// Card not used in this page
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,7 +27,6 @@ const SERVICE_URL = WHATSAPP.SERVICE_URL;
 export default function WhatsAppConfigPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // serviceOnline state removed (was not used elsewhere)
   const [newInstanceName, setNewInstanceName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -57,9 +55,13 @@ export default function WhatsAppConfigPage() {
 
   const checkServiceStatus = async () => {
     try {
-        await fetch(`${SERVICE_URL}/status`).catch(() => {});
+      const response = await fetch(`${SERVICE_URL}/status`);
+      // Just check if the service responds, no need to track state
+      if (!response.ok) {
+        console.log('WhatsApp service not responding');
+      }
     } catch (error) {
-      // ignore service check errors
+      console.log('WhatsApp service offline');
     }
   };
 
