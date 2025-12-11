@@ -177,8 +177,8 @@ export default function TicketOptionsPage() {
                 <div key={child.id} className="flex items-center justify-between">
                   <div className="text-sm">- {child.label} <span className="text-xs text-muted-foreground">({child.value})</span></div>
                   <div className="flex gap-2">
-                    <Button size="xs" variant="ghost" onClick={() => { setEditing(child); setOpenEdit(true); }}><Edit className="w-3 h-3" /></Button>
-                    <Button size="xs" variant="ghost" onClick={() => handleDelete(child.id)}><Trash className="w-3 h-3 text-red-600" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setEditing(child); setOpenEdit(true); }}><Edit className="w-3 h-3" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(child.id)}><Trash className="w-3 h-3 text-red-600" /></Button>
                   </div>
                 </div>
               ))}
