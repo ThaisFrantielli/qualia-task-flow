@@ -22,6 +22,16 @@ const STATUS_LABELS: Record<string, string> = {
 
 const KANBAN_COLUMNS = Object.keys(STATUS_LABELS);
 
+// Map canonical column keys to possible ticket.status values in DB
+const STATUS_KEY_MAP: Record<string, string[]> = {
+  novo: ["novo", "solicitacao", "aberto"],
+  em_analise: ["em_analise"],
+  aguardando_departamento: ["aguardando_departamento", "aguardando_setor", "aguardando_triagem"],
+  em_tratativa: ["em_tratativa", "em_atendimento"],
+  aguardando_cliente: ["aguardando_cliente"],
+  resolvido: ["resolvido", "fechado", "concluida", "concluído", "concluido"],
+};
+
 const COLUMN_COLORS: Record<string, string> = {
   novo: "bg-blue-500/5 border-blue-500/20",
   em_analise: "bg-purple-500/5 border-purple-500/20",
@@ -120,7 +130,21 @@ export function TicketsKanbanView({
         <KanbanColumn
           key={status}
           status={status}
-          tickets={tickets.filter((t: any) => t.status === status)}
+          tickets={tickets.filter((t: any) => {
+            const sRaw = t.status || "";
+            const normalize = (v: string) => (v || "").toString().toLowerCase().replace(/[-\s]/g, "_");
+            const s = normalize(sRaw);
+            const allowed = (STATUS_KEY_MAP[status] || [status]).map(normalize);
+
+            // Exact match or direct inclusion (tolerate variations like 'aguardando_triagem', 'aguardando_setor')
+            if (allowed.includes(s)) return true;
+
+            // Fuzzy match: allow when either side contains the other (covers small variations)
+            if (allowed.some((a) => a && s.includes(a))) return true;
+            if (allowed.some((a) => a && a.includes(s))) return true;
+
+            return false;
+          })}
           onDrop={handleDrop}
           onCardClick={onTicketClick}
         />

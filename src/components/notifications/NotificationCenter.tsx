@@ -10,6 +10,15 @@ import { cn } from '@/lib/utils';
 
 const NotificationCenter = () => {
   const { notifications, loading, markAsRead, markAllAsRead, unreadCount, deleteNotification } = useNotifications();
+  const handleBellClick = async () => {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        await import('@/utils/notificationService').then(mod => mod.notificationService.requestPermission());
+      }
+    } catch (e) {
+      console.warn('Erro ao solicitar permissão de notificações:', e);
+    }
+  };
   const navigate = useNavigate();
 
   const formatTimeAgo = (timestamp: string) => {
@@ -120,8 +129,8 @@ const NotificationCenter = () => {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="relative">
+        <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="relative" onClick={handleBellClick}>
           <Bell className="w-4 h-4" />
           {unreadCount > 0 && (
             <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">

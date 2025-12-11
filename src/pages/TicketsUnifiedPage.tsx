@@ -178,7 +178,7 @@ export default function TicketsUnifiedPage() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-background">
-        <div className="container mx-auto p-4 md:p-6 space-y-6">
+        <div className="p-4 md:p-6 space-y-6 max-w-full">
           {/* Header */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
