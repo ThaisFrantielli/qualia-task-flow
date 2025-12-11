@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { 
   Bell, Check, Clock, AlertCircle, Info, CheckCircle, 
   Search, Trash2, CheckSquare, ClipboardCheck, 
-  Ticket, ArrowRightLeft, AtSign, AlertTriangle, X
+  Ticket, ArrowRightLeft, AtSign, AlertTriangle, X, Zap, CheckCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
-type NotificationTypeFilter = 'all' | 'task_assigned' | 'approval_request' | 'subtask_approved' | 'ticket_assigned' | 'ticket_created' | 'conversation_transfer' | 'mention' | 'system';
+type NotificationTypeFilter = 'all' | 'task_assigned' | 'approval_request' | 'subtask_approved' | 'ticket_assigned' | 'ticket_created' | 'conversation_transfer' | 'mention' | 'system' | 'sla_warning' | 'task_completed' | 'ticket_urgent';
 type PeriodFilter = 'all' | 'today' | 'week' | 'month';
 
 const Notifications = () => {
@@ -68,14 +68,26 @@ const Notifications = () => {
       case 'ticket_assigned':
       case 'ticket_created':
         return <Ticket className="w-5 h-5 text-purple-500" />;
+      case 'ticket_urgent':
+        return <Zap className="w-5 h-5 text-red-600" />;
+      case 'ticket_resolved':
+        return <CheckCheck className="w-5 h-5 text-green-600" />;
+      case 'ticket_awaiting_department':
+        return <Clock className="w-5 h-5 text-blue-500" />;
       case 'conversation_transfer':
         return <ArrowRightLeft className="w-5 h-5 text-cyan-500" />;
+      case 'task_completed':
+      case 'subtask_completed':
+        return <CheckCircle className="w-5 h-5 text-emerald-500" />;
       case 'mention':
         return <AtSign className="w-5 h-5 text-pink-500" />;
       case 'due_today':
         return <Clock className="w-5 h-5 text-orange-500" />;
       case 'overdue':
         return <AlertTriangle className="w-5 h-5 text-red-500" />;
+      case 'sla_first_response_warning':
+      case 'sla_resolution_warning':
+        return <AlertTriangle className="w-5 h-5 text-amber-600" />;
       case 'warning':
         return <AlertCircle className="w-5 h-5 text-yellow-500" />;
       case 'error':
@@ -170,18 +182,34 @@ const Notifications = () => {
     const data = notification.data as Record<string, any> | null;
     switch (notification.type) {
       case 'task_assigned':
+      case 'task_completed':
         if (notification.task_id) navigate(`/tasks?taskId=${notification.task_id}`);
         break;
       case 'ticket_assigned':
       case 'ticket_created':
-        if (data?.atendimento_id) navigate(`/tickets?id=${data.atendimento_id}`);
+      case 'ticket_urgent':
+      case 'ticket_resolved':
+      case 'ticket_awaiting_department':
+      case 'sla_first_response_warning':
+      case 'sla_resolution_warning':
+        if (data?.ticket_id) navigate(`/tickets?id=${data.ticket_id}`);
+        else if (data?.atendimento_id) navigate(`/tickets?id=${data.atendimento_id}`);
         break;
       case 'conversation_transfer':
-        if (data?.conversation_id) navigate(`/atendimento?id=${data.conversation_id}`);
+        if (data?.conversation_id) navigate(`/whatsapp?id=${data.conversation_id}`);
         break;
       case 'approval_request':
       case 'subtask_approved':
+      case 'subtask_completed':
         if (data?.task_id) navigate(`/tasks?taskId=${data.task_id}`);
+        else if (notification.task_id) navigate(`/tasks?taskId=${notification.task_id}`);
+        break;
+      case 'mention':
+        if (data?.context_type === 'pos_venda' && data?.context_id) {
+          navigate(`/tickets?id=${data.context_id}`);
+        } else if (data?.task_id) {
+          navigate(`/tasks?taskId=${data.task_id}`);
+        }
         break;
     }
   };
@@ -366,14 +394,17 @@ const Notifications = () => {
         </div>
 
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as NotificationTypeFilter)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Tipo" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
             <SelectItem value="task_assigned">Tarefas atribuídas</SelectItem>
+            <SelectItem value="task_completed">Tarefas concluídas</SelectItem>
             <SelectItem value="approval_request">Aprovações</SelectItem>
             <SelectItem value="ticket_assigned">Tickets</SelectItem>
+            <SelectItem value="ticket_urgent">Urgentes</SelectItem>
+            <SelectItem value="sla_warning">Alertas SLA</SelectItem>
             <SelectItem value="conversation_transfer">Transferências</SelectItem>
             <SelectItem value="mention">Menções</SelectItem>
           </SelectContent>
