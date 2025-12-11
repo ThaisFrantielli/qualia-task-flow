@@ -4,21 +4,36 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
 import type { AppUser, Permissoes } from '@/types';
 
+// Profile type for force password change and other profile-specific features
+export interface UserProfile {
+  id: string;
+  full_name?: string | null;
+  email?: string | null;
+  funcao?: string | null;
+  nivelAcesso?: string | null;
+  permissoes?: Permissoes | null;
+  force_password_change?: boolean | null;
+  avatar_url?: string | null;
+}
+
 interface AuthContextType {
   user: AppUser | null;
   session: Session | null;
   loading: boolean;
+  profile: UserProfile | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
-  loading: true
+  loading: true,
+  profile: null,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (currentSession: Session) => {
@@ -48,6 +63,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         finalPermissoes = null;
       }
 
+      // Set profile for force password change and other features
+      const userProfile: UserProfile = {
+        id: profileData?.id || currentSession.user.id,
+        full_name: profileData?.full_name,
+        email: profileData?.email || currentSession.user.email,
+        funcao: profileData?.funcao,
+        nivelAcesso: profileData?.nivelAcesso,
+        permissoes: finalPermissoes,
+        force_password_change: profileData?.force_password_change,
+        avatar_url: profileData?.avatar_url,
+      };
+      setProfile(userProfile);
+
       const updatedUser: AppUser = {
         ...currentSession.user,
         ...(profileData || {}),
@@ -65,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error fetching profile:', error);
       setUser(null);
       setSession(null);
+      setProfile(null);
     } finally {
       setLoading(false);
     }
@@ -87,6 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setUser(null);
         setSession(null);
+        setProfile(null);
         setLoading(false);
       }
     });
@@ -97,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading }}>
+    <AuthContext.Provider value={{ user, session, loading, profile }}>
       {children}
     </AuthContext.Provider>
   );

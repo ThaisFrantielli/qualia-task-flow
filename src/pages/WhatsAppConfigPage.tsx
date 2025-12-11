@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,7 +6,6 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Plus,
   RefreshCw,
-  AlertCircle,
   Loader2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,7 +27,6 @@ const SERVICE_URL = WHATSAPP.SERVICE_URL;
 export default function WhatsAppConfigPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [serviceOnline, setServiceOnline] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -59,13 +56,12 @@ export default function WhatsAppConfigPage() {
   const checkServiceStatus = async () => {
     try {
       const response = await fetch(`${SERVICE_URL}/status`);
-      if (response.ok) {
-        setServiceOnline(true);
-      } else {
-        setServiceOnline(false);
+      // Just check if the service responds, no need to track state
+      if (!response.ok) {
+        console.log('WhatsApp service not responding');
       }
     } catch (error) {
-      setServiceOnline(false);
+      console.log('WhatsApp service offline');
     }
   };
 
