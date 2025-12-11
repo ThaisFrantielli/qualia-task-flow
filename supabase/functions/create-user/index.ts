@@ -1,77 +1,221 @@
-import { serve } from 'std/server'
-import { createClient } from '@supabase/supabase-js'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
-const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+interface CreateUserRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  funcao?: string;
+  nivelAcesso: "Usuário" | "Supervisão" | "Gestão" | "Admin";
+  permissoes?: Record<string, boolean>;
 }
 
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { persistSession: false }
-})
-
 serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
-    if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
-
-    const authHeader = req.headers.get('authorization') || ''
-    const token = authHeader.replace('Bearer ', '')
-    if (!token) return new Response(JSON.stringify({ success: false, error: 'Missing authorization token' }), { status: 401 })
-
-    // verify caller user and ensure they are admin
-    const caller = await admin.auth.getUser(token)
-    if (caller.error || !caller.data?.user) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid token' }), { status: 401 })
+    // Verificar autenticação do usuário que está fazendo a requisição
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("Não autorizado - token não fornecido");
     }
 
-    const callerId = caller.data.user.id
-    const { data: callerProfile } = await admin.from('profiles').select('nivelAcesso').eq('id', callerId).maybeSingle()
-    if (!callerProfile || callerProfile.nivelAcesso !== 'Admin') {
-      return new Response(JSON.stringify({ success: false, error: 'Not authorized' }), { status: 403 })
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Cliente com token do usuário para verificar permissões
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    // Verificar se o usuário que está criando é admin
+    const { data: { user: callerUser }, error: callerError } = await supabaseUser.auth.getUser();
+    if (callerError || !callerUser) {
+      throw new Error("Não autorizado - usuário inválido");
     }
 
-    const body = await req.json()
-    const { email, password, full_name, funcao, nivelAcesso } = body
-    if (!email || !password || !full_name) {
-      return new Response(JSON.stringify({ success: false, error: 'Missing fields' }), { status: 400 })
+    // Buscar perfil do usuário que está criando
+    const { data: callerProfile, error: profileError } = await supabaseUser
+      .from("profiles")
+      .select("nivelAcesso, permissoes")
+      .eq("id", callerUser.id)
+      .single();
+
+    if (profileError || !callerProfile) {
+      throw new Error("Perfil não encontrado");
     }
 
-    // Create auth user via Admin API
-    const { data: createData, error: createError } = await admin.auth.admin.createUser({
+    // Verificar se é admin
+    const isAdmin = 
+      callerProfile.nivelAcesso === "Admin" || 
+      (callerProfile.permissoes as any)?.is_admin === true;
+
+    if (!isAdmin) {
+      throw new Error("Apenas administradores podem criar usuários");
+    }
+
+    // Parse do body
+    const body: CreateUserRequest = await req.json();
+    const { email, password, fullName, funcao, nivelAcesso, permissoes } = body;
+
+    if (!email || !password || !fullName) {
+      throw new Error("Email, senha e nome são obrigatórios");
+    }
+
+    if (password.length < 6) {
+      throw new Error("A senha deve ter no mínimo 6 caracteres");
+    }
+
+    // Cliente com service role para criar usuário
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    // Verificar se email já existe
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const emailExists = existingUsers?.users?.some((u) => u.email === email);
+    if (emailExists) {
+      throw new Error("Já existe um usuário com este email");
+    }
+
+    // Criar usuário com admin API
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
-      user_metadata: { full_name }
-    })
+      email_confirm: true, // Email já confirmado
+      user_metadata: {
+        full_name: fullName,
+      },
+    });
 
     if (createError) {
-      return new Response(JSON.stringify({ success: false, error: createError.message || createError }), { status: 400 })
+      console.error("Erro ao criar usuário:", createError);
+      throw new Error(createError.message);
     }
 
-    const newUserId = createData.user?.id
-    if (!newUserId) {
-      return new Response(JSON.stringify({ success: false, error: 'No user id returned' }), { status: 500 })
+    if (!newUser.user) {
+      throw new Error("Erro ao criar usuário - resposta inválida");
     }
 
-    // Prepare profile via RPC
-    const { data: rpcData, error: rpcError } = await admin.rpc('prepare_user_profile', {
-      user_id: newUserId,
-      user_full_name: full_name,
-      user_funcao: funcao ?? null,
-      user_nivel_acesso: nivelAcesso ?? 'Usuário'
-    })
+    // Definir permissões padrão baseadas no nível de acesso
+    const defaultPermissions = getDefaultPermissions(nivelAcesso);
+    const finalPermissoes = permissoes ? { ...defaultPermissions, ...permissoes } : defaultPermissions;
 
-    if (rpcError) {
-      // optionally delete created user to rollback
-      await admin.auth.admin.deleteUser(newUserId).catch(() => {})
-      return new Response(JSON.stringify({ success: false, error: rpcError.message || rpcError }), { status: 500 })
+    // Atualizar perfil (o trigger on_auth_user_created já cria o perfil básico)
+    // Aguardar um pouco para o trigger executar
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const { error: updateError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        full_name: fullName,
+        email: email,
+        funcao: funcao || null,
+        nivelAcesso: nivelAcesso,
+        permissoes: finalPermissoes,
+        force_password_change: true, // Forçar troca de senha no primeiro acesso
+      })
+      .eq("id", newUser.user.id);
+
+    if (updateError) {
+      console.error("Erro ao atualizar perfil:", updateError);
+      // Não falhar, o perfil pode não ter sido criado ainda pelo trigger
+      // Tentar criar o perfil
+      const { error: insertError } = await supabaseAdmin
+        .from("profiles")
+        .insert({
+          id: newUser.user.id,
+          full_name: fullName,
+          email: email,
+          funcao: funcao || null,
+          nivelAcesso: nivelAcesso,
+          permissoes: finalPermissoes,
+          force_password_change: true,
+        });
+
+      if (insertError) {
+        console.error("Erro ao inserir perfil:", insertError);
+      }
     }
 
-    return new Response(JSON.stringify({ success: true, user_id: newUserId }), { status: 200 })
-  } catch (err) {
-    console.error(err)
-    return new Response(JSON.stringify({ success: false, error: String(err) }), { status: 500 })
+    console.log(`Usuário criado com sucesso: ${email}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Usuário criado com sucesso",
+        user: {
+          id: newUser.user.id,
+          email: newUser.user.email,
+          fullName: fullName,
+        },
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
+  } catch (error: any) {
+    console.error("Erro:", error.message);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      }
+    );
   }
-})
+});
+
+function getDefaultPermissions(nivel: string): Record<string, boolean> {
+  const basePermissions = {
+    dashboard: true,
+    kanban: true,
+    tasks: true,
+    crm: false,
+    projects: false,
+    team: false,
+    settings: false,
+    is_admin: false,
+    can_view_customers: true,
+    can_manage_customers: false,
+  };
+
+  switch (nivel) {
+    case "Admin":
+      return {
+        dashboard: true,
+        kanban: true,
+        tasks: true,
+        crm: true,
+        projects: true,
+        team: true,
+        settings: true,
+        is_admin: true,
+        can_view_customers: true,
+        can_manage_customers: true,
+      };
+    case "Gestão":
+      return { ...basePermissions, projects: true, team: true, crm: true, can_manage_customers: true };
+    case "Supervisão":
+      return { ...basePermissions, projects: true };
+    case "Usuário":
+    default:
+      return basePermissions;
+  }
+}
