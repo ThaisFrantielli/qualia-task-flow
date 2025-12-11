@@ -7,6 +7,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
+import ForcePasswordChange from '@/pages/ForcePasswordChange';
 import Dashboard from '@/pages/Dashboard';
 import Kanban from '@/pages/Kanban';
 import TasksPage from '@/pages/Tasks';
@@ -46,6 +47,7 @@ import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
 import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
 import GerenciarDepartamentosPage from '@/pages/Configuracoes/GerenciarDepartamentos';
 import ConfiguracoesEquipesPage from '@/pages/Configuracoes/ConfiguracoesEquipes';
+import TicketOptionsPage from '@/pages/Configuracoes/TicketOptionsPage';
 import FilaTriagem from '@/pages/FilaTriagem';
 import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
@@ -69,6 +71,11 @@ function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/pesquisa/:surveyId" element={<SurveyResponsePage />} />
           <Route path="/obrigado" element={<SurveyThankYouPage />} />
+
+          {/* Rota de Troca Obrigatória de Senha (protegida, mas sem layout) */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/force-password-change" element={<ForcePasswordChange />} />
+          </Route>
 
           {/* Rotas Protegidas */}
           <Route element={<ProtectedRoute />}>
@@ -137,6 +144,7 @@ function App() {
               <Route path="/configuracoes/whatsapp/distribuicao/dashboard" element={<WhatsAppDistributionDashboard />} />
               <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
               <Route path="/configuracoes/equipes-hierarquia" element={<ConfiguracoesEquipesPage />} />
+              <Route path="/configuracoes/ticket-motivos" element={<TicketOptionsPage />} />
 
               <Route path="/configuracoes/equipes" element={<GerenciarEquipesPage />} />
               <Route path="/configuracoes/departamentos" element={<GerenciarDepartamentosPage />} />

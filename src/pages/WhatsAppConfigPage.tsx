@@ -247,32 +247,7 @@ export default function WhatsAppConfigPage() {
         </div>
       </div>
 
-      {!serviceOnline && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-6 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-amber-900 mb-2">Serviço WhatsApp Offline</p>
-              <p className="text-sm text-amber-800 mb-3">
-                O serviço local do WhatsApp não está respondendo em {SERVICE_URL}.
-              </p>
-              <div className="bg-amber-100 border border-amber-200 rounded-lg p-3 mt-2">
-                <p className="font-semibold text-amber-900 text-sm mb-2">Como iniciar o serviço:</p>
-                <ol className="text-sm text-amber-800 space-y-1 list-decimal list-inside">
-                  <li>Abra o terminal na pasta do projeto</li>
-                  <li>Execute: <code className="bg-amber-200 px-1.5 py-0.5 rounded font-mono text-xs">cd whatsapp-service</code></li>
-                  <li>Instale as dependências (se necessário): <code className="bg-amber-200 px-1.5 py-0.5 rounded font-mono text-xs">npm install</code></li>
-                  <li>Inicie o serviço: <code className="bg-amber-200 px-1.5 py-0.5 rounded font-mono text-xs">npm start</code></li>
-                  <li>Aguarde a mensagem: "WhatsApp Multi-Session Service running on port 3005"</li>
-                </ol>
-                <p className="text-xs text-amber-700 mt-2">
-                  📝 Documentação completa: <code className="font-mono">whatsapp-service/README.md</code>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Offline warning removed - service status managed independently */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {instances.map(instance => (

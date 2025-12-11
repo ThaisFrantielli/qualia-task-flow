@@ -39,6 +39,7 @@ const menuGroups: MenuGroup[] = [
       { label: 'Dashboard', url: '/', icon: LayoutDashboard, permissionKey: 'dashboard' },
       { label: 'Tarefas', url: '/tasks', icon: List, permissionKey: 'tasks' },
       { label: 'Projetos', url: '/projects', icon: FolderOpen },
+      { label: 'Notificações', url: '/notifications', icon: Bell },
     ]
   },
   {
@@ -70,13 +71,12 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'CONFIGURAÇÕES',
     items: [
-      { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
-      { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
-      { label: 'Configurações de usuário', url: '/team', icon: Users, permissionKey: 'team' },
-      { label: 'Notificações', url: '/notifications', icon: Bell },
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
+      { label: 'Equipes & Usuários', url: '/configuracoes/equipes-hierarquia', icon: Users, permissionKey: 'team' },
       { label: 'Configuração de Módulos', url: '/configuracoes/controle-acesso', icon: SlidersHorizontal, permissionKey: 'team' },
-      { label: 'Equipes & Hierarquia', url: '/configuracoes/equipes-hierarquia', icon: Users, permissionKey: 'team' },
+      { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
+      { label: 'Motivos de Tickets', url: '/configuracoes/ticket-motivos', icon: Ticket, permissionKey: 'team' },
+      { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
     ]
   }
 ];

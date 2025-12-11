@@ -5,8 +5,12 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import NotificationCenter from '../notifications/NotificationCenter';
 import { Toaster } from 'sonner';
+import { useForcePasswordChange } from '@/hooks/useForcePasswordChange';
 
 const AppLayout: React.FC = () => {
+  // Verificar se usuário precisa trocar senha
+  useForcePasswordChange();
+
   return (
     <div className="flex h-screen bg-gray-50/50">
       <Sidebar /> 
