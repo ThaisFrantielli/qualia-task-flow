@@ -1,4 +1,4 @@
-import { Bell, Check, CheckSquare, ClipboardCheck, CheckCircle, Ticket, ArrowRightLeft, AtSign, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import { Bell, Check, CheckSquare, ClipboardCheck, CheckCircle, Ticket, ArrowRightLeft, AtSign, Clock, AlertTriangle, Trash2, Zap, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,14 +37,26 @@ const NotificationCenter = () => {
       case 'ticket_assigned':
       case 'ticket_created':
         return <Ticket className="h-4 w-4 text-purple-500" />;
+      case 'ticket_urgent':
+        return <Zap className="h-4 w-4 text-red-600" />;
+      case 'ticket_resolved':
+        return <CheckCheck className="h-4 w-4 text-green-600" />;
+      case 'ticket_awaiting_department':
+        return <Clock className="h-4 w-4 text-blue-500" />;
       case 'conversation_transfer':
         return <ArrowRightLeft className="h-4 w-4 text-cyan-500" />;
+      case 'task_completed':
+      case 'subtask_completed':
+        return <CheckCircle className="h-4 w-4 text-emerald-500" />;
       case 'mention':
         return <AtSign className="h-4 w-4 text-pink-500" />;
       case 'due_today':
         return <Clock className="h-4 w-4 text-orange-500" />;
       case 'overdue':
         return <AlertTriangle className="h-4 w-4 text-red-500" />;
+      case 'sla_first_response_warning':
+      case 'sla_resolution_warning':
+        return <AlertTriangle className="h-4 w-4 text-amber-600" />;
       default:
         return <Bell className="h-4 w-4 text-muted-foreground" />;
     }
@@ -59,24 +71,42 @@ const NotificationCenter = () => {
     const data = notification.data as Record<string, any> | null;
     switch (notification.type) {
       case 'task_assigned':
+      case 'task_completed':
         if (notification.task_id) {
           navigate(`/tasks?taskId=${notification.task_id}`);
         }
         break;
       case 'ticket_assigned':
       case 'ticket_created':
-        if (data?.atendimento_id) {
+      case 'ticket_urgent':
+      case 'ticket_resolved':
+      case 'ticket_awaiting_department':
+      case 'sla_first_response_warning':
+      case 'sla_resolution_warning':
+        if (data?.ticket_id) {
+          navigate(`/tickets?id=${data.ticket_id}`);
+        } else if (data?.atendimento_id) {
           navigate(`/tickets?id=${data.atendimento_id}`);
         }
         break;
       case 'conversation_transfer':
         if (data?.conversation_id) {
-          navigate(`/atendimento?id=${data.conversation_id}`);
+          navigate(`/whatsapp?id=${data.conversation_id}`);
         }
         break;
       case 'approval_request':
       case 'subtask_approved':
+      case 'subtask_completed':
         if (data?.task_id) {
+          navigate(`/tasks?taskId=${data.task_id}`);
+        } else if (notification.task_id) {
+          navigate(`/tasks?taskId=${notification.task_id}`);
+        }
+        break;
+      case 'mention':
+        if (data?.context_type === 'pos_venda' && data?.context_id) {
+          navigate(`/tickets?id=${data.context_id}`);
+        } else if (data?.task_id) {
           navigate(`/tasks?taskId=${data.task_id}`);
         }
         break;
