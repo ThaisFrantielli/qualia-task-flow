@@ -9,27 +9,33 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { TransferDialog } from './TransferDialog';
 import {
   Ticket,
   TrendingUp,
   Users,
   Trash2,
   Phone,
-  MessageSquare
+  MessageSquare,
+  UserCheck
 } from 'lucide-react';
 import {
   TICKET_ORIGEM_OPTIONS,
   TICKET_MOTIVO_OPTIONS,
   TICKET_DEPARTAMENTO_OPTIONS
 } from '@/constants/ticketOptions';
-interface WhatsAppConversation {
+
+export interface WhatsAppConversation {
   id: string;
   customer_name: string | null;
   customer_phone: string | null;
   unread_count: number | null;
   status: string | null;
   cliente_id: string | null;
+  assigned_agent_id: string | null;
+  assigned_at: string | null;
 }
 
 interface AtendimentoActionsProps {
@@ -37,14 +43,26 @@ interface AtendimentoActionsProps {
   onActionComplete: () => void;
 }
 
+const DISCARD_REASONS = [
+  'Spam / Propaganda',
+  'Número errado',
+  'Cliente não responde',
+  'Duplicado',
+  'Teste',
+  'Outro'
+];
+
 export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   conversation,
   onActionComplete
 }) => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [discardReason, setDiscardReason] = useState('');
+  const [discardReasonType, setDiscardReasonType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [ticketForm, setTicketForm] = useState({
     titulo: '',
@@ -82,7 +100,8 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
         placa: ticketForm.placa,
         fase: 'Análise do caso',
         status: 'aguardando_triagem',
-        cliente_id: conversation.cliente_id
+        cliente_id: conversation.cliente_id,
+        atendente_id: user?.id
       });
 
       if (error) throw error;
@@ -128,7 +147,8 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
       const { error } = await supabase.from('oportunidades').insert({
         titulo: `Oportunidade - ${conversation.customer_name || conversation.customer_phone}`,
         cliente_id: conversation.cliente_id,
-        status: 'aberta'
+        status: 'aberta',
+        user_id: user?.id
       });
 
       if (error) throw error;
@@ -160,17 +180,35 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
 
     setIsLoading(true);
     try {
+      // Save to triagem_descartes for audit
+      const { error: auditError } = await supabase
+        .from('triagem_descartes')
+        .insert({
+          cliente_id: conversation.cliente_id,
+          conversation_id: conversation.id,
+          atendente_id: user?.id,
+          motivo: discardReasonType === 'Outro' ? discardReason : discardReasonType,
+          origem: 'central_atendimento'
+        });
+
+      if (auditError) {
+        console.error('Audit error:', auditError);
+        // Continue even if audit fails
+      }
+
+      // Update conversation status
       await supabase
         .from('whatsapp_conversations')
         .update({ status: 'closed' })
         .eq('id', conversation.id);
 
+      // Update client status if linked
       if (conversation.cliente_id) {
         await supabase
           .from('clientes')
           .update({
             status_triagem: 'descartado',
-            descartado_motivo: discardReason,
+            descartado_motivo: discardReasonType === 'Outro' ? discardReason : discardReasonType,
             descartado_em: new Date().toISOString()
           })
           .eq('id', conversation.cliente_id);
@@ -183,6 +221,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
 
       setDiscardDialogOpen(false);
       setDiscardReason('');
+      setDiscardReasonType('');
       onActionComplete();
     } catch (error: any) {
       toast({
@@ -194,6 +233,8 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
       setIsLoading(false);
     }
   };
+
+  const isAssignedToMe = conversation?.assigned_agent_id === user?.id;
 
   if (!conversation) {
     return (
@@ -227,10 +268,19 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
               <p className="font-medium text-sm truncate">
                 {conversation.customer_name || 'Cliente'}
               </p>
-              <Badge variant="outline" className="text-[10px] mt-0.5">
-                {conversation.status === 'active' ? 'Em atendimento' : 
-                 conversation.status === 'waiting' ? 'Aguardando' : conversation.status}
-              </Badge>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Badge variant="outline" className="text-[10px]">
+                  {conversation.status === 'active' ? 'Em atendimento' : 
+                   conversation.status === 'waiting' ? 'Aguardando' : 
+                   conversation.status === 'open' ? 'Aberto' : conversation.status}
+                </Badge>
+                {isAssignedToMe && (
+                  <Badge className="text-[10px] bg-green-500">
+                    <UserCheck className="h-2.5 w-2.5 mr-0.5" />
+                    Meu
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 
@@ -282,7 +332,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
           <Button 
             className="w-full justify-start h-9" 
             variant="outline"
-            disabled
+            onClick={() => setTransferDialogOpen(true)}
           >
             <Users className="h-4 w-4 mr-2" />
             Transferir
@@ -417,25 +467,59 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Motivo do descarte</Label>
-              <Textarea
-                value={discardReason}
-                onChange={(e) => setDiscardReason(e.target.value)}
-                placeholder="Informe o motivo..."
-                rows={3}
-              />
+              <Label>Tipo de descarte</Label>
+              <Select
+                value={discardReasonType}
+                onValueChange={setDiscardReasonType}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Selecione o motivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DISCARD_REASONS.map(reason => (
+                    <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {discardReasonType === 'Outro' && (
+              <div>
+                <Label>Descreva o motivo</Label>
+                <Textarea
+                  value={discardReason}
+                  onChange={(e) => setDiscardReason(e.target.value)}
+                  placeholder="Informe o motivo..."
+                  rows={3}
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setDiscardDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button variant="destructive" onClick={handleDiscard} disabled={isLoading}>
+              <Button 
+                variant="destructive" 
+                onClick={handleDiscard} 
+                disabled={isLoading || !discardReasonType}
+              >
                 Confirmar Descarte
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Transfer Dialog */}
+      <TransferDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        conversationId={conversation.id}
+        currentAgentId={conversation.assigned_agent_id}
+        onTransferComplete={onActionComplete}
+      />
     </>
   );
 };

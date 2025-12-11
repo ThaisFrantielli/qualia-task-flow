@@ -3,10 +3,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MessageSquare, UserPlus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { MessageSquare, UserPlus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
-interface WhatsAppConversation {
+
+export interface WhatsAppConversation {
   id: string;
   customer_name: string | null;
   customer_phone: string | null;
@@ -15,6 +17,11 @@ interface WhatsAppConversation {
   unread_count: number | null;
   status: string | null;
   created_at: string | null;
+  cliente_id: string | null;
+  assigned_agent_id: string | null;
+  assigned_at: string | null;
+  whatsapp_number?: string | null;
+  instance_id?: string | null;
 }
 
 interface AtendimentoQueueProps {
@@ -24,6 +31,7 @@ interface AtendimentoQueueProps {
   onAssign: (id: string) => void;
   loading: boolean;
   filter: string;
+  currentUserId?: string;
 }
 
 const formatDate = (date: string | null) => {
@@ -46,7 +54,8 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
   onSelect,
   onAssign,
   loading,
-  filter
+  filter,
+  currentUserId
 }) => {
   if (loading) {
     return (
@@ -86,6 +95,8 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
         const isSelected = conv.id === selectedId;
         const hasUnread = (conv.unread_count || 0) > 0;
         const isWaiting = conv.status === 'waiting' || conv.status === 'open';
+        const isAssignedToMe = conv.assigned_agent_id === currentUserId;
+        const isAssignedToOther = conv.assigned_agent_id && !isAssignedToMe;
 
         return (
           <div
@@ -138,17 +149,37 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
                       {conv.unread_count}
                     </Badge>
                   )}
-                  {isWaiting && (
+                  {isWaiting && !conv.assigned_agent_id && (
                     <Badge variant="outline" className="h-4 px-1.5 text-[10px] text-yellow-600 border-yellow-300">
                       Aguardando
                     </Badge>
+                  )}
+                  {isAssignedToMe && (
+                    <Badge variant="default" className="h-4 px-1.5 text-[10px] bg-green-500">
+                      Meu
+                    </Badge>
+                  )}
+                  {isAssignedToOther && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="secondary" className="h-4 px-1.5 text-[10px] gap-0.5">
+                            <User className="h-2.5 w-2.5" />
+                            Atribuído
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Atribuído a outro agente</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Assign button on hover */}
-            {isWaiting && (
+            {/* Assign button on hover - only show if not assigned */}
+            {(isWaiting || !conv.assigned_agent_id) && !isAssignedToMe && (
               <Button
                 size="sm"
                 variant="secondary"

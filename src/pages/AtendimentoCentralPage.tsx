@@ -16,8 +16,9 @@ import { supabase } from '@/integrations/supabase/client';
 import WhatsAppChatPanel from '@/components/whatsapp/WhatsAppChatPanel';
 import WhatsAppAgentPanel from '@/components/whatsapp/WhatsAppAgentPanel';
 import { AgentStatusSelector } from '@/components/presence/AgentStatusSelector';
-import { AtendimentoQueue } from '@/components/atendimento/AtendimentoQueue';
+import { AtendimentoQueue, WhatsAppConversation } from '@/components/atendimento/AtendimentoQueue';
 import { AtendimentoActions } from '@/components/atendimento/AtendimentoActions';
+import { AtendimentoFilters } from '@/components/atendimento/AtendimentoFilters';
 import {
   MessageSquare,
   Users,
@@ -28,7 +29,8 @@ import {
   Bell,
   Settings,
   RefreshCw,
-  Headphones
+  Headphones,
+  UserCheck
 } from 'lucide-react';
 
 interface WhatsAppInstance {
@@ -39,7 +41,7 @@ interface WhatsAppInstance {
 }
 
 export default function AtendimentoCentralPage() {
-  useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   
@@ -49,18 +51,26 @@ export default function AtendimentoCentralPage() {
   // State
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'queue' | 'mine' | 'unread'>('all');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
   const [pendingAutoOpen, setPendingAutoOpen] = useState<{clienteId: string; telefone: string} | null>(
     urlClienteId && urlTelefone ? { clienteId: urlClienteId, telefone: urlTelefone } : null
   );
 
-  // Hooks
-  const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, selectedInstanceId || undefined);
-  const { stats, loading: statsLoading, refetch: refetchStats } = useWhatsAppStats(selectedInstanceId || undefined);
+  // Hooks - use first selected instance or null for all
+  const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
+  const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
+  const { stats, loading: statsLoading, refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
+
+  // Calculate "my conversations" count
+  const myConversationsCount = useMemo(() => {
+    return conversations.filter(c => (c as any).assigned_agent_id === user?.id && c.status !== 'closed').length;
+  }, [conversations, user?.id]);
 
   // Fetch instances
   useEffect(() => {
@@ -137,10 +147,15 @@ export default function AtendimentoCentralPage() {
     }
   }, [pendingAutoOpen, conversations, convLoading, toast]);
 
-  // Filter conversations
+  // Filter conversations - cast to extended type
   const filteredConversations = useMemo(() => {
-    let filtered = conversations;
+    let filtered = conversations.map(c => ({
+      ...c,
+      assigned_agent_id: (c as any).assigned_agent_id || null,
+      assigned_at: (c as any).assigned_at || null,
+    })) as WhatsAppConversation[];
 
+    // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(c => 
@@ -150,14 +165,23 @@ export default function AtendimentoCentralPage() {
       );
     }
 
+    // Instance filter (when multiple selected)
+    if (selectedInstanceIds.length > 0 && selectedInstanceIds.length < instances.length) {
+      filtered = filtered.filter(c => selectedInstanceIds.includes(c.instance_id || ''));
+    }
+
+    // Tab filter
     switch (filter) {
       case 'queue':
-        filtered = filtered.filter(c => c.status === 'waiting' || c.status === 'open');
+        filtered = filtered.filter(c => 
+          (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id
+        );
         break;
       case 'unread':
         filtered = filtered.filter(c => (c.unread_count || 0) > 0);
         break;
       case 'mine':
+        filtered = filtered.filter(c => c.assigned_agent_id === user?.id);
         break;
     }
 
@@ -171,16 +195,24 @@ export default function AtendimentoCentralPage() {
       const bDate = new Date(b.last_message_at || b.created_at || '').getTime();
       return bDate - aDate;
     });
-  }, [conversations, searchTerm, filter]);
+  }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id]);
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId) || null;
 
   const handleAssignConversation = async (conversationId: string) => {
+    if (!user?.id) return;
+    
     try {
-      await supabase
+      const { error } = await supabase
         .from('whatsapp_conversations')
-        .update({ status: 'active' })
+        .update({ 
+          status: 'active',
+          assigned_agent_id: user.id,
+          assigned_at: new Date().toISOString()
+        })
         .eq('id', conversationId);
+
+      if (error) throw error;
 
       toast({
         title: 'Conversa assumida',
@@ -263,7 +295,7 @@ export default function AtendimentoCentralPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-6 gap-2">
           <Card className="bg-muted/30 border-0">
             <CardContent className="p-2 flex items-center gap-2">
               <div className="p-1.5 rounded bg-primary/10">
@@ -315,7 +347,19 @@ export default function AtendimentoCentralPage() {
           <Card className="bg-muted/30 border-0">
             <CardContent className="p-2 flex items-center gap-2">
               <div className="p-1.5 rounded bg-green-500/10">
-                <Users className="h-3.5 w-3.5 text-green-600" />
+                <UserCheck className="h-3.5 w-3.5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Meus</p>
+                <p className="text-sm font-bold">{myConversationsCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-muted/30 border-0">
+            <CardContent className="p-2 flex items-center gap-2">
+              <div className="p-1.5 rounded bg-purple-500/10">
+                <Users className="h-3.5 w-3.5 text-purple-600" />
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground">Online</p>
@@ -347,13 +391,22 @@ export default function AtendimentoCentralPage() {
           {/* Left Panel - Queue */}
           <div className="w-80 border-r flex flex-col bg-background shrink-0">
             <div className="p-3 border-b space-y-3 shrink-0">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar conversas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9"
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar conversas..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <AtendimentoFilters
+                  instances={instances}
+                  selectedInstances={selectedInstanceIds}
+                  onInstancesChange={setSelectedInstanceIds}
+                  statusFilter={statusFilter}
+                  onStatusFilterChange={setStatusFilter}
                 />
               </div>
 
@@ -376,7 +429,14 @@ export default function AtendimentoCentralPage() {
                       </Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="mine" className="text-xs px-2">Meus</TabsTrigger>
+                  <TabsTrigger value="mine" className="text-xs px-2 relative">
+                    Meus
+                    {myConversationsCount > 0 && (
+                      <Badge className="ml-1 h-4 min-w-4 p-0 text-[10px] absolute -top-1 -right-1 bg-green-500">
+                        {myConversationsCount}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -389,6 +449,7 @@ export default function AtendimentoCentralPage() {
                 onAssign={handleAssignConversation}
                 loading={convLoading}
                 filter={filter}
+                currentUserId={user?.id}
               />
             </ScrollArea>
           </div>
@@ -406,7 +467,7 @@ export default function AtendimentoCentralPage() {
             <ScrollArea className="flex-1">
               <div className="p-3 space-y-4">
                 <AtendimentoActions
-                  conversation={selectedConversation}
+                  conversation={selectedConversation as any}
                   onActionComplete={() => {
                     refetchConversations();
                     refetchStats();
