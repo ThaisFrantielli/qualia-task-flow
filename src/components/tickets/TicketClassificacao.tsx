@@ -31,8 +31,7 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
         procedencia: initialData?.procedencia || 'procedente',
         solucao_aplicada: initialData?.solucao_aplicada || '',
         acoes_corretivas: initialData?.acoes_corretivas || '',
-        feedback_cliente: initialData?.feedback_cliente || '',
-        nota_cliente: initialData?.nota_cliente || undefined
+        feedback_cliente: initialData?.feedback_cliente || ''
     });
     const [isSaving, setIsSaving] = useState(false);
 
@@ -119,27 +118,7 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
                         />
                     </div>
 
-                    {/* Nota do Cliente */}
-                    <div className="space-y-2">
-                        <Label>Avaliação do Cliente</Label>
-                        <div className="flex gap-2">
-                            {[1, 2, 3, 4, 5].map(nota => (
-                                <Button
-                                    key={nota}
-                                    type="button"
-                                    variant={formData.nota_cliente === nota ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setFormData({ ...formData, nota_cliente: nota })}
-                                    className="w-12"
-                                >
-                                    {nota}
-                                </Button>
-                            ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            1 = Muito Insatisfeito | 5 = Muito Satisfeito
-                        </p>
-                    </div>
+                    {/* Avaliação removida a pedido: seção de nota do cliente foi omitida */}
 
                     {/* Botão Salvar */}
                     <div className="flex justify-end pt-4">

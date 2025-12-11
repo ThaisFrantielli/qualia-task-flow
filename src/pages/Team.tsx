@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import TeamMemberDialog from '@/components/team/TeamMemberDialog';
+import { CreateUserDialog } from '@/components/team/CreateUserDialog';
 import { usePresenceOptional } from '@/contexts/PresenceContext';
 import { PresenceIndicator } from '@/components/presence/PresenceIndicator';
+import { useAuth } from '@/contexts/AuthContext';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -71,12 +73,16 @@ const initialFormData = {
 };
 
 const Team = () => {
+  const { user } = useAuth();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [formData, setFormData] = useState(initialFormData);
   const presence = usePresenceOptional();
+  
+  const isAdmin = !!user?.isAdmin;
   
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
 
@@ -219,19 +225,27 @@ const Team = () => {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configurações de usuário</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Gerenciar Usuários</h1>
           <p className="text-gray-600">Gerencie os usuários do sistema, suas funções e permissões.</p>
         </div>
-        <Button className="flex items-center space-x-2" onClick={() => handleOpenDialog(null)}>
-          <Plus className="w-4 h-4" />
-          <span>Adicionar Membro</span>
-        </Button>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="default" 
+              className="flex items-center gap-2"
+              onClick={() => setIsCreateUserDialogOpen(true)}
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Criar Usuário</span>
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl border">
+      <div className="bg-white rounded-xl border shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="bg-gray-50">
               <TableHead className="w-[35%]">Membro</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Função</TableHead>
@@ -317,7 +331,13 @@ const Team = () => {
         formData={formData}
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
-        isEditing={!!editingMember}
+        teamMembers={teamMembers}
+      />
+
+      <CreateUserDialog
+        open={isCreateUserDialogOpen}
+        onOpenChange={setIsCreateUserDialogOpen}
+        onUserCreated={fetchTeamMembers}
       />
     </div>
   );
