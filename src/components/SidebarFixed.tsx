@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Inbox, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown
+  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -59,10 +59,9 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'CRM',
     items: [
-      { label: 'Fila de Triagem', url: '/triagem', icon: Inbox, permissionKey: 'crm' },
+      { label: 'Central de Atendimento', url: '/atendimento', icon: Headphones, permissionKey: 'crm' },
       { label: 'Central de Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' },
       { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
-      { label: 'WhatsApp', url: '/whatsapp', icon: MessageSquare, permissionKey: 'crm' },
       { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
       { label: 'Relatórios', url: '/tickets/reports', icon: BarChart3, permissionKey: 'crm' },
       { label: 'Pesquisas', url: '/pesquisas', icon: ClipboardList, permissionKey: 'crm' },

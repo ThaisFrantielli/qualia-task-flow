@@ -17,14 +17,6 @@ declare module 'https://deno.land/std@0.208.0/http/server.ts' {
   export function serve(handler: (request: Request) => Response | Promise<Response>): void;
 }
 
-declare module 'https://esm.sh/@supabase/supabase-js@2' {
-  export * from '@supabase/supabase-js';
-}
-
-declare module 'https://esm.sh/@supabase/supabase-js@2.39.3' {
-  export * from '@supabase/supabase-js';
-}
-
 // Request/Response types
 declare global {
   interface Request {

@@ -2776,9 +2776,12 @@ export type Database = {
           content: string
           conversation_id: string
           created_at: string | null
+          file_name: string | null
           has_media: boolean | null
           id: string
           instance_id: string | null
+          media_type: string | null
+          media_url: string | null
           message_type: string
           metadata: Json | null
           read_at: string | null
@@ -2794,9 +2797,12 @@ export type Database = {
           content: string
           conversation_id: string
           created_at?: string | null
+          file_name?: string | null
           has_media?: boolean | null
           id?: string
           instance_id?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_type?: string
           metadata?: Json | null
           read_at?: string | null
@@ -2812,9 +2818,12 @@ export type Database = {
           content?: string
           conversation_id?: string
           created_at?: string | null
+          file_name?: string | null
           has_media?: boolean | null
           id?: string
           instance_id?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_type?: string
           metadata?: Json | null
           read_at?: string | null
