@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Edit, Trash2, UserPlus } from 'lucide-react';
+import { Edit, Trash2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import TeamMemberDialog from '@/components/team/TeamMemberDialog';
@@ -331,7 +331,7 @@ const Team = () => {
         formData={formData}
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
-        teamMembers={teamMembers}
+        isEditing={!!editingMember}
       />
 
       <CreateUserDialog
