@@ -51,6 +51,16 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
     nivelAcesso: 'Usuário' as NivelAcesso,
   });
 
+  const resetForm = () => {
+    setFormData({
+      email: '',
+      password: '',
+      fullName: '',
+      funcao: '',
+      nivelAcesso: 'Usuário',
+    });
+  };
+
   const handleSubmit = async () => {
     if (!formData.email || !formData.password || !formData.fullName) {
       toast.error('Preencha todos os campos obrigatórios');
@@ -64,20 +74,46 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
     setIsLoading(true);
     try {
-      toast.info('Instruções para criar usuário', {
-        description: `1. Vá em Supabase Dashboard\n2. Authentication → Users\n3. Clique em "Invite User"\n4. Email: ${formData.email}\n5. O perfil será criado automaticamente`,
-        duration: 15000,
+      // Chamar Edge Function para criar usuário
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error('Você precisa estar logado para criar usuários');
+      }
+
+      const response = await supabase.functions.invoke('create-user', {
+        body: {
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          funcao: formData.funcao || null,
+          nivelAcesso: formData.nivelAcesso,
+          permissoes: getDefaultPermissions(formData.nivelAcesso),
+        },
       });
 
-      // Por enquanto, apenas preparar o perfil quando o trigger criar
-      toast.success('Configuração salva!', {
-        description: 'Siga as instruções acima para completar o cadastro.',
+      if (response.error) {
+        throw new Error(response.error.message || 'Erro ao criar usuário');
+      }
+
+      const result = response.data;
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao criar usuário');
+      }
+
+      toast.success('Usuário criado com sucesso!', {
+        description: `${formData.fullName} poderá fazer login com ${formData.email}. Será solicitada a troca de senha no primeiro acesso.`,
+        duration: 6000,
       });
 
+      resetForm();
       onOpenChange(false);
+      onUserCreated();
     } catch (error: any) {
-      console.error('Erro:', error);
-      toast.error('Erro', {
+      console.error('Erro ao criar usuário:', error);
+      toast.error('Erro ao criar usuário', {
         description: error.message,
       });
     } finally {
