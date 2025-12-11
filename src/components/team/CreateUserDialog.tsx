@@ -74,7 +74,7 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
     setIsLoading(true);
     try {
-      // Chamar Edge Function para criar usuário
+      // Obter sessão para enviar token de autenticação
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
@@ -82,24 +82,30 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
         throw new Error('Você precisa estar logado para criar usuários');
       }
 
-      const response = await supabase.functions.invoke('create-user', {
-        body: {
-          email: formData.email,
-          password: formData.password,
-          fullName: formData.fullName,
-          funcao: formData.funcao || null,
-          nivelAcesso: formData.nivelAcesso,
-          permissoes: getDefaultPermissions(formData.nivelAcesso),
-        },
-      });
+      // Chamar Edge Function com header de Authorization explícito
+      const response = await fetch(
+        `https://apqrjkobktjcyrxhqwtm.supabase.co/functions/v1/create-user`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            fullName: formData.fullName,
+            funcao: formData.funcao || null,
+            nivelAcesso: formData.nivelAcesso,
+            permissoes: getDefaultPermissions(formData.nivelAcesso),
+          }),
+        }
+      );
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Erro ao criar usuário');
-      }
+      const result = await response.json();
 
-      const result = response.data;
-
-      if (!result.success) {
+      if (!response.ok || !result.success) {
         throw new Error(result.error || 'Erro ao criar usuário');
       }
 
