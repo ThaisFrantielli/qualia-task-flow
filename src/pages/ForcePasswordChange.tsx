@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function ForcePasswordChange() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -28,11 +28,11 @@ export default function ForcePasswordChange() {
       return;
     }
 
-    if (profile && !profile.force_password_change) {
+    if (user && !user.force_password_change) {
       // Se não precisa trocar senha, redirecionar para dashboard
       navigate('/');
     }
-  }, [user, profile, navigate]);
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +87,11 @@ export default function ForcePasswordChange() {
       setTimeout(() => {
         navigate('/');
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao alterar senha:', error);
+      const message = error instanceof Error ? error.message : String(error);
       toast.error('Erro ao alterar senha', {
-        description: error.message || 'Tente novamente mais tarde.',
+        description: message || 'Tente novamente mais tarde.',
       });
     } finally {
       setIsLoading(false);
@@ -102,7 +103,7 @@ export default function ForcePasswordChange() {
     navigate('/login');
   };
 
-  if (!user || !profile?.force_password_change) {
+  if (!user || !user.force_password_change) {
     return null; // Evitar flash de conteúdo antes do redirect
   }
 

@@ -64,22 +64,55 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
     setIsLoading(true);
     try {
-      toast.info('Instruções para criar usuário', {
-        description: `1. Vá em Supabase Dashboard\n2. Authentication → Users\n3. Clique em "Invite User"\n4. Email: ${formData.email}\n5. O perfil será criado automaticamente`,
-        duration: 15000,
+      // Build functions URL from project URL
+      const supabaseUrl = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
+      const functionsUrl = `${supabaseUrl}/functions/v1/create-user`;
+
+      // Get current session token (admin must be logged in)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        throw new Error('Você precisa estar logado como administrador para criar usuários.');
+      }
+
+      const res = await fetch(functionsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          full_name: formData.fullName,
+          funcao: formData.funcao,
+          nivelAcesso: formData.nivelAcesso,
+        }),
       });
 
-      // Por enquanto, apenas preparar o perfil quando o trigger criar
-      toast.success('Configuração salva!', {
-        description: 'Siga as instruções acima para completar o cadastro.',
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Erro ao criar usuário');
+      }
+
+      toast.success('Usuário criado com sucesso!', {
+        description: 'O usuário poderá fazer login e será forçado a trocar a senha no primeiro acesso.',
       });
 
+      // Resetar formulário
+      setFormData({
+        email: '',
+        password: '',
+        fullName: '',
+        funcao: '',
+        nivelAcesso: 'Usuário',
+      });
+
+      onUserCreated();
       onOpenChange(false);
     } catch (error: any) {
-      console.error('Erro:', error);
-      toast.error('Erro', {
-        description: error.message,
-      });
+      console.error('Erro ao criar usuário:', error);
+      toast.error('Erro ao criar usuário', { description: error.message });
     } finally {
       setIsLoading(false);
     }

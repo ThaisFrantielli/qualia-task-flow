@@ -249,7 +249,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         const match = /(^|\s)@([A-Za-z0-9_]{0,30})$/.exec(textUntilCursor);
         if (!match) return;
         const start = (match.index ?? 0) + match[1].length; // after space or line start
-        const before = val.slice(0, start - 1); // keep the space or start
         const replacement = `@${userToInsert.full_name}`;
         const after = val.slice(cursorPos);
         const newVal = val.slice(0, start) + replacement + after;

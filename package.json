@@ -13,6 +13,8 @@
     "dev:all": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\"",
     "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\"",
     "db:sync": "bash scripts/sync_supabase.sh"
+    ,"supabase:functions:serve": "supabase functions serve"
+    ,"supabase:functions:deploy:create-user": "supabase functions deploy create-user"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.19",

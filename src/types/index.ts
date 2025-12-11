@@ -17,6 +17,8 @@ export type AppUser = SupabaseUser & Omit<Profile, 'permissoes'> & {
   isAdmin?: boolean;
   // campo derivado para indicar se o usuário tem nível de supervisão (Supervisão/Gestão/Admin)
   isSupervisor?: boolean;
+  // flag criada no perfil para forçar troca de senha no primeiro acesso
+  force_password_change?: boolean;
 };
 
 // Tipo para as permissões do usuário, pode ser expandido conforme necessário
