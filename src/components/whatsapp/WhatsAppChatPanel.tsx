@@ -524,7 +524,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                         )}
                       >
                         {/* Show media if present */}
-                        {msg.has_media && msg.metadata && (msg.metadata as any).media_url && (
+                        {msg.metadata && (msg.metadata as any).media_url && (
                           <div className="mb-2">
                             {msg.message_type === 'image' && (
                               <img 
