@@ -72,7 +72,14 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
             onUploadComplete();
         } catch (error: any) {
             console.error("Erro no upload:", error);
-            toast.error("Erro ao enviar arquivo", { description: error.message });
+            const message: string = error?.message || "Erro desconhecido";
+            if (message.toLowerCase().includes("bucket") && message.toLowerCase().includes("not found")) {
+                toast.error("Erro ao enviar arquivo", {
+                    description: "Bucket 'ticket-attachments' não encontrado. Crie o bucket no Supabase e libere acesso."
+                });
+            } else {
+                toast.error("Erro ao enviar arquivo", { description: message });
+            }
         } finally {
             setIsUploading(false);
             // Reset input

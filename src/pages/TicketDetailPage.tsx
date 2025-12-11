@@ -10,7 +10,7 @@ export default function TicketDetailPage() {
     if (!ticketId) return null;
 
     return (
-        <div className="container mx-auto p-6 h-[calc(100vh-4rem)] flex flex-col">
+        <div className="p-4 md:p-6 max-w-full h-[calc(100vh-4rem)] flex flex-col">
             <div className="mb-4">
                 <Button variant="ghost" onClick={() => navigate("/tickets")}>
                     <ArrowLeft className="w-4 h-4 mr-2" />

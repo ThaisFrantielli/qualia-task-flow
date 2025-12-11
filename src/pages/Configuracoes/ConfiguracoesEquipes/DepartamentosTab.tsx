@@ -1,6 +1,6 @@
 // src/pages/Configuracoes/ConfiguracoesEquipes/DepartamentosTab.tsx
-import React, { useState } from 'react';
-import { Building2, Plus, Trash2, Edit } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Building2, Plus, Trash2, Edit, Users as UsersIcon, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,22 +12,46 @@ import { useTeams } from '@/hooks/useTeams';
 import { useToast } from '@/hooks/use-toast';
 import { useUsersContext } from '@/contexts/UsersContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 const DepartamentosTab: React.FC = () => {
   const { user } = useAuth();
   const { teams, loading: isLoading, refetch } = useTeams();
   const { users } = useUsersContext();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<any>(null);
   const [teamMembersSelected, setTeamMembersSelected] = useState<string[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [teamMemberCounts, setTeamMemberCounts] = useState<Record<string, number>>({});
   
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamDescription, setNewTeamDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Carregar contadores de membros para cada equipe
+  useEffect(() => {
+    if (teams && teams.length > 0) {
+      const fetchMemberCounts = async () => {
+        const counts: Record<string, number> = {};
+        for (const team of teams) {
+          const { data, error } = await supabase
+            .from('team_members')
+            .select('user_id', { count: 'exact', head: true })
+            .eq('team_id', team.id);
+          
+          if (!error && data !== null) {
+            counts[team.id] = (data as any) || 0;
+          }
+        }
+        setTeamMemberCounts(counts);
+      };
+      fetchMemberCounts();
+    }
+  }, [teams]);
 
   const handleCreateTeam = async () => {
     if (!newTeamName.trim()) {
@@ -213,12 +237,23 @@ const DepartamentosTab: React.FC = () => {
           <p className="text-gray-500 text-sm">Crie e organize as equipes da sua organização</p>
         </div>
         
-        {isAdmin && (
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Equipe
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/team')}
+            className="gap-2"
+          >
+            <UsersIcon className="w-4 h-4" />
+            Gerenciar Usuários
+            <ExternalLink className="w-3 h-3" />
           </Button>
-        )}
+          {isAdmin && (
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Equipe
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Info Card */}
@@ -288,7 +323,15 @@ const DepartamentosTab: React.FC = () => {
                       <Building2 className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{team.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-gray-900">{team.name}</h3>
+                        {teamMemberCounts[team.id] !== undefined && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            <UsersIcon className="w-3 h-3" />
+                            {teamMemberCounts[team.id]}
+                          </span>
+                        )}
+                      </div>
                       {team.description && (
                         <p className="text-sm text-gray-500 mt-1">{team.description}</p>
                       )}
@@ -397,81 +440,121 @@ const DepartamentosTab: React.FC = () => {
 
       {/* Dialog: Editar Equipe */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Equipe/Departamento</DialogTitle>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-4">
+            <DialogTitle className="text-xl">Editar Equipe/Departamento</DialogTitle>
             <DialogDescription>
               Atualize as informações da equipe.
             </DialogDescription>
           </DialogHeader>
           
           {editingTeam && (
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-team-name">Nome da Equipe *</Label>
+                <Label htmlFor="edit-team-name" className="text-sm font-semibold">
+                  Nome da Equipe *
+                </Label>
                 <Input
                   id="edit-team-name"
                   value={editingTeam.name}
                   onChange={(e) => setEditingTeam({ ...editingTeam, name: e.target.value })}
-                  placeholder="Ex: Marketing, TI, Vendas..."
+                  placeholder="Ex: Comercial, Operação, Financeiro..."
+                  className="h-11"
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="edit-team-description">Descrição (Opcional)</Label>
+                <Label htmlFor="edit-team-description" className="text-sm font-semibold">
+                  Descrição (Opcional)
+                </Label>
                 <Textarea
                   id="edit-team-description"
                   value={editingTeam.description || ''}
                   onChange={(e) => setEditingTeam({ ...editingTeam, description: e.target.value })}
-                  placeholder="Descreva o propósito e responsabilidades..."
-                  rows={3}
+                  placeholder="Equipe de Atendimento ao cliente e Pós venda"
+                  rows={2}
+                  className="resize-none"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Membros da Equipe (opcional)</Label>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">
+                  Membros da Equipe (opcional)
+                </Label>
                 {membersLoading ? (
-                  <p className="text-sm text-muted-foreground">Carregando membros...</p>
+                  <div className="flex items-center gap-2 p-4 border rounded-lg bg-gray-50">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Carregando membros...</p>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-auto">
-                    {users && users.length > 0 ? users.map(u => (
-                      <label key={u.id} className="flex items-center gap-2 p-2 border rounded">
-                        <input
-                          type="checkbox"
-                          checked={teamMembersSelected.includes(u.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setTeamMembersSelected(prev => [...prev, u.id]);
-                            } else {
-                              setTeamMembersSelected(prev => prev.filter(id => id !== u.id));
-                            }
-                          }}
-                        />
-                        <span className="text-sm">{u.full_name || u.email}</span>
-                      </label>
-                    )) : (
-                      <p className="text-sm text-muted-foreground">Nenhum usuário disponível.</p>
-                    )}
+                  <div className="border rounded-lg p-3 max-h-72 overflow-y-auto bg-gray-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {users && users.length > 0 ? users.map(u => (
+                        <label 
+                          key={u.id} 
+                          className="flex items-center gap-3 p-3 border rounded-lg bg-white hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={teamMembersSelected.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setTeamMembersSelected(prev => [...prev, u.id]);
+                              } else {
+                                setTeamMembersSelected(prev => prev.filter(id => id !== u.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {u.full_name || u.email}
+                            </p>
+                            {u.full_name && (
+                              <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                            )}
+                          </div>
+                        </label>
+                      )) : (
+                        <div className="col-span-2 text-center py-8">
+                          <p className="text-sm text-muted-foreground">Nenhum usuário disponível.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
+                <p className="text-xs text-gray-500">
+                  {teamMembersSelected.length} {teamMembersSelected.length === 1 ? 'membro selecionado' : 'membros selecionados'}
+                </p>
               </div>
             </div>
           )}
           
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4">
             <Button 
               variant="outline" 
               onClick={() => {
                 setIsEditDialogOpen(false);
                 setEditingTeam(null);
+                setTeamMembersSelected([]);
               }}
+              disabled={isSubmitting}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleEditTeam}
               disabled={isSubmitting || !editingTeam?.name.trim()}
+              className="min-w-[140px]"
             >
-              {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Alterações'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

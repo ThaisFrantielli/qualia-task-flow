@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Send, User, Plus, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Send, User, Plus, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { TicketSLAIndicator } from "./TicketSLAIndicator";
@@ -21,6 +21,7 @@ import { TicketClassificacao, ClassificacaoData } from "./TicketClassificacao";
 import { TicketWhatsAppViewer } from "./TicketWhatsAppViewer";
 import { TicketTasks } from "./TicketTasks";
 import { TICKET_FASES, TICKET_DEPARTAMENTO_OPTIONS } from "@/constants/ticketOptions";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TicketDetailProps {
     ticketId: string;
@@ -35,8 +36,20 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const addDepartamento = useAddTicketDepartamento();
 
     const [comment, setComment] = useState("");
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const [mentionOpen, setMentionOpen] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState("");
+    const [mentionIndex, setMentionIndex] = useState(0);
+    const [mentionUsers, setMentionUsers] = useState<Array<{ id: string; full_name: string }>>([]);
+
+    const [editingSintese, setEditingSintese] = useState(false);
+    const [sinteseText, setSinteseText] = useState<string>("");
     const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
     const [selectedDept, setSelectedDept] = useState("");
+    const [selectedResponsavel, setSelectedResponsavel] = useState("");
+    const [deptUsers, setDeptUsers] = useState<Array<{id: string, full_name: string}>>([]);
+    const [mentionedUsers, setMentionedUsers] = useState<string[]>([]);
+    const [createdByName, setCreatedByName] = useState<string | null>(null);
 
     const handleFaseChange = async (newFase: string) => {
         if (!user?.id) return;
@@ -66,13 +79,25 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const handleAddComment = async () => {
         if (!comment.trim() || !user?.id) return;
         try {
-            await addInteracao.mutateAsync({
+            const { data: interacaoData } = await addInteracao.mutateAsync({
                 ticket_id: ticketId,
                 tipo: "comentario",
                 mensagem: comment,
                 user_id: user.id
             });
+            // Create notifications for mentioned users
+            for (const userId of mentionedUsers) {
+                await supabase.from('notifications').insert({
+                    user_id: userId,
+                    type: 'ticket_mention',
+                    title: 'Você foi mencionado em um ticket',
+                    message: `Você foi mencionado no ticket #${ticket.numero_ticket}`,
+                    data: { ticket_id: ticketId, interacao_id: interacaoData?.id },
+                    read: false
+                });
+            }
             setComment("");
+            setMentionedUsers([]);
             toast.success("Comentário adicionado!");
         } catch (error) {
             toast.error("Erro ao adicionar comentário");
@@ -80,19 +105,38 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     };
 
     const handleAddDepartamento = async () => {
-        if (!selectedDept || !user?.id) return;
+        if (!selectedDept || !selectedResponsavel || !user?.id) return;
         try {
+            const person = deptUsers.find(u => u.id === selectedResponsavel);
+            // Insert ticket_departamento
             await addDepartamento.mutateAsync({
                 ticket_id: ticketId,
                 departamento: selectedDept,
                 solicitado_por: user.id,
-                status: 'pendente'
+                solicitado_em: new Date().toISOString()
+            });
+            // Create notification
+            await supabase.from('notifications').insert({
+                user_id: selectedResponsavel,
+                type: 'department_support_request',
+                title: 'Solicitação de apoio',
+                message: `Apoio solicitado para o ticket #${ticket.numero_ticket} no departamento ${TICKET_DEPARTAMENTO_OPTIONS.find(d => d.value === selectedDept)?.label}`,
+                data: { ticket_id: ticketId, department: selectedDept },
+                read: false
+            });
+            // Add interacao
+            await addInteracao.mutateAsync({
+                ticket_id: ticketId,
+                tipo: 'comentario',
+                mensagem: `Solicitado apoio de ${person?.full_name} para o departamento ${TICKET_DEPARTAMENTO_OPTIONS.find(d => d.value === selectedDept)?.label}`,
+                user_id: user.id
             });
             setIsAddDeptOpen(false);
             setSelectedDept("");
-            toast.success("Departamento solicitado!");
+            setSelectedResponsavel("");
+            toast.success("Apoio solicitado!");
         } catch (error) {
-            toast.error("Erro ao solicitar departamento");
+            toast.error("Erro ao solicitar apoio");
         }
     };
 
@@ -115,10 +159,111 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         }
     };
 
+    // All useEffect hooks must come before early returns
+    useEffect(() => {
+        setSinteseText(ticket?.sintese || ticket?.descricao || "");
+    }, [ticket?.sintese, ticket?.descricao]);
+
+    // Load creator name if available
+    useEffect(() => {
+        (async () => {
+            try {
+                const creatorId = (ticket as any)?.created_by || (ticket as any)?.created_by_id || null;
+                if (!creatorId) { setCreatedByName(null); return; }
+                const { data } = await supabase.from('profiles').select('full_name').eq('id', creatorId).single();
+                setCreatedByName(data?.full_name || null);
+            } catch (err) {
+                setCreatedByName(null);
+            }
+        })();
+    }, [ticket?.created_by, ticket?.created_by_id]);
+
+    // Fetch users for selected department
+    useEffect(() => {
+        // Find team by name, then load its members from team_members -> profiles
+        (async () => {
+            if (!selectedDept) { setDeptUsers([]); return; }
+            try {
+                const { data: teamsData } = await supabase.from('teams').select('id').ilike('name', selectedDept).limit(1);
+                const teamId = teamsData && teamsData[0] ? teamsData[0].id : null;
+                if (!teamId) { setDeptUsers([]); return; }
+                const { data: membersData, error: membersError } = await supabase
+                    .from('team_members')
+                    .select('user_id, profiles(id, full_name)')
+                    .eq('team_id', teamId);
+                if (membersError) throw membersError;
+                const mapped = (membersData || []).map((m: any) => ({ id: m.user_id, full_name: m.profiles?.full_name || '' }));
+                setDeptUsers(mapped);
+            } catch (err) {
+                console.error('Erro ao carregar membros do departamento:', err);
+                setDeptUsers([]);
+            }
+        })();
+    }, [selectedDept]);
+
+    // Mentions: fetch users when query after '@' has 2+ chars
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            if (mentionQuery.length < 2) {
+                setMentionUsers([]); setMentionIndex(0); return;
+            }
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, full_name')
+                .ilike('full_name', `%${mentionQuery}%`)
+                .limit(5);
+            if (!active) return;
+            if (error) return;
+            setMentionUsers(data || []);
+            setMentionIndex(0);
+        })();
+        return () => { active = false; };
+    }, [mentionQuery]);
+
     if (isLoading) return <div className="flex justify-center h-full items-center"><Loader2 className="animate-spin" /></div>;
     if (!ticket) return <div className="flex justify-center h-full items-center">Ticket não encontrado</div>;
 
     const fases = TICKET_FASES.POS_VENDAS;
+
+    const handleCommentChange = (val: string) => {
+        setComment(val);
+        const cursorPos = textareaRef.current?.selectionStart ?? val.length;
+        const textUntilCursor = val.slice(0, cursorPos);
+        const match = /(^|\s)@([A-Za-z0-9_]{0,30})$/.exec(textUntilCursor);
+        if (match) {
+            setMentionOpen(true);
+            setMentionQuery(match[2]);
+        } else {
+            setMentionOpen(false);
+            setMentionQuery("");
+        }
+    };
+
+    const insertMention = (userToInsert: { id: string; full_name: string }) => {
+        const ta = textareaRef.current;
+        const val = comment;
+        if (!ta) return;
+        const cursorPos = ta.selectionStart;
+        const textUntilCursor = val.slice(0, cursorPos);
+        const match = /(^|\s)@([A-Za-z0-9_]{0,30})$/.exec(textUntilCursor);
+        if (!match) return;
+        const start = (match.index ?? 0) + match[1].length; // after space or line start
+        const before = val.slice(0, start - 1); // keep the space or start
+        const replacement = `@${userToInsert.full_name}`;
+        const after = val.slice(cursorPos);
+        const newVal = val.slice(0, start) + replacement + after;
+        setComment(newVal);
+        setMentionedUsers(prev => [...prev, userToInsert.id]);
+        setMentionOpen(false);
+        setMentionQuery("");
+        // re-focus and set caret after mention
+        requestAnimationFrame(() => {
+            ta.focus();
+            const pos = start + replacement.length;
+            ta.setSelectionRange(pos, pos);
+        });
+    };
 
     return (
         <div className="flex flex-col h-full space-y-4">
@@ -143,6 +288,12 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                         <p className="text-xs text-muted-foreground">
                             Motivo: {ticket.motivo || "Sem motivo especificado"}
                         </p>
+                        {ticket.created_at && (
+                            <p className="text-xs text-muted-foreground">
+                                Criado em: {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                {createdByName ? ` • por ${createdByName}` : ''}
+                            </p>
+                        )}
                     </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
@@ -256,16 +407,83 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                             ))}
                                         </div>
                                     </ScrollArea>
-                                    <div className="mt-4 flex gap-2">
+                                    <div className="mt-4 flex gap-2 relative">
                                         <Textarea
+                                            ref={textareaRef}
                                             value={comment}
-                                            onChange={(e) => setComment(e.target.value)}
-                                            placeholder="Adicionar comentário ou atualização..."
+                                            onChange={(e) => handleCommentChange(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (mentionOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                                                    e.preventDefault();
+                                                    const next = e.key === 'ArrowDown' ? mentionIndex + 1 : mentionIndex - 1;
+                                                    const len = mentionUsers.length;
+                                                    setMentionIndex(((next % len) + len) % len);
+                                                } else if (mentionOpen && (e.key === 'Enter' || e.key === 'Tab')) {
+                                                    e.preventDefault();
+                                                    if (mentionUsers[mentionIndex]) insertMention(mentionUsers[mentionIndex]);
+                                                } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleAddComment();
+                                                }
+                                            }}
+                                            placeholder="Adicionar comentário ou atualização... (use @ para mencionar alguém)"
                                             className="min-h-[80px] bg-slate-50"
                                         />
+                                        {mentionOpen && mentionUsers.length > 0 && (
+                                            <div className="absolute left-2 bottom-20 z-20 bg-popover border rounded-md shadow-md w-64 max-h-48 overflow-auto">
+                                                {mentionUsers.map((u, idx) => (
+                                                    <button
+                                                        type="button"
+                                                        key={u.id}
+                                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${idx === mentionIndex ? 'bg-muted' : ''}`}
+                                                        onMouseDown={(e) => { e.preventDefault(); insertMention(u); }}
+                                                    >
+                                                        {u.full_name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                         <Button className="self-end" onClick={handleAddComment} disabled={!comment.trim()}>
                                             <Send className="w-4 h-4" />
                                         </Button>
+                                    </div>
+                                    {/* Mover 'Solicitar Apoio' para Interações - botão no rodapé */}
+                                    <div className="mt-3 flex justify-end">
+                                        <Dialog open={isAddDeptOpen} onOpenChange={setIsAddDeptOpen}>
+                                            <DialogTrigger asChild>
+                                                <Button size="sm"><Plus className="w-4 h-4 mr-2" />Solicitar Apoio</Button>
+                                            </DialogTrigger>
+                                            <DialogContent>
+                                                <DialogHeader><DialogTitle>Solicitar Apoio de Departamento</DialogTitle></DialogHeader>
+                                                <div className="space-y-4 py-4">
+                                                    <div className="space-y-2">
+                                                        <Label>Departamento</Label>
+                                                        <Select value={selectedDept} onValueChange={(val) => { setSelectedDept(val); setSelectedResponsavel(""); }}>
+                                                            <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                                            <SelectContent>
+                                                                {TICKET_DEPARTAMENTO_OPTIONS.map(dept => (
+                                                                    <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    {selectedDept && (
+                                                        <div className="space-y-2">
+                                                            <Label>Responsável</Label>
+                                                            <Select value={selectedResponsavel} onValueChange={setSelectedResponsavel}>
+                                                                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    {deptUsers.map(user => (
+                                                                        <SelectItem key={user.id} value={user.id}>{user.full_name}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    )}
+                                                    <Button onClick={handleAddDepartamento} disabled={!selectedDept || !selectedResponsavel} className="w-full">Solicitar</Button>
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -296,39 +514,60 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
                         {/* Detalhes Tab */}
                         <TabsContent value="detalhes" className="mt-0 space-y-4">
-                            <Card>
-                                <CardHeader className="pb-2"><CardTitle className="text-base">Síntese do Caso</CardTitle></CardHeader>
+                            <Card className="border-slate-200">
+                                <CardHeader className="pb-2 flex items-center justify-between">
+                                    <CardTitle className="text-base">Síntese do Caso</CardTitle>
+                                    {!editingSintese ? (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                            onClick={() => setEditingSintese(true)}
+                                            title="Editar síntese"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </Button>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                onClick={async () => {
+                                                    if (!user?.id) return;
+                                                    try {
+                                                        await updateTicket.mutateAsync({
+                                                            ticketId,
+                                                            updates: { sintese: sinteseText },
+                                                            userId: user.id
+                                                        });
+                                                        toast.success('Síntese atualizada');
+                                                        setEditingSintese(false);
+                                                    } catch {
+                                                        toast.error('Erro ao salvar síntese');
+                                                    }
+                                                }}
+                                            >Salvar</Button>
+                                            <Button variant="outline" size="sm" onClick={() => { setEditingSintese(false); setSinteseText(ticket.sintese || ticket.descricao || ''); }}>Cancelar</Button>
+                                        </div>
+                                    )}
+                                </CardHeader>
                                 <CardContent>
-                                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-                                        {ticket.sintese || ticket.descricao || "Nenhuma descrição fornecida."}
-                                    </p>
+                                    {!editingSintese ? (
+                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 bg-slate-50 p-3 rounded-md">
+                                            {sinteseText || "Nenhuma descrição fornecida."}
+                                        </p>
+                                    ) : (
+                                        <Textarea
+                                            value={sinteseText}
+                                            onChange={(e) => setSinteseText(e.target.value)}
+                                            className="min-h-[140px]"
+                                            placeholder="Descreva a síntese do caso..."
+                                        />
+                                    )}
                                 </CardContent>
                             </Card>
 
                             <div className="flex justify-between items-center mt-6">
                                 <h3 className="text-lg font-semibold">Departamentos Envolvidos</h3>
-                                <Dialog open={isAddDeptOpen} onOpenChange={setIsAddDeptOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button size="sm"><Plus className="w-4 h-4 mr-2" />Solicitar Apoio</Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                        <DialogHeader><DialogTitle>Solicitar Apoio de Departamento</DialogTitle></DialogHeader>
-                                        <div className="space-y-4 py-4">
-                                            <div className="space-y-2">
-                                                <Label>Departamento</Label>
-                                                <Select value={selectedDept} onValueChange={setSelectedDept}>
-                                                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {TICKET_DEPARTAMENTO_OPTIONS.map(dept => (
-                                                            <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <Button onClick={handleAddDepartamento} disabled={!selectedDept} className="w-full">Solicitar</Button>
-                                        </div>
-                                    </DialogContent>
-                                </Dialog>
                             </div>
                             <div className="grid gap-4">
                                 {ticket.ticket_departamentos?.length === 0 && <p className="text-muted-foreground text-center py-8">Nenhum departamento envolvido.</p>}
