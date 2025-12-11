@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Notification } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { notificationService } from '@/utils/notificationService';
 
 export function useNotifications() {
   const { user } = useAuth();
@@ -22,7 +23,8 @@ export function useNotifications() {
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (fetchError) {
         throw fetchError;
@@ -74,15 +76,67 @@ export function useNotifications() {
       }
 
       setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
+      toast.success('Todas as notificações marcadas como lidas');
     } catch (err: any) {
       console.error('Erro ao marcar todas como lidas:', err);
       toast.error('Erro ao marcar todas como lidas');
     }
   }, [user?.id]);
 
+  const deleteNotification = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (err: any) {
+      console.error('Erro ao deletar notificação:', err);
+      toast.error('Erro ao deletar notificação');
+    }
+  }, []);
+
+  const deleteMultiple = useCallback(async (ids: string[]) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      setNotifications(prev => prev.filter(n => !ids.includes(n.id)));
+      toast.success(`${ids.length} notificações deletadas`);
+    } catch (err: any) {
+      console.error('Erro ao deletar notificações:', err);
+      toast.error('Erro ao deletar notificações');
+    }
+  }, []);
+
+  const markMultipleAsRead = useCallback(async (ids: string[]) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      setNotifications(prev =>
+        prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n)
+      );
+      toast.success(`${ids.length} notificações marcadas como lidas`);
+    } catch (err: any) {
+      console.error('Erro ao marcar notificações como lidas:', err);
+      toast.error('Erro ao marcar notificações como lidas');
+    }
+  }, []);
+
   const updateNotification = useCallback(async (id: string, updates: Partial<Notification>) => {
     try {
-      // attempt to merge data client-side if provided
       const existing = notifications.find(n => n.id === id);
       let mergedData = (existing && (existing.data as any)) || {};
       if (updates.data && typeof updates.data === 'object') {
@@ -114,20 +168,50 @@ export function useNotifications() {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Real-time: inscrever em eventos de INSERT/UPDATE para a tabela de notifications
+  // Real-time: subscribe to INSERT/UPDATE events
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase.channel(`public:notifications:user=${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload) => {
+    const channel = supabase.channel(`notifications:user=${user.id}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications', 
+        filter: `user_id=eq.${user.id}` 
+      }, (payload) => {
         try {
           const newNotif = payload.new as Notification;
           setNotifications(prev => [newNotif, ...prev]);
+          
+          // Show toast notification
+          toast.info(newNotif.title, {
+            description: newNotif.message,
+            duration: 5000,
+            action: {
+              label: 'Ver',
+              onClick: () => {
+                markAsRead(newNotif.id);
+                // Navigate to notifications page or related item
+                window.location.href = '/notifications';
+              },
+            },
+          });
+
+          // Show browser push notification if permitted
+          notificationService.showBrowserNotification(newNotif.title, {
+            body: newNotif.message,
+            tag: newNotif.id,
+          });
         } catch (e) {
           console.warn('Erro processando notificação recebida via realtime (INSERT):', e);
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload) => {
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'notifications', 
+        filter: `user_id=eq.${user.id}` 
+      }, (payload) => {
         try {
           const updated = payload.new as Notification;
           setNotifications(prev => prev.map(n => n.id === updated.id ? updated : n));
@@ -135,12 +219,28 @@ export function useNotifications() {
           console.warn('Erro processando notificação recebida via realtime (UPDATE):', e);
         }
       })
+      .on('postgres_changes', { 
+        event: 'DELETE', 
+        schema: 'public', 
+        table: 'notifications', 
+        filter: `user_id=eq.${user.id}` 
+      }, (payload) => {
+        try {
+          const deleted = payload.old as { id: string };
+          setNotifications(prev => prev.filter(n => n.id !== deleted.id));
+        } catch (e) {
+          console.warn('Erro processando notificação deletada via realtime:', e);
+        }
+      })
       .subscribe();
+
+    // Request browser notification permission on mount
+    notificationService.requestPermission();
 
     return () => {
       try { supabase.removeChannel(channel); } catch (e) { /* ignore */ }
     };
-  }, [user?.id]);
+  }, [user?.id, markAsRead]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -153,5 +253,9 @@ export function useNotifications() {
     updateNotification,
     archiveNotification,
     setNotificationPriority,
+    deleteNotification,
+    deleteMultiple,
+    markMultipleAsRead,
+    refetch: fetchNotifications,
   };
 }
