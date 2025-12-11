@@ -37,7 +37,7 @@ interface WhatsAppInstance {
 }
 
 export default function WhatsAppCentralPage() {
-  useAuth(); // ensure auth context
+  const { user } = useAuth(); // ensure auth context and get current user
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   

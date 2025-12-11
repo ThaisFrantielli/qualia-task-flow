@@ -110,7 +110,7 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
     setIsTransferring(true);
     try {
       // Update conversation with new agent and return updated row to inspect
-      const { data: updatedRow, error: updateError, status, statusText } = await supabase
+      const { error: updateError, status, statusText } = await supabase
         .from('whatsapp_conversations')
         .update({
           assigned_agent_id: selectedAgentId,
