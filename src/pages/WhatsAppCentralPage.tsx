@@ -208,8 +208,8 @@ export default function WhatsAppCentralPage() {
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}
-      <div className="px-6 py-4 border-b bg-background">
-        <div className="flex items-center justify-between mb-4">
+      <div className="px-6 py-3 border-b bg-background shrink-0">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <MessageSquare className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold">Central WhatsApp</h1>
@@ -260,63 +260,63 @@ export default function WhatsAppCentralPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-5 gap-3">
           <Card className="bg-muted/30">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <MessageSquare className="h-4 w-4 text-primary" />
+            <CardContent className="p-2 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <MessageSquare className="h-3.5 w-3.5 text-primary" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-lg font-bold">{statsLoading ? '-' : stats.totalConversations}</p>
+                <p className="text-[10px] text-muted-foreground">Total</p>
+                <p className="text-base font-bold">{statsLoading ? '-' : stats.totalConversations}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-muted/30">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-yellow-500/10">
-                <Inbox className="h-4 w-4 text-yellow-600" />
+            <CardContent className="p-2 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-yellow-500/10">
+                <Inbox className="h-3.5 w-3.5 text-yellow-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Na Fila</p>
-                <p className="text-lg font-bold">{statsLoading ? '-' : stats.queueConversations}</p>
+                <p className="text-[10px] text-muted-foreground">Na Fila</p>
+                <p className="text-base font-bold">{statsLoading ? '-' : stats.queueConversations}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-muted/30">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-500/10">
-                <Bell className="h-4 w-4 text-red-600" />
+            <CardContent className="p-2 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-red-500/10">
+                <Bell className="h-3.5 w-3.5 text-red-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Não Lidas</p>
-                <p className="text-lg font-bold">{statsLoading ? '-' : stats.unreadMessages}</p>
+                <p className="text-[10px] text-muted-foreground">Não Lidas</p>
+                <p className="text-base font-bold">{statsLoading ? '-' : stats.unreadMessages}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-muted/30">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Clock className="h-4 w-4 text-blue-600" />
+            <CardContent className="p-2 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-500/10">
+                <Clock className="h-3.5 w-3.5 text-blue-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Hoje</p>
-                <p className="text-lg font-bold">{statsLoading ? '-' : stats.todayMessages}</p>
+                <p className="text-[10px] text-muted-foreground">Hoje</p>
+                <p className="text-base font-bold">{statsLoading ? '-' : stats.todayMessages}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-muted/30">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
-                <Users className="h-4 w-4 text-green-600" />
+            <CardContent className="p-2 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-green-500/10">
+                <Users className="h-3.5 w-3.5 text-green-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Atendentes</p>
-                <p className="text-lg font-bold">{statsLoading ? '-' : stats.activeAgents}</p>
+                <p className="text-[10px] text-muted-foreground">Atendentes</p>
+                <p className="text-base font-bold">{statsLoading ? '-' : stats.activeAgents}</p>
               </div>
             </CardContent>
           </Card>
@@ -340,11 +340,11 @@ export default function WhatsAppCentralPage() {
           </Card>
         </div>
       ) : (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left Panel - Conversation Queue */}
-          <div className="w-80 border-r flex flex-col bg-background">
+          <div className="w-80 border-r flex flex-col bg-background shrink-0">
             {/* Search and Filters */}
-            <div className="p-3 border-b space-y-3">
+            <div className="p-3 border-b space-y-3 shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -380,7 +380,7 @@ export default function WhatsAppCentralPage() {
             </div>
 
             {/* Conversations List */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <WhatsAppConversationQueue
                 conversations={filteredConversations}
                 selectedId={selectedConversationId}
@@ -393,7 +393,7 @@ export default function WhatsAppCentralPage() {
           </div>
 
           {/* Center Panel - Chat */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
             <WhatsAppChatPanel
               conversation={selectedConversation}
               instanceId={selectedInstanceId || undefined}
@@ -401,7 +401,7 @@ export default function WhatsAppCentralPage() {
           </div>
 
           {/* Right Panel - Actions & Agents */}
-          <div className="w-72 border-l flex flex-col gap-4 p-4 bg-muted/20 overflow-y-auto">
+          <div className="w-72 border-l flex flex-col gap-4 p-4 bg-muted/20 overflow-y-auto shrink-0">
             <WhatsAppQuickActions
               conversation={selectedConversation}
               onActionComplete={() => {
