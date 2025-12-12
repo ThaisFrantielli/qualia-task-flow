@@ -16,7 +16,6 @@ export default function ChurnDashboard(): JSX.Element {
   const { data: churnData } = useBIData<AnyObject[]>('dim_churn.json');
   const churn = useMemo(() => Array.isArray(churnData) ? churnData : [], [churnData]);
 
-  const [activeTab, setActiveTab] = useState(0);
   const [selectedMotivo, setSelectedMotivo] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const pageSize = 10;

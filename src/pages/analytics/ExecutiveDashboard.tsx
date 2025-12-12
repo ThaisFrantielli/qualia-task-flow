@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { LayoutDashboard, Car, DollarSign, Wrench, Users, AlertTriangle, CheckCircle, XCircle, ArrowRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { LayoutDashboard, Car, DollarSign, Wrench, Users, AlertTriangle, XCircle, ArrowRight, TrendingUp, TrendingDown } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
