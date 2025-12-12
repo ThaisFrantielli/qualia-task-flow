@@ -232,18 +232,7 @@ export default function AnalyticsIndex() {
                   </div>
                 </Link>
 
-                <Link to="/analytics/performance-contratos" className="block p-4 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-slate-500 group-hover/item:text-rose-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-rose-900">Performance de Contratos</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-rose-700">Análise financeira e operacional</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-rose-600 transition-colors" />
-                  </div>
-                </Link>
+                {/* Performance de Contratos integrado em Contratos; link removido */}
 
                 <Link to="/analytics/churn" className="block p-4 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 transition-all group/item">
                   <div className="flex items-center justify-between">

@@ -2,569 +2,292 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, BarList } from '@tremor/react';
 import {
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    Tooltip,
-    CartesianGrid,
-    PieChart,
-    Pie,
-    Cell,
-    LabelList,
-    Legend
+    ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ComposedChart, Line
 } from 'recharts';
-import { FileText, TrendingUp, Users, AlertCircle } from 'lucide-react';
-import ChurnDashboard from './ChurnDashboard';
+import { FileText } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
-// Formata moeda
-function fmtBRL(v: number) {
-    try {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-    } catch (e) {
-        return String(v);
-    }
-}
-
-// Gera chave de mês YYYY-MM
-function monthKey(d: Date) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-// Formata label MMM/YY
-function monthLabel(ym: string) {
-    const [y, m] = ym.split('-');
-    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    const mi = Number(m) - 1;
-    return `${months[mi]}/${String(y).slice(2)}`;
-}
+// --- HELPERS ---
+function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function getMonthKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0].substring(0, 7); }
+function monthLabel(ym: string) { if (!ym) return ''; const [y, m] = ym.split('-'); const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']; return `${months[Number(m) - 1]}/${String(y).slice(2)}`; }
 
 export default function ContractsDashboard(): JSX.Element {
-    // Hooks de dados
+    // --- HOOKS DE DADOS (ETL V6) ---
     const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
     const { data: churnData } = useBIData<AnyObject[]>('dim_churn.json');
     const { data: rentabilidadeData } = useBIData<AnyObject[]>('dim_rentabilidade.json');
+    const { data: faturamentoData } = useBIData<AnyObject[]>('fat_faturamento_*.json');
+    const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
 
-    // Normalização de dados (Contratos)
-    const contratos: AnyObject[] = useMemo(() => {
-        if (!contratosData) return [];
-        if (Array.isArray(contratosData)) return contratosData as AnyObject[];
-        // Tratamento para estruturas { data: [...] }
-        if ((contratosData as any).data && Array.isArray((contratosData as any).data)) return (contratosData as any).data;
-        const keys = Object.keys(contratosData as any);
-        for (const k of keys) if (Array.isArray((contratosData as any)[k])) return (contratosData as any)[k];
-        return [];
-    }, [contratosData]);
+    // Normalização
+    const contratos = useMemo(() => Array.isArray(contratosData) ? contratosData : [], [contratosData]);
+    const churn = useMemo(() => Array.isArray(churnData) ? churnData : [], [churnData]);
+    const rentabilidade = useMemo(() => Array.isArray(rentabilidadeData) ? rentabilidadeData : [], [rentabilidadeData]);
+    const faturamento = useMemo(() => (faturamentoData as any)?.data || faturamentoData || [], [faturamentoData]);
+    const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
 
-    // Normalização de dados (Churn)
-    const churnRecords: AnyObject[] = useMemo(() => {
-        if (!churnData) return [];
-        if (Array.isArray(churnData)) return churnData as AnyObject[];
-        if ((churnData as any).data && Array.isArray((churnData as any).data)) return (churnData as any).data;
-        const keys = Object.keys(churnData as any);
-        for (const k of keys) if (Array.isArray((churnData as any)[k])) return (churnData as any)[k];
-        return [];
-    }, [churnData]);
+    // Estados
+    const [activeTab, setActiveTab] = useState<'overview' | 'performance' | 'carteira' | 'rentabilidade'>('overview');
+    const currentYear = new Date().getFullYear();
+    const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
+    const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
 
-    // Controle de Abas
-    const [activeTab, setActiveTab] = useState<'overview' | 'ativos' | 'movimentacao' | 'churn' | 'rentabilidade'>('overview');
-
-    // === CÁLCULOS: OVERVIEW ===
-    const overviewKpis = useMemo(() => {
+    // === CÁLCULOS GERAIS ===
+    
+    // 1. Overview
+    const kpisOverview = useMemo(() => {
         const totalAtivos = contratos.length;
-        // Tenta pegar ValorMensal ou ValorVigente
-        const totalValorMensal = contratos.reduce((s, c) => s + (Number(c.ValorMensal || c.ValorVigente) || 0), 0);
-
-        // Métricas de Churn (Histórico total carregado)
-        const iniciados = churnRecords.filter(r => String(r.TipoEvento || '').toLowerCase() === 'iniciado').length;
-        const encerrados = churnRecords.filter(r => String(r.TipoEvento || '').toLowerCase() === 'encerrado').length;
-
-        // Taxa de Churn simples (Encerrados / Total Movimentado)
+        const totalValorMensal = contratos.reduce((s, c) => s + parseCurrency(c.ValorMensal), 0);
+        const iniciados = churn.filter(r => r.TipoEvento === 'Iniciado').length;
+        const encerrados = churn.filter(r => r.TipoEvento === 'Encerrado').length;
         const churnRate = (iniciados + encerrados) ? (encerrados / (iniciados + encerrados)) * 100 : 0;
-
         return { totalAtivos, totalValorMensal, iniciados, encerrados, churnRate };
-    }, [contratos, churnRecords]);
+    }, [contratos, churn]);
 
-    // Contratos por cliente (Top 10)
-    const contratosPorCliente = useMemo(() => {
-        const map: Record<string, number> = {};
-        contratos.forEach(c => {
-            const cliente = c.Cliente || c.Nome || 'Sem Cliente';
-            map[cliente] = (map[cliente] || 0) + 1;
-        });
-        return Object.entries(map)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
+    const topClientes = useMemo(() => {
+        const map: any = {};
+        contratos.forEach(c => { map[c.Cliente] = (map[c.Cliente] || 0) + 1; });
+        return Object.entries(map).map(([name, value]: any) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 10);
     }, [contratos]);
 
-    // Distribuição por tipo (Pie Chart)
-    const tiposContrato = useMemo(() => {
-        const map: Record<string, number> = {};
-        contratos.forEach(c => {
-            // Tenta identificar o tipo, senão assume Locação
-            const tipo = c.TipoContrato || c.Tipo || 'Locação';
-            map[tipo] = (map[tipo] || 0) + 1;
+    // 2. Performance (Unificado do antigo dashboard)
+    const performanceData = useMemo(() => {
+        // Filtra faturamento e manutenção pelo período e linka com contratos (via Placa ou Cliente)
+        const map: Record<string, { receita: number, custo: number, previsto: number }> = {};
+        
+        // Inicializa meses
+        let curr = new Date(dateFrom);
+        const end = new Date(dateTo);
+        while (curr <= end) {
+            map[getMonthKey(curr.toISOString())] = { receita: 0, custo: 0, previsto: 0 };
+            curr.setMonth(curr.getMonth() + 1);
+        }
+
+        // Soma Receita (Realizado) - Tipagem explícita adicionada
+        faturamento.forEach((f: AnyObject) => {
+            const k = getMonthKey(f.DataCompetencia);
+            if (map[k]) map[k].receita += parseCurrency(f.ValorTotal);
         });
-        return Object.entries(map).map(([name, value]) => ({ name, value }));
-    }, [contratos]);
 
-    // === CÁLCULOS: ATIVOS ===
-    const [ativosDateFrom, setAtivosDateFrom] = useState<string | null>(null);
-    const [ativosDateTo, setAtivosDateTo] = useState<string | null>(null);
-
-    const contratosFiltered = useMemo(() => {
-        return contratos.filter(c => {
-            const inicio = c.InicioContrato || c.DataInicio || c.Inicio;
-            if (!inicio) return false;
-
-            if (ativosDateFrom && new Date(inicio) < new Date(ativosDateFrom + 'T00:00:00')) return false;
-            if (ativosDateTo && new Date(inicio) > new Date(ativosDateTo + 'T23:59:59')) return false;
-
-            return true;
+        // Soma Custo (Manutenção) - Link indireto - Tipagem explícita adicionada
+        manutencao.forEach((m: AnyObject) => {
+            const k = getMonthKey(m.DataEntrada);
+            if (map[k]) map[k].custo += parseCurrency(m.ValorTotal);
         });
-    }, [contratos, ativosDateFrom, ativosDateTo]);
 
-    // Histograma de Valores
-    const valoresDistribution = useMemo(() => {
-        const ranges = [
-            { key: 'R$ 0-1k', min: 0, max: 1000 },
-            { key: 'R$ 1k-2k', min: 1000, max: 2000 },
-            { key: 'R$ 2k-3k', min: 2000, max: 3000 },
-            { key: 'R$ 3k-5k', min: 3000, max: 5000 },
-            { key: 'R$ +5k', min: 5000, max: Infinity },
-        ];
-        const map = ranges.map(r => ({ faixa: r.key, count: 0 }));
-        contratosFiltered.forEach(c => {
-            const valor = Number(c.ValorMensal || c.ValorVigente) || 0;
-            for (let i = 0; i < ranges.length; i++) {
-                const r = ranges[i];
-                if (valor >= r.min && valor < r.max) {
-                    map[i].count += 1;
-                    break;
-                }
-            }
-        });
-        return map;
-    }, [contratosFiltered]);
-
-    // Top Clientes Financeiro
-    const topClientesPorValor = useMemo(() => {
-        const map: Record<string, number> = {};
-        contratosFiltered.forEach(c => {
-            const cliente = c.Cliente || c.Nome || 'Sem Cliente';
-            const valor = Number(c.ValorMensal || c.ValorVigente) || 0;
-            map[cliente] = (map[cliente] || 0) + valor;
-        });
-        return Object.entries(map)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
-    }, [contratosFiltered]);
-
-    // === CÁLCULOS: MOVIMENTAÇÃO ===
-    const [movDateFrom, setMovDateFrom] = useState<string | null>(null);
-    const [movDateTo, setMovDateTo] = useState<string | null>(null);
-
-    const churnFiltered = useMemo(() => {
-        return churnRecords.filter(r => {
-            if (!r.DataEvento) return false;
-            if (movDateFrom && new Date(r.DataEvento) < new Date(movDateFrom + 'T00:00:00')) return false;
-            if (movDateTo && new Date(r.DataEvento) > new Date(movDateTo + 'T23:59:59')) return false;
-            return true;
-        });
-    }, [churnRecords, movDateFrom, movDateTo]);
-
-    const movimentacaoMonthly = useMemo(() => {
-        const map: Record<string, { Novos: number; Cancelados: number }> = {};
-        churnFiltered.forEach(r => {
-            const d = r.DataEvento ? new Date(r.DataEvento) : null;
-            const month = d ? monthKey(d) : 'unknown';
-            if (!map[month]) map[month] = { Novos: 0, Cancelados: 0 };
-
-            const tipo = String(r.TipoEvento || '').toLowerCase();
-            if (tipo === 'iniciado') map[month].Novos += 1;
-            else if (tipo === 'encerrado') map[month].Cancelados += 1;
+        // Soma Previsto (Baseado nos contratos ativos no mês)
+        // Simplificação: Soma ValorMensal de todos contratos ativos * número de meses
+        const totalMensalContratos = contratos.reduce((s, c) => s + parseCurrency(c.ValorMensal), 0);
+        Object.keys(map).forEach(k => {
+            map[k].previsto = totalMensalContratos; // Valor aproximado mensal da carteira
         });
 
         return Object.keys(map).sort().map(k => ({
             month: monthLabel(k),
-            Novos: map[k].Novos,
-            Cancelados: map[k].Cancelados,
-            Saldo: map[k].Novos - map[k].Cancelados,
+            Receita: map[k].receita,
+            Custo: map[k].custo,
+            Previsto: map[k].previsto,
+            Margem: map[k].receita - map[k].custo
         }));
-    }, [churnFiltered]);
+    }, [faturamento, manutencao, contratos, dateFrom, dateTo]);
 
-    const motivosEncerramento = useMemo(() => {
-        const map: Record<string, number> = {};
-        churnFiltered.forEach(r => {
-            if (String(r.TipoEvento || '').toLowerCase() !== 'encerrado') return;
-            const motivo = r.Motivo || 'Não informado';
-            map[motivo] = (map[motivo] || 0) + 1;
-        });
-        return Object.entries(map)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value);
-    }, [churnFiltered]);
+    const kpisPerformance = useMemo(() => {
+        const receita = performanceData.reduce((s, p) => s + p.Receita, 0);
+        const custo = performanceData.reduce((s, p) => s + p.Custo, 0);
+        const previsto = performanceData.reduce((s, p) => s + p.Previsto, 0);
+        const execucao = previsto > 0 ? (receita / previsto) * 100 : 0;
+        return { receita, custo, previsto, execucao, margem: receita - custo };
+    }, [performanceData]);
 
-    // === CÁLCULOS: RENTABILIDADE ===
-    const rentabilidade = useMemo(() => {
-        if (!rentabilidadeData) return [];
-        if (Array.isArray(rentabilidadeData)) return rentabilidadeData as AnyObject[];
-        if ((rentabilidadeData as any).data && Array.isArray((rentabilidadeData as any).data)) return (rentabilidadeData as any).data;
-        const keys = Object.keys(rentabilidadeData as any);
-        for (const k of keys) if (Array.isArray((rentabilidadeData as any)[k])) return (rentabilidadeData as any)[k];
-        return [];
-    }, [rentabilidadeData]);
-
-    // Curva ABC por Margem Total
+    // 3. Rentabilidade (ABC)
     const curvaABC = useMemo(() => {
-        const sorted = [...rentabilidade]
-            .map(r => ({
-                cliente: r.Cliente || r.Nome || 'N/A',
-                margem: Number(r.MargemTotal || r.Margem || 0),
-                receita: Number(r.ReceitaTotal || r.Receita || 0),
-            }))
-            .sort((a, b) => b.margem - a.margem);
-
-        const totalMargem = sorted.reduce((s, r) => s + r.margem, 0);
+        const sorted = rentabilidade.sort((a, b) => parseCurrency(b.Margem) - parseCurrency(a.Margem));
+        const totalMargem = sorted.reduce((s, r) => s + parseCurrency(r.Margem), 0);
         let acumulado = 0;
-
         return sorted.map((r, i) => {
-            acumulado += r.margem;
-            const percAcumulado = totalMargem > 0 ? (acumulado / totalMargem) * 100 : 0;
-            let classe = 'C';
-            if (percAcumulado <= 80) classe = 'A';
-            else if (percAcumulado <= 95) classe = 'B';
-
+            acumulado += parseCurrency(r.Margem);
+            const pct = totalMargem > 0 ? (acumulado / totalMargem) * 100 : 0;
             return {
                 rank: i + 1,
-                cliente: r.cliente,
-                margem: r.margem,
-                receita: r.receita,
-                percAcumulado,
-                classe,
+                cliente: r.Cliente,
+                margem: parseCurrency(r.Margem),
+                receita: parseCurrency(r.Receita),
+                classe: pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C'
             };
         });
     }, [rentabilidade]);
 
-    // Top 10 Clientes por Rentabilidade
-    const topRentabilidade = useMemo(() => {
-        return curvaABC.slice(0, 10).map(r => ({ name: r.cliente, value: r.margem }));
-    }, [curvaABC]);
-
-    // Distribuição ABC (count)
-    const distribuicaoABC = useMemo(() => {
-        const counts = { A: 0, B: 0, C: 0 };
-        curvaABC.forEach(r => counts[r.classe as 'A' | 'B' | 'C']++);
-        return [
-            { name: 'Classe A', value: counts.A },
-            { name: 'Classe B', value: counts.B },
-            { name: 'Classe C', value: counts.C },
-        ];
-    }, [curvaABC]);
-
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex justify-between items-center">
                 <div>
-                    <Title className="text-slate-900">Análise de Contratos</Title>
-                    <Text className="mt-1 text-slate-500">Visão completa de contratos ativos, movimentação e performance.</Text>
+                    <Title className="text-slate-900">Gestão de Contratos</Title>
+                    <Text className="text-slate-500">Visão 360º: Carteira, Performance Financeira e Operacional.</Text>
                 </div>
-                <div className="flex items-center gap-2">
-                    <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        Hub Financeiro
-                    </div>
+                <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium flex gap-2">
+                    <FileText className="w-4 h-4" /> Hub Comercial
                 </div>
             </div>
 
-            {/* Tabs de Navegação */}
-            <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-                {['overview', 'ativos', 'movimentacao', 'churn', 'rentabilidade'].map((tab) => (
+            {/* Tabs */}
+            <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
+                {['overview', 'performance', 'carteira', 'rentabilidade'].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab as any)}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all capitalize ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                            }`}
+                        className={`px-4 py-2 text-sm font-medium rounded-md capitalize transition-all ${
+                            activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        }`}
                     >
-                        {tab === 'overview' ? 'Visão Geral' : tab === 'ativos' ? 'Contratos Ativos' : tab === 'movimentacao' ? 'Movimentação' : tab === 'churn' ? 'Abertura e Encerramento Contrato' : 'Rentabilidade'}
+                        {tab === 'overview' ? 'Visão Geral' : tab === 'performance' ? 'Desempenho' : tab}
                     </button>
                 ))}
             </div>
 
-            {/* === CONTEÚDO DA ABA OVERVIEW === */}
+            {/* ABA 1: VISÃO GERAL */}
             {activeTab === 'overview' && (
-                <>
-                    {/* KPI Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-blue-50">
-                                    <FileText className="text-blue-600" size={20} />
-                                </div>
-                                <div>
-                                    <Text className="text-slate-500 text-sm">Contratos Ativos</Text>
-                                    <Metric className="text-slate-900">{overviewKpis.totalAtivos}</Metric>
-                                </div>
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-emerald-50">
-                                    <TrendingUp className="text-emerald-600" size={20} />
-                                </div>
-                                <div>
-                                    <Text className="text-slate-500 text-sm">Receita Mensal Total</Text>
-                                    <Metric className="text-slate-900">{fmtBRL(overviewKpis.totalValorMensal)}</Metric>
-                                </div>
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-violet-50">
-                                    <Users className="text-violet-600" size={20} />
-                                </div>
-                                <div>
-                                    <Text className="text-slate-500 text-sm">Novos / Cancelados</Text>
-                                    <Metric className="text-slate-900">{overviewKpis.iniciados} / {overviewKpis.encerrados}</Metric>
-                                </div>
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-amber-50">
-                                    <AlertCircle className="text-amber-600" size={20} />
-                                </div>
-                                <div>
-                                    <Text className="text-slate-500 text-sm">Taxa de Churn</Text>
-                                    <Metric className="text-slate-900">{overviewKpis.churnRate.toFixed(2)}%</Metric>
-                                </div>
-                            </div>
-                        </Card>
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Card decoration="top" decorationColor="blue"><Text>Contratos Ativos</Text><Metric>{kpisOverview.totalAtivos}</Metric></Card>
+                        <Card decoration="top" decorationColor="emerald"><Text>Receita Mensal (Carteira)</Text><Metric>{fmtBRL(kpisOverview.totalValorMensal)}</Metric></Card>
+                        <Card decoration="top" decorationColor="violet"><Text>Movimentação (Ent/Sai)</Text><Metric>{kpisOverview.iniciados} / {kpisOverview.encerrados}</Metric></Card>
+                        <Card decoration="top" decorationColor="rose"><Text>Churn Rate</Text><Metric>{kpisOverview.churnRate.toFixed(1)}%</Metric></Card>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* Top Clientes */}
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Top 10 Clientes (por quantidade)</Title>
-                            <div className="mt-4 h-80 overflow-y-auto pr-2">
-                                <BarList data={contratosPorCliente} valueFormatter={(v) => `${v} contratos`} color="blue" className="mt-2" />
-                            </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <Card>
+                            <Title>Top 10 Clientes (Volume)</Title>
+                            <div className="mt-4"><BarList data={topClientes} valueFormatter={(v) => `${v} ctr`} color="blue" /></div>
                         </Card>
-
-                        {/* Pizza Tipo Contrato */}
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Distribuição por Tipo</Title>
-                            <div className="h-80 mt-4">
+                        <Card>
+                            <Title>Movimentação de Churn (12 meses)</Title>
+                            <div className="h-72 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={tiposContrato}
-                                            dataKey="value"
-                                            nameKey="name"
-                                            innerRadius={60}
-                                            outerRadius={100}
-                                            label={({ percent }: any) => `${Math.round(percent * 100)}%`}
-                                            labelLine={false}
-                                        >
-                                            {tiposContrato.map((_, idx) => (
-                                                <Cell key={`cell-${idx}`} fill={["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b"][idx % 4]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                                        <Legend verticalAlign="bottom" height={36} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-                    </div>
-                </>
-            )}
-
-            {/* === CONTEÚDO DA ABA ATIVOS === */}
-            {activeTab === 'ativos' && (
-                <>
-                    <Card className="bg-white shadow-sm border border-slate-200">
-                        <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <Text className="text-slate-500 text-xs mb-1">Data Início (De - Até)</Text>
-                                <div className="flex gap-2">
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={ativosDateFrom || ''} onChange={(e) => setAtivosDateFrom(e.target.value || null)} />
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={ativosDateTo || ''} onChange={(e) => setAtivosDateTo(e.target.value || null)} />
-                                </div>
-                            </div>
-                            <div className="flex items-end">
-                                <button onClick={() => { setAtivosDateFrom(null); setAtivosDateTo(null); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm w-full">
-                                    Limpar Filtros
-                                </button>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Distribuição de Valores Mensais</Title>
-                            <div className="h-80 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={valoresDistribution} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                                        <XAxis dataKey="faixa" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ backgroundColor: '#fff', borderRadius: '8px' }} />
-                                        <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                                            <LabelList dataKey="count" position="top" fill="#64748b" fontSize={12} />
-                                        </Bar>
+                                    <BarChart data={churn.reduce((acc: any, r) => {
+                                        const m = getMonthKey(r.DataEvento);
+                                        const idx = acc.findIndex((i:any) => i.date === m);
+                                        if (idx === -1) acc.push({ date: m, label: monthLabel(m), Novos: r.TipoEvento==='Iniciado'?1:0, Cancelados: r.TipoEvento==='Encerrado'?1:0 });
+                                        else { if(r.TipoEvento==='Iniciado') acc[idx].Novos++; else acc[idx].Cancelados++; }
+                                        return acc;
+                                    }, []).sort((a:any,b:any) => a.date.localeCompare(b.date))}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="label" fontSize={12} />
+                                        <YAxis fontSize={12} />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Bar dataKey="Novos" fill="#10b981" />
+                                        <Bar dataKey="Cancelados" fill="#ef4444" />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
                         </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Top 10 Clientes (por valor)</Title>
-                            <div className="mt-4 h-80 overflow-y-auto pr-2">
-                                <BarList data={topClientesPorValor} valueFormatter={(v) => fmtBRL(v)} color="blue" className="mt-2" />
-                            </div>
-                        </Card>
                     </div>
-                </>
-            )}
-
-            {/* === CONTEÚDO DA ABA MOVIMENTAÇÃO === */}
-            {activeTab === 'movimentacao' && (
-                <>
-                    <Card className="bg-white shadow-sm border border-slate-200">
-                        <Text className="text-slate-700 font-medium mb-2">Filtros</Text>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <Text className="text-slate-500 text-xs mb-1">Período (De - Até)</Text>
-                                <div className="flex gap-2">
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={movDateFrom || ''} onChange={(e) => setMovDateFrom(e.target.value || null)} />
-                                    <input type="date" className="w-full border border-slate-300 rounded-md p-2 text-sm outline-none" value={movDateTo || ''} onChange={(e) => setMovDateTo(e.target.value || null)} />
-                                </div>
-                            </div>
-                            <div className="flex items-end">
-                                <button onClick={() => { setMovDateFrom(null); setMovDateTo(null); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-sm w-full">
-                                    Limpar Filtros
-                                </button>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <Card className="lg:col-span-2 bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Fluxo Mensal de Contratos</Title>
-                            <div className="h-80 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={movimentacaoMonthly} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                                        <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis allowDecimals={false} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ backgroundColor: '#fff', borderRadius: '8px' }} />
-                                        <Legend verticalAlign="top" height={36} />
-                                        <Bar dataKey="Novos" name="Novos" fill="#10b981" />
-                                        <Bar dataKey="Cancelados" name="Cancelados" fill="#ef4444" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Motivos de Encerramento</Title>
-                            <div className="mt-4 h-80 overflow-y-auto pr-2">
-                                <BarList data={motivosEncerramento} valueFormatter={(v) => `${v} casos`} color="red" className="mt-2" />
-                            </div>
-                        </Card>
-                    </div>
-                </>
-            )}
-            {/* === CONTEÚDO DA ABA CHURN (embed da página existente) === */}
-            {activeTab === 'churn' && (
-                <div>
-                    <ChurnDashboard />
                 </div>
             )}
 
-            {/* === CONTEÚDO DA ABA RENTABILIDADE === */}
+            {/* ABA 2: DESEMPENHO (Antigo Performance Dashboard) */}
+            {activeTab === 'performance' && (
+                <div className="space-y-6">
+                    <Card className="bg-slate-50 border-blue-100">
+                        <div className="flex gap-4 items-center">
+                            <Text className="text-slate-500">Período:</Text>
+                            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border p-1 rounded text-sm"/>
+                            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border p-1 rounded text-sm"/>
+                        </div>
+                    </Card>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Card decoration="top" decorationColor="blue"><Text>Previsto (Carteira)</Text><Metric>{fmtBRL(kpisPerformance.previsto)}</Metric></Card>
+                        <Card decoration="top" decorationColor="emerald"><Text>Realizado (Faturado)</Text><Metric>{fmtBRL(kpisPerformance.receita)}</Metric></Card>
+                        <Card decoration="top" decorationColor="amber"><Text>Custos Manutenção</Text><Metric>{fmtBRL(kpisPerformance.custo)}</Metric></Card>
+                        <Card decoration="top" decorationColor={kpisPerformance.execucao >= 90 ? 'emerald' : 'rose'}><Text>% Execução da Receita</Text><Metric>{kpisPerformance.execucao.toFixed(1)}%</Metric></Card>
+                    </div>
+
+                    <Card>
+                        <Title>Resultado Financeiro Operacional (Receita vs Custo)</Title>
+                        <div className="h-80 mt-4">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={performanceData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="month" fontSize={12} />
+                                    <YAxis fontSize={12} tickFormatter={fmtBRL} />
+                                    <Tooltip formatter={fmtBRL} />
+                                    <Legend />
+                                    <Bar dataKey="Receita" fill="#3b82f6" name="Receita Faturada" />
+                                    <Bar dataKey="Custo" fill="#f59e0b" name="Custo Manutenção" />
+                                    <Line type="monotone" dataKey="Margem" stroke="#10b981" strokeWidth={3} name="Margem Operacional" />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* ABA 3: CARTEIRA */}
+            {activeTab === 'carteira' && (
+                <Card>
+                    <Title className="mb-4">Carteira de Contratos Ativos</Title>
+                    <div className="overflow-x-auto max-h-[600px]">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-100 text-slate-600 sticky top-0">
+                                <tr>
+                                    <th className="p-3">Contrato</th>
+                                    <th className="p-3">Cliente</th>
+                                    <th className="p-3">Placa</th>
+                                    <th className="p-3">Início</th>
+                                    <th className="p-3 text-right">Valor Mensal</th>
+                                    <th className="p-3 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {contratos.slice(0, 50).map((c, i) => (
+                                    <tr key={i} className="hover:bg-slate-50">
+                                        <td className="p-3 font-mono text-xs">{c.NumeroContrato || c.IdContratoLocacao}</td>
+                                        <td className="p-3 font-medium">{c.Cliente}</td>
+                                        <td className="p-3">{c.Placa}</td>
+                                        <td className="p-3">{c.InicioContrato ? new Date(c.InicioContrato).toLocaleDateString('pt-BR') : '-'}</td>
+                                        <td className="p-3 text-right">{fmtBRL(parseCurrency(c.ValorMensal))}</td>
+                                        <td className="p-3 text-center"><span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs">{c.Status}</span></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <Text className="mt-2 text-xs text-slate-500">Mostrando os primeiros 50 contratos.</Text>
+                </Card>
+            )}
+
+            {/* ABA 4: RENTABILIDADE */}
             {activeTab === 'rentabilidade' && (
-                <>
-                    {/* KPIs */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Text className="text-slate-500">Total Clientes</Text>
-                            <Metric className="text-slate-900">{curvaABC.length}</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Text className="text-slate-500">Margem Total</Text>
-                            <Metric className="text-slate-900">{fmtBRL(curvaABC.reduce((s, r) => s + r.margem, 0))}</Metric>
-                        </Card>
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Text className="text-slate-500">Receita Total</Text>
-                            <Metric className="text-slate-900">{fmtBRL(curvaABC.reduce((s, r) => s + r.receita, 0))}</Metric>
-                        </Card>
-                    </div>
-
-                    {/* Row 1: Top 10 + Distribuição ABC */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Top 10 Clientes por Rentabilidade</Title>
-                            <div className="mt-4">
-                                <BarList data={topRentabilidade} valueFormatter={(v) => fmtBRL(v)} color="emerald" />
-                            </div>
-                        </Card>
-
-                        <Card className="bg-white shadow-sm border border-slate-200">
-                            <Title className="text-slate-900">Distribuição Curva ABC</Title>
-                            <div className="h-64 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie data={distribuicaoABC} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                                            <Cell fill="#10b981" />
-                                            <Cell fill="#f59e0b" />
-                                            <Cell fill="#ef4444" />
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </Card>
-                    </div>
-
-                    {/* Tabela Curva ABC Completa */}
-                    <Card className="bg-white shadow-sm border border-slate-200">
-                        <Title className="text-slate-900 mb-4">Tabela Curva ABC por Cliente</Title>
-                        <div className="overflow-x-auto">
+                <div className="space-y-6">
+                    <Card>
+                        <Title>Curva ABC de Clientes (Margem)</Title>
+                        <div className="overflow-x-auto max-h-[600px] mt-4">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-xs">
+                                <thead className="bg-slate-100 text-slate-600 sticky top-0">
                                     <tr>
-                                        <th className="px-4 py-3 font-medium">Rank</th>
-                                        <th className="px-4 py-3 font-medium">Cliente</th>
-                                        <th className="px-4 py-3 font-medium text-right">Margem (R$)</th>
-                                        <th className="px-4 py-3 font-medium text-right">Receita (R$)</th>
-                                        <th className="px-4 py-3 font-medium text-right">% Acumulado</th>
-                                        <th className="px-4 py-3 font-medium text-center">Classe ABC</th>
+                                        <th className="p-3">Rank</th>
+                                        <th className="p-3">Cliente</th>
+                                        <th className="p-3 text-right">Receita Total</th>
+                                        <th className="p-3 text-right">Margem</th>
+                                        <th className="p-3 text-center">Classe</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {curvaABC.map((r, i) => (
-                                        <tr key={`abc-${i}`} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-4 py-3 text-slate-600">{r.rank}</td>
-                                            <td className="px-4 py-3 font-medium text-slate-900 truncate max-w-xs">{r.cliente}</td>
-                                            <td className="px-4 py-3 text-right font-medium text-emerald-700">{fmtBRL(r.margem)}</td>
-                                            <td className="px-4 py-3 text-right text-slate-600">{fmtBRL(r.receita)}</td>
-                                            <td className="px-4 py-3 text-right text-slate-600">{r.percAcumulado.toFixed(1)}%</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${r.classe === 'A' ? 'bg-emerald-100 text-emerald-700' : r.classe === 'B' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {r.classe}
-                                                </span>
+                                <tbody className="divide-y">
+                                    {curvaABC.map((c, i) => (
+                                        <tr key={i} className="hover:bg-slate-50">
+                                            <td className="p-3 text-slate-500">{c.rank}</td>
+                                            <td className="p-3 font-medium">{c.cliente}</td>
+                                            <td className="p-3 text-right">{fmtBRL(c.receita)}</td>
+                                            <td className="p-3 text-right font-bold text-emerald-600">{fmtBRL(c.margem)}</td>
+                                            <td className="p-3 text-center">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                    c.classe === 'A' ? 'bg-emerald-100 text-emerald-700' : 
+                                                    c.classe === 'B' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+                                                }`}>{c.classe}</span>
                                             </td>
                                         </tr>
                                     ))}
@@ -572,7 +295,7 @@ export default function ContractsDashboard(): JSX.Element {
                             </table>
                         </div>
                     </Card>
-                </>
+                </div>
             )}
         </div>
     );
