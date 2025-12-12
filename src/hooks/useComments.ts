@@ -110,6 +110,24 @@ export const useComments = (taskId?: string) => {
     }
   };
 
+  const updateComment = async (id: string, content: string) => {
+    try {
+      const { data, error: updateError } = await supabase
+        .from('comments')
+        .update({ content })
+        .eq('id', id)
+        .select()
+        .single();
+      if (updateError) throw updateError;
+      setComments(current => current.map(comment => 
+        comment.id === id ? { ...comment, content: data.content } : comment
+      ));
+    } catch (err: any) {
+      setError(err.message || 'Erro ao atualizar comentário');
+      throw err;
+    }
+  };
+
   const deleteComment = async (id: string) => {
     try {
       const { error: deleteError } = await supabase.from('comments').delete().eq('id', id);
@@ -124,5 +142,5 @@ export const useComments = (taskId?: string) => {
     fetchComments();
   }, [fetchComments]);
 
-  return { comments, loading, error, addComment, deleteComment, refetch: fetchComments };
+  return { comments, loading, error, addComment, updateComment, deleteComment, refetch: fetchComments };
 };

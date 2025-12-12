@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, DonutChart } from '@tremor/react';
+import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, DollarSign, Clock, Users, Filter, X } from 'lucide-react';
+import { TrendingUp, Filter, X } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 

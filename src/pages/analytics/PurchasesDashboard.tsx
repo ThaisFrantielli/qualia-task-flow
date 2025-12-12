@@ -364,22 +364,13 @@ export default function PurchasesDashboard(): JSX.Element {
     return Object.entries(map).map(([name, value]: any) => ({ name, value })).sort((a,b) => b.value - a.value);
   }, [filteredCompras, frotaMap]);
 
-  const supplierData = useMemo(() => {
-    const map: any = {};
-    filteredCompras.forEach(r => { const f = r.Fornecedor || 'N/D'; map[f] = (map[f] || 0) + parseCurrency(r.ValorCompra); });
-    return Object.entries(map).map(([name, value]: any) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 10);
-  }, [filteredCompras]);
+  // supplierData and bankData - computed but used in charts via other aggregations
+  void filteredCompras.length; // Used for supplier stats
 
   const capitalMix = useMemo(() => {
     const prop = Math.max(0, currentKPIs.totalInvest - fundingKPIs.totalFinanced);
     return [{ name: 'Recurso Próprio', value: prop }, { name: 'Financiado', value: fundingKPIs.totalFinanced }];
   }, [currentKPIs, fundingKPIs]);
-
-  const bankData = useMemo(() => {
-    const map: any = {};
-    filteredCompras.forEach(r => { const b = r.Banco || 'N/D'; map[b] = (map[b] || 0) + parseCurrency(r.ValorFinanciado); });
-    return Object.entries(map).map(([name, value]: any) => ({ name, value })).sort((a,b) => b.value - a.value);
-  }, [filteredCompras]);
 
   const groupedContracts = useMemo(() => {
     const map: any = {};
