@@ -24,6 +24,7 @@ import { FocusModeSelector, type FocusModeType } from '@/components/tasks/FocusM
 import { TasksKanbanView } from '@/components/tasks/TasksKanbanView';
 import { TasksCalendarView } from '@/components/tasks/TasksCalendarView';
 import { AssigneeFilterBanner } from '@/components/tasks/AssigneeFilterBanner';
+import { CreateTaskDialog } from '@/components/tasks/CreateTaskDialog';
 
 const TasksPage = () => {
   const navigate = useNavigate();
@@ -31,7 +32,6 @@ const TasksPage = () => {
   const assigneeFilter = searchParams.get('assignee');
   
   const { user } = useAuth();
-  const [isCreating, setIsCreating] = useState(false);
   const [filters, setFilters] = useState<AllTaskFilters>(() => ({
     assignee_id: assigneeFilter || undefined,
   }));
@@ -41,8 +41,13 @@ const TasksPage = () => {
   const [currentView, setCurrentView] = useState<ViewType>(() => {
     return (localStorage.getItem('tasks-view-preference') as ViewType) || 'list';
   });
+  
+  // Dialog de criação de tarefa
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [defaultDueDate, setDefaultDueDate] = useState<Date | undefined>();
+  
   const { projects } = useProjects();
-  const { tasks, deleteTask, createTask, loading, updateTask } = useTasks(filters);
+  const { tasks, deleteTask, loading, updateTask } = useTasks(filters);
 
   // Sincronizar filtro com URL quando assignee muda
   useEffect(() => {
@@ -110,28 +115,19 @@ const TasksPage = () => {
     setFilters(prev => ({ ...prev, assignee_id: undefined }));
   };
 
-  const handleCreateAndNavigate = async () => {
-    if (!user?.id) {
-      toast.error('Você precisa estar logado para criar uma tarefa.');
-      return;
-    }
-    setIsCreating(true);
-    try {
-      const newTask = await createTask({
-        title: 'Nova Tarefa (sem título)',
-        user_id: user.id,
-        status: 'todo',
-        priority: 'medium',
-      });
-      toast.success('Tarefa criada com sucesso!');
-      navigate(`/tasks/${newTask.id}`);
-    } catch (error: any) {
-      toast.error('Não foi possível criar a tarefa.', {
-        description: error.message,
-      });
-    } finally {
-      setIsCreating(false);
-    }
+  const handleOpenCreateDialog = () => {
+    setDefaultDueDate(undefined);
+    setShowCreateDialog(true);
+  };
+
+  const handleDateClick = (date: Date) => {
+    setDefaultDueDate(date);
+    setShowCreateDialog(true);
+  };
+
+  const handleTaskCreated = (task: any) => {
+    toast.success('Tarefa criada com sucesso!');
+    navigate(`/tasks/${task.id}`);
   };
 
   const handleConfirmDelete = async () => {
@@ -179,8 +175,8 @@ const TasksPage = () => {
         <div className="flex items-center gap-2">
           <FocusModeSelector value={focusMode} onChange={setFocusMode} />
           <ViewToggle value={currentView} onChange={handleViewChange} />
-          <Button onClick={handleCreateAndNavigate} disabled={isCreating} className="flex items-center gap-2">
-            {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          <Button onClick={handleOpenCreateDialog} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
             Nova Tarefa
           </Button>
         </div>
@@ -225,9 +221,18 @@ const TasksPage = () => {
           <TasksCalendarView 
             tasks={filteredTasks}
             onTaskClick={handleTaskClick}
+            onDateClick={handleDateClick}
           />
         ) : null}
       </div>
+
+      {/* Dialog de Criação de Tarefa */}
+      <CreateTaskDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        defaultDueDate={defaultDueDate}
+        onTaskCreated={handleTaskCreated}
+      />
 
       {/* Diálogo de Confirmação de Exclusão */}
       <AlertDialog open={!!taskToDelete} onOpenChange={() => setTaskToDelete(null)}>

@@ -1,4 +1,4 @@
-// src/components/comments/MentionComments.tsx (VERSÃO FINAL CORRIGIDA)
+// src/components/comments/MentionComments.tsx
 
 import { useState } from 'react';
 import { useComments } from '@/hooks/useComments';
@@ -6,7 +6,7 @@ import { useProfiles } from '@/hooks/useProfiles';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageCircle, Trash2, User, Loader2 } from 'lucide-react';
+import { MessageCircle, Trash2, User, Loader2, Pencil, X, Check } from 'lucide-react';
 import { formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,11 +28,13 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
   }
 
   const { user } = useAuth();
-  const { comments, loading: loadingComments, addComment, deleteComment } = useComments(taskId);
+  const { comments, loading: loadingComments, addComment, updateComment, deleteComment } = useComments(taskId);
   const { profiles, loading: loadingProfiles } = useProfiles();
   const [newComment, setNewComment] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   const safeComments = comments ?? [];
 
@@ -76,6 +78,29 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
       success: 'Comentário adicionado!',
       error: (err) => `Falha ao adicionar comentário: ${err.message}`,
     });
+  };
+
+  const handleStartEdit = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditingContent(comment.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingContent('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCommentId || !editingContent.trim()) return;
+    
+    try {
+      await updateComment(editingCommentId, editingContent.trim());
+      toast.success('Comentário atualizado!');
+      setEditingCommentId(null);
+      setEditingContent('');
+    } catch (err: any) {
+      toast.error(`Erro ao atualizar: ${err.message}`);
+    }
   };
 
   const filteredUsers = searchTerm
@@ -138,10 +163,38 @@ const MentionComments: React.FC<MentionCommentsProps> = ({ taskId }) => {
                       </div>
                     </div>
                     {user?.id === comment.user_id && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteComment(comment.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                      <div className="flex gap-1">
+                        {editingCommentId !== comment.id && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleStartEdit(comment)}>
+                            <Pencil className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteComment(comment.id)}>
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  <p className="text-gray-700 text-sm whitespace-pre-wrap">{comment.content}</p>
+                  {editingCommentId === comment.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={editingContent}
+                        onChange={(e) => setEditingContent(e.target.value)}
+                        rows={2}
+                        className="text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={handleSaveEdit} disabled={!editingContent.trim()}>
+                          <Check className="w-4 h-4 mr-1" /> Salvar
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                          <X className="w-4 h-4 mr-1" /> Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{comment.content}</p>
+                  )}
                 </div>
               ))
             )

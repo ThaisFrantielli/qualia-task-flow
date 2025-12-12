@@ -21,6 +21,7 @@ interface CreateTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   defaultProjectId?: string;
   defaultSection?: string;
+  defaultDueDate?: Date;
   onTaskCreated?: (task: any) => void;
 }
 
@@ -46,6 +47,7 @@ export function CreateTaskDialog({
   onOpenChange,
   defaultProjectId,
   defaultSection,
+  defaultDueDate,
   onTaskCreated,
 }: CreateTaskDialogProps) {
   const { user } = useAuth();
@@ -70,8 +72,9 @@ export function CreateTaskDialog({
       fetchData();
       setProjectId(defaultProjectId || '');
       setSection(defaultSection || '');
+      setDueDate(defaultDueDate);
     }
-  }, [open, defaultProjectId, defaultSection]);
+  }, [open, defaultProjectId, defaultSection, defaultDueDate]);
 
   const fetchData = async () => {
     const [projectsRes, usersRes, categoriesRes] = await Promise.all([
