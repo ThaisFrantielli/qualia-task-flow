@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones
+  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -43,18 +43,22 @@ const menuGroups: MenuGroup[] = [
     ]
   },
   {
-    title: 'ANALYTICS',
+    title: 'ANALÍTICOS',
     items: [
-      { label: 'Executive Summary', url: '/analytics/executive', icon: Crown },
-      { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-      { label: 'Faturamentos', url: '/analytics/financeiro', icon: BarChart3 },
-      { label: 'Indicado pra Venda', url: '/analytics/performance-vendas', icon: BarChart3 },
-      { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
+      { label: 'Visão Geral', url: '/analytics/executive', icon: Crown },
       { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
+      { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
+      { label: 'Vendas', url: '/analytics/vendas', icon: TrendingUp },
+      { label: 'Faturamento', url: '/analytics/financeiro', icon: BarChart3 },
+      { label: 'DRE Gerencial', url: '/analytics/resultado', icon: DollarSign },
+      { label: 'Gestão de Passivo', url: '/analytics/funding', icon: Briefcase },
+      { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
+      { label: 'Multas', url: '/analytics/multas', icon: FileText },
+      { label: 'Sinistros', url: '/analytics/sinistros', icon: Ticket },
+      { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
       { label: 'Clientes', url: '/analytics/clientes', icon: Briefcase },
       { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
-      { label: 'Revenue Gap', url: '/analytics/revenue-gap', icon: TrendingUp },
-      { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
+      { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
     ]
   },
   {

@@ -27,7 +27,6 @@ import SalesPerformance from '@/pages/analytics/SalesPerformance';
 import DataAudit from '@/pages/analytics/DataAudit';
 import ChurnDashboard from '@/pages/analytics/ChurnDashboard';
 import FinancialAnalytics from '@/pages/analytics/FinancialAnalytics';
-import ContractPerformanceDashboard from '@/pages/analytics/ContractPerformanceDashboard';
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -117,7 +116,7 @@ function App() {
                 <Route path="financeiro" element={<FinancialAnalytics />} />
                 <Route path="resultado" element={<FinancialResult />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
-                <Route path="performance-contratos" element={<ContractPerformanceDashboard />} />
+                {/* Performance de Contratos agora integrado em /analytics/contratos */}
                 <Route path="auditoria" element={<DataAudit />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />
                 <Route path="multas" element={<InfractionsDashboard />} />
