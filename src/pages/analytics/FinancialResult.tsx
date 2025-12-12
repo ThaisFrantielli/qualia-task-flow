@@ -1,515 +1,260 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, DonutChart } from '@tremor/react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, LineChart, Line } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Calendar, Filter, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Card, Title, Text, Metric, BarList } from '@tremor/react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Cell, Legend } from 'recharts';
+import { TrendingUp, DollarSign, Filter, ArrowUpCircle, ArrowDownCircle, X } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
 // --- HELPERS ---
-function parseCurrency(v: any): number {
-  if (typeof v === 'number') return v;
-  if (!v) return 0;
-  if (typeof v === 'string') {
-    const s = v.replace(/[R$\s.]/g, '').replace(',', '.');
-    return parseFloat(s) || 0;
-  }
-  return 0;
-}
+function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+function fmtCompact(v: number) { return `R$ ${(v / 1000).toFixed(0)}k`; }
+function getMonthKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0].substring(0, 7); }
+function monthLabel(ym: string) { if (!ym) return ''; const [y, m] = ym.split('-'); const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']; return `${months[Number(m) - 1]}/${String(y).slice(2)}`; }
 
-function fmtBRL(v: number): string {
-  try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
-  catch (e) { return String(v); }
-}
-
-function fmtCompact(v: number): string {
-  if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`;
-  if (v >= 1000) return `R$ ${(v / 1000).toFixed(0)}k`;
-  return fmtBRL(v);
-}
-
-function getMonthKey(dateString?: string): string {
-  if (!dateString || typeof dateString !== 'string') return '';
-  return dateString.split('T')[0].substring(0, 7);
-}
-
-function monthLabel(ym: string): string {
-  if (!ym || ym.length < 7) return ym;
-  const [y, m] = ym.split('-');
-  const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-  return `${months[Number(m) - 1]}/${String(y).slice(2)}`;
-}
-
-// --- COMPONENTE PRINCIPAL ---
 export default function FinancialResult(): JSX.Element {
-  // Hook de dados
-  const { data: rawLancamentos } = useBIData<AnyObject[]>('fat_lancamentos_*.json');
+  const { data: rawData } = useBIData<AnyObject[]>('fat_lancamentos_*.json');
+  const data = useMemo(() => Array.isArray(rawData) ? rawData : (rawData as any)?.data || [], [rawData]);
 
-  const lancamentos = useMemo(() => {
-    if (!rawLancamentos) return [];
-    if (Array.isArray(rawLancamentos)) return rawLancamentos as AnyObject[];
-    if ((rawLancamentos as any).data && Array.isArray((rawLancamentos as any).data)) return (rawLancamentos as any).data;
-    const keys = Object.keys(rawLancamentos as any);
-    for (const k of keys) if (Array.isArray((rawLancamentos as any)[k])) return (rawLancamentos as any)[k];
-    return [];
-  }, [rawLancamentos]);
-
-  // Estados de filtro
   const currentYear = new Date().getFullYear();
   const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
   const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
-  const [selectedNaturezas, setSelectedNaturezas] = useState<string[]>([]);
-  const [page, setPage] = useState(1);
+  const [selectedNatureza, setSelectedNatureza] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const pageSize = 15;
 
-  // Listas para filtros
-  const naturezas = useMemo(() => 
-    Array.from(new Set(lancamentos.map((l: AnyObject) => l.Natureza).filter(Boolean))).sort() as string[],
-    [lancamentos]
-  );
+  const naturezas = useMemo(() => Array.from(new Set(data.map((l: AnyObject) => l.Natureza).filter(Boolean))).sort() as string[], [data]);
 
-  // Lançamentos filtrados
-  const filteredLancamentos = useMemo(() => {
-    return lancamentos.filter((l: AnyObject) => {
-      const comp = l.DataCompetencia || l.DataVencimento || l.Data;
-      if (comp && dateFrom && comp < dateFrom) return false;
-      if (comp && dateTo && comp > dateTo) return false;
-      if (selectedNaturezas.length > 0 && !selectedNaturezas.includes(l.Natureza)) return false;
+  const filteredData = useMemo(() => {
+    return data.filter((l: AnyObject) => {
+      const d = l.DataCompetencia || l.DataVencimento;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      if (selectedNatureza && l.Natureza !== selectedNatureza) return false;
       return true;
     });
-  }, [lancamentos, dateFrom, dateTo, selectedNaturezas]);
+  }, [data, dateFrom, dateTo, selectedNatureza]);
 
-  // === KPIs ===
   const kpis = useMemo(() => {
-    const receitas = filteredLancamentos
-      .filter((l: AnyObject) => String(l.TipoLancamento || '').toLowerCase() === 'receber')
-      .reduce((s: number, l: AnyObject) => s + parseCurrency(l.ValorLiquido || l.Valor), 0);
-
-    const despesas = filteredLancamentos
-      .filter((l: AnyObject) => String(l.TipoLancamento || '').toLowerCase() === 'pagar')
-      .reduce((s: number, l: AnyObject) => s + parseCurrency(l.ValorLiquido || l.Valor), 0);
-
+    const receitas = filteredData.filter((l: AnyObject) => l.TipoLancamento === 'Receber').reduce((s: number, l: AnyObject) => s + parseCurrency(l.ValorLiquido), 0);
+    const despesas = filteredData.filter((l: AnyObject) => l.TipoLancamento === 'Pagar').reduce((s: number, l: AnyObject) => s + parseCurrency(l.ValorLiquido), 0);
     const margem = receitas - despesas;
     const margemPerc = receitas > 0 ? (margem / receitas) * 100 : 0;
-
     return { receitas, despesas, margem, margemPerc };
-  }, [filteredLancamentos]);
+  }, [filteredData]);
 
-  // === GRÁFICO WATERFALL (Cascata) ===
   const waterfallData = useMemo(() => {
-    const despesasPorNatureza: Record<string, number> = {};
+    const despesasMap: Record<string, number> = {};
+    filteredData.filter((l: AnyObject) => l.TipoLancamento === 'Pagar').forEach((l: AnyObject) => {
+        const n = l.Natureza || 'Outros';
+        despesasMap[n] = (despesasMap[n] || 0) + parseCurrency(l.ValorLiquido);
+    });
     
-    filteredLancamentos
-      .filter((l: AnyObject) => String(l.TipoLancamento || '').toLowerCase() === 'pagar')
-      .forEach((l: AnyObject) => {
-        const nat = l.Natureza || 'Outros';
-        despesasPorNatureza[nat] = (despesasPorNatureza[nat] || 0) + parseCurrency(l.ValorLiquido || l.Valor);
-      });
+    // Top 5 despesas + Outros
+    const sorted = Object.entries(despesasMap).sort((a, b) => b[1] - a[1]);
+    const top5 = sorted.slice(0, 5);
+    const outros = sorted.slice(5).reduce((s, i) => s + i[1], 0);
 
-    // Ordenar despesas por valor decrescente
-    const despesasOrdenadas = Object.entries(despesasPorNatureza)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8); // Top 8 naturezas
+    const chartData = [{ name: 'Receita Total', value: kpis.receitas, start: 0, end: kpis.receitas, fill: '#10b981' }];
+    let current = kpis.receitas;
 
-    const data: Array<{ name: string; value: number; start: number; end: number; color: string }> = [];
-    
-    // Barra 1: Receita Total
-    data.push({
-      name: 'Receita Total',
-      value: kpis.receitas,
-      start: 0,
-      end: kpis.receitas,
-      color: '#10b981'
+    top5.forEach(([name, val]) => {
+        const next = current - val;
+        chartData.push({ name: `(-) ${name}`, value: val, start: next, end: current, fill: '#ef4444' });
+        current = next;
     });
 
-    let acumulado = kpis.receitas;
+    if (outros > 0) {
+        const next = current - outros;
+        chartData.push({ name: '(-) Outras Despesas', value: outros, start: next, end: current, fill: '#ef4444' });
+        current = next;
+    }
 
-    // Barras intermediárias: Despesas
-    despesasOrdenadas.forEach(([natureza, valor]) => {
-      const start = acumulado;
-      acumulado -= valor;
-      data.push({
-        name: `(-) ${natureza}`,
-        value: valor,
-        start: acumulado,
-        end: start,
-        color: '#ef4444'
-      });
+    chartData.push({ name: 'Resultado Líquido', value: current, start: 0, end: current, fill: current >= 0 ? '#3b82f6' : '#ef4444' });
+
+    return chartData;
+  }, [filteredData, kpis.receitas]);
+
+  const monthlyTrend = useMemo(() => {
+    const map: Record<string, { rec: number, desp: number }> = {};
+    filteredData.forEach((l: AnyObject) => {
+        const k = getMonthKey(l.DataCompetencia);
+        if (!k) return;
+        if (!map[k]) map[k] = { rec: 0, desp: 0 };
+        const val = parseCurrency(l.ValorLiquido);
+        if (l.TipoLancamento === 'Receber') map[k].rec += val;
+        else map[k].desp += val;
     });
-
-    // Barra final: Resultado Líquido
-    data.push({
-      name: 'Resultado Líquido',
-      value: kpis.margem,
-      start: 0,
-      end: kpis.margem,
-      color: kpis.margem >= 0 ? '#10b981' : '#ef4444'
-    });
-
-    return data;
-  }, [filteredLancamentos, kpis]);
-
-  // === TOP 5 DESPESAS (DonutChart) ===
-  const top5Despesas = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredLancamentos
-      .filter((l: AnyObject) => String(l.TipoLancamento || '').toLowerCase() === 'pagar')
-      .forEach((l: AnyObject) => {
-        const nat = l.Natureza || 'Outros';
-        map[nat] = (map[nat] || 0) + parseCurrency(l.ValorLiquido || l.Valor);
-      });
-
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [filteredLancamentos]);
-
-  // === EVOLUÇÃO MENSAL DA MARGEM ===
-  const margemMensal = useMemo(() => {
-    const map: Record<string, { receitas: number; despesas: number }> = {};
-
-    filteredLancamentos.forEach((l: AnyObject) => {
-      const k = getMonthKey(l.DataCompetencia || l.DataVencimento || l.Data);
-      if (!k) return;
-      if (!map[k]) map[k] = { receitas: 0, despesas: 0 };
-
-      const valor = parseCurrency(l.ValorLiquido || l.Valor);
-      const tipo = String(l.TipoLancamento || '').toLowerCase();
-
-      if (tipo === 'receber') map[k].receitas += valor;
-      else if (tipo === 'pagar') map[k].despesas += valor;
-    });
-
     return Object.keys(map).sort().map(k => ({
-      mes: monthLabel(k),
-      receitas: map[k].receitas,
-      despesas: map[k].despesas,
-      margem: map[k].receitas - map[k].despesas
+        label: monthLabel(k),
+        Receitas: map[k].rec,
+        Despesas: map[k].desp,
+        Margem: map[k].rec - map[k].desp
     }));
-  }, [filteredLancamentos]);
+  }, [filteredData]);
 
-  // === TABELA DETALHAMENTO ===
+  const topDespesas = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredData.filter((l: AnyObject) => l.TipoLancamento === 'Pagar').forEach((l: AnyObject) => {
+        const n = l.Natureza || 'Outros';
+        map[n] = (map[n] || 0) + parseCurrency(l.ValorLiquido);
+    });
+    return Object.entries(map)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+  }, [filteredData]);
+
   const tableData = useMemo(() => {
-    return filteredLancamentos.map((l: AnyObject) => ({
-      data: l.DataCompetencia || l.DataVencimento || l.Data,
-      natureza: l.Natureza || 'N/A',
-      entidade: l.Cliente || l.Fornecedor || l.Entidade || 'N/A',
-      valor: parseCurrency(l.ValorLiquido || l.Valor),
-      tipo: String(l.TipoLancamento || '').toLowerCase(),
-      descricao: l.Descricao || l.HistoricoPadrao || ''
+    return filteredData.map((l: AnyObject) => ({
+        data: l.DataCompetencia,
+        natureza: l.Natureza,
+        entidade: l.Cliente || l.Fornecedor || 'N/D',
+        descricao: l.Descricao,
+        valor: parseCurrency(l.ValorLiquido),
+        tipo: l.TipoLancamento
     })).sort((a: any, b: any) => (b.data || '').localeCompare(a.data || ''));
-  }, [filteredLancamentos]);
+  }, [filteredData]);
 
-  const totalPages = Math.ceil(tableData.length / pageSize);
-  const pageItems = tableData.slice((page - 1) * pageSize, page * pageSize);
-
-  const clearFilters = () => {
-    setDateFrom(`${currentYear}-01-01`);
-    setDateTo(`${currentYear}-12-31`);
-    setSelectedNaturezas([]);
-    setPage(1);
-  };
+  const pageItems = tableData.slice(page * pageSize, (page + 1) * pageSize);
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <Title className="text-slate-900">DRE Gerencial</Title>
-          <Text className="mt-1 text-slate-500">Demonstração do Resultado do Exercício - Análise de Receitas vs Despesas</Text>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-            <DollarSign className="w-4 h-4" /> Resultado Econômico
-          </div>
-        </div>
+      <div className="flex justify-between items-center">
+        <div><Title className="text-slate-900">DRE Gerencial</Title><Text className="text-slate-500">Resultado Econômico (Competência)</Text></div>
+        <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><DollarSign className="w-4 h-4"/> Hub Financeiro</div>
       </div>
 
-      {/* Filtros */}
       <Card className="bg-white shadow-sm border border-slate-200">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4 text-slate-500" />
-          <Text className="font-medium text-slate-700">Filtros</Text>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
-            <Text className="text-xs text-slate-500 mb-1">Período de Competência</Text>
-            <div className="flex gap-2 items-center">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <input 
-                type="date" 
-                className="border border-slate-300 p-2 rounded-md w-full text-sm outline-none focus:ring-2 focus:ring-emerald-500" 
-                value={dateFrom} 
-                onChange={e => setDateFrom(e.target.value)} 
-              />
-              <span className="text-slate-400">até</span>
-              <input 
-                type="date" 
-                className="border border-slate-300 p-2 rounded-md w-full text-sm outline-none focus:ring-2 focus:ring-emerald-500" 
-                value={dateTo} 
-                onChange={e => setDateTo(e.target.value)} 
-              />
+        <div className="flex items-center gap-2 mb-4"><Filter className="w-4 h-4 text-slate-500"/><Text className="font-medium text-slate-700">Filtros</Text></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <Text className="text-xs text-slate-500 mb-1">Período (Competência)</Text>
+                <div className="flex gap-2">
+                    <input type="date" className="border p-2 rounded text-sm w-full" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                    <input type="date" className="border p-2 rounded text-sm w-full" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                </div>
             </div>
-          </div>
-          
-          <div>
-            <Text className="text-xs text-slate-500 mb-1">Natureza de Lançamento</Text>
-            <select 
-              multiple 
-              className="w-full border border-slate-300 rounded-md p-2 text-sm h-10 outline-none focus:ring-2 focus:ring-emerald-500" 
-              value={selectedNaturezas} 
-              onChange={e => setSelectedNaturezas(Array.from(e.target.selectedOptions).map(o => o.value))}
-            >
-              {naturezas.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-
-          <div className="flex items-end">
-            <button
-              className="bg-slate-100 hover:bg-slate-200 text-slate-600 w-full py-2 rounded-md text-sm transition-colors"
-              onClick={clearFilters}
-            >
-              Limpar Filtros
-            </button>
-          </div>
+            <div>
+                <Text className="text-xs text-slate-500 mb-1">Natureza (Opcional)</Text>
+                <select className="border p-2 rounded text-sm w-full" value={selectedNatureza || ''} onChange={e => setSelectedNatureza(e.target.value || null)}>
+                    <option value="">Todas</option>
+                    {naturezas.map((n: string) => <option key={n} value={n}>{n}</option>)}
+                </select>
+            </div>
+            <div className="flex items-end">
+                {selectedNatureza && <button onClick={() => setSelectedNatureza(null)} className="bg-slate-100 px-4 py-2 rounded text-sm hover:bg-slate-200 flex gap-2"><X size={14}/> Limpar Natureza</button>}
+            </div>
         </div>
       </Card>
 
-      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card decoration="top" decorationColor="emerald" className="bg-white border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <ArrowUpCircle className="w-5 h-5 text-emerald-600" />
-            <Text className="text-slate-500">Receita Operacional</Text>
-          </div>
-          <Metric className="text-slate-900">{fmtBRL(kpis.receitas)}</Metric>
-          <Text className="text-slate-500 text-sm mt-1">Total de entradas</Text>
+        <Card decoration="top" decorationColor="emerald">
+            <div className="flex items-center gap-2 mb-2"><ArrowUpCircle className="w-5 h-5 text-emerald-600"/><Text>Receita Operacional</Text></div>
+            <Metric>{fmtBRL(kpis.receitas)}</Metric>
         </Card>
-
-        <Card decoration="top" decorationColor="red" className="bg-white border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <ArrowDownCircle className="w-5 h-5 text-red-600" />
-            <Text className="text-slate-500">Custos Variáveis</Text>
-          </div>
-          <Metric className="text-slate-900">{fmtBRL(kpis.despesas)}</Metric>
-          <Text className="text-slate-500 text-sm mt-1">Total de saídas</Text>
+        <Card decoration="top" decorationColor="rose">
+            <div className="flex items-center gap-2 mb-2"><ArrowDownCircle className="w-5 h-5 text-rose-600"/><Text>Custos e Despesas</Text></div>
+            <Metric>{fmtBRL(kpis.despesas)}</Metric>
         </Card>
-
-        <Card decoration="top" decorationColor={kpis.margem >= 0 ? 'emerald' : 'rose'} className="bg-white border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            {kpis.margem >= 0 ? (
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
-            ) : (
-              <TrendingDown className="w-5 h-5 text-red-600" />
-            )}
-            <Text className="text-slate-500">Margem de Contribuição</Text>
-          </div>
-          <Metric className={kpis.margem >= 0 ? 'text-emerald-700' : 'text-red-700'}>
-            {fmtBRL(kpis.margem)}
-          </Metric>
-          <Text className={`text-sm mt-1 ${kpis.margem >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {kpis.margemPerc >= 0 ? '+' : ''}{kpis.margemPerc.toFixed(1)}% da receita
-          </Text>
+        <Card decoration="top" decorationColor={kpis.margem >= 0 ? 'blue' : 'rose'}>
+            <div className="flex items-center gap-2 mb-2"><TrendingUp className="w-5 h-5 text-blue-600"/><Text>Resultado Líquido</Text></div>
+            <Metric className={kpis.margem >= 0 ? 'text-blue-600' : 'text-rose-600'}>{fmtBRL(kpis.margem)}</Metric>
+            <Text className="text-xs text-slate-400 mt-1">{kpis.margemPerc.toFixed(1)}% de margem</Text>
         </Card>
       </div>
 
-      {/* Gráfico Waterfall */}
-      <Card className="bg-white shadow-sm border border-slate-200">
-        <Title className="text-slate-900 mb-2">Análise de Cascata - Formação do Resultado</Title>
-        <Text className="text-slate-500 text-sm mb-4">
-          Visualização da receita sendo consumida pelas despesas até chegar no resultado líquido
-        </Text>
-        <div className="h-96">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={waterfallData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis 
-                dataKey="name" 
-                angle={-45} 
-                textAnchor="end" 
-                height={100}
-                fontSize={11} 
-                tickLine={false} 
-                axisLine={false} 
-                stroke="#64748b" 
-              />
-              <YAxis 
-                fontSize={12} 
-                tickLine={false} 
-                axisLine={false} 
-                tickFormatter={fmtCompact} 
-                stroke="#64748b" 
-              />
-              <Tooltip 
-                formatter={(v: any) => [fmtBRL(v), 'Valor']} 
-                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} 
-              />
-              <Bar dataKey="start" stackId="a" fill="transparent" />
-              <Bar dataKey="value" stackId="a">
-                {waterfallData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-
-      {/* Gráficos Secundários */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top 5 Despesas */}
-        <Card className="bg-white shadow-sm border border-slate-200">
-          <Title className="text-slate-900">Top 5 Naturezas de Despesa</Title>
-          <Text className="text-slate-500 text-sm mb-4">Maiores categorias de saída do período</Text>
-          <DonutChart
-            data={top5Despesas}
-            category="value"
-            index="name"
-            valueFormatter={(v) => fmtBRL(v)}
-            colors={['red', 'rose', 'orange', 'amber', 'yellow']}
-            className="h-64"
-          />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+            <Title>Formação do Resultado (Waterfall)</Title>
+            <div className="h-72 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={waterfallData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                        <XAxis dataKey="name" fontSize={10} interval={0} angle={-15} textAnchor="end" height={60}/>
+                        <YAxis fontSize={12} tickFormatter={fmtCompact}/>
+                        <Tooltip formatter={fmtBRL}/>
+                        <Bar dataKey="start" stackId="a" fill="transparent" />
+                        <Bar dataKey="value" stackId="a">
+                            {waterfallData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
         </Card>
-
-        {/* Evolução Mensal */}
-        <Card className="bg-white shadow-sm border border-slate-200">
-          <Title className="text-slate-900">Evolução da Margem Mensal</Title>
-          <Text className="text-slate-500 text-sm mb-4">Tendência do resultado ao longo do tempo</Text>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={margemMensal} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="mes" 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  stroke="#64748b" 
-                />
-                <YAxis 
-                  fontSize={12} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickFormatter={fmtCompact} 
-                  stroke="#64748b" 
-                />
-                <Tooltip 
-                  formatter={(v: any, name: any) => {
-                    const labels: Record<string, string> = {
-                      'receitas': 'Receitas',
-                      'despesas': 'Despesas',
-                      'margem': 'Margem'
-                    };
-                    return [fmtBRL(Number(v)), labels[name] || name];
-                  }}
-                  contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="receitas" 
-                  stroke="#10b981" 
-                  strokeWidth={2} 
-                  dot={{ r: 3 }} 
-                  name="receitas"
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="despesas" 
-                  stroke="#ef4444" 
-                  strokeWidth={2} 
-                  dot={{ r: 3 }} 
-                  name="despesas"
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="margem" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3} 
-                  dot={{ r: 4 }} 
-                  name="margem"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+        <Card>
+            <Title>Evolução Mensal</Title>
+            <div className="h-72 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyTrend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                        <XAxis dataKey="label" fontSize={12}/>
+                        <YAxis fontSize={12} tickFormatter={fmtCompact}/>
+                        <Tooltip formatter={fmtBRL}/>
+                        <Legend/>
+                        <Line type="monotone" dataKey="Receitas" stroke="#10b981" strokeWidth={2} dot={{r:3}}/>
+                        <Line type="monotone" dataKey="Despesas" stroke="#ef4444" strokeWidth={2} dot={{r:3}}/>
+                        <Line type="monotone" dataKey="Margem" stroke="#3b82f6" strokeWidth={3} dot={{r:4}}/>
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
         </Card>
       </div>
 
-      {/* Tabela de Detalhamento */}
-      <Card className="bg-white shadow-sm border border-slate-200">
-        <Title className="text-slate-900 mb-4">Detalhamento de Lançamentos</Title>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+            <Title>Top Naturezas (Despesas)</Title>
+            <div className="mt-4 h-64 overflow-y-auto">
+                <BarList data={topDespesas} valueFormatter={fmtBRL} color="rose" />
+            </div>
+        </Card>
+        <Card>
+            <Title>Resumo por Tipo</Title>
+            <div className="mt-4 flex flex-col gap-4">
+                <div className="flex justify-between border-b pb-2">
+                    <Text>Receitas</Text>
+                    <Text className="font-bold text-emerald-600">{fmtBRL(kpis.receitas)}</Text>
+                </div>
+                <div className="flex justify-between border-b pb-2">
+                    <Text>Despesas</Text>
+                    <Text className="font-bold text-rose-600">{fmtBRL(kpis.despesas)}</Text>
+                </div>
+                <div className="flex justify-between pt-2">
+                    <Text className="font-bold">Saldo</Text>
+                    <Text className={`font-bold ${kpis.margem >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{fmtBRL(kpis.margem)}</Text>
+                </div>
+            </div>
+        </Card>
+      </div>
+
+      <Card>
+        <Title className="mb-4">Detalhamento de Lançamentos</Title>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase text-xs">
-              <tr>
-                <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3 font-medium">Natureza</th>
-                <th className="px-4 py-3 font-medium">Entidade</th>
-                <th className="px-4 py-3 font-medium">Descrição</th>
-                <th className="px-4 py-3 font-medium text-right">Valor</th>
-                <th className="px-4 py-3 font-medium text-center">Tipo</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pageItems.map((r: any, i: number) => (
-                <tr key={`lanc-${i}`} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-slate-600">
-                    {r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-slate-900 font-medium">{r.natureza}</td>
-                  <td className="px-4 py-3 text-slate-600 truncate max-w-xs">{r.entidade}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs truncate max-w-sm">{r.descricao}</td>
-                  <td className={`px-4 py-3 text-right font-semibold ${r.tipo === 'receber' ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {fmtBRL(r.valor)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {r.tipo === 'receber' ? (
-                      <div className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-medium">
-                        <ArrowUpCircle className="w-3 h-3" />
-                        Entrada
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium">
-                        <ArrowDownCircle className="w-3 h-3" />
-                        Saída
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {pageItems.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                    Nenhum lançamento encontrado com os filtros selecionados.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            <table className="w-full text-sm text-left">
+                <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
+                    <tr><th className="p-3">Data</th><th className="p-3">Natureza</th><th className="p-3">Entidade</th><th className="p-3">Descrição</th><th className="p-3 text-right">Valor</th><th className="p-3 text-center">Tipo</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                    {pageItems.map((r: any, i: number) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                            <td className="p-3 whitespace-nowrap">{r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '-'}</td>
+                            <td className="p-3 font-medium text-slate-700">{r.natureza}</td>
+                            <td className="p-3 truncate max-w-[200px]">{r.entidade}</td>
+                            <td className="p-3 truncate max-w-[250px] text-xs text-slate-500">{r.descricao}</td>
+                            <td className={`p-3 text-right font-bold ${r.tipo === 'Receber' ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtBRL(r.valor)}</td>
+                            <td className="p-3 text-center"><span className={`px-2 py-1 rounded text-xs ${r.tipo === 'Receber' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{r.tipo}</span></td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
-
-        {/* Paginação */}
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
-          <div className="text-sm text-slate-500">
-            Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, tableData.length)} de {tableData.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors text-sm"
-            >
-              Anterior
-            </button>
-            <Text className="text-slate-600">Página {page} / {totalPages || 1}</Text>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors text-sm"
-            >
-              Próximo
-            </button>
-          </div>
+        <div className="flex justify-between mt-4 border-t pt-4">
+            <Text className="text-sm">Página {page + 1} de {Math.ceil(tableData.length / pageSize)}</Text>
+            <div className="flex gap-2">
+                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
+                <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+            </div>
         </div>
       </Card>
     </div>

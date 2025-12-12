@@ -1,210 +1,104 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
-import RevenueGap from './RevenueGap';
 import { Card, Title, Text, Metric } from '@tremor/react';
-import { AlertOctagon, AlertTriangle, BarChart2, Shield } from 'lucide-react';
+import { AlertOctagon, CheckCircle, BarChart2, AlertTriangle, Shield } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
 export default function DataAudit(): JSX.Element {
-  const { data } = useBIData<AnyObject[]>('auditoria_vendas.json');
-
-  const records: AnyObject[] = useMemo(() => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data as AnyObject[];
-    if ((data as any).data && Array.isArray((data as any).data)) return (data as any).data;
-    const keys = Object.keys(data as any);
-    for (const k of keys) {
-      if (Array.isArray((data as any)[k])) return (data as any)[k];
-    }
-    return [];
-  }, [data]);
-
-  // Pagination for table
-  const [page, setPage] = useState(1);
+  const { data: rawData } = useBIData<AnyObject[]>('auditoria_consolidada.json');
+  const records = useMemo(() => Array.isArray(rawData) ? rawData : [], [rawData]);
+  const [activeTab, setActiveTab] = useState<string>('Comercial');
+  const [page, setPage] = useState(0);
   const pageSize = 10;
 
-  const pageItems = useMemo(() => {
-    return records.slice((page - 1) * pageSize, page * pageSize);
-  }, [records, page]);
+  const tabs = ['Comercial', 'Frota', 'Compras', 'Manutenção'];
+  
+  const filtered = useMemo(() => records.filter(r => r.Area === activeTab), [records, activeTab]);
+  const paginated = useMemo(() => filtered.slice(page * pageSize, (page + 1) * pageSize), [filtered, page]);
+  const totalPages = Math.ceil(filtered.length / pageSize);
 
-  const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
-
-  // Tabs
-  const tabs = [
-    { key: 'vendas', label: 'Vendas & Comercial', count: 38 },
-    { key: 'cadastro', label: 'Cadastro & Frota', count: 0 },
-    { key: 'financeiro', label: 'Financeiro', count: 0 },
-    { key: 'gap', label: 'Gap de Faturamento', count: 0 },
-  ];
-  const [activeTab, setActiveTab] = useState<string>('vendas');
+  const kpis = useMemo(() => {
+    const total = records.length;
+    const alta = records.filter(r => r.Gravidade === 'Alta').length;
+    const media = records.filter(r => r.Gravidade === 'Média').length;
+    const score = total > 0 ? Math.max(0, 100 - (alta * 5) - (media * 1)) : 100; // Score fictício de qualidade
+    return { total, alta, media, score };
+  }, [records]);
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Title className="text-slate-900">Monitoramento de Qualidade de Dados</Title>
-          <Text className="mt-1 text-slate-500">Centro de controle para identificar e priorizar correções de dados.</Text>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Hub Qualidade & Auditoria
-          </div>
-        </div>
+      <div className="flex justify-between items-center">
+        <div><Title className="text-slate-900">Monitoramento de Qualidade de Dados</Title><Text className="text-slate-500">Auditoria contínua da base de dados.</Text></div>
+        <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Shield className="w-4 h-4"/> Governança</div>
       </div>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-white shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-red-50">
-              <AlertOctagon className="text-red-600" size={20} />
-            </div>
-            <div>
-              <Text className="text-slate-500 text-sm">Erros Críticos</Text>
-              <Metric className="text-red-600">38</Metric>
-            </div>
-          </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card decoration="top" decorationColor="rose">
+            <div className="flex items-center gap-2 mb-2"><AlertOctagon className="w-5 h-5 text-rose-600"/><Text>Erros Críticos (Alta)</Text></div>
+            <Metric className="text-rose-600">{kpis.alta}</Metric>
         </Card>
-
-        <Card className="bg-white shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-50">
-              <AlertTriangle className="text-amber-600" size={20} />
-            </div>
-            <div>
-              <Text className="text-slate-500 text-sm">Alertas de Cadastro</Text>
-              <Metric className="text-amber-700">0</Metric>
-            </div>
-          </div>
+        <Card decoration="top" decorationColor="amber">
+            <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-5 h-5 text-amber-600"/><Text>Alertas (Média)</Text></div>
+            <Metric className="text-amber-600">{kpis.media}</Metric>
         </Card>
-
-        <Card className="bg-white shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-50">
-              <BarChart2 className="text-emerald-600" size={20} />
-            </div>
-            <div>
-              <Text className="text-slate-500 text-sm">Score de Qualidade</Text>
-              <Metric className="text-emerald-600">98%</Metric>
-            </div>
-          </div>
+        <Card decoration="top" decorationColor={kpis.score >= 90 ? 'emerald' : 'blue'}>
+            <div className="flex items-center gap-2 mb-2"><BarChart2 className="w-5 h-5 text-blue-600"/><Text>Score de Qualidade</Text></div>
+            <Metric>{kpis.score}%</Metric>
         </Card>
       </div>
 
-      {/* Tabs */}
-      <div>
-        <div className="flex space-x-1 bg-slate-200 p-1 rounded-lg w-fit">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => { setActiveTab(t.key); setPage(1); }}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === t.key ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-            >
-              {`${t.label} (${t.count})`}
-            </button>
-          ))}
-        </div>
+      <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
+        {tabs.map(t => {
+            const count = records.filter(r => r.Area === t).length;
+            return (
+                <button 
+                    key={t} 
+                    onClick={() => { setActiveTab(t); setPage(0); }} 
+                    className={`px-4 py-2 rounded text-sm font-medium transition-all ${activeTab === t ? 'bg-white shadow text-rose-600' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                    {t} ({count})
+                </button>
+            );
+        })}
+      </div>
 
-        <div className="mt-4">
-          {activeTab === 'vendas' && (
-            <Card className="bg-white shadow-sm border border-slate-200">
-              <Title className="text-slate-900 mb-4">Registros com datas nulas / inconsistências (prioridade Alta)</Title>
-              <div className="overflow-x-auto">
+      <Card>
+        <Title className="mb-4">Inconsistências: {activeTab}</Title>
+        {filtered.length > 0 ? (
+            <>
                 <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Placa</th>
-                      <th className="px-4 py-3 font-medium">Modelo</th>
-                      <th className="px-4 py-3 font-medium">Gravidade</th>
-                      <th className="px-4 py-3 font-medium">Erro</th>
-                      <th className="px-4 py-3 font-medium">Ação Recomendada</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {pageItems.map((r, i) => (
-                      <tr key={`audit-${i}`} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-slate-900">
-                          {r.Placa || <span className="inline-block bg-slate-100 text-slate-500 px-2 py-1 rounded text-xs">N/A</span>}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{r.Modelo || '-'}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
-                            Alta
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">
-                          {r.Motivo || r.MensagemErro || r.MotivoErro || 'Inconsistência'}
-                        </td>
-                        <td className="px-4 py-3 text-slate-500 text-xs">
-                          {r.Recomendacao || 'Verificar Data de Saída no ERP'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                    <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
+                        <tr><th className="p-3">Placa</th><th className="p-3">Modelo</th><th className="p-3">Erro Detectado</th><th className="p-3">Gravidade</th><th className="p-3">Ação Recomendada</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {paginated.map((r, i) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                                <td className="p-3 font-mono font-bold text-slate-800">{r.Placa}</td>
+                                <td className="p-3 text-slate-600">{r.Modelo}</td>
+                                <td className="p-3 font-medium text-rose-700">{r.Erro}</td>
+                                <td className="p-3"><span className={`px-2 py-1 rounded text-xs text-white font-bold ${r.Gravidade === 'Alta' ? 'bg-rose-500' : 'bg-amber-500'}`}>{r.Gravidade}</span></td>
+                                <td className="p-3 text-blue-600 underline cursor-pointer">{r.Recomendacao}</td>
+                            </tr>
+                        ))}
+                    </tbody>
                 </table>
-              </div>
-
-              {/* Pagination controls */}
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-slate-500">
-                  Mostrando {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, records.length)} de {records.length}
+                <div className="flex justify-between mt-4 border-t pt-4">
+                    <Text className="text-sm">Página {page + 1} de {totalPages}</Text>
+                    <div className="flex gap-2">
+                        <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
+                        <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                    className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
-                  >
-                    Anterior
-                  </button>
-                  <Text className="text-slate-600">Página {page} / {totalPages}</Text>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page >= totalPages}
-                    className="px-3 py-1 rounded-md bg-slate-100 text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors"
-                  >
-                    Próximo
-                  </button>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {activeTab === 'cadastro' && (
-            <Card className="bg-white shadow-sm border border-slate-200">
-              <Title className="text-slate-900">Cadastro & Frota</Title>
-              <div className="mt-4 p-6 rounded-lg bg-slate-50 border border-slate-100 text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
-                  <BarChart2 className="text-emerald-600" size={24} />
-                </div>
-                <Text className="text-slate-600">Nenhum alerta por enquanto.</Text>
-                <Text className="text-xs text-slate-400 mt-1">Todos os registros estão em conformidade.</Text>
-              </div>
-            </Card>
-          )}
-
-          {activeTab === 'financeiro' && (
-            <Card className="bg-white shadow-sm border border-slate-200">
-              <Title className="text-slate-900">Financeiro</Title>
-              <div className="mt-4 p-6 rounded-lg bg-slate-50 border border-slate-100 text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
-                  <BarChart2 className="text-emerald-600" size={24} />
-                </div>
-                <Text className="text-slate-600">Nenhum alerta por enquanto.</Text>
-                <Text className="text-xs text-slate-400 mt-1">Todos os registros estão em conformidade.</Text>
-              </div>
-            </Card>
-          )}
-          {activeTab === 'gap' && (
-            <div>
-              <RevenueGap />
+            </>
+        ) : (
+            <div className="text-center py-12 text-emerald-600 flex flex-col items-center">
+                <CheckCircle size={48} className="mb-4 opacity-50"/>
+                <Title className="text-emerald-700">Tudo limpo!</Title>
+                <Text>Nenhuma inconsistência encontrada nesta área.</Text>
             </div>
-          )}
-        </div>
-      </div>
+        )}
+      </Card>
     </div>
   );
 }
