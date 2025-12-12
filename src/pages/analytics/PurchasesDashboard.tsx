@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { 
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Cell, PieChart, Pie, Legend, BarChart, LabelList, AreaChart, Area, Brush 
 } from 'recharts';
 import { 
-  ShoppingBag, Filter, ShieldAlert, X, ChevronDown, ChevronRight, Car, Download, Search, FileSpreadsheet, ArrowUp, ArrowDown, ArrowRightLeft 
+  ShoppingBag, Filter, ShieldAlert, X, ChevronDown, ChevronRight, Car, Search, FileSpreadsheet, ArrowUp, ArrowDown, Check, Square, CheckSquare, ArrowRightLeft
 } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
@@ -34,34 +34,89 @@ function calcParcelasPagas(vencimentoPrimeira: string, totalParcelas: number): n
     return Math.max(0, Math.min(meses, totalParcelas));
 }
 
-// Tooltip Customizado para Evolução (Com Valor Anterior Explicito)
+// --- COMPONENTE CUSTOMIZADO MULTI-SELECT ---
+const MultiSelect = ({ options, selected, onChange, label }: { options: string[], selected: string[], onChange: (val: string[]) => void, label: string }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false);
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [ref]);
+
+    const handleSelect = (val: string) => {
+        if (selected.includes(val)) onChange(selected.filter(v => v !== val));
+        else onChange([...selected, val]);
+    };
+
+    const toggleAll = () => {
+        if (selected.length === options.length) onChange([]); 
+        else onChange([...options]); 
+    };
+
+    const allSelected = options.length > 0 && selected.length === options.length;
+
+    return (
+        <div className="relative w-full" ref={ref}>
+            <label className="text-xs text-slate-500 block mb-1">{label}</label>
+            <div 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="w-full border border-slate-300 rounded-md p-2 text-sm bg-white cursor-pointer flex justify-between items-center h-10 hover:border-blue-400 transition-colors"
+            >
+                <span className="truncate text-slate-700">
+                    {selected.length === 0 ? 'Selecione...' : selected.length === options.length ? 'Todos selecionados' : `${selected.length} selecionados`}
+                </span>
+                <ChevronDown size={16} className="text-slate-400" />
+            </div>
+            
+            {isOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {options.length > 0 && (
+                        <div 
+                            onClick={toggleAll}
+                            className="flex items-center gap-2 p-2 hover:bg-slate-100 cursor-pointer border-b border-slate-100 font-medium text-blue-600 sticky top-0 bg-white"
+                        >
+                            {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                            <span className="text-sm">Selecionar Todos</span>
+                        </div>
+                    )}
+                    
+                    {options.map(opt => (
+                        <div 
+                            key={opt} 
+                            onClick={() => handleSelect(opt)}
+                            className="flex items-center gap-2 p-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"
+                        >
+                            <div className={`w-4 h-4 border rounded flex items-center justify-center ${selected.includes(opt) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                                {selected.includes(opt) && <Check size={12} className="text-white" />}
+                            </div>
+                            <span className="text-sm text-slate-700 truncate">{opt}</span>
+                        </div>
+                    ))}
+                    {options.length === 0 && <div className="p-2 text-xs text-slate-400 text-center">Sem opções</div>}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Tooltip Customizado
 const CustomTooltipEvolution = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         const delta = data.Delta || 0;
-        const valorAnterior = data.ValorPrev || 0; // Pega o valor do ano anterior que já calculamos
+        const valorAnterior = data.ValorPrev || 0;
         const isPositive = delta >= 0;
 
         return (
             <div className="bg-white p-3 border border-slate-200 rounded shadow-lg text-sm min-w-[200px] z-50">
                 <p className="font-bold mb-2 border-b pb-1 text-slate-700 capitalize">{label}</p>
-                
-                <div className="flex justify-between gap-4 mb-1">
-                    <span className="text-slate-500">Valor Atual:</span>
-                    <span className="font-bold text-blue-600">{fmtBRL(data.Valor)}</span>
-                </div>
-                
-                {/* Linha Nova: Mostra o valor de referência */}
-                <div className="flex justify-between gap-4 mb-1">
-                    <span className="text-slate-400 text-xs">Ano Anterior:</span>
-                    <span className="text-slate-500 text-xs">{fmtBRL(valorAnterior)}</span>
-                </div>
-
-                <div className="flex justify-between gap-4 mb-1">
-                    <span className="text-slate-500">Qtd:</span>
-                    <span className="font-medium text-amber-600">{data.Qtd} veíc.</span>
-                </div>
-
+                <div className="flex justify-between gap-4 mb-1"><span className="text-slate-500">Valor Atual:</span><span className="font-bold text-blue-600">{fmtBRL(data.Valor)}</span></div>
+                <div className="flex justify-between gap-4 mb-1"><span className="text-slate-400 text-xs">Ano Anterior:</span><span className="text-slate-500 text-xs">{fmtBRL(valorAnterior)}</span></div>
+                <div className="flex justify-between gap-4 mb-1"><span className="text-slate-500">Qtd:</span><span className="font-medium text-amber-600">{data.Qtd} veíc.</span></div>
                 <div className="flex justify-between gap-4 border-t pt-2 mt-1 items-center">
                     <span className="text-slate-700 font-medium">Variação (YoY):</span>
                     <span className={`font-bold flex items-center px-2 py-0.5 rounded ${isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
@@ -111,7 +166,7 @@ export default function PurchasesDashboard(): JSX.Element {
   const [forecastMonths, setForecastMonths] = useState<number | 'MAX'>(24);
   const [viewModelo, setViewModelo] = useState<'qtd' | 'fipe'>('qtd');
 
-  // Filtros Multi-Select (Estado Corrigido)
+  // Filtros Multi-Select
   const [filterState, setFilterState] = useState<{ 
     fornecedor: string[]; 
     mes: string | null; 
@@ -119,8 +174,7 @@ export default function PurchasesDashboard(): JSX.Element {
     banco: string[]; 
     situacaoVeiculo: string[]; 
     search: string;
-    // Adicionei modelo e proprietario aqui para compatibilidade com a função de filtro
-    modelo: string | null;
+    modelo: string | null; 
     proprietario: string | null;
   }>({ 
     fornecedor: [], mes: null, montadora: [], banco: [], situacaoVeiculo: [], search: '', modelo: null, proprietario: null 
@@ -134,12 +188,8 @@ export default function PurchasesDashboard(): JSX.Element {
 
   const hasActiveFilters = !!(filterState.fornecedor.length || filterState.mes || filterState.montadora.length || filterState.banco.length || filterState.situacaoVeiculo.length || filterState.search || filterState.modelo || filterState.proprietario);
 
-  const handleMultiSelect = (key: keyof typeof filterState, value: string) => {
-      setFilterState(prev => {
-          const current = prev[key] as string[];
-          if (current.includes(value)) return { ...prev, [key]: current.filter(v => v !== value) };
-          return { ...prev, [key]: [...current, value] };
-      });
+  const handleFilterChange = (key: keyof typeof filterState, values: string[]) => {
+      setFilterState(prev => ({ ...prev, [key]: values }));
   };
 
   // --- FILTRAGEM ---
@@ -185,14 +235,11 @@ export default function PurchasesDashboard(): JSX.Element {
     const count = dataSet.length;
     const totalFipe = dataSet.reduce((s, r) => s + parseCurrency(r.ValorFipeAtual), 0);
     const totalAcessorios = dataSet.reduce((s, r) => s + parseCurrency(r.ValorAcessorios), 0);
-    let somaDesagio = 0, countDesagio = 0;
-    dataSet.forEach(r => {
-      const c = parseCurrency(r.ValorCompra);
-      const f = parseCurrency(r.ValorFipeAtual);
-      if (f > 0 && c > 0) { somaDesagio += (1 - (c / f)); countDesagio++; }
-    });
-    const avgDesagio = countDesagio > 0 ? (somaDesagio / countDesagio) * 100 : 0;
-    return { totalInvest, count, totalAcessorios, avgDesagio, totalFipe };
+    
+    // Novo Cálculo: Média Ponderada da % FIPE
+    const avgPctFipe = totalFipe > 0 ? (totalInvest / totalFipe) * 100 : 0;
+
+    return { totalInvest, count, totalAcessorios, avgPctFipe, totalFipe };
   };
 
   const currentKPIs = useMemo(() => calculateKPIs(filteredCompras), [filteredCompras]);
@@ -251,6 +298,7 @@ export default function PurchasesDashboard(): JSX.Element {
         const parc = parseCurrency(a.ValorParcela);
         const venc = a.DataPrimeiroVencimento ? new Date(a.DataPrimeiroVencimento) : null;
         if (!venc || isNaN(venc.getTime())) return;
+        
         const rest = parseNum(a.QuantidadeParcelasRemanescentes);
         if (rest <= 0 || parc <= 0) return;
 
@@ -271,35 +319,38 @@ export default function PurchasesDashboard(): JSX.Element {
   }, [filteredAlienacoes, forecastMonths]);
 
   const financialSitData = useMemo(() => {
-    const map = { 'Alienado': { compra: 0, fipe: 0, qtd: 0 }, 'Próprio': { compra: 0, fipe: 0, qtd: 0 } };
+    const map = { 'Alienado': { compra: 0, fipe: 0, qtd: 0 }, 'Próprio': { compra: 0, fipe: 0, qtd: 0 }, 'Quitado': { compra: 0, fipe: 0, qtd: 0 } };
     filteredCompras.forEach(r => {
-      const sit = placaSituacaoFinanceiraMap[r.Placa] === 'Alienado' ? 'Alienado' : 'Próprio';
-      map[sit].compra += parseCurrency(r.ValorCompra);
-      map[sit].fipe += parseCurrency(r.ValorFipeAtual);
-      map[sit].qtd += 1;
+      const sit = placaSituacaoFinanceiraMap[r.Placa] === 'Alienado' ? 'Alienado' : (placaSituacaoFinanceiraMap[r.Placa] === 'Quitado' ? 'Quitado' : 'Próprio');
+      if (map[sit]) {
+        map[sit].compra += parseCurrency(r.ValorCompra);
+        map[sit].fipe += parseCurrency(r.ValorFipeAtual);
+        map[sit].qtd += 1;
+      }
     });
-    return [{ name: 'Alienado', ...map['Alienado'] }, { name: 'Próprio', ...map['Próprio'] }];
+    return Object.entries(map).map(([name, v]) => ({ name, ...v })).filter(d => d.qtd > 0);
   }, [filteredCompras, placaSituacaoFinanceiraMap]);
 
-  // Modelos (Com opção de Qtd ou % FIPE)
-  const modelChartData = useMemo(() => {
+  const qtdPorModelo = useMemo(() => {
+    const map: any = {};
+    filteredCompras.forEach(r => { const m = r.Modelo || 'Outros'; map[m] = (map[m] || 0) + 1; });
+    return Object.entries(map).map(([name, value]: any) => ({ name, value })).sort((a,b) => b.value - a.value);
+  }, [filteredCompras]);
+
+  const fipePorModelo = useMemo(() => {
     const map: any = {};
     filteredCompras.forEach(r => {
         const m = r.Modelo || 'Outros';
         const c = parseCurrency(r.ValorCompra);
         const f = parseCurrency(r.ValorFipeAtual);
-        if (!map[m]) map[m] = { qtd: 0, c: 0, f: 0 };
-        map[m].qtd += 1;
-        if (c > 0 && f > 0) { map[m].c += c; map[m].f += f; }
+        if (c > 0 && f > 0) { if(!map[m]) map[m] = { c: 0, f: 0 }; map[m].c += c; map[m].f += f; }
     });
-    
-    return Object.entries(map).map(([name, v]: any) => ({
-        name,
-        value: viewModelo === 'qtd' ? v.qtd : (v.c / v.f) * 100,
-        qtd: v.qtd,
-        pct: (v.c / v.f) * 100
-    })).sort((a,b) => viewModelo === 'qtd' ? b.value - a.value : a.value - b.value).slice(0, 50);
-  }, [filteredCompras, viewModelo]);
+    return Object.entries(map).map(([name, v]: any) => ({ name, value: (v.c / v.f) * 100 })).sort((a,b) => a.value - b.value).slice(0, 50);
+  }, [filteredCompras]);
+
+  const modelChartData = useMemo(() => {
+    return viewModelo === 'qtd' ? qtdPorModelo.slice(0, 50) : fipePorModelo.slice(0, 50);
+  }, [qtdPorModelo, fipePorModelo, viewModelo]);
 
   const qtdPorMontadora = useMemo(() => {
     const map: any = {};
@@ -359,7 +410,8 @@ export default function PurchasesDashboard(): JSX.Element {
         const acessorios = parseCurrency(r.ValorAcessorios);
         return {
             Placa: r.Placa, Modelo: r.Modelo, Fornecedor: r.Fornecedor,
-            AnoFab: r.AnoFabricacao || r.AnoModelo, AnoMod: r.AnoModelo,
+            AnoFab: r.AnoFabricacao || r.AnoModelo,
+            AnoMod: r.AnoModelo,
             compra, fipe, acessorios,
             pct: fipe > 0 ? (compra/fipe)*100 : 0,
             situacao: placaSituacaoFinanceiraMap[r.Placa] || 'Próprio'
@@ -407,15 +459,14 @@ export default function PurchasesDashboard(): JSX.Element {
         <div className="flex items-center gap-2 mb-4"><Filter className="w-4 h-4 text-slate-500"/><Text className="font-medium text-slate-700">Filtros</Text></div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div><Text className="text-xs text-slate-500 mb-1">Período</Text><div className="flex gap-2"><input type="date" className="border p-2 rounded text-sm w-full" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /><input type="date" className="border p-2 rounded text-sm w-full" value={dateTo} onChange={e => setDateTo(e.target.value)} /></div></div>
-            <div><Text className="text-xs text-slate-500 mb-1">Situação Veículo</Text><select multiple className="border p-2 rounded text-sm w-full h-10" value={filterState.situacaoVeiculo} onChange={e => handleMultiSelect('situacaoVeiculo', e.target.value)}><option value="" disabled>Selecione...</option>{uniqueOptions.situacoesVeiculo.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-            <div><Text className="text-xs text-slate-500 mb-1">Montadora</Text><select multiple className="border p-2 rounded text-sm w-full h-10" value={filterState.montadora} onChange={e => handleMultiSelect('montadora', e.target.value)}><option value="" disabled>Selecione...</option>{uniqueOptions.montadoras.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
-            <div><Text className="text-xs text-slate-500 mb-1">Banco</Text><select multiple className="border p-2 rounded text-sm w-full h-10" value={filterState.banco} onChange={e => handleMultiSelect('banco', e.target.value)}><option value="" disabled>Selecione...</option>{uniqueOptions.bancos.map(b => <option key={b} value={b}>{b}</option>)}</select></div>
-            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full" placeholder="Placa ou Modelo" value={filterState.search} onChange={e => setFilterState(p => ({...p, search: e.target.value}))}/></div></div>
+            <MultiSelect label="Situação Veículo" options={uniqueOptions.situacoesVeiculo} selected={filterState.situacaoVeiculo} onChange={(v) => handleFilterChange('situacaoVeiculo', v)} />
+            <MultiSelect label="Montadora" options={uniqueOptions.montadoras} selected={filterState.montadora} onChange={(v) => handleFilterChange('montadora', v)} />
+            <MultiSelect label="Banco" options={uniqueOptions.bancos} selected={filterState.banco} onChange={(v) => handleFilterChange('banco', v)} />
+            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={filterState.search} onChange={e => setFilterState(p => ({...p, search: e.target.value}))}/></div></div>
         </div>
         <div className="flex gap-2 mt-4 flex-wrap">
-            {filterState.situacaoVeiculo.map(s => <span key={s} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleMultiSelect('situacaoVeiculo', s)}/></span>)}
-            {filterState.montadora.map(m => <span key={m} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{m} <X size={12} className="cursor-pointer" onClick={() => handleMultiSelect('montadora', m)}/></span>)}
-            {filterState.banco.map(b => <span key={b} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{b} <X size={12} className="cursor-pointer" onClick={() => handleMultiSelect('banco', b)}/></span>)}
+            {filterState.situacaoVeiculo.map(s => <span key={s} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleFilterChange('situacaoVeiculo', filterState.situacaoVeiculo.filter(i => i !== s))}/></span>)}
+            {filterState.montadora.map(m => <span key={m} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{m} <X size={12} className="cursor-pointer" onClick={() => handleFilterChange('montadora', filterState.montadora.filter(i => i !== m))}/></span>)}
             {hasActiveFilters && <button onClick={() => setFilterState({ fornecedor: [], mes: null, montadora: [], banco: [], situacaoVeiculo: [], search: '', modelo: null, proprietario: null })} className="text-xs text-red-500 underline ml-auto">Limpar Todos</button>}
         </div>
       </Card>
@@ -436,7 +487,7 @@ export default function PurchasesDashboard(): JSX.Element {
                 </Card>
                 <Card decoration="top" decorationColor="emerald"><Text>Total FIPE</Text><Metric>{fmtCompact(currentKPIs.totalFipe)}</Metric><Text className="text-xs mt-1 text-slate-400">Patrimônio</Text></Card>
                 <Card decoration="top" decorationColor="amber"><Text>Acessórios</Text><Metric>{fmtCompact(currentKPIs.totalAcessorios)}</Metric></Card>
-                <Card decoration="top" decorationColor="violet"><Text>Deságio Médio</Text><Metric>{fmtDecimal(currentKPIs.avgDesagio)}%</Metric></Card>
+                <Card decoration="top" decorationColor="violet"><Text>% Média FIPE (Pago)</Text><Metric>{fmtDecimal(currentKPIs.avgPctFipe)}%</Metric><Text className="text-xs text-slate-400">Compra / FIPE</Text></Card>
                 <Card decoration="top" decorationColor="slate">
                     <Text>Veículos Adquiridos</Text>
                     <Metric>{fmtDecimal(currentKPIs.count)}</Metric>
@@ -473,7 +524,7 @@ export default function PurchasesDashboard(): JSX.Element {
                         </div>
                     </div>
                 </Card>
-                <Card><Title>Por Montadora (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(300, qtdPorMontadora.length * 30) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={qtdPorMontadora} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#ec4899" radius={[0,4,4,0]} barSize={20} onClick={(d) => setFilterState(p => ({...p, montadora: d.name}))} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
+                <Card><Title>Por Montadora (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(300, qtdPorMontadora.length * 30) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={qtdPorMontadora} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#ec4899" radius={[0,4,4,0]} barSize={20} onClick={(d) => setFilterState(p => ({...p, montadora: [d.name]}))} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
                 <Card><Title>Por Proprietário (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(200, ownerData.length * 40) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={ownerData} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[0,4,4,0]} barSize={25} onClick={(d) => setFilterState(p => ({...p, proprietario: d.name}))} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
             </div>
 
@@ -560,7 +611,7 @@ export default function PurchasesDashboard(): JSX.Element {
                                             <td className="p-3 text-center">{c.vencimento ? new Date(c.vencimento).toLocaleDateString('pt-BR') : '-'}</td>
                                         </tr>
                                         {isExpanded && (
-                                            <tr><td colSpan={9} className="bg-slate-50 p-4"><table className="w-full text-xs bg-white rounded border"><thead className="bg-slate-100"><tr><th className="p-2">Placa</th><th className="p-2">Modelo</th><th className="p-2 text-right">Compra</th><th className="p-2 text-right">Entrada Est.</th><th className="p-2 text-right">Vlr Financiado</th><th className="p-2 text-right">Vlr Parcela</th><th className="p-2 text-right">Saldo Devedor</th></tr></thead><tbody>{c.veiculos.map((v: any, idx: number) => { const vlrCompra = parseCurrency(frotaMap[v.Placa]?.ValorCompra || 0); const vlrEntrada = parseCurrency(v.ValorEntrada || 0); return (<tr key={idx} className="border-t"><td className="p-2 font-mono flex items-center gap-2"><Car size={12}/>{v.Placa}</td><td className="p-2">{v.Modelo}</td><td className="p-2 text-right">{fmtBRL(vlrCompra)}</td><td className="p-2 text-right text-emerald-600">{fmtBRL(vlrEntrada)}</td><td className="p-2 text-right">{fmtBRL(parseCurrency(v.ValorAlienado))}</td><td className="p-2 text-right">{fmtBRL(parseCurrency(v.ValorParcela))}</td><td className="p-2 text-right">{fmtBRL(parseCurrency(v.SaldoDevedor))}</td></tr>); })}</tbody></table></td></tr>
+                                            <tr><td colSpan={9} className="bg-slate-50 p-4"><table className="w-full text-xs bg-white rounded border"><thead className="bg-slate-100"><tr><th className="p-2">Placa</th><th className="p-2">Modelo</th><th className="p-2 text-right">Compra</th><th className="p-2 text-right">Entrada</th><th className="p-2 text-right">Vlr Financiado</th><th className="p-2 text-right">Vlr Parcela</th><th className="p-2 text-right">Saldo Devedor</th></tr></thead><tbody>{c.veiculos.map((v: any, idx: number) => { const vlrCompra = parseCurrency(frotaMap[v.Placa]?.ValorCompra || 0); const vlrEntrada = parseCurrency(v.ValorEntrada || 0); return (<tr key={idx} className="border-t"><td className="p-2 font-mono flex items-center gap-2"><Car size={12}/>{v.Placa}</td><td className="p-2">{v.Modelo}</td><td className="p-2 text-right">{fmtBRL(vlrCompra)}</td><td className="p-2 text-right text-emerald-600">{fmtBRL(vlrEntrada)}</td><td className="p-2 text-right">{fmtBRL(parseCurrency(v.ValorAlienado))}</td><td className="p-2 text-right">{fmtBRL(parseCurrency(v.ValorParcela))}</td><td className="p-2 text-right">{fmtBRL(parseCurrency(v.SaldoDevedor))}</td></tr>); })}</tbody></table></td></tr>
                                         )}
                                     </>
                                 );
