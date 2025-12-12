@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Wrench, Filter, X, AlertCircle } from 'lucide-react';
+import { Wrench, Filter, X } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
@@ -23,7 +23,7 @@ export default function MaintenanceDashboard(): JSX.Element {
 
   const [activeTab, setActiveTab] = useState(0);
   const [filterState, setFilterState] = useState<{ mes: string | null; oficina: string | null; placa: string | null; }>({ mes: null, oficina: null, placa: null });
-  const [page, setPage] = useState(0);
+  const [page] = useState(0);
   const pageSize = 10;
 
   const hasActiveFilters = !!(filterState.mes || filterState.oficina || filterState.placa);
@@ -51,12 +51,7 @@ export default function MaintenanceDashboard(): JSX.Element {
     const days = filteredOS.reduce((s, r) => s + parseNum(r.DiasParado), 0);
     const avgDays = count > 0 ? days / count : 0;
     
-    // CPK Calculation (Sum Cost / Sum Km of OSs that have Km)
-    const validKmOS = filteredOS.filter(r => parseNum(r.Km) > 0);
-    const costValid = validKmOS.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
-    const kmValid = validKmOS.reduce((s, r) => s + parseNum(r.Km), 0); // Note: Summing odometers is weird, usually we want delta. Assuming this is monthly delta or just an indicator.
-    // Better CPK approach for dashboard: Cost / (Total Fleet Km in period). Since we don't have fleet km delta here, let's use Avg Cost per Event as main metric.
-    
+    // CPK Calculation - not currently used but kept for future
     const stopped = filteredOS.filter(r => !r.DataSaida).length;
 
     return { totalCost, avgCost, avgDays, stopped };
