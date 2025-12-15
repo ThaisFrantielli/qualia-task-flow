@@ -254,8 +254,8 @@ export default function FleetDashboard(): JSX.Element {
   // Sorting
   const sortedData = useMemo(() => {
     return [...enrichedData].sort((a, b) => {
-      const aVal = a[sortConfig.key];
-      const bVal = b[sortConfig.key];
+      const aVal: any = (a as any)[sortConfig.key];
+      const bVal: any = (b as any)[sortConfig.key];
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortConfig.dir === 'asc' ? aVal - bVal : bVal - aVal;
       }
