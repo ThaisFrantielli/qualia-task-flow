@@ -12,9 +12,9 @@
     "preview": "vite preview",
     "dev:all": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\"",
     "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\"",
-    "db:sync": "bash scripts/sync_supabase.sh"
-    ,"supabase:functions:serve": "supabase functions serve"
-    ,"supabase:functions:deploy:create-user": "supabase functions deploy create-user"
+    "db:sync": "bash scripts/sync_supabase.sh",
+    "supabase:functions:serve": "supabase functions serve",
+    "supabase:functions:deploy:create-user": "supabase functions deploy create-user"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.19",
@@ -53,6 +53,7 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "@supabase/supabase-js": "^2.52.1",
     "@tanstack/react-query": "^5.84.2",
+    "@types/leaflet": "^1.9.21",
     "@types/pusher-js": "^5.1.0",
     "@vitejs/plugin-react": "^4.6.0",
     "axios": "^1.12.2",
@@ -68,6 +69,7 @@
     "firebase": "^12.1.0",
     "input-otp": "^1.2.4",
     "laravel-echo": "^2.2.3",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "pusher-js": "^8.4.0",
@@ -79,6 +81,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",
+    "react-leaflet": "^4.2.1",
     "react-resizable-panels": "^2.1.3",
     "react-router-dom": "^6.26.2",
     "recharts": "^2.12.7",
