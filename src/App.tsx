@@ -21,7 +21,6 @@ import TaskSettingsPage from '@/pages/TaskSettingsPage';
 import Notifications from '@/pages/Notifications';
 import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
-import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import DataAudit from '@/pages/analytics/DataAudit';
