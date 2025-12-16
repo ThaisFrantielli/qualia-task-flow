@@ -139,10 +139,17 @@ export const useAddTicketInteracao = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (interacao: TicketInteracaoInsert) => {
+        mutationFn: async (interacao: Omit<TicketInteracaoInsert, 'usuario_id'> & { user_id?: string }) => {
+            // Map user_id to usuario_id for database compatibility
+            const { user_id, ...rest } = interacao;
+            const dbInteracao = {
+                ...rest,
+                usuario_id: user_id
+            };
+            
             const { data, error } = await supabase
                 .from("ticket_interacoes")
-                .insert(interacao)
+                .insert(dbInteracao)
                 .select()
                 .single();
 
