@@ -97,10 +97,16 @@ export const useCreateTicket = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (ticket: TicketInsert) => {
+        mutationFn: async (ticket: Omit<TicketInsert, 'numero_ticket'> & { numero_ticket?: string }) => {
+            // Generate temporary ticket number if not provided (trigger will replace it)
+            const ticketData = {
+                ...ticket,
+                numero_ticket: ticket.numero_ticket || `TKT-${new Date().getFullYear()}-TEMP`
+            };
+            
             const { data, error } = await supabase
                 .from("tickets")
-                .insert(ticket)
+                .insert(ticketData)
                 .select()
                 .single();
 

@@ -78,24 +78,20 @@ export function CreateTicketDialog() {
     });
 
     function onSubmit(values: z.infer<typeof formSchema>) {
-        // Generate ticket number (will be overwritten by trigger if set)
-        const ticketNumber = `TKT-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
-        
         createTicket.mutate(
             {
-                numero_ticket: ticketNumber,
                 titulo: values.titulo,
-                sintese: values.sintese,
+                sintese: values.sintese || null,
                 cliente_id: values.cliente_id,
                 prioridade: values.prioridade,
                 origem: values.origem,
-                motivo: values.motivo as any, // Cast to enum type
-                departamento: values.departamento as any, // Cast to enum type
-                placa: values.placa,
+                motivo: values.motivo as any,
+                departamento: values.departamento as any,
+                placa: values.placa || null,
                 status: "aguardando_triagem",
                 fase: "Análise do caso",
                 tipo: "pos_venda"
-            },
+            } as any,
             {
                 onSuccess: () => {
                     toast.success("Ticket criado com sucesso!");
