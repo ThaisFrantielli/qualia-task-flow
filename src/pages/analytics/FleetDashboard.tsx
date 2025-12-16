@@ -733,9 +733,9 @@ export default function FleetDashboard(): JSX.Element {
                     <Title>Evolução Mensal de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
                     <div className="h-80 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={reservaKPIs.monthlyData} margin={{ left: 0, right: 40, bottom: 20 }}>
+                            <BarChart data={reservaKPIs.monthlyData} margin={{ left: 0, right: 40, bottom: 40 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" tick={{ fontSize: 11, angle: -45, textAnchor: 'end' }} height={80} />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} height={60} interval={0} />
                                 <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
                                 <Bar dataKey="value" fill="#3b82f6" radius={[6,6,0,0]} barSize={24}>
