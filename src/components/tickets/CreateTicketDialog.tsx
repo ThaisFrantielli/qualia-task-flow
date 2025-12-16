@@ -27,7 +27,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateTicket } from "@/hooks/useTickets";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -45,11 +45,8 @@ const formSchema = z.object({
     prioridade: z.string(),
     origem: z.string().min(1, "Origem é obrigatória"),
     motivo: z.string().min(1, "Motivo é obrigatório"),
-    submotivo: z.string().optional(),
     departamento: z.string().min(1, "Departamento é obrigatório"),
     placa: z.string().optional(),
-    nota_fatura: z.string().optional(),
-    ocorrencia: z.string().optional(),
 });
 
 export function CreateTicketDialog() {
@@ -76,41 +73,29 @@ export function CreateTicketDialog() {
             placa: "",
             origem: "",
             motivo: "",
-            submotivo: "",
-            nota_fatura: "",
-            ocorrencia: "",
             departamento: "",
         },
     });
 
-    const motivoValue = form.watch('motivo');
-    const motivoObj = TICKET_MOTIVO_OPTIONS.find(m => m.value === motivoValue) as any;
-
-    // When motivo changes, clear submotivo if not applicable
-    // (keep submotivo only when motivo defines children)
-    useEffect(() => {
-        if (!motivoObj || !motivoObj.children || motivoObj.children.length === 0) {
-            form.setValue('submotivo', '');
-            form.clearErrors('submotivo');
-        }
-    }, [motivoValue]);
-
     function onSubmit(values: z.infer<typeof formSchema>) {
-        // If selected motivo has children, require submotivo
-        const motivo = values.motivo;
-        const motivoObjLocal = TICKET_MOTIVO_OPTIONS.find(m => m.value === motivo) as any;
-        if (motivoObjLocal && motivoObjLocal.children && motivoObjLocal.children.length > 0 && !values.submotivo) {
-            form.setError('submotivo', { type: 'manual', message: 'Por favor selecione um submotivo' });
-            return;
-        }
-
+        // Generate ticket number (will be overwritten by trigger if set)
+        const ticketNumber = `TKT-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+        
         createTicket.mutate(
             {
-                ...values,
+                numero_ticket: ticketNumber,
+                titulo: values.titulo,
+                sintese: values.sintese,
+                cliente_id: values.cliente_id,
+                prioridade: values.prioridade,
+                origem: values.origem,
+                motivo: values.motivo as any, // Cast to enum type
+                departamento: values.departamento as any, // Cast to enum type
+                placa: values.placa,
                 status: "aguardando_triagem",
-                fase: "Análise do caso", // Fase inicial padrão para Pós-Venda
+                fase: "Análise do caso",
                 tipo: "pos_venda"
-            } as any,
+            },
             {
                 onSuccess: () => {
                     toast.success("Ticket criado com sucesso!");
@@ -118,6 +103,7 @@ export function CreateTicketDialog() {
                     form.reset();
                 },
                 onError: (error) => {
+                    console.error("Create ticket error:", error);
                     toast.error("Erro ao criar ticket: " + (error?.message || String(error)));
                 },
             }
@@ -191,37 +177,6 @@ export function CreateTicketDialog() {
                                     </FormItem>
                                 )}
                             />
-                        
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="nota_fatura"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Nota / Fatura</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Número da nota ou fatura" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="ocorrencia"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Ocorrência</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Código/descrição da ocorrência" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -290,7 +245,7 @@ export function CreateTicketDialog() {
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {TICKET_MOTIVO_OPTIONS.map((option: any) => (
+                                                {TICKET_MOTIVO_OPTIONS.map((option) => (
                                                     <SelectItem key={option.value} value={option.value}>
                                                         {option.label}
                                                     </SelectItem>
@@ -301,31 +256,6 @@ export function CreateTicketDialog() {
                                     </FormItem>
                                 )}
                             />
-
-                            {motivoObj && motivoObj.children && (
-                                <FormField
-                                    control={form.control}
-                                    name="submotivo"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Submotivo</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Selecione..." />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {motivoObj.children.map((c: any) => (
-                                                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            )}
 
                             <FormField
                                 control={form.control}
