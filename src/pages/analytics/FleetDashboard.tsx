@@ -1,10 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, Badge, BarList } from '@tremor/react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Car, Filter, X, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
+
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
