@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, ComposedChart, Line } from 'recharts';
-import { AlertOctagon, Filter, X, TrendingUp } from 'lucide-react';
+import { AlertOctagon, TrendingUp } from 'lucide-react';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
-// --- HELPERS ---
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function fmtBRL(v: number): string { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
 function fmtCompact(v: number): string { 
@@ -24,19 +25,22 @@ export default function InfractionsDashboard(): JSX.Element {
   const multas = useMemo(() => Array.isArray(multasData) ? multasData : [], [multasData]);
 
   const [activeTab, setActiveTab] = useState(0);
-  const [filterState, setFilterState] = useState<{ mes: string | null; condutor: string | null; tipo: string | null; }>({ mes: null, condutor: null, tipo: null });
-
-  const hasActiveFilters = !!(filterState.mes || filterState.condutor || filterState.tipo);
-  const clearFilters = () => setFilterState({ mes: null, condutor: null, tipo: null });
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
   const filteredMultas = useMemo(() => {
     return multas.filter((r: AnyObject) => {
-      if (filterState.mes && getMonthKey(r.DataInfracao) !== filterState.mes) return false;
-      if (filterState.condutor && r.Condutor !== filterState.condutor) return false;
-      if (filterState.tipo && r.TipoInfracao !== filterState.tipo) return false;
+      const mesValues = getFilterValues('mes');
+      const condutorValues = getFilterValues('condutor');
+      const tipoValues = getFilterValues('tipo');
+      const placaValues = getFilterValues('placa');
+      
+      if (mesValues.length > 0 && !mesValues.includes(getMonthKey(r.DataInfracao))) return false;
+      if (condutorValues.length > 0 && !condutorValues.includes(r.Condutor)) return false;
+      if (tipoValues.length > 0 && !tipoValues.includes(r.TipoInfracao)) return false;
+      if (placaValues.length > 0 && !placaValues.includes(r.Placa)) return false;
       return true;
     });
-  }, [multas, filterState]);
+  }, [multas, filters, getFilterValues]);
 
   const kpis = useMemo(() => {
     const valorTotal = filteredMultas.reduce((s, r) => s + parseCurrency(r.ValorMulta), 0);
@@ -109,25 +113,8 @@ export default function InfractionsDashboard(): JSX.Element {
         </div>
       </div>
 
-      {hasActiveFilters && (
-        <div className="fixed bottom-8 right-8 z-50">
-          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105">
-            <X className="w-5 h-5" /> Limpar Filtros
-          </button>
-        </div>
-      )}
-
-      {hasActiveFilters && (
-        <Card className="bg-blue-50 border-blue-200 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Filter className="w-4 h-4 text-blue-600" />
-            <Text className="font-medium text-blue-700">Filtros Ativos:</Text>
-            {filterState.mes && <span className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800">Mês: {monthLabel(filterState.mes)}</span>}
-            {filterState.condutor && <span className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 truncate max-w-[200px]">Condutor: {filterState.condutor}</span>}
-            {filterState.tipo && <span className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 truncate max-w-[300px]">Tipo: {filterState.tipo}</span>}
-          </div>
-        </Card>
-      )}
+      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
         {tabs.map((tab, idx) => (
@@ -171,8 +158,8 @@ export default function InfractionsDashboard(): JSX.Element {
                     <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
                     <YAxis yAxisId="right" orientation="right" fontSize={12} />
                     <Tooltip formatter={(v: any, n) => [n === 'Valor' ? fmtBRL(v) : v, n === 'Valor' ? 'Valor' : 'Quantidade']} />
-                    <Bar yAxisId="left" dataKey="Valor" fill="#f43f5e" radius={[4, 4, 0, 0]} onClick={(d) => setFilterState(p => ({ ...p, mes: p.mes === d.date ? null : d.date }))} cursor="pointer">
-                      {evolutionData.map((e, i) => <Cell key={i} fill={filterState.mes === e.date ? '#be123c' : '#f43f5e'} />)}
+                    <Bar yAxisId="left" dataKey="Valor" fill="#f43f5e" radius={[4, 4, 0, 0]} onClick={(d, _, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)} cursor="pointer">
+                      {evolutionData.map((e, i) => <Cell key={i} fill={isValueSelected('mes', e.date) ? '#be123c' : '#f43f5e'} />)}
                     </Bar>
                     <Line yAxisId="right" type="monotone" dataKey="Qtd" stroke="#3b82f6" strokeWidth={2} dot={false} />
                   </ComposedChart>
@@ -186,8 +173,8 @@ export default function InfractionsDashboard(): JSX.Element {
                 {topInfratores.map((item, idx) => (
                   <div 
                     key={idx} 
-                    onClick={() => setFilterState(p => ({ ...p, condutor: filterState.condutor === item.name ? null : item.name }))} 
-                    className={`flex justify-between items-center p-2 rounded cursor-pointer transition-all ${filterState.condutor === item.name ? 'bg-rose-100 ring-1 ring-rose-500' : 'hover:bg-slate-100'}`}
+                    onClick={(e) => handleChartClick('condutor', item.name, e)} 
+                    className={`flex justify-between items-center p-2 rounded cursor-pointer transition-all ${isValueSelected('condutor', item.name) ? 'bg-rose-100 ring-1 ring-rose-500' : 'hover:bg-slate-100'}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-600 text-xs flex items-center justify-center font-bold flex-shrink-0">{idx + 1}</span>
@@ -216,9 +203,9 @@ export default function InfractionsDashboard(): JSX.Element {
                     formatter={(v: any) => fmtBRL(v)} 
                     labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
                   />
-                  <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={20} cursor="pointer" onClick={(d) => setFilterState(p => ({ ...p, tipo: p.tipo === d.fullName ? null : d.fullName }))}>
+                  <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={20} cursor="pointer" onClick={(d, _, e) => handleChartClick('tipo', d.fullName, e as unknown as React.MouseEvent)}>
                     {tiposData.map((entry, i) => (
-                      <Cell key={i} fill={filterState.tipo === entry.fullName ? '#be123c' : COLORS[i % COLORS.length]} />
+                      <Cell key={i} fill={isValueSelected('tipo', entry.fullName) ? '#be123c' : COLORS[i % COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -240,7 +227,7 @@ export default function InfractionsDashboard(): JSX.Element {
                 </thead>
                 <tbody>
                   {tiposData.map((t, idx) => (
-                    <tr key={idx} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => setFilterState(p => ({ ...p, tipo: p.tipo === t.fullName ? null : t.fullName }))}>
+                    <tr key={idx} className={`border-t hover:bg-slate-50 cursor-pointer ${isValueSelected('tipo', t.fullName) ? 'bg-rose-50' : ''}`} onClick={(e) => handleChartClick('tipo', t.fullName, e)}>
                       <td className="p-3 max-w-[400px]"><span className="line-clamp-2">{t.fullName}</span></td>
                       <td className="p-3 text-center">{t.qtd}</td>
                       <td className="p-3 text-right font-medium text-rose-600">{fmtBRL(t.valor)}</td>
@@ -265,9 +252,9 @@ export default function InfractionsDashboard(): JSX.Element {
                   <XAxis type="number" fontSize={12} />
                   <YAxis dataKey="name" type="category" width={200} fontSize={11} tick={{ fill: '#475569' }} interval={0} />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={18} name="Qtd Multas" cursor="pointer" onClick={(d) => setFilterState(p => ({ ...p, condutor: p.condutor === d.name ? null : d.name }))}>
+                  <Bar dataKey="value" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={18} name="Qtd Multas" cursor="pointer" onClick={(d, _, e) => handleChartClick('condutor', d.name, e as unknown as React.MouseEvent)}>
                     {topInfratores.map((entry, i) => (
-                      <Cell key={i} fill={filterState.condutor === entry.name ? '#be123c' : '#f43f5e'} />
+                      <Cell key={i} fill={isValueSelected('condutor', entry.name) ? '#be123c' : '#f43f5e'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -288,8 +275,8 @@ export default function InfractionsDashboard(): JSX.Element {
                   <XAxis type="number" fontSize={12} tickFormatter={fmtCompact} />
                   <YAxis dataKey="name" type="category" width={100} fontSize={11} tick={{ fill: '#475569' }} interval={0} />
                   <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                  <Bar dataKey="valor" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Valor">
-                    {placasData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Bar dataKey="valor" fill="#f97316" radius={[0, 4, 4, 0]} barSize={18} name="Valor" cursor="pointer" onClick={(d, _, e) => handleChartClick('placa', d.name, e as unknown as React.MouseEvent)}>
+                    {placasData.map((entry, i) => <Cell key={i} fill={isValueSelected('placa', entry.name) ? '#c2410c' : COLORS[i % COLORS.length]} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -310,7 +297,7 @@ export default function InfractionsDashboard(): JSX.Element {
                 </thead>
                 <tbody>
                   {placasData.map((p, idx) => (
-                    <tr key={idx} className="border-t hover:bg-slate-50">
+                    <tr key={idx} className={`border-t hover:bg-slate-50 cursor-pointer ${isValueSelected('placa', p.name) ? 'bg-amber-50' : ''}`} onClick={(e) => handleChartClick('placa', p.name, e)}>
                       <td className="p-3 font-mono">{p.name}</td>
                       <td className="p-3 text-center">{p.qtd}</td>
                       <td className="p-3 text-right font-medium text-rose-600">{fmtBRL(p.valor)}</td>
@@ -343,10 +330,10 @@ export default function InfractionsDashboard(): JSX.Element {
                 {filteredMultas.slice(0, 100).map((r: AnyObject, i: number) => (
                   <tr key={i} className="hover:bg-slate-50 border-t">
                     <td className="p-3 whitespace-nowrap">{r.DataInfracao ? new Date(r.DataInfracao).toLocaleDateString('pt-BR') : '-'}</td>
-                    <td className="p-3 font-mono">{r.Placa || '-'}</td>
-                    <td className="p-3 truncate max-w-[150px]">{r.Condutor || '-'}</td>
-                    <td className="p-3 max-w-[300px]"><span className="line-clamp-2 text-xs">{r.TipoInfracao || '-'}</span></td>
-                    <td className="p-3 text-right font-bold text-rose-600">{fmtBRL(parseCurrency(r.ValorMulta))}</td>
+                    <td className="p-3 font-mono cursor-pointer hover:text-amber-600" onClick={(e) => handleChartClick('placa', r.Placa, e)}>{r.Placa}</td>
+                    <td className="p-3 truncate max-w-[150px] cursor-pointer hover:text-rose-600" onClick={(e) => handleChartClick('condutor', r.Condutor, e)}>{r.Condutor || '-'}</td>
+                    <td className="p-3 truncate max-w-[250px] cursor-pointer hover:text-blue-600" onClick={(e) => handleChartClick('tipo', r.TipoInfracao, e)}>{r.TipoInfracao || '-'}</td>
+                    <td className="p-3 text-right font-medium text-rose-600">{fmtBRL(parseCurrency(r.ValorMulta))}</td>
                     <td className="p-3 text-right text-emerald-600">{fmtBRL(parseCurrency(r.ValorReembolsado))}</td>
                   </tr>
                 ))}

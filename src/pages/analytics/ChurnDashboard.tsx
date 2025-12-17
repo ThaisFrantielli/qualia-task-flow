@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, ComposedChart, Line } from 'recharts';
-import { TrendingDown, UserMinus, DollarSign, Filter, X, Clock, AlertTriangle } from 'lucide-react';
+import { TrendingDown, UserMinus, DollarSign, Clock, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -17,7 +19,6 @@ function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.
 const COLORS = ['#ef4444', '#f59e0b', '#64748b', '#ec4899', '#8b5cf6', '#06b6d4'];
 
 export default function ChurnDashboard(): JSX.Element {
-  // Nova fonte de dados do ETL v33
   const { data: rawChurn } = useBIData<AnyObject[]>('fat_churn.json');
   const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos.json');
 
@@ -31,37 +32,44 @@ export default function ChurnDashboard(): JSX.Element {
     return Array.isArray(raw) ? raw : [];
   }, [rawContratos]);
 
-  const [selectedMotivo, setSelectedMotivo] = useState<string | null>(null);
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
   const [page, setPage] = useState(0);
   const pageSize = 15;
 
-  const hasActiveFilters = !!selectedMotivo;
-  const clearFilters = () => setSelectedMotivo(null);
-
-  // Filtrar churn
   const filteredChurn = useMemo(() => {
     return churn.filter(r => {
-      if (selectedMotivo && r.MotivoEncerramento !== selectedMotivo) return false;
+      const motivoValues = getFilterValues('motivo');
+      const mesValues = getFilterValues('mes');
+      const clienteValues = getFilterValues('cliente');
+      const duracaoValues = getFilterValues('duracao');
+      
+      if (motivoValues.length > 0 && !motivoValues.includes(r.MotivoEncerramento)) return false;
+      if (mesValues.length > 0 && !mesValues.includes(getMonthKey(r.DataEncerramento))) return false;
+      if (clienteValues.length > 0 && !clienteValues.includes(r.Cliente)) return false;
+      if (duracaoValues.length > 0) {
+        const d = parseNum(r.DuracaoMeses);
+        let faixa = '+36 meses';
+        if (d <= 6) faixa = '0-6 meses';
+        else if (d <= 12) faixa = '6-12 meses';
+        else if (d <= 24) faixa = '12-24 meses';
+        else if (d <= 36) faixa = '24-36 meses';
+        if (!duracaoValues.includes(faixa)) return false;
+      }
       return true;
     });
-  }, [churn, selectedMotivo]);
+  }, [churn, filters, getFilterValues]);
 
-  // KPIs
   const kpis = useMemo(() => {
     const totalEncerrados = filteredChurn.length;
     const valorMensalPerdido = filteredChurn.reduce((s, c) => s + parseCurrency(c.ValorMensal), 0);
     const duracaoMedia = filteredChurn.length > 0
-      ? filteredChurn.reduce((s, c) => s + parseNum(c.DuracaoMeses), 0) / filteredChurn.length
-      : 0;
-
-    // Contratos ativos para calcular churn rate
+      ? filteredChurn.reduce((s, c) => s + parseNum(c.DuracaoMeses), 0) / filteredChurn.length : 0;
     const contratosAtivos = contratos.filter(c => c.Status === 'Ativo').length;
     const churnRate = contratosAtivos > 0 ? (totalEncerrados / contratosAtivos) * 100 : 0;
 
     return { totalEncerrados, valorMensalPerdido, duracaoMedia, churnRate, contratosAtivos };
   }, [filteredChurn, contratos]);
 
-  // Evolução mensal de cancelamentos
   const evolutionData = useMemo(() => {
     const map: Record<string, { cancelados: number; valor: number }> = {};
     filteredChurn.forEach(r => {
@@ -72,14 +80,10 @@ export default function ChurnDashboard(): JSX.Element {
       map[k].valor += parseCurrency(r.ValorMensal);
     });
     return Object.keys(map).sort().slice(-12).map(k => ({
-      date: k,
-      label: monthLabel(k),
-      Cancelados: map[k].cancelados,
-      ValorPerdido: map[k].valor
+      date: k, label: monthLabel(k), Cancelados: map[k].cancelados, ValorPerdido: map[k].valor
     }));
   }, [filteredChurn]);
 
-  // Motivos de cancelamento
   const motivosData = useMemo(() => {
     const map: Record<string, { count: number; valor: number }> = {};
     filteredChurn.forEach(r => {
@@ -88,12 +92,9 @@ export default function ChurnDashboard(): JSX.Element {
       map[m].count += 1;
       map[m].valor += parseCurrency(r.ValorMensal);
     });
-    return Object.entries(map)
-      .map(([name, data]) => ({ name, value: data.count, valor: data.valor }))
-      .sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, data]) => ({ name, value: data.count, valor: data.valor })).sort((a, b) => b.value - a.value);
   }, [filteredChurn]);
 
-  // Distribuição por duração de contrato
   const duracaoData = useMemo(() => {
     const ranges = { '0-6 meses': 0, '6-12 meses': 0, '12-24 meses': 0, '24-36 meses': 0, '+36 meses': 0 };
     filteredChurn.forEach(c => {
@@ -107,7 +108,6 @@ export default function ChurnDashboard(): JSX.Element {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filteredChurn]);
 
-  // Ranking de clientes com mais cancelamentos
   const topClientesChurn = useMemo(() => {
     const map: Record<string, { count: number; valor: number }> = {};
     filteredChurn.forEach(c => {
@@ -116,13 +116,9 @@ export default function ChurnDashboard(): JSX.Element {
       map[cliente].count += 1;
       map[cliente].valor += parseCurrency(c.ValorMensal);
     });
-    return Object.entries(map)
-      .map(([name, data]) => ({ name, count: data.count, valor: data.valor }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+    return Object.entries(map).map(([name, data]) => ({ name, count: data.count, valor: data.valor })).sort((a, b) => b.count - a.count).slice(0, 10);
   }, [filteredChurn]);
 
-  // Tabela paginada
   const tableData = useMemo(() => {
     return [...filteredChurn].sort((a, b) => (b.DataEncerramento || '').localeCompare(a.DataEncerramento || ''));
   }, [filteredChurn]);
@@ -141,55 +137,25 @@ export default function ChurnDashboard(): JSX.Element {
         </div>
       </div>
 
-      {/* Floating Clear Button */}
-      {hasActiveFilters && (
-        <div className="fixed bottom-8 right-8 z-50">
-          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105">
-            <X className="w-5 h-5" /> Limpar Filtros
-          </button>
-        </div>
-      )}
+      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
 
-      {/* Active Filters */}
-      {hasActiveFilters && (
-        <Card className="bg-rose-50 border-rose-200 py-3">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-rose-600" />
-            <Text className="font-medium text-rose-700">Filtro Ativo:</Text>
-            <span className="bg-rose-100 px-2 py-1 rounded text-xs text-rose-800">Motivo: {selectedMotivo}</span>
-          </div>
-        </Card>
-      )}
-
-      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card decoration="top" decorationColor="rose">
-          <div className="flex items-center gap-2 mb-2">
-            <UserMinus className="w-4 h-4 text-rose-600" />
-            <Text>Contratos Cancelados</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-2"><UserMinus className="w-4 h-4 text-rose-600" /><Text>Contratos Cancelados</Text></div>
           <Metric>{kpis.totalEncerrados}</Metric>
         </Card>
         <Card decoration="top" decorationColor="amber">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <Text>Churn Rate</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4 text-amber-600" /><Text>Churn Rate</Text></div>
           <Metric>{kpis.churnRate.toFixed(1)}%</Metric>
           <Text className="text-xs text-slate-400">de {kpis.contratosAtivos} ativos</Text>
         </Card>
         <Card decoration="top" decorationColor="indigo">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-4 h-4 text-indigo-600" />
-            <Text>Receita Mensal Perdida</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-indigo-600" /><Text>Receita Mensal Perdida</Text></div>
           <Metric>{fmtCompact(kpis.valorMensalPerdido)}</Metric>
         </Card>
         <Card decoration="top" decorationColor="cyan">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-cyan-600" />
-            <Text>Duração Média</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-2"><Clock className="w-4 h-4 text-cyan-600" /><Text>Duração Média</Text></div>
           <Metric>{kpis.duracaoMedia.toFixed(1)} meses</Metric>
         </Card>
       </div>
@@ -214,7 +180,9 @@ export default function ChurnDashboard(): JSX.Element {
                   <YAxis yAxisId="right" orientation="right" fontSize={12} tickFormatter={fmtCompact} />
                   <Tooltip formatter={(v: any, name: string) => [name === 'ValorPerdido' ? fmtBRL(v) : v, name === 'ValorPerdido' ? 'Valor Perdido' : 'Cancelados']} />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="Cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} name="Cancelados" />
+                  <Bar yAxisId="left" dataKey="Cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} name="Cancelados" cursor="pointer" onClick={(d, _, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)}>
+                    {evolutionData.map((entry, i) => <Cell key={i} fill={isValueSelected('mes', entry.date) ? '#b91c1c' : '#ef4444'} />)}
+                  </Bar>
                   <Line yAxisId="right" type="monotone" dataKey="ValorPerdido" stroke="#8b5cf6" strokeWidth={2} name="Valor Perdido" />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -229,18 +197,8 @@ export default function ChurnDashboard(): JSX.Element {
               <div className="h-80 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={motivosData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={3}
-                      dataKey="value"
-                      onClick={(d) => setSelectedMotivo(selectedMotivo === d.name ? null : d.name)}
-                      cursor="pointer"
-                    >
-                      {motivosData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    <Pie data={motivosData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value" onClick={(d, _, e) => handleChartClick('motivo', d.name, e as unknown as React.MouseEvent)} cursor="pointer">
+                      {motivosData.map((entry, i) => <Cell key={i} fill={isValueSelected('motivo', entry.name) ? '#7c2d12' : COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip />
                     <Legend verticalAlign="bottom" />
@@ -252,15 +210,11 @@ export default function ChurnDashboard(): JSX.Element {
               <Title>Impacto por Motivo</Title>
               <div className="mt-4 space-y-3 h-80 overflow-y-auto">
                 {motivosData.map((item, idx) => {
-                  const isSelected = selectedMotivo === item.name;
+                  const isSelected = isValueSelected('motivo', item.name);
                   const maxVal = motivosData[0]?.value || 1;
                   const width = `${(item.value / maxVal) * 100}%`;
                   return (
-                    <div
-                      key={idx}
-                      onClick={() => setSelectedMotivo(isSelected ? null : item.name)}
-                      className={`p-3 rounded cursor-pointer transition-colors ${isSelected ? 'bg-rose-50 ring-1 ring-rose-200' : 'hover:bg-slate-50'}`}
-                    >
+                    <div key={idx} onClick={(e) => handleChartClick('motivo', item.name, e)} className={`p-3 rounded cursor-pointer transition-colors ${isSelected ? 'bg-rose-50 ring-1 ring-rose-200' : 'hover:bg-slate-50'}`}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className={`font-medium ${isSelected ? 'text-rose-700' : 'text-slate-700'}`}>{item.name}</span>
                         <div className="flex gap-4">
@@ -291,7 +245,9 @@ export default function ChurnDashboard(): JSX.Element {
                     <XAxis dataKey="name" fontSize={12} />
                     <YAxis fontSize={12} />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d, _, e) => handleChartClick('duracao', d.name, e as unknown as React.MouseEvent)}>
+                      {duracaoData.map((entry, i) => <Cell key={i} fill={isValueSelected('duracao', entry.name) ? '#5b21b6' : '#8b5cf6'} />)}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -300,7 +256,7 @@ export default function ChurnDashboard(): JSX.Element {
               <Title>Top 10 Clientes com Mais Cancelamentos</Title>
               <div className="mt-4 space-y-2 h-72 overflow-y-auto">
                 {topClientesChurn.map((item, idx) => (
-                  <div key={idx} className="flex justify-between p-2 rounded hover:bg-slate-50 border-b last:border-0">
+                  <div key={idx} onClick={(e) => handleChartClick('cliente', item.name, e)} className={`flex justify-between p-2 rounded hover:bg-slate-50 border-b last:border-0 cursor-pointer ${isValueSelected('cliente', item.name) ? 'bg-rose-50' : ''}`}>
                     <div>
                       <span className="font-medium text-slate-700">{idx + 1}. {item.name}</span>
                       <span className="text-xs text-slate-400 ml-2">{item.count} cancelamentos</span>
@@ -320,23 +276,19 @@ export default function ChurnDashboard(): JSX.Element {
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
                   <tr>
-                    <th className="p-3">Data</th>
-                    <th className="p-3">Cliente</th>
-                    <th className="p-3">Placa</th>
-                    <th className="p-3 text-center">Duração</th>
-                    <th className="p-3 text-right">Valor Mensal</th>
-                    <th className="p-3">Motivo</th>
+                    <th className="p-3">Data</th><th className="p-3">Cliente</th><th className="p-3">Placa</th>
+                    <th className="p-3 text-center">Duração</th><th className="p-3 text-right">Valor Mensal</th><th className="p-3">Motivo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {pageItems.map((r, i) => (
                     <tr key={i} className="hover:bg-slate-50">
                       <td className="p-3">{r.DataEncerramento ? new Date(r.DataEncerramento).toLocaleDateString('pt-BR') : '-'}</td>
-                      <td className="p-3 font-medium truncate max-w-[200px]">{r.Cliente}</td>
+                      <td className="p-3 font-medium truncate max-w-[200px] cursor-pointer hover:text-rose-600" onClick={(e) => handleChartClick('cliente', r.Cliente, e)}>{r.Cliente}</td>
                       <td className="p-3 font-mono">{r.Placa}</td>
                       <td className="p-3 text-center">{r.DuracaoMeses || 0} meses</td>
                       <td className="p-3 text-right font-bold text-rose-600">{fmtBRL(parseCurrency(r.ValorMensal))}</td>
-                      <td className="p-3 text-slate-500 truncate max-w-[150px]">{r.MotivoEncerramento || '-'}</td>
+                      <td className="p-3 text-slate-500 truncate max-w-[150px] cursor-pointer hover:text-indigo-600" onClick={(e) => handleChartClick('motivo', r.MotivoEncerramento, e)}>{r.MotivoEncerramento || '-'}</td>
                     </tr>
                   ))}
                 </tbody>

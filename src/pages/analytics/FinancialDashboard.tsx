@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Filter, X } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -23,45 +25,60 @@ export default function FinancialDashboard(): JSX.Element {
   const inadimplencia = useMemo(() => Array.isArray(rawInadimplencia) ? rawInadimplencia : [], [rawInadimplencia]);
 
   const [activeTab, setActiveTab] = useState(0);
-  const [filterPeriodo, setFilterPeriodo] = useState<string | null>(null);
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
-  const hasFilters = !!filterPeriodo;
-  const clearFilters = () => setFilterPeriodo(null);
+  const filteredFaturamento = useMemo(() => {
+    return faturamento.filter(f => {
+      const periodoValues = getFilterValues('periodo');
+      const clienteValues = getFilterValues('cliente');
+      // const faixaValues = getFilterValues('faixa');
+      
+      if (periodoValues.length > 0) {
+        const k = f.DataCompetencia?.substring(0, 7) || f.DataEmissao?.substring(0, 7);
+        if (!periodoValues.includes(k)) return false;
+      }
+      if (clienteValues.length > 0 && !clienteValues.includes(f.Cliente)) return false;
+      return true;
+    });
+  }, [faturamento, filters, getFilterValues]);
 
-  // KPIs
+  const filteredInadimplencia = useMemo(() => {
+    return inadimplencia.filter(i => {
+      const faixaValues = getFilterValues('faixa');
+      const clienteValues = getFilterValues('cliente');
+      
+      if (faixaValues.length > 0 && !faixaValues.includes(i.FaixaAging)) return false;
+      if (clienteValues.length > 0 && !clienteValues.includes(i.Cliente)) return false;
+      return true;
+    });
+  }, [inadimplencia, filters, getFilterValues]);
+
   const kpis = useMemo(() => {
-    const receitaTotal = faturamento.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
-    const receitaLocacao = faturamento.reduce((s, f) => s + parseCurrency(f.ValorLocacao), 0);
+    const receitaTotal = filteredFaturamento.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
+    const receitaLocacao = filteredFaturamento.reduce((s, f) => s + parseCurrency(f.ValorLocacao), 0);
     
-    const saldoDevedor = inadimplencia.reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
-    const totalVencido = inadimplencia.filter(i => i.DiasAtraso > 0).reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
+    const saldoDevedor = filteredInadimplencia.reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
+    const totalVencido = filteredInadimplencia.filter(i => i.DiasAtraso > 0).reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
     
     const dreReceita = dreData.reduce((s, d) => s + parseCurrency(d.Receita), 0);
     const dreDespesa = dreData.reduce((s, d) => s + parseCurrency(d.Despesa), 0);
     const margemOperacional = dreReceita > 0 ? ((dreReceita - dreDespesa) / dreReceita) * 100 : 0;
 
     return { receitaTotal, receitaLocacao, saldoDevedor, totalVencido, dreReceita, dreDespesa, margemOperacional };
-  }, [faturamento, inadimplencia, dreData]);
+  }, [filteredFaturamento, filteredInadimplencia, dreData]);
 
-  // Evolução mensal do faturamento
   const faturamentoMensal = useMemo(() => {
     const map: Record<string, { receita: number; count: number }> = {};
-    faturamento.forEach(f => {
+    filteredFaturamento.forEach(f => {
       const k = f.DataCompetencia?.substring(0, 7) || f.DataEmissao?.substring(0, 7);
       if (!k) return;
       if (!map[k]) map[k] = { receita: 0, count: 0 };
       map[k].receita += parseCurrency(f.ValorTotal);
       map[k].count += 1;
     });
-    return Object.keys(map).sort().slice(-12).map(k => ({ 
-      mes: k, 
-      label: monthLabel(k), 
-      Receita: map[k].receita,
-      Notas: map[k].count
-    }));
-  }, [faturamento]);
+    return Object.keys(map).sort().slice(-12).map(k => ({ mes: k, label: monthLabel(k), Receita: map[k].receita, Notas: map[k].count }));
+  }, [filteredFaturamento]);
 
-  // DRE Mensal
   const dreMensal = useMemo(() => {
     const map: Record<string, { receita: number; despesa: number }> = {};
     dreData.forEach(d => {
@@ -71,52 +88,30 @@ export default function FinancialDashboard(): JSX.Element {
       map[k].receita += parseCurrency(d.Receita);
       map[k].despesa += parseCurrency(d.Despesa);
     });
-    return Object.keys(map).sort().slice(-12).map(k => ({
-      mes: k,
-      label: monthLabel(k),
-      Receita: map[k].receita,
-      Despesa: map[k].despesa,
-      Resultado: map[k].receita - map[k].despesa
-    }));
+    return Object.keys(map).sort().slice(-12).map(k => ({ mes: k, label: monthLabel(k), Receita: map[k].receita, Despesa: map[k].despesa, Resultado: map[k].receita - map[k].despesa }));
   }, [dreData]);
 
-  // Receita por cliente
   const receitaPorCliente = useMemo(() => {
     const map: Record<string, number> = {};
-    faturamento.forEach(f => {
-      const cliente = f.Cliente || 'Outros';
-      map[cliente] = (map[cliente] || 0) + parseCurrency(f.ValorTotal);
-    });
+    filteredFaturamento.forEach(f => { const cliente = f.Cliente || 'Outros'; map[cliente] = (map[cliente] || 0) + parseCurrency(f.ValorTotal); });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
-  }, [faturamento]);
+  }, [filteredFaturamento]);
 
-  // Aging de inadimplência
   const agingData = useMemo(() => {
     const map: Record<string, number> = { 'A Vencer': 0, '1-30 dias': 0, '31-60 dias': 0, '61-90 dias': 0, '+90 dias': 0 };
-    inadimplencia.forEach(i => {
-      const faixa = i.FaixaAging || 'A Vencer';
-      map[faixa] = (map[faixa] || 0) + parseCurrency(i.SaldoDevedor);
-    });
+    filteredInadimplencia.forEach(i => { const faixa = i.FaixaAging || 'A Vencer'; map[faixa] = (map[faixa] || 0) + parseCurrency(i.SaldoDevedor); });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [inadimplencia]);
+  }, [filteredInadimplencia]);
 
-  // Top devedores
   const topDevedores = useMemo(() => {
     const map: Record<string, number> = {};
-    inadimplencia.forEach(i => {
-      const cliente = i.Cliente || 'N/D';
-      map[cliente] = (map[cliente] || 0) + parseCurrency(i.SaldoDevedor);
-    });
+    filteredInadimplencia.forEach(i => { const cliente = i.Cliente || 'N/D'; map[cliente] = (map[cliente] || 0) + parseCurrency(i.SaldoDevedor); });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
-  }, [inadimplencia]);
+  }, [filteredInadimplencia]);
 
-  // Receita por natureza (DRE)
   const receitaPorNatureza = useMemo(() => {
     const map: Record<string, number> = {};
-    dreData.filter(d => parseCurrency(d.Receita) > 0).forEach(d => {
-      const nat = d.Natureza || 'Outros';
-      map[nat] = (map[nat] || 0) + parseCurrency(d.Receita);
-    });
+    dreData.filter(d => parseCurrency(d.Receita) > 0).forEach(d => { const nat = d.Natureza || 'Outros'; map[nat] = (map[nat] || 0) + parseCurrency(d.Receita); });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
   }, [dreData]);
 
@@ -131,19 +126,8 @@ export default function FinancialDashboard(): JSX.Element {
         <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex gap-2 font-medium"><DollarSign className="w-4 h-4"/> Hub Financeiro</div>
       </div>
 
-      {hasFilters && (
-        <div className="fixed bottom-8 right-8 z-50">
-          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"><X className="w-5 h-5" /> Limpar Filtros</button>
-        </div>
-      )}
-
-      {hasFilters && (
-        <Card className="bg-blue-50 border-blue-200 py-3">
-          <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-blue-600" /><Text className="font-medium text-blue-700">Filtros:</Text>
-            {filterPeriodo && <span className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800">Período: {monthLabel(filterPeriodo)}</span>}
-          </div>
-        </Card>
-      )}
+      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
         {tabs.map((tab, idx) => (
@@ -171,7 +155,9 @@ export default function FinancialDashboard(): JSX.Element {
                     <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact}/>
                     <YAxis yAxisId="right" orientation="right" fontSize={12}/>
                     <Tooltip formatter={(v: any, n) => [n === 'Receita' ? fmtBRL(v) : v, n]}/>
-                    <Bar yAxisId="left" dataKey="Receita" fill="#3b82f6" radius={[4,4,0,0]} cursor="pointer" onClick={(d) => setFilterPeriodo(p => p === d.mes ? null : d.mes)}/>
+                    <Bar yAxisId="left" dataKey="Receita" fill="#3b82f6" radius={[4,4,0,0]} cursor="pointer" onClick={(d, _, e) => handleChartClick('periodo', d.mes, e as unknown as React.MouseEvent)}>
+                      {faturamentoMensal.map((entry, i) => <Cell key={i} fill={isValueSelected('periodo', entry.mes) ? '#1d4ed8' : '#3b82f6'} />)}
+                    </Bar>
                     <Line yAxisId="right" type="monotone" dataKey="Notas" stroke="#f59e0b" strokeWidth={2}/>
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -187,9 +173,9 @@ export default function FinancialDashboard(): JSX.Element {
                     <XAxis type="number" fontSize={12} tickFormatter={fmtCompact}/>
                     <YAxis dataKey="name" type="category" width={80} fontSize={11}/>
                     <Tooltip formatter={fmtBRL}/>
-                    <Bar dataKey="value" radius={[0,4,4,0]} barSize={20}>
+                    <Bar dataKey="value" radius={[0,4,4,0]} barSize={20} cursor="pointer" onClick={(d, _, e) => handleChartClick('faixa', d.name, e as unknown as React.MouseEvent)}>
                       {agingData.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.name === 'A Vencer' ? '#10b981' : entry.name === '1-30 dias' ? '#f59e0b' : entry.name === '31-60 dias' ? '#f97316' : '#ef4444'} />
+                        <Cell key={idx} fill={isValueSelected('faixa', entry.name) ? '#7c2d12' : (entry.name === 'A Vencer' ? '#10b981' : entry.name === '1-30 dias' ? '#f59e0b' : entry.name === '31-60 dias' ? '#f97316' : '#ef4444')} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -207,7 +193,9 @@ export default function FinancialDashboard(): JSX.Element {
                   <XAxis type="number" fontSize={12} tickFormatter={fmtCompact}/>
                   <YAxis dataKey="name" type="category" width={150} fontSize={11} tick={{fill: '#475569'}}/>
                   <Tooltip formatter={fmtBRL}/>
-                  <Bar dataKey="value" fill="#3b82f6" radius={[0,4,4,0]} barSize={18}/>
+                  <Bar dataKey="value" fill="#3b82f6" radius={[0,4,4,0]} barSize={18} cursor="pointer" onClick={(d, _, e) => handleChartClick('cliente', d.name, e as unknown as React.MouseEvent)}>
+                    {receitaPorCliente.map((entry, i) => <Cell key={i} fill={isValueSelected('cliente', entry.name) ? '#1d4ed8' : '#3b82f6'} />)}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -290,13 +278,13 @@ export default function FinancialDashboard(): JSX.Element {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <Title>Aging Detalhado</Title>
+              <Title>Aging Detalhado (Clique para filtrar)</Title>
               <div className="h-72 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={agingData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value">
+                    <Pie data={agingData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value" onClick={(d, _, e) => handleChartClick('faixa', d.name, e as unknown as React.MouseEvent)} cursor="pointer">
                       {agingData.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.name === 'A Vencer' ? '#10b981' : entry.name === '1-30 dias' ? '#f59e0b' : entry.name === '31-60 dias' ? '#f97316' : entry.name === '61-90 dias' ? '#ef4444' : '#dc2626'} />
+                        <Cell key={idx} fill={isValueSelected('faixa', entry.name) ? '#7c2d12' : (entry.name === 'A Vencer' ? '#10b981' : entry.name === '1-30 dias' ? '#f59e0b' : entry.name === '31-60 dias' ? '#f97316' : entry.name === '61-90 dias' ? '#ef4444' : '#dc2626')} />
                       ))}
                     </Pie>
                     <Tooltip formatter={fmtBRL}/>
@@ -307,10 +295,10 @@ export default function FinancialDashboard(): JSX.Element {
             </Card>
 
             <Card>
-              <Title>Top 10 Devedores</Title>
+              <Title>Top 10 Devedores (Clique para filtrar)</Title>
               <div className="mt-4 space-y-2 max-h-72 overflow-y-auto">
                 {topDevedores.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-2 hover:bg-slate-50 rounded">
+                  <div key={idx} onClick={(e) => handleChartClick('cliente', item.name, e)} className={`flex justify-between items-center p-2 hover:bg-slate-50 rounded cursor-pointer ${isValueSelected('cliente', item.name) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}>
                     <div className="flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 text-xs flex items-center justify-center font-bold">{idx + 1}</span>
                       <span className="text-sm truncate max-w-[180px]">{item.name}</span>
@@ -338,10 +326,10 @@ export default function FinancialDashboard(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {faturamento.slice(0, 100).map((f, idx) => (
+                {filteredFaturamento.slice(0, 100).map((f, idx) => (
                   <tr key={idx} className="border-t hover:bg-slate-50">
                     <td className="p-3">{f.DataEmissao ? new Date(f.DataEmissao).toLocaleDateString('pt-BR') : '-'}</td>
-                    <td className="p-3 truncate max-w-[200px]">{f.Cliente || '-'}</td>
+                    <td className="p-3 truncate max-w-[200px] cursor-pointer hover:text-blue-600" onClick={(e) => handleChartClick('cliente', f.Cliente, e)}>{f.Cliente || '-'}</td>
                     <td className="p-3 text-right">{fmtBRL(parseCurrency(f.ValorLocacao))}</td>
                     <td className="p-3 text-right font-bold text-blue-600">{fmtBRL(parseCurrency(f.ValorTotal))}</td>
                   </tr>
