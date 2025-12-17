@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Users, TrendingDown, DollarSign, Car, AlertTriangle, X, Filter, Building2, MapPin } from 'lucide-react';
+import { Users, TrendingDown, DollarSign, Car, AlertTriangle, X, Building2, MapPin } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -17,7 +19,6 @@ function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'];
 
 export default function ClientsDashboard(): JSX.Element {
-  // Novas fontes de dados do ETL v33
   const { data: rawClientes } = useBIData<AnyObject[]>('dim_clientes.json');
   const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamento_*.json');
   const { data: rawChurn } = useBIData<AnyObject[]>('fat_churn.json');
@@ -44,20 +45,25 @@ export default function ClientsDashboard(): JSX.Element {
   }, [rawInadimplencia]);
 
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
-  const [filterState, setFilterState] = useState<{ segmento: string | null; estado: string | null }>({ segmento: null, estado: null });
+  
+  // Hook de filtros estilo Power BI
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
-  const hasActiveFilters = !!(filterState.segmento || filterState.estado || selectedClient);
-  const clearFilters = () => { setFilterState({ segmento: null, estado: null }); setSelectedClient(null); };
+  const clearAll = () => { clearAllFilters(); setSelectedClient(null); };
+  const hasFilters = hasActiveFilters || !!selectedClient;
 
   // Filtrar clientes
   const filteredClientes = useMemo(() => {
     return clientes.filter(c => {
-      if (filterState.segmento && c.Segmento !== filterState.segmento) return false;
-      if (filterState.estado && c.Estado !== filterState.estado) return false;
+      const segmentoFilters = getFilterValues('segmento');
+      const estadoFilters = getFilterValues('estado');
+      
+      if (segmentoFilters.length > 0 && !segmentoFilters.includes(c.Segmento)) return false;
+      if (estadoFilters.length > 0 && !estadoFilters.includes(c.Estado)) return false;
       if (selectedClient && c.Nome !== selectedClient && c.NomeFantasia !== selectedClient) return false;
       return true;
     });
-  }, [clientes, filterState, selectedClient]);
+  }, [clientes, filters, selectedClient, getFilterValues]);
 
   // KPIs principais
   const kpis = useMemo(() => {
@@ -66,17 +72,14 @@ export default function ClientsDashboard(): JSX.Element {
     const totalVeiculos = filteredClientes.reduce((s, c) => s + parseNum(c.VeiculosLocados), 0);
     const avgVeiculos = totalClientes > 0 ? totalVeiculos / totalClientes : 0;
 
-    // Receita por cliente do faturamento
     const clientesNomes = new Set(filteredClientes.map(c => c.NomeFantasia || c.Nome));
     const receitaClientes = faturamento.filter(f => clientesNomes.has(f.Cliente));
     const totalReceita = receitaClientes.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
     const avgReceita = totalClientes > 0 ? totalReceita / totalClientes : 0;
 
-    // Churn
     const encerrados = churn.length;
     const churnRate = totalClientes > 0 ? (encerrados / totalClientes) * 100 : 0;
 
-    // Inadimplência
     const totalInadimplente = inadimplencia.reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
 
     return { totalClientes, totalAtivos, totalVeiculos, avgVeiculos, totalReceita, avgReceita, churnRate, encerrados, totalInadimplente };
@@ -140,7 +143,7 @@ export default function ClientsDashboard(): JSX.Element {
       const k = getMonthKey(c.DataEncerramento);
       if (k) map[k] = (map[k] || 0) + 1;
     });
-    return Object.keys(map).sort().slice(-12).map(k => ({ label: monthLabel(k), Cancelados: map[k] }));
+    return Object.keys(map).sort().slice(-12).map(k => ({ label: monthLabel(k), date: k, Cancelados: map[k] }));
   }, [churn]);
 
   // Inadimplência por aging
@@ -171,6 +174,13 @@ export default function ClientsDashboard(): JSX.Element {
     return { ...cliente, receitaTotal: receitaCliente, inadimplencia: inadimpCliente };
   }, [selectedClient, clientes, faturamento, inadimplencia]);
 
+  // Merge filters for display
+  const displayFilters = useMemo(() => {
+    const merged = { ...filters };
+    if (selectedClient) merged['cliente'] = [selectedClient];
+    return merged;
+  }, [filters, selectedClient]);
+
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -183,27 +193,15 @@ export default function ClientsDashboard(): JSX.Element {
         </div>
       </div>
 
-      {/* Floating Clear Button */}
-      {hasActiveFilters && (
-        <div className="fixed bottom-8 right-8 z-50">
-          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105">
-            <X className="w-5 h-5" /> Limpar Filtros
-          </button>
-        </div>
-      )}
-
-      {/* Active Filters */}
-      {hasActiveFilters && (
-        <Card className="bg-cyan-50 border-cyan-200 py-3">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-cyan-600" />
-            <Text className="font-medium text-cyan-700">Filtros Ativos:</Text>
-            {filterState.segmento && <span className="bg-cyan-100 px-2 py-1 rounded text-xs text-cyan-800">Segmento: {filterState.segmento}</span>}
-            {filterState.estado && <span className="bg-cyan-100 px-2 py-1 rounded text-xs text-cyan-800">Estado: {filterState.estado}</span>}
-            {selectedClient && <span className="bg-cyan-100 px-2 py-1 rounded text-xs text-cyan-800">Cliente: {selectedClient}</span>}
-          </div>
-        </Card>
-      )}
+      <FloatingClearButton onClick={clearAll} show={hasFilters} />
+      <ChartFilterBadges 
+        filters={displayFilters} 
+        onClearFilter={(key, value) => {
+          if (key === 'cliente') setSelectedClient(null);
+          else clearFilter(key, value);
+        }} 
+        onClearAll={clearAll} 
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -257,7 +255,14 @@ export default function ClientsDashboard(): JSX.Element {
                   return (
                     <div
                       key={idx}
-                      onClick={() => setSelectedClient(isSelected ? null : item.name)}
+                      onClick={(e) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          // Ctrl+click não faz sentido para seleção única de cliente
+                          setSelectedClient(isSelected ? null : item.name);
+                        } else {
+                          setSelectedClient(isSelected ? null : item.name);
+                        }
+                      }}
                       className={`group cursor-pointer p-2 rounded hover:bg-slate-50 transition-colors ${isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : ''}`}
                     >
                       <div className="flex justify-between text-sm mb-1">
@@ -323,10 +328,17 @@ export default function ClientsDashboard(): JSX.Element {
                         outerRadius={100}
                         paddingAngle={3}
                         dataKey="value"
-                        onClick={(d) => setFilterState(p => ({ ...p, segmento: p.segmento === d.name ? null : d.name }))}
+                        onClick={(d, _, e) => handleChartClick('segmento', d.name, e as unknown as React.MouseEvent)}
                         cursor="pointer"
                       >
-                        {segmentoData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        {segmentoData.map((entry, i) => (
+                          <Cell 
+                            key={i} 
+                            fill={isValueSelected('segmento', entry.name) ? '#1d4ed8' : COLORS[i % COLORS.length]} 
+                            stroke={isValueSelected('segmento', entry.name) ? '#1e3a8a' : 'none'}
+                            strokeWidth={isValueSelected('segmento', entry.name) ? 2 : 0}
+                          />
+                        ))}
                       </Pie>
                       <Tooltip />
                       <Legend verticalAlign="bottom" />
@@ -412,11 +424,14 @@ export default function ClientsDashboard(): JSX.Element {
                     <Tooltip />
                     <Bar
                       dataKey="value"
-                      fill="#3b82f6"
                       radius={[0, 4, 4, 0]}
-                      onClick={(d) => setFilterState(p => ({ ...p, estado: p.estado === d.name ? null : d.name }))}
+                      onClick={(d, _, e) => handleChartClick('estado', d.name, e as unknown as React.MouseEvent)}
                       cursor="pointer"
-                    />
+                    >
+                      {estadoData.map((entry) => (
+                        <Cell key={entry.name} fill={isValueSelected('estado', entry.name) ? '#1d4ed8' : '#3b82f6'} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -432,11 +447,14 @@ export default function ClientsDashboard(): JSX.Element {
                     <Tooltip />
                     <Bar
                       dataKey="value"
-                      fill="#10b981"
                       radius={[4, 4, 0, 0]}
-                      onClick={(d) => setFilterState(p => ({ ...p, segmento: p.segmento === d.name ? null : d.name }))}
+                      onClick={(d, _, e) => handleChartClick('segmento', d.name, e as unknown as React.MouseEvent)}
                       cursor="pointer"
-                    />
+                    >
+                      {segmentoData.map((entry) => (
+                        <Cell key={entry.name} fill={isValueSelected('segmento', entry.name) ? '#059669' : '#10b981'} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -455,7 +473,7 @@ export default function ClientsDashboard(): JSX.Element {
                   <XAxis dataKey="name" fontSize={12} />
                   <YAxis fontSize={12} tickFormatter={fmtCompact} />
                   <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} cursor="pointer">
                     {agingData.map((_, i) => (
                       <Cell key={i} fill={['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444'][i]} />
                     ))}
@@ -483,7 +501,7 @@ export default function ClientsDashboard(): JSX.Element {
                   <XAxis dataKey="label" fontSize={12} />
                   <YAxis fontSize={12} />
                   <Tooltip />
-                  <Bar dataKey="Cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} cursor="pointer" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
