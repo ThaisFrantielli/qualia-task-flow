@@ -45,21 +45,48 @@ const menuGroups: MenuGroup[] = [
   {
     title: 'ANALÍTICOS',
     items: [
-      { label: 'Visão Geral', url: '/analytics/executive', icon: Crown },
-      { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
-      { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-      { label: 'Vendas', url: '/analytics/vendas', icon: TrendingUp },
-      { label: 'Faturamento', url: '/analytics/financeiro', icon: BarChart3 },
-      { label: 'DRE Gerencial', url: '/analytics/resultado', icon: DollarSign },
-      { label: 'Gestão de Passivo', url: '/analytics/funding', icon: Briefcase },
-      { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
-      { label: 'Multas', url: '/analytics/multas', icon: FileText },
-      { label: 'Sinistros', url: '/analytics/sinistros', icon: Ticket },
-      { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
-      { label: 'Clientes', url: '/analytics/clientes', icon: Briefcase },
-      { label: 'Comercial', url: '/analytics/comercial', icon: Target },
-      { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
-      { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
+      { 
+        label: 'Visão Executiva', 
+        url: '/analytics/executive', 
+        icon: Crown,
+        children: [
+          { label: 'Auditoria de Dados', url: '/analytics/auditoria', icon: ClipboardList }
+        ]
+      },
+      { 
+        label: 'Operacional', 
+        url: '/analytics/frota', 
+        icon: FolderOpen,
+        children: [
+          { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
+          { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
+          { label: 'Multas', url: '/analytics/multas', icon: FileText },
+          { label: 'Sinistros', url: '/analytics/sinistros', icon: Ticket },
+        ]
+      },
+      { 
+        label: 'Financeiro', 
+        url: '/analytics/financeiro', 
+        icon: DollarSign,
+        children: [
+          { label: 'Faturamento', url: '/analytics/financeiro', icon: BarChart3 },
+          { label: 'DRE Gerencial', url: '/analytics/resultado', icon: DollarSign },
+          { label: 'Gestão de Passivo', url: '/analytics/funding', icon: Briefcase },
+          { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
+          { label: 'Vendas', url: '/analytics/vendas', icon: TrendingUp },
+        ]
+      },
+      { 
+        label: 'Comercial', 
+        url: '/analytics/comercial', 
+        icon: Target,
+        children: [
+          { label: 'Pipeline', url: '/analytics/comercial', icon: Target },
+          { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
+          { label: 'Clientes', url: '/analytics/clientes', icon: Users },
+          { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
+        ]
+      },
     ]
   },
   {
