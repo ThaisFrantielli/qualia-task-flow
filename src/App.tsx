@@ -58,6 +58,7 @@ import SalesDashboard from '@/pages/analytics/SalesDashboard';
 import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
 import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
 import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
+import FundingDashboard from '@/pages/analytics/FundingDashboard';
 
 function App() {
   return (
@@ -125,6 +126,7 @@ function App() {
                 <Route path="clientes" element={<ClientsDashboard />} />
                 <Route path="comercial" element={<CommercialDashboard />} />
                 <Route path="executive" element={<ExecutiveDashboard />} />
+                <Route path="funding" element={<FundingDashboard />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
