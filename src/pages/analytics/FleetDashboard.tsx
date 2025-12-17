@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, Badge, BarList } from '@tremor/react';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Car, Filter, X, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff } from 'lucide-react';
+import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
@@ -95,10 +95,19 @@ export default function FleetDashboard(): JSX.Element {
   const [reservaPage, setReservaPage] = useState(0);
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
+    // apply default filter: show 'Ativa' productivity on first load
+    const defaultProductivityApplied = useRef(false);
+    useEffect(() => {
+        if (!defaultProductivityApplied.current && frota.length > 0 && getFilterValues('productivity').length === 0) {
+            handleChartClick('productivity', 'Ativa', { ctrlKey: true } as unknown as React.MouseEvent);
+            defaultProductivityApplied.current = true;
+        }
+    }, [frota, getFilterValues, handleChartClick]);
+
   // CLASSIFICAÇÃO DE FROTA
   const getCategory = (status: string) => {
       const s = (status || '').toUpperCase();
-      if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO'].includes(s)) return 'Produtiva';
+      if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
       // Treat vehicles available for sale as Inativa
       if (['DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL', 'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA'].includes(s)) return 'Inativa';
       return 'Improdutiva';
@@ -327,6 +336,13 @@ export default function FleetDashboard(): JSX.Element {
     
     return { total, ativas, principalMotivo: principalMotivo?.[0] || 'N/A', motivoData, clienteData, statusData, tempoMedio, monthlyData };
   }, [filteredReservas]);
+
+    // Distribuição por modelo dos veículos de reserva
+    const reservaModelData = useMemo(() => {
+        const map: Record<string, number> = {};
+        filteredReservas.forEach(r => { const m = r.ModeloReserva || 'Não Definido'; map[m] = (map[m] || 0) + 1; });
+        return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    }, [filteredReservas]);
 
   const reservaPageItems = filteredReservas.slice(reservaPage * pageSize, (reservaPage + 1) * pageSize);
 
@@ -797,6 +813,27 @@ export default function FleetDashboard(): JSX.Element {
                         </ResponsiveContainer>
                     </div>
                 </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+                <Card>
+                    <Title>Modelos dos Veículos Reserva <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
+                    <Text className="text-xs text-slate-500 mb-2">Top modelos de veículos em ocorrências de reserva</Text>
+                    <div className="h-96 mt-2 overflow-y-auto pr-2">
+                        <ResponsiveContainer width="100%" height={Math.max(400, reservaModelData.length * 32)}>
+                            <BarChart data={reservaModelData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#7c3aed" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_modelo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
             </div>
 
             {/* Tabela de Detalhamento */}
