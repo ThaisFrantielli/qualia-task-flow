@@ -57,6 +57,7 @@ const menuGroups: MenuGroup[] = [
       { label: 'Sinistros', url: '/analytics/sinistros', icon: Ticket },
       { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
       { label: 'Clientes', url: '/analytics/clientes', icon: Briefcase },
+      { label: 'Comercial', url: '/analytics/comercial', icon: Target },
       { label: 'Auditoria', url: '/analytics/auditoria', icon: ClipboardList },
       { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
     ]
