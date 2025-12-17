@@ -552,7 +552,7 @@ export default function FleetDashboard(): JSX.Element {
                                         <XAxis type="number" tick={{ fontSize: 12 }} />
                                         <YAxis dataKey="name" type="category" width={220} tick={{ fontSize: 12 }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                        <Bar dataKey="value" barSize={20} radius={[6,6,6,6]} onClick={(data: any, index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                        <Bar dataKey="value" barSize={20} radius={[6,6,6,6]} onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             {statusData.map((entry, idx) => (
                                                 <Cell key={`cell-st-${idx}`} fill={entry.color} />
                                             ))}
@@ -595,11 +595,11 @@ export default function FleetDashboard(): JSX.Element {
                                                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                                             <XAxis type="number" hide />
                                                                             <YAxis dataKey="name" type="category" width={200} tick={{fontSize:12}} />
-                                                                            <Tooltip formatter={(value: any, name: any, props: any) => {
+                                                                            <Tooltip formatter={(value: any, _name: any, props: any) => {
                                                                                 const pct = props?.payload?.pct;
                                                                                 return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                                             }} />
-                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#64748b" onClick={(data: any, index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#64748b" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                                                 <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                                             </Bar>
                                                                         </BarChart>
@@ -614,11 +614,11 @@ export default function FleetDashboard(): JSX.Element {
                                                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                                             <XAxis type="number" hide />
                                                                             <YAxis dataKey="name" type="category" width={200} tick={{fontSize:12}} />
-                                                                            <Tooltip formatter={(value: any, name: any, props: any) => {
+                                                                            <Tooltip formatter={(value: any, _name: any, props: any) => {
                                                                                 const pct = props?.payload?.pct;
                                                                                 return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                                             }} />
-                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                                                 <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                                             </Bar>
                                                                         </BarChart>
@@ -755,7 +755,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={140} tick={{fontSize:12}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('motivo', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('motivo', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                 </Bar>
                             </BarChart>
@@ -775,7 +775,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#10b981" onClick={(data: any, index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('cliente', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#10b981" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('cliente', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                 </Bar>
                             </BarChart>
@@ -792,7 +792,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={140} tick={{fontSize:12}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#06b6d4" onClick={(data: any, index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                 </Bar>
                             </BarChart>
