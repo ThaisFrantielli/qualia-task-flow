@@ -57,6 +57,7 @@ import FinancialResult from '@/pages/analytics/FinancialResult';
 import SalesDashboard from '@/pages/analytics/SalesDashboard';
 import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
 import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
+import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
 
 function App() {
   return (
@@ -122,6 +123,7 @@ function App() {
                 {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
                 {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
                 <Route path="clientes" element={<ClientsDashboard />} />
+                <Route path="comercial" element={<CommercialDashboard />} />
                 <Route path="executive" element={<ExecutiveDashboard />} />
               </Route>
 
