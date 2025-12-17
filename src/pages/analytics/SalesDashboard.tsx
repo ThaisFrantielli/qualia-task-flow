@@ -1,26 +1,36 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, Filter, X } from 'lucide-react';
+import { ResponsiveContainer, Line, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, BarChart, Bar, ComposedChart, Area } from 'recharts';
+import { TrendingUp, TrendingDown, Filter, X, DollarSign, Clock, Target } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type AnyObject = { [k: string]: any };
 
-// --- HELPERS ---
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function fmtBRL(v: number): string { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
-function fmtCompact(v: number): string { return `R$ ${(v / 1000).toFixed(0)}k`; }
+function fmtCompact(v: number): string { if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`; return `R$ ${(v / 1000).toFixed(0)}k`; }
 function getMonthKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0].substring(0, 7); }
 function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.split('-'); const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']; return `${months[Number(m) - 1]}/${String(y).slice(2)}`; }
 
-export default function SalesDashboard(): JSX.Element {
-  const { data: rawVendas } = useBIData<AnyObject[]>('dim_vendas.json');
-  const vendas = useMemo(() => Array.isArray(rawVendas) ? rawVendas : [], [rawVendas]);
 
-  const [activeTab, setActiveTab] = useState(0);
+
+export default function SalesDashboard(): JSX.Element {
+  // Nova fonte de dados do ETL v33 - fat_vendas sharded by year
+  const { data: rawVendas } = useBIData<AnyObject[]>('fat_vendas_*.json');
+
+  const vendas = useMemo(() => {
+    const raw = (rawVendas as any)?.data || rawVendas || [];
+    return Array.isArray(raw) ? raw : [];
+  }, [rawVendas]);
+
   const [selectedComprador, setSelectedComprador] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  const pageSize = 10;
+  const pageSize = 15;
+
+  const hasActiveFilters = !!selectedComprador;
+  const clearFilters = () => setSelectedComprador(null);
 
   const filteredVendas = useMemo(() => {
     return vendas.filter(v => {
@@ -29,85 +39,143 @@ export default function SalesDashboard(): JSX.Element {
     });
   }, [vendas, selectedComprador]);
 
+  // KPIs Financeiros
   const financialKPIs = useMemo(() => {
     const totalVendas = filteredVendas.reduce((s, v) => s + parseCurrency(v.ValorVenda), 0);
     const totalCompras = filteredVendas.reduce((s, v) => s + parseCurrency(v.ValorCompra), 0);
     const margem = totalVendas - totalCompras;
-    const percentualMargem = totalCompras > 0 ? (margem / totalCompras) * 100 : 0;
     const roi = totalCompras > 0 ? (margem / totalCompras) * 100 : 0;
     const ticketMedio = filteredVendas.length > 0 ? totalVendas / filteredVendas.length : 0;
-    return { totalVendas, totalCompras, margem, percentualMargem, roi, ticketMedio, qtdVendas: filteredVendas.length };
+    const qtdVendas = filteredVendas.length;
+
+    // Contagem de lucro/prejuízo
+    const comLucro = filteredVendas.filter(v => parseCurrency(v.ResultadoVenda) >= 0).length;
+    const comPrejuizo = filteredVendas.filter(v => parseCurrency(v.ResultadoVenda) < 0).length;
+
+    return { totalVendas, totalCompras, margem, roi, ticketMedio, qtdVendas, comLucro, comPrejuizo };
   }, [filteredVendas]);
 
+  // Evolução mensal
   const evolutionData = useMemo(() => {
-    const map: any = {};
+    const map: Record<string, { vendas: number; margem: number; qtd: number }> = {};
     filteredVendas.forEach(v => {
       const k = getMonthKey(v.DataVenda);
       if (!k) return;
-      if (!map[k]) map[k] = { Vendas: 0, Margem: 0 };
-      map[k].Vendas += parseCurrency(v.ValorVenda);
-      map[k].Margem += (parseCurrency(v.ValorVenda) - parseCurrency(v.ValorCompra));
+      if (!map[k]) map[k] = { vendas: 0, margem: 0, qtd: 0 };
+      map[k].vendas += parseCurrency(v.ValorVenda);
+      map[k].margem += parseCurrency(v.ResultadoVenda);
+      map[k].qtd += 1;
     });
-    return Object.keys(map).sort().map(k => ({ date: k, label: monthLabel(k), ...map[k] }));
+    return Object.keys(map).sort().map(k => ({
+      date: k,
+      label: monthLabel(k),
+      Vendas: map[k].vendas,
+      Margem: map[k].margem,
+      Qtd: map[k].qtd
+    }));
   }, [filteredVendas]);
 
+  // Distribuição de margem
   const margemDistribution = useMemo(() => {
     let positiva = 0, negativa = 0;
     filteredVendas.forEach(v => {
-      const margem = parseCurrency(v.ValorVenda) - parseCurrency(v.ValorCompra);
-      if (margem >= 0) positiva += margem; else negativa += Math.abs(margem);
+      const margem = parseCurrency(v.ResultadoVenda);
+      if (margem >= 0) positiva += margem;
+      else negativa += Math.abs(margem);
     });
-    return [{ name: 'Lucro', value: positiva }, { name: 'Prejuízo', value: negativa }];
+    return [
+      { name: 'Lucro', value: positiva, fill: '#10b981' },
+      { name: 'Prejuízo', value: negativa, fill: '#ef4444' }
+    ];
   }, [filteredVendas]);
 
+  // KPIs de Giro
   const giroKPIs = useMemo(() => {
     const tempos = filteredVendas.map(v => {
-      const compra = v.DataCompra ? new Date(v.DataCompra) : null;
-      const venda = v.DataVenda ? new Date(v.DataVenda) : null;
-      if (!compra || !venda) return 0;
-      return Math.floor((venda.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
+      const idade = parseNum(v.IdadeNaVenda);
+      return idade > 0 ? idade : 0;
     }).filter(d => d > 0);
+
     const tempoMedio = tempos.length > 0 ? tempos.reduce((s, t) => s + t, 0) / tempos.length : 0;
     const tempoMin = tempos.length > 0 ? Math.min(...tempos) : 0;
     const tempoMax = tempos.length > 0 ? Math.max(...tempos) : 0;
-    return { tempoMedio, tempoMin, tempoMax };
+
+    // KM médio
+    const kms = filteredVendas.map(v => parseNum(v.KmNaVenda)).filter(k => k > 0);
+    const kmMedio = kms.length > 0 ? kms.reduce((s, k) => s + k, 0) / kms.length : 0;
+
+    return { tempoMedio, tempoMin, tempoMax, kmMedio };
   }, [filteredVendas]);
 
+  // Ranking de compradores
   const compradorRanking = useMemo(() => {
-    const map: any = {};
+    const map: Record<string, { qtd: number; valor: number; margem: number }> = {};
     filteredVendas.forEach(v => {
       const c = v.Comprador || 'Desconhecido';
-      if (!map[c]) map[c] = { qtd: 0, valor: 0 };
+      if (!map[c]) map[c] = { qtd: 0, valor: 0, margem: 0 };
       map[c].qtd += 1;
       map[c].valor += parseCurrency(v.ValorVenda);
+      map[c].margem += parseCurrency(v.ResultadoVenda);
     });
-    return Object.entries(map).map(([name, data]: any) => ({ name, value: data.valor, qtd: data.qtd })).sort((a,b) => b.value - a.value).slice(0, 10);
+    return Object.entries(map)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
   }, [filteredVendas]);
 
+  // Histograma de tempo de casa
   const tempoHistogram = useMemo(() => {
-    const ranges = { '0-90d': 0, '91-180d': 0, '181-365d': 0, '365d+': 0 };
+    const ranges = { '0-12m': 0, '12-24m': 0, '24-36m': 0, '36-48m': 0, '48m+': 0 };
     filteredVendas.forEach(v => {
-      const compra = v.DataCompra ? new Date(v.DataCompra) : null;
-      const venda = v.DataVenda ? new Date(v.DataVenda) : null;
-      if (!compra || !venda) return;
-      const dias = Math.floor((venda.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
-      if (dias <= 90) ranges['0-90d']++; else if (dias <= 180) ranges['91-180d']++; else if (dias <= 365) ranges['181-365d']++; else ranges['365d+']++;
+      const idade = parseNum(v.IdadeNaVenda);
+      if (idade <= 12) ranges['0-12m']++;
+      else if (idade <= 24) ranges['12-24m']++;
+      else if (idade <= 36) ranges['24-36m']++;
+      else if (idade <= 48) ranges['36-48m']++;
+      else ranges['48m+']++;
     });
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filteredVendas]);
 
+  // Margem por faixa de idade
+  const margemPorIdade = useMemo(() => {
+    const ranges: Record<string, { total: number; count: number }> = {
+      '0-12m': { total: 0, count: 0 },
+      '12-24m': { total: 0, count: 0 },
+      '24-36m': { total: 0, count: 0 },
+      '36-48m': { total: 0, count: 0 },
+      '48m+': { total: 0, count: 0 }
+    };
+    filteredVendas.forEach(v => {
+      const idade = parseNum(v.IdadeNaVenda);
+      const margem = parseCurrency(v.ResultadoVenda);
+      let key = '48m+';
+      if (idade <= 12) key = '0-12m';
+      else if (idade <= 24) key = '12-24m';
+      else if (idade <= 36) key = '24-36m';
+      else if (idade <= 48) key = '36-48m';
+      ranges[key].total += margem;
+      ranges[key].count += 1;
+    });
+    return Object.entries(ranges).map(([name, data]) => ({
+      name,
+      MargemMedia: data.count > 0 ? data.total / data.count : 0
+    }));
+  }, [filteredVendas]);
+
+  // Tabela paginada
   const tableData = useMemo(() => {
-    return filteredVendas.map(v => {
-      const compra = parseCurrency(v.ValorCompra);
-      const venda = parseCurrency(v.ValorVenda);
-      const margem = venda - compra;
-      const pct = compra > 0 ? (margem/compra)*100 : 0;
-      const tempo = v.DataCompra && v.DataVenda ? Math.floor((new Date(v.DataVenda).getTime() - new Date(v.DataCompra).getTime()) / (86400000)) : 0;
-      return {
-        placa: v.Placa, modelo: v.Modelo, comprador: v.Comprador,
-        compra, venda, margem, pct, tempo, dataVenda: v.DataVenda
-      };
-    }).sort((a,b) => b.margem - a.margem);
+    return filteredVendas.map(v => ({
+      placa: v.Placa,
+      modelo: v.Modelo,
+      comprador: v.Comprador,
+      compra: parseCurrency(v.ValorCompra),
+      venda: parseCurrency(v.ValorVenda),
+      margem: parseCurrency(v.ResultadoVenda),
+      idade: parseNum(v.IdadeNaVenda),
+      km: parseNum(v.KmNaVenda),
+      dataVenda: v.DataVenda
+    })).sort((a, b) => b.margem - a.margem);
   }, [filteredVendas]);
 
   const pageItems = tableData.slice(page * pageSize, (page + 1) * pageSize);
@@ -115,135 +183,270 @@ export default function SalesDashboard(): JSX.Element {
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <div><Title className="text-slate-900">Desmobilização de Ativos</Title><Text className="text-slate-500">Resultado Financeiro e Giro de Estoque.</Text></div>
-        <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex gap-2 font-medium"><TrendingUp className="w-4 h-4"/> Hub Ativos</div>
+        <div>
+          <Title className="text-slate-900">Desmobilização de Ativos</Title>
+          <Text className="text-slate-500">Resultado Financeiro e Giro de Estoque</Text>
+        </div>
+        <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex gap-2 font-medium">
+          <TrendingUp className="w-4 h-4" /> {financialKPIs.qtdVendas} Veículos Vendidos
+        </div>
       </div>
 
-      {selectedComprador && (
-        <Card className="bg-blue-50 border-blue-200 flex justify-between items-center">
-            <div className="flex items-center gap-2 text-blue-800"><Filter size={16}/> Filtro Ativo: <strong>{selectedComprador}</strong></div>
-            <button onClick={() => setSelectedComprador(null)} className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"><X size={14}/> Limpar</button>
+      {/* Floating Clear Button */}
+      {hasActiveFilters && (
+        <div className="fixed bottom-8 right-8 z-50">
+          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105">
+            <X className="w-5 h-5" /> Limpar Filtros
+          </button>
+        </div>
+      )}
+
+      {/* Active Filters */}
+      {hasActiveFilters && (
+        <Card className="bg-blue-50 border-blue-200 py-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-blue-600" />
+            <Text className="font-medium text-blue-700">Filtro Ativo:</Text>
+            <span className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800">Comprador: {selectedComprador}</span>
+          </div>
         </Card>
       )}
 
-      <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
-        {['Financeiro', 'Giro (Tempo de Casa)'].map((tab, idx) => (
-            <button key={idx} onClick={() => setActiveTab(idx)} className={`px-4 py-2 rounded text-sm font-medium ${activeTab === idx ? 'bg-white shadow text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}>{tab}</button>
-        ))}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <Card decoration="top" decorationColor="emerald">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="w-4 h-4 text-emerald-600" />
+            <Text>Margem Total</Text>
+          </div>
+          <Metric className={financialKPIs.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+            {fmtCompact(financialKPIs.margem)}
+          </Metric>
+          <Text className="text-xs text-slate-400">ROI: {financialKPIs.roi.toFixed(1)}%</Text>
+        </Card>
+        <Card decoration="top" decorationColor="blue">
+          <Text>Total Vendas</Text>
+          <Metric>{fmtCompact(financialKPIs.totalVendas)}</Metric>
+        </Card>
+        <Card decoration="top" decorationColor="violet">
+          <Text>Ticket Médio</Text>
+          <Metric>{fmtCompact(financialKPIs.ticketMedio)}</Metric>
+        </Card>
+        <Card decoration="top" decorationColor="cyan">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-4 h-4 text-cyan-600" />
+            <Text>Idade Média</Text>
+          </div>
+          <Metric>{giroKPIs.tempoMedio.toFixed(0)} meses</Metric>
+        </Card>
+        <Card decoration="top" decorationColor="amber">
+          <div className="flex items-center gap-2 mb-1">
+            <Target className="w-4 h-4 text-amber-600" />
+            <Text>Com Lucro</Text>
+          </div>
+          <Metric className="text-emerald-600">{financialKPIs.comLucro}</Metric>
+        </Card>
+        <Card decoration="top" decorationColor="rose">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingDown className="w-4 h-4 text-rose-600" />
+            <Text>Com Prejuízo</Text>
+          </div>
+          <Metric className="text-rose-600">{financialKPIs.comPrejuizo}</Metric>
+        </Card>
       </div>
 
-      {activeTab === 0 && (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card decoration="top" decorationColor="emerald"><Text>Margem Total</Text><Metric>{fmtCompact(financialKPIs.margem)}</Metric><Text className="text-xs text-slate-400">ROI: {financialKPIs.roi.toFixed(1)}%</Text></Card>
-                <Card decoration="top" decorationColor="blue"><Text>Total Vendas</Text><Metric>{fmtCompact(financialKPIs.totalVendas)}</Metric></Card>
-                <Card decoration="top" decorationColor="violet"><Text>Veículos Vendidos</Text><Metric>{financialKPIs.qtdVendas}</Metric></Card>
-                <Card decoration="top" decorationColor="amber"><Text>Ticket Médio</Text><Metric>{fmtCompact(financialKPIs.ticketMedio)}</Metric></Card>
-            </div>
+      <Tabs defaultValue="financeiro" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          <TabsTrigger value="giro">Giro (Tempo)</TabsTrigger>
+          <TabsTrigger value="compradores">Compradores</TabsTrigger>
+          <TabsTrigger value="detalhamento">Detalhamento</TabsTrigger>
+        </TabsList>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                    <Title>Evolução de Vendas e Margem</Title>
-                    <div className="h-72 mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={evolutionData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                                <XAxis dataKey="label" fontSize={12}/>
-                                <YAxis fontSize={12} tickFormatter={fmtCompact}/>
-                                <Tooltip formatter={fmtBRL}/>
-                                <Legend/>
-                                <Line type="monotone" dataKey="Vendas" stroke="#3b82f6" strokeWidth={3} dot={{r:3}}/>
-                                <Line type="monotone" dataKey="Margem" stroke="#10b981" strokeWidth={3} dot={{r:3}}/>
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-                <Card>
-                    <Title>Distribuição de Margem</Title>
-                    <div className="h-64 mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={margemDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                    <Cell fill="#10b981" />
-                                    <Cell fill="#ef4444" />
-                                </Pie>
-                                <Tooltip formatter={fmtBRL} />
-                                <Legend verticalAlign="bottom"/>
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-            </div>
-
+        <TabsContent value="financeiro" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-                <Title>Top Compradores</Title>
-                <div className="mt-4 space-y-2 h-64 overflow-y-auto">
-                    {compradorRanking.map((item: any, idx: number) => {
-                        const isSelected = selectedComprador === item.name;
-                        return (
-                            <div key={idx} onClick={() => setSelectedComprador(isSelected ? null : item.name)} className={`p-2 rounded cursor-pointer flex justify-between text-sm ${isSelected ? 'bg-blue-100 ring-1 ring-blue-500' : 'hover:bg-slate-50'}`}>
-                                <span className="truncate max-w-[70%]">{item.name}</span>
-                                <span className="font-bold">{fmtCompact(item.value)}</span>
-                            </div>
-                        );
-                    })}
-                </div>
+              <Title>Evolução de Vendas e Margem</Title>
+              <div className="h-80 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={evolutionData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" fontSize={12} />
+                    <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
+                    <YAxis yAxisId="right" orientation="right" fontSize={12} />
+                    <Tooltip formatter={(v: any, name: string) => [name === 'Qtd' ? v : fmtBRL(v), name]} />
+                    <Legend />
+                    <Area yAxisId="left" type="monotone" dataKey="Vendas" fill="#3b82f6" fillOpacity={0.2} stroke="#3b82f6" strokeWidth={2} name="Vendas" />
+                    <Line yAxisId="left" type="monotone" dataKey="Margem" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} name="Margem" />
+                    <Bar yAxisId="right" dataKey="Qtd" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Quantidade" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </Card>
-        </div>
-      )}
-
-      {activeTab === 1 && (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card decoration="top" decorationColor="indigo"><Text>Tempo Médio Casa</Text><Metric>{giroKPIs.tempoMedio.toFixed(0)} dias</Metric></Card>
-                <Card decoration="top" decorationColor="emerald"><Text>Giro Rápido (Min)</Text><Metric>{giroKPIs.tempoMin} dias</Metric></Card>
-                <Card decoration="top" decorationColor="rose"><Text>Giro Lento (Max)</Text><Metric>{giroKPIs.tempoMax} dias</Metric></Card>
-            </div>
             <Card>
-                <Title>Distribuição Tempo de Casa</Title>
-                <div className="h-72 mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie data={tempoHistogram} cx="50%" cy="50%" outerRadius={80} label dataKey="value">
-                                {tempoHistogram.map((_, index) => <Cell key={index} fill={['#10b981', '#3b82f6', '#f59e0b', '#ef4444'][index % 4]} />)}
-                            </Pie>
-                            <Tooltip/>
-                            <Legend/>
-                        </PieChart>
-                    </ResponsiveContainer>
+              <Title>Distribuição de Resultado</Title>
+              <div className="h-72 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={margemDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                      {margemDistribution.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: any) => fmtBRL(v)} />
+                    <Legend verticalAlign="bottom" />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="p-3 bg-emerald-50 rounded-lg text-center">
+                  <Text className="text-emerald-700 font-medium">Total Lucro</Text>
+                  <Text className="text-xl font-bold text-emerald-600">{fmtCompact(margemDistribution[0]?.value || 0)}</Text>
                 </div>
+                <div className="p-3 bg-rose-50 rounded-lg text-center">
+                  <Text className="text-rose-700 font-medium">Total Prejuízo</Text>
+                  <Text className="text-xl font-bold text-rose-600">{fmtCompact(margemDistribution[1]?.value || 0)}</Text>
+                </div>
+              </div>
             </Card>
-        </div>
-      )}
+          </div>
+        </TabsContent>
 
-      <Card>
-        <Title className="mb-4">Detalhamento de Vendas</Title>
-        <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+        <TabsContent value="giro" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card decoration="top" decorationColor="indigo">
+              <Text>Idade Média na Venda</Text>
+              <Metric>{giroKPIs.tempoMedio.toFixed(0)} meses</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="emerald">
+              <Text>Giro Rápido (Min)</Text>
+              <Metric>{giroKPIs.tempoMin} meses</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="rose">
+              <Text>Giro Lento (Max)</Text>
+              <Metric>{giroKPIs.tempoMax} meses</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="amber">
+              <Text>KM Médio na Venda</Text>
+              <Metric>{(giroKPIs.kmMedio / 1000).toFixed(0)}k</Metric>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <Title>Distribuição por Idade na Venda</Title>
+              <div className="h-72 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={tempoHistogram}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" fontSize={12} />
+                    <YAxis fontSize={12} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Quantidade" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card>
+              <Title>Margem Média por Faixa de Idade</Title>
+              <div className="h-72 mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={margemPorIdade}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" fontSize={12} />
+                    <YAxis fontSize={12} tickFormatter={fmtCompact} />
+                    <Tooltip formatter={(v: any) => fmtBRL(v)} />
+                    <Bar dataKey="MargemMedia" radius={[4, 4, 0, 0]}>
+                      {margemPorIdade.map((entry, i) => (
+                        <Cell key={i} fill={entry.MargemMedia >= 0 ? '#10b981' : '#ef4444'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="compradores" className="space-y-6">
+          <Card>
+            <Title>Top 10 Compradores (Clique para filtrar)</Title>
+            <div className="mt-4 space-y-3">
+              {compradorRanking.map((item, idx) => {
+                const isSelected = selectedComprador === item.name;
+                const maxVal = compradorRanking[0]?.valor || 1;
+                const width = `${(item.valor / maxVal) * 100}%`;
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedComprador(isSelected ? null : item.name)}
+                    className={`p-3 rounded cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'}`}
+                  >
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                        {idx + 1}. {item.name}
+                      </span>
+                      <div className="flex gap-4">
+                        <span className="text-slate-500">{item.qtd} veículos</span>
+                        <span className="font-bold text-blue-600">{fmtCompact(item.valor)}</span>
+                        <span className={`font-bold ${item.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {item.margem >= 0 ? '+' : ''}{fmtCompact(item.margem)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2">
+                      <div className={`h-2 rounded-full ${isSelected ? 'bg-blue-600' : 'bg-blue-400'}`} style={{ width }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="detalhamento">
+          <Card>
+            <Title className="mb-4">Detalhamento de Vendas</Title>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
-                    <tr><th className="p-3">Placa</th><th className="p-3">Modelo</th><th className="p-3">Comprador</th><th className="p-3 text-right">Compra</th><th className="p-3 text-right">Venda</th><th className="p-3 text-right">Margem</th><th className="p-3 text-center">Tempo (dias)</th></tr>
+                  <tr>
+                    <th className="p-3">Placa</th>
+                    <th className="p-3">Modelo</th>
+                    <th className="p-3">Comprador</th>
+                    <th className="p-3 text-right">Compra</th>
+                    <th className="p-3 text-right">Venda</th>
+                    <th className="p-3 text-right">Margem</th>
+                    <th className="p-3 text-center">Idade</th>
+                    <th className="p-3 text-center">KM</th>
+                  </tr>
                 </thead>
                 <tbody>
-                    {pageItems.map((r, i) => (
-                        <tr key={i} className="hover:bg-slate-50 border-t">
-                            <td className="p-3 font-mono">{r.placa}</td><td className="p-3">{r.modelo}</td><td className="p-3 truncate max-w-[150px]">{r.comprador}</td>
-                            <td className="p-3 text-right text-slate-500">{fmtBRL(r.compra)}</td>
-                            <td className="p-3 text-right font-bold">{fmtBRL(r.venda)}</td>
-                            <td className={`p-3 text-right font-bold ${r.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtBRL(r.margem)}</td>
-                            <td className="p-3 text-center">{r.tempo}</td>
-                        </tr>
-                    ))}
+                  {pageItems.map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-50 border-t">
+                      <td className="p-3 font-mono">{r.placa}</td>
+                      <td className="p-3 truncate max-w-[150px]">{r.modelo}</td>
+                      <td className="p-3 truncate max-w-[150px]">{r.comprador}</td>
+                      <td className="p-3 text-right text-slate-500">{fmtBRL(r.compra)}</td>
+                      <td className="p-3 text-right font-bold">{fmtBRL(r.venda)}</td>
+                      <td className={`p-3 text-right font-bold ${r.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {r.margem >= 0 ? '+' : ''}{fmtBRL(r.margem)}
+                      </td>
+                      <td className="p-3 text-center">{r.idade}m</td>
+                      <td className="p-3 text-center">{(r.km / 1000).toFixed(0)}k</td>
+                    </tr>
+                  ))}
                 </tbody>
-            </table>
-        </div>
-        <div className="flex justify-between mt-4 border-t pt-4">
-            <Text className="text-sm">Página {page + 1} de {Math.ceil(tableData.length / pageSize)}</Text>
-            <div className="flex gap-2">
+              </table>
+            </div>
+            <div className="flex justify-between mt-4 border-t pt-4">
+              <Text className="text-sm">Página {page + 1} de {Math.ceil(tableData.length / pageSize)}</Text>
+              <div className="flex gap-2">
                 <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
                 <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+              </div>
             </div>
-        </div>
-      </Card>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
