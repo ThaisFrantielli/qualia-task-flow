@@ -4,6 +4,8 @@ import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { LayoutDashboard, Car, DollarSign, Wrench, Users, AlertTriangle, ArrowRight, TrendingUp, TrendingDown, ShoppingCart, Tag } from 'lucide-react';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -33,6 +35,8 @@ export default function ExecutiveDashboard(): JSX.Element {
   const churn = useMemo(() => Array.isArray(rawChurn) ? rawChurn : [], [rawChurn]);
   const propostas = useMemo(() => Array.isArray(rawPropostas) ? rawPropostas : [], [rawPropostas]);
   const auditoria = useMemo(() => Array.isArray(rawAuditoria) ? rawAuditoria : [], [rawAuditoria]);
+
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
   // Scorecard Principal
   const scorecard = useMemo(() => {
@@ -140,6 +144,9 @@ export default function ExecutiveDashboard(): JSX.Element {
         <div><Title className="text-slate-900">Visão Geral Executiva</Title><Text className="mt-1 text-slate-500">Scorecard consolidado da operação</Text></div>
         <div className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><LayoutDashboard className="w-4 h-4" /> Board</div>
       </div>
+      {/* Chart filters (Power BI style) */}
+      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
 
       {/* Links Rápidos */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">

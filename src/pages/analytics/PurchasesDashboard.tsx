@@ -5,8 +5,10 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Cell, PieChart, Pie, Legend, BarChart, LabelList, AreaChart, Area, Brush 
 } from 'recharts';
 import { 
-  ShoppingBag, Filter, ShieldAlert, X, ChevronDown, ChevronRight, Car, Search, FileSpreadsheet, ArrowUp, ArrowDown, Check, Square, CheckSquare, ArrowRightLeft
+    ShoppingBag, Filter, ShieldAlert, X, ChevronDown, ChevronRight, Car, Search, FileSpreadsheet, ArrowUp, ArrowDown, Check, Square, CheckSquare, ArrowRightLeft
 } from 'lucide-react';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -145,6 +147,8 @@ export default function PurchasesDashboard(): JSX.Element {
     return map;
   }, [frota]);
 
+    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+
   const placaSituacaoFinanceiraMap = useMemo(() => {
     const map: Record<string, string> = {};
     alienacoes.forEach((a: AnyObject) => { 
@@ -166,31 +170,28 @@ export default function PurchasesDashboard(): JSX.Element {
   const [forecastMonths, setForecastMonths] = useState<number | 'MAX'>(24);
   const [viewModelo, setViewModelo] = useState<'qtd' | 'fipe'>('qtd');
 
-  // Filtros Multi-Select
-  const [filterState, setFilterState] = useState<{ 
-    fornecedor: string[]; 
-    mes: string | null; 
-    montadora: string[]; 
-    banco: string[]; 
-    situacaoVeiculo: string[]; 
-    search: string;
-    modelo: string | null; 
-    proprietario: string | null;
-  }>({ 
-    fornecedor: [], mes: null, montadora: [], banco: [], situacaoVeiculo: [], search: '', modelo: null, proprietario: null 
-  });
+    // Filtros Multi-Select handled via useChartFilter
+    const uniqueOptions = useMemo(() => ({
+        montadoras: Array.from(new Set(compras.map(r => r.Montadora).filter(Boolean))).sort(),
+        bancos: Array.from(new Set(compras.map(r => r.Banco).filter(Boolean))).sort(),
+        situacoesVeiculo: Array.from(new Set(frota.map(r => r.Status).filter(Boolean))).sort()
+    }), [compras, frota]);
 
-  const uniqueOptions = useMemo(() => ({
-    montadoras: Array.from(new Set(compras.map(r => r.Montadora).filter(Boolean))).sort(),
-    bancos: Array.from(new Set(compras.map(r => r.Banco).filter(Boolean))).sort(),
-    situacoesVeiculo: Array.from(new Set(frota.map(r => r.Status).filter(Boolean))).sort()
-  }), [compras, frota]);
-
-  const hasActiveFilters = !!(filterState.fornecedor.length || filterState.mes || filterState.montadora.length || filterState.banco.length || filterState.situacaoVeiculo.length || filterState.search || filterState.modelo || filterState.proprietario);
-
-  const handleFilterChange = (key: keyof typeof filterState, values: string[]) => {
-      setFilterState(prev => ({ ...prev, [key]: values }));
-  };
+    const hasLocalActiveFilters = hasActiveFilters; // alias from hook
+    const setFilterValues = (key: string, values: string[]) => {
+            // map local keys to common names
+            setFilterState?._not_used_ && null;
+            // use hook's setFilterValues from parent scope (already defined)
+            // In this file we have `setFilterValues` defined earlier when adding the hook; reuse it by referencing the outer scope function name.
+            // However to avoid confusion, we'll call handleChartClick directly for single-value sets and clearFilter for empty.
+            if (!values || values.length === 0) {
+                clearFilter(key);
+            } else {
+                // clear existing then add
+                clearFilter(key);
+                values.forEach(v => handleChartClick(key, v, { ctrlKey: true } as unknown as React.MouseEvent));
+            }
+    };
 
   // --- FILTRAGEM ---
   const filterFunction = (r: AnyObject, start: string, end: string) => {
@@ -201,19 +202,27 @@ export default function PurchasesDashboard(): JSX.Element {
 
       if (start && d < start) return false;
       if (end && d > end) return false;
-      
-      if (filterState.fornecedor.length > 0 && !filterState.fornecedor.includes(r.Fornecedor)) return false;
-      if (filterState.montadora.length > 0 && !filterState.montadora.includes(r.Montadora)) return false;
-      if (filterState.banco.length > 0 && !filterState.banco.includes(r.Banco)) return false;
-      if (filterState.situacaoVeiculo.length > 0 && !filterState.situacaoVeiculo.includes(statusAtual)) return false;
-      if (filterState.mes && getMonthKey(d) !== filterState.mes) return false;
-      if (filterState.modelo && r.Modelo !== filterState.modelo) return false;
-      if (filterState.proprietario && prop !== filterState.proprietario) return false;
+            const fornecedores = getFilterValues('fornecedor');
+            const montadoras = getFilterValues('montadora');
+            const bancos = getFilterValues('banco');
+            const situacoes = getFilterValues('situacaoVeiculo');
+            const mes = (getFilterValues('mes') || [])[0] || null;
+            const modelo = (getFilterValues('modelo') || [])[0] || null;
+            const proprietario = (getFilterValues('proprietario') || [])[0] || null;
+            const search = (getFilterValues('search') || [])[0] || '';
 
-      if (filterState.search) {
-        const term = filterState.search.toLowerCase();
-        if (!r.Placa?.toLowerCase().includes(term) && !r.Modelo?.toLowerCase().includes(term)) return false;
-      }
+            if (fornecedores.length > 0 && !fornecedores.includes(r.Fornecedor)) return false;
+            if (montadoras.length > 0 && !montadoras.includes(r.Montadora)) return false;
+            if (bancos.length > 0 && !bancos.includes(r.Banco)) return false;
+            if (situacoes.length > 0 && !situacoes.includes(statusAtual)) return false;
+            if (mes && getMonthKey(d) !== mes) return false;
+            if (modelo && r.Modelo !== modelo) return false;
+            if (proprietario && prop !== proprietario) return false;
+
+            if (search) {
+                const term = search.toLowerCase();
+                if (!r.Placa?.toLowerCase().includes(term) && !r.Modelo?.toLowerCase().includes(term)) return false;
+            }
       return true;
   };
 
@@ -446,19 +455,21 @@ export default function PurchasesDashboard(): JSX.Element {
         <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium flex gap-2"><ShoppingBag className="w-4 h-4"/> Hub Ativos</div>
       </div>
 
-      <Card className="bg-white shadow-sm border border-slate-200">
+            <FloatingClearButton onClick={clearAllFilters} show={hasLocalActiveFilters} />
+            <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
+
+            <Card className="bg-white shadow-sm border border-slate-200">
         <div className="flex items-center gap-2 mb-4"><Filter className="w-4 h-4 text-slate-500"/><Text className="font-medium text-slate-700">Filtros</Text></div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div><Text className="text-xs text-slate-500 mb-1">Período</Text><div className="flex gap-2"><input type="date" className="border p-2 rounded text-sm w-full" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /><input type="date" className="border p-2 rounded text-sm w-full" value={dateTo} onChange={e => setDateTo(e.target.value)} /></div></div>
-            <MultiSelect label="Situação Veículo" options={uniqueOptions.situacoesVeiculo} selected={filterState.situacaoVeiculo} onChange={(v) => handleFilterChange('situacaoVeiculo', v)} />
-            <MultiSelect label="Montadora" options={uniqueOptions.montadoras} selected={filterState.montadora} onChange={(v) => handleFilterChange('montadora', v)} />
-            <MultiSelect label="Banco" options={uniqueOptions.bancos} selected={filterState.banco} onChange={(v) => handleFilterChange('banco', v)} />
-            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={filterState.search} onChange={e => setFilterState(p => ({...p, search: e.target.value}))}/></div></div>
+            <MultiSelect label="Situação Veículo" options={uniqueOptions.situacoesVeiculo} selected={getFilterValues('situacaoVeiculo')} onChange={(v) => setFilterValues('situacaoVeiculo', v)} />
+            <MultiSelect label="Montadora" options={uniqueOptions.montadoras} selected={getFilterValues('montadora')} onChange={(v) => setFilterValues('montadora', v)} />
+            <MultiSelect label="Banco" options={uniqueOptions.bancos} selected={getFilterValues('banco')} onChange={(v) => setFilterValues('banco', v)} />
+            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={(getFilterValues('search')||[])[0]||''} onChange={e => setFilterValues('search', [e.target.value])}/></div></div>
         </div>
         <div className="flex gap-2 mt-4 flex-wrap">
-            {filterState.situacaoVeiculo.map(s => <span key={s} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleFilterChange('situacaoVeiculo', filterState.situacaoVeiculo.filter(i => i !== s))}/></span>)}
-            {filterState.montadora.map(m => <span key={m} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{m} <X size={12} className="cursor-pointer" onClick={() => handleFilterChange('montadora', filterState.montadora.filter(i => i !== m))}/></span>)}
-            {hasActiveFilters && <button onClick={() => setFilterState({ fornecedor: [], mes: null, montadora: [], banco: [], situacaoVeiculo: [], search: '', modelo: null, proprietario: null })} className="text-xs text-red-500 underline ml-auto">Limpar Todos</button>}
+            {/* badges rendered by ChartFilterBadges */}
+            {hasLocalActiveFilters && <button onClick={() => clearAllFilters()} className="text-xs text-red-500 underline ml-auto">Limpar Todos</button>}
         </div>
       </Card>
 
@@ -487,7 +498,7 @@ export default function PurchasesDashboard(): JSX.Element {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2"><Title>Evolução de Compras (YoY)</Title><div className="h-72 mt-4"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={evolutionData} margin={{ right: 30 }}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" fontSize={12}/><YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact}/><YAxis yAxisId="right" orientation="right" fontSize={12}/><Tooltip content={<CustomTooltipEvolution />} /><Bar yAxisId="left" dataKey="Valor" fill="#3b82f6" radius={[4,4,0,0]} onClick={(d) => setFilterState(p => ({...p, mes: p.mes === d.date ? null : d.date}))} cursor="pointer"><LabelList dataKey="Valor" position="top" formatter={fmtCompact} fontSize={10}/></Bar><Line yAxisId="right" type="monotone" dataKey="Qtd" stroke="#f59e0b" strokeWidth={2}/></ComposedChart></ResponsiveContainer></div></Card>
+                <Card className="lg:col-span-2"><Title>Evolução de Compras (YoY)</Title><div className="h-72 mt-4"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={evolutionData} margin={{ right: 30 }}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" fontSize={12}/><YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact}/><YAxis yAxisId="right" orientation="right" fontSize={12}/><Tooltip content={<CustomTooltipEvolution />} /><Bar yAxisId="left" dataKey="Valor" fill="#3b82f6" radius={[4,4,0,0]} onClick={(d, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)} cursor="pointer"><LabelList dataKey="Valor" position="top" formatter={fmtCompact} fontSize={10}/></Bar><Line yAxisId="right" type="monotone" dataKey="Qtd" stroke="#f59e0b" strokeWidth={2}/></ComposedChart></ResponsiveContainer></div></Card>
                 <Card><Title>Compra vs FIPE por Situação</Title><div className="h-72 mt-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={financialSitData} margin={{ top: 20 }}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" fontSize={12}/><YAxis fontSize={12} tickFormatter={fmtCompact}/><Tooltip formatter={fmtBRL}/><Legend verticalAlign="bottom"/><Bar dataKey="compra" name="Compra" fill="#3b82f6" radius={[4,4,0,0]}><LabelList dataKey="compra" position="top" formatter={fmtCompact} fontSize={10} fill="#3b82f6"/></Bar><Bar dataKey="fipe" name="FIPE" fill="#10b981" radius={[4,4,0,0]}><LabelList dataKey="fipe" position="top" formatter={fmtCompact} fontSize={10} fill="#10b981"/></Bar></BarChart></ResponsiveContainer></div></Card>
             </div>
 
@@ -507,7 +518,7 @@ export default function PurchasesDashboard(): JSX.Element {
                                     <XAxis type="number" fontSize={10} hide/>
                                     <YAxis dataKey="name" type="category" width={100} fontSize={10} tick={{fill: '#475569'}}/>
                                     <Tooltip formatter={(v:any, n) => [n==='value' ? (viewModelo === 'qtd' ? v : `${v.toFixed(1)}%`) : v, n]}/>
-                                    <Bar dataKey="value" fill={viewModelo === 'qtd' ? "#8b5cf6" : "#10b981"} radius={[0,4,4,0]} barSize={20} onClick={(d) => setFilterState(p => ({...p, modelo: d.name}))} cursor="pointer">
+                                    <Bar dataKey="value" fill={viewModelo === 'qtd' ? "#8b5cf6" : "#10b981"} radius={[0,4,4,0]} barSize={20} onClick={(d, e) => handleChartClick('modelo', d.name, e as unknown as React.MouseEvent)} cursor="pointer">
                                         <LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" formatter={(v: number) => viewModelo === 'qtd' ? v : `${v.toFixed(0)}%`}/>
                                     </Bar>
                                 </BarChart>
@@ -515,8 +526,8 @@ export default function PurchasesDashboard(): JSX.Element {
                         </div>
                     </div>
                 </Card>
-                <Card><Title>Por Montadora (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(300, qtdPorMontadora.length * 30) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={qtdPorMontadora} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#ec4899" radius={[0,4,4,0]} barSize={20} onClick={(d) => setFilterState(p => ({...p, montadora: [d.name]}))} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
-                <Card><Title>Por Proprietário (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(200, ownerData.length * 40) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={ownerData} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[0,4,4,0]} barSize={25} onClick={(d) => setFilterState(p => ({...p, proprietario: d.name}))} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
+                <Card><Title>Por Montadora (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(300, qtdPorMontadora.length * 30) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={qtdPorMontadora} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#ec4899" radius={[0,4,4,0]} barSize={20} onClick={(d, e) => handleChartClick('montadora', d.name, e as unknown as React.MouseEvent)} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
+                <Card><Title>Por Proprietário (Qtd)</Title><div className="h-80 mt-4 overflow-y-auto pr-2"><div style={{ height: Math.max(200, ownerData.length * 40) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={ownerData} layout="vertical" margin={{ left: 10, right: 30 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} hide/><YAxis dataKey="name" type="category" width={90} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[0,4,4,0]} barSize={25} onClick={(d, e) => handleChartClick('proprietario', d.name, e as unknown as React.MouseEvent)} cursor="pointer"><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></div></Card>
             </div>
 
             <Card className="p-0 overflow-hidden">

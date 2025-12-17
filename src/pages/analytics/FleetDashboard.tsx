@@ -4,6 +4,8 @@ import { Card, Title, Text, Metric, Badge, BarList } from '@tremor/react';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Car, Filter, X, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -76,15 +78,22 @@ export default function FleetDashboard(): JSX.Element {
     return map;
   }, [manutencao]);
 
-    const [filterState, setFilterState] = useState<{ status: string[]; modelo: string[]; filial: string[]; search: string }>({ status: [], modelo: [], filial: [], search: '' });
-    const [selectedProductivity, setSelectedProductivity] = useState<string[]>([]); // allow multi-select: 'Ativa','Produtiva','Improdutiva','Inativa'
+    // use unified chart filter hook (Power BI style)
+    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+
+    // helper to set array values coming from MultiSelect components
+    const setFilterValues = (key: string, values: string[]) => {
+        clearFilter(key);
+        values.forEach(v => handleChartClick(key, v, { ctrlKey: true } as unknown as React.MouseEvent));
+        setPage(0);
+    };
   const [page, setPage] = useState(0);
   const pageSize = 15;
   const [sortConfig, setSortConfig] = useState<{ key: keyof FleetTableItem; direction: 'asc' | 'desc' } | null>(null);
   const [timelinePage, setTimelinePage] = useState(0);
   const [expandedPlates, setExpandedPlates] = useState<string[]>([]);
   const [reservaPage, setReservaPage] = useState(0);
-  const [reservaFilters, setReservaFilters] = useState<{ motivo: string[]; cliente: string[]; status: string[]; search: string }>({ motivo: [], cliente: [], status: [], search: '' });
+    // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
   // CLASSIFICAÇÃO DE FROTA
   const getCategory = (status: string) => {
@@ -101,44 +110,37 @@ export default function FleetDashboard(): JSX.Element {
     filiais: Array.from(new Set(frota.map(r => r.Filial).filter(Boolean))).sort()
   }), [frota]);
 
-    const hasActiveFilters = !!(filterState.status.length || filterState.modelo.length || filterState.filial.length || filterState.search || selectedProductivity.length > 0);
+  // note: use `getFilterValues(key)` to read current selections, e.g. getFilterValues('status')
 
-  const handleFilterChange = (key: keyof typeof filterState, values: string[], toggleMode = false) => {
-      setFilterState(prev => {
-          if (toggleMode && key === 'status') {
-              const newStatus = prev.status.includes(values[0]) 
-                  ? prev.status.filter(s => s !== values[0])
-                  : [...prev.status, values[0]];
-              return { ...prev, status: newStatus };
-          }
-          return { ...prev, [key]: values };
-      });
-      setPage(0);
-  };
+    const filteredData = useMemo(() => {
+        const prodFilters = getFilterValues('productivity');
+        const statusFilters = getFilterValues('status');
+        const modeloFilters = getFilterValues('modelo');
+        const filialFilters = getFilterValues('filial');
+        const search = (getFilterValues('search') || [])[0] || '';
 
-  const filteredData = useMemo(() => {
-    return frota.filter(r => {
-      const cat = getCategory(r.Status);
-            if (selectedProductivity.length > 0) {
+        return frota.filter(r => {
+            const cat = getCategory(r.Status);
+            if (prodFilters.length > 0) {
                 const allowed = new Set<string>();
-                if (selectedProductivity.includes('Ativa')) { allowed.add('Produtiva'); allowed.add('Improdutiva'); }
-                if (selectedProductivity.includes('Produtiva')) allowed.add('Produtiva');
-                if (selectedProductivity.includes('Improdutiva')) allowed.add('Improdutiva');
-                if (selectedProductivity.includes('Inativa')) allowed.add('Inativa');
+                if (prodFilters.includes('Ativa')) { allowed.add('Produtiva'); allowed.add('Improdutiva'); }
+                if (prodFilters.includes('Produtiva')) allowed.add('Produtiva');
+                if (prodFilters.includes('Improdutiva')) allowed.add('Improdutiva');
+                if (prodFilters.includes('Inativa')) allowed.add('Inativa');
                 if (!allowed.has(cat)) return false;
             }
-      
-      if (filterState.status.length > 0 && !filterState.status.includes(r.Status)) return false;
-      if (filterState.modelo.length > 0 && !filterState.modelo.includes(r.Modelo)) return false;
-      if (filterState.filial.length > 0 && !filterState.filial.includes(r.Filial)) return false;
-      
-      if (filterState.search) {
-        const term = filterState.search.toLowerCase();
-        if (!r.Placa?.toLowerCase().includes(term) && !r.Modelo?.toLowerCase().includes(term)) return false;
-      }
-      return true;
-    });
-    }, [frota, filterState, selectedProductivity]);
+
+            if (statusFilters.length > 0 && !statusFilters.includes(r.Status)) return false;
+            if (modeloFilters.length > 0 && !modeloFilters.includes(r.Modelo)) return false;
+            if (filialFilters.length > 0 && !filialFilters.includes(r.Filial)) return false;
+
+            if (search) {
+                const term = search.toLowerCase();
+                if (!r.Placa?.toLowerCase().includes(term) && !r.Modelo?.toLowerCase().includes(term)) return false;
+            }
+            return true;
+        });
+    }, [frota, filters, getFilterValues]);
 
   const kpis = useMemo(() => {
     const total = filteredData.length;
@@ -257,32 +259,29 @@ export default function FleetDashboard(): JSX.Element {
     statuses: Array.from(new Set(carroReserva.map(r => r.StatusOcorrencia).filter(Boolean))).sort()
   }), [carroReserva]);
 
-  const handleReservaFilterChange = (key: keyof typeof reservaFilters, values: string[], toggleMode = false) => {
-    setReservaFilters(prev => {
-      if (toggleMode && (key === 'motivo' || key === 'cliente' || key === 'status')) {
-        const currentArray = prev[key];
-        const newArray = currentArray.includes(values[0])
-          ? currentArray.filter(s => s !== values[0])
-          : [...currentArray, values[0]];
-        return { ...prev, [key]: newArray };
-      }
-      return { ...prev, [key]: values };
-    });
-    setReservaPage(0);
-  };
+    const setReservaFilterValues = (key: string, values: string[]) => {
+        // translate key names to use chart filter storage
+        const mapKey = key === 'motivo' ? 'reserva_motivo' : key === 'cliente' ? 'reserva_cliente' : key === 'status' ? 'reserva_status' : 'reserva_search';
+        setFilterValues(mapKey, values);
+        setReservaPage(0);
+    };
 
-  const filteredReservas = useMemo(() => {
-    return carroReserva.filter(r => {
-      if (reservaFilters.motivo.length > 0 && !reservaFilters.motivo.includes(r.Motivo)) return false;
-      if (reservaFilters.cliente.length > 0 && !reservaFilters.cliente.includes(r.Cliente)) return false;
-      if (reservaFilters.status.length > 0 && !reservaFilters.status.includes(r.StatusOcorrencia)) return false;
-      if (reservaFilters.search) {
-        const term = reservaFilters.search.toLowerCase();
-        if (!r.PlacaReserva?.toLowerCase().includes(term) && !r.Cliente?.toLowerCase().includes(term) && !r.IdOcorrencia?.toLowerCase().includes(term)) return false;
-      }
-      return true;
-    });
-  }, [carroReserva, reservaFilters]);
+    const filteredReservas = useMemo(() => {
+        const motivos = getFilterValues('reserva_motivo');
+        const clientes = getFilterValues('reserva_cliente');
+        const statuses = getFilterValues('reserva_status');
+        const search = (getFilterValues('reserva_search') || [])[0] || '';
+        return carroReserva.filter(r => {
+            if (motivos.length > 0 && !motivos.includes(r.Motivo)) return false;
+            if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
+            if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
+            if (search) {
+                const term = search.toLowerCase();
+                if (!r.PlacaReserva?.toLowerCase().includes(term) && !r.Cliente?.toLowerCase().includes(term) && !r.IdOcorrencia?.toLowerCase().includes(term)) return false;
+            }
+            return true;
+        });
+    }, [carroReserva, filters, getFilterValues]);
 
   const reservaKPIs = useMemo(() => {
     const total = filteredReservas.length;
@@ -418,9 +417,10 @@ export default function FleetDashboard(): JSX.Element {
   };
 
     const toggleProductivity = (opt: string) => {
-        if (opt === 'Todos') { setSelectedProductivity([]); }
-        else {
-            setSelectedProductivity(prev => prev.includes(opt) ? prev.filter(p => p !== opt) : [...prev, opt]);
+        if (opt === 'Todos') {
+            clearFilter('productivity');
+        } else {
+            handleChartClick('productivity', opt, { ctrlKey: true } as unknown as React.MouseEvent);
         }
         setPage(0);
     };
@@ -495,27 +495,28 @@ export default function FleetDashboard(): JSX.Element {
         <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Car className="w-4 h-4"/> Hub Ativos</div>
       </div>
 
-      <Card className="bg-white shadow-sm border border-slate-200">
+    <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+    <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
+
+    <Card className="bg-white shadow-sm border border-slate-200">
         <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-slate-500"/><Text className="font-medium text-slate-700">Filtros</Text></div>
             <div className="flex bg-slate-100 p-1 rounded-lg">
-                <button onClick={() => toggleProductivity('Todos')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${selectedProductivity.length === 0 ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Todos</button>
-                <button onClick={() => toggleProductivity('Ativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${selectedProductivity.includes('Ativa') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Ativa</button>
-                <button onClick={() => toggleProductivity('Produtiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${selectedProductivity.includes('Produtiva') ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><CheckCircle2 size={12}/> Produtiva</button>
-                <button onClick={() => toggleProductivity('Improdutiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${selectedProductivity.includes('Improdutiva') ? 'bg-white shadow text-rose-600' : 'text-slate-500'}`}><XCircle size={12}/> Improdutiva</button>
-                <button onClick={() => toggleProductivity('Inativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${selectedProductivity.includes('Inativa') ? 'bg-white shadow text-slate-600' : 'text-slate-500'}`}><Archive size={12}/> Inativa</button>
+                <button onClick={() => toggleProductivity('Todos')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').length === 0 ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Todos</button>
+                <button onClick={() => toggleProductivity('Ativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Ativa') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Ativa</button>
+                <button onClick={() => toggleProductivity('Produtiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Produtiva') ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><CheckCircle2 size={12}/> Produtiva</button>
+                <button onClick={() => toggleProductivity('Improdutiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Improdutiva') ? 'bg-white shadow text-rose-600' : 'text-slate-500'}`}><XCircle size={12}/> Improdutiva</button>
+                <button onClick={() => toggleProductivity('Inativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Inativa') ? 'bg-white shadow text-slate-600' : 'text-slate-500'}`}><Archive size={12}/> Inativa</button>
             </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <MultiSelect label="Status" options={uniqueOptions.status} selected={filterState.status} onChange={(v) => handleFilterChange('status', v)} />
-            <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={filterState.modelo} onChange={(v) => handleFilterChange('modelo', v)} />
-            <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={filterState.filial} onChange={(v) => handleFilterChange('filial', v)} />
-            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={filterState.search} onChange={e => handleFilterChange('search', [e.target.value] as any)}/></div></div>
+            <MultiSelect label="Status" options={uniqueOptions.status} selected={getFilterValues('status')} onChange={(v) => setFilterValues('status', v)} />
+            <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={getFilterValues('modelo')} onChange={(v) => setFilterValues('modelo', v)} />
+            <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={getFilterValues('filial')} onChange={(v) => setFilterValues('filial', v)} />
+            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={(getFilterValues('search') || [])[0] || ''} onChange={e => setFilterValues('search', [e.target.value])}/></div></div>
         </div>
         <div className="flex gap-2 mt-4 flex-wrap">
-            {filterState.status.map(s => <span key={s} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleFilterChange('status', filterState.status.filter(i => i !== s))}/></span>)}
-            {selectedProductivity.map(p => (<span key={p} className="bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded flex items-center gap-1">{p} <X size={12} className="cursor-pointer" onClick={() => setSelectedProductivity(prev => prev.filter(i => i !== p))}/> </span>))}
-            {hasActiveFilters && <button onClick={() => { setFilterState({ status: [], modelo: [], filial: [], search: '' }); setSelectedProductivity([]); }} className="text-xs text-red-500 underline ml-auto">Limpar Todos</button>}
+            {/* ChartFilterBadges shows active filters */}
         </div>
       </Card>
 
@@ -552,9 +553,9 @@ export default function FleetDashboard(): JSX.Element {
                                         <XAxis type="number" tick={{ fontSize: 12 }} />
                                         <YAxis dataKey="name" type="category" width={220} tick={{ fontSize: 12 }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                        <Bar dataKey="value" barSize={20} radius={[6,6,6,6]} onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                        <Bar dataKey="value" barSize={20} radius={[6,6,6,6]} onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             {statusData.map((entry, idx) => (
-                                                <Cell key={`cell-st-${idx}`} fill={entry.color} />
+                                                <Cell key={`cell-st-${idx}`} fill={isValueSelected('status', entry.name) ? '#063970' : entry.color} />
                                             ))}
                                             <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                         </Bar>
@@ -599,7 +600,7 @@ export default function FleetDashboard(): JSX.Element {
                                                                                 const pct = props?.payload?.pct;
                                                                                 return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                                             }} />
-                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#64748b" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#64748b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                                                 <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                                             </Bar>
                                                                         </BarChart>
@@ -618,7 +619,7 @@ export default function FleetDashboard(): JSX.Element {
                                                                                 const pct = props?.payload?.pct;
                                                                                 return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                                             }} />
-                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                                            <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                                                 <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                                             </Bar>
                                                                         </BarChart>
@@ -692,16 +693,13 @@ export default function FleetDashboard(): JSX.Element {
                     <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-slate-500"/><Text className="font-medium text-slate-700">Filtros de Carro Reserva</Text></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <MultiSelect label="Motivo" options={reservaUniqueOptions.motivos} selected={reservaFilters.motivo} onChange={(v) => handleReservaFilterChange('motivo', v)} />
-                    <MultiSelect label="Cliente" options={reservaUniqueOptions.clientes} selected={reservaFilters.cliente} onChange={(v) => handleReservaFilterChange('cliente', v)} />
-                    <MultiSelect label="Status" options={reservaUniqueOptions.statuses} selected={reservaFilters.status} onChange={(v) => handleReservaFilterChange('status', v)} />
-                    <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa/Cliente/ID)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Buscar..." value={reservaFilters.search} onChange={e => handleReservaFilterChange('search', [e.target.value] as any)}/></div></div>
+                    <MultiSelect label="Motivo" options={reservaUniqueOptions.motivos} selected={getFilterValues('reserva_motivo')} onChange={(v) => setReservaFilterValues('motivo', v)} />
+                    <MultiSelect label="Cliente" options={reservaUniqueOptions.clientes} selected={getFilterValues('reserva_cliente')} onChange={(v) => setReservaFilterValues('cliente', v)} />
+                    <MultiSelect label="Status" options={reservaUniqueOptions.statuses} selected={getFilterValues('reserva_status')} onChange={(v) => setReservaFilterValues('status', v)} />
+                    <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa/Cliente/ID)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Buscar..." value={(getFilterValues('reserva_search') || [])[0] || ''} onChange={e => setReservaFilterValues('search', [e.target.value])}/></div></div>
                 </div>
                 <div className="flex gap-2 mt-4 flex-wrap">
-                    {reservaFilters.motivo.map(s => <span key={s} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleReservaFilterChange('motivo', reservaFilters.motivo.filter(i => i !== s))}/></span>)}
-                    {reservaFilters.cliente.map(s => <span key={s} className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleReservaFilterChange('cliente', reservaFilters.cliente.filter(i => i !== s))}/></span>)}
-                    {reservaFilters.status.map(s => <span key={s} className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded flex items-center gap-1">{s} <X size={12} className="cursor-pointer" onClick={() => handleReservaFilterChange('status', reservaFilters.status.filter(i => i !== s))}/></span>)}
-                    {(reservaFilters.motivo.length > 0 || reservaFilters.cliente.length > 0 || reservaFilters.status.length > 0 || reservaFilters.search) && <button onClick={() => setReservaFilters({ motivo: [], cliente: [], status: [], search: '' })} className="text-xs text-red-500 underline ml-auto">Limpar Todos</button>}
+                    {/* reserva badges are handled by ChartFilterBadges (labelMap) */}
                 </div>
             </Card>
 
@@ -755,7 +753,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={140} tick={{fontSize:12}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('motivo', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_motivo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                 </Bar>
                             </BarChart>
@@ -775,7 +773,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#10b981" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('cliente', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                 </Bar>
                             </BarChart>
@@ -792,7 +790,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={140} tick={{fontSize:12}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { const isCtrl = event?.ctrlKey || event?.metaKey; handleReservaFilterChange('status', [data.name], isCtrl); if (!isCtrl) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                 </Bar>
                             </BarChart>

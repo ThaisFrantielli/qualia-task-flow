@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { Building2, DollarSign, Calendar, TrendingDown, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 import { useNavigate } from 'react-router-dom';
 
 type AnyObject = { [k: string]: any };
@@ -56,7 +58,7 @@ export default function FundingDashboard(): JSX.Element {
     const navigate = useNavigate();
     const { data: rawAlienacoes } = useBIData<AnyObject[]>('alienacoes.json');
 
-    const [selectedBank, setSelectedBank] = useState<string | null>(null);
+    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
     const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
 
     const toggleContract = (numeroContrato: string) => {
@@ -223,6 +225,8 @@ export default function FundingDashboard(): JSX.Element {
             </div>
 
             {/* Filters */}
+            <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+            <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
             <Card className="bg-white border border-slate-200">
                 <Text className="font-medium text-slate-700 mb-3">Filtros</Text>
                 <div className="flex gap-4 items-end">
@@ -230,8 +234,12 @@ export default function FundingDashboard(): JSX.Element {
                         <label className="text-xs text-slate-500 mb-1 block">Banco</label>
                         <select
                             className="border p-2 rounded text-sm w-full"
-                            value={selectedBank || ''}
-                            onChange={(e) => setSelectedBank(e.target.value || null)}
+                            value={(getFilterValues('banco') || [])[0] || ''}
+                            onChange={(e) => {
+                                const val = e.target.value || '';
+                                if (!val) clearFilter('banco');
+                                else handleChartClick('banco', val, { ctrlKey: false } as unknown as React.MouseEvent);
+                            }}
                         >
                             <option value="">Todos os Bancos</option>
                             {uniqueBanks.map(bank => (
@@ -239,9 +247,9 @@ export default function FundingDashboard(): JSX.Element {
                             ))}
                         </select>
                     </div>
-                    {selectedBank && (
+                    {(getFilterValues('banco') || []).length > 0 && (
                         <button
-                            onClick={() => setSelectedBank(null)}
+                            onClick={() => clearFilter('banco')}
                             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-sm"
                         >
                             Limpar
