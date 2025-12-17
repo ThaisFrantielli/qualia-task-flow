@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Wrench, Filter, X, Download } from 'lucide-react';
+import { Wrench, Download } from 'lucide-react';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -21,22 +23,26 @@ export default function MaintenanceDashboard(): JSX.Element {
   const fornecedores = useMemo(() => Array.isArray(rawFornecedores) ? rawFornecedores : [], [rawFornecedores]);
 
   const [activeTab, setActiveTab] = useState(0);
-  const [filterState, setFilterState] = useState<{ mes: string | null; oficina: string | null; placa: string | null; tipo: string | null }>({ mes: null, oficina: null, placa: null, tipo: null });
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
-  const hasActiveFilters = !!(filterState.mes || filterState.oficina || filterState.placa || filterState.tipo);
-  const clearFilters = () => { setFilterState({ mes: null, oficina: null, placa: null, tipo: null }); setPage(0); };
+  // Hook de filtros estilo Power BI
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
   const filteredOS = useMemo(() => {
     return osList.filter((r: AnyObject) => {
-      if (filterState.mes && getMonthKey(r.DataEntrada) !== filterState.mes) return false;
-      if (filterState.oficina && r.Fornecedor !== filterState.oficina) return false;
-      if (filterState.placa && r.Placa !== filterState.placa) return false;
-      if (filterState.tipo && r.TipoManutencao !== filterState.tipo) return false;
+      const mesFilters = getFilterValues('mes');
+      const oficinaFilters = getFilterValues('oficina');
+      const placaFilters = getFilterValues('placa');
+      const tipoFilters = getFilterValues('tipo');
+      
+      if (mesFilters.length > 0 && !mesFilters.includes(getMonthKey(r.DataEntrada))) return false;
+      if (oficinaFilters.length > 0 && !oficinaFilters.includes(r.Fornecedor)) return false;
+      if (placaFilters.length > 0 && !placaFilters.includes(r.Placa)) return false;
+      if (tipoFilters.length > 0 && !tipoFilters.includes(r.TipoManutencao)) return false;
       return true;
     });
-  }, [osList, filterState]);
+  }, [osList, filters, getFilterValues]);
 
   const kpis = useMemo(() => {
     const totalCost = filteredOS.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
@@ -124,22 +130,8 @@ export default function MaintenanceDashboard(): JSX.Element {
         </div>
       </div>
 
-      {hasActiveFilters && (
-        <div className="fixed bottom-8 right-8 z-50">
-          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"><X className="w-5 h-5" /> Limpar Filtros</button>
-        </div>
-      )}
-
-      {hasActiveFilters && (
-        <Card className="bg-amber-50 border-amber-200 py-3">
-          <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-amber-600" /><Text className="font-medium text-amber-700">Filtros:</Text>
-            {filterState.mes && <span className="bg-amber-100 px-2 py-1 rounded text-xs text-amber-800">Mês: {monthLabel(filterState.mes)}</span>}
-            {filterState.oficina && <span className="bg-amber-100 px-2 py-1 rounded text-xs text-amber-800">Oficina: {filterState.oficina}</span>}
-            {filterState.placa && <span className="bg-amber-100 px-2 py-1 rounded text-xs text-amber-800">Placa: {filterState.placa}</span>}
-            {filterState.tipo && <span className="bg-amber-100 px-2 py-1 rounded text-xs text-amber-800">Tipo: {filterState.tipo}</span>}
-          </div>
-        </Card>
-      )}
+      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
         {tabs.map((tab, idx) => (
@@ -168,7 +160,18 @@ export default function MaintenanceDashboard(): JSX.Element {
                     <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact}/>
                     <YAxis yAxisId="right" orientation="right" fontSize={12}/>
                     <Tooltip formatter={(v: any, n) => [n === 'Valor' ? fmtBRL(v) : v, n]}/>
-                    <Bar yAxisId="left" dataKey="Valor" fill="#f59e0b" radius={[4,4,0,0]} cursor="pointer" onClick={(d) => setFilterState(p => ({...p, mes: p.mes === d.date ? null : d.date}))}/>
+                    <Bar 
+                      yAxisId="left" 
+                      dataKey="Valor" 
+                      fill="#f59e0b" 
+                      radius={[4,4,0,0]} 
+                      cursor="pointer" 
+                      onClick={(d, _, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)}
+                    >
+                      {monthlyData.map((entry) => (
+                        <Cell key={entry.date} fill={isValueSelected('mes', entry.date) ? '#d97706' : '#f59e0b'} />
+                      ))}
+                    </Bar>
                     <Line yAxisId="right" type="monotone" dataKey="Count" stroke="#3b82f6" strokeWidth={2}/>
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -179,7 +182,11 @@ export default function MaintenanceDashboard(): JSX.Element {
               <Title>Top Ofensores (Placa)</Title>
               <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
                 {topOffenders.map((item, idx) => (
-                  <div key={idx} onClick={() => setFilterState(p => ({...p, placa: p.placa === item.name ? null : item.name}))} className={`p-2 rounded cursor-pointer flex justify-between text-sm ${filterState.placa === item.name ? 'bg-amber-100 ring-1 ring-amber-500' : 'hover:bg-slate-50'}`}>
+                  <div 
+                    key={idx} 
+                    onClick={(e) => handleChartClick('placa', item.name, e)} 
+                    className={`p-2 rounded cursor-pointer flex justify-between text-sm ${isValueSelected('placa', item.name) ? 'bg-amber-100 ring-1 ring-amber-500' : 'hover:bg-slate-50'}`}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 text-xs flex items-center justify-center font-bold">{idx + 1}</span>
                       <span className="font-mono">{item.name}</span>
@@ -202,8 +209,25 @@ export default function MaintenanceDashboard(): JSX.Element {
               <div className="h-72 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={typeData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value" cursor="pointer" onClick={(d) => setFilterState(p => ({...p, tipo: p.tipo === d.name ? null : d.name}))}>
-                      {typeData.map((_, i) => <Cell key={i} fill={['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#64748b'][i % 6]} />)}
+                    <Pie 
+                      data={typeData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={60} 
+                      outerRadius={100} 
+                      paddingAngle={3} 
+                      dataKey="value" 
+                      cursor="pointer" 
+                      onClick={(d, _, e) => handleChartClick('tipo', d.name, e as unknown as React.MouseEvent)}
+                    >
+                      {typeData.map((entry, i) => (
+                        <Cell 
+                          key={i} 
+                          fill={isValueSelected('tipo', entry.name) ? '#b45309' : ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#64748b'][i % 6]} 
+                          stroke={isValueSelected('tipo', entry.name) ? '#78350f' : 'none'}
+                          strokeWidth={isValueSelected('tipo', entry.name) ? 2 : 0}
+                        />
+                      ))}
                     </Pie>
                     <Tooltip formatter={fmtBRL}/>
                     <Legend/>
@@ -221,7 +245,17 @@ export default function MaintenanceDashboard(): JSX.Element {
                     <XAxis type="number" fontSize={12} tickFormatter={fmtCompact}/>
                     <YAxis dataKey="name" type="category" width={120} fontSize={11}/>
                     <Tooltip formatter={fmtBRL}/>
-                    <Bar dataKey="value" fill="#f59e0b" radius={[0,4,4,0]} barSize={18} cursor="pointer" onClick={(_: any, d: any) => setFilterState(p => ({...p, tipo: p.tipo === d.name ? null : d.name}))}/>
+                    <Bar 
+                      dataKey="value" 
+                      radius={[0,4,4,0]} 
+                      barSize={18} 
+                      cursor="pointer" 
+                      onClick={(d, _, e) => handleChartClick('tipo', d.name, e as unknown as React.MouseEvent)}
+                    >
+                      {typeData.map((entry) => (
+                        <Cell key={entry.name} fill={isValueSelected('tipo', entry.name) ? '#b45309' : '#f59e0b'} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -241,7 +275,17 @@ export default function MaintenanceDashboard(): JSX.Element {
                   <XAxis type="number" fontSize={12} tickFormatter={fmtCompact}/>
                   <YAxis dataKey="name" type="category" width={180} fontSize={11}/>
                   <Tooltip formatter={(v: any, n) => [n === 'valor' ? fmtBRL(v) : v, n === 'valor' ? 'Valor Total' : 'Qtd OS']}/>
-                  <Bar dataKey="valor" fill="#f59e0b" radius={[0,4,4,0]} barSize={18} cursor="pointer" onClick={(_: any, d: any) => setFilterState(p => ({...p, oficina: p.oficina === d.name ? null : d.name}))}/>
+                  <Bar 
+                    dataKey="valor" 
+                    radius={[0,4,4,0]} 
+                    barSize={18} 
+                    cursor="pointer" 
+                    onClick={(d, _, e) => handleChartClick('oficina', d.name, e as unknown as React.MouseEvent)}
+                  >
+                    {topFornecedores.map((entry) => (
+                      <Cell key={entry.name} fill={isValueSelected('oficina', entry.name) ? '#b45309' : '#f59e0b'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -250,7 +294,11 @@ export default function MaintenanceDashboard(): JSX.Element {
           {fornecedores.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {fornecedores.slice(0, 6).map((f, idx) => (
-                <Card key={idx} className="cursor-pointer hover:shadow-md transition-all" onClick={() => setFilterState(p => ({...p, oficina: p.oficina === f.Nome ? null : f.Nome}))}>
+                <Card 
+                  key={idx} 
+                  className={`cursor-pointer hover:shadow-md transition-all ${isValueSelected('oficina', f.Nome) ? 'ring-2 ring-amber-500 bg-amber-50' : ''}`}
+                  onClick={(e) => handleChartClick('oficina', f.Nome, e)}
+                >
                   <Text className="font-medium truncate">{f.NomeFantasia || f.Nome}</Text>
                   <div className="flex items-center gap-4 mt-2">
                     <Metric className="text-amber-600">{f.TotalOS || 0}</Metric>
@@ -287,10 +335,25 @@ export default function MaintenanceDashboard(): JSX.Element {
                 {pageItems.map((r, idx) => (
                   <tr key={idx} className="border-t hover:bg-slate-50">
                     <td className="p-3">{r.DataEntrada ? new Date(r.DataEntrada).toLocaleDateString('pt-BR') : '-'}</td>
-                    <td className="p-3 font-mono cursor-pointer hover:text-amber-600" onClick={() => setFilterState(p => ({...p, placa: p.placa === r.Placa ? null : r.Placa}))}>{r.Placa}</td>
+                    <td 
+                      className={`p-3 font-mono cursor-pointer hover:text-amber-600 ${isValueSelected('placa', r.Placa) ? 'text-amber-600 font-bold' : ''}`}
+                      onClick={(e) => handleChartClick('placa', r.Placa, e)}
+                    >
+                      {r.Placa}
+                    </td>
                     <td className="p-3 truncate max-w-[120px]">{r.Modelo || '-'}</td>
-                    <td className="p-3 truncate max-w-[150px] cursor-pointer hover:text-amber-600" onClick={() => setFilterState(p => ({...p, oficina: p.oficina === r.Fornecedor ? null : r.Fornecedor}))}>{r.Fornecedor || '-'}</td>
-                    <td className="p-3 truncate max-w-[100px]">{r.TipoManutencao || '-'}</td>
+                    <td 
+                      className={`p-3 truncate max-w-[150px] cursor-pointer hover:text-amber-600 ${isValueSelected('oficina', r.Fornecedor) ? 'text-amber-600 font-bold' : ''}`}
+                      onClick={(e) => handleChartClick('oficina', r.Fornecedor, e)}
+                    >
+                      {r.Fornecedor || '-'}
+                    </td>
+                    <td 
+                      className={`p-3 truncate max-w-[100px] cursor-pointer hover:text-amber-600 ${isValueSelected('tipo', r.TipoManutencao) ? 'text-amber-600 font-bold' : ''}`}
+                      onClick={(e) => handleChartClick('tipo', r.TipoManutencao, e)}
+                    >
+                      {r.TipoManutencao || '-'}
+                    </td>
                     <td className="p-3 text-right">{parseNum(r.DiasParado)}</td>
                     <td className="p-3 text-right font-bold text-amber-600">{fmtBRL(parseCurrency(r.ValorTotal))}</td>
                   </tr>
