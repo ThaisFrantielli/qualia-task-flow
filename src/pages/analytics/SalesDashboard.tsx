@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, Line, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, BarChart, Bar, ComposedChart, Area } from 'recharts';
-import { TrendingUp, TrendingDown, Filter, X, DollarSign, Clock, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Clock, Target } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -14,10 +16,9 @@ function fmtCompact(v: number): string { if (v >= 1000000) return `R$ ${(v / 100
 function getMonthKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0].substring(0, 7); }
 function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.split('-'); const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']; return `${months[Number(m) - 1]}/${String(y).slice(2)}`; }
 
-
+// Colors used in charts
 
 export default function SalesDashboard(): JSX.Element {
-  // Nova fonte de dados do ETL v33 - fat_vendas sharded by year
   const { data: rawVendas } = useBIData<AnyObject[]>('fat_vendas_*.json');
 
   const vendas = useMemo(() => {
@@ -25,21 +26,31 @@ export default function SalesDashboard(): JSX.Element {
     return Array.isArray(raw) ? raw : [];
   }, [rawVendas]);
 
-  const [selectedComprador, setSelectedComprador] = useState<string | null>(null);
+  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
   const [page, setPage] = useState(0);
   const pageSize = 15;
 
-  const hasActiveFilters = !!selectedComprador;
-  const clearFilters = () => setSelectedComprador(null);
-
   const filteredVendas = useMemo(() => {
     return vendas.filter(v => {
-      if (selectedComprador && v.Comprador !== selectedComprador) return false;
+      const compradorValues = getFilterValues('comprador');
+      const mesValues = getFilterValues('mes');
+      const faixaValues = getFilterValues('faixa');
+      
+      if (compradorValues.length > 0 && !compradorValues.includes(v.Comprador)) return false;
+      if (mesValues.length > 0 && !mesValues.includes(getMonthKey(v.DataVenda))) return false;
+      if (faixaValues.length > 0) {
+        const idade = parseNum(v.IdadeNaVenda);
+        let faixa = '48m+';
+        if (idade <= 12) faixa = '0-12m';
+        else if (idade <= 24) faixa = '12-24m';
+        else if (idade <= 36) faixa = '24-36m';
+        else if (idade <= 48) faixa = '36-48m';
+        if (!faixaValues.includes(faixa)) return false;
+      }
       return true;
     });
-  }, [vendas, selectedComprador]);
+  }, [vendas, filters, getFilterValues]);
 
-  // KPIs Financeiros
   const financialKPIs = useMemo(() => {
     const totalVendas = filteredVendas.reduce((s, v) => s + parseCurrency(v.ValorVenda), 0);
     const totalCompras = filteredVendas.reduce((s, v) => s + parseCurrency(v.ValorCompra), 0);
@@ -47,15 +58,12 @@ export default function SalesDashboard(): JSX.Element {
     const roi = totalCompras > 0 ? (margem / totalCompras) * 100 : 0;
     const ticketMedio = filteredVendas.length > 0 ? totalVendas / filteredVendas.length : 0;
     const qtdVendas = filteredVendas.length;
-
-    // Contagem de lucro/prejuízo
     const comLucro = filteredVendas.filter(v => parseCurrency(v.ResultadoVenda) >= 0).length;
     const comPrejuizo = filteredVendas.filter(v => parseCurrency(v.ResultadoVenda) < 0).length;
 
     return { totalVendas, totalCompras, margem, roi, ticketMedio, qtdVendas, comLucro, comPrejuizo };
   }, [filteredVendas]);
 
-  // Evolução mensal
   const evolutionData = useMemo(() => {
     const map: Record<string, { vendas: number; margem: number; qtd: number }> = {};
     filteredVendas.forEach(v => {
@@ -75,7 +83,6 @@ export default function SalesDashboard(): JSX.Element {
     }));
   }, [filteredVendas]);
 
-  // Distribuição de margem
   const margemDistribution = useMemo(() => {
     let positiva = 0, negativa = 0;
     filteredVendas.forEach(v => {
@@ -89,7 +96,6 @@ export default function SalesDashboard(): JSX.Element {
     ];
   }, [filteredVendas]);
 
-  // KPIs de Giro
   const giroKPIs = useMemo(() => {
     const tempos = filteredVendas.map(v => {
       const idade = parseNum(v.IdadeNaVenda);
@@ -99,15 +105,12 @@ export default function SalesDashboard(): JSX.Element {
     const tempoMedio = tempos.length > 0 ? tempos.reduce((s, t) => s + t, 0) / tempos.length : 0;
     const tempoMin = tempos.length > 0 ? Math.min(...tempos) : 0;
     const tempoMax = tempos.length > 0 ? Math.max(...tempos) : 0;
-
-    // KM médio
     const kms = filteredVendas.map(v => parseNum(v.KmNaVenda)).filter(k => k > 0);
     const kmMedio = kms.length > 0 ? kms.reduce((s, k) => s + k, 0) / kms.length : 0;
 
     return { tempoMedio, tempoMin, tempoMax, kmMedio };
   }, [filteredVendas]);
 
-  // Ranking de compradores
   const compradorRanking = useMemo(() => {
     const map: Record<string, { qtd: number; valor: number; margem: number }> = {};
     filteredVendas.forEach(v => {
@@ -123,7 +126,6 @@ export default function SalesDashboard(): JSX.Element {
       .slice(0, 10);
   }, [filteredVendas]);
 
-  // Histograma de tempo de casa
   const tempoHistogram = useMemo(() => {
     const ranges = { '0-12m': 0, '12-24m': 0, '24-36m': 0, '36-48m': 0, '48m+': 0 };
     filteredVendas.forEach(v => {
@@ -137,14 +139,9 @@ export default function SalesDashboard(): JSX.Element {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filteredVendas]);
 
-  // Margem por faixa de idade
   const margemPorIdade = useMemo(() => {
     const ranges: Record<string, { total: number; count: number }> = {
-      '0-12m': { total: 0, count: 0 },
-      '12-24m': { total: 0, count: 0 },
-      '24-36m': { total: 0, count: 0 },
-      '36-48m': { total: 0, count: 0 },
-      '48m+': { total: 0, count: 0 }
+      '0-12m': { total: 0, count: 0 }, '12-24m': { total: 0, count: 0 }, '24-36m': { total: 0, count: 0 }, '36-48m': { total: 0, count: 0 }, '48m+': { total: 0, count: 0 }
     };
     filteredVendas.forEach(v => {
       const idade = parseNum(v.IdadeNaVenda);
@@ -157,24 +154,15 @@ export default function SalesDashboard(): JSX.Element {
       ranges[key].total += margem;
       ranges[key].count += 1;
     });
-    return Object.entries(ranges).map(([name, data]) => ({
-      name,
-      MargemMedia: data.count > 0 ? data.total / data.count : 0
-    }));
+    return Object.entries(ranges).map(([name, data]) => ({ name, MargemMedia: data.count > 0 ? data.total / data.count : 0 }));
   }, [filteredVendas]);
 
-  // Tabela paginada
   const tableData = useMemo(() => {
     return filteredVendas.map(v => ({
-      placa: v.Placa,
-      modelo: v.Modelo,
-      comprador: v.Comprador,
-      compra: parseCurrency(v.ValorCompra),
-      venda: parseCurrency(v.ValorVenda),
-      margem: parseCurrency(v.ResultadoVenda),
-      idade: parseNum(v.IdadeNaVenda),
-      km: parseNum(v.KmNaVenda),
-      dataVenda: v.DataVenda
+      placa: v.Placa, modelo: v.Modelo, comprador: v.Comprador,
+      compra: parseCurrency(v.ValorCompra), venda: parseCurrency(v.ValorVenda),
+      margem: parseCurrency(v.ResultadoVenda), idade: parseNum(v.IdadeNaVenda),
+      km: parseNum(v.KmNaVenda), dataVenda: v.DataVenda
     })).sort((a, b) => b.margem - a.margem);
   }, [filteredVendas]);
 
@@ -192,65 +180,27 @@ export default function SalesDashboard(): JSX.Element {
         </div>
       </div>
 
-      {/* Floating Clear Button */}
-      {hasActiveFilters && (
-        <div className="fixed bottom-8 right-8 z-50">
-          <button onClick={clearFilters} className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105">
-            <X className="w-5 h-5" /> Limpar Filtros
-          </button>
-        </div>
-      )}
+      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
+      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
 
-      {/* Active Filters */}
-      {hasActiveFilters && (
-        <Card className="bg-blue-50 border-blue-200 py-3">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-blue-600" />
-            <Text className="font-medium text-blue-700">Filtro Ativo:</Text>
-            <span className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800">Comprador: {selectedComprador}</span>
-          </div>
-        </Card>
-      )}
-
-      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         <Card decoration="top" decorationColor="emerald">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 text-emerald-600" />
-            <Text>Margem Total</Text>
-          </div>
-          <Metric className={financialKPIs.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-            {fmtCompact(financialKPIs.margem)}
-          </Metric>
+          <div className="flex items-center gap-2 mb-1"><DollarSign className="w-4 h-4 text-emerald-600" /><Text>Margem Total</Text></div>
+          <Metric className={financialKPIs.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{fmtCompact(financialKPIs.margem)}</Metric>
           <Text className="text-xs text-slate-400">ROI: {financialKPIs.roi.toFixed(1)}%</Text>
         </Card>
-        <Card decoration="top" decorationColor="blue">
-          <Text>Total Vendas</Text>
-          <Metric>{fmtCompact(financialKPIs.totalVendas)}</Metric>
-        </Card>
-        <Card decoration="top" decorationColor="violet">
-          <Text>Ticket Médio</Text>
-          <Metric>{fmtCompact(financialKPIs.ticketMedio)}</Metric>
-        </Card>
+        <Card decoration="top" decorationColor="blue"><Text>Total Vendas</Text><Metric>{fmtCompact(financialKPIs.totalVendas)}</Metric></Card>
+        <Card decoration="top" decorationColor="violet"><Text>Ticket Médio</Text><Metric>{fmtCompact(financialKPIs.ticketMedio)}</Metric></Card>
         <Card decoration="top" decorationColor="cyan">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-cyan-600" />
-            <Text>Idade Média</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-1"><Clock className="w-4 h-4 text-cyan-600" /><Text>Idade Média</Text></div>
           <Metric>{giroKPIs.tempoMedio.toFixed(0)} meses</Metric>
         </Card>
         <Card decoration="top" decorationColor="amber">
-          <div className="flex items-center gap-2 mb-1">
-            <Target className="w-4 h-4 text-amber-600" />
-            <Text>Com Lucro</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-1"><Target className="w-4 h-4 text-amber-600" /><Text>Com Lucro</Text></div>
           <Metric className="text-emerald-600">{financialKPIs.comLucro}</Metric>
         </Card>
         <Card decoration="top" decorationColor="rose">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingDown className="w-4 h-4 text-rose-600" />
-            <Text>Com Prejuízo</Text>
-          </div>
+          <div className="flex items-center gap-2 mb-1"><TrendingDown className="w-4 h-4 text-rose-600" /><Text>Com Prejuízo</Text></div>
           <Metric className="text-rose-600">{financialKPIs.comPrejuizo}</Metric>
         </Card>
       </div>
@@ -278,7 +228,9 @@ export default function SalesDashboard(): JSX.Element {
                     <Legend />
                     <Area yAxisId="left" type="monotone" dataKey="Vendas" fill="#3b82f6" fillOpacity={0.2} stroke="#3b82f6" strokeWidth={2} name="Vendas" />
                     <Line yAxisId="left" type="monotone" dataKey="Margem" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} name="Margem" />
-                    <Bar yAxisId="right" dataKey="Qtd" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Quantidade" />
+                    <Bar yAxisId="right" dataKey="Qtd" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Quantidade" cursor="pointer" onClick={(d, _, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)}>
+                      {evolutionData.map((entry, i) => <Cell key={i} fill={isValueSelected('mes', entry.date) ? '#d97706' : '#f59e0b'} />)}
+                    </Bar>
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -312,22 +264,10 @@ export default function SalesDashboard(): JSX.Element {
 
         <TabsContent value="giro" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card decoration="top" decorationColor="indigo">
-              <Text>Idade Média na Venda</Text>
-              <Metric>{giroKPIs.tempoMedio.toFixed(0)} meses</Metric>
-            </Card>
-            <Card decoration="top" decorationColor="emerald">
-              <Text>Giro Rápido (Min)</Text>
-              <Metric>{giroKPIs.tempoMin} meses</Metric>
-            </Card>
-            <Card decoration="top" decorationColor="rose">
-              <Text>Giro Lento (Max)</Text>
-              <Metric>{giroKPIs.tempoMax} meses</Metric>
-            </Card>
-            <Card decoration="top" decorationColor="amber">
-              <Text>KM Médio na Venda</Text>
-              <Metric>{(giroKPIs.kmMedio / 1000).toFixed(0)}k</Metric>
-            </Card>
+            <Card decoration="top" decorationColor="indigo"><Text>Idade Média na Venda</Text><Metric>{giroKPIs.tempoMedio.toFixed(0)} meses</Metric></Card>
+            <Card decoration="top" decorationColor="emerald"><Text>Giro Rápido (Min)</Text><Metric>{giroKPIs.tempoMin} meses</Metric></Card>
+            <Card decoration="top" decorationColor="rose"><Text>Giro Lento (Max)</Text><Metric>{giroKPIs.tempoMax} meses</Metric></Card>
+            <Card decoration="top" decorationColor="amber"><Text>KM Médio na Venda</Text><Metric>{(giroKPIs.kmMedio / 1000).toFixed(0)}k</Metric></Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -340,7 +280,9 @@ export default function SalesDashboard(): JSX.Element {
                     <XAxis dataKey="name" fontSize={12} />
                     <YAxis fontSize={12} />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Quantidade" />
+                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Quantidade" cursor="pointer" onClick={(d, _, e) => handleChartClick('faixa', d.name, e as unknown as React.MouseEvent)}>
+                      {tempoHistogram.map((entry, i) => <Cell key={i} fill={isValueSelected('faixa', entry.name) ? '#6d28d9' : '#8b5cf6'} />)}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -354,9 +296,9 @@ export default function SalesDashboard(): JSX.Element {
                     <XAxis dataKey="name" fontSize={12} />
                     <YAxis fontSize={12} tickFormatter={fmtCompact} />
                     <Tooltip formatter={(v: any) => fmtBRL(v)} />
-                    <Bar dataKey="MargemMedia" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="MargemMedia" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d, _, e) => handleChartClick('faixa', d.name, e as unknown as React.MouseEvent)}>
                       {margemPorIdade.map((entry, i) => (
-                        <Cell key={i} fill={entry.MargemMedia >= 0 ? '#10b981' : '#ef4444'} />
+                        <Cell key={i} fill={isValueSelected('faixa', entry.name) ? (entry.MargemMedia >= 0 ? '#059669' : '#dc2626') : (entry.MargemMedia >= 0 ? '#10b981' : '#ef4444')} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -371,25 +313,17 @@ export default function SalesDashboard(): JSX.Element {
             <Title>Top 10 Compradores (Clique para filtrar)</Title>
             <div className="mt-4 space-y-3">
               {compradorRanking.map((item, idx) => {
-                const isSelected = selectedComprador === item.name;
+                const isSelected = isValueSelected('comprador', item.name);
                 const maxVal = compradorRanking[0]?.valor || 1;
                 const width = `${(item.valor / maxVal) * 100}%`;
                 return (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedComprador(isSelected ? null : item.name)}
-                    className={`p-3 rounded cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'}`}
-                  >
+                  <div key={idx} onClick={(e) => handleChartClick('comprador', item.name, e)} className={`p-3 rounded cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'}`}>
                     <div className="flex justify-between text-sm mb-2">
-                      <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                        {idx + 1}. {item.name}
-                      </span>
+                      <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{idx + 1}. {item.name}</span>
                       <div className="flex gap-4">
                         <span className="text-slate-500">{item.qtd} veículos</span>
                         <span className="font-bold text-blue-600">{fmtCompact(item.valor)}</span>
-                        <span className={`font-bold ${item.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {item.margem >= 0 ? '+' : ''}{fmtCompact(item.margem)}
-                        </span>
+                        <span className={`font-bold ${item.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{item.margem >= 0 ? '+' : ''}{fmtCompact(item.margem)}</span>
                       </div>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2">
@@ -404,34 +338,26 @@ export default function SalesDashboard(): JSX.Element {
 
         <TabsContent value="detalhamento">
           <Card>
-            <Title className="mb-4">Detalhamento de Vendas</Title>
+            <Title className="mb-4">Histórico de Vendas</Title>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
                   <tr>
-                    <th className="p-3">Placa</th>
-                    <th className="p-3">Modelo</th>
-                    <th className="p-3">Comprador</th>
-                    <th className="p-3 text-right">Compra</th>
-                    <th className="p-3 text-right">Venda</th>
-                    <th className="p-3 text-right">Margem</th>
-                    <th className="p-3 text-center">Idade</th>
-                    <th className="p-3 text-center">KM</th>
+                    <th className="p-3">Placa</th><th className="p-3">Modelo</th><th className="p-3">Comprador</th>
+                    <th className="p-3 text-right">Compra</th><th className="p-3 text-right">Venda</th>
+                    <th className="p-3 text-right">Margem</th><th className="p-3 text-center">Idade</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {pageItems.map((r, i) => (
-                    <tr key={i} className="hover:bg-slate-50 border-t">
-                      <td className="p-3 font-mono">{r.placa}</td>
-                      <td className="p-3 truncate max-w-[150px]">{r.modelo}</td>
-                      <td className="p-3 truncate max-w-[150px]">{r.comprador}</td>
-                      <td className="p-3 text-right text-slate-500">{fmtBRL(r.compra)}</td>
-                      <td className="p-3 text-right font-bold">{fmtBRL(r.venda)}</td>
-                      <td className={`p-3 text-right font-bold ${r.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {r.margem >= 0 ? '+' : ''}{fmtBRL(r.margem)}
-                      </td>
-                      <td className="p-3 text-center">{r.idade}m</td>
-                      <td className="p-3 text-center">{(r.km / 1000).toFixed(0)}k</td>
+                <tbody className="divide-y">
+                  {pageItems.map((row, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="p-3 font-mono">{row.placa}</td>
+                      <td className="p-3 truncate max-w-[150px]">{row.modelo}</td>
+                      <td className="p-3 truncate max-w-[150px] cursor-pointer hover:text-blue-600" onClick={(e) => handleChartClick('comprador', row.comprador, e)}>{row.comprador}</td>
+                      <td className="p-3 text-right">{fmtBRL(row.compra)}</td>
+                      <td className="p-3 text-right">{fmtBRL(row.venda)}</td>
+                      <td className={`p-3 text-right font-bold ${row.margem >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtBRL(row.margem)}</td>
+                      <td className="p-3 text-center">{row.idade}m</td>
                     </tr>
                   ))}
                 </tbody>
