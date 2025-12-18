@@ -295,12 +295,13 @@ export default function FleetDashboard(): JSX.Element {
       return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 10);
   }, [filteredData]);
 
-  const stuckVehicles = useMemo(() => {
-      return filteredData
-        .filter(r => getCategory(r.Status) === 'Improdutiva')
-        .sort((a, b) => parseNum(b.DiasNoStatus) - parseNum(a.DiasNoStatus))
-        .slice(0, 10);
-  }, [filteredData]);
+  // stuckVehicles - disponível para uso futuro em tabela de veículos parados
+  // const stuckVehicles = useMemo(() => {
+  //     return filteredData
+  //       .filter(r => getCategory(r.Status) === 'Improdutiva')
+  //       .sort((a, b) => parseNum(b.DiasNoStatus) - parseNum(a.DiasNoStatus))
+  //       .slice(0, 10);
+  // }, [filteredData]);
 
   // CARRO RESERVA ANALYTICS
   const reservaUniqueOptions = useMemo(() => ({
