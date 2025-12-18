@@ -1,8 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, Badge, BarList } from '@tremor/react';
-import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff } from 'lucide-react';
+import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
+import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff, Info } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
@@ -23,7 +23,16 @@ type AnyObject = { [k: string]: any };
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
-function fmtCompact(v: number) { return `R$ ${(v / 1000).toFixed(0)}k`; }
+function fmtCompact(v: number) {
+    try {
+        if (!isFinite(Number(v))) return 'R$ 0';
+        if (v >= 1000000) return `R$ ${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v / 1000000)}M`;
+        if (v >= 1000) return `R$ ${new Intl.NumberFormat('pt-BR').format(Math.round(v / 1000))}k`;
+        return `R$ ${new Intl.NumberFormat('pt-BR').format(Math.round(v))}`;
+    } catch (e) {
+        return `R$ ${v}`;
+    }
+}
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
 
 interface FleetTableItem {
@@ -93,6 +102,8 @@ export default function FleetDashboard(): JSX.Element {
   const [timelinePage, setTimelinePage] = useState(0);
   const [expandedPlates, setExpandedPlates] = useState<string[]>([]);
   const [reservaPage, setReservaPage] = useState(0);
+  // Slider de período para gráfico de ocupação
+  const [sliderRange, setSliderRange] = useState<{startPercent: number, endPercent: number}>({startPercent: 0, endPercent: 100});
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
     // apply default filter: show 'Ativa' productivity on first load
@@ -232,6 +243,18 @@ export default function FleetDashboard(): JSX.Element {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filteredData]);
 
+    // Distribuição por modelo da frota filtrada
+    const modelosData = useMemo(() => {
+            const map: Record<string, number> = {};
+            filteredData.forEach(r => {
+                    const m = r.Modelo || 'Não Definido';
+                    map[m] = (map[m] || 0) + 1;
+            });
+            return Object.entries(map)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value);
+    }, [filteredData]);
+
   // ANÁLISE DE PÁTIO
   const agingData = useMemo(() => {
       const ranges = { '0-30 dias': 0, '31-60 dias': 0, '61-90 dias': 0, '90+ dias': 0 };
@@ -337,12 +360,132 @@ export default function FleetDashboard(): JSX.Element {
     return { total, ativas, principalMotivo: principalMotivo?.[0] || 'N/A', motivoData, clienteData, statusData, tempoMedio, monthlyData };
   }, [filteredReservas]);
 
-    // Distribuição por modelo dos veículos de reserva
+    // Calcular min/max dates do histórico de reservas
+    const reservaDateBounds = useMemo(() => {
+        if (carroReserva.length === 0) return null;
+        
+        let minDate: Date | null = null;
+        let maxDate: Date | null = null;
+        
+        carroReserva.forEach(r => {
+            if (r.DataInicio) {
+                const di = new Date(r.DataInicio);
+                if (!minDate || di < minDate) minDate = di;
+            }
+            if (r.DataFim) {
+                const df = new Date(r.DataFim);
+                if (!maxDate || df > maxDate) maxDate = df;
+            }
+        });
+        
+        // Se não há DataFim, usar hoje como max
+        if (!maxDate) maxDate = new Date();
+        
+        // Garantir que minDate existe
+        if (!minDate) minDate = new Date(maxDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        
+        minDate.setHours(0, 0, 0, 0);
+        maxDate.setHours(23, 59, 59, 999);
+        
+        return { minDate, maxDate };
+    }, [carroReserva]);
+    
+    // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider)
+    const ocupacaoSimultaneaData = useMemo(() => {
+        if (!reservaDateBounds) return [];
+        
+        const { minDate, maxDate } = reservaDateBounds;
+        const totalMs = maxDate.getTime() - minDate.getTime();
+        
+        // Calcular datas baseado no slider
+        const dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
+        const dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
+        dataInicio.setHours(0, 0, 0, 0);
+        dataFim.setHours(23, 59, 59, 999);
+        
+        const datas: Date[] = [];
+        const dataAtual = new Date(dataInicio);
+        
+        while (dataAtual <= dataFim) {
+            datas.push(new Date(dataAtual));
+            dataAtual.setDate(dataAtual.getDate() + 1);
+        }
+        
+        // Para cada dia, contar quantos veículos estavam "na rua"
+        const ocupacaoPorDia = datas.map(dia => {
+            const diaTime = dia.getTime();
+            
+            // Contar veículos em uso neste dia específico
+            const veiculosEmUso = carroReserva.filter(reserva => {
+                if (!reserva.DataInicio) return false;
+                
+                const dataInicio = new Date(reserva.DataInicio);
+                dataInicio.setHours(0, 0, 0, 0);
+                const inicioTime = dataInicio.getTime();
+                
+                // Se DataFim é null/vazio, o veículo ainda está com o cliente
+                const dataFim = reserva.DataFim ? new Date(reserva.DataFim) : null;
+                if (dataFim) dataFim.setHours(23, 59, 59, 999);
+                const fimTime = dataFim ? dataFim.getTime() : Date.now();
+                
+                // Veículo conta como "Em Uso" se: DataInicio <= dia E (DataFim >= dia OU DataFim é null)
+                return inicioTime <= diaTime && fimTime >= diaTime;
+            });
+            
+            return {
+                date: dia.toISOString().split('T')[0],
+                count: veiculosEmUso.length,
+                displayDate: `${dia.getDate().toString().padStart(2, '0')}/${(dia.getMonth() + 1).toString().padStart(2, '0')}`
+            };
+        });
+        
+        return ocupacaoPorDia;
+    }, [carroReserva, sliderRange, reservaDateBounds]);
+    
+    // Distribuição por modelo dos veículos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
+    // Filtra automaticamente pelo período do slider
     const reservaModelData = useMemo(() => {
+        if (!reservaDateBounds) return [];
+        
+        const { minDate, maxDate } = reservaDateBounds;
+        const totalMs = maxDate.getTime() - minDate.getTime();
+        const dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
+        const dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
+        
         const map: Record<string, number> = {};
-        filteredReservas.forEach(r => { const m = r.ModeloReserva || 'Não Definido'; map[m] = (map[m] || 0) + 1; });
+        
+        // Filtrar pelo período do slider
+        const dadosFiltrados = carroReserva.filter(r => {
+            if (!r.DataInicio) return false;
+            const di = new Date(r.DataInicio);
+            const df = r.DataFim ? new Date(r.DataFim) : new Date();
+            
+            // Incluir se há sobreposição com o período selecionado
+            return di <= dataFim && df >= dataInicio;
+        });
+        
+        dadosFiltrados.forEach(r => { 
+            const m = r.ModeloReserva || 'Não Definido'; 
+            map[m] = (map[m] || 0) + 1; 
+        });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    }, [filteredReservas]);
+    }, [carroReserva, sliderRange, reservaDateBounds]);
+    
+    // KPIs de Eficiência de Ocupação
+    const ocupacaoKPIs = useMemo(() => {
+        if (ocupacaoSimultaneaData.length === 0) {
+            return { picoUtilizacao: 0, mediaCarrosNaRua: 0 };
+        }
+        
+        const valores = ocupacaoSimultaneaData.map(d => d.count);
+        const picoUtilizacao = Math.max(...valores);
+        const mediaCarrosNaRua = valores.reduce((sum, val) => sum + val, 0) / valores.length;
+        
+        return {
+            picoUtilizacao,
+            mediaCarrosNaRua: Math.round(mediaCarrosNaRua * 10) / 10 // 1 casa decimal
+        };
+    }, [ocupacaoSimultaneaData]);
 
   const reservaPageItems = filteredReservas.slice(reservaPage * pageSize, (reservaPage + 1) * pageSize);
 
@@ -647,6 +790,30 @@ export default function FleetDashboard(): JSX.Element {
                                                 </Card>
                     </div>
 
+                    {/* Veículos por Modelo (frota filtrada) */}
+                    <Card>
+                        <Title>Veículos por Modelo <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
+                        <Text className="text-xs text-slate-500 mb-2">Distribuição por modelo considerando os filtros aplicados</Text>
+                        <div className="h-96 mt-2 overflow-y-auto pr-2">
+                            <ResponsiveContainer width="100%" height={Math.max(400, modelosData.length * 28)}>
+                                <BarChart data={modelosData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
+                                    <Tooltip formatter={(value: any) => [String(value), 'Veículos']} />
+                                    <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#7c3aed"
+                                         onClick={(data: any, _index: number, event: any) => {
+                                             handleChartClick('modelo', data.name, event as unknown as React.MouseEvent);
+                                             if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' });
+                                         }}
+                                         cursor="pointer">
+                                        <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+
           <Card id="detail-table" className="p-0 overflow-hidden mt-6">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16}/> Exportar</button></div>
               <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th><th className="px-6 py-3">Status</th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo"/></th></tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (<tr key={i} className="hover:bg-slate-50"><td className="px-6 py-3 font-medium font-mono">{r.Placa}</td><td className="px-6 py-3">{r.Modelo}</td><td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td><td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td><td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td><td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td><td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td><td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td></tr>))}</tbody></table></div>
@@ -719,8 +886,8 @@ export default function FleetDashboard(): JSX.Element {
                 </div>
             </Card>
 
-            {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* KPIs - ATUALIZADO: Novos KPIs de Ocupação */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <Card decoration="top" decorationColor="blue">
                     <Text>Total de Ocorrências</Text>
                     <Metric>{fmtDecimal(reservaKPIs.total)}</Metric>
@@ -738,6 +905,16 @@ export default function FleetDashboard(): JSX.Element {
                     <Text>Tempo Médio (Ativas)</Text>
                     <Metric>{reservaKPIs.tempoMedio.toFixed(1)} dias</Metric>
                     <Text className="text-xs text-slate-500 mt-1">Duração reserva</Text>
+                </Card>
+                <Card decoration="top" decorationColor="rose">
+                    <Text>Pico de Utilização</Text>
+                    <Metric>{ocupacaoKPIs.picoUtilizacao}</Metric>
+                    <Text className="text-xs text-slate-500 mt-1">Máx simultâneo (período)</Text>
+                </Card>
+                <Card decoration="top" decorationColor="cyan">
+                    <Text>Média de Carros na Rua</Text>
+                    <Metric>{ocupacaoKPIs.mediaCarrosNaRua}</Metric>
+                    <Text className="text-xs text-slate-500 mt-1">Por dia (período)</Text>
                 </Card>
             </div>
 
@@ -815,17 +992,160 @@ export default function FleetDashboard(): JSX.Element {
                 </Card>
             </div>
 
+            {/* NOVO: Gráfico de Ocupação Simultânea Diária */}
             <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
                 <Card>
-                    <Title>Modelos dos Veículos Reserva <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <Text className="text-xs text-slate-500 mb-2">Top modelos de veículos em ocorrências de reserva</Text>
+                    <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <Title>Ocupação Simultânea Diária</Title>
+                            <div className="group relative">
+                                <Info size={16} className="text-slate-400 hover:text-blue-600 cursor-help transition-colors" />
+                                <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
+                                    <p className="font-semibold mb-2">📊 Como funciona este gráfico:</p>
+                                    <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
+                                    <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
+                                    <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio ≤ dia E (DataFim ≥ dia OU DataFim = null)</p>
+                                    <p><strong>💡 Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
+                                    <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Slider de Período */}
+                    {reservaDateBounds && (
+                        <div className="mb-4 px-2">
+                            <div className="flex items-center justify-between mb-2">
+                                <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setSliderRange({startPercent: 90, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
+                                    <button onClick={() => setSliderRange({startPercent: 75, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
+                                    <button onClick={() => setSliderRange({startPercent: 50, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
+                                    <button onClick={() => setSliderRange({startPercent: 0, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo período</button>
+                                </div>
+                            </div>
+                            
+                            <div className="relative pt-1">
+                                <div className="flex items-center gap-3">
+                                    <Text className="text-xs text-slate-500 min-w-[80px]">
+                                        {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.startPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'})}
+                                    </Text>
+                                    <div className="flex-1 relative">
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="100" 
+                                            value={sliderRange.startPercent}
+                                            onChange={(e) => {
+                                                const newStart = Number(e.target.value);
+                                                if (newStart < sliderRange.endPercent) {
+                                                    setSliderRange(prev => ({...prev, startPercent: newStart}));
+                                                }
+                                            }}
+                                            className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer z-20"
+                                            style={{
+                                                background: 'transparent',
+                                                WebkitAppearance: 'none',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="100" 
+                                            value={sliderRange.endPercent}
+                                            onChange={(e) => {
+                                                const newEnd = Number(e.target.value);
+                                                if (newEnd > sliderRange.startPercent) {
+                                                    setSliderRange(prev => ({...prev, endPercent: newEnd}));
+                                                }
+                                            }}
+                                            className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer z-10"
+                                            style={{
+                                                background: 'transparent',
+                                                WebkitAppearance: 'none',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                        <div className="relative h-2 bg-slate-200 rounded-full">
+                                            <div 
+                                                className="absolute h-2 bg-cyan-500 rounded-full"
+                                                style={{
+                                                    left: `${sliderRange.startPercent}%`,
+                                                    width: `${sliderRange.endPercent - sliderRange.startPercent}%`
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                    <Text className="text-xs text-slate-500 min-w-[80px] text-right">
+                                        {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.endPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'})}
+                                    </Text>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia</Text>
+                    <div className="h-80 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={ocupacaoSimultaneaData} margin={{ left: 10, right: 30, top: 10, bottom: 20 }}>
+                                <defs>
+                                    <linearGradient id="colorOcupacao" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
+                                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                <XAxis 
+                                    dataKey="date" 
+                                    tick={{ fontSize: 10 }} 
+                                    tickFormatter={(value) => {
+                                        const date = new Date(value);
+                                        return `${date.getDate()}/${date.getMonth() + 1}`;
+                                    }}
+                                    interval={Math.floor(ocupacaoSimultaneaData.length / 12)}
+                                />
+                                <YAxis tick={{ fontSize: 12 }} label={{ value: 'Veículos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
+                                <Tooltip 
+                                    formatter={(value: any) => [value, 'Veículos em Uso']}
+                                    labelFormatter={(label) => {
+                                        const date = new Date(label);
+                                        return date.toLocaleDateString('pt-BR');
+                                    }}
+                                />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="count" 
+                                    stroke="#06b6d4" 
+                                    strokeWidth={2}
+                                    fillOpacity={1} 
+                                    fill="url(#colorOcupacao)"
+                                    dot={false}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+                <Card id="modelos-chart">
+                    <div className="flex items-center justify-between mb-1">
+                        <Title>Modelos dos Veículos Reserva <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
+                        {(sliderRange.startPercent > 0 || sliderRange.endPercent < 100) && reservaDateBounds && (
+                            <Badge color="cyan" className="text-xs">
+                                📅 Período: {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.startPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})} - {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.endPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
+                            </Badge>
+                        )}
+                    </div>
+                    <Text className="text-xs text-slate-500 mb-2">{(sliderRange.startPercent > 0 || sliderRange.endPercent < 100) ? 'Modelos usados no período selecionado pelo slider' : 'Top modelos de veículos mais demandados como reserva (histórico completo)'}</Text>
                     <div className="h-96 mt-2 overflow-y-auto pr-2">
                         <ResponsiveContainer width="100%" height={Math.max(400, reservaModelData.length * 32)}>
                             <BarChart data={reservaModelData} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
-                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Vezes Usado']} />
                                 <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#7c3aed" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_modelo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                 </Bar>
