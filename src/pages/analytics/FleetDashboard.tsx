@@ -39,7 +39,8 @@ interface FleetTableItem {
   Placa: string; Modelo: string; Status: string; IdadeVeiculo: number;
   compra: number; fipe: number; manut: number; tco: number; depreciacao: number;
   tipo: string; lat: number; lng: number; KmInformado: number; KmConfirmado: number; pctFipe: number;
-  Patio: string; DiasNoStatus: number;
+    Patio: string; DiasNoStatus: number;
+    DataInicioStatus: string;
 }
 
 const MultiSelect = ({ options, selected, onChange, label }: { options: string[], selected: string[], onChange: (val: string[]) => void, label: string }) => {
@@ -102,6 +103,7 @@ export default function FleetDashboard(): JSX.Element {
   const [timelinePage, setTimelinePage] = useState(0);
   const [expandedPlates, setExpandedPlates] = useState<string[]>([]);
   const [reservaPage, setReservaPage] = useState(0);
+    const [patioPage, setPatioPage] = useState(0);
   // Slider de período para gráfico de ocupação
   const [sliderRange, setSliderRange] = useState<{startPercent: number, endPercent: number}>({startPercent: 0, endPercent: 100});
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
@@ -137,6 +139,8 @@ export default function FleetDashboard(): JSX.Element {
         const statusFilters = getFilterValues('status');
         const modeloFilters = getFilterValues('modelo');
         const filialFilters = getFilterValues('filial');
+        const patioFilters = getFilterValues('patio');
+        const agingFilters = getFilterValues('aging');
         const search = (getFilterValues('search') || [])[0] || '';
 
         return frota.filter(r => {
@@ -153,6 +157,20 @@ export default function FleetDashboard(): JSX.Element {
             if (statusFilters.length > 0 && !statusFilters.includes(r.Status)) return false;
             if (modeloFilters.length > 0 && !modeloFilters.includes(r.Modelo)) return false;
             if (filialFilters.length > 0 && !filialFilters.includes(r.Filial)) return false;
+
+            if (patioFilters.length > 0 && !patioFilters.includes(r.Patio)) return false;
+
+            if (agingFilters.length > 0) {
+                const dias = parseNum(r.DiasNoStatus);
+                const ok = agingFilters.some((af: string) => {
+                    if (af === '0-30 dias') return dias <= 30;
+                    if (af === '31-60 dias') return dias > 30 && dias <= 60;
+                    if (af === '61-90 dias') return dias > 60 && dias <= 90;
+                    if (af === '90+ dias') return dias > 90;
+                    return false;
+                });
+                if (!ok) return false;
+            }
 
             if (search) {
                 const term = search.toLowerCase();
@@ -605,6 +623,7 @@ export default function FleetDashboard(): JSX.Element {
             tipo: getCategory(r.Status),
             pctFipe: fipe > 0 ? (compra / fipe) * 100 : 0,
             Patio: r.Patio, DiasNoStatus: parseNum(r.DiasNoStatus)
+            , DataInicioStatus: r.DataInicioStatus
         };
     });
     if (sortConfig !== null) {
@@ -619,7 +638,13 @@ export default function FleetDashboard(): JSX.Element {
     return data;
   }, [filteredData, manutencaoMap, sortConfig]);
 
-  const pageItems = tableData.slice(page * pageSize, (page + 1) * pageSize);
+    const pageItems = tableData.slice(page * pageSize, (page + 1) * pageSize);
+
+    const patioItems = useMemo(() => {
+        return tableData.filter(r => r.tipo === 'Improdutiva');
+    }, [tableData]);
+
+    const patioPageItems = patioItems.slice(patioPage * pageSize, (patioPage + 1) * pageSize);
 
   const exportToExcel = (data: any[], filename: string) => {
     const headers = Object.keys(data[0] || {}).join(';');
@@ -823,8 +848,42 @@ export default function FleetDashboard(): JSX.Element {
 
         <TabsContent value="patio" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-                <Card><div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600"/><Title>Aging de Pátio (Dias Parado)</Title></div><div className="h-64 mt-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={agingData} margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" fontSize={12}/><YAxis fontSize={12}/><Tooltip/><Bar dataKey="value" fill="#f59e0b" radius={[4,4,0,0]} barSize={40}><LabelList dataKey="value" position="top" fontSize={12} fill="#666"/></Bar></BarChart></ResponsiveContainer></div></Card>
-                <Card><div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600"/><Title>Veículos por Pátio (Improdutivos)</Title></div><div className="h-64 mt-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={patioData} layout="vertical" margin={{ left: 20 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={12}/><YAxis dataKey="name" type="category" width={100} fontSize={10}/><Tooltip/><Bar dataKey="value" fill="#3b82f6" radius={[0,4,4,0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#666"/></Bar></BarChart></ResponsiveContainer></div></Card>
+                <Card>
+                    <div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600"/><Title>Aging de Pátio (Dias Parado)</Title></div>
+                    <div className="h-64 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={agingData} margin={{ left: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                                <XAxis dataKey="name" fontSize={12}/>
+                                <YAxis fontSize={12}/>
+                                <Tooltip/>
+                                <Bar dataKey="value" fill="#f59e0b" radius={[4,4,0,0]} barSize={40}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('aging', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="top" fontSize={12} fill="#666"/>
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+                <Card>
+                    <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600"/><Title>Veículos por Pátio (Improdutivos)</Title></div>
+                    <div className="h-64 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={patioData} layout="vertical" margin={{ left: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                <XAxis type="number" fontSize={12}/>
+                                <YAxis dataKey="name" type="category" width={100} fontSize={10}/>
+                                <Tooltip/>
+                                <Bar dataKey="value" fill="#3b82f6" radius={[0,4,4,0]} barSize={20}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#666"/>
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
             </div>
             <Card className="p-0 overflow-hidden">
                 <div className="p-6 border-b border-slate-200 flex justify-between items-center">
@@ -847,21 +906,30 @@ export default function FleetDashboard(): JSX.Element {
                                 <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th>
                                 <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Patio')}>Pátio <SortIcon column="Patio"/></th>
                                 <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status"/></th>
+                                <th className="px-6 py-3">Data Início Status</th>
                                 <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('DiasNoStatus')}>Dias Parado <SortIcon column="DiasNoStatus"/></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {tableData.filter(r => r.tipo === 'Improdutiva').map((v, i) => (
+                            {patioPageItems.map((v, i) => (
                                 <tr key={i} className="hover:bg-slate-50">
                                     <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
                                     <td className="px-6 py-3">{v.Modelo}</td>
                                     <td className="px-6 py-3">{v.Patio}</td>
                                     <td className="px-6 py-3"><span className="px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">{v.Status}</span></td>
+                                    <td className="px-6 py-3 text-slate-500">{v.DataInicioStatus ? new Date(v.DataInicioStatus + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
                                     <td className="px-6 py-3 text-right font-bold text-rose-600">{v.DiasNoStatus} dias</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                </div>
+                <div className="flex justify-between p-4 border-t border-slate-100">
+                    <div className="flex gap-2">
+                        <button onClick={() => setPatioPage(Math.max(0, patioPage - 1))} disabled={patioPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
+                        <button onClick={() => setPatioPage(patioPage + 1)} disabled={(patioPage + 1) * pageSize >= patioItems.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+                    </div>
+                    <div className="text-xs text-slate-500">{fmtDecimal(patioItems.length)} registros</div>
                 </div>
             </Card>
         </TabsContent>
