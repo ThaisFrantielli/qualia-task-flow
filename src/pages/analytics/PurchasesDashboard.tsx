@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Cell, PieChart, Pie, Legend, BarChart, LabelList, AreaChart, Area, Brush 
 } from 'recharts';
 import { 
-    ShoppingBag, Filter, ShieldAlert, X, ChevronDown, ChevronRight, Car, Search, FileSpreadsheet, ArrowUp, ArrowDown, Check, Square, CheckSquare, ArrowRightLeft
+    ShoppingBag, Filter, ShieldAlert, ChevronDown, ChevronRight, Car, Search, FileSpreadsheet, ArrowUp, ArrowDown, Check, Square, CheckSquare, ArrowRightLeft
 } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
@@ -147,7 +147,7 @@ export default function PurchasesDashboard(): JSX.Element {
     return map;
   }, [frota]);
 
-    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, getFilterValues } = useChartFilter();
 
   const placaSituacaoFinanceiraMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -179,15 +179,9 @@ export default function PurchasesDashboard(): JSX.Element {
 
     const hasLocalActiveFilters = hasActiveFilters; // alias from hook
     const setFilterValues = (key: string, values: string[]) => {
-            // map local keys to common names
-            setFilterState?._not_used_ && null;
-            // use hook's setFilterValues from parent scope (already defined)
-            // In this file we have `setFilterValues` defined earlier when adding the hook; reuse it by referencing the outer scope function name.
-            // However to avoid confusion, we'll call handleChartClick directly for single-value sets and clearFilter for empty.
             if (!values || values.length === 0) {
                 clearFilter(key);
             } else {
-                // clear existing then add
                 clearFilter(key);
                 values.forEach(v => handleChartClick(key, v, { ctrlKey: true } as unknown as React.MouseEvent));
             }
@@ -226,12 +220,12 @@ export default function PurchasesDashboard(): JSX.Element {
       return true;
   };
 
-  const filteredCompras = useMemo(() => compras.filter(r => filterFunction(r, dateFrom, dateTo)), [compras, dateFrom, dateTo, filterState, frotaMap]);
+  const filteredCompras = useMemo(() => compras.filter(r => filterFunction(r, dateFrom, dateTo)), [compras, dateFrom, dateTo, filters, frotaMap]);
 
   // Ano Anterior (YoY)
   const prevDateFrom = useMemo(() => dateFrom.replace(String(currentYear), String(currentYear - 1)), [dateFrom, currentYear]);
   const prevDateTo = useMemo(() => dateTo.replace(String(currentYear), String(currentYear - 1)), [dateTo, currentYear]);
-  const prevFilteredCompras = useMemo(() => compras.filter(r => filterFunction(r, prevDateFrom, prevDateTo)), [compras, prevDateFrom, prevDateTo, filterState, frotaMap]);
+  const prevFilteredCompras = useMemo(() => compras.filter(r => filterFunction(r, prevDateFrom, prevDateTo)), [compras, prevDateFrom, prevDateTo, filters, frotaMap]);
 
   const filteredAlienacoes = useMemo(() => {
     const placasVisiveis = new Set(filteredCompras.map(c => c.Placa));
