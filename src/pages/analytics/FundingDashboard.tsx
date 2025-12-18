@@ -58,7 +58,7 @@ export default function FundingDashboard(): JSX.Element {
     const navigate = useNavigate();
     const { data: rawAlienacoes } = useBIData<AnyObject[]>('alienacoes.json');
 
-    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, getFilterValues } = useChartFilter();
     const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());
 
     const toggleContract = (numeroContrato: string) => {
@@ -79,13 +79,14 @@ export default function FundingDashboard(): JSX.Element {
     }, [rawAlienacoes]);
 
     const filteredAlienacoes = useMemo(() => {
+        const selectedBanks = getFilterValues('banco');
         return alienacoes.filter((a: any) => {
             const saldo = parseCurrency(a.SaldoDevedor || 0);
             if (saldo <= 0) return false;
-            if (selectedBank && a.Instituicao !== selectedBank) return false;
+            if (selectedBanks.length > 0 && !selectedBanks.includes(a.Instituicao)) return false;
             return true;
         });
-    }, [alienacoes, selectedBank]);
+    }, [alienacoes, filters, getFilterValues]);
 
     // AGRUPAMENTO POR CONTRATO
     const groupedContracts = useMemo(() => {
