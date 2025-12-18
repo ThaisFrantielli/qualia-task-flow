@@ -36,7 +36,7 @@ export default function ExecutiveDashboard(): JSX.Element {
   const propostas = useMemo(() => Array.isArray(rawPropostas) ? rawPropostas : [], [rawPropostas]);
   const auditoria = useMemo(() => Array.isArray(rawAuditoria) ? rawAuditoria : [], [rawAuditoria]);
 
-  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+  const { filters, clearFilter, clearAllFilters, hasActiveFilters } = useChartFilter();
 
   // Scorecard Principal
   const scorecard = useMemo(() => {
