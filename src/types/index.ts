@@ -138,7 +138,9 @@ export type AllTaskFilters = {
   search?: string;
   searchTerm?: string;
   status?: string[];
+  statusFilter?: string; // Filtro de status único
   priority?: string[];
+  priorityFilter?: string; // Filtro de prioridade único
   assignee?: string[];
   assignee_id?: string; // Filtro por usuário específico
   project?: string[];
