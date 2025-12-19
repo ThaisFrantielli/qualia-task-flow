@@ -187,7 +187,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[700px] sm:w-[1020px] lg:w-[1200px] flex flex-col">
+      <SheetContent className="w-full sm:max-w-[600px] lg:max-w-[800px] max-h-screen overflow-hidden flex flex-col">
         {/* Breadcrumbs */}
         {subtask && (
           <nav className="flex items-center text-xs text-muted-foreground mb-2 mt-2" aria-label="Breadcrumb">
@@ -245,8 +245,8 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
             <Skeleton className="h-20 w-full" />
           </div>
         ) : subtask ? (
-          <form onSubmit={handleSave} className="flex flex-col flex-grow">
-            <div className="space-y-4 py-4 flex-grow overflow-y-auto pr-4">
+          <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
+            <div className="space-y-4 py-4 flex-1 overflow-y-auto pr-2"  style={{ maxHeight: 'calc(100vh - 280px)' }}>
               <div className="space-y-2">
                 <Label htmlFor="title">Título da Ação</Label>
                 <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -354,7 +354,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
                 </div>
               )}
             </div>
-            <SheetFooter className="mt-auto pt-4 border-t flex justify-between items-center">
+            <SheetFooter className="shrink-0 mt-4 pt-4 border-t flex justify-between items-center">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
