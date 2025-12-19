@@ -58,6 +58,16 @@ const fetchTasksList = async (filters: Partial<AllTaskFilters>, user: AppUser | 
         query = query.eq('assignee_id', filters.assignee_id);
     }
 
+    // Filtro por status
+    if (filters.statusFilter && filters.statusFilter !== 'all') {
+        query = query.eq('status', filters.statusFilter);
+    }
+
+    // Filtro por prioridade
+    if (filters.priorityFilter && filters.priorityFilter !== 'all') {
+        query = query.eq('priority', filters.priorityFilter);
+    }
+
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
 
