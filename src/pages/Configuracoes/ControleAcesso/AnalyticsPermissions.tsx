@@ -6,23 +6,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save, ChevronRight } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useGroups } from '@/hooks/useGroups';
+import { useGroups, Group } from '@/hooks/useGroups';
 import { useProfiles } from '@/hooks/useProfiles';
 import {
   useAllAnalyticsPages,
-  useAllAnalyticsTabs,
   useGroupAnalyticsPermissions,
   useUserAnalyticsPermissions,
 } from '@/hooks/useAnalyticsAccess';
 import { useQueryClient } from '@tanstack/react-query';
 
-export default function AnalyticsPermissions() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
 
+interface AnalyticsPage {
+  id: string;
+  key: string;
+  name: string;
+  hub_category: string;
+}
+
+export default function AnalyticsPermissions() {
   return (
     <div className="space-y-6">
       <div>
@@ -57,14 +66,14 @@ function GroupPermissionsPanel() {
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
-  const { data: groups, isLoading: loadingGroups } = useGroups();
+  const { groups, isLoading: loadingGroups } = useGroups();
   const { data: pages, isLoading: loadingPages } = useAllAnalyticsPages();
   const { data: currentPermissions, isLoading: loadingPerms } = useGroupAnalyticsPermissions(selectedGroupId);
 
   useEffect(() => {
     if (currentPermissions) {
       const perms = new Set<string>();
-      currentPermissions.forEach((p: any) => {
+      currentPermissions.forEach((p) => {
         if (p.tab_id) {
           perms.add(`tab:${p.tab_id}`);
         } else {
@@ -97,7 +106,7 @@ function GroupPermissionsPanel() {
         .eq('group_id', selectedGroupId);
 
       // Insere novas permissões
-      const newPerms: any[] = [];
+      const newPerms: { group_id: string; page_id: string; tab_id: null }[] = [];
       selectedPermissions.forEach((perm) => {
         if (perm.startsWith('page:')) {
           newPerms.push({
@@ -105,10 +114,6 @@ function GroupPermissionsPanel() {
             page_id: perm.replace('page:', ''),
             tab_id: null,
           });
-        } else if (perm.startsWith('tab:')) {
-          // Para abas, precisamos encontrar o page_id
-          const tabId = perm.replace('tab:', '');
-          // Por simplicidade, vamos pular abas por ora
         }
       });
 
@@ -121,8 +126,9 @@ function GroupPermissionsPanel() {
 
       toast({ title: 'Permissões salvas com sucesso!' });
       queryClient.invalidateQueries({ queryKey: ['group-analytics-permissions'] });
-    } catch (error: any) {
-      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    } catch (error) {
+      const err = error as Error;
+      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -144,7 +150,7 @@ function GroupPermissionsPanel() {
             <SelectValue placeholder="Selecione um grupo" />
           </SelectTrigger>
           <SelectContent>
-            {groups?.map((group) => (
+            {groups?.map((group: Group) => (
               <SelectItem key={group.id} value={group.id}>
                 {group.name}
               </SelectItem>
@@ -152,7 +158,14 @@ function GroupPermissionsPanel() {
           </SelectContent>
         </Select>
 
-        {selectedGroupId && (
+        {isLoading && (
+          <div className="flex items-center gap-2 py-4">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Carregando...</span>
+          </div>
+        )}
+
+        {selectedGroupId && !isLoading && (
           <>
             {loadingPerms ? (
               <div className="flex items-center gap-2 py-4">
@@ -161,7 +174,7 @@ function GroupPermissionsPanel() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {pages?.map((page) => (
+                {pages?.map((page: AnalyticsPage) => (
                   <PagePermissionCard
                     key={page.id}
                     page={page}
@@ -190,14 +203,14 @@ function UserPermissionsPanel() {
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
-  const { data: users, isLoading: loadingUsers } = useProfiles();
+  const { profiles, loading: loadingUsers } = useProfiles();
   const { data: pages, isLoading: loadingPages } = useAllAnalyticsPages();
   const { data: currentPermissions, isLoading: loadingPerms } = useUserAnalyticsPermissions(selectedUserId);
 
   useEffect(() => {
     if (currentPermissions) {
       const perms = new Set<string>();
-      currentPermissions.forEach((p: any) => {
+      currentPermissions.forEach((p) => {
         if (p.tab_id) {
           perms.add(`tab:${p.tab_id}`);
         } else {
@@ -228,7 +241,7 @@ function UserPermissionsPanel() {
         .delete()
         .eq('user_id', selectedUserId);
 
-      const newPerms: any[] = [];
+      const newPerms: { user_id: string; page_id: string; tab_id: null }[] = [];
       selectedPermissions.forEach((perm) => {
         if (perm.startsWith('page:')) {
           newPerms.push({
@@ -248,12 +261,15 @@ function UserPermissionsPanel() {
 
       toast({ title: 'Permissões salvas com sucesso!' });
       queryClient.invalidateQueries({ queryKey: ['user-analytics-permissions'] });
-    } catch (error: any) {
-      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    } catch (error) {
+      const err = error as Error;
+      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
+
+  const isLoading = loadingUsers || loadingPages;
 
   return (
     <Card>
@@ -269,7 +285,7 @@ function UserPermissionsPanel() {
             <SelectValue placeholder="Selecione um usuário" />
           </SelectTrigger>
           <SelectContent>
-            {users?.map((user) => (
+            {profiles?.map((user: Profile) => (
               <SelectItem key={user.id} value={user.id}>
                 {user.full_name || user.email}
               </SelectItem>
@@ -277,7 +293,14 @@ function UserPermissionsPanel() {
           </SelectContent>
         </Select>
 
-        {selectedUserId && (
+        {isLoading && (
+          <div className="flex items-center gap-2 py-4">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Carregando...</span>
+          </div>
+        )}
+
+        {selectedUserId && !isLoading && (
           <>
             {loadingPerms ? (
               <div className="flex items-center gap-2 py-4">
@@ -286,7 +309,7 @@ function UserPermissionsPanel() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {pages?.map((page) => (
+                {pages?.map((page: AnalyticsPage) => (
                   <PagePermissionCard
                     key={page.id}
                     page={page}
@@ -313,7 +336,7 @@ function PagePermissionCard({
   checked,
   onCheckedChange,
 }: {
-  page: any;
+  page: AnalyticsPage;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
