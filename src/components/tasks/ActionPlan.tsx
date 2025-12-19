@@ -198,9 +198,14 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
             <div className="space-y-2">
               {subtasks.map(subtask => (
                 <div key={subtask.id} className="group flex items-center justify-between gap-3 p-3 border rounded-md hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3 cursor-pointer flex-grow" onClick={() => handleToggleComplete(subtask)}>
-                    <Checkbox id={`action-plan-cb-${subtask.id}`} checked={subtask.completed} />
-                    <label htmlFor={`action-plan-cb-${subtask.id}`} className={`cursor-pointer ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}>{subtask.title}</label>
+                  <div className="flex items-center gap-3 cursor-pointer flex-grow min-w-0" onClick={() => handleToggleComplete(subtask)}>
+                    <Checkbox id={`action-plan-cb-${subtask.id}`} checked={subtask.completed} className="shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <label htmlFor={`action-plan-cb-${subtask.id}`} className={`cursor-pointer ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}>{subtask.title}</label>
+                      {subtask.description && (
+                        <span className="text-xs text-muted-foreground truncate max-w-[300px]">{subtask.description}</span>
+                      )}
+                    </div>
                     {(() => {
                       const needsApproval = (subtask as any).needs_approval === true || subtask.status === 'awaiting_approval';
                       const requestedApprover = (subtask as any).requested_approver_full_name || (subtask as any).requested_approver?.full_name || (subtask as any).requested_approver_name || null;
@@ -218,6 +223,7 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
                       }
                       return null;
                     })()}
+                  </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="w-28 text-right"><SubtaskDeadline subtask={subtask as SubtaskWithDetails} /></div>
