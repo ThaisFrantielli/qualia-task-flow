@@ -28,6 +28,8 @@ export type Permissoes = {
   tasks?: boolean;
   crm?: boolean;
   team?: boolean;
+  projects?: boolean;
+  settings?: boolean;
   // flag administrativa para controle de acesso global
   is_admin?: boolean;
 };
