@@ -41,10 +41,7 @@ import WhatsAppDistributionDashboard from '@/pages/WhatsAppDistributionDashboard
 import AtendimentoCentralPage from '@/pages/AtendimentoCentralPage';
 import WhatsAppCentralPage from '@/pages/WhatsAppCentralPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
-import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
-import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
-import GerenciarDepartamentosPage from '@/pages/Configuracoes/GerenciarDepartamentos';
-import ConfiguracoesEquipesPage from '@/pages/Configuracoes/ConfiguracoesEquipes';
+// Páginas antigas redirecionadas para UsuariosAcessos
 import UsuariosAcessosPage from '@/pages/Configuracoes/UsuariosAcessos';
 import TicketOptionsPage from '@/pages/Configuracoes/TicketOptionsPage';
 import FilaTriagem from '@/pages/FilaTriagem';
@@ -149,8 +146,8 @@ function App() {
               <Route path="/configuracoes/equipes-hierarquia" element={<Navigate to="/configuracoes/usuarios-acessos?tab=hierarquia" replace />} />
               <Route path="/configuracoes/ticket-motivos" element={<TicketOptionsPage />} />
 
-              <Route path="/configuracoes/equipes" element={<GerenciarEquipesPage />} />
-              <Route path="/configuracoes/departamentos" element={<GerenciarDepartamentosPage />} />
+              <Route path="/configuracoes/equipes" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
+              <Route path="/configuracoes/departamentos" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
               <Route path="/whatsapp-manager" element={<MultiWhatsAppManagerPage />} />
               <Route path="/calendar" element={<Calendar />} />
             </Route>
