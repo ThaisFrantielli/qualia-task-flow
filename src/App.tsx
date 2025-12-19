@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { OportunidadeProvider } from './contexts/OportunidadeContext';
 import { PresenceProvider } from './contexts/PresenceContext';
 
@@ -15,7 +15,7 @@ import TaskDetailPage from '@/pages/TaskDetailPage';
 import ProjectsPage from '@/pages/Projects';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
 import EditProjectPage from '@/pages/EditProject';
-import Team from '@/pages/Team';
+// Team page migrado para UsuariosAcessos
 import Settings from '@/pages/Settings';
 import TaskSettingsPage from '@/pages/TaskSettingsPage';
 import Notifications from '@/pages/Notifications';
@@ -45,6 +45,7 @@ import ControleAcessoPage from '@/pages/Configuracoes/ControleAcesso';
 import GerenciarEquipesPage from '@/pages/Configuracoes/GerenciarEquipes';
 import GerenciarDepartamentosPage from '@/pages/Configuracoes/GerenciarDepartamentos';
 import ConfiguracoesEquipesPage from '@/pages/Configuracoes/ConfiguracoesEquipes';
+import UsuariosAcessosPage from '@/pages/Configuracoes/UsuariosAcessos';
 import TicketOptionsPage from '@/pages/Configuracoes/TicketOptionsPage';
 import FilaTriagem from '@/pages/FilaTriagem';
 import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
@@ -135,7 +136,7 @@ function App() {
               <Route path="/pesquisas" element={<SurveyAdminPage />} />
               <Route path="/pesquisas/relatorios" element={<SurveyReportsPage />} />
 
-              <Route path="/team" element={<Team />} />
+              <Route path="/team" element={<Navigate to="/configuracoes/usuarios-acessos?tab=usuarios" replace />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/tasks" element={<TaskSettingsPage />} />
@@ -143,8 +144,9 @@ function App() {
               <Route path="/configuracoes/whatsapp/templates" element={<WhatsAppTemplatesPage />} />
               <Route path="/configuracoes/whatsapp/distribuicao" element={<WhatsAppDistributionConfigPage />} />
               <Route path="/configuracoes/whatsapp/distribuicao/dashboard" element={<WhatsAppDistributionDashboard />} />
-              <Route path="/configuracoes/controle-acesso" element={<ControleAcessoPage />} />
-              <Route path="/configuracoes/equipes-hierarquia" element={<ConfiguracoesEquipesPage />} />
+              <Route path="/configuracoes/usuarios-acessos" element={<UsuariosAcessosPage />} />
+              <Route path="/configuracoes/controle-acesso" element={<Navigate to="/configuracoes/usuarios-acessos?tab=modulos" replace />} />
+              <Route path="/configuracoes/equipes-hierarquia" element={<Navigate to="/configuracoes/usuarios-acessos?tab=hierarquia" replace />} />
               <Route path="/configuracoes/ticket-motivos" element={<TicketOptionsPage />} />
 
               <Route path="/configuracoes/equipes" element={<GerenciarEquipesPage />} />

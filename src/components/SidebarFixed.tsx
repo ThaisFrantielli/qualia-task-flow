@@ -104,8 +104,7 @@ const menuGroups: MenuGroup[] = [
     title: 'CONFIGURAÇÕES',
     items: [
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
-      { label: 'Equipes & Usuários', url: '/configuracoes/equipes-hierarquia', icon: Users, permissionKey: 'team' },
-      { label: 'Configuração de Módulos', url: '/configuracoes/controle-acesso', icon: SlidersHorizontal, permissionKey: 'team' },
+      { label: 'Usuários & Acessos', url: '/configuracoes/usuarios-acessos', icon: Users, permissionKey: 'team' },
       { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
       { label: 'Motivos de Tickets', url: '/configuracoes/ticket-motivos', icon: Ticket, permissionKey: 'team' },
       { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
