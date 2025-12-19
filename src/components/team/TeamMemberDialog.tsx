@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import type { TeamMember, Permissoes } from '@/pages/Team';
+import type { TeamMember, Permissoes } from '@/types/team';
 
 import { useUsersContext } from '@/contexts/UsersContext';
 import { supabase } from '@/integrations/supabase/client';

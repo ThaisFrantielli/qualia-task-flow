@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Mail, Edit, Trash2, ShieldCheck } from 'lucide-react';
-import { TeamMember } from '@/pages/Team'; // Importar tipo
+import { TeamMember } from '@/types/team';
 
 interface TeamMemberCardProps {
   member: TeamMember;
