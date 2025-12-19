@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_page_tabs: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          key: string
+          name: string
+          page_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          name: string
+          page_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          name?: string
+          page_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_page_tabs_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytics_pages: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          hub_category: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          name: string
+          route: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          hub_category?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          name: string
+          route: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          hub_category?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          name?: string
+          route?: string
+        }
+        Relationships: []
+      }
       atendimento_historico: {
         Row: {
           atendimento_id: number
@@ -677,6 +754,52 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_analytics_permissions: {
+        Row: {
+          created_at: string | null
+          group_id: string
+          id: string
+          page_id: string
+          tab_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          group_id: string
+          id?: string
+          page_id: string
+          tab_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string
+          id?: string
+          page_id?: string
+          tab_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_analytics_permissions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_analytics_permissions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_analytics_permissions_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_page_tabs"
             referencedColumns: ["id"]
           },
         ]
@@ -2390,6 +2513,45 @@ export type Database = {
           },
         ]
       }
+      user_analytics_permissions: {
+        Row: {
+          created_at: string | null
+          id: string
+          page_id: string
+          tab_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          page_id: string
+          tab_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          page_id?: string
+          tab_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_analytics_permissions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_analytics_permissions_tab_id_fkey"
+            columns: ["tab_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_page_tabs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_groups: {
         Row: {
           created_at: string | null
@@ -3066,6 +3228,27 @@ export type Database = {
         Returns: string[]
       }
       get_team_count: { Args: { user_uuid: string }; Returns: number }
+      get_user_analytics_pages: {
+        Args: { _user_id: string }
+        Returns: {
+          display_order: number
+          hub_category: string
+          icon: string
+          id: string
+          page_key: string
+          page_name: string
+          page_route: string
+        }[]
+      }
+      get_user_analytics_tabs: {
+        Args: { _page_key: string; _user_id: string }
+        Returns: {
+          display_order: number
+          id: string
+          tab_key: string
+          tab_name: string
+        }[]
+      }
       get_user_modules: {
         Args: { _user_id: string }
         Returns: {
@@ -3083,6 +3266,14 @@ export type Database = {
         Returns: {
           team_member_id: string
         }[]
+      }
+      has_analytics_page_access: {
+        Args: { _page_key: string; _user_id: string }
+        Returns: boolean
+      }
+      has_analytics_tab_access: {
+        Args: { _page_key: string; _tab_key: string; _user_id: string }
+        Returns: boolean
       }
       has_module_access: {
         Args: { _module_key: string; _user_id: string }
