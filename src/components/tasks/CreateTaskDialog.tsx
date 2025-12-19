@@ -77,15 +77,20 @@ export function CreateTaskDialog({
   }, [open, defaultProjectId, defaultSection, defaultDueDate]);
 
   const fetchData = async () => {
-    const [projectsRes, usersRes, categoriesRes] = await Promise.all([
-      supabase.from('projects').select('id, name').order('name'),
-      supabase.from('profiles').select('id, full_name, email'),
-      supabase.from('task_categories').select('id, name, color'),
-    ]);
+    try {
+      const [projectsRes, usersRes, categoriesRes] = await Promise.all([
+        supabase.from('projects').select('id, name').order('name'),
+        supabase.from('profiles').select('id, full_name, email'),
+        supabase.from('task_categories').select('id, name, color'),
+      ]);
 
-    if (projectsRes.data) setProjects(projectsRes.data);
-    if (usersRes.data) setUsers(usersRes.data);
-    if (categoriesRes.data) setCategories(categoriesRes.data);
+      if (projectsRes.data) setProjects(projectsRes.data);
+      if (usersRes.data) setUsers(usersRes.data);
+      if (categoriesRes.data) setCategories(categoriesRes.data);
+    } catch (error) {
+      console.error('Erro ao carregar dados do formulário:', error);
+      toast.error('Erro ao carregar dados do formulário');
+    }
   };
 
   const resetForm = () => {
@@ -181,12 +186,12 @@ export function CreateTaskDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Projeto</Label>
-              <Select value={projectId} onValueChange={setProjectId}>
+              <Select value={projectId || 'none'} onValueChange={(v) => setProjectId(v === 'none' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um projeto" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -207,12 +212,12 @@ export function CreateTaskDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Responsável</Label>
-              <Select value={assigneeId} onValueChange={setAssigneeId}>
+              <Select value={assigneeId || 'none'} onValueChange={(v) => setAssigneeId(v === 'none' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {users.map((u) => (
                     <SelectItem key={u.id} value={u.id}>
                       {u.full_name || u.email || 'Sem nome'}
@@ -240,12 +245,12 @@ export function CreateTaskDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
+              <Select value={categoryId || 'none'} onValueChange={(v) => setCategoryId(v === 'none' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       <div className="flex items-center gap-2">
