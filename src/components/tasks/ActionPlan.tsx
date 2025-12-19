@@ -213,19 +213,18 @@ const ActionPlan: React.FC<ActionPlanProps> = ({ taskId }) => {
                       const approvedBy = (subtask as any).approved_by_full_name || (subtask as any).approved_by?.full_name || (subtask as any).approved_by_name || (subtask as any).approved_by_id || null;
                       if (needsApproval) {
                         return (
-                          <span className="ml-2 inline-block text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">{requestedApprover ? `Aguardando aprovação de ${requestedApprover}` : 'Pendente aprovação'}</span>
+                          <span className="ml-2 inline-block text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded shrink-0">{requestedApprover ? `Aguardando aprovação de ${requestedApprover}` : 'Pendente aprovação'}</span>
                         );
                       }
                       if (approvedAt) {
                         return (
-                          <span className="ml-2 inline-block text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">Aprovado por {approvedBy ?? '—'} • {new Date(approvedAt).toLocaleString()}</span>
+                          <span className="ml-2 inline-block text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded shrink-0">Aprovado por {approvedBy ?? '—'}</span>
                         );
                       }
                       return null;
                     })()}
                   </div>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
                     <div className="w-28 text-right"><SubtaskDeadline subtask={subtask as SubtaskWithDetails} /></div>
                     <Avatar className="h-6 w-6" title={subtask.assignee?.full_name || 'Não atribuído'}>
                       <AvatarImage src={subtask.assignee?.avatar_url || undefined} />
