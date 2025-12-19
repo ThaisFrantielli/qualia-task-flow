@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ModulosTab from './ModulosTab';
 import GruposTab from './GruposTab';
 import PermissoesTab from './PermissoesTab';
+import AnalyticsPermissions from './AnalyticsPermissions';
 import { Shield } from 'lucide-react';
 
 const ControleAcessoPage: React.FC = () => {
@@ -21,10 +22,11 @@ const ControleAcessoPage: React.FC = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="modulos" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
           <TabsTrigger value="modulos">Módulos</TabsTrigger>
           <TabsTrigger value="grupos">Grupos</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="modulos" className="mt-6">
@@ -37,6 +39,10 @@ const ControleAcessoPage: React.FC = () => {
 
         <TabsContent value="permissoes" className="mt-6">
           <PermissoesTab />
+        </TabsContent>
+
+        <TabsContent value="analytics" className="mt-6">
+          <AnalyticsPermissions />
         </TabsContent>
       </Tabs>
     </div>
