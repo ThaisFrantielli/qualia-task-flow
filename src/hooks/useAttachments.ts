@@ -46,9 +46,9 @@ export const useAttachments = (taskId?: string) => {
 
   const uploadAttachment = async (file: File, taskId: string) => {
     try {
-      // Upload file to Supabase Storage bucket 'attachments'
-      const bucketName = 'attachments';
-      const filePath = `${taskId}/${Date.now()}_${file.name}`;
+      // Upload file to Supabase Storage bucket 'ticket-attachments'
+      const bucketName = 'ticket-attachments';
+      const filePath = `tasks/${taskId}/${Date.now()}_${file.name}`;
 
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
