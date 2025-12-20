@@ -1181,6 +1181,7 @@ export type Database = {
           full_name: string | null
           funcao: string | null
           id: string
+          manager_id: string | null
           nivelAcesso: string | null
           permissoes: Json | null
           role: string
@@ -1193,6 +1194,7 @@ export type Database = {
           full_name?: string | null
           funcao?: string | null
           id: string
+          manager_id?: string | null
           nivelAcesso?: string | null
           permissoes?: Json | null
           role?: string
@@ -1205,6 +1207,7 @@ export type Database = {
           full_name?: string | null
           funcao?: string | null
           id?: string
+          manager_id?: string | null
           nivelAcesso?: string | null
           permissoes?: Json | null
           role?: string
