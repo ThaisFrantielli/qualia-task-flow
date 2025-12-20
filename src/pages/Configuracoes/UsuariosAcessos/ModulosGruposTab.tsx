@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Shield, Package, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, Package, Users, UserCircle2 } from 'lucide-react';
 
 interface Module {
   id: string;
@@ -199,6 +199,7 @@ const ModulosSection: React.FC = () => {
 // Sub-componente: Grupos
 const GruposSection: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
+  const [groupMemberCounts, setGroupMemberCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Group | null>(null);
@@ -210,7 +211,20 @@ const GruposSection: React.FC = () => {
 
   const loadGroups = async () => {
     const { data } = await supabase.from('groups').select('*').order('name');
-    if (data) setGroups(data);
+    if (data) {
+      setGroups(data);
+      const counts: Record<string, number> = {};
+      const { data: gmCounts } = await supabase
+        .from('user_groups')
+        .select('group_id', { count: 'exact', head: false });
+      if (gmCounts) {
+        gmCounts.forEach((row: any) => {
+          const gid = row.group_id as string;
+          counts[gid] = (counts[gid] || 0) + 1;
+        });
+      }
+      setGroupMemberCounts(counts);
+    }
     setLoading(false);
   };
 
@@ -291,7 +305,13 @@ const GruposSection: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">{group.description || 'Sem descrição'}</p>
+              <p className="text-sm text-muted-foreground mb-3">{group.description || 'Sem descrição'}</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <UserCircle2 className="w-3 h-3" />
+                <span>
+                  {groupMemberCounts[group.id] ? `${groupMemberCounts[group.id]} usuários vinculados` : 'Nenhum usuário vinculado'}
+                </span>
+              </div>
             </CardContent>
           </Card>
         ))}

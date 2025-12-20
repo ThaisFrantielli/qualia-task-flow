@@ -42,19 +42,21 @@ export interface TeamHierarchyNode {
 }
 
 // Hook para obter membros da equipe (subordinados)
-export const useTeamMembers = () => {
+// Agora aceita supervisorId opcional, para poder selecionar o "gerente" base na UI
+export const useTeamMembers = (supervisorId?: string | null) => {
   const { user } = useAuth();
+  const effectiveSupervisorId = supervisorId || user?.id;
   
   return useQuery({
-    queryKey: ['team-members', user?.id],
+    queryKey: ['team-members', effectiveSupervisorId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!effectiveSupervisorId) return [];
       
       // Buscar hierarquia
       const { data: hierarchyData, error: hierarchyError } = await supabase
         .from('user_hierarchy')
         .select('*')
-        .eq('supervisor_id', user.id);
+        .eq('supervisor_id', effectiveSupervisorId);
 
       if (hierarchyError) throw hierarchyError;
       if (!hierarchyData || hierarchyData.length === 0) return [];
@@ -81,14 +83,14 @@ export const useTeamMembers = () => {
         return {
           id: h?.id || uid,
           user_id: uid,
-          supervisor_id: h?.supervisor_id || user.id,
+          supervisor_id: h?.supervisor_id || effectiveSupervisorId,
           created_at: h?.created_at || null,
           updated_at: h?.updated_at || null,
           user: (profilesData || []).find((p: any) => p.id === uid) || null,
         } as TeamMember;
       });
     },
-    enabled: !!user?.id,
+    enabled: !!effectiveSupervisorId,
   });
 };
 
@@ -286,13 +288,42 @@ export const useUpdateTeamMemberSupervisor = () => {
   
   return useMutation({
     mutationFn: async ({ hierarchyId, newSupervisorId }: { hierarchyId: string; newSupervisorId: string }) => {
+      // First fetch the existing record to know the user_id
+      const { data: existing, error: fetchErr } = await supabase
+        .from('user_hierarchy')
+        .select('id, user_id, supervisor_id')
+        .eq('id', hierarchyId)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const userId = existing.user_id;
+
+      // Check if a record with the target pair already exists (to avoid unique constraint violation)
+      const { data: conflict, error: conflictErr } = await supabase
+        .from('user_hierarchy')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('supervisor_id', newSupervisorId)
+        .limit(1)
+        .maybeSingle();
+
+      if (conflictErr) throw conflictErr;
+
+      // If a conflict record exists (another row already links user -> newSupervisor),
+      // simply delete the current record to avoid duplicate pairs (merge behavior).
+      if (conflict && conflict.id && conflict.id !== hierarchyId) {
+        const { error: delErr } = await supabase.from('user_hierarchy').delete().eq('id', hierarchyId);
+        if (delErr) throw delErr;
+        return { id: conflict.id };
+      }
+
+      // Otherwise perform the update
       const { data, error } = await supabase
         .from('user_hierarchy')
         .update({ supervisor_id: newSupervisorId })
         .eq('id', hierarchyId)
         .select()
         .single();
-      
       if (error) throw error;
       return data;
     },
