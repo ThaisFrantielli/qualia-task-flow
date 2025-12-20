@@ -342,7 +342,7 @@ const AnalyticsPermissionsForUser: React.FC<{ userId: string }> = ({ userId }) =
   );
 };
 
-const AnalyticsTabsForPage: React.FC<{ pageId: string; userId: string; userPerms: any[]; toggleTab: (p:string,t:string)=>Promise<void> }> = ({ pageId, userId, userPerms, toggleTab }) => {
+const AnalyticsTabsForPage: React.FC<{ pageId: string; userId: string; userPerms: any[]; toggleTab: (p:string,t:string)=>Promise<void> }> = ({ pageId, userPerms, toggleTab }) => {
   const tabsQuery = useAllAnalyticsTabs(pageId);
   if (tabsQuery.isLoading) return null;
   const tabs = tabsQuery.data || [];
