@@ -23,7 +23,7 @@ import {
   useRemoveTeamMember,
   useUpdateTeamMember,
 } from '@/hooks/useTeamHierarchy';
-import { Skeleton } from '@/components/ui/skeleton';
+
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -44,7 +44,7 @@ const HierarquiaTab: React.FC = () => {
   }, [viewMode, selectedManagerId, viewTargetId, user?.id]);
 
   const { data: teamMembers, isLoading: loadingMembers } = useTeamMembers(effectiveViewId);
-  const { data: fullHierarchy, isLoading: loadingHierarchy } = useTeamHierarchyFull(effectiveViewId || undefined);
+  const { isLoading: loadingHierarchy } = useTeamHierarchyFull(effectiveViewId || undefined);
   const { data: teamCount } = useTeamCount();
   const { data: mySupervisor } = useDirectSupervisor(user?.id);
   
@@ -88,7 +88,7 @@ const HierarquiaTab: React.FC = () => {
   const { data: editingUserGroupIds = [] } = useUserGroupsQuery(currentEditingUserId);
 
   const handleFormChange = (field: string, value: any) => {
-    setFormData(prev => {
+    setFormData((prev: typeof initialFormData) => {
       const newState = { ...prev, [field]: value };
       if (field === 'nivelAcesso') newState.permissoes = getDefaultPermissions(value);
       return newState;
@@ -150,7 +150,7 @@ const HierarquiaTab: React.FC = () => {
       handleCloseDialog();
       // refresh hierarchy and invalidate users cache so other screens refresh
       const childrenResult = await loadHierarchyTree(effectiveViewId as string | null);
-      try { queryClient.invalidateQueries(['users']); } catch(e) { /* ignore */ }
+      try { queryClient.invalidateQueries({ queryKey: ['users'] }); } catch(e) { /* ignore */ }
 
       // expand path to the updated node and focus it
       const newChildren = childrenResult?.children || childrenMap;
@@ -212,11 +212,6 @@ const HierarquiaTab: React.FC = () => {
     }
   };
 
-  const openEditSupervisorDialog = (item: { id: string; supervisor_id?: string }) => {
-    setEditingHierarchyItem(item);
-    setSelectedSupervisorId(item.supervisor_id || user?.id || '');
-    setIsEditDialogOpen(true);
-  };
 
   const handleUpdateSupervisor = async () => {
     if (!editingHierarchyItem) return;
@@ -465,7 +460,8 @@ const HierarquiaTab: React.FC = () => {
     !teamMembers?.some(tm => tm.user_id === u.id)
   );
 
-  const isLoading = loadingMembers || loadingHierarchy;
+  const _loading = loadingMembers || loadingHierarchy;
+  void _loading; // Suppress unused variable warning
 
   if (!user) {
     return <div className="p-6"><p>Carregando...</p></div>;
@@ -803,8 +799,8 @@ const HierarquiaTab: React.FC = () => {
         formData={formData}
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
-        teamMembers={teamMembers || []}
-        onResetPermissions={() => setFormData(prev => ({ ...prev, permissoes: getDefaultPermissions(prev.nivelAcesso) }))}
+        teamMembers={(teamMembers || []) as any[]}
+        onResetPermissions={() => setFormData((prev: typeof initialFormData) => ({ ...prev, permissoes: getDefaultPermissions(prev.nivelAcesso) }))}
         allGroups={groups}
         selectedGroupIds={editingUserGroupIds}
         onToggleGroup={(groupId: string, checked: boolean) => {
