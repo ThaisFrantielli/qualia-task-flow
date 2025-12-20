@@ -157,6 +157,15 @@ const TasksPage = () => {
     navigate(`/tasks/${taskId}`);
   };
 
+  const focusModeLabels: Record<FocusModeType, string> = {
+    none: 'Modo Foco',
+    high_priority: 'Prioridade Alta',
+    due_today: 'Vence Hoje',
+    due_week: 'Esta Semana',
+    overdue: 'Atrasadas',
+    my_in_progress: 'Minhas em Andamento',
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Cabeçalho */}
@@ -164,9 +173,9 @@ const TasksPage = () => {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
-            {focusMode && (
+            {focusMode !== 'none' && (
               <span className="inline-flex items-center bg-primary/10 text-primary px-2 py-1 rounded text-sm font-medium">
-                Modo Foco Ativo
+                {focusModeLabels[focusMode] || 'Modo Foco Ativo'}
               </span>
             )}
           </div>
@@ -206,7 +215,7 @@ const TasksPage = () => {
         ) : currentView === 'list' ? (
           <ProjectsListCascade 
             projetos={projects} 
-            modoFoco={!!focusMode} 
+            modoFoco={focusMode !== 'none'} 
             teamFilter={filters.teamFilter}
             assigneeFilter={assigneeFilter}
             onOpenSubtask={(id) => setViewingSubtaskId(id)} 
