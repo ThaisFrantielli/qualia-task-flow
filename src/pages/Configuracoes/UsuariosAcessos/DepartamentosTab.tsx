@@ -176,21 +176,6 @@ const DepartamentosTab: React.FC = () => {
         )}
       </div>
 
-      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <Building2 className="w-5 h-5 text-blue-600 mt-1" />
-            <div className="space-y-2 text-sm">
-              <p><strong>Equipes/Departamentos</strong> são unidades organizacionais (Marketing, TI, Vendas, etc).</p>
-              <ul className="list-disc list-inside space-y-1 text-muted-foreground ml-4">
-                <li>Use equipes para organizar projetos por departamento</li>
-                <li>Projetos podem ser vinculados a uma equipe específica</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-3">
