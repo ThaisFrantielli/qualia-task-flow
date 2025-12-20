@@ -44,6 +44,9 @@ export default defineConfig(async ({ mode }) => {
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Garante uma única instância do React para evitar erros de hooks
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
     },
   },
   define: {
