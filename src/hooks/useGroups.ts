@@ -20,6 +20,25 @@ export interface GroupWithMembers extends Group {
 export const useGroups = () => {
   const queryClient = useQueryClient();
 
+  // Grupos do usuário atual (usado em telas de edição de usuário)
+  const useUserGroupsQuery = (userId: string | null) => {
+    return useQuery({
+      queryKey: ['user-groups', userId],
+      queryFn: async () => {
+        if (!userId) return [] as string[];
+
+        const { data, error } = await supabase
+          .from('user_groups')
+          .select('group_id')
+          .eq('user_id', userId);
+
+        if (error) throw error;
+        return (data || []).map((row) => row.group_id as string);
+      },
+      enabled: !!userId,
+    });
+  };
+
   // Buscar todos os grupos
   const { data: groups, isLoading, error } = useQuery({
     queryKey: ['groups'],
@@ -155,5 +174,6 @@ export const useGroups = () => {
     deleteGroup: deleteGroup.mutate,
     addUserToGroup: addUserToGroup.mutate,
     removeUserFromGroup: removeUserFromGroup.mutate,
+    useUserGroupsQuery,
   };
 };
