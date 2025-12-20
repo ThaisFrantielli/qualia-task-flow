@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import UserEditDialog from './components/UserEditDialog';
+import { useGroups } from '@/hooks/useGroups';
 
 export interface Permissoes {
   dashboard: boolean;
@@ -36,6 +37,7 @@ export interface TeamMember {
   tasksCount: number;
   supervisorName?: string | null;
   supervisor_id?: string | null;
+  manager_id?: string | null;
 }
 
 const getDefaultPermissions = (nivel: TeamMember['nivelAcesso']): Permissoes => {
@@ -67,11 +69,13 @@ const initialFormData = {
   funcao: '',
   nivelAcesso: 'Usuário' as TeamMember['nivelAcesso'],
   supervisor_id: null as string | null,
+  manager_id: null as string | null,
   permissoes: getDefaultPermissions('Usuário'),
 };
 
 const UsuariosTab = () => {
   const { user } = useAuth();
+  const { groups, addUserToGroup, removeUserFromGroup, useUserGroupsQuery } = useGroups();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<TeamMember[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,6 +87,9 @@ const UsuariosTab = () => {
   const presence = usePresenceOptional();
   
   const isAdmin = !!user?.isAdmin;
+
+  const currentEditingUserId = editingMember?.id || null;
+  const { data: editingUserGroupIds = [] } = useUserGroupsQuery(currentEditingUserId);
   
   const getInitials = (name: string) => name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
 
@@ -120,9 +127,11 @@ const UsuariosTab = () => {
         nivelAcesso?: string | null;
         permissoes?: Permissoes | null;
         supervisor_id?: string | null;
+        manager_id?: string | null;
       }) => {
         const supIds = supervisorsByUser[profile.id] || [];
         const supNames = supIds.map((id: string) => lookup[id]).filter(Boolean).join(', ');
+        const managerName = profile.manager_id ? lookup[profile.manager_id] : null;
         return {
           id: profile.id,
           name: profile.full_name || 'Nome não definido',
@@ -133,6 +142,8 @@ const UsuariosTab = () => {
           tasksCount: 0,
           supervisorName: supNames || null,
           supervisor_id: profile.supervisor_id || null,
+          manager_id: profile.manager_id || null,
+          managerName: managerName || null,
         };
       });
       setTeamMembers(members);
@@ -178,6 +189,7 @@ const UsuariosTab = () => {
       funcao: member.funcao,
       nivelAcesso: member.nivelAcesso,
       supervisor_id: member.supervisor_id || null,
+      manager_id: member.manager_id || null,
       permissoes: member.permissoes,
     });
     setIsDialogOpen(true);
@@ -205,6 +217,9 @@ const UsuariosTab = () => {
 
     if ('supervisor_id' in formData) {
       updatePayload.supervisor_id = formData.supervisor_id;
+    }
+    if ('manager_id' in formData) {
+      updatePayload.manager_id = (formData as any).manager_id;
     }
 
     const { error } = await supabase
@@ -316,6 +331,7 @@ const UsuariosTab = () => {
                 <TableHead>Status</TableHead>
                 <TableHead>Função</TableHead>
                 <TableHead>Supervisor</TableHead>
+                <TableHead>Gerente</TableHead>
                 <TableHead>Nível de Acesso</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -364,7 +380,8 @@ const UsuariosTab = () => {
                       </TableCell>
                       <TableCell>{member.funcao}</TableCell>
                       <TableCell>{member.supervisorName || '-'}</TableCell>
-                      <TableCell>
+                              <TableCell>{(member as any).managerName || '-'}</TableCell>
+                              <TableCell>
                         <Badge variant={member.nivelAcesso === 'Admin' ? 'destructive' : 'secondary'}>
                           {member.nivelAcesso}
                         </Badge>
@@ -400,6 +417,22 @@ const UsuariosTab = () => {
         onFormChange={handleFormChange}
         onSubmit={handleSubmit}
         teamMembers={teamMembers}
+        onResetPermissions={() =>
+          setFormData(prev => ({
+            ...prev,
+            permissoes: getDefaultPermissions(prev.nivelAcesso),
+          }))
+        }
+        allGroups={groups}
+        selectedGroupIds={editingUserGroupIds}
+        onToggleGroup={(groupId, checked) => {
+          if (!editingMember) return;
+          if (checked) {
+            addUserToGroup({ userId: editingMember.id, groupId });
+          } else {
+            removeUserFromGroup({ userId: editingMember.id, groupId });
+          }
+        }}
       />
 
       <CreateUserDialog
