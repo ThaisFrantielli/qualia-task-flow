@@ -18,7 +18,7 @@ import { TicketsGridView } from "@/components/tickets/TicketsGridView";
 import { TicketsFiltersAdvanced } from "@/components/tickets/TicketsFiltersAdvanced";
 import { CreateTicketDialog } from "@/components/tickets/CreateTicketDialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import * as XLSX from "xlsx";
+import * as XLSX from "sheetjs";
 
 export type TicketViewMode = "kanban" | "table" | "grid";
 
