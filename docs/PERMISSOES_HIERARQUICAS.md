@@ -29,8 +29,8 @@ O projeto já possui um sistema robusto de controle de acesso baseado em:
 - `/src/pages/Configuracoes/ControleAcesso/`
 
 ### 2. Níveis de Acesso Definidos
-Na tabela `profiles`, campo `nivelAcesso`:
-- `'Usuário'`
+Na tabela `profiles`, campo `nivelAcesso` (papéis fixos):
+- `'Usuário'` (operacional)
 - `'Supervisão'`
 - `'Gestão'`
 - `'Admin'`
@@ -61,7 +61,7 @@ Na tabela `profiles`, campo `nivelAcesso`:
 - ...
 ```
 
-### 4. Implementação Atual de Filtros
+### 4. Implementação de Filtros e Overrides
 
 #### Hook `useTasks.ts` (linha 21-54)
 ```typescript
@@ -78,10 +78,12 @@ const fetchTasksList = async (filters, user) => {
 }
 ```
 
-**Problema identificado:** 
-- Atualmente, usuários não-admin só veem tarefas onde `user_id = auth.uid()`
-- Não considera tarefas em que o usuário **participa como membro do projeto**
-- Não implementa hierarquia (Supervisão > Usuário, Gestão > Supervisão)
+**Resumo da lógica final:**
+- A visibilidade (quem enxerga quais tarefas/projetos) é controlada por RLS usando `nivelAcesso`, `user_hierarchy` e participação (`project_members`).
+- O acesso a **módulos e menus** é controlado por:
+  1. Nível/Admin (Admin sempre tudo).
+  2. Overrides individuais (`user_modules`, `profiles.permissoes`).
+  3. Grupos (`groups`, `user_groups`, `group_modules`).
 
 ---
 

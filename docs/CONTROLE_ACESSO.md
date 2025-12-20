@@ -16,9 +16,13 @@ Sistema completo de controle de acesso baseado em módulos, permitindo gerenciar
 
 ### Hierarquia de Permissões
 
-1. **Permissões Individuais** (maior prioridade)
-2. **Permissões de Grupo**
-3. **Admin Override** (admins têm acesso total)
+1. **Admin / Nível de Acesso**
+  - Usuários com `nivelAcesso = 'Admin'` ou flag `permissoes.is_admin = true` enxergam todos os módulos.
+2. **Permissões Individuais (user_modules)**
+  - Overrides aplicados diretamente ao usuário para um módulo específico.
+  - Têm prioridade sobre o que vem do grupo.
+3. **Permissões de Grupo (group_modules via user_groups)**
+  - Definem o conjunto padrão de módulos por grupo (Administradores, Gestores, Supervisores, Operacional).
 
 ## 🚀 Funcionalidades
 
