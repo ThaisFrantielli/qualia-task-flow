@@ -1,82 +1,177 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { 
   ResponsiveContainer, ComposedChart, Bar, Line, Area, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, ReferenceLine 
 } from 'recharts';
 import { ArrowDown, ArrowUp, Scale, TrendingUp } from 'lucide-react';
+import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
+import { DrillDownControl, GranularityLevel } from '@/components/analytics/DrillDownControl';
 
-type VazaoData = {
-  Data?: string;
+type ManutencaoUnificadoData = {
+  IdOrdemServico?: number;
+  IdOcorrencia?: number;
+  TipoEvento?: string; // 'Chegada' ou 'Conclusao'
+  DataEvento?: string;
   Chegadas?: number;
   Conclusoes?: number;
-  SaldoPeriodo?: number;
+  Placa?: string;
+  Modelo?: string;
+  TipoOcorrencia?: string;
+  Fornecedor?: string;
+  Cliente?: string;
+  CustoTotalOS?: number;
+  LeadTimeTotal?: number;
+  LeadTimeOficina?: number;
+  CustoPecas?: number;
+  CustoServicos?: number;
 };
 
 type Props = {
-  vazaoData: VazaoData[];
-  fornecedores: string[];
-  tiposManutencao: string[];
-  clientes: string[];
+  vazaoData: ManutencaoUnificadoData[];
 };
 
 function fmtNum(v: number): string {
   return new Intl.NumberFormat('pt-BR').format(v);
 }
 
-function aggregateByPeriod(data: VazaoData[], dimension: 'dia' | 'semana' | 'mes'): any[] {
-  // Filter out items without Data
-  const validData = data.filter(d => d.Data);
+// Função para normalizar data para meia-noite no timezone local
+function normalizeDate(dateString: string): Date {
+  const dateOnly = dateString.split('T')[0];
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+function aggregateByPeriod(
+  data: ManutencaoUnificadoData[], 
+  dimension: 'year' | 'month' | 'day'
+): any[] {
+  // Filtra apenas dados até hoje
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
   
-  if (dimension === 'dia') {
-    return validData.map(d => ({
-      ...d,
-      Chegadas: d.Chegadas || 0,
-      Conclusoes: d.Conclusoes || 0,
-      SaldoPeriodo: d.SaldoPeriodo || 0,
-      label: new Date(d.Data!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    }));
-  }
+  const validData = data.filter(d => {
+    if (!d.DataEvento) return false;
+    const dataEvento = normalizeDate(d.DataEvento);
+    return dataEvento <= today; // Apenas datas até hoje
+  });
   
-  const grouped: Record<string, { Chegadas: number; Conclusoes: number; SaldoPeriodo: number }> = {};
+  const grouped: Record<string, { 
+    Chegadas: number; 
+    Conclusoes: number; 
+    SaldoPeriodo: number;
+    date: string;
+  }> = {};
   
   validData.forEach(d => {
-    const dataStr = d.Data!;
-    const date = new Date(dataStr);
+    const dataStr = d.DataEvento!.split('T')[0]; // YYYY-MM-DD
     let key: string;
     
-    if (dimension === 'semana') {
-      const weekStart = new Date(date);
-      weekStart.setDate(date.getDate() - date.getDay());
-      key = weekStart.toISOString().split('T')[0];
+    if (dimension === 'year') {
+      key = dataStr.substring(0, 4); // YYYY
+    } else if (dimension === 'month') {
+      key = dataStr.substring(0, 7); // YYYY-MM
     } else {
-      key = dataStr.substring(0, 7);
+      key = dataStr; // YYYY-MM-DD
     }
     
     if (!grouped[key]) {
-      grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0 };
+      grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0, date: key };
     }
+    
     grouped[key].Chegadas += d.Chegadas || 0;
     grouped[key].Conclusoes += d.Conclusoes || 0;
-    grouped[key].SaldoPeriodo += d.SaldoPeriodo || 0;
   });
   
-  return Object.entries(grouped)
+  // Calculate saldo (chegadas - conclusoes)
+  Object.values(grouped).forEach(item => {
+    item.SaldoPeriodo = item.Chegadas - item.Conclusoes;
+  });
+  
+  // Sort by date and filter future dates
+  const sorted = Object.entries(grouped)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, values]) => ({
-      Data: key,
-      label: dimension === 'mes' 
-        ? new Date(key + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
-        : new Date(key).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      ...values,
-    }));
+    .map(([key, values]) => {
+      // Construir Date local a partir da chave para evitar problemas de timezone
+      let dateObj: Date;
+      if (dimension === 'year') {
+        const year = Number(key);
+        dateObj = new Date(year, 0, 1);
+      } else if (dimension === 'month') {
+        const [y, m] = key.split('-');
+        dateObj = new Date(Number(y), Number(m) - 1, 1);
+      } else {
+        const [y, m, d] = key.split('-');
+        dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+      }
+
+      // Formatar label em pt-BR com precisão local
+      let label: string;
+      if (dimension === 'year') {
+        label = dateObj.getFullYear().toString();
+      } else if (dimension === 'month') {
+        label = dateObj.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      } else {
+        label = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      }
+
+      return {
+        ...values,
+        label,
+        _dateObj: dateObj,
+      };
+    })
+    // Remover eventualmente chaves que representem datas futuras
+    .filter(item => {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      const d: Date = (item as any)._dateObj;
+      return d <= today;
+    });
+  
+  // Filter based on dimension to limit data points
+  if (dimension === 'day') {
+    return sorted.slice(-90); // Last 90 days
+  } else if (dimension === 'month') {
+    return sorted.slice(-24); // Last 24 months
+  }
+  return sorted; // All years
 }
 
-export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, clientes }: Props) {
-  const [dimensao, setDimensao] = useState<'dia' | 'semana' | 'mes'>('dia');
+export default function VazaoTab({ vazaoData }: Props) {
+  const { filters, setTimeGranularity } = useMaintenanceFilters();
+  
+  // Apply global filters to vazaoData
+  const filteredData = useMemo(() => {
+    return vazaoData.filter((r: ManutencaoUnificadoData) => {
+      // Date range filter
+      if (filters.dateRange?.from && r.DataEvento) {
+        const dataEvento = normalizeDate(r.DataEvento);
+        const fromDate = new Date(filters.dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        
+        if (dataEvento < fromDate) return false;
+        
+        if (filters.dateRange.to) {
+          const toDate = new Date(filters.dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          if (dataEvento > toDate) return false;
+        }
+      }
+      
+      // Apply all global filters
+      if (filters.fornecedores.length > 0 && r.Fornecedor && !filters.fornecedores.includes(r.Fornecedor)) return false;
+      if (filters.modelos.length > 0 && r.Modelo && !filters.modelos.includes(r.Modelo)) return false;
+      if (filters.tiposOcorrencia.length > 0 && r.TipoOcorrencia && !filters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
+      if (filters.clientes.length > 0 && r.Cliente && !filters.clientes.includes(r.Cliente)) return false;
+      if (filters.placas.length > 0 && r.Placa && !filters.placas.includes(r.Placa)) return false;
+      
+      return true;
+    });
+  }, [vazaoData, filters]);
   
   const chartData = useMemo(() => {
-    const aggregated = aggregateByPeriod(vazaoData.slice(-90), dimensao);
+    const aggregated = aggregateByPeriod(filteredData, filters.timeGranularity);
     
     // Calculate accumulated balance
     let accumulated = 0;
@@ -84,7 +179,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
       accumulated += d.SaldoPeriodo || 0;
       return { ...d, SaldoAcumulado: accumulated };
     });
-  }, [vazaoData, dimensao]);
+  }, [filteredData, filters.timeGranularity]);
   
   const kpis = useMemo(() => {
     const totalChegadas = chartData.reduce((s, d) => s + (d.Chegadas || 0), 0);
@@ -95,10 +190,14 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
     return { totalChegadas, totalConclusoes, saldoPeriodo, saldoAcumulado };
   }, [chartData]);
   
-  const lastPeriods = chartData.slice(-30);
-
   return (
     <div className="space-y-6">
+      {/* Drill-Down Control */}
+      <DrillDownControl
+        currentLevel={filters.timeGranularity}
+        onLevelChange={(level: GranularityLevel) => setTimeGranularity(level)}
+      />
+      
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card decoration="top" decorationColor="blue" className="bg-gradient-to-br from-blue-50 to-white">
@@ -144,7 +243,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
         <Text className="text-slate-500 mb-4">Comparativo de entradas e saídas da oficina</Text>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={lastPeriods}>
+            <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
               <YAxis fontSize={11} />
@@ -153,8 +252,8 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
                 formatter={(v: any, name: string) => [fmtNum(v), name === 'Chegadas' ? '↓ Chegadas' : '↑ Conclusões']}
               />
               <Legend />
-              <Bar dataKey="Chegadas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={dimensao === 'dia' ? 12 : 24} />
-              <Bar dataKey="Conclusoes" fill="#10b981" radius={[4, 4, 0, 0]} barSize={dimensao === 'dia' ? 12 : 24} />
+              <Bar dataKey="Chegadas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={filters.timeGranularity === 'day' ? 12 : 24} />
+              <Bar dataKey="Conclusoes" fill="#10b981" radius={[4, 4, 0, 0]} barSize={filters.timeGranularity === 'day' ? 12 : 24} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -166,7 +265,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
         <Text className="text-slate-500 mb-4">Diferença entre chegadas e conclusões (positivo = acúmulo)</Text>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={lastPeriods}>
+            <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
               <YAxis fontSize={11} />
@@ -179,7 +278,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
                 dataKey="SaldoPeriodo" 
                 fill="#6366f1"
                 radius={[4, 4, 4, 4]} 
-                barSize={dimensao === 'dia' ? 10 : 20}
+                barSize={filters.timeGranularity === 'day' ? 10 : 20}
               />
               <Line 
                 type="monotone" 
@@ -199,7 +298,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
         <Text className="text-slate-500 mb-4">Quantidade total de veículos em oficina ao longo do tempo</Text>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={lastPeriods}>
+            <ComposedChart data={chartData}>
               <defs>
                 <linearGradient id="colorAcumulado" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
