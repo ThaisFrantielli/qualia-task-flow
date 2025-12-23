@@ -55,6 +55,8 @@ export function useNotifications() {
           notif.id === id ? { ...notif, read: true } : notif
         )
       );
+      // notify other hook instances to refresh
+      try { window.dispatchEvent(new CustomEvent('notifications:refresh')); } catch {}
     } catch (err: any) {
       console.error('Erro ao marcar notificação como lida:', err);
       toast.error('Erro ao marcar notificação como lida');
@@ -77,6 +79,8 @@ export function useNotifications() {
 
       setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
       toast.success('Todas as notificações marcadas como lidas');
+      // notify other hook instances to refresh
+      try { window.dispatchEvent(new CustomEvent('notifications:refresh')); } catch {}
     } catch (err: any) {
       console.error('Erro ao marcar todas como lidas:', err);
       toast.error('Erro ao marcar todas como lidas');
@@ -93,6 +97,7 @@ export function useNotifications() {
       if (error) throw error;
 
       setNotifications(prev => prev.filter(n => n.id !== id));
+      try { window.dispatchEvent(new CustomEvent('notifications:refresh')); } catch {}
     } catch (err: any) {
       console.error('Erro ao deletar notificação:', err);
       toast.error('Erro ao deletar notificação');
@@ -110,6 +115,7 @@ export function useNotifications() {
 
       setNotifications(prev => prev.filter(n => !ids.includes(n.id)));
       toast.success(`${ids.length} notificações deletadas`);
+      try { window.dispatchEvent(new CustomEvent('notifications:refresh')); } catch {}
     } catch (err: any) {
       console.error('Erro ao deletar notificações:', err);
       toast.error('Erro ao deletar notificações');
@@ -129,6 +135,7 @@ export function useNotifications() {
         prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n)
       );
       toast.success(`${ids.length} notificações marcadas como lidas`);
+      try { window.dispatchEvent(new CustomEvent('notifications:refresh')); } catch {}
     } catch (err: any) {
       console.error('Erro ao marcar notificações como lidas:', err);
       toast.error('Erro ao marcar notificações como lidas');
@@ -149,6 +156,7 @@ export function useNotifications() {
       const { data, error } = await supabase.from('notifications').update(payload).eq('id', id).single();
       if (error) throw error;
       setNotifications(prev => prev.map(n => n.id === id ? (data as Notification) : n));
+      try { window.dispatchEvent(new CustomEvent('notifications:refresh')); } catch {}
       return data as Notification;
     } catch (err: any) {
       console.error('Erro atualizando notificação:', err);
@@ -166,6 +174,13 @@ export function useNotifications() {
 
   useEffect(() => {
     fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Listen for cross-instance refresh events (triggered when another component updates notifications)
+  useEffect(() => {
+    const handler = () => fetchNotifications();
+    window.addEventListener('notifications:refresh', handler as EventListener);
+    return () => window.removeEventListener('notifications:refresh', handler as EventListener);
   }, [fetchNotifications]);
 
   // Real-time: subscribe to INSERT/UPDATE events
