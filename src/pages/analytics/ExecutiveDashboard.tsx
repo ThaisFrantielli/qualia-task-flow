@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import useBIData from '@/hooks/useBIData';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
-import { LayoutDashboard, Database, CalendarClock, Car, DollarSign, Wrench, Users, AlertTriangle, ArrowRight, TrendingUp, TrendingDown, ShoppingCart, Tag } from 'lucide-react';
+import { LayoutDashboard, Car, DollarSign, Wrench, Users, AlertTriangle, ArrowRight, TrendingUp, TrendingDown, ShoppingCart, Tag } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
@@ -17,7 +17,7 @@ function monthLabel(ym: string): string { if (!ym || ym.length < 7) return ym; c
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function ExecutiveDashboard(): JSX.Element {
-  const { data: rawFrota, loading: l1, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota.json');
+  const { data: rawFrota, loading: l1 } = useBIData<AnyObject[]>('dim_frota.json');
   const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos.json');
   const { data: rawClientes } = useBIData<AnyObject[]>('dim_clientes.json');
   const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamento_*.json');
