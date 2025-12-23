@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign
+  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign, Car, FileCheck
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -82,6 +82,7 @@ const menuGroups: MenuGroup[] = [
         icon: Target,
         children: [
           { label: 'Pipeline', url: '/analytics/comercial', icon: Target },
+          { label: 'Propostas', url: '/propostas', icon: FileCheck },
           { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
           { label: 'Clientes', url: '/analytics/clientes', icon: Users },
           { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
@@ -105,6 +106,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
       { label: 'Usuários & Acessos', url: '/configuracoes/usuarios-acessos', icon: Users, permissionKey: 'team' },
+      { label: 'Modelos de Veículos', url: '/configuracoes/modelos-veiculos', icon: Car, permissionKey: 'team' },
       { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
       { label: 'Motivos de Tickets', url: '/configuracoes/ticket-motivos', icon: Ticket, permissionKey: 'team' },
       { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
