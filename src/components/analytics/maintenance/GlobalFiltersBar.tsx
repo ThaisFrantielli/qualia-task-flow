@@ -3,13 +3,7 @@ import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
 import { DateRangePicker } from '@/components/analytics/DateRangePicker';
 import { TimeGranularityToggle } from '@/components/analytics/TimeGranularityToggle';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { Badge } from '@/components/ui/badge';
 
 interface GlobalFiltersBarProps {
@@ -17,6 +11,9 @@ interface GlobalFiltersBarProps {
   tiposOcorrenciaList: string[];
   clientesList: string[];
   modelosList: string[];
+  contratosComerciais: string[];
+  contratosLocacao: string[];
+  placasList: string[];
 }
 
 export function GlobalFiltersBar({
@@ -24,6 +21,9 @@ export function GlobalFiltersBar({
   tiposOcorrenciaList,
   clientesList,
   modelosList,
+  contratosComerciais,
+  contratosLocacao,
+  placasList,
 }: GlobalFiltersBarProps) {
   const {
     filters,
@@ -33,6 +33,9 @@ export function GlobalFiltersBar({
     setTiposOcorrencia,
     setClientes,
     setModelos,
+    setContratosComerciais,
+    setContratosLocacao,
+    setPlacas,
     clearAllFilters,
     hasActiveFilters,
   } = useMaintenanceFilters();
@@ -54,7 +57,7 @@ export function GlobalFiltersBar({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <DateRangePicker
           value={filters.dateRange}
           onChange={setDateRange}
@@ -65,73 +68,61 @@ export function GlobalFiltersBar({
           onChange={setTimeGranularity}
         />
 
-        <Select
-          value={filters.fornecedores[0] || ''}
-          onValueChange={(value) => setFornecedores(value && value !== '__all__' ? [value] : [])}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Fornecedor" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todos</SelectItem>
-            {fornecedoresList.filter(f => f && f.trim()).map((f) => (
-              <SelectItem key={f} value={f}>
-                {f}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          options={fornecedoresList.filter(f => f && f.trim())}
+          selected={filters.fornecedores}
+          onSelectedChange={setFornecedores}
+          placeholder="Fornecedores"
+          searchPlaceholder="Buscar fornecedor..."
+        />
 
-        <Select
-          value={filters.tiposOcorrencia[0] || ''}
-          onValueChange={(value) => setTiposOcorrencia(value && value !== '__all__' ? [value] : [])}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Tipo Ocorrência" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todos</SelectItem>
-            {tiposOcorrenciaList.filter(t => t && t.trim()).map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          options={tiposOcorrenciaList.filter(t => t && t.trim())}
+          selected={filters.tiposOcorrencia}
+          onSelectedChange={setTiposOcorrencia}
+          placeholder="Tipos de Ocorrência"
+          searchPlaceholder="Buscar tipo..."
+        />
 
-        <Select
-          value={filters.clientes[0] || ''}
-          onValueChange={(value) => setClientes(value && value !== '__all__' ? [value] : [])}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Cliente" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todos</SelectItem>
-            {clientesList.filter(c => c && c.trim()).slice(0, 50).map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          options={clientesList.filter(c => c && c.trim())}
+          selected={filters.clientes}
+          onSelectedChange={setClientes}
+          placeholder="Clientes"
+          searchPlaceholder="Buscar cliente..."
+        />
 
-        <Select
-          value={filters.modelos[0] || ''}
-          onValueChange={(value) => setModelos(value && value !== '__all__' ? [value] : [])}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Modelo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">Todos</SelectItem>
-            {modelosList.filter(m => m && m.trim()).slice(0, 50).map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          options={modelosList.filter(m => m && m.trim())}
+          selected={filters.modelos}
+          onSelectedChange={setModelos}
+          placeholder="Modelos"
+          searchPlaceholder="Buscar modelo..."
+        />
+
+        <MultiSelect
+          options={contratosComerciais.filter(c => c && c.trim())}
+          selected={filters.contratosComerciais}
+          onSelectedChange={setContratosComerciais}
+          placeholder="Contratos Comerciais"
+          searchPlaceholder="Buscar contrato..."
+        />
+
+        <MultiSelect
+          options={contratosLocacao.filter(c => c && c.trim())}
+          selected={filters.contratosLocacao}
+          onSelectedChange={setContratosLocacao}
+          placeholder="Contratos Locação"
+          searchPlaceholder="Buscar contrato..."
+        />
+
+        <MultiSelect
+          options={placasList.filter(p => p && p.trim())}
+          selected={filters.placas}
+          onSelectedChange={setPlacas}
+          placeholder="Placas"
+          searchPlaceholder="Buscar placa..."
+        />
       </div>
 
       {hasActiveFilters && (
@@ -143,22 +134,37 @@ export function GlobalFiltersBar({
           )}
           {filters.fornecedores.length > 0 && (
             <Badge variant="secondary" className="text-xs">
-              🏭 Fornecedor: {filters.fornecedores[0]}
+              🏭 {filters.fornecedores.length} Fornecedor(es)
             </Badge>
           )}
           {filters.tiposOcorrencia.length > 0 && (
             <Badge variant="secondary" className="text-xs">
-              🔧 Tipo: {filters.tiposOcorrencia[0]}
+              🔧 {filters.tiposOcorrencia.length} Tipo(s)
             </Badge>
           )}
           {filters.clientes.length > 0 && (
             <Badge variant="secondary" className="text-xs">
-              👤 Cliente: {filters.clientes[0]}
+              👤 {filters.clientes.length} Cliente(s)
             </Badge>
           )}
           {filters.modelos.length > 0 && (
             <Badge variant="secondary" className="text-xs">
-              🚗 Modelo: {filters.modelos[0]}
+              🚗 {filters.modelos.length} Modelo(s)
+            </Badge>
+          )}
+          {filters.contratosComerciais.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              📄 {filters.contratosComerciais.length} Contrato(s) Comercial(is)
+            </Badge>
+          )}
+          {filters.contratosLocacao.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              📋 {filters.contratosLocacao.length} Contrato(s) Locação
+            </Badge>
+          )}
+          {filters.placas.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              🚙 {filters.placas.length} Placa(s)
             </Badge>
           )}
         </div>

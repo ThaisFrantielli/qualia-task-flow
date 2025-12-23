@@ -6,7 +6,7 @@ import { Wrench, Download } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { MaintenanceFiltersProvider, useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
 import { GlobalFiltersBar } from '@/components/analytics/maintenance/GlobalFiltersBar';
-import { TimeGranularityToggle } from '@/components/analytics/TimeGranularityToggle';
+import { DrillDownControl, GranularityLevel } from '@/components/analytics/DrillDownControl';
 import VazaoTab from '@/components/analytics/maintenance/VazaoTab';
 import ProjecaoRepactuacaoTab from '@/components/analytics/maintenance/ProjecaoRepactuacaoTab';
 import AnaliseVeiculoTab from '@/components/analytics/maintenance/AnaliseVeiculoTab';
@@ -21,14 +21,6 @@ function normalizeDate(dateString: string): Date {
   const [year, month, day] = dateOnly.split('-').map(Number);
   // Cria data no timezone local (não UTC)
   return new Date(year, month - 1, day, 0, 0, 0, 0);
-}
-
-// Função para converter Date para string YYYY-MM-DD no timezone local
-function dateToLocalString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
@@ -46,7 +38,7 @@ function MaintenanceDashboardContent(): JSX.Element {
   const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
   const { data: manutencaoCompletaRaw, loading: loadingCompleta } = useBIData<AnyObject[]>('fat_manutencao_completa.json');
   const { data: rawFornecedores } = useBIData<AnyObject[]>('dim_fornecedores.json');
-  const { data: vazaoRaw } = useBIData<AnyObject[]>('agg_vazao_manutencao_diaria.json');
+  const { data: manutencaoUnificadoRaw } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
   const { data: faturamentoRaw } = useBIData<AnyObject[]>('fat_faturamento_*.json');
   const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
   const { data: frotaRaw } = useBIData<AnyObject[]>('dim_frota.json');
@@ -55,18 +47,18 @@ function MaintenanceDashboardContent(): JSX.Element {
   const osList = useMemo(() => Array.isArray(osData) ? osData : [], [osData]);
   const manutencaoCompleta = useMemo(() => Array.isArray(manutencaoCompletaRaw) ? manutencaoCompletaRaw : [], [manutencaoCompletaRaw]);
   const fornecedores = useMemo(() => Array.isArray(rawFornecedores) ? rawFornecedores : [], [rawFornecedores]);
-  const vazaoData = useMemo(() => Array.isArray(vazaoRaw) ? vazaoRaw : [], [vazaoRaw]);
+  const manutencaoUnificado = useMemo(() => Array.isArray(manutencaoUnificadoRaw) ? manutencaoUnificadoRaw : [], [manutencaoUnificadoRaw]);
   const faturamentoData = useMemo(() => Array.isArray(faturamentoRaw) ? faturamentoRaw : [], [faturamentoRaw]);
   const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
   const frotaData = useMemo(() => Array.isArray(frotaRaw) ? frotaRaw : [], [frotaRaw]);
   const contratosData = useMemo(() => Array.isArray(contratosRaw) ? contratosRaw : [], [contratosRaw]);
 
-  const { filters: globalFilters } = useMaintenanceFilters();
+  const { filters: globalFilters, setTimeGranularity } = useMaintenanceFilters();
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
-  const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+  const { filters, handleChartClick, isValueSelected, getFilterValues } = useChartFilter();
 
   const filteredOS = useMemo(() => {
     return osList.filter((r: AnyObject) => {
@@ -134,30 +126,33 @@ function MaintenanceDashboardContent(): JSX.Element {
     });
   }, [manutencaoCompleta, globalFilters]);
 
-  const filteredVazao = useMemo(() => {
-    return vazaoData.filter((r: AnyObject) => {
+  const filteredManutencaoUnificado = useMemo(() => {
+    return manutencaoUnificado.filter((r: AnyObject) => {
       // Filtro de data range
-      if (globalFilters.dateRange?.from && r.Data) {
-        const data = normalizeDate(r.Data);
+      if (globalFilters.dateRange?.from && r.DataEvento) {
+        const dataEvento = normalizeDate(r.DataEvento);
         const fromDate = new Date(globalFilters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
         
-        if (data < fromDate) return false;
+        if (dataEvento < fromDate) return false;
         
         if (globalFilters.dateRange.to) {
           const toDate = new Date(globalFilters.dateRange.to);
           toDate.setHours(23, 59, 59, 999);
-          if (data > toDate) return false;
+          if (dataEvento > toDate) return false;
         }
       }
       
-      // Filtros de fornecedor e cliente (se existirem no dataset de vazão)
+      // TODOS os filtros globais
       if (globalFilters.fornecedores.length > 0 && r.Fornecedor && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
+      if (globalFilters.modelos.length > 0 && r.Modelo && !globalFilters.modelos.includes(r.Modelo)) return false;
+      if (globalFilters.tiposOcorrencia.length > 0 && r.TipoOcorrencia && !globalFilters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
       if (globalFilters.clientes.length > 0 && r.Cliente && !globalFilters.clientes.includes(r.Cliente)) return false;
+      if (globalFilters.placas.length > 0 && r.Placa && !globalFilters.placas.includes(r.Placa)) return false;
       
       return true;
     });
-  }, [vazaoData, globalFilters]);
+  }, [manutencaoUnificado, globalFilters]);
 
   const kpis = useMemo(() => {
     const totalCost = filteredOS.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
@@ -210,10 +205,24 @@ function MaintenanceDashboardContent(): JSX.Element {
 
   // Lists for filters
   const fornecedoresList = useMemo(() => [...new Set([...osList.map(o => o.Fornecedor), ...manutencaoCompleta.map(m => m.Fornecedor)].filter(Boolean))], [osList, manutencaoCompleta]);
-  const tiposManutencaoList = useMemo(() => [...new Set(osList.map(o => o.TipoManutencao).filter(Boolean))], [osList]);
   const tiposOcorrenciaList = useMemo(() => [...new Set(manutencaoCompleta.map(m => m.TipoOcorrencia).filter(Boolean))], [manutencaoCompleta]);
   const clientesList = useMemo(() => [...new Set([...faturamentoData.map(f => f.Cliente), ...manutencaoCompleta.map(m => m.Cliente)].filter(Boolean))], [faturamentoData, manutencaoCompleta]);
   const modelosList = useMemo(() => [...new Set(manutencaoCompleta.map(m => m.Modelo).filter(Boolean))], [manutencaoCompleta]);
+  const contratosComerciais = useMemo(() => [...new Set(contratosData.map(c => c.NumeroContrato).filter(Boolean))], [contratosData]);
+  const contratosLocacao = useMemo(() => {
+    // Contratos de locação podem ter formato LOC-XXXX ou ser apenas o ID numérico
+    const arr = contratosData
+      .map(c => {
+        const raw = c.IdContratoLocacao;
+        if (!raw) return null;
+        const loc = String(raw).trim();
+        return loc.startsWith('LOC-') ? loc : `LOC-${loc}`;
+      })
+      .filter((v): v is string => typeof v === 'string');
+
+    return [...new Set(arr)].sort();
+  }, [contratosData]);
+  const placasList = useMemo(() => [...new Set([...frotaData.map(f => f.Placa), ...osList.map(o => o.Placa)].filter(Boolean))], [frotaData, osList]);
 
   const pageItems = useMemo(() => filteredOS.slice(page * pageSize, (page + 1) * pageSize), [filteredOS, page]);
   const totalPages = Math.ceil(filteredOS.length / pageSize);
@@ -252,6 +261,9 @@ function MaintenanceDashboardContent(): JSX.Element {
         tiposOcorrenciaList={tiposOcorrenciaList}
         clientesList={clientesList}
         modelosList={modelosList}
+        contratosComerciais={contratosComerciais}
+        contratosLocacao={contratosLocacao}
+        placasList={placasList}
       />
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit flex-wrap">
@@ -271,12 +283,11 @@ function MaintenanceDashboardContent(): JSX.Element {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-4">
                 <Title>Evolução de Custos</Title>
-                <TimeGranularityToggle
-                  value={globalFilters.timeGranularity}
-                  onChange={() => {}} 
-                  size="sm"
+                <DrillDownControl
+                  currentLevel={globalFilters.timeGranularity}
+                  onLevelChange={(level: GranularityLevel) => setTimeGranularity(level)}
                 />
               </div>
               <div className="h-64 mt-4">
@@ -318,7 +329,7 @@ function MaintenanceDashboardContent(): JSX.Element {
       
       {activeTab === 2 && <CustosDetalhadosTab manutencaoData={filteredManutencaoCompleta} />}
 
-      {activeTab === 3 && <VazaoTab vazaoData={filteredVazao} fornecedores={fornecedoresList} tiposManutencao={tiposManutencaoList} clientes={clientesList} />}
+      {activeTab === 3 && <VazaoTab vazaoData={filteredManutencaoUnificado} />}
       
       {activeTab === 4 && <ProjecaoRepactuacaoTab faturamentoData={faturamentoData} manutencaoData={osList} sinistrosData={sinistrosData} />}
       
