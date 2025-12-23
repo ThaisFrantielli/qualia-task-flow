@@ -1,0 +1,297 @@
+import { useMemo, useState } from 'react';
+import { Card, Title, Text, Metric } from '@tremor/react';
+import { 
+  ResponsiveContainer, ComposedChart, Bar, Line, Area, XAxis, YAxis, 
+  CartesianGrid, Tooltip, Legend, ReferenceLine 
+} from 'recharts';
+import { ArrowDown, ArrowUp, Scale, TrendingUp, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type VazaoData = {
+  Data?: string;
+  Chegadas?: number;
+  Conclusoes?: number;
+  SaldoPeriodo?: number;
+};
+
+type Props = {
+  vazaoData: VazaoData[];
+  fornecedores: string[];
+  tiposManutencao: string[];
+  clientes: string[];
+};
+
+function fmtNum(v: number): string {
+  return new Intl.NumberFormat('pt-BR').format(v);
+}
+
+function aggregateByPeriod(data: VazaoData[], dimension: 'dia' | 'semana' | 'mes'): any[] {
+  if (dimension === 'dia') {
+    return data.map(d => ({
+      ...d,
+      label: new Date(d.Data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+    }));
+  }
+  
+  const grouped: Record<string, { Chegadas: number; Conclusoes: number; SaldoPeriodo: number }> = {};
+  
+  data.forEach(d => {
+    const date = new Date(d.Data);
+    let key: string;
+    
+    if (dimension === 'semana') {
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - date.getDay());
+      key = weekStart.toISOString().split('T')[0];
+    } else {
+      key = d.Data.substring(0, 7);
+    }
+    
+    if (!grouped[key]) {
+      grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0 };
+    }
+    grouped[key].Chegadas += d.Chegadas;
+    grouped[key].Conclusoes += d.Conclusoes;
+    grouped[key].SaldoPeriodo += d.SaldoPeriodo;
+  });
+  
+  return Object.entries(grouped)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, values]) => ({
+      Data: key,
+      label: dimension === 'mes' 
+        ? new Date(key + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+        : new Date(key).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      ...values,
+    }));
+}
+
+export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, clientes }: Props) {
+  const [dimensao, setDimensao] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const [filtroFornecedor, setFiltroFornecedor] = useState<string>('todos');
+  const [filtroTipo, setFiltroTipo] = useState<string>('todos');
+  const [filtroCliente, setFiltroCliente] = useState<string>('todos');
+  
+  const chartData = useMemo(() => {
+    const aggregated = aggregateByPeriod(vazaoData.slice(-90), dimensao);
+    
+    // Calculate accumulated balance
+    let accumulated = 0;
+    return aggregated.map(d => {
+      accumulated += d.SaldoPeriodo;
+      return { ...d, SaldoAcumulado: accumulated };
+    });
+  }, [vazaoData, dimensao]);
+  
+  const kpis = useMemo(() => {
+    const totalChegadas = chartData.reduce((s, d) => s + d.Chegadas, 0);
+    const totalConclusoes = chartData.reduce((s, d) => s + d.Conclusoes, 0);
+    const saldoPeriodo = totalChegadas - totalConclusoes;
+    const saldoAcumulado = chartData.length > 0 ? chartData[chartData.length - 1].SaldoAcumulado : 0;
+    
+    return { totalChegadas, totalConclusoes, saldoPeriodo, saldoAcumulado };
+  }, [chartData]);
+  
+  const lastPeriods = chartData.slice(-30);
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <Text className="font-medium">Filtros:</Text>
+          </div>
+          
+          <Select value={dimensao} onValueChange={(v: 'dia' | 'semana' | 'mes') => setDimensao(v)}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Dimensão" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dia">Dia</SelectItem>
+              <SelectItem value="semana">Semana</SelectItem>
+              <SelectItem value="mes">Mês</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={filtroFornecedor} onValueChange={setFiltroFornecedor}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Fornecedor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos Fornecedores</SelectItem>
+              {fornecedores.slice(0, 20).map(f => (
+                <SelectItem key={f} value={f}>{f}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos Tipos</SelectItem>
+              {tiposManutencao.map(t => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Select value={filtroCliente} onValueChange={setFiltroCliente}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos Clientes</SelectItem>
+              {clientes.slice(0, 20).map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
+      
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card decoration="top" decorationColor="blue" className="bg-gradient-to-br from-blue-50 to-white">
+          <div className="flex items-center gap-2">
+            <ArrowDown className="w-5 h-5 text-blue-600" />
+            <Text>Chegadas na Oficina</Text>
+          </div>
+          <Metric className="text-blue-600">{fmtNum(kpis.totalChegadas)}</Metric>
+        </Card>
+        
+        <Card decoration="top" decorationColor="emerald" className="bg-gradient-to-br from-emerald-50 to-white">
+          <div className="flex items-center gap-2">
+            <ArrowUp className="w-5 h-5 text-emerald-600" />
+            <Text>Conclusões de Serviço</Text>
+          </div>
+          <Metric className="text-emerald-600">{fmtNum(kpis.totalConclusoes)}</Metric>
+        </Card>
+        
+        <Card decoration="top" decorationColor={kpis.saldoPeriodo > 0 ? 'rose' : 'emerald'} className={`bg-gradient-to-br ${kpis.saldoPeriodo > 0 ? 'from-rose-50' : 'from-emerald-50'} to-white`}>
+          <div className="flex items-center gap-2">
+            <Scale className="w-5 h-5 text-slate-600" />
+            <Text>Saldo do Período</Text>
+          </div>
+          <Metric className={kpis.saldoPeriodo > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+            {kpis.saldoPeriodo > 0 ? '+' : ''}{fmtNum(kpis.saldoPeriodo)}
+          </Metric>
+        </Card>
+        
+        <Card decoration="top" decorationColor={kpis.saldoAcumulado > 0 ? 'amber' : 'emerald'} className={`bg-gradient-to-br ${kpis.saldoAcumulado > 0 ? 'from-amber-50' : 'from-emerald-50'} to-white`}>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-slate-600" />
+            <Text>Saldo Acumulado</Text>
+          </div>
+          <Metric className={kpis.saldoAcumulado > 0 ? 'text-amber-600' : 'text-emerald-600'}>
+            {kpis.saldoAcumulado > 0 ? '+' : ''}{fmtNum(kpis.saldoAcumulado)}
+          </Metric>
+        </Card>
+      </div>
+      
+      {/* Chart 1: Arrivals vs Completions */}
+      <Card>
+        <Title>Chegadas vs Conclusões</Title>
+        <Text className="text-slate-500 mb-4">Comparativo de entradas e saídas da oficina</Text>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={lastPeriods}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" fontSize={11} tickMargin={8} />
+              <YAxis fontSize={11} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                formatter={(v: any, name: string) => [fmtNum(v), name === 'Chegadas' ? '↓ Chegadas' : '↑ Conclusões']}
+              />
+              <Legend />
+              <Bar dataKey="Chegadas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={dimensao === 'dia' ? 12 : 24} />
+              <Bar dataKey="Conclusoes" fill="#10b981" radius={[4, 4, 0, 0]} barSize={dimensao === 'dia' ? 12 : 24} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+      
+      {/* Chart 2: Period Balance */}
+      <Card>
+        <Title>Saldo do Período</Title>
+        <Text className="text-slate-500 mb-4">Diferença entre chegadas e conclusões (positivo = acúmulo)</Text>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={lastPeriods}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" fontSize={11} tickMargin={8} />
+              <YAxis fontSize={11} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                formatter={(v: any) => [fmtNum(v), 'Saldo']}
+              />
+              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+              <Bar 
+                dataKey="SaldoPeriodo" 
+                radius={[4, 4, 4, 4]} 
+                barSize={dimensao === 'dia' ? 10 : 20}
+              >
+                {lastPeriods.map((entry, index) => (
+                  <rect 
+                    key={`bar-${index}`}
+                    fill={entry.SaldoPeriodo > 0 ? '#ef4444' : '#10b981'}
+                  />
+                ))}
+              </Bar>
+              <Line 
+                type="monotone" 
+                dataKey="SaldoPeriodo" 
+                stroke="#6366f1" 
+                strokeWidth={2} 
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+      
+      {/* Chart 3: Accumulated Balance */}
+      <Card>
+        <Title>Saldo Acumulado (Running Total)</Title>
+        <Text className="text-slate-500 mb-4">Quantidade total de veículos em oficina ao longo do tempo</Text>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={lastPeriods}>
+              <defs>
+                <linearGradient id="colorAcumulado" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" fontSize={11} tickMargin={8} />
+              <YAxis fontSize={11} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                formatter={(v: any) => [fmtNum(v), 'Acumulado']}
+              />
+              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+              <Area 
+                type="monotone" 
+                dataKey="SaldoAcumulado" 
+                stroke="#f59e0b" 
+                strokeWidth={2}
+                fill="url(#colorAcumulado)"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="SaldoAcumulado" 
+                stroke="#f59e0b" 
+                strokeWidth={3} 
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+    </div>
+  );
+}
