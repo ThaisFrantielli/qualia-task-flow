@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { Card, Title, Text, Metric } from '@tremor/react';
+import { Card, Text, Metric } from '@tremor/react';
 import { 
   ResponsiveContainer, ComposedChart, Bar, Line, Area, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, ReferenceLine 
 } from 'recharts';
 import { ArrowDown, ArrowUp, Scale, TrendingUp } from 'lucide-react';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
-import { DrillDownControl, GranularityLevel } from '@/components/analytics/DrillDownControl';
+import { ChartDrillDownHeader, GranularityLevel } from '@/components/analytics/ChartDrillDownHeader';
 
 type ManutencaoUnificadoData = {
   IdOrdemServico?: number;
@@ -35,25 +35,89 @@ function fmtNum(v: number): string {
   return new Intl.NumberFormat('pt-BR').format(v);
 }
 
+// Array de meses em pt-BR para formatação manual
+const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+// Função para obter a data de hoje às 23:59:59 no timezone local
+function getTodayEnd(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+}
+
 // Função para normalizar data para meia-noite no timezone local
-function normalizeDate(dateString: string): Date {
-  const dateOnly = dateString.split('T')[0];
+function parseLocalDate(dateString: string): Date {
+  // Remove parte do horário se existir e pega apenas YYYY-MM-DD
+  const dateOnly = String(dateString).split('T')[0];
   const [year, month, day] = dateOnly.split('-').map(Number);
+  // Cria data no timezone local (não UTC) - isso evita problemas de timezone
   return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+// Formata label da data conforme a granularidade
+function formatLabel(dateObj: Date, dimension: 'year' | 'month' | 'day'): string {
+  if (dimension === 'year') {
+    return dateObj.getFullYear().toString();
+  } else if (dimension === 'month') {
+    // Formato: "Fev/24" ao invés de "fev. de 24"
+    return `${MONTHS_PT[dateObj.getMonth()]}/${String(dateObj.getFullYear()).slice(2)}`;
+  } else {
+    // Formato: "23/12"
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}`;
+  }
 }
 
 function aggregateByPeriod(
   data: ManutencaoUnificadoData[], 
-  dimension: 'year' | 'month' | 'day'
+  dimension: 'year' | 'month' | 'day',
+  dateRange?: { from?: Date; to?: Date }
 ): any[] {
-  // Filtra apenas dados até hoje
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
+  const todayEnd = getTodayEnd();
   
+  // Determinar data mínima para filtro (se não houver dateRange, usar 90 dias para 'day', 24 meses para 'month')
+  let minDate: Date | null = null;
+  if (dateRange?.from) {
+    minDate = new Date(dateRange.from);
+    minDate.setHours(0, 0, 0, 0);
+  } else {
+    // Padrões baseados na granularidade
+    if (dimension === 'day') {
+      minDate = new Date();
+      minDate.setDate(minDate.getDate() - 90);
+      minDate.setHours(0, 0, 0, 0);
+    } else if (dimension === 'month') {
+      minDate = new Date();
+      minDate.setMonth(minDate.getMonth() - 24);
+      minDate.setHours(0, 0, 0, 0);
+    }
+    // Para 'year' não limitamos por padrão
+  }
+  
+  let maxDate: Date = todayEnd;
+  if (dateRange?.to) {
+    const toDate = new Date(dateRange.to);
+    toDate.setHours(23, 59, 59, 999);
+    // Usar o menor entre dateRange.to e hoje (nunca permitir datas futuras)
+    maxDate = toDate < todayEnd ? toDate : todayEnd;
+  }
+  
+  // Filtra dados: exclui datas futuras e aplica range
   const validData = data.filter(d => {
     if (!d.DataEvento) return false;
-    const dataEvento = normalizeDate(d.DataEvento);
-    return dataEvento <= today; // Apenas datas até hoje
+    
+    const dataEvento = parseLocalDate(d.DataEvento);
+    
+    // CRÍTICO: Nunca permitir datas futuras
+    if (dataEvento > todayEnd) return false;
+    
+    // Aplicar filtro de data mínima
+    if (minDate && dataEvento < minDate) return false;
+    
+    // Aplicar filtro de data máxima
+    if (dataEvento > maxDate) return false;
+    
+    return true;
   });
   
   const grouped: Record<string, { 
@@ -64,7 +128,7 @@ function aggregateByPeriod(
   }> = {};
   
   validData.forEach(d => {
-    const dataStr = d.DataEvento!.split('T')[0]; // YYYY-MM-DD
+    const dataStr = String(d.DataEvento!).split('T')[0]; // YYYY-MM-DD
     let key: string;
     
     if (dimension === 'year') {
@@ -88,11 +152,11 @@ function aggregateByPeriod(
     item.SaldoPeriodo = item.Chegadas - item.Conclusoes;
   });
   
-  // Sort by date and filter future dates
+  // Sort by date
   const sorted = Object.entries(grouped)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, values]) => {
-      // Construir Date local a partir da chave para evitar problemas de timezone
+      // Construir Date local a partir da chave
       let dateObj: Date;
       if (dimension === 'year') {
         const year = Number(key);
@@ -105,37 +169,16 @@ function aggregateByPeriod(
         dateObj = new Date(Number(y), Number(m) - 1, Number(d));
       }
 
-      // Formatar label em pt-BR com precisão local
-      let label: string;
-      if (dimension === 'year') {
-        label = dateObj.getFullYear().toString();
-      } else if (dimension === 'month') {
-        label = dateObj.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-      } else {
-        label = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      }
-
       return {
         ...values,
-        label,
+        label: formatLabel(dateObj, dimension),
         _dateObj: dateObj,
       };
     })
-    // Remover eventualmente chaves que representem datas futuras
-    .filter(item => {
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      const d: Date = (item as any)._dateObj;
-      return d <= today;
-    });
+    // Filtro final de segurança: remover qualquer data futura que tenha passado
+    .filter(item => item._dateObj <= todayEnd);
   
-  // Filter based on dimension to limit data points
-  if (dimension === 'day') {
-    return sorted.slice(-90); // Last 90 days
-  } else if (dimension === 'month') {
-    return sorted.slice(-24); // Last 24 months
-  }
-  return sorted; // All years
+  return sorted;
 }
 
 export default function VazaoTab({ vazaoData }: Props) {
@@ -143,10 +186,18 @@ export default function VazaoTab({ vazaoData }: Props) {
   
   // Apply global filters to vazaoData
   const filteredData = useMemo(() => {
+    const todayEnd = getTodayEnd();
+    
     return vazaoData.filter((r: ManutencaoUnificadoData) => {
+      // CRÍTICO: Filtrar datas futuras imediatamente
+      if (r.DataEvento) {
+        const dataEvento = parseLocalDate(r.DataEvento);
+        if (dataEvento > todayEnd) return false;
+      }
+      
       // Date range filter
       if (filters.dateRange?.from && r.DataEvento) {
-        const dataEvento = normalizeDate(r.DataEvento);
+        const dataEvento = parseLocalDate(r.DataEvento);
         const fromDate = new Date(filters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
         
@@ -171,7 +222,7 @@ export default function VazaoTab({ vazaoData }: Props) {
   }, [vazaoData, filters]);
   
   const chartData = useMemo(() => {
-    const aggregated = aggregateByPeriod(filteredData, filters.timeGranularity);
+    const aggregated = aggregateByPeriod(filteredData, filters.timeGranularity, filters.dateRange);
     
     // Calculate accumulated balance
     let accumulated = 0;
@@ -179,7 +230,7 @@ export default function VazaoTab({ vazaoData }: Props) {
       accumulated += d.SaldoPeriodo || 0;
       return { ...d, SaldoAcumulado: accumulated };
     });
-  }, [filteredData, filters.timeGranularity]);
+  }, [filteredData, filters.timeGranularity, filters.dateRange]);
   
   const kpis = useMemo(() => {
     const totalChegadas = chartData.reduce((s, d) => s + (d.Chegadas || 0), 0);
@@ -189,15 +240,13 @@ export default function VazaoTab({ vazaoData }: Props) {
     
     return { totalChegadas, totalConclusoes, saldoPeriodo, saldoAcumulado };
   }, [chartData]);
+
+  const handleLevelChange = (level: GranularityLevel) => {
+    setTimeGranularity(level);
+  };
   
   return (
     <div className="space-y-6">
-      {/* Drill-Down Control */}
-      <DrillDownControl
-        currentLevel={filters.timeGranularity}
-        onLevelChange={(level: GranularityLevel) => setTimeGranularity(level)}
-      />
-      
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card decoration="top" decorationColor="blue" className="bg-gradient-to-br from-blue-50 to-white">
@@ -239,8 +288,12 @@ export default function VazaoTab({ vazaoData }: Props) {
       
       {/* Chart 1: Arrivals vs Completions */}
       <Card>
-        <Title>Chegadas vs Conclusões</Title>
-        <Text className="text-slate-500 mb-4">Comparativo de entradas e saídas da oficina</Text>
+        <ChartDrillDownHeader
+          title="Chegadas vs Conclusões"
+          description="Comparativo de entradas e saídas da oficina"
+          currentLevel={filters.timeGranularity}
+          onLevelChange={handleLevelChange}
+        />
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
@@ -261,8 +314,12 @@ export default function VazaoTab({ vazaoData }: Props) {
       
       {/* Chart 2: Period Balance */}
       <Card>
-        <Title>Saldo do Período</Title>
-        <Text className="text-slate-500 mb-4">Diferença entre chegadas e conclusões (positivo = acúmulo)</Text>
+        <ChartDrillDownHeader
+          title="Saldo do Período"
+          description="Diferença entre chegadas e conclusões (positivo = acúmulo)"
+          currentLevel={filters.timeGranularity}
+          onLevelChange={handleLevelChange}
+        />
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
@@ -294,8 +351,12 @@ export default function VazaoTab({ vazaoData }: Props) {
       
       {/* Chart 3: Accumulated Balance */}
       <Card>
-        <Title>Saldo Acumulado (Running Total)</Title>
-        <Text className="text-slate-500 mb-4">Quantidade total de veículos em oficina ao longo do tempo</Text>
+        <ChartDrillDownHeader
+          title="Saldo Acumulado (Running Total)"
+          description="Quantidade total de veículos em oficina ao longo do tempo"
+          currentLevel={filters.timeGranularity}
+          onLevelChange={handleLevelChange}
+        />
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>

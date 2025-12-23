@@ -1,7 +1,6 @@
 import { X } from 'lucide-react';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
 import { DateRangePicker } from '@/components/analytics/DateRangePicker';
-import { TimeGranularityToggle } from '@/components/analytics/TimeGranularityToggle';
 import { Button } from '@/components/ui/button';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +27,6 @@ export function GlobalFiltersBar({
   const {
     filters,
     setDateRange,
-    setTimeGranularity,
     setFornecedores,
     setTiposOcorrencia,
     setClientes,
@@ -61,11 +59,6 @@ export function GlobalFiltersBar({
         <DateRangePicker
           value={filters.dateRange}
           onChange={setDateRange}
-        />
-
-        <TimeGranularityToggle
-          value={filters.timeGranularity}
-          onChange={setTimeGranularity}
         />
 
         <MultiSelect
