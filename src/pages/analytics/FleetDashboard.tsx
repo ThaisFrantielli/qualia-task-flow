@@ -121,8 +121,13 @@ export default function FleetDashboard(): JSX.Element {
   const getCategory = (status: string) => {
       const s = (status || '').toUpperCase();
       if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
-      // Treat vehicles available for sale as Inativa
-      if (['DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL', 'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA'].includes(s)) return 'Inativa';
+            // Treat some statuses as Inativa (also exclude them from 'Improdutiva')
+            if ([
+                'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
+                'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
+                'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
+                'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+            ].includes(s)) return 'Inativa';
       return 'Improdutiva';
   };
 
