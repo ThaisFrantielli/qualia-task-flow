@@ -120,13 +120,22 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
     }
     
     return data.sort((a, b) => {
-      const aVal = a[sortField as keyof typeof a] ?? 0;
-      const bVal = b[sortField as keyof typeof b] ?? 0;
-      
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      const aVal = a[sortField as keyof typeof a] ?? '';
+      const bVal = b[sortField as keyof typeof b] ?? '';
+
+      // Special-case: sort by contract end date (`vencimento`) comparing actual dates
+      if (sortField === 'vencimento') {
+        const aDate = aVal ? new Date(String(aVal)) : null;
+        const bDate = bVal ? new Date(String(bVal)) : null;
+        const aTime = aDate && !Number.isNaN(aDate.getTime()) ? aDate.getTime() : (aVal === '' ? Infinity : 0);
+        const bTime = bDate && !Number.isNaN(bDate.getTime()) ? bDate.getTime() : (bVal === '' ? Infinity : 0);
+        return sortDir === 'asc' ? aTime - bTime : bTime - aTime;
       }
-      return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+      }
+      return sortDir === 'asc' ? (Number(aVal) - Number(bVal)) : (Number(bVal) - Number(aVal));
     });
   }, [tableData, busca, sortField, sortDir]);
   
@@ -166,13 +175,13 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
     link.click();
   };
   
-  const SortHeader = ({ field, label }: { field: string; label: string }) => (
+  const SortHeader = ({ field, label, align = 'left' }: { field: string; label: string; align?: 'left' | 'center' | 'right' }) => (
     <th 
-      className="p-2 text-left font-semibold cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap"
+      className={`p-2 font-semibold cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap ${align === 'left' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'}`}
       onClick={() => handleSort(field)}
     >
-      <div className="flex items-center gap-1">
-        {label}
+      <div className={`flex items-center gap-1 ${align === 'left' ? '' : align === 'center' ? 'justify-center' : 'justify-end'}`}>
+        <span>{label}</span>
         <ArrowUpDown className={`w-3 h-3 ${sortField === field ? 'text-amber-600' : 'text-slate-400'}`} />
       </div>
     </th>
@@ -216,14 +225,14 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
                 <SortHeader field="placa" label="Placa" />
                 <SortHeader field="grupo" label="Grupo" />
                 <SortHeader field="modelo" label="Modelo" />
-                <SortHeader field="km" label="KM" />
-                <SortHeader field="idade" label="Idade" />
-                <SortHeader field="passagens" label="Passagens" />
-                <SortHeader field="ticketMedio" label="Ticket Médio" />
-                <SortHeader field="custoKm" label="Custo/KM" />
-                <SortHeader field="indiceKm" label="Índice KM" />
-                <SortHeader field="diasVencimento" label="Vencimento" />
-                <SortHeader field="valorLocacao" label="Valor Locação" />
+                <SortHeader field="km" label="KM" align="right" />
+                <SortHeader field="idade" label="Idade" align="right" />
+                <SortHeader field="passagens" label="Passagens" align="right" />
+                <SortHeader field="ticketMedio" label="Ticket Médio" align="right" />
+                <SortHeader field="custoKm" label="Custo/KM" align="right" />
+                <SortHeader field="indiceKm" label="Índice KM" align="right" />
+                <SortHeader field="vencimento" label="Vencimento (Contrato)" align="center" />
+                <SortHeader field="valorLocacao" label="Valor Locação" align="right" />
                 <th className="p-2 text-left font-semibold">Cliente</th>
               </tr>
             </thead>
@@ -251,15 +260,16 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
                     row.diasVencimento !== null && row.diasVencimento < 0 ? 'bg-rose-100 text-rose-700' :
                     row.diasVencimento !== null && row.diasVencimento < 90 ? 'bg-amber-100 text-amber-700' : ''
                   }`}>
-                    {row.vencimento 
-                      ? new Date(row.vencimento).toLocaleDateString('pt-BR')
-                      : '-'
-                    }
-                    {row.diasVencimento !== null && (
-                      <span className="text-[10px] block">
-                        ({row.diasVencimento < 0 ? 'vencido' : `${row.diasVencimento}d`})
+                    <div className="flex items-center justify-center gap-2">
+                      <span>
+                        {row.vencimento ? new Date(row.vencimento).toLocaleDateString('pt-BR') : '-'}
                       </span>
-                    )}
+                      {row.diasVencimento !== null && (
+                        <span className="text-[10px] text-slate-600">
+                          ({row.diasVencimento < 0 ? 'vencido' : `${row.diasVencimento}d`})
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-2 text-right font-medium text-blue-600">{fmtBRL(row.valorLocacao)}</td>
                   <td className="p-2 truncate max-w-[120px]" title={row.cliente}>{row.cliente}</td>

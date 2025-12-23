@@ -34,6 +34,18 @@ function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.
 function yearLabel(y: string): string { return y || ''; }
 function dayLabel(d: string): string { if (!d) return ''; const [, m, day] = d.split('-'); return `${day}/${m}`; }
 
+// Map raw status strings into categories used by filters: Produtiva, Improdutiva, Inativa
+function getCategoryFromStatus(status: string | undefined | null): 'Produtiva' | 'Improdutiva' | 'Inativa' {
+  const s = (status || '').toUpperCase();
+  if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+  if ([
+    'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
+    'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
+    'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
+    'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+  ].includes(s)) return 'Inativa';
+  return 'Improdutiva';
+}
 function MaintenanceDashboardContent(): JSX.Element {
   const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
   const { data: manutencaoCompletaRaw, loading: loadingCompleta } = useBIData<AnyObject[]>('fat_manutencao_completa.json');
@@ -59,6 +71,8 @@ function MaintenanceDashboardContent(): JSX.Element {
   const pageSize = 20;
 
   const { filters, handleChartClick, isValueSelected, getFilterValues } = useChartFilter();
+
+
 
   const filteredOS = useMemo(() => {
     return osList.filter((r: AnyObject) => {
@@ -94,6 +108,17 @@ function MaintenanceDashboardContent(): JSX.Element {
       if (oficinaFilters.length > 0 && !oficinaFilters.includes(r.Fornecedor)) return false;
       if (placaFilters.length > 0 && !placaFilters.includes(r.Placa)) return false;
       if (tipoFilters.length > 0 && !tipoFilters.includes(r.TipoManutencao)) return false;
+
+      // Filtro por status (opcional) - utiliza r.Status quando disponível
+      if (globalFilters.status && globalFilters.status !== 'Todos') {
+        const rawStatus = r.Status || r.Situacao || r.StatusManutencao || '';
+        const cat = getCategoryFromStatus(rawStatus);
+        if (globalFilters.status === 'Ativa') {
+          if (!(cat === 'Produtiva' || cat === 'Improdutiva')) return false;
+        } else {
+          if (cat !== globalFilters.status) return false;
+        }
+      }
       return true;
     });
   }, [osList, globalFilters, filters, getFilterValues]);
@@ -121,6 +146,16 @@ function MaintenanceDashboardContent(): JSX.Element {
       if (globalFilters.tiposOcorrencia.length > 0 && !globalFilters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
       if (globalFilters.clientes.length > 0 && !globalFilters.clientes.includes(r.Cliente)) return false;
       if (globalFilters.placas.length > 0 && !globalFilters.placas.includes(r.Placa)) return false;
+
+      if (globalFilters.status && globalFilters.status !== 'Todos') {
+        const rawStatus = r.Status || r.Situacao || r.StatusManutencao || '';
+        const cat = getCategoryFromStatus(rawStatus);
+        if (globalFilters.status === 'Ativa') {
+          if (!(cat === 'Produtiva' || cat === 'Improdutiva')) return false;
+        } else {
+          if (cat !== globalFilters.status) return false;
+        }
+      }
       
       return true;
     });
@@ -133,25 +168,30 @@ function MaintenanceDashboardContent(): JSX.Element {
     
     return manutencaoUnificado.filter((r: AnyObject) => {
       // CRÍTICO: Filtrar datas futuras ANTES de qualquer outro filtro
-      if (r.DataEvento) {
+      if ((r as any).IsFuture === 1 || (r as any).IsFuture === '1') return false;
+      if (!r.DataEvento && (r as any).DayKey === undefined && (r as any).DataEventoTs === undefined) return false;
+
+      // Construir data efetiva para validações (usar DayKey > DataEvento > DataEventoTs)
+      let dataEvento: Date | null = null;
+      if ((r as any).DayKey) {
+        const [y, m, d] = String((r as any).DayKey).split('-').map(Number);
+        if (y && m && d) dataEvento = new Date(y, m - 1, d);
+      } else if (r.DataEvento) {
         const dateStr = String(r.DataEvento).split('T')[0];
         const [year, month, day] = dateStr.split('-').map(Number);
-        const dataEvento = new Date(year, month - 1, day);
-        
-        // Nunca permitir datas futuras
-        if (dataEvento > todayEnd) return false;
+        dataEvento = new Date(year, month - 1, day);
+      } else if ((r as any).DataEventoTs) {
+        const ts = Number((r as any).DataEventoTs);
+        if (!Number.isNaN(ts)) dataEvento = new Date(ts * 1000);
       }
+      if (dataEvento && dataEvento > todayEnd) return false;
       
-      // Filtro de data range
-      if (globalFilters.dateRange?.from && r.DataEvento) {
-        const dateStr = String(r.DataEvento).split('T')[0];
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const dataEvento = new Date(year, month - 1, day);
+      // Filtro de data range (se houver)
+      if (globalFilters.dateRange?.from && dataEvento) {
         const fromDate = new Date(globalFilters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
-        
         if (dataEvento < fromDate) return false;
-        
+
         if (globalFilters.dateRange.to) {
           const toDate = new Date(globalFilters.dateRange.to);
           toDate.setHours(23, 59, 59, 999);
@@ -165,6 +205,16 @@ function MaintenanceDashboardContent(): JSX.Element {
       if (globalFilters.tiposOcorrencia.length > 0 && r.TipoOcorrencia && !globalFilters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
       if (globalFilters.clientes.length > 0 && r.Cliente && !globalFilters.clientes.includes(r.Cliente)) return false;
       if (globalFilters.placas.length > 0 && r.Placa && !globalFilters.placas.includes(r.Placa)) return false;
+
+      if (globalFilters.status && globalFilters.status !== 'Todos') {
+        const rawStatus = r.Status || r.Situacao || r.StatusManutencao || '';
+        const cat = getCategoryFromStatus(rawStatus);
+        if (globalFilters.status === 'Ativa') {
+          if (!(cat === 'Produtiva' || cat === 'Improdutiva')) return false;
+        } else {
+          if (cat !== globalFilters.status) return false;
+        }
+      }
       
       return true;
     });
@@ -269,6 +319,7 @@ function MaintenanceDashboardContent(): JSX.Element {
             <Download className="w-4 h-4"/> Exportar
           </button>
           <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Wrench className="w-4 h-4"/> Hub Operacional</div>
+          
         </div>
       </div>
 
