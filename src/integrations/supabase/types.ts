@@ -864,6 +864,169 @@ export type Database = {
         }
         Relationships: []
       }
+      modelo_cores: {
+        Row: {
+          codigo_cor: string | null
+          created_at: string | null
+          hex_color: string | null
+          id: string
+          is_padrao: boolean | null
+          modelo_id: string | null
+          nome_cor: string
+          tipo_cor: string | null
+          valor_adicional: number | null
+        }
+        Insert: {
+          codigo_cor?: string | null
+          created_at?: string | null
+          hex_color?: string | null
+          id?: string
+          is_padrao?: boolean | null
+          modelo_id?: string | null
+          nome_cor: string
+          tipo_cor?: string | null
+          valor_adicional?: number | null
+        }
+        Update: {
+          codigo_cor?: string | null
+          created_at?: string | null
+          hex_color?: string | null
+          id?: string
+          is_padrao?: boolean | null
+          modelo_id?: string | null
+          nome_cor?: string
+          tipo_cor?: string | null
+          valor_adicional?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modelo_cores_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modelo_itens_adicionais: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          id: string
+          incluso_padrao: boolean | null
+          modelo_id: string | null
+          nome: string
+          obrigatorio: boolean | null
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          incluso_padrao?: boolean | null
+          modelo_id?: string | null
+          nome: string
+          obrigatorio?: boolean | null
+          tipo: string
+          valor: number
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          incluso_padrao?: boolean | null
+          modelo_id?: string | null
+          nome?: string
+          obrigatorio?: boolean | null
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modelo_itens_adicionais_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modelos_veiculos: {
+        Row: {
+          ano_fabricacao: number | null
+          ano_modelo: number
+          ativo: boolean | null
+          categoria: string | null
+          codigo: string | null
+          combustivel: string | null
+          consumo_rodoviario: number | null
+          consumo_urbano: number | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          imagem_url: string | null
+          montadora: string
+          motor: string | null
+          nome: string
+          observacoes: string | null
+          percentual_desconto: number | null
+          potencia: string | null
+          preco_publico: number
+          transmissao: string | null
+          updated_at: string | null
+          valor_final: number | null
+        }
+        Insert: {
+          ano_fabricacao?: number | null
+          ano_modelo: number
+          ativo?: boolean | null
+          categoria?: string | null
+          codigo?: string | null
+          combustivel?: string | null
+          consumo_rodoviario?: number | null
+          consumo_urbano?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          imagem_url?: string | null
+          montadora: string
+          motor?: string | null
+          nome: string
+          observacoes?: string | null
+          percentual_desconto?: number | null
+          potencia?: string | null
+          preco_publico: number
+          transmissao?: string | null
+          updated_at?: string | null
+          valor_final?: number | null
+        }
+        Update: {
+          ano_fabricacao?: number | null
+          ano_modelo?: number
+          ativo?: boolean | null
+          categoria?: string | null
+          codigo?: string | null
+          combustivel?: string | null
+          consumo_rodoviario?: number | null
+          consumo_urbano?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          imagem_url?: string | null
+          montadora?: string
+          motor?: string | null
+          nome?: string
+          observacoes?: string | null
+          percentual_desconto?: number | null
+          potencia?: string | null
+          preco_publico?: number
+          transmissao?: string | null
+          updated_at?: string | null
+          valor_final?: number | null
+        }
+        Relationships: []
+      }
       module_pages: {
         Row: {
           created_at: string | null
@@ -929,6 +1092,33 @@ export type Database = {
           name?: string
           route?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      montadoras: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          id: string
+          logo_url: string | null
+          nome: string
+          pais_origem: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          nome: string
+          pais_origem?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          nome?: string
+          pais_origem?: string | null
         }
         Relationships: []
       }
@@ -1173,6 +1363,93 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_parameters: {
+        Row: {
+          consumo_medio_km_litro: number | null
+          created_at: string | null
+          custo_emplacamento: number | null
+          custo_lavagem_mensal: number | null
+          custo_licenciamento: number | null
+          custo_manutencao_por_km: number | null
+          custo_telemetria_mensal: number | null
+          id: string
+          is_active: boolean | null
+          km_mensal_padrao: number | null
+          multa_0_12_meses: number | null
+          multa_13_24_meses: number | null
+          multa_25_36_meses: number | null
+          multa_37_48_meses: number | null
+          participacao_perda_parcial: number | null
+          participacao_perda_total: number | null
+          preco_combustivel_litro: number | null
+          taxa_comissao_comercial: number | null
+          taxa_custo_administrativo: number | null
+          taxa_depreciacao_anual: number | null
+          taxa_financiamento: number | null
+          taxa_impostos: number | null
+          taxa_ipva_anual: number | null
+          taxa_sinistro: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          consumo_medio_km_litro?: number | null
+          created_at?: string | null
+          custo_emplacamento?: number | null
+          custo_lavagem_mensal?: number | null
+          custo_licenciamento?: number | null
+          custo_manutencao_por_km?: number | null
+          custo_telemetria_mensal?: number | null
+          id?: string
+          is_active?: boolean | null
+          km_mensal_padrao?: number | null
+          multa_0_12_meses?: number | null
+          multa_13_24_meses?: number | null
+          multa_25_36_meses?: number | null
+          multa_37_48_meses?: number | null
+          participacao_perda_parcial?: number | null
+          participacao_perda_total?: number | null
+          preco_combustivel_litro?: number | null
+          taxa_comissao_comercial?: number | null
+          taxa_custo_administrativo?: number | null
+          taxa_depreciacao_anual?: number | null
+          taxa_financiamento?: number | null
+          taxa_impostos?: number | null
+          taxa_ipva_anual?: number | null
+          taxa_sinistro?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          consumo_medio_km_litro?: number | null
+          created_at?: string | null
+          custo_emplacamento?: number | null
+          custo_lavagem_mensal?: number | null
+          custo_licenciamento?: number | null
+          custo_manutencao_por_km?: number | null
+          custo_telemetria_mensal?: number | null
+          id?: string
+          is_active?: boolean | null
+          km_mensal_padrao?: number | null
+          multa_0_12_meses?: number | null
+          multa_13_24_meses?: number | null
+          multa_25_36_meses?: number | null
+          multa_37_48_meses?: number | null
+          participacao_perda_parcial?: number | null
+          participacao_perda_total?: number | null
+          preco_combustivel_litro?: number | null
+          taxa_comissao_comercial?: number | null
+          taxa_custo_administrativo?: number | null
+          taxa_depreciacao_anual?: number | null
+          taxa_financiamento?: number | null
+          taxa_impostos?: number | null
+          taxa_ipva_anual?: number | null
+          taxa_sinistro?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1373,6 +1650,437 @@ export type Database = {
             columns: ["portfolio_id"]
             isOneToOne: false
             referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposta_cenarios: {
+        Row: {
+          created_at: string | null
+          custos_financeiros: number | null
+          custos_operacionais: number | null
+          fluxo_caixa: Json | null
+          id: string
+          investimento_inicial: number | null
+          is_selecionado: boolean | null
+          margem_liquida: number | null
+          modalidade: string
+          payback_meses: number | null
+          percentual_locacao_investimento: number | null
+          prazo_meses: number
+          proposta_id: string | null
+          receita_bruta_contrato: number | null
+          roi_anual: number | null
+          valor_anual: number | null
+          valor_contrato_total: number | null
+          valor_mensal_por_veiculo: number | null
+          valor_mensal_total: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          custos_financeiros?: number | null
+          custos_operacionais?: number | null
+          fluxo_caixa?: Json | null
+          id?: string
+          investimento_inicial?: number | null
+          is_selecionado?: boolean | null
+          margem_liquida?: number | null
+          modalidade: string
+          payback_meses?: number | null
+          percentual_locacao_investimento?: number | null
+          prazo_meses: number
+          proposta_id?: string | null
+          receita_bruta_contrato?: number | null
+          roi_anual?: number | null
+          valor_anual?: number | null
+          valor_contrato_total?: number | null
+          valor_mensal_por_veiculo?: number | null
+          valor_mensal_total?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          custos_financeiros?: number | null
+          custos_operacionais?: number | null
+          fluxo_caixa?: Json | null
+          id?: string
+          investimento_inicial?: number | null
+          is_selecionado?: boolean | null
+          margem_liquida?: number | null
+          modalidade?: string
+          payback_meses?: number | null
+          percentual_locacao_investimento?: number | null
+          prazo_meses?: number
+          proposta_id?: string | null
+          receita_bruta_contrato?: number | null
+          roi_anual?: number | null
+          valor_anual?: number | null
+          valor_contrato_total?: number | null
+          valor_mensal_por_veiculo?: number | null
+          valor_mensal_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_cenarios_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "propostas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposta_historico: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          detalhes: Json | null
+          id: string
+          proposta_id: string | null
+          tipo_evento: string
+          user_id: string | null
+          user_nome: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          detalhes?: Json | null
+          id?: string
+          proposta_id?: string | null
+          tipo_evento: string
+          user_id?: string | null
+          user_nome?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          detalhes?: Json | null
+          id?: string
+          proposta_id?: string | null
+          tipo_evento?: string
+          user_id?: string | null
+          user_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_historico_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "propostas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposta_veiculo_itens: {
+        Row: {
+          created_at: string | null
+          id: string
+          item_id: string | null
+          nome: string
+          proposta_veiculo_id: string | null
+          valor: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          item_id?: string | null
+          nome: string
+          proposta_veiculo_id?: string | null
+          valor: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          item_id?: string | null
+          nome?: string
+          proposta_veiculo_id?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_veiculo_itens_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "modelo_itens_adicionais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposta_veiculo_itens_proposta_veiculo_id_fkey"
+            columns: ["proposta_veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "proposta_veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposta_veiculos: {
+        Row: {
+          aluguel_unitario: number
+          ano_modelo: number | null
+          cor_id: string | null
+          cor_nome: string | null
+          cor_valor_adicional: number | null
+          created_at: string | null
+          custo_acessorios: number | null
+          custo_combustivel_mensal: number | null
+          custo_emplacamento: number | null
+          custo_ipva_mensal: number | null
+          custo_lavagem_mensal: number | null
+          custo_licenciamento: number | null
+          custo_manutencao_mensal: number | null
+          custo_telemetria_mensal: number | null
+          data_entrega_efetiva: string | null
+          franquia_km: number | null
+          id: string
+          modelo_id: string | null
+          modelo_nome: string
+          montadora: string | null
+          placa: string | null
+          prazo_entrega: string | null
+          proposta_id: string | null
+          quantidade: number | null
+          valor_aquisicao: number
+          valor_km_excedente: number | null
+          valor_revenda_estimado: number | null
+        }
+        Insert: {
+          aluguel_unitario: number
+          ano_modelo?: number | null
+          cor_id?: string | null
+          cor_nome?: string | null
+          cor_valor_adicional?: number | null
+          created_at?: string | null
+          custo_acessorios?: number | null
+          custo_combustivel_mensal?: number | null
+          custo_emplacamento?: number | null
+          custo_ipva_mensal?: number | null
+          custo_lavagem_mensal?: number | null
+          custo_licenciamento?: number | null
+          custo_manutencao_mensal?: number | null
+          custo_telemetria_mensal?: number | null
+          data_entrega_efetiva?: string | null
+          franquia_km?: number | null
+          id?: string
+          modelo_id?: string | null
+          modelo_nome: string
+          montadora?: string | null
+          placa?: string | null
+          prazo_entrega?: string | null
+          proposta_id?: string | null
+          quantidade?: number | null
+          valor_aquisicao: number
+          valor_km_excedente?: number | null
+          valor_revenda_estimado?: number | null
+        }
+        Update: {
+          aluguel_unitario?: number
+          ano_modelo?: number | null
+          cor_id?: string | null
+          cor_nome?: string | null
+          cor_valor_adicional?: number | null
+          created_at?: string | null
+          custo_acessorios?: number | null
+          custo_combustivel_mensal?: number | null
+          custo_emplacamento?: number | null
+          custo_ipva_mensal?: number | null
+          custo_lavagem_mensal?: number | null
+          custo_licenciamento?: number | null
+          custo_manutencao_mensal?: number | null
+          custo_telemetria_mensal?: number | null
+          data_entrega_efetiva?: string | null
+          franquia_km?: number | null
+          id?: string
+          modelo_id?: string | null
+          modelo_nome?: string
+          montadora?: string | null
+          placa?: string | null
+          prazo_entrega?: string | null
+          proposta_id?: string | null
+          quantidade?: number | null
+          valor_aquisicao?: number
+          valor_km_excedente?: number | null
+          valor_revenda_estimado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_veiculos_cor_id_fkey"
+            columns: ["cor_id"]
+            isOneToOne: false
+            referencedRelation: "modelo_cores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposta_veiculos_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_veiculos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposta_veiculos_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "propostas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      propostas: {
+        Row: {
+          cliente_cnpj: string | null
+          cliente_email: string | null
+          cliente_endereco: string | null
+          cliente_id: string | null
+          cliente_nome: string
+          cliente_telefone: string | null
+          created_at: string | null
+          custo_higienizacao: number | null
+          custo_lavagem_simples: number | null
+          custo_remocao_forcada: number | null
+          data_aprovacao: string | null
+          data_criacao: string | null
+          data_envio: string | null
+          data_validade: string | null
+          id: string
+          indice_reajuste: string | null
+          limite_app_passageiro: number | null
+          limite_danos_materiais: number | null
+          limite_danos_morais: number | null
+          limite_danos_pessoais: number | null
+          limite_substituicao_manutencao: number | null
+          limite_substituicao_sinistro: number | null
+          local_devolucao: string | null
+          local_entrega: string | null
+          numero_contrato: string | null
+          numero_proposta: number
+          observacoes: string | null
+          oportunidade_id: number | null
+          prazo_contrato_meses: number | null
+          prazo_substituicao_manutencao_horas: number | null
+          prazo_substituicao_sinistro_horas: number | null
+          protecao_colisao: boolean | null
+          protecao_furto: boolean | null
+          protecao_incendio: boolean | null
+          protecao_roubo: boolean | null
+          quantidade_veiculos: number | null
+          status: string | null
+          taxa_administracao_multas: number | null
+          taxa_reembolsaveis: number | null
+          updated_at: string | null
+          valor_anual_total: number | null
+          valor_mensal_total: number | null
+          veiculos_provisorios: number | null
+          vencimento_mensalidade: number | null
+          vendedor_id: string | null
+          vendedor_nome: string | null
+        }
+        Insert: {
+          cliente_cnpj?: string | null
+          cliente_email?: string | null
+          cliente_endereco?: string | null
+          cliente_id?: string | null
+          cliente_nome: string
+          cliente_telefone?: string | null
+          created_at?: string | null
+          custo_higienizacao?: number | null
+          custo_lavagem_simples?: number | null
+          custo_remocao_forcada?: number | null
+          data_aprovacao?: string | null
+          data_criacao?: string | null
+          data_envio?: string | null
+          data_validade?: string | null
+          id?: string
+          indice_reajuste?: string | null
+          limite_app_passageiro?: number | null
+          limite_danos_materiais?: number | null
+          limite_danos_morais?: number | null
+          limite_danos_pessoais?: number | null
+          limite_substituicao_manutencao?: number | null
+          limite_substituicao_sinistro?: number | null
+          local_devolucao?: string | null
+          local_entrega?: string | null
+          numero_contrato?: string | null
+          numero_proposta?: number
+          observacoes?: string | null
+          oportunidade_id?: number | null
+          prazo_contrato_meses?: number | null
+          prazo_substituicao_manutencao_horas?: number | null
+          prazo_substituicao_sinistro_horas?: number | null
+          protecao_colisao?: boolean | null
+          protecao_furto?: boolean | null
+          protecao_incendio?: boolean | null
+          protecao_roubo?: boolean | null
+          quantidade_veiculos?: number | null
+          status?: string | null
+          taxa_administracao_multas?: number | null
+          taxa_reembolsaveis?: number | null
+          updated_at?: string | null
+          valor_anual_total?: number | null
+          valor_mensal_total?: number | null
+          veiculos_provisorios?: number | null
+          vencimento_mensalidade?: number | null
+          vendedor_id?: string | null
+          vendedor_nome?: string | null
+        }
+        Update: {
+          cliente_cnpj?: string | null
+          cliente_email?: string | null
+          cliente_endereco?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string
+          cliente_telefone?: string | null
+          created_at?: string | null
+          custo_higienizacao?: number | null
+          custo_lavagem_simples?: number | null
+          custo_remocao_forcada?: number | null
+          data_aprovacao?: string | null
+          data_criacao?: string | null
+          data_envio?: string | null
+          data_validade?: string | null
+          id?: string
+          indice_reajuste?: string | null
+          limite_app_passageiro?: number | null
+          limite_danos_materiais?: number | null
+          limite_danos_morais?: number | null
+          limite_danos_pessoais?: number | null
+          limite_substituicao_manutencao?: number | null
+          limite_substituicao_sinistro?: number | null
+          local_devolucao?: string | null
+          local_entrega?: string | null
+          numero_contrato?: string | null
+          numero_proposta?: number
+          observacoes?: string | null
+          oportunidade_id?: number | null
+          prazo_contrato_meses?: number | null
+          prazo_substituicao_manutencao_horas?: number | null
+          prazo_substituicao_sinistro_horas?: number | null
+          protecao_colisao?: boolean | null
+          protecao_furto?: boolean | null
+          protecao_incendio?: boolean | null
+          protecao_roubo?: boolean | null
+          quantidade_veiculos?: number | null
+          status?: string | null
+          taxa_administracao_multas?: number | null
+          taxa_reembolsaveis?: number | null
+          updated_at?: string | null
+          valor_anual_total?: number | null
+          valor_mensal_total?: number | null
+          veiculos_provisorios?: number | null
+          vencimento_mensalidade?: number | null
+          vendedor_id?: string | null
+          vendedor_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "propostas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "propostas_oportunidade_id_fkey"
+            columns: ["oportunidade_id"]
+            isOneToOne: false
+            referencedRelation: "oportunidades"
             referencedColumns: ["id"]
           },
         ]
