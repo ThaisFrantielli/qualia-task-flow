@@ -2,12 +2,19 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Wrench, Download } from 'lucide-react';
+import { Wrench, Download, Calendar as CalendarIcon } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 import VazaoTab from '@/components/analytics/maintenance/VazaoTab';
 import ProjecaoRepactuacaoTab from '@/components/analytics/maintenance/ProjecaoRepactuacaoTab';
 import AnaliseVeiculoTab from '@/components/analytics/maintenance/AnaliseVeiculoTab';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { DateRange } from 'react-day-picker';
 
 type AnyObject = { [k: string]: any };
 
@@ -16,7 +23,13 @@ function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloa
 function fmtBRL(v: number): string { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
 function fmtCompact(v: number): string { if (v >= 1000000) return `R$ ${(v / 1000000).toFixed(1)}M`; if (v >= 1000) return `R$ ${(v / 1000).toFixed(0)}k`; return `R$ ${v.toFixed(0)}`; }
 function getMonthKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0].substring(0, 7); }
+function getYearKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0].substring(0, 4); }
+function getDayKey(dateString?: string): string { if (!dateString) return ''; return dateString.split('T')[0]; }
 function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.split('-'); const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']; return `${months[Number(m) - 1]}/${String(y).slice(2)}`; }
+function yearLabel(y: string): string { return y || ''; }
+function dayLabel(d: string): string { if (!d) return ''; const [, m, day] = d.split('-'); return `${day}/${m}`; }
+
+type TimeGrouping = 'year' | 'month' | 'day';
 
 export default function MaintenanceDashboard(): JSX.Element {
   const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
@@ -38,6 +51,8 @@ export default function MaintenanceDashboard(): JSX.Element {
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const pageSize = 20;
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('month');
 
   const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
@@ -48,13 +63,20 @@ export default function MaintenanceDashboard(): JSX.Element {
       const placaFilters = getFilterValues('placa');
       const tipoFilters = getFilterValues('tipo');
       
+      // Filtro de data range
+      if (dateRange?.from && r.DataEntrada) {
+        const dataEntrada = new Date(r.DataEntrada);
+        if (dataEntrada < dateRange.from) return false;
+        if (dateRange.to && dataEntrada > dateRange.to) return false;
+      }
+      
       if (mesFilters.length > 0 && !mesFilters.includes(getMonthKey(r.DataEntrada))) return false;
       if (oficinaFilters.length > 0 && !oficinaFilters.includes(r.Fornecedor)) return false;
       if (placaFilters.length > 0 && !placaFilters.includes(r.Placa)) return false;
       if (tipoFilters.length > 0 && !tipoFilters.includes(r.TipoManutencao)) return false;
       return true;
     });
-  }, [osList, filters, getFilterValues]);
+  }, [osList, filters, getFilterValues, dateRange]);
 
   const kpis = useMemo(() => {
     const totalCost = filteredOS.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
@@ -70,15 +92,22 @@ export default function MaintenanceDashboard(): JSX.Element {
 
   const monthlyData = useMemo(() => {
     const map: Record<string, { Valor: number; Count: number }> = {};
+    const getKeyFn = timeGrouping === 'year' ? getYearKey : timeGrouping === 'day' ? getDayKey : getMonthKey;
+    const getLabelFn = timeGrouping === 'year' ? yearLabel : timeGrouping === 'day' ? dayLabel : monthLabel;
+    
     filteredOS.forEach(r => {
-      const k = getMonthKey(r.DataEntrada);
+      const k = getKeyFn(r.DataEntrada);
       if (!k) return;
       if (!map[k]) map[k] = { Valor: 0, Count: 0 };
       map[k].Valor += parseCurrency(r.ValorTotal);
       map[k].Count += 1;
     });
-    return Object.keys(map).sort().slice(-24).map(k => ({ date: k, label: monthLabel(k), ...map[k] }));
-  }, [filteredOS]);
+    
+    const sortedKeys = Object.keys(map).sort();
+    const limitedKeys = timeGrouping === 'day' ? sortedKeys.slice(-90) : timeGrouping === 'month' ? sortedKeys.slice(-24) : sortedKeys;
+    
+    return limitedKeys.map(k => ({ date: k, label: getLabelFn(k), ...map[k] }));
+  }, [filteredOS, timeGrouping]);
 
   const typeData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -126,6 +155,54 @@ export default function MaintenanceDashboard(): JSX.Element {
       <div className="flex justify-between items-center">
         <div><Title className="text-slate-900">Gestão de Manutenção</Title><Text className="text-slate-500">Controle de custos, oficinas e eficiência</Text></div>
         <div className="flex items-center gap-3">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "justify-start text-left font-normal w-[280px]",
+                  !dateRange && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
+                      {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                    </>
+                  ) : (
+                    format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                  )
+                ) : (
+                  <span>Filtrar por período</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={(range) => setDateRange(range as DateRange | undefined)}
+                numberOfMonths={2}
+                locale={ptBR}
+              />
+              {dateRange && (
+                <div className="p-3 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setDateRange(undefined)}
+                  >
+                    Limpar filtro de data
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
           <button onClick={exportCSV} className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium hover:bg-emerald-200 transition-all">
             <Download className="w-4 h-4"/> Exportar
           </button>
@@ -153,7 +230,29 @@ export default function MaintenanceDashboard(): JSX.Element {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <Title>Evolução de Custos (24 meses)</Title>
+              <div className="flex items-center justify-between mb-2">
+                <Title>Evolução de Custos</Title>
+                <div className="flex gap-1 bg-slate-100 p-1 rounded">
+                  <button
+                    onClick={() => setTimeGrouping('year')}
+                    className={`px-3 py-1 text-xs rounded transition-all ${timeGrouping === 'year' ? 'bg-white shadow text-amber-600 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Ano
+                  </button>
+                  <button
+                    onClick={() => setTimeGrouping('month')}
+                    className={`px-3 py-1 text-xs rounded transition-all ${timeGrouping === 'month' ? 'bg-white shadow text-amber-600 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Mês
+                  </button>
+                  <button
+                    onClick={() => setTimeGrouping('day')}
+                    className={`px-3 py-1 text-xs rounded transition-all ${timeGrouping === 'day' ? 'bg-white shadow text-amber-600 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Dia
+                  </button>
+                </div>
+              </div>
               <div className="h-64 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={monthlyData}>
