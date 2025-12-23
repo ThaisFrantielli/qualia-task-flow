@@ -2,21 +2,34 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ComposedChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Wrench, Download, Calendar as CalendarIcon } from 'lucide-react';
+import { Wrench, Download } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
-import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
+import { MaintenanceFiltersProvider, useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
+import { GlobalFiltersBar } from '@/components/analytics/maintenance/GlobalFiltersBar';
+import { TimeGranularityToggle } from '@/components/analytics/TimeGranularityToggle';
 import VazaoTab from '@/components/analytics/maintenance/VazaoTab';
 import ProjecaoRepactuacaoTab from '@/components/analytics/maintenance/ProjecaoRepactuacaoTab';
 import AnaliseVeiculoTab from '@/components/analytics/maintenance/AnaliseVeiculoTab';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
-import { DateRange } from 'react-day-picker';
-
+import LeadTimeTab from '@/components/analytics/maintenance/LeadTimeTab';
+import CustosDetalhadosTab from '@/components/analytics/maintenance/CustosDetalhadosTab';
 type AnyObject = { [k: string]: any };
+
+// Função para normalizar data para meia-noite no timezone local (evita problemas de UTC)
+function normalizeDate(dateString: string): Date {
+  // Se a string já tem horário, pega apenas a parte da data
+  const dateOnly = dateString.split('T')[0];
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  // Cria data no timezone local (não UTC)
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+// Função para converter Date para string YYYY-MM-DD no timezone local
+function dateToLocalString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
@@ -29,10 +42,9 @@ function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.
 function yearLabel(y: string): string { return y || ''; }
 function dayLabel(d: string): string { if (!d) return ''; const [, m, day] = d.split('-'); return `${day}/${m}`; }
 
-type TimeGrouping = 'year' | 'month' | 'day';
-
-export default function MaintenanceDashboard(): JSX.Element {
+function MaintenanceDashboardContent(): JSX.Element {
   const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
+  const { data: manutencaoCompletaRaw, loading: loadingCompleta } = useBIData<AnyObject[]>('fat_manutencao_completa.json');
   const { data: rawFornecedores } = useBIData<AnyObject[]>('dim_fornecedores.json');
   const { data: vazaoRaw } = useBIData<AnyObject[]>('agg_vazao_manutencao_diaria.json');
   const { data: faturamentoRaw } = useBIData<AnyObject[]>('fat_faturamento_*.json');
@@ -41,6 +53,7 @@ export default function MaintenanceDashboard(): JSX.Element {
   const { data: contratosRaw } = useBIData<AnyObject[]>('dim_contratos.json');
 
   const osList = useMemo(() => Array.isArray(osData) ? osData : [], [osData]);
+  const manutencaoCompleta = useMemo(() => Array.isArray(manutencaoCompletaRaw) ? manutencaoCompletaRaw : [], [manutencaoCompletaRaw]);
   const fornecedores = useMemo(() => Array.isArray(rawFornecedores) ? rawFornecedores : [], [rawFornecedores]);
   const vazaoData = useMemo(() => Array.isArray(vazaoRaw) ? vazaoRaw : [], [vazaoRaw]);
   const faturamentoData = useMemo(() => Array.isArray(faturamentoRaw) ? faturamentoRaw : [], [faturamentoRaw]);
@@ -48,11 +61,10 @@ export default function MaintenanceDashboard(): JSX.Element {
   const frotaData = useMemo(() => Array.isArray(frotaRaw) ? frotaRaw : [], [frotaRaw]);
   const contratosData = useMemo(() => Array.isArray(contratosRaw) ? contratosRaw : [], [contratosRaw]);
 
+  const { filters: globalFilters } = useMaintenanceFilters();
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const pageSize = 20;
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('month');
 
   const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
@@ -63,20 +75,89 @@ export default function MaintenanceDashboard(): JSX.Element {
       const placaFilters = getFilterValues('placa');
       const tipoFilters = getFilterValues('tipo');
       
-      // Filtro de data range
-      if (dateRange?.from && r.DataEntrada) {
-        const dataEntrada = new Date(r.DataEntrada);
-        if (dataEntrada < dateRange.from) return false;
-        if (dateRange.to && dataEntrada > dateRange.to) return false;
+      // Filtro de data range (do Context) - aplica a DataEntrada (data de chegada na oficina)
+      if (globalFilters.dateRange?.from && r.DataEntrada) {
+        const dataEntrada = normalizeDate(r.DataEntrada);
+        const fromDate = new Date(globalFilters.dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        
+        if (dataEntrada < fromDate) return false;
+        
+        if (globalFilters.dateRange.to) {
+          const toDate = new Date(globalFilters.dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          if (dataEntrada > toDate) return false;
+        }
       }
       
+      // TODOS os filtros globais do Context
+      if (globalFilters.fornecedores.length > 0 && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
+      if (globalFilters.modelos.length > 0 && !globalFilters.modelos.includes(r.Modelo)) return false;
+      if (globalFilters.tiposOcorrencia.length > 0 && !globalFilters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
+      if (globalFilters.clientes.length > 0 && !globalFilters.clientes.includes(r.Cliente)) return false;
+      if (globalFilters.placas.length > 0 && !globalFilters.placas.includes(r.Placa)) return false;
+      
+      // Filtros do useChartFilter (mantidos para drill-down interativo)
       if (mesFilters.length > 0 && !mesFilters.includes(getMonthKey(r.DataEntrada))) return false;
       if (oficinaFilters.length > 0 && !oficinaFilters.includes(r.Fornecedor)) return false;
       if (placaFilters.length > 0 && !placaFilters.includes(r.Placa)) return false;
       if (tipoFilters.length > 0 && !tipoFilters.includes(r.TipoManutencao)) return false;
       return true;
     });
-  }, [osList, filters, getFilterValues, dateRange]);
+  }, [osList, globalFilters, filters, getFilterValues]);
+
+  const filteredManutencaoCompleta = useMemo(() => {
+    return manutencaoCompleta.filter((r: AnyObject) => {
+      // Filtro de data range - usando DataEntradaOficina para manutenção completa
+      if (globalFilters.dateRange?.from && r.DataEntradaOficina) {
+        const dataEntrada = normalizeDate(r.DataEntradaOficina);
+        const fromDate = new Date(globalFilters.dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        
+        if (dataEntrada < fromDate) return false;
+        
+        if (globalFilters.dateRange.to) {
+          const toDate = new Date(globalFilters.dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          if (dataEntrada > toDate) return false;
+        }
+      }
+      
+      // TODOS os filtros globais
+      if (globalFilters.fornecedores.length > 0 && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
+      if (globalFilters.modelos.length > 0 && !globalFilters.modelos.includes(r.Modelo)) return false;
+      if (globalFilters.tiposOcorrencia.length > 0 && !globalFilters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
+      if (globalFilters.clientes.length > 0 && !globalFilters.clientes.includes(r.Cliente)) return false;
+      if (globalFilters.placas.length > 0 && !globalFilters.placas.includes(r.Placa)) return false;
+      
+      return true;
+    });
+  }, [manutencaoCompleta, globalFilters]);
+
+  const filteredVazao = useMemo(() => {
+    return vazaoData.filter((r: AnyObject) => {
+      // Filtro de data range
+      if (globalFilters.dateRange?.from && r.Data) {
+        const data = normalizeDate(r.Data);
+        const fromDate = new Date(globalFilters.dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        
+        if (data < fromDate) return false;
+        
+        if (globalFilters.dateRange.to) {
+          const toDate = new Date(globalFilters.dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          if (data > toDate) return false;
+        }
+      }
+      
+      // Filtros de fornecedor e cliente (se existirem no dataset de vazão)
+      if (globalFilters.fornecedores.length > 0 && r.Fornecedor && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
+      if (globalFilters.clientes.length > 0 && r.Cliente && !globalFilters.clientes.includes(r.Cliente)) return false;
+      
+      return true;
+    });
+  }, [vazaoData, globalFilters]);
 
   const kpis = useMemo(() => {
     const totalCost = filteredOS.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
@@ -92,8 +173,8 @@ export default function MaintenanceDashboard(): JSX.Element {
 
   const monthlyData = useMemo(() => {
     const map: Record<string, { Valor: number; Count: number }> = {};
-    const getKeyFn = timeGrouping === 'year' ? getYearKey : timeGrouping === 'day' ? getDayKey : getMonthKey;
-    const getLabelFn = timeGrouping === 'year' ? yearLabel : timeGrouping === 'day' ? dayLabel : monthLabel;
+    const getKeyFn = globalFilters.timeGranularity === 'year' ? getYearKey : globalFilters.timeGranularity === 'day' ? getDayKey : getMonthKey;
+    const getLabelFn = globalFilters.timeGranularity === 'year' ? yearLabel : globalFilters.timeGranularity === 'day' ? dayLabel : monthLabel;
     
     filteredOS.forEach(r => {
       const k = getKeyFn(r.DataEntrada);
@@ -104,10 +185,10 @@ export default function MaintenanceDashboard(): JSX.Element {
     });
     
     const sortedKeys = Object.keys(map).sort();
-    const limitedKeys = timeGrouping === 'day' ? sortedKeys.slice(-90) : timeGrouping === 'month' ? sortedKeys.slice(-24) : sortedKeys;
+    const limitedKeys = globalFilters.timeGranularity === 'day' ? sortedKeys.slice(-90) : globalFilters.timeGranularity === 'month' ? sortedKeys.slice(-24) : sortedKeys;
     
     return limitedKeys.map(k => ({ date: k, label: getLabelFn(k), ...map[k] }));
-  }, [filteredOS, timeGrouping]);
+  }, [filteredOS, globalFilters.timeGranularity]);
 
   const typeData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -128,9 +209,11 @@ export default function MaintenanceDashboard(): JSX.Element {
   }, [filteredOS]);
 
   // Lists for filters
-  const fornecedoresList = useMemo(() => [...new Set(osList.map(o => o.Fornecedor).filter(Boolean))], [osList]);
+  const fornecedoresList = useMemo(() => [...new Set([...osList.map(o => o.Fornecedor), ...manutencaoCompleta.map(m => m.Fornecedor)].filter(Boolean))], [osList, manutencaoCompleta]);
   const tiposManutencaoList = useMemo(() => [...new Set(osList.map(o => o.TipoManutencao).filter(Boolean))], [osList]);
-  const clientesList = useMemo(() => [...new Set(faturamentoData.map(f => f.Cliente).filter(Boolean))], [faturamentoData]);
+  const tiposOcorrenciaList = useMemo(() => [...new Set(manutencaoCompleta.map(m => m.TipoOcorrencia).filter(Boolean))], [manutencaoCompleta]);
+  const clientesList = useMemo(() => [...new Set([...faturamentoData.map(f => f.Cliente), ...manutencaoCompleta.map(m => m.Cliente)].filter(Boolean))], [faturamentoData, manutencaoCompleta]);
+  const modelosList = useMemo(() => [...new Set(manutencaoCompleta.map(m => m.Modelo).filter(Boolean))], [manutencaoCompleta]);
 
   const pageItems = useMemo(() => filteredOS.slice(page * pageSize, (page + 1) * pageSize), [filteredOS, page]);
   const totalPages = Math.ceil(filteredOS.length / pageSize);
@@ -146,63 +229,17 @@ export default function MaintenanceDashboard(): JSX.Element {
     link.click();
   };
 
-  const tabs = ['Visão Geral', 'Vazão', 'Projeção', 'Por Veículo', 'Por Tipo', 'Fornecedores', 'Detalhamento'];
+  const tabs = ['Visão Geral', 'Lead Time', 'Custos', 'Vazão', 'Projeção', 'Por Veículo', 'Por Tipo', 'Fornecedores', 'Detalhamento'];
 
-  if (loading) return <div className="bg-slate-50 min-h-screen p-6 flex items-center justify-center"><div className="animate-pulse text-slate-500">Carregando dados de manutenção...</div></div>;
+  const isLoading = loading || loadingCompleta;
+
+  if (isLoading) return <div className="bg-slate-50 min-h-screen p-6 flex items-center justify-center"><div className="animate-pulse text-slate-500">Carregando dados de manutenção...</div></div>;
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div><Title className="text-slate-900">Gestão de Manutenção</Title><Text className="text-slate-500">Controle de custos, oficinas e eficiência</Text></div>
         <div className="flex items-center gap-3">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "justify-start text-left font-normal w-[280px]",
-                  !dateRange && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                      {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                    </>
-                  ) : (
-                    format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                  )
-                ) : (
-                  <span>Filtrar por período</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={(range) => setDateRange(range as DateRange | undefined)}
-                numberOfMonths={2}
-                locale={ptBR}
-              />
-              {dateRange && (
-                <div className="p-3 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => setDateRange(undefined)}
-                  >
-                    Limpar filtro de data
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
           <button onClick={exportCSV} className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium hover:bg-emerald-200 transition-all">
             <Download className="w-4 h-4"/> Exportar
           </button>
@@ -210,8 +247,12 @@ export default function MaintenanceDashboard(): JSX.Element {
         </div>
       </div>
 
-      <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
-      <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
+      <GlobalFiltersBar
+        fornecedoresList={fornecedoresList}
+        tiposOcorrenciaList={tiposOcorrenciaList}
+        clientesList={clientesList}
+        modelosList={modelosList}
+      />
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit flex-wrap">
         {tabs.map((tab, idx) => (
@@ -232,26 +273,11 @@ export default function MaintenanceDashboard(): JSX.Element {
             <Card>
               <div className="flex items-center justify-between mb-2">
                 <Title>Evolução de Custos</Title>
-                <div className="flex gap-1 bg-slate-100 p-1 rounded">
-                  <button
-                    onClick={() => setTimeGrouping('year')}
-                    className={`px-3 py-1 text-xs rounded transition-all ${timeGrouping === 'year' ? 'bg-white shadow text-amber-600 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Ano
-                  </button>
-                  <button
-                    onClick={() => setTimeGrouping('month')}
-                    className={`px-3 py-1 text-xs rounded transition-all ${timeGrouping === 'month' ? 'bg-white shadow text-amber-600 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Mês
-                  </button>
-                  <button
-                    onClick={() => setTimeGrouping('day')}
-                    className={`px-3 py-1 text-xs rounded transition-all ${timeGrouping === 'day' ? 'bg-white shadow text-amber-600 font-medium' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Dia
-                  </button>
-                </div>
+                <TimeGranularityToggle
+                  value={globalFilters.timeGranularity}
+                  onChange={() => {}} 
+                  size="sm"
+                />
               </div>
               <div className="h-64 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
@@ -288,13 +314,17 @@ export default function MaintenanceDashboard(): JSX.Element {
         </div>
       )}
 
-      {activeTab === 1 && <VazaoTab vazaoData={vazaoData} fornecedores={fornecedoresList} tiposManutencao={tiposManutencaoList} clientes={clientesList} />}
+      {activeTab === 1 && <LeadTimeTab manutencaoData={filteredManutencaoCompleta} />}
       
-      {activeTab === 2 && <ProjecaoRepactuacaoTab faturamentoData={faturamentoData} manutencaoData={osList} sinistrosData={sinistrosData} />}
-      
-      {activeTab === 3 && <AnaliseVeiculoTab frotaData={frotaData} contratosData={contratosData} manutencaoData={osList} />}
+      {activeTab === 2 && <CustosDetalhadosTab manutencaoData={filteredManutencaoCompleta} />}
 
-      {activeTab === 4 && (
+      {activeTab === 3 && <VazaoTab vazaoData={filteredVazao} fornecedores={fornecedoresList} tiposManutencao={tiposManutencaoList} clientes={clientesList} />}
+      
+      {activeTab === 4 && <ProjecaoRepactuacaoTab faturamentoData={faturamentoData} manutencaoData={osList} sinistrosData={sinistrosData} />}
+      
+      {activeTab === 5 && <AnaliseVeiculoTab frotaData={frotaData} contratosData={contratosData} manutencaoData={osList} />}
+
+      {activeTab === 6 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <Title>Custo por Tipo de Manutenção</Title>
@@ -328,7 +358,7 @@ export default function MaintenanceDashboard(): JSX.Element {
         </div>
       )}
 
-      {activeTab === 5 && (
+      {activeTab === 7 && (
         <div className="space-y-6">
           <Card>
             <Title>Top 10 Fornecedores por Valor</Title>
@@ -360,7 +390,7 @@ export default function MaintenanceDashboard(): JSX.Element {
         </div>
       )}
 
-      {activeTab === 6 && (
+      {activeTab === 8 && (
         <Card>
           <div className="flex items-center justify-between mb-4"><Title>Detalhamento de OS</Title><Text className="text-slate-500">{filteredOS.length} registros</Text></div>
           <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
@@ -395,5 +425,13 @@ export default function MaintenanceDashboard(): JSX.Element {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function MaintenanceDashboard(): JSX.Element {
+  return (
+    <MaintenanceFiltersProvider>
+      <MaintenanceDashboardContent />
+    </MaintenanceFiltersProvider>
   );
 }

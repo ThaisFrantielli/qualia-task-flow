@@ -4,8 +4,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, Area, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, ReferenceLine 
 } from 'recharts';
-import { ArrowDown, ArrowUp, Scale, TrendingUp, Filter } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowDown, ArrowUp, Scale, TrendingUp } from 'lucide-react';
 
 type VazaoData = {
   Data?: string;
@@ -75,9 +74,6 @@ function aggregateByPeriod(data: VazaoData[], dimension: 'dia' | 'semana' | 'mes
 
 export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, clientes }: Props) {
   const [dimensao, setDimensao] = useState<'dia' | 'semana' | 'mes'>('dia');
-  const [filtroFornecedor, setFiltroFornecedor] = useState<string>('todos');
-  const [filtroTipo, setFiltroTipo] = useState<string>('todos');
-  const [filtroCliente, setFiltroCliente] = useState<string>('todos');
   
   const chartData = useMemo(() => {
     const aggregated = aggregateByPeriod(vazaoData.slice(-90), dimensao);
@@ -85,16 +81,16 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
     // Calculate accumulated balance
     let accumulated = 0;
     return aggregated.map(d => {
-      accumulated += d.SaldoPeriodo;
+      accumulated += d.SaldoPeriodo || 0;
       return { ...d, SaldoAcumulado: accumulated };
     });
   }, [vazaoData, dimensao]);
   
   const kpis = useMemo(() => {
-    const totalChegadas = chartData.reduce((s, d) => s + d.Chegadas, 0);
-    const totalConclusoes = chartData.reduce((s, d) => s + d.Conclusoes, 0);
+    const totalChegadas = chartData.reduce((s, d) => s + (d.Chegadas || 0), 0);
+    const totalConclusoes = chartData.reduce((s, d) => s + (d.Conclusoes || 0), 0);
     const saldoPeriodo = totalChegadas - totalConclusoes;
-    const saldoAcumulado = chartData.length > 0 ? chartData[chartData.length - 1].SaldoAcumulado : 0;
+    const saldoAcumulado = chartData.length > 0 ? (chartData[chartData.length - 1].SaldoAcumulado || 0) : 0;
     
     return { totalChegadas, totalConclusoes, saldoPeriodo, saldoAcumulado };
   }, [chartData]);
@@ -103,63 +99,6 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <Card className="p-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-500" />
-            <Text className="font-medium">Filtros:</Text>
-          </div>
-          
-          <Select value={dimensao} onValueChange={(v: 'dia' | 'semana' | 'mes') => setDimensao(v)}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Dimensão" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="dia">Dia</SelectItem>
-              <SelectItem value="semana">Semana</SelectItem>
-              <SelectItem value="mes">Mês</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={filtroFornecedor} onValueChange={setFiltroFornecedor}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Fornecedor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Fornecedores</SelectItem>
-              {fornecedores.slice(0, 20).map(f => (
-                <SelectItem key={f} value={f}>{f}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Tipos</SelectItem>
-              {tiposManutencao.map(t => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={filtroCliente} onValueChange={setFiltroCliente}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Clientes</SelectItem>
-              {clientes.slice(0, 20).map(c => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
-      
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card decoration="top" decorationColor="blue" className="bg-gradient-to-br from-blue-50 to-white">
@@ -207,7 +146,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={lastPeriods}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" fontSize={11} tickMargin={8} />
+              <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
               <YAxis fontSize={11} />
               <Tooltip 
                 contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
@@ -229,7 +168,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={lastPeriods}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" fontSize={11} tickMargin={8} />
+              <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
               <YAxis fontSize={11} />
               <Tooltip 
                 contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
@@ -238,16 +177,10 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
               <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
               <Bar 
                 dataKey="SaldoPeriodo" 
+                fill="#6366f1"
                 radius={[4, 4, 4, 4]} 
                 barSize={dimensao === 'dia' ? 10 : 20}
-              >
-                {lastPeriods.map((entry, index) => (
-                  <rect 
-                    key={`bar-${index}`}
-                    fill={entry.SaldoPeriodo > 0 ? '#ef4444' : '#10b981'}
-                  />
-                ))}
-              </Bar>
+              />
               <Line 
                 type="monotone" 
                 dataKey="SaldoPeriodo" 
@@ -274,7 +207,7 @@ export default function VazaoTab({ vazaoData, fornecedores, tiposManutencao, cli
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" fontSize={11} tickMargin={8} />
+              <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
               <YAxis fontSize={11} />
               <Tooltip 
                 contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
