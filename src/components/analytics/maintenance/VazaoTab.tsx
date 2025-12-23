@@ -26,17 +26,24 @@ function fmtNum(v: number): string {
 }
 
 function aggregateByPeriod(data: VazaoData[], dimension: 'dia' | 'semana' | 'mes'): any[] {
+  // Filter out items without Data
+  const validData = data.filter(d => d.Data);
+  
   if (dimension === 'dia') {
-    return data.map(d => ({
+    return validData.map(d => ({
       ...d,
-      label: new Date(d.Data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      Chegadas: d.Chegadas || 0,
+      Conclusoes: d.Conclusoes || 0,
+      SaldoPeriodo: d.SaldoPeriodo || 0,
+      label: new Date(d.Data!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
     }));
   }
   
   const grouped: Record<string, { Chegadas: number; Conclusoes: number; SaldoPeriodo: number }> = {};
   
-  data.forEach(d => {
-    const date = new Date(d.Data);
+  validData.forEach(d => {
+    const dataStr = d.Data!;
+    const date = new Date(dataStr);
     let key: string;
     
     if (dimension === 'semana') {
@@ -44,15 +51,15 @@ function aggregateByPeriod(data: VazaoData[], dimension: 'dia' | 'semana' | 'mes
       weekStart.setDate(date.getDate() - date.getDay());
       key = weekStart.toISOString().split('T')[0];
     } else {
-      key = d.Data.substring(0, 7);
+      key = dataStr.substring(0, 7);
     }
     
     if (!grouped[key]) {
       grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0 };
     }
-    grouped[key].Chegadas += d.Chegadas;
-    grouped[key].Conclusoes += d.Conclusoes;
-    grouped[key].SaldoPeriodo += d.SaldoPeriodo;
+    grouped[key].Chegadas += d.Chegadas || 0;
+    grouped[key].Conclusoes += d.Conclusoes || 0;
+    grouped[key].SaldoPeriodo += d.SaldoPeriodo || 0;
   });
   
   return Object.entries(grouped)
