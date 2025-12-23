@@ -127,10 +127,26 @@ function MaintenanceDashboardContent(): JSX.Element {
   }, [manutencaoCompleta, globalFilters]);
 
   const filteredManutencaoUnificado = useMemo(() => {
+    // Data de hoje às 23:59:59 para filtrar datas futuras
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    
     return manutencaoUnificado.filter((r: AnyObject) => {
+      // CRÍTICO: Filtrar datas futuras ANTES de qualquer outro filtro
+      if (r.DataEvento) {
+        const dateStr = String(r.DataEvento).split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const dataEvento = new Date(year, month - 1, day);
+        
+        // Nunca permitir datas futuras
+        if (dataEvento > todayEnd) return false;
+      }
+      
       // Filtro de data range
       if (globalFilters.dateRange?.from && r.DataEvento) {
-        const dataEvento = normalizeDate(r.DataEvento);
+        const dateStr = String(r.DataEvento).split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const dataEvento = new Date(year, month - 1, day);
         const fromDate = new Date(globalFilters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
         
