@@ -19,7 +19,7 @@ interface ModeloCoresManagerProps {
 }
 
 export function ModeloCoresManager({ modeloId }: ModeloCoresManagerProps) {
-  const { modelos, createModeloCor, deleteModeloCor } = useModelosVeiculos();
+  const { modelos, addCor, deleteCor } = useModelosVeiculos();
   const modelo = modelos.find((m) => m.id === modeloId);
   const cores = modelo?.cores || [];
 
@@ -37,7 +37,7 @@ export function ModeloCoresManager({ modeloId }: ModeloCoresManagerProps) {
   const handleAddCor = async () => {
     if (!newCor.nome_cor) return;
     
-    await createModeloCor({
+    await addCor({
       modelo_id: modeloId,
       ...newCor,
     });
@@ -54,7 +54,7 @@ export function ModeloCoresManager({ modeloId }: ModeloCoresManagerProps) {
   };
 
   const handleDeleteCor = async (corId: string) => {
-    await deleteModeloCor(corId);
+    await deleteCor(corId);
   };
 
   const formatCurrency = (value: number) => {

@@ -21,7 +21,7 @@ interface ModeloItensManagerProps {
 }
 
 export function ModeloItensManager({ modeloId }: ModeloItensManagerProps) {
-  const { modelos, createModeloItem, deleteModeloItem } = useModelosVeiculos();
+  const { modelos, addItem, deleteItem } = useModelosVeiculos();
   const modelo = modelos.find((m) => m.id === modeloId);
   const itens = modelo?.itens || [];
 
@@ -39,7 +39,7 @@ export function ModeloItensManager({ modeloId }: ModeloItensManagerProps) {
   const handleAddItem = async () => {
     if (!newItem.nome) return;
     
-    await createModeloItem({
+    await addItem({
       modelo_id: modeloId,
       ...newItem,
     });
@@ -56,7 +56,7 @@ export function ModeloItensManager({ modeloId }: ModeloItensManagerProps) {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    await deleteModeloItem(itemId);
+    await deleteItem(itemId);
   };
 
   const formatCurrency = (value: number) => {
