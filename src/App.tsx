@@ -58,6 +58,8 @@ import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
 import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
 import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
+import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
+import PropostasPage from '@/pages/PropostasPage';
 
 function App() {
   return (
@@ -147,6 +149,9 @@ function App() {
               <Route path="/configuracoes/controle-acesso" element={<Navigate to="/configuracoes/usuarios-acessos?tab=modulos" replace />} />
               <Route path="/configuracoes/equipes-hierarquia" element={<Navigate to="/configuracoes/usuarios-acessos?tab=hierarquia" replace />} />
               <Route path="/configuracoes/ticket-motivos" element={<TicketOptionsPage />} />
+              <Route path="/configuracoes/modelos-veiculos" element={<ModelosVeiculosPage />} />
+
+              <Route path="/propostas" element={<PropostasPage />} />
 
               <Route path="/configuracoes/equipes" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
               <Route path="/configuracoes/departamentos" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
