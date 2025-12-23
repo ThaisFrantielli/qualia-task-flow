@@ -102,21 +102,34 @@ function aggregateByPeriod(
     maxDate = toDate < todayEnd ? toDate : todayEnd;
   }
   
-  // Filtra dados: exclui datas futuras e aplica range
+  // Filtra dados: usa flags/keys do ETL quando disponíveis, exclui datas futuras e aplica range
   const validData = data.filter(d => {
-    if (!d.DataEvento) return false;
-    
-    const dataEvento = parseLocalDate(d.DataEvento);
-    
+    // Se ETL marcou como futuro, ignorar
+    if ((d as any).IsFuture === 1 || (d as any).IsFuture === '1') return false;
+
+    // Tentar obter uma data a partir de DayKey / DataEvento / DataEventoTs
+    let eventDate: Date | null = null;
+    if ((d as any).DayKey) {
+      const parts = String((d as any).DayKey).split('-').map(Number);
+      if (parts.length >= 3) eventDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+    } else if (d.DataEvento) {
+      try { eventDate = parseLocalDate(String(d.DataEvento)); } catch (e) { eventDate = null; }
+    } else if ((d as any).DataEventoTs) {
+      const ts = Number((d as any).DataEventoTs);
+      if (!Number.isNaN(ts)) eventDate = new Date(ts * 1000);
+    }
+
+    if (!eventDate) return false;
+
     // CRÍTICO: Nunca permitir datas futuras
-    if (dataEvento > todayEnd) return false;
-    
+    if (eventDate > todayEnd) return false;
+
     // Aplicar filtro de data mínima
-    if (minDate && dataEvento < minDate) return false;
-    
+    if (minDate && eventDate < minDate) return false;
+
     // Aplicar filtro de data máxima
-    if (dataEvento > maxDate) return false;
-    
+    if (eventDate > maxDate) return false;
+
     return true;
   });
   
@@ -128,21 +141,26 @@ function aggregateByPeriod(
   }> = {};
   
   validData.forEach(d => {
-    const dataStr = String(d.DataEvento!).split('T')[0]; // YYYY-MM-DD
+    // Prefer keys fornecidas pelo ETL
+    const dayKey = (d as any).DayKey || (d.DataEvento ? String(d.DataEvento).split('T')[0] : undefined);
+    const monthKey = (d as any).MonthKey || (dayKey ? String(dayKey).substring(0, 7) : undefined);
+    const yearKey = (d as any).YearKey || (monthKey ? String(monthKey).substring(0, 4) : undefined);
+
     let key: string;
-    
     if (dimension === 'year') {
-      key = dataStr.substring(0, 4); // YYYY
+      key = String(yearKey || (dayKey ? dayKey.substring(0, 4) : ''));
     } else if (dimension === 'month') {
-      key = dataStr.substring(0, 7); // YYYY-MM
+      key = String(monthKey || (dayKey ? dayKey.substring(0, 7) : ''));
     } else {
-      key = dataStr; // YYYY-MM-DD
+      key = String(dayKey || '');
     }
-    
+
+    if (!key) return;
+
     if (!grouped[key]) {
       grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0, date: key };
     }
-    
+
     grouped[key].Chegadas += d.Chegadas || 0;
     grouped[key].Conclusoes += d.Conclusoes || 0;
   });
@@ -187,26 +205,35 @@ export default function VazaoTab({ vazaoData }: Props) {
   // Apply global filters to vazaoData
   const filteredData = useMemo(() => {
     const todayEnd = getTodayEnd();
-    
+
     return vazaoData.filter((r: ManutencaoUnificadoData) => {
-      // CRÍTICO: Filtrar datas futuras imediatamente
-      if (r.DataEvento) {
-        const dataEvento = parseLocalDate(r.DataEvento);
-        if (dataEvento > todayEnd) return false;
+      // Se ETL marca futuro, ignora
+      if ((r as any).IsFuture === 1 || (r as any).IsFuture === '1') return false;
+
+      // Obter data efetiva para comparação: DayKey > DataEvento > DataEventoTs
+      let eventDate: Date | null = null;
+      if ((r as any).DayKey) {
+        const parts = String((r as any).DayKey).split('-').map(Number);
+        if (parts.length >= 3) eventDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+      } else if (r.DataEvento) {
+        try { eventDate = parseLocalDate(String(r.DataEvento)); } catch (e) { eventDate = null; }
+      } else if ((r as any).DataEventoTs) {
+        const ts = Number((r as any).DataEventoTs);
+        if (!Number.isNaN(ts)) eventDate = new Date(ts * 1000);
       }
-      
-      // Date range filter
-      if (filters.dateRange?.from && r.DataEvento) {
-        const dataEvento = parseLocalDate(r.DataEvento);
+
+      if (eventDate && eventDate > todayEnd) return false;
+
+      // Date range filter baseado na mesma eventDate
+      if (filters.dateRange?.from && eventDate) {
         const fromDate = new Date(filters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
-        
-        if (dataEvento < fromDate) return false;
-        
+        if (eventDate < fromDate) return false;
+
         if (filters.dateRange.to) {
           const toDate = new Date(filters.dateRange.to);
           toDate.setHours(23, 59, 59, 999);
-          if (dataEvento > toDate) return false;
+          if (eventDate > toDate) return false;
         }
       }
       
