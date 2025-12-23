@@ -64,7 +64,12 @@ export default function useBIData<T = any>(fileName: string): BIResult<T> {
           const json = await fetchFile(fileName, controller.signal);
           if (json) {
             finalData = json?.data ?? json;
-            if (json.generated_at) finalMeta.generated_at = json.generated_at;
+            // Support both new format (metadata object) and legacy format (root properties)
+            if (json.metadata) {
+              finalMeta = { ...json.metadata };
+            } else if (json.generated_at) {
+              finalMeta.generated_at = json.generated_at;
+            }
           }
         }
 
