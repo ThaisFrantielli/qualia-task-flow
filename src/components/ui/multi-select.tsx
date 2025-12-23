@@ -25,6 +25,7 @@ interface MultiSelectProps {
   emptyMessage?: string;
   className?: string;
   maxDisplay?: number;
+  label?: string;
 }
 
 export function MultiSelect({
@@ -36,7 +37,9 @@ export function MultiSelect({
   emptyMessage = 'Nenhum item encontrado',
   className,
   maxDisplay = 2,
+  label,
 }: MultiSelectProps) {
+  
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
 
@@ -54,7 +57,7 @@ export function MultiSelect({
     onSelectedChange(newSelected);
   };
 
-  const handleSelectAll = () => {
+  const handleSelectAll = (_val?: any) => {
     if (selected.length === options.length) {
       onSelectedChange([]);
     } else {
@@ -76,24 +79,27 @@ export function MultiSelect({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn('w-full justify-between', className)}
-        >
-          <span className="truncate text-left flex-1">{displayText}</span>
-          <div className="flex items-center gap-1 ml-2">
-            {selected.length > 0 && (
-              <Badge variant="secondary" className="rounded-sm px-1 font-normal">
-                {selected.length}
-              </Badge>
-            )}
-            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-          </div>
-        </Button>
-      </PopoverTrigger>
+      <div>
+        {label && <div className="mb-1 text-xs font-medium text-slate-600">{label}</div>}
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn('w-full justify-between', className)}
+          >
+            <span className="truncate text-left flex-1">{displayText}</span>
+            <div className="flex items-center gap-1 ml-2">
+              {selected.length > 0 && (
+                <Badge variant="secondary" className="rounded-sm px-1 font-normal">
+                  {selected.length}
+                </Badge>
+              )}
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            </div>
+          </Button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent className="w-[300px] p-0" align="start">
         <Command shouldFilter={false}>
           <div className="flex items-center border-b px-3">
@@ -115,15 +121,14 @@ export function MultiSelect({
               </Button>
             )}
           </div>
-          <div className="p-2 border-b flex justify-between items-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSelectAll}
-              className="text-xs h-7"
-            >
-              {selected.length === options.length ? 'Limpar Todos' : 'Selecionar Todos'}
-            </Button>
+          <div className="p-2 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selected.length === options.length && options.length > 0}
+                onCheckedChange={handleSelectAll}
+              />
+              <button onClick={handleSelectAll} className="text-sm text-slate-700">{selected.length === options.length ? 'Limpar Todos' : 'Selecionar Todos'}</button>
+            </div>
             {selected.length > 0 && (
               <Button
                 variant="ghost"

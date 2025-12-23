@@ -6,6 +6,7 @@ export type TimeGranularity = 'year' | 'month' | 'day';
 export interface MaintenanceFilters {
   dateRange?: DateRange;
   timeGranularity: TimeGranularity;
+  status?: 'Todos' | 'Ativa' | 'Produtiva' | 'Improdutiva' | 'Inativa';
   fornecedores: string[];
   tiposOcorrencia: string[];
   tiposContrato: string[];
@@ -20,6 +21,7 @@ interface MaintenanceFiltersContextType {
   filters: MaintenanceFilters;
   setDateRange: (range: DateRange | undefined) => void;
   setTimeGranularity: (granularity: TimeGranularity) => void;
+  setStatus: (status: MaintenanceFilters['status']) => void;
   setFornecedores: (fornecedores: string[]) => void;
   setTiposOcorrencia: (tipos: string[]) => void;
   setTiposContrato: (tipos: string[]) => void;
@@ -36,6 +38,7 @@ const MaintenanceFiltersContext = createContext<MaintenanceFiltersContextType | 
 
 const initialFilters: MaintenanceFilters = {
   timeGranularity: 'month',
+  status: 'Todos',
   fornecedores: [],
   tiposOcorrencia: [],
   tiposContrato: [],
@@ -51,6 +54,10 @@ export const MaintenanceFiltersProvider: React.FC<{ children: React.ReactNode }>
 
   const setDateRange = (range: DateRange | undefined) => {
     setFilters(prev => ({ ...prev, dateRange: range }));
+  };
+
+  const setStatus = (status: MaintenanceFilters['status']) => {
+    setFilters(prev => ({ ...prev, status }));
   };
 
   const setTimeGranularity = (granularity: TimeGranularity) => {
@@ -96,6 +103,7 @@ export const MaintenanceFiltersProvider: React.FC<{ children: React.ReactNode }>
   const hasActiveFilters = useMemo(() => {
     return !!(
       filters.dateRange ||
+      (filters.status && filters.status !== 'Todos') ||
       filters.fornecedores.length > 0 ||
       filters.tiposOcorrencia.length > 0 ||
       filters.tiposContrato.length > 0 ||
@@ -111,6 +119,7 @@ export const MaintenanceFiltersProvider: React.FC<{ children: React.ReactNode }>
     filters,
     setDateRange,
     setTimeGranularity,
+    setStatus,
     setFornecedores,
     setTiposOcorrencia,
     setTiposContrato,
