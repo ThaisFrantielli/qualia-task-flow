@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
@@ -28,19 +29,21 @@ const RecentTasks: React.FC<RecentTasksProps> = ({ tasks, users }) => {
             const user = users.find((u:any) => u.id === t.assignee_id);
             return (
               <li key={t.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">{getInitials(user?.full_name || t.assignee?.full_name || t.owner?.full_name)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="text-sm font-medium truncate max-w-xs">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">{user?.full_name || 'Não atribuído'} • {t.due_date ? format(parseISODateSafe(t.due_date) || new Date(t.due_date), 'dd/MM/yyyy') : '—'}</div>
+                <Link to={`/tasks/${t.id}`} className="flex items-center justify-between w-full hover:underline">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs">{getInitials(user?.full_name || t.assignee?.full_name || t.owner?.full_name)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="text-sm font-medium truncate max-w-xs">{t.title}</div>
+                      <div className="text-xs text-muted-foreground">{user?.full_name || 'Não atribuído'} • {t.due_date ? format(parseISODateSafe(t.due_date) || new Date(t.due_date), 'dd/MM/yyyy') : '—'}</div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <span className={`text-xs px-2 py-0.5 rounded ${t.status === 'done' ? 'bg-green-100 text-green-800' : t.status === 'progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>{t.status === 'todo' ? 'A Fazer' : t.status === 'progress' ? 'Em andamento' : 'Concluído'}</span>
-                </div>
+                  <div>
+                    <span className={`text-xs px-2 py-0.5 rounded ${t.status === 'done' ? 'bg-green-100 text-green-800' : t.status === 'progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>{t.status === 'todo' ? 'A Fazer' : t.status === 'progress' ? 'Em andamento' : 'Concluído'}</span>
+                  </div>
+                </Link>
               </li>
             );
           })}
