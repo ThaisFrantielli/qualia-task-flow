@@ -3,10 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calculator, TrendingUp, Clock, DollarSign } from 'lucide-react';
 import { usePricingParameters } from '@/hooks/usePricingParameters';
-import {
-  calcularCustosOperacionais,
-  calcularCenario,
-} from '@/lib/pricing-formulas';
+import { calcularCenario, type CenarioCalculado } from '@/lib/pricing-formulas';
 import type { Proposta, PropostaVeiculo } from '@/types/proposta';
 
 interface SimulacaoStepProps {
@@ -19,31 +16,11 @@ const PRAZOS = [12, 24, 36, 48];
 export function SimulacaoStep({ veiculos }: SimulacaoStepProps) {
   const { parameters } = usePricingParameters();
 
-  const cenarios = useMemo(() => {
+  const cenarios = useMemo((): CenarioCalculado[] => {
     if (!parameters || veiculos.length === 0) return [];
 
     return PRAZOS.map((prazo) => {
-      const totalVeiculos = veiculos.reduce((sum, v) => sum + (v.quantidade || 1), 0);
-      const investimentoTotal = veiculos.reduce(
-        (sum, v) => sum + (v.valor_aquisicao || 0) * (v.quantidade || 1),
-        0
-      );
-      const aluguelMensalTotal = veiculos.reduce(
-        (sum, v) => sum + (v.aluguel_unitario || 0) * (v.quantidade || 1),
-        0
-      );
-
-      const custoOperacionalMedio = calcularCustosOperacionais(
-        investimentoTotal / totalVeiculos || 0,
-        parameters
-      );
-
-      return calcularCenario(
-        prazo,
-        investimentoTotal,
-        aluguelMensalTotal,
-        custoOperacionalMedio.total * totalVeiculos
-      );
+      return calcularCenario(veiculos, prazo, '100%', parameters);
     });
   }, [parameters, veiculos]);
 
