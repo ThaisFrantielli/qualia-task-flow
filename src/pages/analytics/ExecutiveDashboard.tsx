@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import useBIData from '@/hooks/useBIData';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
-import { LayoutDashboard, Car, DollarSign, Wrench, Users, AlertTriangle, ArrowRight, TrendingUp, TrendingDown, ShoppingCart, Tag } from 'lucide-react';
+import { LayoutDashboard, Database, CalendarClock, Car, DollarSign, Wrench, Users, AlertTriangle, ArrowRight, TrendingUp, TrendingDown, ShoppingCart, Tag } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 
@@ -16,7 +17,7 @@ function monthLabel(ym: string): string { if (!ym || ym.length < 7) return ym; c
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function ExecutiveDashboard(): JSX.Element {
-  const { data: rawFrota, loading: l1 } = useBIData<AnyObject[]>('dim_frota.json');
+  const { data: rawFrota, loading: l1, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota.json');
   const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos.json');
   const { data: rawClientes } = useBIData<AnyObject[]>('dim_clientes.json');
   const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamento_*.json');
@@ -25,7 +26,6 @@ export default function ExecutiveDashboard(): JSX.Element {
   const { data: rawChurn } = useBIData<AnyObject[]>('fat_churn.json');
   const { data: rawPropostas } = useBIData<AnyObject[]>('fat_propostas_*.json');
   const { data: rawAuditoria } = useBIData<AnyObject[]>('auditoria_consolidada.json');
-  const { data: etlStatusRaw } = useBIData<AnyObject>('etl_status.json');
 
   const frota = useMemo(() => Array.isArray(rawFrota) ? rawFrota : [], [rawFrota]);
   const contratos = useMemo(() => Array.isArray(rawContratos) ? rawContratos : [], [rawContratos]);
@@ -143,42 +143,7 @@ export default function ExecutiveDashboard(): JSX.Element {
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div><Title className="text-slate-900">Visão Geral Executiva</Title><Text className="mt-1 text-slate-500">Scorecard consolidado da operação</Text></div>
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><LayoutDashboard className="w-4 h-4" /> Board</div>
-          {/* ETL status info */}
-          {etlStatusRaw && (
-            (() => {
-              const parsePossibleDate = (v: any): Date | null => {
-                if (!v) return null;
-                const s = String(v);
-                if (/^\d+$/.test(s)) { const n = Number(s); return n > 1e10 ? new Date(n) : new Date(n * 1000); }
-                const d = new Date(s); return isNaN(d.getTime()) ? null : d;
-              };
-              const etlRunRaw = etlStatusRaw?.metadata?.generated_at || etlStatusRaw?.EtlRunTimestampUtc || etlStatusRaw?.generated_at || etlStatusRaw?.generatedAt || null;
-              const etlRunDate = parsePossibleDate(etlRunRaw);
-              const lastUpdateCandidates = [etlStatusRaw?.LastUpdateOrdensServico, etlStatusRaw?.LastUpdateFaturamentos, etlStatusRaw?.LastUpdateMovimentacoes, etlStatusRaw?.LastUpdateVeiculos, etlStatusRaw?.metadata?.last_data_date].map(parsePossibleDate).filter(Boolean) as Date[];
-              const lastDataDate = lastUpdateCandidates.length > 0 ? new Date(Math.max(...lastUpdateCandidates.map(d => d.getTime()))) : null;
-              const formatLocal = (d: Date | null) => d ? d.toLocaleString('pt-BR', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
-              const timeSince = (d: Date | null) => { if (!d) return '—'; const diff = Date.now() - d.getTime(); const mins = Math.floor(diff / 60000); if (mins < 60) return `${mins} min atrás`; const hours = Math.floor(mins / 60); if (hours < 24) return `${hours} h atrás`; const days = Math.floor(hours / 24); return `${days} dia${days > 1 ? 's' : ''} atrás`; };
-              return (
-                <div className="bg-white border rounded-md p-3 text-sm text-slate-700 min-w-[240px]">
-                  <div className="flex items-baseline justify-between">
-                    <div className="font-semibold text-slate-800">ETL</div>
-                    <div className="text-[12px] text-slate-400">{etlRunDate ? timeSince(etlRunDate) : '—'}</div>
-                  </div>
-                  <div className="text-slate-600 mt-1">{etlRunDate ? formatLocal(etlRunDate) : '—'}</div>
-                  <div className="border-t mt-2 pt-2">
-                    <div className="flex items-baseline justify-between">
-                      <div className="font-semibold text-slate-800">Dados</div>
-                      <div className="text-[12px] text-slate-400">{lastDataDate ? timeSince(lastDataDate) : '—'}</div>
-                    </div>
-                    <div className="text-slate-600 mt-1">{lastDataDate ? formatLocal(lastDataDate) : '—'}</div>
-                  </div>
-                </div>
-              );
-            })()
-          )}
-        </div>
+        <div className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><LayoutDashboard className="w-4 h-4" /> Board</div>
       </div>
       {/* Chart filters (Power BI style) */}
       <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
