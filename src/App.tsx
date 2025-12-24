@@ -61,8 +61,12 @@ import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
 import PropostasPage from '@/pages/PropostasPage';
 import PropostasFormPage from '@/pages/PropostasFormPage';
+import { useEnabledModules } from '@/modules/registry';
+import React from 'react';
 
 function App() {
+  const enabledModules = useEnabledModules();
+
   return (
     <>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -126,7 +130,7 @@ function App() {
                 {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
                 {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
                 <Route path="clientes" element={<ClientsDashboard />} />
-                <Route path="comercial" element={<CommercialDashboard />} />
+                {/* Commercial dashboard moved to module registry */}
                 <Route path="executive" element={<ExecutiveDashboard />} />
                 <Route path="funding" element={<FundingDashboard />} />
                 <Route path="cliente" element={<CustomerAnalytics />} />
@@ -152,9 +156,10 @@ function App() {
               <Route path="/configuracoes/ticket-motivos" element={<TicketOptionsPage />} />
               <Route path="/configuracoes/modelos-veiculos" element={<ModelosVeiculosPage />} />
 
-              <Route path="/propostas" element={<PropostasPage />} />
-              <Route path="/propostas/nova" element={<PropostasFormPage />} />
-              <Route path="/propostas/:id" element={<PropostasFormPage />} />
+              {/* module routes (loaded from modules table) */}
+              {enabledModules && enabledModules.map((m: any, idx: number) => (
+                <React.Fragment key={m.key || idx}>{m.routes}</React.Fragment>
+              ))}
 
               <Route path="/configuracoes/equipes" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
               <Route path="/configuracoes/departamentos" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
