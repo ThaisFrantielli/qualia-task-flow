@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
+import { useEnabledModules } from '@/modules/registry';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useProjects } from '@/hooks/useProjects';
@@ -31,7 +32,8 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-const menuGroups: MenuGroup[] = [
+// base menu groups (module menu groups will be merged in at render time)
+const baseMenuGroups: MenuGroup[] = [
   { title: 'AGENDA', items: [{ label: 'Calendário', url: '/calendar', icon: CalendarIcon }] },
   {
     title: 'GERAL',
@@ -114,7 +116,26 @@ const menuGroups: MenuGroup[] = [
   }
 ];
 
+  // getMenuGroups will be computed inside the component where hooks can be used
+
 const SidebarFixed: React.FC = () => {
+  const enabledModules = useEnabledModules();
+
+  const getMenuGroups = (): MenuGroup[] => {
+    const moduleGroups = (enabledModules || []).flatMap((m: any) => m.menuGroups || []);
+    const map = new Map<string, MenuGroup>();
+    baseMenuGroups.forEach(g => map.set(g.title, { ...g, items: [...g.items] }));
+    moduleGroups.forEach(g => {
+      if (map.has(g.title)) {
+        const existing = map.get(g.title)!;
+        existing.items = [...existing.items, ...g.items];
+        map.set(g.title, existing);
+      } else {
+        map.set(g.title, g);
+      }
+    });
+    return Array.from(map.values());
+  };
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -205,7 +226,7 @@ const SidebarFixed: React.FC = () => {
 
       <nav className="flex-1 py-6 px-3 overflow-y-auto">
         <div className="space-y-4">
-          {menuGroups.map((group) => {
+          {getMenuGroups().map((group) => {
             const visibleItems = group.items.filter(item => {
               if (!item.permissionKey) return true;
               return user?.permissoes?.[item.permissionKey] === true;
