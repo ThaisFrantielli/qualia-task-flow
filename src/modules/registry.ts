@@ -17,7 +17,7 @@ async function fetchActiveModuleKeys(): Promise<string[] | null> {
 }
 
 export function useEnabledModules() {
-  const [enabled, setEnabled] = useState(AppModule[] | null>(null as any);
+  const [enabled, setEnabled] = useState<AppModule[] | null>(null as any);
 
   useEffect(() => {
     let mounted = true;
