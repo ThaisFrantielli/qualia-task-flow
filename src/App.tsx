@@ -58,6 +58,7 @@ import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
 import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
 import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
+import DREDashboard from '@/pages/analytics/DREDashboard';
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
 import PropostasPage from '@/pages/PropostasPage';
 import PropostasFormPage from '@/pages/PropostasFormPage';
@@ -120,7 +121,7 @@ function App() {
                 <Route path="vendas" element={<SalesDashboard />} />
                 <Route path="churn" element={<ChurnDashboard />} />
                 <Route path="financeiro" element={<FinancialAnalytics />} />
-                <Route path="resultado" element={<FinancialResult />} />
+                <Route path="resultado" element={<DREDashboard />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
                 {/* Performance de Contratos agora integrado em /analytics/contratos */}
                 <Route path="auditoria" element={<DataAudit />} />
