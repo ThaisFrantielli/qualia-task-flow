@@ -60,6 +60,7 @@ import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
 import PropostasPage from '@/pages/PropostasPage';
+import PropostasFormPage from '@/pages/PropostasFormPage';
 
 function App() {
   return (
@@ -152,6 +153,8 @@ function App() {
               <Route path="/configuracoes/modelos-veiculos" element={<ModelosVeiculosPage />} />
 
               <Route path="/propostas" element={<PropostasPage />} />
+              <Route path="/propostas/nova" element={<PropostasFormPage />} />
+              <Route path="/propostas/:id" element={<PropostasFormPage />} />
 
               <Route path="/configuracoes/equipes" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
               <Route path="/configuracoes/departamentos" element={<Navigate to="/configuracoes/usuarios-acessos?tab=departamentos" replace />} />
