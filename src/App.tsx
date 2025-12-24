@@ -51,17 +51,14 @@ import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
 import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
 import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
 import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
-import FinancialResult from '@/pages/analytics/FinancialResult';
 import SalesDashboard from '@/pages/analytics/SalesDashboard';
 import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
 import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
-import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
 import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
 import DREDashboard from '@/pages/analytics/DREDashboard';
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
-import PropostasPage from '@/pages/PropostasPage';
-import PropostasFormPage from '@/pages/PropostasFormPage';
+// removed unused analytics/page imports to satisfy typecheck
 import { useEnabledModules } from '@/modules/registry';
 import React from 'react';
 

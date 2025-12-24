@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import {
     AccountNode,
     formatDREValue,
@@ -164,7 +164,7 @@ export default function DREPivotTable({
         return receitas + despesas; // Despesas should be negative in data
     };
 
-    const netProfitTotal = calculateColumnTotal('TOTAL_PLACEHOLDER'); // Not used directly like this
+    // netProfitTotal removed (unused) to satisfy typecheck
 
     // Calculate overall grand total (Net Profit across all months)
     const grandTotal = nodes.reduce((acc, node) => acc + node.total, 0);
