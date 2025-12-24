@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, FileText, Filter, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,6 @@ import {
 } from '@/components/ui/select';
 import { usePropostas } from '@/hooks/usePropostas';
 import { PropostaTable } from '@/components/proposta/PropostaTable';
-import { PropostaWizard } from '@/components/proposta/PropostaWizard';
 import { Card, CardContent } from '@/components/ui/card';
 
 const STATUS_OPTIONS = [
@@ -25,8 +25,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function PropostasPage() {
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [editingPropostaId, setEditingPropostaId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -64,13 +63,7 @@ export default function PropostasPage() {
   };
 
   const handleEdit = (id: string) => {
-    setEditingPropostaId(id);
-    setIsWizardOpen(true);
-  };
-
-  const handleCloseWizard = () => {
-    setIsWizardOpen(false);
-    setEditingPropostaId(null);
+    navigate(`/propostas/${id}`);
   };
 
   return (
@@ -88,7 +81,7 @@ export default function PropostasPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setIsWizardOpen(true)}>
+        <Button onClick={() => navigate('/propostas/nova')}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Proposta
         </Button>
@@ -186,12 +179,7 @@ export default function PropostasPage() {
         onEdit={handleEdit}
       />
 
-      {/* Wizard Dialog */}
-      <PropostaWizard
-        open={isWizardOpen}
-        onClose={handleCloseWizard}
-        propostaId={editingPropostaId}
-      />
+      {/* Nota: agora o wizard abre em página dedicada em /propostas/nova ou /propostas/:id */}
     </div>
   );
 }
