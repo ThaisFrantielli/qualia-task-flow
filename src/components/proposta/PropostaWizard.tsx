@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
@@ -18,9 +13,10 @@ import { RevisaoStep } from './steps/RevisaoStep';
 import type { Proposta, PropostaVeiculo } from '@/types/proposta';
 
 interface PropostaWizardProps {
-  open: boolean;
-  onClose: () => void;
+  open?: boolean;
+  onClose?: () => void;
   propostaId?: string | null;
+  asPage?: boolean;
 }
 
 const STEPS = [
@@ -32,10 +28,15 @@ const STEPS = [
   { id: 'revisao', title: 'Revisão', description: 'Revisar e enviar' },
 ];
 
-export function PropostaWizard({ open, onClose, propostaId }: PropostaWizardProps) {
+export function PropostaWizard({ open = true, onClose = () => {}, propostaId, asPage = false }: PropostaWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const { propostas, createProposta, updateProposta } = usePropostas();
+
+  useEffect(() => {
+    console.debug('PropostaWizard mounted', { asPage, propostaId, open });
+    return () => console.debug('PropostaWizard unmounted', { asPage, propostaId });
+  }, [asPage, propostaId, open]);
 
   const editingProposta = propostaId
     ? propostas.find((p) => p.id === propostaId)
@@ -208,45 +209,45 @@ export function PropostaWizard({ open, onClose, propostaId }: PropostaWizardProp
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {propostaId ? 'Editar Proposta' : 'Nova Proposta Comercial'}
-          </DialogTitle>
-        </DialogHeader>
+  const inner = (
+    <>
+      <div className="max-w-5xl w-full flex flex-col">
+        <div>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">{propostaId ? 'Editar Proposta' : 'Nova Proposta Comercial'}</h2>
+          </div>
 
-        {/* Progress */}
-        <div className="space-y-4">
-          <Progress value={progress} className="h-2" />
-          <div className="flex justify-between">
-            {STEPS.map((step, index) => (
-              <button
-                key={step.id}
-                onClick={() => setCurrentStep(index)}
-                className={`flex flex-col items-center text-center transition-colors ${
-                  index === currentStep
-                    ? 'text-primary'
-                    : index < currentStep
-                    ? 'text-muted-foreground'
-                    : 'text-muted-foreground/50'
-                }`}
-              >
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border-2 ${
+          {/* Progress */}
+          <div className="space-y-4">
+            <Progress value={progress} className="h-2" />
+            <div className="flex justify-between">
+              {STEPS.map((step, index) => (
+                <button
+                  key={step.id}
+                  onClick={() => setCurrentStep(index)}
+                  className={`flex flex-col items-center text-center transition-colors ${
                     index === currentStep
-                      ? 'border-primary bg-primary text-primary-foreground'
+                      ? 'text-primary'
                       : index < currentStep
-                      ? 'border-primary bg-primary/20 text-primary'
-                      : 'border-muted-foreground/30'
+                      ? 'text-muted-foreground'
+                      : 'text-muted-foreground/50'
                   }`}
                 >
-                  {index + 1}
-                </div>
-                <span className="text-xs mt-1 hidden sm:block">{step.title}</span>
-              </button>
-            ))}
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border-2 ${
+                      index === currentStep
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : index < currentStep
+                        ? 'border-primary bg-primary/20 text-primary'
+                        : 'border-muted-foreground/30'
+                    }`}
+                  >
+                    {index + 1}
+                  </div>
+                  <span className="text-xs mt-1 hidden sm:block">{step.title}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -291,7 +292,17 @@ export function PropostaWizard({ open, onClose, propostaId }: PropostaWizardProp
             )}
           </div>
         </div>
-      </DialogContent>
+      </div>
+    </>
+  );
+
+  if (asPage) {
+    return <div className="p-6">{inner}</div>;
+  }
+
+  return (
+    <Dialog open={!!open} onOpenChange={onClose}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">{inner}</DialogContent>
     </Dialog>
   );
 }
