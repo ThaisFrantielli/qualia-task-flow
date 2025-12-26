@@ -37,6 +37,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const [myStatus, setMyStatusState] = useState<PresenceStatus>('online');
   const [currentEntity, setCurrentEntityState] = useState<{ type: string; id: string } | undefined>();
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const subscribingRef = useRef(false);
 
   // Track presence
   const trackPresence = useCallback(async () => {
@@ -59,7 +60,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   // Set up presence channel
   useEffect(() => {
     if (!user) return;
+    if (subscribingRef.current || channelRef.current) return; // already subscribing/subscribed
 
+    subscribingRef.current = true;
     const channel = supabase.channel('presence:global', {
       config: {
         presence: {
@@ -100,7 +103,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
+          console.log('Presence channel subscribed for user', user.id);
           channelRef.current = channel;
+          subscribingRef.current = false;
           // Initial track
           const presenceData: UserPresence = {
             userId: user.id,
@@ -117,8 +122,14 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       });
 
     return () => {
-      channel.unsubscribe();
+      try {
+        console.log('Unsubscribing presence channel for user', user?.id);
+        channel.unsubscribe();
+      } catch (e) {
+        // ignore
+      }
       channelRef.current = null;
+      subscribingRef.current = false;
     };
   }, [user?.id]);
 
