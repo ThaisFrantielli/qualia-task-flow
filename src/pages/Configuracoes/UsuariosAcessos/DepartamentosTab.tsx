@@ -102,18 +102,35 @@ const DepartamentosTab: React.FC = () => {
         .select('user_id')
         .eq('team_id', editingTeam.id);
 
-      if (!fetchErr) {
-        const existing = (existingData || []).map((d: { user_id: string }) => d.user_id);
-        const toAdd = teamMembersSelected.filter(id => !existing.includes(id));
-        const toRemove = existing.filter(id => !teamMembersSelected.includes(id));
+      if (fetchErr) {
+        console.error('Erro ao buscar membros existentes:', fetchErr);
+        throw fetchErr;
+      }
 
-        if (toRemove.length > 0) {
-          await supabase.from('team_members').delete().eq('team_id', editingTeam.id).in('user_id', toRemove);
+      const existing = (existingData || []).map((d: { user_id: string }) => d.user_id);
+      const toAdd = teamMembersSelected.filter(id => !existing.includes(id));
+      const toRemove = existing.filter(id => !teamMembersSelected.includes(id));
+
+      if (toRemove.length > 0) {
+        const { error: delErr, data: delData } = await supabase
+          .from('team_members')
+          .delete()
+          .eq('team_id', editingTeam.id)
+          .in('user_id', toRemove);
+        if (delErr) {
+          console.error('Erro ao remover membros:', delErr, { toRemove });
+          toast({ title: 'Erro ao remover membros', description: delErr.message || String(delErr), variant: 'destructive' });
+          throw delErr;
         }
+      }
 
-        if (toAdd.length > 0) {
-          const inserts = toAdd.map((userId) => ({ team_id: editingTeam.id, user_id: userId }));
-          await supabase.from('team_members').insert(inserts);
+      if (toAdd.length > 0) {
+        const inserts = toAdd.map((userId) => ({ team_id: editingTeam.id, user_id: userId }));
+        const { error: insErr, data: insData } = await supabase.from('team_members').insert(inserts);
+        if (insErr) {
+          console.error('Erro ao adicionar membros:', insErr, { toAdd });
+          toast({ title: 'Erro ao adicionar membros', description: insErr.message || String(insErr), variant: 'destructive' });
+          throw insErr;
         }
       }
 
