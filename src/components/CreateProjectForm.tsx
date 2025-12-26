@@ -121,8 +121,9 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({ onProjectC
       }
       const { data, error } = await supabase.from('projects').insert(newProject).select('id').single();
       if (error) {
-        console.error("Erro ao criar projeto:", error);
-        throw new Error(`Erro ao criar projeto: ${error.message}`);
+        console.error("Erro ao criar projeto (supabase):", error);
+        // Repassar o próprio objeto de erro para o catch para diagnóstico
+        throw error;
       }
       const projectId = data?.id;
       // 2. Adicionar membros (inclui o criador como Proprietário)
@@ -133,8 +134,8 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({ onProjectC
       if (projectId && membersToInsert.length > 0) {
         const { error: memberError } = await supabase.from('project_members').insert(membersToInsert);
         if (memberError) {
-          console.error("Erro ao adicionar membros:", memberError);
-          throw new Error(`Erro ao adicionar membros: ${memberError.message}`);
+          console.error("Erro ao adicionar membros (supabase):", memberError);
+          throw memberError;
         }
       }
       toast({ title: "Sucesso!", description: `Projeto "${name}" criado.` });
@@ -146,11 +147,15 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({ onProjectC
       setOpen(false);
       onProjectCreated();
     } catch (error: any) {
-      console.error("Erro ao criar projeto:", error);
-      const errorMessage = error?.message || "Não foi possível criar o projeto.";
+      console.error("Erro ao criar projeto (capturado):", error);
+      // Extrair informações úteis do objeto de erro do Supabase quando possível
+      const supabaseMsg = error?.message || (error?.error_description ?? '');
+      const details = error?.details ? `\nDetalhes: ${error.details}` : '';
+      const hint = error?.hint ? `\nSugestão: ${error.hint}` : '';
+      const full = `${supabaseMsg}${details}${hint}` || 'Não foi possível criar o projeto.';
       toast({ 
         title: "Erro ao Criar Projeto", 
-        description: errorMessage, 
+        description: full, 
         variant: "destructive" 
       });
     } finally {
