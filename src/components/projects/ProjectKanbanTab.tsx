@@ -172,7 +172,8 @@ export function ProjectKanbanTab({ tasks, sections, onTaskClick, onTaskUpdate }:
     });
 
     tasks.forEach(task => {
-      const sectionId = task.section || 'general';
+      const matched = sections.find(s => s.id === task.section || s.name === task.section);
+      const sectionId = matched ? matched.id : 'general';
       if (!grouped[sectionId]) {
         grouped[sectionId] = [];
       }
