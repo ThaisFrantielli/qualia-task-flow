@@ -78,7 +78,7 @@ export function SectionManager({ open, onOpenChange, projectId }: SectionManager
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
         <DialogHeader>
           <DialogTitle>Gerenciar Seções</DialogTitle>
         </DialogHeader>

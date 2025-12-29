@@ -350,7 +350,7 @@ export default function FilaTriagem() {
 
       {/* Dialog para Criar Ticket */}
       <Dialog open={ticketDialogOpen} onOpenChange={setTicketDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Ticket de Atendimento</DialogTitle>
           </DialogHeader>
@@ -467,7 +467,7 @@ export default function FilaTriagem() {
       </Dialog>
         {/* Dialog para Descartar Lead (motivo) */}
         <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
-          <DialogContent className="sm:max-w-[520px]">
+          <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
               <DialogHeader>
                 <DialogTitle>Descartar Lead</DialogTitle>
                 <DialogDescription id="desc-discard">Informe o motivo do descarte para registro no histórico.</DialogDescription>

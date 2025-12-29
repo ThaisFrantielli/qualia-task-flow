@@ -187,7 +187,7 @@ const SubtaskDetailSheet: React.FC<SubtaskDetailSheetProps> = ({ subtaskId, open
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-[600px] lg:max-w-[800px] max-h-screen overflow-hidden flex flex-col">
+      <SheetContent className="w-full md:w-[50vw] max-w-[900px] max-h-screen overflow-hidden flex flex-col">
         {/* Breadcrumbs */}
         {subtask && (
           <nav className="flex items-center text-xs text-muted-foreground mb-2 mt-2" aria-label="Breadcrumb">

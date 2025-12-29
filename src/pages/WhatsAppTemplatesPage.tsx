@@ -114,7 +114,7 @@ export default function WhatsAppTemplatesPage() {
               Novo Template
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
             <DialogHeader>
               <DialogTitle>
                 {editingTemplate ? 'Editar Template' : 'Novo Template'}

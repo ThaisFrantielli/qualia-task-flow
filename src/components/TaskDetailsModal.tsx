@@ -47,7 +47,7 @@ const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({ taskId, open, onOpe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-full p-0 sm:rounded-lg flex flex-col max-h-[90vh]">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] p-0 sm:rounded-lg flex flex-col max-h-[90vh]">
         <DialogHeader className="p-6 pb-4 border-b">
           {/* O título pode ser dinâmico ou estático */}
           <DialogTitle className="text-2xl font-semibold">

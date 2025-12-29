@@ -88,7 +88,7 @@ export function EncaminharTicketDialog({ ticketId }: EncaminharTicketDialogProps
                     Encaminhar
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
                 <DialogHeader>
                     <DialogTitle>Encaminhar Ticket</DialogTitle>
                 </DialogHeader>

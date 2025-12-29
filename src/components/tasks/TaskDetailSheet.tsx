@@ -21,7 +21,7 @@ const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({ taskId, open, onOpenC
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full max-w-2xl sm:max-w-2xl flex flex-col p-0">
+      <SheetContent className="w-full md:w-[50vw] max-w-[900px] flex flex-col p-0">
         {isLoading ? (
           <div className="p-6 space-y-4">
             <Skeleton className="h-8 w-1/2" />

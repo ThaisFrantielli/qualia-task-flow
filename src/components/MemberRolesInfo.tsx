@@ -19,7 +19,7 @@ export const MemberRolesInfo = () => {
           <HelpCircle className="w-4 h-4 text-blue-600" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
         <DialogHeader>
           <DialogTitle>Papéis de Membros do Projeto</DialogTitle>
         </DialogHeader>

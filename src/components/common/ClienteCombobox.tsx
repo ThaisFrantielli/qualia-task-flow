@@ -23,6 +23,7 @@ interface Cliente {
   razao_social: string | null;
   nome_fantasia: string | null;
   cpf_cnpj: string | null;
+  cliente_contatos?: { telefone_contato?: string | null }[];
 }
 
 interface ClienteComboboxProps {
@@ -50,21 +51,62 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
 
   const fetchClientes = async (search?: string) => {
     setLoading(true);
-    let query = supabase
+    const normalized = (search || '').trim();
+
+    // base query returning also contatos so we can show phone
+    const nameQuery = supabase
       .from('clientes')
-      .select('id, razao_social, nome_fantasia, cpf_cnpj')
+      .select('id, razao_social, nome_fantasia, cpf_cnpj, cliente_contatos(telefone_contato)')
       .order('razao_social', { ascending: true })
       .limit(50);
 
-    if (search && search.length > 0) {
-      query = query.or(
-        `razao_social.ilike.%${search}%,nome_fantasia.ilike.%${search}%,cpf_cnpj.ilike.%${search}%`
+    if (normalized.length > 0) {
+      nameQuery.or(
+        `razao_social.ilike.%${normalized}%,nome_fantasia.ilike.%${normalized}%,cpf_cnpj.ilike.%${normalized}%`
       );
     }
 
-    const { data } = await query;
-    setClientes(data || []);
-    setLoading(false);
+    try {
+      const results: Cliente[] = [];
+      const { data: byName } = await nameQuery;
+      if (byName && byName.length > 0) results.push(...(byName as any));
+
+      // if search includes digits, also search in cliente_contatos by telefone
+      const digitsOnly = normalized.replace(/\D/g, '');
+      if (digitsOnly.length >= 3) {
+        const patterns = new Set<string>();
+        patterns.add(`telefone_contato.ilike.%${digitsOnly}%`);
+        const last8 = digitsOnly.slice(-8);
+        if (last8) patterns.add(`telefone_contato.ilike.%${last8}%`);
+
+        const { data: contatos } = await supabase
+          .from('cliente_contatos')
+          .select('cliente_id,telefone_contato')
+          .or(Array.from(patterns).join(','))
+          .limit(50);
+
+        const clienteIds = Array.from(new Set((contatos || []).map((c: any) => c.cliente_id))).filter(Boolean);
+        if (clienteIds.length > 0) {
+          const { data: byContacts } = await supabase
+            .from('clientes')
+            .select('id, razao_social, nome_fantasia, cpf_cnpj, cliente_contatos(telefone_contato)')
+            .in('id', clienteIds)
+            .limit(50);
+          if (byContacts && byContacts.length > 0) {
+            const existingIds = new Set(results.map(r => r.id));
+            for (const c of byContacts as any) {
+              if (!existingIds.has(c.id)) results.push(c);
+            }
+          }
+        }
+      }
+
+      setClientes(results || []);
+    } catch (e) {
+      setClientes([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSearch = (search: string) => {
@@ -81,6 +123,13 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
   const getCnpjSuffix = (cliente: Cliente) => {
     if (!cliente.cpf_cnpj) return '';
     const clean = cliente.cpf_cnpj.replace(/\D/g, '');
+    return clean.slice(-4);
+  };
+
+  const getPhoneSuffix = (cliente: Cliente) => {
+    const contato = cliente.cliente_contatos && cliente.cliente_contatos.length > 0 ? cliente.cliente_contatos[0].telefone_contato : null;
+    if (!contato) return '';
+    const clean = String(contato).replace(/\D/g, '');
     return clean.slice(-4);
   };
 
@@ -114,7 +163,7 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
         <PopoverContent className="w-[400px] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder="Buscar por nome, fantasia ou CNPJ..."
+              placeholder="Buscar por nome, fantasia, CNPJ ou telefone..."
               value={searchQuery}
               onValueChange={handleSearch}
             />
@@ -154,13 +203,16 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
                         value === cliente.id ? 'opacity-100' : 'opacity-0'
                       )}
                     />
-                    <div className="flex flex-col">
-                      <span className="font-medium">{getDisplayName(cliente)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {cliente.razao_social !== cliente.nome_fantasia && cliente.razao_social}
-                        {cliente.cpf_cnpj && ` • ${cliente.cpf_cnpj}`}
-                      </span>
-                    </div>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{getDisplayName(cliente)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {cliente.razao_social !== cliente.nome_fantasia && cliente.razao_social}
+                            {cliente.cpf_cnpj && ` • ${cliente.cpf_cnpj}`}
+                            {!cliente.cpf_cnpj && cliente.cliente_contatos && cliente.cliente_contatos.length > 0 && (
+                              ` • ${cliente.cliente_contatos[0].telefone_contato}`
+                            )}
+                          </span>
+                        </div>
                   </CommandItem>
                 ))}
               </CommandGroup>
