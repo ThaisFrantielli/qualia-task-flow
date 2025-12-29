@@ -215,31 +215,46 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
         // ... (será implementada no futuro, focando na criação primeiro)
         toast.success("Cliente atualizado com sucesso! (Simulação)");
       } else {
-        // --- LÓGICA DE CRIAÇÃO ---
-        const { data: newCliente, error: clienteError } = await supabase.from('clientes').insert({
-          codigo_cliente: values.codigo_cliente,
-          razao_social: values.razao_social,
-          nome_fantasia: values.nome_fantasia,
-          cpf_cnpj: values.cpf_cnpj,
-          situacao: values.situacao,
-        }).select().single();
+          // --- LÓGICA DE CRIAÇÃO ---
+          const { data: newCliente, error: clienteError } = await supabase.from('clientes').insert({
+            codigo_cliente: values.codigo_cliente,
+            razao_social: values.razao_social,
+            nome_fantasia: values.nome_fantasia,
+            cpf_cnpj: values.cpf_cnpj,
+            situacao: values.situacao,
+          }).select().single();
 
-        if (clienteError) throw clienteError;
-        if (!newCliente) throw new Error("Falha ao criar cliente.");
+          if (clienteError) {
+            console.error('Erro ao inserir cliente:', clienteError);
+            throw clienteError;
+          }
+          if (!newCliente) {
+            console.error('Resposta inesperada ao criar cliente:', newCliente);
+            throw new Error("Falha ao criar cliente.");
+          }
 
-        // Insere todos os contatos do formulário
-        const contatosToInsert = values.contatos.map(contato => ({
-          cliente_id: newCliente.id,
-          nome_contato: contato.nome_contato,
-          email_contato: contato.email_contato,
-          telefone_contato: contato.telefone_contato,
-          // departamento: contato.departamento, // Adicionar no DB futuramente
-        }));
+          // Insere todos os contatos do formulário
+          const contatosToInsert = values.contatos.map(contato => ({
+            cliente_id: newCliente.id,
+            nome_contato: contato.nome_contato,
+            email_contato: contato.email_contato,
+            telefone_contato: contato.telefone_contato,
+            // departamento: contato.departamento, // Adicionar no DB futuramente
+          }));
 
-        const { error: contatoError } = await supabase.from('cliente_contatos').insert(contatosToInsert);
-        if (contatoError) throw contatoError;
+          const { error: contatoError } = await supabase.from('cliente_contatos').insert(contatosToInsert);
+          if (contatoError) {
+            // rollback: remover cliente criado para evitar dados inconsistentes
+            try {
+              await supabase.from('clientes').delete().eq('id', newCliente.id);
+            } catch (delErr) {
+              console.error('Erro ao tentar rollback (deletar cliente):', delErr);
+            }
+            console.error('Erro ao inserir contatos do cliente:', contatoError);
+            throw contatoError;
+          }
 
-        toast.success("Cliente criado com sucesso!");
+          toast.success("Cliente criado com sucesso!");
       }
       onSave();
       onClose();
