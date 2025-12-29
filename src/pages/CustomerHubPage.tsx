@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useClientes } from '@/hooks/useClientes';
 import { CustomerListEnhanced, CustomerDisplayInfo } from '@/components/customer-management/CustomerListEnhanced';
 import { CustomerDetailRedesign } from '@/components/customer-management/CustomerDetailRedesign';
@@ -60,6 +61,41 @@ const CustomerHubPage: React.FC = () => {
   });
 
   useEffect(() => {
+    // Abrir modal automaticamente se query param ?new=1 estiver presente
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new') === '1') {
+        setClienteToEdit(null);
+        setIsModalOpen(true);
+        // remove query param
+        const url = new URL(window.location.href);
+        url.searchParams.delete('new');
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+      }
+
+      // Abrir modal de edição se ?open=<id> estiver presente
+      const openId = params.get('open');
+      if (openId) {
+        const found = clientes.find((c) => c.id === openId);
+        if (found) {
+          setClienteToEdit(found);
+          setIsModalOpen(true);
+        } else {
+          // tentar refetch e depois abrir (caso a lista ainda não tenha sido carregada)
+          refetch().then(() => {
+            const found2 = clientes.find((c) => c.id === openId);
+            setClienteToEdit(found2 || null);
+            setIsModalOpen(true);
+          });
+        }
+        // remove query param
+        const url2 = new URL(window.location.href);
+        url2.searchParams.delete('open');
+        window.history.replaceState({}, '', url2.pathname + url2.search + url2.hash);
+      }
+    } catch {
+      // ignore
+    }
     if (!selectedId && filteredClientes.length > 0) {
       setSelectedId(filteredClientes[0].id);
     }

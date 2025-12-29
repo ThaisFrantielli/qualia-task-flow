@@ -186,6 +186,81 @@ const SIMPLE_REPORTS = [
                    CAST(cl.CustoAtual AS FLOAT) as Valor
             FROM ContratosLocacao cl WHERE cl.DataEncerramento >= DATEADD(year, -3, GETDATE())
         `
+    },
+
+    // 7. RENTABILIDADE DE CONTRATOS (Análise Mensal Agregada)
+    {
+        filename: 'agg_rentabilidade_contratos_mensal.json',
+        query: `
+            WITH RentabilidadeMensal AS (
+                -- Faturamento por contrato
+                SELECT 
+                    COALESCE(cc.NomeRequisitante, 'Cliente ' + CAST(cc.IdCliente as VARCHAR)) as Cliente,
+                    cc.IdContratoComercial,
+                    cl.IdContratoLocacao,
+                    v.Grupo,
+                    v.Modelo,
+                    fi.IdVeiculo,
+                    fi.Placa,
+                    FORMAT(f.DataCompetencia, 'yyyy-MM') as Competencia,
+                    SUM(CAST(fi.ValorTotal AS FLOAT)) as Faturamento,
+                    0 as GastoManutencao,
+                    0 as ReembolsoManutencao
+                FROM FaturamentoItems fi
+                INNER JOIN Faturamentos f ON fi.IdNota = f.IdNota
+                INNER JOIN ContratosLocacao cl ON fi.Placa = cl.PlacaPrincipal
+                INNER JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
+                LEFT JOIN Veiculos v ON fi.IdVeiculo = v.IdVeiculo
+                WHERE f.SituacaoNota <> 'Cancelada'
+                AND f.DataCompetencia >= DATEADD(year, -5, GETDATE())
+                GROUP BY 
+                    cc.NomeRequisitante, cc.IdCliente, cc.IdContratoComercial, 
+                    cl.IdContratoLocacao, v.Grupo, v.Modelo, fi.IdVeiculo, fi.Placa,
+                    FORMAT(f.DataCompetencia, 'yyyy-MM')
+                
+                UNION ALL
+                
+                -- Manutenção/Sinistro por contrato
+                SELECT 
+                    COALESCE(cc.NomeRequisitante, 'Cliente ' + CAST(cc.IdCliente as VARCHAR)) as Cliente,
+                    cc.IdContratoComercial,
+                    cl.IdContratoLocacao,
+                    v.Grupo,
+                    v.Modelo,
+                    os.IdVeiculo,
+                    os.Placa,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM') as Competencia,
+                    0 as Faturamento,
+                    SUM(CASE WHEN os.Tipo IN ('Manutenção', 'Sinistro') THEN CAST(os.ValorTotal AS FLOAT) ELSE 0 END) as GastoManutencao,
+                    SUM(CASE WHEN os.Reembolso = 1 THEN CAST(os.ValorTotal AS FLOAT) ELSE 0 END) as ReembolsoManutencao
+                FROM OrdensServico os
+                LEFT JOIN ContratosLocacao cl ON os.Placa = cl.PlacaPrincipal
+                LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
+                LEFT JOIN Veiculos v ON os.IdVeiculo = v.IdVeiculo
+                WHERE os.SituacaoOrdemServico <> 'Cancelada'
+                AND os.DataInicioServico >= DATEADD(year, -5, GETDATE())
+                GROUP BY 
+                    cc.NomeRequisitante, cc.IdCliente, cc.IdContratoComercial, 
+                    cl.IdContratoLocacao, v.Grupo, v.Modelo, os.IdVeiculo, os.Placa,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM')
+            )
+            SELECT 
+                Cliente,
+                IdContratoComercial,
+                IdContratoLocacao,
+                Grupo,
+                Modelo,
+                IdVeiculo,
+                Placa,
+                Competencia,
+                SUM(Faturamento) as Faturamento,
+                SUM(GastoManutencao) as GastoManutencao,
+                SUM(ReembolsoManutencao) as ReembolsoManutencao
+            FROM RentabilidadeMensal
+            WHERE Cliente IS NOT NULL
+            GROUP BY Cliente, IdContratoComercial, IdContratoLocacao, Grupo, Modelo, IdVeiculo, Placa, Competencia
+            ORDER BY Competencia DESC, Cliente, Placa
+        `
     }
 ];
 

@@ -86,6 +86,7 @@ const baseMenuGroups: MenuGroup[] = [
           { label: 'Pipeline', url: '/analytics/comercial', icon: Target },
           { label: 'Propostas', url: '/propostas', icon: FileCheck },
           { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
+          { label: 'Análise de Contrato', url: '/analytics/analise-contratos', icon: BarChart3 },
           { label: 'Clientes', url: '/analytics/clientes', icon: Users },
           { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
         ]

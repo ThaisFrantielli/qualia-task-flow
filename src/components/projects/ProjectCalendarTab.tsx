@@ -1,5 +1,5 @@
 // src/components/projects/ProjectCalendarTab.tsx
-import { useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import type { EventClickArg, EventDropArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -22,6 +22,8 @@ interface ProjectCalendarTabProps {
 
 export function ProjectCalendarTab({ tasks, onTaskClick, onTaskUpdate }: ProjectCalendarTabProps) {
   const calendarRef = useRef<any>(null);
+  const [calendarViewType, setCalendarViewType] = useState<string | null>(null);
+  const [calendarCurrentDate, setCalendarCurrentDate] = useState<Date | null>(null);
 
   const events = useMemo(() => {
     return tasks
@@ -68,6 +70,15 @@ export function ProjectCalendarTab({ tasks, onTaskClick, onTaskUpdate }: Project
   const handleNext = () => calendarRef.current?.getApi().next();
   const handleToday = () => calendarRef.current?.getApi().today();
 
+  const handleDatesSet = useCallback((arg: any) => {
+    try {
+      setCalendarViewType(arg.view?.type || null);
+      setCalendarCurrentDate(arg.start ? new Date(arg.start) : null);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   return (
     <Card className="p-4">
       {/* Header */}
@@ -82,6 +93,18 @@ export function ProjectCalendarTab({ tasks, onTaskClick, onTaskUpdate }: Project
           <Button variant="outline" size="sm" onClick={handleToday}>
             Hoje
           </Button>
+        </div>
+
+        <div className="text-sm font-semibold mr-4" aria-live="polite">
+          {calendarCurrentDate ? (
+            calendarViewType === 'timeGridDay' ? (
+              <span>{new Date(calendarCurrentDate).toLocaleDateString('pt-BR', { weekday: 'long' })} — {new Date(calendarCurrentDate).toLocaleDateString('pt-BR')}</span>
+            ) : (
+              <span>{new Date(calendarCurrentDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+            )
+          ) : (
+            <span />
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -112,6 +135,7 @@ export function ProjectCalendarTab({ tasks, onTaskClick, onTaskUpdate }: Project
         events={events}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}
+        datesSet={handleDatesSet}
         height="auto"
         nowIndicator
         editable={true}
