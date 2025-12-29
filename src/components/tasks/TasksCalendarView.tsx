@@ -1,5 +1,5 @@
 // src/components/tasks/TasksCalendarView.tsx
-import { useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import type { EventClickArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -8,6 +8,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TaskWithDetails } from '@/types';
 
@@ -19,19 +20,32 @@ interface TasksCalendarViewProps {
 
 export function TasksCalendarView({ tasks, onTaskClick, onDateClick }: TasksCalendarViewProps) {
   const calendarRef = useRef<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const categories = useMemo(() => {
+    const map: Record<string, { id: string; name: string; color?: string | null }> = {};
+    tasks.forEach(t => {
+      const c = (t as any).category;
+      if (c && c.id) map[c.id] = { id: c.id, name: c.name || 'Sem categoria', color: c.color };
+    });
+    return Object.values(map).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [tasks]);
 
   const events = useMemo(() => {
     return tasks
       .filter(t => t.due_date)
+      .filter(t => selectedCategory === 'all' ? true : ((t as any).category?.id === selectedCategory))
       .map(t => ({
         id: t.id,
         title: t.title,
         start: t.due_date as string,
-        color: t.priority === 'high' ? 'hsl(var(--destructive))' : 
-               t.priority === 'medium' ? 'hsl(var(--warning))' : 
-               'hsl(var(--success))',
+        color: (t as any).category?.color || (
+          t.priority === 'high' ? 'hsl(var(--destructive))' : 
+          t.priority === 'medium' ? 'hsl(var(--warning))' : 
+          'hsl(var(--success))'
+        ),
       }));
-  }, [tasks]);
+  }, [tasks, selectedCategory]);
 
   const handleEventClick = useCallback((info: EventClickArg) => {
     onTaskClick(info.event.id);
@@ -75,28 +89,44 @@ export function TasksCalendarView({ tasks, onTaskClick, onDateClick }: TasksCale
           </Button>
         </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleViewChange('dayGridMonth')}
-          >
-            Mês
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleViewChange('timeGridWeek')}
-          >
-            Semana
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleViewChange('timeGridDay')}
-          >
-            Dia
-          </Button>
+        <div className="flex items-center gap-3">
+          <div className="w-48">
+            <Select value={selectedCategory} onValueChange={(v) => setSelectedCategory(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleViewChange('dayGridMonth')}
+            >
+              Mês
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleViewChange('timeGridWeek')}
+            >
+              Semana
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleViewChange('timeGridDay')}
+            >
+              Dia
+            </Button>
+          </div>
         </div>
       </div>
 
