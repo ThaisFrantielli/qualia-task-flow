@@ -1,6 +1,7 @@
 // src/components/customer-management/ClienteFormModal.tsx (VERSÃO AVANÇADA)
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm, SubmitHandler, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -94,6 +95,118 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
     }
   }, [cliente, isEditMode, form, isOpen]);
 
+  // --- DETECÇÃO DE DUPLICADOS POR CPF/CNPJ ---
+  const [duplicateCandidates, setDuplicateCandidates] = useState<ClienteComContatos[] | null>(null);
+  const checkTimeout = useRef<any>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const sub = form.watch((value, { name }) => {
+      if (name !== 'cpf_cnpj') return;
+      const raw = (value as any).cpf_cnpj || '';
+      const cpf = String(raw).replace(/\D/g, '').trim();
+      if (checkTimeout.current) clearTimeout(checkTimeout.current);
+      if (!cpf) {
+        setDuplicateCandidates(null);
+        return;
+      }
+      checkTimeout.current = setTimeout(async () => {
+        try {
+          const { data } = await supabase.from('clientes').select('id, razao_social, nome_fantasia, cpf_cnpj').ilike('cpf_cnpj', `%${cpf}%`).limit(10);
+          if (data && data.length > 0) {
+            setDuplicateCandidates(data as any);
+          } else {
+            setDuplicateCandidates(null);
+          }
+        } catch (e) {
+          setDuplicateCandidates(null);
+        }
+      }, 500);
+    });
+    return () => {
+      try { sub.unsubscribe && sub.unsubscribe(); } catch {};
+      if (checkTimeout.current) clearTimeout(checkTimeout.current);
+    };
+  }, [form]);
+
+  // --- DETECÇÃO POR TELEFONE (contatos) ---
+  useEffect(() => {
+    const sub = form.watch((value, { name }) => {
+      if (!name || !String(name).includes('telefone_contato')) return;
+      const raw = (value as any);
+      // collect all telefone_contato values
+      const phones: string[] = [];
+      try {
+        const cs = raw.contatos || [];
+        for (const c of cs) {
+          if (c && c.telefone_contato) phones.push(String(c.telefone_contato).replace(/\D/g, ''));
+        }
+      } catch {
+        // ignore
+      }
+      if (checkTimeout.current) clearTimeout(checkTimeout.current);
+      const unique = Array.from(new Set(phones)).filter(Boolean);
+      if (unique.length === 0) {
+        // do not override cpf-based candidates if present
+        if (!duplicateCandidates) setDuplicateCandidates(null);
+        return;
+      }
+      checkTimeout.current = setTimeout(async () => {
+        try {
+          // search in cliente_contatos for matching phone fragments (also try last 8 digits)
+          const patterns = new Set<string>();
+          for (const p of unique) {
+            const last8 = p.slice(-8);
+            patterns.add(`telefone_contato.ilike.%${p}%`);
+            if (last8) patterns.add(`telefone_contato.ilike.%${last8}%`);
+          }
+          const q = Array.from(patterns).join(',');
+          const { data: contatosData } = await supabase.from('cliente_contatos').select('cliente_id,telefone_contato').or(q).limit(40);
+          const clienteIds = Array.from(new Set((contatosData || []).map((r: any) => r.cliente_id))).filter(Boolean);
+          if (clienteIds.length === 0) {
+            // no matches
+            // don't clear if cpf duplicates exist
+            if (!duplicateCandidates) setDuplicateCandidates(null);
+            return;
+          }
+          const { data: clientesData } = await supabase.from('clientes').select('id,razao_social,nome_fantasia,cpf_cnpj').in('id', clienteIds).limit(20);
+          if (clientesData && clientesData.length > 0) setDuplicateCandidates(clientesData as any);
+          else if (!duplicateCandidates) setDuplicateCandidates(null);
+        } catch (e) {
+          // ignore
+        }
+      }, 500);
+    });
+    return () => {
+      try { sub.unsubscribe && sub.unsubscribe(); } catch {};
+      if (checkTimeout.current) clearTimeout(checkTimeout.current);
+    };
+  }, [form]);
+
+  // Ações quando usuário escolhe usar cliente existente
+  const handleUseCliente = async (id: string) => {
+    try {
+      const { data } = await supabase.from('clientes').select('*, cliente_contatos(*)').eq('id', id).single();
+      if (!data) return;
+      const displayName = data.nome_fantasia || data.razao_social || 'Cliente selecionado';
+      const confirmMsg = `Deseja substituir os dados do formulário pelos dados do cliente "${displayName}"? Isso substituirá os campos atualmente preenchidos.`;
+      if (!window.confirm(confirmMsg)) return;
+      // preencha o formulário com os dados existentes
+      form.reset({
+        codigo_cliente: data.codigo_cliente || '',
+        razao_social: data.razao_social || '',
+        nome_fantasia: data.nome_fantasia || '',
+        cpf_cnpj: data.cpf_cnpj || '',
+        situacao: data.situacao || 'Ativo',
+        contatos: (data.cliente_contatos || []).map((c: any) => ({ nome_contato: c.nome_contato || '', email_contato: c.email_contato || '', telefone_contato: c.telefone_contato || '', departamento: '' }))
+      });
+      setDuplicateCandidates(null);
+      toast.success('Formulário preenchido com dados do cliente selecionado');
+    } catch (e) {
+      // ignore
+    }
+  };
+
 
   const onSubmit: SubmitHandler<FormData> = async (values) => {
     try {
@@ -144,6 +257,25 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {duplicateCandidates && duplicateCandidates.length > 0 && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded text-sm space-y-2">
+                <div className="font-medium">Cliente(s) possivelmente já cadastrado(s):</div>
+                <div className="flex flex-col gap-2">
+                  {duplicateCandidates.slice(0,5).map((c: any) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2">
+                      <div className="truncate">
+                        <div className="font-medium">{c.nome_fantasia || c.razao_social}</div>
+                        <div className="text-xs text-muted-foreground">{c.cpf_cnpj ? `CPF/CNPJ: ${c.cpf_cnpj}` : ''}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleUseCliente(c.id)}>Usar este</Button>
+                        <Button size="sm" onClick={() => navigate(`/clientes?open=${c.id}`)}>Abrir</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <ScrollArea className="h-[60vh] p-4">
               <div className="space-y-6">
                 <FormField control={form.control} name="codigo_cliente" render={({ field }) => (

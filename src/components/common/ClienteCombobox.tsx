@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Check, ChevronsUpDown, Building2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchClientes();
@@ -118,7 +120,23 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
             />
             <CommandList>
               <CommandEmpty>
-                {loading ? 'Buscando...' : 'Nenhum cliente encontrado.'}
+                {loading ? (
+                  'Buscando...'
+                ) : (
+                  <div className="flex items-center justify-between px-3">
+                    <span>Nenhum cliente encontrado.</span>
+                    <button
+                      type="button"
+                      className="text-sm text-primary hover:underline"
+                      onClick={() => {
+                        setOpen(false);
+                        navigate('/clientes?new=1');
+                      }}
+                    >
+                      Cadastrar cliente
+                    </button>
+                  </div>
+                )}
               </CommandEmpty>
               <CommandGroup>
                 {clientes.map((cliente) => (

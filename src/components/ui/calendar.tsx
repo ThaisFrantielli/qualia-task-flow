@@ -1177,8 +1177,12 @@ export default function CalendarApp(): JSX.Element {
 
             <div className="flex items-center gap-4">
               <div className="text-sm font-semibold" aria-live="polite">
-                {calendarViewType === 'timeGridDay' && calendarCurrentDate ? (
-                  <span>{new Date(calendarCurrentDate).toLocaleDateString('pt-BR', { weekday: 'long' })} — {new Date(calendarCurrentDate).toLocaleDateString('pt-BR')}</span>
+                {calendarCurrentDate ? (
+                  calendarViewType === 'timeGridDay' ? (
+                    <span>{new Date(calendarCurrentDate).toLocaleDateString('pt-BR', { weekday: 'long' })} — {new Date(calendarCurrentDate).toLocaleDateString('pt-BR')}</span>
+                  ) : (
+                    <span>{new Date(calendarCurrentDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+                  )
                 ) : (
                   <span />
                 )}
