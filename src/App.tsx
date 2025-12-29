@@ -22,6 +22,7 @@ import Notifications from '@/pages/Notifications';
 import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
+import ContractAnalysisDashboard from '@/pages/analytics/ContractAnalysisDashboard';
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import DataAudit from '@/pages/analytics/DataAudit';
 import ChurnDashboard from '@/pages/analytics/ChurnDashboard';
@@ -120,6 +121,7 @@ function App() {
                 <Route path="financeiro" element={<FinancialAnalytics />} />
                 <Route path="resultado" element={<DREDashboard />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
+                <Route path="analise-contratos" element={<ContractAnalysisDashboard />} />
                 {/* Performance de Contratos agora integrado em /analytics/contratos */}
                 <Route path="auditoria" element={<DataAudit />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />
