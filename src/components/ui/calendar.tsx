@@ -258,6 +258,7 @@ export default function CalendarApp(): JSX.Element {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProject, setFilterProject] = useState<string>('all');
   const [filterTeam, setFilterTeam] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [calendarViewType, setCalendarViewType] = useState<string | null>(null);
   const [calendarCurrentDate, setCalendarCurrentDate] = useState<Date | null>(null);
 
@@ -425,6 +426,7 @@ export default function CalendarApp(): JSX.Element {
   const taskEvents = useMemo(() => {
     return (tasks || [])
       .filter((t: any) => t.due_date)
+      .filter((t: any) => (filterCategory === 'all' ? true : ((t.category && t.category.id) === filterCategory || t.category_id === filterCategory)))
       .filter((t: any) => (filterStatus === 'all' ? true : t.status === filterStatus))
       .filter((t: any) => (filterProject === 'all' ? true : t.project_id === filterProject))
       .filter((t: any) => (filterTeam === 'all' ? true : (t.project && (t.project as any).team_id) === filterTeam))
@@ -1129,6 +1131,23 @@ export default function CalendarApp(): JSX.Element {
           >
             <option value="all">Todas</option>
             {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+
+          <label className="text-sm font-medium">Categoria</label>
+          <select
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value)}
+            className="w-full rounded-md border px-2 py-1"
+            aria-label="Filtro por categoria"
+          >
+            <option value="all">Todas</option>
+            {(tasks || []).reduce((acc: any[], t: any) => {
+              const cid = (t && t.category && t.category.id) || t.category_id;
+              const cname = (t && t.category && t.category.name) || null;
+              if (!cid) return acc;
+              if (!acc.find(a => a.id === cid)) acc.push({ id: cid, name: cname || 'Sem nome' });
+              return acc;
+            }, []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
 
