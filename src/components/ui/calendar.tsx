@@ -335,6 +335,8 @@ export default function CalendarApp(): JSX.Element {
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState('#7C3AED');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; color?: string | null }>>([]);
+  const [formCategoryId, setFormCategoryId] = useState<string | null>(null);
 
   // Safety: if formEnd becomes earlier than formStart, normalize to formStart
   useEffect(() => {
@@ -373,6 +375,17 @@ export default function CalendarApp(): JSX.Element {
         })));
       } catch (err) {
         console.error('Erro genérico ao carregar calendar_events:', err);
+      }
+    })();
+
+    // load categories for modal
+    (async () => {
+      try {
+        const { data: cats } = await supabase.from('task_categories').select('id, name, color');
+        if (mounted && Array.isArray(cats)) setCategories(cats as any);
+      } catch (err) {
+        // non-fatal
+        console.debug('Não foi possível carregar categorias:', err);
       }
     })();
     return () => { mounted = false; };
@@ -496,6 +509,7 @@ export default function CalendarApp(): JSX.Element {
         const ne = normalizeFormStartEnd(startStr, endStr);
         setFormStart(ne.s);
         setFormEnd(ne.e);
+      setFormCategoryId(null);
       setModalOpen(true);
       return;
     }
@@ -528,6 +542,7 @@ export default function CalendarApp(): JSX.Element {
           setFormEnd(ne4.e);
         }
         setModalOpen(true);
+        setFormCategoryId(null);
         return;
       }
 
@@ -540,6 +555,7 @@ export default function CalendarApp(): JSX.Element {
       const nfb = normalizeFormStartEnd(startStr, endStr);
       setFormStart(nfb.s || startStr);
       setFormEnd(nfb.e || (endStr || undefined));
+      setFormCategoryId(null);
       setModalOpen(true);
     }
   }, []);
@@ -588,6 +604,7 @@ export default function CalendarApp(): JSX.Element {
           setModalMode('edit');
           setEditingEventId(`ce-${data.id}`);
           setFormTitle(data.title || '');
+          setFormCategoryId((data as any).category_id || null);
           const ne = normalizeFormStartEnd(data.start_date || null, data.end_date || null);
           setFormStart(ne.s);
           setFormEnd(ne.e);
@@ -615,6 +632,7 @@ export default function CalendarApp(): JSX.Element {
           return;
         }
         setFormTitle(data.title || '');
+        setFormCategoryId((data as any).category_id || (data as any).category?.id || null);
         const nTask = normalizeFormStartEnd((data.due_date as any) || null, null);
         setFormStart(nTask.s);
         setFormEnd(nTask.e);
@@ -653,6 +671,7 @@ export default function CalendarApp(): JSX.Element {
             description: formDescription || null,
             color: formColor || null,
             owner_id: user?.id || null,
+            category_id: formCategoryId || null,
             created_at: dateToLocalISO(new Date()),
           };
 
@@ -712,7 +731,7 @@ export default function CalendarApp(): JSX.Element {
           const dueDateIso = formStart ? datetimeLocalToIso(formStart) : dateToLocalDateOnlyISO(new Date());
           try {
             // Use canonical status keys expected by the backend ('todo' / 'progress' / 'done')
-            const newTask = await createTask({ title: formTitle, due_date: dueDateIso, status: 'todo' } as any);
+            const newTask = await createTask({ title: formTitle, due_date: dueDateIso, status: 'todo', category_id: formCategoryId || null } as any);
             toast.success('Tarefa criada');
             // Ensure task list is fresh so taskEvents includes the new task
             try { if (typeof refetchTasks === 'function') await refetchTasks(); } catch (e) { /* ignore */ }
@@ -728,6 +747,7 @@ export default function CalendarApp(): JSX.Element {
                 description: formDescription || null,
                 color: formColor || null,
                 owner_id: user?.id || null,
+                category_id: formCategoryId || null,
                 task_id: newTask.id,
                 created_at: dateToLocalISO(new Date()),
               };
@@ -784,6 +804,7 @@ export default function CalendarApp(): JSX.Element {
             title: formTitle,
             due_date: formStart ? datetimeLocalToIso(formStart) : null,
             description: formDescription || null,
+            category_id: formCategoryId || null,
           };
           try {
             if (updateSelectedTask) {
@@ -808,6 +829,7 @@ export default function CalendarApp(): JSX.Element {
             end_date: formEnd ? datetimeLocalToIso(formEnd) : null,
             description: formDescription || null,
             color: formColor || null,
+            category_id: formCategoryId || null,
           };
           try {
             const { data, error } = await supabase.from('calendar_events').update(updates).eq('id', realId).select().single();
@@ -1057,7 +1079,8 @@ export default function CalendarApp(): JSX.Element {
               setFormTitle('');
               setFormDescription('');
               setFormColor('#7C3AED');
-              setFormStart(isoToDatetimeLocal(dateToLocalISO(new Date())));
+                setFormStart(isoToDatetimeLocal(dateToLocalISO(new Date())));
+                setFormCategoryId(null);
               setModalOpen(true);
             }}
           >
@@ -1251,6 +1274,14 @@ export default function CalendarApp(): JSX.Element {
 
             <label className="text-sm">Fim</label>
             <Input type="datetime-local" value={formEnd || ''} onChange={(e: any) => setFormEnd(e.target.value)} aria-label="Data e hora de término" />
+
+            <div className="space-y-2">
+              <label className="text-sm">Categoria</label>
+              <select value={formCategoryId || ''} onChange={(e) => setFormCategoryId(e.target.value || null)} className="w-full rounded-md border px-2 py-1">
+                <option value="">Nenhuma</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
 
             {createChoice === 'event' && (
               <>
