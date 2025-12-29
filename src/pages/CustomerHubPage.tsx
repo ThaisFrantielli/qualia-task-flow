@@ -248,7 +248,10 @@ const CustomerHubPage: React.FC = () => {
       <ClienteFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={refetch}
+        onSave={(id?: string) => {
+          refetch();
+          if (id) setSelectedId(id);
+        }}
         cliente={clienteToEdit}
       />
     </>

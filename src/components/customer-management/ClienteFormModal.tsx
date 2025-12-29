@@ -40,7 +40,7 @@ type FormData = z.infer<typeof formSchema>;
 interface ClienteFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave?: (newId?: string) => void;
   cliente: ClienteComContatos | null;
 }
 
@@ -256,7 +256,9 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
 
           toast.success("Cliente criado com sucesso!");
       }
-      onSave();
+        if (typeof onSave === 'function') {
+          try { onSave((newCliente as any)?.id); } catch { onSave(); }
+        }
       onClose();
     } catch (error: any) {
       toast.error("Ocorreu um erro", { description: error.message });
