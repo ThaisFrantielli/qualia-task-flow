@@ -250,7 +250,7 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           <DialogDescription>{isEditMode ? 'Altere as informações.' : 'Preencha os dados para cadastrar.'}</DialogDescription>

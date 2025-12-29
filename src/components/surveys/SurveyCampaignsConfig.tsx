@@ -183,7 +183,7 @@ export const SurveyCampaignsConfig = () => {
           }
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingCampaign ? 'Editar Campanha' : 'Nova Campanha'}

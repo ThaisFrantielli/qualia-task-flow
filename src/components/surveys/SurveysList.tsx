@@ -168,7 +168,7 @@ export const SurveysList = ({ isAdmin }: SurveysListProps) => {
 
       {/* Response Detail Dialog */}
       <Dialog open={!!selectedSurvey} onOpenChange={() => setSelectedSurvey(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
           <DialogHeader>
             <DialogTitle>Detalhes da Resposta</DialogTitle>
           </DialogHeader>

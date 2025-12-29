@@ -101,7 +101,7 @@ export const CustomerSurveysTab = ({ clienteId, clienteName, clientePhone, clien
                   Nova Pesquisa
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
                 <DialogHeader>
                   <DialogTitle>Enviar Pesquisa para {clienteName}</DialogTitle>
                 </DialogHeader>

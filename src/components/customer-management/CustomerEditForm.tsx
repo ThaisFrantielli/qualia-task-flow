@@ -97,7 +97,7 @@ const CustomerEditForm: React.FC<CustomerEditFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
         <DialogHeader>
           <DialogTitle>Editar Cliente</DialogTitle>
         </DialogHeader>

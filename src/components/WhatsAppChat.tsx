@@ -582,7 +582,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
 
       {/* Modal de Seleção de Contatos / Input Manual */}
       <Dialog open={showContactSelector} onOpenChange={setShowContactSelector}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
           <DialogHeader>
             <DialogTitle>{contactOptions.length > 0 ? 'Selecionar Contato' : 'Iniciar Conversa'}</DialogTitle>
             <DialogDescription>

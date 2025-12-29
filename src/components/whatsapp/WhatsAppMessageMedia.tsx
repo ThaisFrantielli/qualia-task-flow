@@ -78,7 +78,7 @@ export function WhatsAppMessageMedia({ media, className = '' }: WhatsAppMessageM
         </div>
 
         <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
             <DialogHeader>
               <DialogTitle>Pré-visualização da Imagem</DialogTitle>
             </DialogHeader>
