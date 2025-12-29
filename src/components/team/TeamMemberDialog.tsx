@@ -129,7 +129,7 @@ const TeamMemberDialog: React.FC<TeamMemberDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Membro' : 'Adicionar Novo Membro'}</DialogTitle>
           <DialogDescription>

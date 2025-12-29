@@ -129,7 +129,7 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b pb-4">
           <DialogTitle className="text-xl flex items-center gap-2">
             <User className="w-5 h-5 text-blue-600" />

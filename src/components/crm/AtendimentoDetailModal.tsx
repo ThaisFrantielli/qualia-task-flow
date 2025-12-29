@@ -146,7 +146,7 @@ const AtendimentoDetailModal: React.FC<AtendimentoDetailModalProps> = ({ atendim
 
   return (
     <Dialog open={!!atendimento} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl w-full h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] h-[90vh] flex flex-col p-0 overflow-hidden">
         {/* HEADER: Título, status, stepper, ações principais */}
         <div className="flex items-center justify-between px-8 py-5 border-b bg-white">
           <div>

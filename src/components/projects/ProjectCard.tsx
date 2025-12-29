@@ -30,12 +30,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, tasks }) => {
     <Card className="flex flex-col hover:border-primary transition-all duration-300">
       <CardHeader>
         <div className="flex justify-between items-start gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#6b7280' }} />
-            <CardTitle className="text-lg leading-tight">{project.name}</CardTitle>
+            <div className="flex items-start gap-3">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: project.color || '#6b7280' }} />
+              <CardTitle className="text-lg leading-tight flex-1 break-words whitespace-normal">{project.name}</CardTitle>
+            </div>
           </div>
-        </div>
-        <CardDescription className="line-clamp-2 h-[40px] pt-1">{project.description}</CardDescription>
+          <CardDescription className="line-clamp-3 break-words whitespace-normal pt-1">{project.description}</CardDescription>
       </CardHeader>
       
       <CardContent className="flex-grow space-y-4">

@@ -181,7 +181,7 @@ const AtendimentoDetailSheet: React.FC<AtendimentoDetailSheetProps> = ({ atendim
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-[85vw] p-0 flex flex-col">
+      <SheetContent className="w-full md:w-[50vw] max-w-[900px] p-0 flex flex-col">
         {/* CORREÇÃO PRINCIPAL: Acessibilidade e Lógica de Renderização */}
         {/* Sempre renderizamos um cabeçalho para cumprir os requisitos de acessibilidade, mesmo que o conteúdo seja um skeleton ou erro. */}
         {renderContent()}

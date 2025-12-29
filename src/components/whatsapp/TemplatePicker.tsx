@@ -102,7 +102,7 @@ export function TemplatePicker({ onSelect, clientName, customerData = {} }: Temp
           Templates
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl h-[80vh]">
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] h-[80vh]">
         <DialogHeader>
           <DialogTitle>Templates de Mensagem</DialogTitle>
         </DialogHeader>

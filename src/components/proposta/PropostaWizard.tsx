@@ -302,7 +302,7 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
 
   return (
     <Dialog open={!!open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">{inner}</DialogContent>
+      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-hidden flex flex-col">{inner}</DialogContent>
     </Dialog>
   );
 }

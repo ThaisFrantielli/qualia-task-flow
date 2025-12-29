@@ -351,7 +351,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
 
       {/* Ticket Dialog */}
       <Dialog open={ticketDialogOpen} onOpenChange={setTicketDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Ticket</DialogTitle>
           </DialogHeader>
