@@ -229,7 +229,68 @@ function MaintenanceDashboardContent(): JSX.Element {
     const totalKm = filteredOS.reduce((s, r) => s + parseNum(r.Km), 0);
     const cpk = totalKm > 0 ? totalCost / totalKm : 0;
     const stopped = filteredOS.filter(r => parseNum(r.DiasParado) > 0).length;
-    return { totalCost, avgCost, avgDays, stopped, cpk, count };
+
+    // NOVOS KPIs: MTTR, MTBF, Taxa de Reincidência
+    // MTTR (Mean Time to Repair): Média de dias parado por OS concluída
+    const osConcluidas = filteredOS.filter(r => r.DataSaida || r.DataConclusao);
+    const mttr = osConcluidas.length > 0 
+      ? osConcluidas.reduce((s, r) => s + parseNum(r.DiasParado), 0) / osConcluidas.length 
+      : 0;
+
+    // MTBF (Mean Time Between Failures): Intervalo médio entre OS por veículo
+    const osByPlaca: Record<string, Date[]> = {};
+    filteredOS.forEach(r => {
+      if (r.Placa && r.DataEntrada) {
+        if (!osByPlaca[r.Placa]) osByPlaca[r.Placa] = [];
+        osByPlaca[r.Placa].push(normalizeDate(r.DataEntrada));
+      }
+    });
+    
+    let totalIntervalos = 0;
+    let countIntervalos = 0;
+    Object.values(osByPlaca).forEach(datas => {
+      if (datas.length < 2) return;
+      datas.sort((a, b) => a.getTime() - b.getTime());
+      for (let i = 1; i < datas.length; i++) {
+        const diff = (datas[i].getTime() - datas[i-1].getTime()) / (1000 * 60 * 60 * 24);
+        if (diff > 0) { totalIntervalos += diff; countIntervalos++; }
+      }
+    });
+    const mtbf = countIntervalos > 0 ? totalIntervalos / countIntervalos : 0;
+
+    // Taxa de Reincidência: OS do mesmo veículo em menos de 30 dias com mesmo tipo
+    let reincidencias = 0;
+    Object.keys(osByPlaca).forEach((placa) => {
+      const osVeiculo = filteredOS.filter(r => r.Placa === placa).sort((a, b) => {
+        const da = a.DataEntrada ? new Date(a.DataEntrada).getTime() : 0;
+        const db = b.DataEntrada ? new Date(b.DataEntrada).getTime() : 0;
+        return da - db;
+      });
+      for (let i = 1; i < osVeiculo.length; i++) {
+        const current = osVeiculo[i];
+        const prev = osVeiculo[i-1];
+        if (!current.DataEntrada || !prev.DataEntrada) continue;
+        const diff = (new Date(current.DataEntrada).getTime() - new Date(prev.DataEntrada).getTime()) / (1000 * 60 * 60 * 24);
+        if (diff <= 30 && current.TipoManutencao === prev.TipoManutencao) {
+          reincidencias++;
+        }
+      }
+    });
+    const taxaReincidencia = count > 0 ? (reincidencias / count) * 100 : 0;
+
+    // Preventiva vs Corretiva
+    const osPreventiva = filteredOS.filter(r => 
+      (r.TipoManutencao || '').toLowerCase().includes('preventiv') || 
+      (r.TipoOcorrencia || '').toLowerCase().includes('preventiv')
+    ).length;
+    const osCorretiva = count - osPreventiva;
+    const pctPreventiva = count > 0 ? (osPreventiva / count) * 100 : 0;
+
+    return { 
+      totalCost, avgCost, avgDays, stopped, cpk, count,
+      // Novos KPIs
+      mttr, mtbf, taxaReincidencia, osPreventiva, osCorretiva, pctPreventiva
+    };
   }, [filteredOS]);
 
   const monthlyData = useMemo(() => {
@@ -341,12 +402,37 @@ function MaintenanceDashboardContent(): JSX.Element {
 
       {activeTab === 0 && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* KPIs Principais */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card decoration="top" decorationColor="amber"><Text>Custo Total</Text><Metric>{fmtCompact(kpis.totalCost)}</Metric></Card>
             <Card decoration="top" decorationColor="blue"><Text>Ticket Médio</Text><Metric>{fmtBRL(kpis.avgCost)}</Metric></Card>
-            <Card decoration="top" decorationColor="emerald"><Text>MTTR (dias)</Text><Metric>{kpis.avgDays.toFixed(1)}</Metric></Card>
+            <Card decoration="top" decorationColor="emerald"><Text>MTTR (dias)</Text><Metric>{kpis.mttr.toFixed(1)}</Metric><Text className="text-xs text-slate-500">Tempo médio de reparo</Text></Card>
             <Card decoration="top" decorationColor="violet"><Text>Custo/KM</Text><Metric>{fmtBRL(kpis.cpk)}</Metric></Card>
             <Card decoration="top" decorationColor="rose"><Text>Em Manutenção</Text><Metric>{kpis.stopped}</Metric></Card>
+          </div>
+          
+          {/* Novos KPIs: MTBF, Reincidência, Preventiva vs Corretiva */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card decoration="top" decorationColor="cyan" className="bg-gradient-to-br from-cyan-50 to-white">
+              <Text className="font-medium">MTBF (dias)</Text>
+              <Metric className="text-cyan-700">{kpis.mtbf.toFixed(0)}</Metric>
+              <Text className="text-xs text-slate-500">Tempo médio entre falhas</Text>
+            </Card>
+            <Card decoration="top" decorationColor={kpis.taxaReincidencia <= 5 ? 'emerald' : kpis.taxaReincidencia <= 15 ? 'amber' : 'rose'} className="bg-gradient-to-br from-amber-50 to-white">
+              <Text className="font-medium">Taxa Reincidência</Text>
+              <Metric className={kpis.taxaReincidencia <= 5 ? 'text-emerald-700' : kpis.taxaReincidencia <= 15 ? 'text-amber-700' : 'text-rose-700'}>{kpis.taxaReincidencia.toFixed(1)}%</Metric>
+              <Text className="text-xs text-slate-500">OS repetidas em 30 dias</Text>
+            </Card>
+            <Card decoration="top" decorationColor="emerald" className="bg-gradient-to-br from-emerald-50 to-white">
+              <Text className="font-medium">Preventiva</Text>
+              <Metric className="text-emerald-700">{kpis.osPreventiva}</Metric>
+              <Text className="text-xs text-slate-500">{kpis.pctPreventiva.toFixed(1)}% do total</Text>
+            </Card>
+            <Card decoration="top" decorationColor="rose" className="bg-gradient-to-br from-rose-50 to-white">
+              <Text className="font-medium">Corretiva</Text>
+              <Metric className="text-rose-700">{kpis.osCorretiva}</Metric>
+              <Text className="text-xs text-slate-500">{(100 - kpis.pctPreventiva).toFixed(1)}% do total</Text>
+            </Card>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
