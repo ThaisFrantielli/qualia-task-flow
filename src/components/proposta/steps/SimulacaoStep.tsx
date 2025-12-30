@@ -55,12 +55,16 @@ export function SimulacaoStep({ veiculos }: SimulacaoStepProps) {
       0
     );
 
+    // custos_operacionais and custos_financeiros are total for the contract period, divide by prazo to get monthly
+    const custosOperacionaisMensais = (cenario.custos_operacionais || 0) / selectedPrazo;
+    const custosFinanceirosMensais = (cenario.custos_financeiros || 0) / selectedPrazo;
+    const custosMensais = custosOperacionaisMensais + custosFinanceirosMensais;
+
     const fluxo = calcularFluxoCaixa(
-      investimentoTotal,
+      selectedPrazo,
       receitaMensal,
-      cenario.custos_operacionais_mensais,
-      cenario.custos_financeiros_mensais,
-      selectedPrazo
+      custosMensais,
+      investimentoTotal
     );
 
     return fluxo.map((item) => ({

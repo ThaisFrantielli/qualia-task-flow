@@ -58,7 +58,6 @@ export function ParametrosTab() {
   }
 
   const formatPercent = (value: number) => (value * 100).toFixed(2);
-  const parsePercent = (value: string) => parseFloat(value) / 100;
 
   return (
     <div className="space-y-6 p-6">

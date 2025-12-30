@@ -36,12 +36,6 @@ function getYear(competencia: string): string {
   return competencia.substring(0, 4);
 }
 
-function formatMonthLabel(ym: string): string {
-  if (!ym || ym.length < 7) return ym;
-  const [y, m] = ym.split('-');
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${months[Number(m) - 1]}/${String(y).slice(2)}`;
-}
 
 function monthRange(startYm: string, endYm: string): string[] {
   const res: string[] = [];
@@ -133,7 +127,7 @@ export default function ContractAnalysisDashboard(): JSX.Element {
   const { data: rawData, loading } = useBIData<AnyObject[]>('agg_rentabilidade_contratos_mensal.json');
 
   // Granularidade da tabela histórica: 'mensal' ou 'anual'
-  const [granularidade, setGranularidade] = useState<'mensal' | 'anual'>('mensal');
+  const [granularidade] = useState<'mensal' | 'anual'>('mensal');
   // Normalizar dados
   const rentabilidadeData = useMemo(() => {
     if (!rawData) return [];
