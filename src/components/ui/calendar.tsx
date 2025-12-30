@@ -223,8 +223,30 @@ function isoToDatetimeLocal(iso?: string | null) {
 }
 function datetimeLocalToIso(input?: string | null) {
   if (!input) return null;
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input)) return `${input}:00`;
-  return input;
+  // datetime-local input retorna formato: YYYY-MM-DDTHH:mm
+  // Precisamos converter para um Date local e então para ISO com offset
+  try {
+    // Parse as local datetime
+    const match = input.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (match) {
+      const [, year, month, day, hour, minute, second] = match;
+      const localDate = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        second ? parseInt(second) : 0
+      );
+      // Retorna ISO com offset de timezone local
+      return dateToLocalISO(localDate);
+    }
+    // Se não casar o padrão, retorna como está
+    return input;
+  } catch (e) {
+    console.error('Erro convertendo datetime-local para ISO:', e);
+    return input;
+  }
 }
 
 // Normaliza strings de início/fim para o formato usado no formulário.
@@ -740,7 +762,7 @@ export default function CalendarApp(): JSX.Element {
             color: formColor || null,
             owner_id: user?.id || null,
             category_id: formCategoryId || null,
-            created_at: dateToLocalISO(new Date()),
+            created_at: new Date().toISOString(),
           };
 
           try {
@@ -817,7 +839,7 @@ export default function CalendarApp(): JSX.Element {
                 owner_id: user?.id || null,
                 category_id: formCategoryId || null,
                 task_id: newTask.id,
-                created_at: dateToLocalISO(new Date()),
+                created_at: new Date().toISOString(),
               };
 
               const { data: evData, error: evError } = await supabase.from('calendar_events').insert(eventPayload).select().single();
