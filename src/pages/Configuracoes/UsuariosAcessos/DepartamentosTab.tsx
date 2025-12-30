@@ -112,7 +112,7 @@ const DepartamentosTab: React.FC = () => {
       const toRemove = existing.filter(id => !teamMembersSelected.includes(id));
 
       if (toRemove.length > 0) {
-        const { error: delErr, data: delData } = await supabase
+        const { error: delErr } = await supabase
           .from('team_members')
           .delete()
           .eq('team_id', editingTeam.id)
@@ -126,7 +126,7 @@ const DepartamentosTab: React.FC = () => {
 
       if (toAdd.length > 0) {
         const inserts = toAdd.map((userId) => ({ team_id: editingTeam.id, user_id: userId }));
-        const { error: insErr, data: insData } = await supabase.from('team_members').insert(inserts);
+        const { error: insErr } = await supabase.from('team_members').insert(inserts);
         if (insErr) {
           console.error('Erro ao adicionar membros:', insErr, { toAdd });
           toast({ title: 'Erro ao adicionar membros', description: insErr.message || String(insErr), variant: 'destructive' });

@@ -11,7 +11,7 @@ import type { TaskWithDetails, TaskUpdateExtended } from '@/types';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getPriorityLabel } from '@/lib/utils';
-import { ClienteCombobox } from '@/components/common/ClienteCombobox';
+
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,6 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
       end_date: editedTask.end_date,
       project_id: editedTask.project_id,
       assignee_id: editedTask.assignee_id,
-      cliente_id: editedTask.cliente_id,
       category_id: editedTask.category_id,
       is_recurring: editedTask.is_recurring ?? false,
       recurrence_pattern: editedTask.recurrence_pattern ?? null,
@@ -232,17 +231,7 @@ const TaskDetailsContent: React.FC<TaskDetailsContentProps> = ({ task, onUpdate 
                     </div>
                   )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-6 pt-6 border-t rounded-2xl">
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground">Cliente</Label>
-                    {isEditing ? (
-                      <ClienteCombobox value={editedTask.cliente_id || null} onChange={(v) => handleInputChange('cliente_id', v)} />
-                    ) : (
-                      <div className="flex items-center gap-2 pt-2">
-                        <p>{task.cliente?.nome_fantasia || task.cliente?.razao_social || 'Nenhum cliente'}</p>
-                      </div>
-                    )}
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-6 border-t rounded-2xl">
                   <div className="space-y-1">
                     <Label className="text-muted-foreground">Responsável</Label>
                     {isEditing ? (
