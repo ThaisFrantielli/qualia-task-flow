@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useModelosVeiculos } from '@/hooks/useModelosVeiculos';
 import { useKmPackages } from '@/hooks/useKmPackages';
@@ -64,7 +63,7 @@ export function VeiculosStep({ veiculos, onChange }: VeiculosStepProps) {
       // Calcular aluguel sugerido automaticamente
       let aluguelSugerido = 0;
       if (params && valorAquisicao > 0) {
-        aluguelSugerido = calcularAluguelSugerido(valorAquisicao, params);
+        aluguelSugerido = calcularAluguelSugerido(valorAquisicao, 36, params);
       }
 
       updateVeiculo(index, {
@@ -82,7 +81,6 @@ export function VeiculosStep({ veiculos, onChange }: VeiculosStepProps) {
     const pkg = kmPackages.find((p) => p.id === packageId);
     if (pkg) {
       updateVeiculo(index, {
-        km_package_id: packageId,
         franquia_km: pkg.is_ilimitado ? 0 : pkg.km_mensal,
         valor_km_excedente: pkg.valor_km_adicional,
       });
@@ -241,7 +239,7 @@ export function VeiculosStep({ veiculos, onChange }: VeiculosStepProps) {
                   <div className="space-y-2 col-span-2">
                     <Label>Pacote de KM</Label>
                     <Select
-                      value={veiculo.km_package_id || ''}
+                      value={String(veiculo.franquia_km || '')}
                       onValueChange={(v) => handleKmPackageSelect(index, v)}
                     >
                       <SelectTrigger>
@@ -295,7 +293,7 @@ export function VeiculosStep({ veiculos, onChange }: VeiculosStepProps) {
                           franquia_km: parseInt(e.target.value) || 3000,
                         })
                       }
-                      disabled={!!veiculo.km_package_id}
+                      disabled={false}
                     />
                   </div>
                 </div>

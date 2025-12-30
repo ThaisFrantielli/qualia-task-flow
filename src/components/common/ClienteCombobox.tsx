@@ -126,12 +126,6 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
     return clean.slice(-4);
   };
 
-  const getPhoneSuffix = (cliente: Cliente) => {
-    const contato = cliente.cliente_contatos && cliente.cliente_contatos.length > 0 ? cliente.cliente_contatos[0].telefone_contato : null;
-    if (!contato) return '';
-    const clean = String(contato).replace(/\D/g, '');
-    return clean.slice(-4);
-  };
 
   return (
     <div className="flex items-center gap-2">
