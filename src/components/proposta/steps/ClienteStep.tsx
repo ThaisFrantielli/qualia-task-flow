@@ -2,8 +2,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Building2, User, Mail, Phone, MapPin, AlertCircle } from 'lucide-react';
+import { ClienteCombobox } from '@/components/common/ClienteCombobox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Proposta } from '@/types/proposta';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ClienteStepProps {
   data: Partial<Proposta>;
@@ -11,6 +15,48 @@ interface ClienteStepProps {
 }
 
 export function ClienteStep({ data, onChange }: ClienteStepProps) {
+  const [clienteExistente, setClienteExistente] = useState<any>(null);
+  
+  // Load cliente data if cliente_id is set
+  useEffect(() => {
+    if (data.cliente_id) {
+      supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', data.cliente_id)
+        .single()
+        .then(({ data: cliente }) => {
+          if (cliente) {
+            setClienteExistente(cliente);
+            // Auto-populate fields
+            onChange({
+              cliente_nome: cliente.razao_social || cliente.nome_fantasia,
+              cliente_cnpj: cliente.cnpj,
+              cliente_email: cliente.email_principal,
+              cliente_telefone: cliente.telefone_principal,
+              cliente_endereco: cliente.endereco_completo
+            });
+          }
+        });
+    }
+  }, [data.cliente_id]);
+
+  const handleClienteSelect = (clienteId: string | null) => {
+    onChange({ cliente_id: clienteId || undefined });
+  };
+
+  const handleManualInput = () => {
+    setClienteExistente(null);
+    onChange({ 
+      cliente_id: undefined,
+      cliente_nome: '',
+      cliente_cnpj: '',
+      cliente_email: '',
+      cliente_telefone: '',
+      cliente_endereco: ''
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -21,6 +67,31 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Cliente Selection */}
+          <div className="space-y-2">
+            <Label>Buscar Cliente Existente</Label>
+            <ClienteCombobox
+              value={data.cliente_id || null}
+              onChange={handleClienteSelect}
+              placeholder="Buscar cliente cadastrado..."
+            />
+            {data.cliente_id && clienteExistente && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Cliente vinculado: <strong>{clienteExistente.razao_social}</strong>
+                  <button
+                    type="button"
+                    onClick={handleManualInput}
+                    className="ml-2 text-sm underline hover:no-underline"
+                  >
+                    Desvincular e inserir manualmente
+                  </button>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cliente_nome">Razão Social / Nome *</Label>
@@ -29,6 +100,7 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
                 placeholder="Nome do cliente"
                 value={data.cliente_nome || ''}
                 onChange={(e) => onChange({ cliente_nome: e.target.value })}
+                disabled={!!data.cliente_id}
               />
             </div>
             <div className="space-y-2">
@@ -38,6 +110,7 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
                 placeholder="00.000.000/0000-00"
                 value={data.cliente_cnpj || ''}
                 onChange={(e) => onChange({ cliente_cnpj: e.target.value })}
+                disabled={!!data.cliente_id}
               />
             </div>
           </div>
@@ -54,6 +127,7 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
                 placeholder="email@empresa.com"
                 value={data.cliente_email || ''}
                 onChange={(e) => onChange({ cliente_email: e.target.value })}
+                disabled={!!data.cliente_id}
               />
             </div>
             <div className="space-y-2">
@@ -66,6 +140,7 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
                 placeholder="(00) 00000-0000"
                 value={data.cliente_telefone || ''}
                 onChange={(e) => onChange({ cliente_telefone: e.target.value })}
+                disabled={!!data.cliente_id}
               />
             </div>
           </div>
@@ -80,6 +155,7 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
               placeholder="Endereço completo do cliente"
               value={data.cliente_endereco || ''}
               onChange={(e) => onChange({ cliente_endereco: e.target.value })}
+              disabled={!!data.cliente_id}
             />
           </div>
         </CardContent>

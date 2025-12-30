@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { usePropostas } from '@/hooks/usePropostas';
 import { ClienteStep } from './steps/ClienteStep';
 import { VeiculosStep } from './steps/VeiculosStep';
@@ -211,7 +212,7 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
 
   const inner = (
     <>
-      <div className="max-w-5xl w-full flex flex-col">
+      <div className={cn("w-full flex flex-col", !asPage && "max-w-5xl")}>
         <div>
           <div className="mb-4">
             <h2 className="text-lg font-semibold">{propostaId ? 'Editar Proposta' : 'Nova Proposta Comercial'}</h2>

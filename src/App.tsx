@@ -54,11 +54,15 @@ import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
 import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
 import SalesDashboard from '@/pages/analytics/SalesDashboard';
 import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
+import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
 import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
 import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
 import DREDashboard from '@/pages/analytics/DREDashboard';
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
+import PropostasPage from '@/pages/PropostasPage';
+import PropostasFormPage from '@/pages/PropostasFormPage';
+import PrecificacaoConfigPage from '@/pages/PrecificacaoConfigPage';
 // removed unused analytics/page imports to satisfy typecheck
 import { useEnabledModules } from '@/modules/registry';
 import React from 'react';
@@ -130,13 +134,20 @@ function App() {
                 {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
                 {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
                 <Route path="clientes" element={<ClientsDashboard />} />
-                {/* Commercial dashboard moved to module registry */}
+                <Route path="comercial" element={<CommercialDashboard />} />
                 <Route path="executive" element={<ExecutiveDashboard />} />
                 <Route path="funding" element={<FundingDashboard />} />
                 <Route path="cliente" element={<CustomerAnalytics />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
+              
+              <Route path="/propostas" element={<PropostasPage />} />
+              <Route path="/propostas/nova" element={<PropostasFormPage />} />
+              <Route path="/propostas/:id" element={<PropostasFormPage />} />
+              
+              <Route path="/precificacao/config" element={<PrecificacaoConfigPage />} />
+              
               <Route path="/triagem" element={<FilaTriagem />} />
 
               <Route path="/pesquisas" element={<SurveyAdminPage />} />
