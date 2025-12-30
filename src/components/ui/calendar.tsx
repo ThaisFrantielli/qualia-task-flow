@@ -267,8 +267,20 @@ export default function CalendarApp(): JSX.Element {
   const handleDatesSet = useCallback((arg: any) => {
     try {
       setCalendarViewType(arg.view?.type || null);
-      // arg.start é o range start; para day view isso é a data do dia
-      setCalendarCurrentDate(arg.start ? new Date(arg.start) : null);
+      // arg.start é o range start; para exibir o mês correto (quando a grade inclui dias do mês anterior)
+      // calculamos a data do meio do intervalo visível e usamos ela como referência para o cabeçalho.
+      if (arg.start && arg.end) {
+        try {
+          const start = new Date(arg.start).getTime();
+          const end = new Date(arg.end).getTime();
+          const mid = new Date(Math.floor((start + end) / 2));
+          setCalendarCurrentDate(mid);
+        } catch {
+          setCalendarCurrentDate(new Date(arg.start));
+        }
+      } else {
+        setCalendarCurrentDate(arg.start ? new Date(arg.start) : null);
+      }
     } catch {
       // ignore
     }
