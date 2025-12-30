@@ -373,6 +373,7 @@ export type Database = {
       }
       calendar_events: {
         Row: {
+          category_id: string | null
           color: string | null
           created_at: string
           description: string | null
@@ -384,6 +385,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          category_id?: string | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -395,6 +397,7 @@ export type Database = {
           title: string
         }
         Update: {
+          category_id?: string | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -406,6 +409,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calendar_events_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calendar_events_task_id_fkey"
             columns: ["task_id"]
@@ -861,6 +871,45 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      km_packages: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          is_ilimitado: boolean | null
+          km_mensal: number
+          nome: string
+          ordem: number | null
+          updated_at: string | null
+          valor_km_adicional: number
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          is_ilimitado?: boolean | null
+          km_mensal: number
+          nome: string
+          ordem?: number | null
+          updated_at?: string | null
+          valor_km_adicional?: number
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          is_ilimitado?: boolean | null
+          km_mensal?: number
+          nome?: string
+          ordem?: number | null
+          updated_at?: string | null
+          valor_km_adicional?: number
         }
         Relationships: []
       }
@@ -1613,6 +1662,7 @@ export type Database = {
           portfolio_id: string | null
           privacy: string | null
           status: string | null
+          team_id: string | null
           updated_at: string
           user_id: string | null
         }
@@ -1627,6 +1677,7 @@ export type Database = {
           portfolio_id?: string | null
           privacy?: string | null
           status?: string | null
+          team_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1641,6 +1692,7 @@ export type Database = {
           portfolio_id?: string | null
           privacy?: string | null
           status?: string | null
+          team_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1650,6 +1702,13 @@ export type Database = {
             columns: ["portfolio_id"]
             isOneToOne: false
             referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -1830,6 +1889,7 @@ export type Database = {
           data_entrega_efetiva: string | null
           franquia_km: number | null
           id: string
+          km_package_id: string | null
           modelo_id: string | null
           modelo_nome: string
           montadora: string | null
@@ -1859,6 +1919,7 @@ export type Database = {
           data_entrega_efetiva?: string | null
           franquia_km?: number | null
           id?: string
+          km_package_id?: string | null
           modelo_id?: string | null
           modelo_nome: string
           montadora?: string | null
@@ -1888,6 +1949,7 @@ export type Database = {
           data_entrega_efetiva?: string | null
           franquia_km?: number | null
           id?: string
+          km_package_id?: string | null
           modelo_id?: string | null
           modelo_nome?: string
           montadora?: string | null
@@ -1905,6 +1967,13 @@ export type Database = {
             columns: ["cor_id"]
             isOneToOne: false
             referencedRelation: "modelo_cores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposta_veiculos_km_package_id_fkey"
+            columns: ["km_package_id"]
+            isOneToOne: false
+            referencedRelation: "km_packages"
             referencedColumns: ["id"]
           },
           {
@@ -1939,6 +2008,8 @@ export type Database = {
           data_criacao: string | null
           data_envio: string | null
           data_validade: string | null
+          fator_depreciacao_mensal: number | null
+          fuel_policy: string | null
           id: string
           indice_reajuste: string | null
           limite_app_passageiro: number | null
@@ -1961,12 +2032,14 @@ export type Database = {
           protecao_incendio: boolean | null
           protecao_roubo: boolean | null
           quantidade_veiculos: number | null
+          seasonal_factor: number | null
           status: string | null
           taxa_administracao_multas: number | null
           taxa_reembolsaveis: number | null
           updated_at: string | null
           valor_anual_total: number | null
           valor_mensal_total: number | null
+          valor_residual_percentual: number | null
           veiculos_provisorios: number | null
           vencimento_mensalidade: number | null
           vendedor_id: string | null
@@ -1987,6 +2060,8 @@ export type Database = {
           data_criacao?: string | null
           data_envio?: string | null
           data_validade?: string | null
+          fator_depreciacao_mensal?: number | null
+          fuel_policy?: string | null
           id?: string
           indice_reajuste?: string | null
           limite_app_passageiro?: number | null
@@ -2009,12 +2084,14 @@ export type Database = {
           protecao_incendio?: boolean | null
           protecao_roubo?: boolean | null
           quantidade_veiculos?: number | null
+          seasonal_factor?: number | null
           status?: string | null
           taxa_administracao_multas?: number | null
           taxa_reembolsaveis?: number | null
           updated_at?: string | null
           valor_anual_total?: number | null
           valor_mensal_total?: number | null
+          valor_residual_percentual?: number | null
           veiculos_provisorios?: number | null
           vencimento_mensalidade?: number | null
           vendedor_id?: string | null
@@ -2035,6 +2112,8 @@ export type Database = {
           data_criacao?: string | null
           data_envio?: string | null
           data_validade?: string | null
+          fator_depreciacao_mensal?: number | null
+          fuel_policy?: string | null
           id?: string
           indice_reajuste?: string | null
           limite_app_passageiro?: number | null
@@ -2057,12 +2136,14 @@ export type Database = {
           protecao_incendio?: boolean | null
           protecao_roubo?: boolean | null
           quantidade_veiculos?: number | null
+          seasonal_factor?: number | null
           status?: string | null
           taxa_administracao_multas?: number | null
           taxa_reembolsaveis?: number | null
           updated_at?: string | null
           valor_anual_total?: number | null
           valor_mensal_total?: number | null
+          valor_residual_percentual?: number | null
           veiculos_provisorios?: number | null
           vencimento_mensalidade?: number | null
           vendedor_id?: string | null
@@ -2796,6 +2877,42 @@ export type Database = {
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets_sla"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          id: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3999,7 +4116,13 @@ export type Database = {
       }
       is_member_of_project: { Args: { _project_id: string }; Returns: boolean }
       is_owner_of_project: { Args: { _project_id: string }; Returns: boolean }
-      is_user_admin: { Args: never; Returns: boolean }
+      is_user_admin:
+        | { Args: never; Returns: boolean }
+        | { Args: { user_id_text: string }; Returns: boolean }
+        | { Args: { user_uuid: string }; Returns: boolean }
+      is_user_supervisor:
+        | { Args: { user_id_text: string }; Returns: boolean }
+        | { Args: { user_uuid: string }; Returns: boolean }
       notify_sla_at_risk: { Args: never; Returns: undefined }
       notify_user: {
         Args: {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +33,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export function ModelosVeiculosTab() {
-  const { modelos, loading, refetch } = useModelosVeiculos();
+  const { modelos, isLoading: loading } = useModelosVeiculos();
+  const queryClient = useQueryClient();
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ['modelos_veiculos'] });
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -325,10 +328,10 @@ export function ModelosVeiculosTab() {
                   <TableCell className="capitalize">{modelo.categoria}</TableCell>
                   <TableCell className="text-right">{formatCurrency(modelo.preco_publico)}</TableCell>
                   <TableCell className="text-right text-green-600">
-                    {formatPercent(modelo.percentual_desconto)}
+                    {formatPercent(modelo.percentual_desconto ?? 0)}
                   </TableCell>
                   <TableCell className="text-right font-semibold">
-                    {formatCurrency(modelo.valor_final)}
+                    {formatCurrency(modelo.valor_final ?? 0)}
                   </TableCell>
                   <TableCell className="text-center">
                     {modelo.ativo ? (

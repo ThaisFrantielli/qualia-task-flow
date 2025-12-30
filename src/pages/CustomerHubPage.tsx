@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { useClientes } from '@/hooks/useClientes';
 import { CustomerListEnhanced, CustomerDisplayInfo } from '@/components/customer-management/CustomerListEnhanced';
 import { CustomerDetailRedesign } from '@/components/customer-management/CustomerDetailRedesign';
@@ -82,11 +81,10 @@ const CustomerHubPage: React.FC = () => {
           setIsModalOpen(true);
         } else {
           // tentar refetch e depois abrir (caso a lista ainda não tenha sido carregada)
-          refetch().then(() => {
-            const found2 = clientes.find((c) => c.id === openId);
-            setClienteToEdit(found2 || null);
-            setIsModalOpen(true);
-          });
+          refetch();
+          const found2 = clientes.find((c) => c.id === openId);
+          setClienteToEdit(found2 || null);
+          setIsModalOpen(true);
         }
         // remove query param
         const url2 = new URL(window.location.href);
