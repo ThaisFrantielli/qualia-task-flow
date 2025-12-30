@@ -82,7 +82,7 @@ const NotificationCenter = () => {
       case 'task_assigned':
       case 'task_completed':
         if (notification.task_id) {
-          navigate(`/tasks?taskId=${notification.task_id}`);
+          navigate(`/tasks/${notification.task_id}`);
         }
         break;
       case 'ticket_assigned':
@@ -107,16 +107,16 @@ const NotificationCenter = () => {
       case 'subtask_approved':
       case 'subtask_completed':
         if (data?.task_id) {
-          navigate(`/tasks?taskId=${data.task_id}`);
+          navigate(`/tasks/${data.task_id}`);
         } else if (notification.task_id) {
-          navigate(`/tasks?taskId=${notification.task_id}`);
+          navigate(`/tasks/${notification.task_id}`);
         }
         break;
       case 'mention':
         if (data?.context_type === 'pos_venda' && data?.context_id) {
           navigate(`/tickets?id=${data.context_id}`);
         } else if (data?.task_id) {
-          navigate(`/tasks?taskId=${data.task_id}`);
+          navigate(`/tasks/${data.task_id}`);
         }
         break;
       default:
