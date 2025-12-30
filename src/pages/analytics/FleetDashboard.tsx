@@ -207,13 +207,59 @@ export default function FleetDashboard(): JSX.Element {
     const fipeImprod = improdutiva.reduce((s, r) => s + parseCurrency(r.ValorFipeAtual), 0);
     const pctFipeImprod = fipeImprod > 0 ? (compraImprod / fipeImprod) * 100 : 0;
 
+    // NOVOS KPIs: TCO, ROI, Health Score
+    const tcoTotal = filteredData.reduce((s, r) => {
+      const compra = parseCurrency(r.ValorCompra);
+      const manut = manutencaoMap[r.Placa] || 0;
+      const fipe = parseCurrency(r.ValorFipeAtual);
+      const depreciacao = Math.max(0, compra - fipe);
+      return s + compra + manut + depreciacao - fipe;
+    }, 0);
+    const tcoMedio = total > 0 ? tcoTotal / total : 0;
+
+    // ROI médio estimado (baseado em receita potencial vs custo)
+    const receitaPotencialMensal = produtiva.reduce((s, r) => s + parseCurrency(r.ValorLocacao || 0), 0);
+    const custoMensalEstimado = tcoTotal / 36; // amortizado em 36 meses
+    const roiEstimado = custoMensalEstimado > 0 ? ((receitaPotencialMensal - custoMensalEstimado) / custoMensalEstimado) * 100 : 0;
+
+    // Health Score (0-100): Baseado em idade, passagens manutenção, % FIPE
+    const healthScoreCalc = (r: any) => {
+      let score = 100;
+      const idade = parseNum(r.IdadeVeiculo);
+      const passagens = manutencaoMap[r.Placa] ? 1 : 0; // simplificado - presença de manutenção
+      const pctFipe = parseCurrency(r.ValorFipeAtual) > 0 
+        ? (parseCurrency(r.ValorCompra) / parseCurrency(r.ValorFipeAtual)) * 100 
+        : 100;
+      
+      // Penaliza idade (cada 12 meses = -10 pontos)
+      score -= Math.min(40, Math.floor(idade / 12) * 10);
+      // Penaliza manutenção alta
+      if (passagens > 0) score -= 15;
+      // Penaliza depreciação alta (se compra > 120% FIPE)
+      if (pctFipe > 120) score -= 20;
+      else if (pctFipe > 110) score -= 10;
+      
+      return Math.max(0, Math.min(100, score));
+    };
+    const healthScoreTotal = filteredData.reduce((s, r) => s + healthScoreCalc(r), 0);
+    const healthScoreMedio = total > 0 ? healthScoreTotal / total : 0;
+
+    // Custo de ociosidade (improdutiva: valor locação potencial perdido)
+    const custoOciosidade = improdutiva.reduce((s, r) => {
+      const diasParado = parseNum(r.DiasNoStatus);
+      const valorDiario = parseCurrency(r.ValorLocacao || 0) / 30;
+      return s + (valorDiario * diasParado);
+    }, 0);
+
     return { 
       total, produtivaQtd: produtiva.length, improdutivaQtd: improdutiva.length, inativaQtd: inativa.length,
-            kmMedia, idadeMedia, taxaProdutividade, taxaImprodutiva,
+      kmMedia, idadeMedia, taxaProdutividade, taxaImprodutiva,
       compraProd, fipeProd, pctFipeProd,
-      compraImprod, fipeImprod, pctFipeImprod
+      compraImprod, fipeImprod, pctFipeImprod,
+      // Novos KPIs
+      tcoTotal, tcoMedio, roiEstimado, healthScoreMedio, custoOciosidade
     };
-  }, [filteredData]);
+  }, [filteredData, manutencaoMap]);
 
     // Breakdown of 'Improdutiva' sub-statuses (counts and percentage of the improdutiva group)
     const improdutivaBreakdown = useMemo(() => {
@@ -720,12 +766,37 @@ export default function FleetDashboard(): JSX.Element {
         </TabsList>
 
         <TabsContent value="visao-geral" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Card decoration="top" decorationColor="blue"><Text>Total Frota Filtrada</Text><Metric>{fmtDecimal(kpis.total)}</Metric></Card>
-            <Card decoration="top" decorationColor="emerald"><Text>Produtiva</Text><Metric>{fmtDecimal(kpis.produtivaQtd)}</Metric></Card>
-            <Card decoration="top" decorationColor="rose"><Text>Improdutiva</Text><Metric>{fmtDecimal(kpis.improdutivaQtd)}</Metric></Card>
+          {/* KPIs Principais */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <Card decoration="top" decorationColor="blue"><Text>Total Frota</Text><Metric>{fmtDecimal(kpis.total)}</Metric></Card>
+            <Card decoration="top" decorationColor="emerald"><Text>Produtiva</Text><Metric>{fmtDecimal(kpis.produtivaQtd)}</Metric><Text className="text-xs text-emerald-600">{kpis.taxaProdutividade.toFixed(1)}%</Text></Card>
+            <Card decoration="top" decorationColor="rose"><Text>Improdutiva</Text><Metric>{fmtDecimal(kpis.improdutivaQtd)}</Metric><Text className="text-xs text-rose-600">{kpis.taxaImprodutiva.toFixed(1)}%</Text></Card>
             <Card decoration="top" decorationColor="slate"><Text>Inativa</Text><Metric>{fmtDecimal(kpis.inativaQtd)}</Metric></Card>
             <Card decoration="top" decorationColor="violet"><Text>Idade Média</Text><Metric>{kpis.idadeMedia.toFixed(1)} m</Metric></Card>
+          </div>
+          
+          {/* Novos KPIs: TCO, ROI, Health Score, Custo Ociosidade */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card decoration="top" decorationColor="amber" className="bg-gradient-to-br from-amber-50 to-white">
+              <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-amber-600"/><Text className="font-medium">TCO Médio</Text></div>
+              <Metric className="text-amber-700">{fmtCompact(kpis.tcoMedio)}</Metric>
+              <Text className="text-xs text-slate-500">Custo Total de Propriedade</Text>
+            </Card>
+            <Card decoration="top" decorationColor={kpis.roiEstimado >= 0 ? 'emerald' : 'rose'} className="bg-gradient-to-br from-emerald-50 to-white">
+              <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-emerald-600"/><Text className="font-medium">ROI Estimado</Text></div>
+              <Metric className={kpis.roiEstimado >= 0 ? 'text-emerald-700' : 'text-rose-700'}>{kpis.roiEstimado.toFixed(1)}%</Metric>
+              <Text className="text-xs text-slate-500">Retorno sobre investimento</Text>
+            </Card>
+            <Card decoration="top" decorationColor={kpis.healthScoreMedio >= 70 ? 'emerald' : kpis.healthScoreMedio >= 50 ? 'amber' : 'rose'} className="bg-gradient-to-br from-blue-50 to-white">
+              <div className="flex items-center gap-2 mb-1"><Info className="w-4 h-4 text-blue-600"/><Text className="font-medium">Health Score</Text></div>
+              <Metric className={kpis.healthScoreMedio >= 70 ? 'text-emerald-700' : kpis.healthScoreMedio >= 50 ? 'text-amber-700' : 'text-rose-700'}>{kpis.healthScoreMedio.toFixed(0)}/100</Metric>
+              <Text className="text-xs text-slate-500">Saúde média da frota</Text>
+            </Card>
+            <Card decoration="top" decorationColor="rose" className="bg-gradient-to-br from-rose-50 to-white">
+              <div className="flex items-center gap-2 mb-1"><FlagOff className="w-4 h-4 text-rose-600"/><Text className="font-medium">Custo Ociosidade</Text></div>
+              <Metric className="text-rose-700">{fmtCompact(kpis.custoOciosidade)}</Metric>
+              <Text className="text-xs text-slate-500">Receita perdida (improdutiva)</Text>
+            </Card>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
