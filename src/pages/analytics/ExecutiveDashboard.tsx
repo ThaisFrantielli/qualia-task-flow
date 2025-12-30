@@ -39,7 +39,16 @@ export default function ExecutiveDashboard(): JSX.Element {
 
   const { filters, clearFilter, clearAllFilters, hasActiveFilters } = useChartFilter();
 
-  // Scorecard Principal
+  // Metas configuráveis (podem vir de config futuramente)
+  const metas = {
+    utilizacao: 85,      // % utilização frota
+    margemOperacional: 25, // % margem
+    inadimplencia: 5,    // % máximo inadimplência
+    churnMensal: 2,      // % máximo churn
+    scoreQualidade: 90   // score mínimo auditoria
+  };
+
+  // Scorecard Principal com semáforo
   const scorecard = useMemo(() => {
     const totalFrota = frota.length;
     const locados = frota.filter(v => v.Status === 'Locado').length;
@@ -47,25 +56,41 @@ export default function ExecutiveDashboard(): JSX.Element {
     
     const receitaTotal = faturamento.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
     const custoManutencao = manutencao.reduce((s, m) => s + parseCurrency(m.ValorTotal), 0);
+    const margemOperacional = receitaTotal > 0 ? ((receitaTotal - custoManutencao) / receitaTotal) * 100 : 0;
     
     const contratosAtivos = contratos.filter(c => c.Status === 'Ativo').length;
     const clientesAtivos = clientes.filter(c => c.ContratosAtivos > 0).length;
     
     const saldoDevedor = inadimplencia.reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
     const totalVencido = inadimplencia.filter(i => i.DiasAtraso > 0).reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
+    const percInadimplencia = receitaTotal > 0 ? (totalVencido / receitaTotal) * 100 : 0;
     
     const churnCount = churn.length;
     const alertasAlta = auditoria.filter(a => a.Gravidade === 'Alta').length;
+    const alertasMedia = auditoria.filter(a => a.Gravidade === 'Média').length;
+    const scoreQualidade = Math.max(0, 100 - (alertasAlta * 5) - (alertasMedia * 2));
     
     const propostasAbertas = propostas.filter(p => p.Status === 'Aberta' || p.Status === 'Em Negociação').length;
     const valorPipeline = propostas.filter(p => p.Status !== 'Perdida').reduce((s, p) => s + parseCurrency(p.ValorProposta), 0);
 
+    // Semáforos: verde = meta atingida, amarelo = próximo, vermelho = crítico
+    const getSemaforo = (valor: number, meta: number, inverso = false) => {
+      if (inverso) {
+        if (valor <= meta) return 'verde';
+        if (valor <= meta * 1.5) return 'amarelo';
+        return 'vermelho';
+      }
+      if (valor >= meta) return 'verde';
+      if (valor >= meta * 0.8) return 'amarelo';
+      return 'vermelho';
+    };
+
     return { 
-      frota: { total: totalFrota, locados, utilizacao }, 
-      financeiro: { receitaTotal, custoManutencao, saldoDevedor, totalVencido }, 
+      frota: { total: totalFrota, locados, utilizacao, semaforo: getSemaforo(utilizacao, metas.utilizacao) }, 
+      financeiro: { receitaTotal, custoManutencao, saldoDevedor, totalVencido, margemOperacional, percInadimplencia, semaforoMargem: getSemaforo(margemOperacional, metas.margemOperacional), semaforoInadimplencia: getSemaforo(percInadimplencia, metas.inadimplencia, true) }, 
       clientes: { ativos: clientesAtivos, contratosAtivos, churnCount }, 
       comercial: { propostasAbertas, valorPipeline },
-      auditoria: { alta: alertasAlta } 
+      auditoria: { alta: alertasAlta, scoreQualidade, semaforo: getSemaforo(scoreQualidade, metas.scoreQualidade) } 
     };
   }, [frota, faturamento, manutencao, contratos, clientes, inadimplencia, churn, propostas, auditoria]);
 
@@ -161,21 +186,30 @@ export default function ExecutiveDashboard(): JSX.Element {
         ))}
       </div>
 
-      {/* Scorecard */}
+      {/* Scorecard com Semáforo */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        <Card decoration="top" decorationColor="emerald" className="bg-white shadow-sm">
-          <div className="flex items-center gap-2 mb-2"><Car className="w-4 h-4 text-emerald-600" /><Text className="text-slate-500">Frota</Text></div>
+        <Card decoration="top" decorationColor={scorecard.frota.semaforo === 'verde' ? 'emerald' : scorecard.frota.semaforo === 'amarelo' ? 'amber' : 'rose'} className="bg-white shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <Car className="w-4 h-4 text-emerald-600" />
+            <Text className="text-slate-500">Frota</Text>
+            <div className={`w-3 h-3 rounded-full ml-auto ${scorecard.frota.semaforo === 'verde' ? 'bg-emerald-500' : scorecard.frota.semaforo === 'amarelo' ? 'bg-amber-500' : 'bg-rose-500'}`} title={`Meta: ${metas.utilizacao}%`} />
+          </div>
           <Metric>{scorecard.frota.total}</Metric>
-          <span className="text-sm text-emerald-600">{scorecard.frota.utilizacao.toFixed(1)}% locado</span>
+          <span className={`text-sm ${scorecard.frota.semaforo === 'verde' ? 'text-emerald-600' : scorecard.frota.semaforo === 'amarelo' ? 'text-amber-600' : 'text-rose-600'}`}>{scorecard.frota.utilizacao.toFixed(1)}% locado</span>
+          <Text className="text-xs text-slate-400">Meta: {metas.utilizacao}%</Text>
         </Card>
 
-        <Card decoration="top" decorationColor="blue" className="bg-white shadow-sm">
+        <Card decoration="top" decorationColor={scorecard.financeiro.semaforoMargem === 'verde' ? 'emerald' : scorecard.financeiro.semaforoMargem === 'amarelo' ? 'amber' : 'rose'} className="bg-white shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 text-blue-600" /><Text className="text-slate-500">Receita</Text></div>
-            {trends.trendReceita >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-600" /> : <TrendingDown className="w-4 h-4 text-red-600" />}
+            <div className="flex items-center gap-1">
+              {trends.trendReceita >= 0 ? <TrendingUp className="w-4 h-4 text-emerald-600" /> : <TrendingDown className="w-4 h-4 text-red-600" />}
+              <div className={`w-3 h-3 rounded-full ${scorecard.financeiro.semaforoMargem === 'verde' ? 'bg-emerald-500' : scorecard.financeiro.semaforoMargem === 'amarelo' ? 'bg-amber-500' : 'bg-rose-500'}`} title={`Meta Margem: ${metas.margemOperacional}%`} />
+            </div>
           </div>
           <Metric>{fmtCompact(scorecard.financeiro.receitaTotal)}</Metric>
           <span className={`text-sm ${trends.trendReceita >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{trends.trendReceita >= 0 ? '+' : ''}{trends.trendReceita.toFixed(1)}%</span>
+          <Text className="text-xs text-slate-400">Margem: {scorecard.financeiro.margemOperacional.toFixed(1)}%</Text>
         </Card>
 
         <Card decoration="top" decorationColor="amber" className="bg-white shadow-sm">
@@ -199,12 +233,35 @@ export default function ExecutiveDashboard(): JSX.Element {
           <span className="text-sm text-pink-600">{scorecard.comercial.propostasAbertas} propostas</span>
         </Card>
 
-        <Card decoration="top" decorationColor="rose" className="bg-white shadow-sm">
-          <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4 text-rose-600" /><Text className="text-slate-500">Inadimplência</Text></div>
-          <Metric className="text-red-600">{fmtCompact(scorecard.financeiro.totalVencido)}</Metric>
-          <span className="text-sm text-slate-500">de {fmtCompact(scorecard.financeiro.saldoDevedor)} total</span>
+        <Card decoration="top" decorationColor={scorecard.financeiro.semaforoInadimplencia === 'verde' ? 'emerald' : scorecard.financeiro.semaforoInadimplencia === 'amarelo' ? 'amber' : 'rose'} className="bg-white shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
+            <Text className="text-slate-500">Inadimplência</Text>
+            <div className={`w-3 h-3 rounded-full ml-auto ${scorecard.financeiro.semaforoInadimplencia === 'verde' ? 'bg-emerald-500' : scorecard.financeiro.semaforoInadimplencia === 'amarelo' ? 'bg-amber-500' : 'bg-rose-500'}`} title={`Meta: < ${metas.inadimplencia}%`} />
+          </div>
+          <Metric className={scorecard.financeiro.semaforoInadimplencia === 'verde' ? 'text-emerald-600' : 'text-rose-600'}>{scorecard.financeiro.percInadimplencia.toFixed(1)}%</Metric>
+          <span className="text-sm text-slate-500">{fmtCompact(scorecard.financeiro.totalVencido)} vencido</span>
+          <Text className="text-xs text-slate-400">Meta: &lt;{metas.inadimplencia}%</Text>
         </Card>
       </div>
+
+      {/* Score de Qualidade de Dados */}
+      <Card decoration="left" decorationColor={scorecard.auditoria.semaforo === 'verde' ? 'emerald' : scorecard.auditoria.semaforo === 'amarelo' ? 'amber' : 'rose'} className="bg-white shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${scorecard.auditoria.semaforo === 'verde' ? 'bg-emerald-100' : scorecard.auditoria.semaforo === 'amarelo' ? 'bg-amber-100' : 'bg-rose-100'}`}>
+              <span className={`text-2xl font-bold ${scorecard.auditoria.semaforo === 'verde' ? 'text-emerald-600' : scorecard.auditoria.semaforo === 'amarelo' ? 'text-amber-600' : 'text-rose-600'}`}>{scorecard.auditoria.scoreQualidade}%</span>
+            </div>
+            <div>
+              <Title className="text-slate-900">Score de Qualidade de Dados</Title>
+              <Text className="text-slate-500">{scorecard.auditoria.alta} erros críticos pendentes • Meta: {metas.scoreQualidade}%</Text>
+            </div>
+          </div>
+          <Link to="/analytics/auditoria" className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+            Ver detalhes <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 bg-white shadow-sm">
