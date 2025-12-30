@@ -9,7 +9,8 @@ type BIResult<T = any> = {
 
 const PROJECT_REF = 'apqrjkobktjcyrxhqwtm';
 const BASE_URL = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/bi-reports`;
-const YEARS_TO_FETCH = [2020, 2021, 2022, 2023, 2024, 2025];
+const YEARS_TO_FETCH = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
+const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
 async function fetchFile(fileName: string, signal?: AbortSignal) {
   const url = `${BASE_URL}/${fileName}?t=${Date.now()}`;
@@ -38,8 +39,31 @@ export default function useBIData<T = any>(fileName: string): BIResult<T> {
         let finalData: any = null;
         let finalMeta: any = {};
 
-        // MODO SHARDING (Se tiver '*')
-        if (fileName.includes('*')) {
+        // MODO SHARDING MENSAL (fat_financeiro_universal_*_*.json)
+        if (fileName.includes('*_*')) {
+          const promises = YEARS_TO_FETCH.flatMap(year =>
+            MONTHS.map(month => {
+              const file = fileName.replace('*_*', `${year}_${month}`);
+              return fetchFile(file, controller.signal);
+            })
+          );
+
+          const results = await Promise.allSettled(promises);
+          const combinedArray: any[] = [];
+
+          results.forEach(res => {
+            if (res.status === 'fulfilled' && res.value) {
+              const json = res.value;
+              const payloadData = json?.data ?? json;
+              if (Array.isArray(payloadData)) {
+                combinedArray.push(...payloadData);
+              }
+            }
+          });
+          finalData = combinedArray;
+        }
+        // MODO SHARDING ANUAL (fat_faturamento_*.json)
+        else if (fileName.includes('*')) {
           const promises = YEARS_TO_FETCH.map(year => {
             const file = fileName.replace('*', String(year));
             return fetchFile(file, controller.signal);
