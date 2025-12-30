@@ -51,6 +51,11 @@ type AppEvent = {
   team_id?: string | null; // team associada
   is_private?: boolean | null; // visibilidade particular
   task_id?: string | null; // link com task
+  // filter-related (para aplicar filtros laterais)
+  status?: string | null;
+  project_id?: string | null;
+  category_id?: string | null;
+  assignee_id?: string | null;
 };
 
 // -------------------- Micro-componentes (no mesmo arquivo para facilitar copy/paste) --------------------
@@ -468,34 +473,71 @@ export default function CalendarApp(): JSX.Element {
         assignee_id: t.assignee_id || (t.assignee && t.assignee.id) || null,
         team_id: t.project && (t.project as any).team_id || null,
         task_id: t.id,
+        // incluir metadados de filtro
+        status: t.status || null,
+        project_id: t.project_id || null,
+        category_id: t.category_id || (t.category && t.category.id) || null,
       } as AppEvent))
       .filter((e: any) => canViewItem(e));
-  }, [tasks, filterStatus, filterProject, filterTeam]);
+  }, [tasks, filterStatus, filterProject, filterTeam, filterCategory]);
 
   // Merge events: sample, calendarEvents, tasks
   const events = useMemo(() => {
     const prefixedSample = sampleEvents.map(e => ({ ...e, id: `s-${e.id}` }));
-    const merged = [...prefixedSample, ...calendarEvents, ...taskEvents];
+    
+    // Enriquecer calendarEvents com dados da task vinculada (se houver)
+    const enrichedCalendarEvents = calendarEvents.map((ce: any) => {
+      if (!ce.task_id) return ce;
+      const linkedTask = (tasks || []).find((t: any) => t.id === ce.task_id);
+      if (!linkedTask) return ce;
+      // herdar atributos de filtro da task vinculada
+      return {
+        ...ce,
+        status: linkedTask.status || null,
+        project_id: linkedTask.project_id || null,
+        team_id: linkedTask.project && (linkedTask.project as any).team_id || null,
+        category_id: ce.category_id || linkedTask.category_id || (linkedTask.category && linkedTask.category.id) || null,
+      };
+    });
+    
+    const merged = [...prefixedSample, ...enrichedCalendarEvents, ...taskEvents];
+    
     // aplicar filtro de visibilidade: manter sample sempre, verificar os demais
     const visible = merged.filter((e: any) => {
       if (String(e.id).startsWith('s-')) return true;
       return canViewItem(e);
     });
-    // Aplicar filtro por categoria (se selecionada)
-    const filteredByCategory = (filterCategory === 'all')
-      ? visible
-      : (() => {
-          const taskIdsWithCategory = new Set((taskEvents || []).map((te: any) => te.task_id));
-          return visible.filter((e: any) => {
-            // se evento tem category_id direto (calendar_events), usa isso
-            if (e.category_id) return String(e.category_id) === String(filterCategory);
-            // se evento está vinculado a uma task que passou pelo filtro, mantém
-            if (e.task_id && taskIdsWithCategory.has(e.task_id)) return true;
-            return false;
-          });
-        })();
+    
+    // Aplicar filtros laterais (Status, Projeto, Equipe, Categoria)
+    const filtered = visible.filter((e: any) => {
+      // sample events sempre visíveis
+      if (String(e.id).startsWith('s-')) return true;
+      
+      // Filtro Status
+      if (filterStatus !== 'all') {
+        if (!e.status || e.status !== filterStatus) return false;
+      }
+      
+      // Filtro Projeto
+      if (filterProject !== 'all') {
+        if (!e.project_id || e.project_id !== filterProject) return false;
+      }
+      
+      // Filtro Equipe
+      if (filterTeam !== 'all') {
+        if (!e.team_id || e.team_id !== filterTeam) return false;
+      }
+      
+      // Filtro Categoria
+      if (filterCategory !== 'all') {
+        if (!e.category_id || String(e.category_id) !== String(filterCategory)) return false;
+      }
+      
+      return true;
+    });
+    
     const map = new Map<string, AppEvent>();
-    for (const e of filteredByCategory) {
+    for (const e of filtered) {
       const key = `${e.title}|${e.start}`;
       if (!map.has(key)) map.set(key, e);
     }
@@ -517,7 +559,7 @@ export default function CalendarApp(): JSX.Element {
     };
 
     return Array.from(map.values()).map(ev => ({ ...ev, start: String(ev.id).startsWith('ce-') ? normalizeStart(ev.start) : ev.start }));
-  }, [sampleEvents, calendarEvents, taskEvents]);
+  }, [sampleEvents, calendarEvents, taskEvents, filterStatus, filterProject, filterTeam, filterCategory, tasks]);
 
   // -------------------- Handlers --------------------
   const handleSelect = useCallback((info: DateSelectArg) => {
