@@ -257,7 +257,7 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
           toast.success("Cliente criado com sucesso!");
       }
         if (typeof onSave === 'function') {
-          try { onSave((newCliente as any)?.id); } catch { onSave(); }
+          try { onSave(); } catch { onSave(); }
         }
       onClose();
     } catch (error: any) {
