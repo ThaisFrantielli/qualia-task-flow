@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign, Car, FileCheck
+  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign, Car, FileCheck, AlertTriangle
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -78,19 +78,18 @@ const baseMenuGroups: MenuGroup[] = [
           { label: 'Vendas', url: '/analytics/vendas', icon: TrendingUp },
         ]
       },
-      { 
-        label: 'Comercial', 
-        url: '/analytics/comercial', 
-        icon: Target,
-        children: [
-          { label: 'Pipeline', url: '/analytics/comercial', icon: Target },
-          { label: 'Propostas', url: '/propostas', icon: FileCheck },
-          { label: 'Contratos', url: '/analytics/contratos', icon: FileText },
-          { label: 'Análise de Contrato', url: '/analytics/analise-contratos', icon: BarChart3 },
-          { label: 'Clientes', url: '/analytics/clientes', icon: Users },
-          { label: 'Cancelamentos', url: '/analytics/churn', icon: Users },
-        ]
-      },
+    ]
+  },
+  {
+    title: 'COMERCIAL',
+    items: [
+      { label: 'Pipeline', url: '/analytics/comercial', icon: Target, permissionKey: 'crm' },
+      { label: 'Propostas', url: '/propostas', icon: FileCheck, permissionKey: 'crm' },
+      { label: 'Precificação', url: '/precificacao/config', icon: DollarSign, permissionKey: 'crm' },
+      { label: 'Contratos', url: '/analytics/contratos', icon: FileText, permissionKey: 'crm' },
+      { label: 'Análise de Contrato', url: '/analytics/analise-contratos', icon: BarChart3, permissionKey: 'crm' },
+      { label: 'Clientes', url: '/analytics/clientes', icon: Users, permissionKey: 'crm' },
+      { label: 'Cancelamentos', url: '/analytics/churn', icon: AlertTriangle, permissionKey: 'crm' },
     ]
   },
   {
@@ -110,6 +109,7 @@ const baseMenuGroups: MenuGroup[] = [
       { label: 'Ajustes Pessoais', url: '/settings', icon: Settings },
       { label: 'Usuários & Acessos', url: '/configuracoes/usuarios-acessos', icon: Users, permissionKey: 'team' },
       { label: 'Modelos de Veículos', url: '/configuracoes/modelos-veiculos', icon: Car, permissionKey: 'team' },
+      { label: 'Precificação', url: '/precificacao/config', icon: DollarSign, permissionKey: 'team' },
       { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
       { label: 'Motivos de Tickets', url: '/configuracoes/ticket-motivos', icon: Ticket, permissionKey: 'team' },
       { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
