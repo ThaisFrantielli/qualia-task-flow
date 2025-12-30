@@ -64,7 +64,26 @@ export default function FinancialDashboard(): JSX.Element {
     const dreDespesa = dreData.reduce((s, d) => s + parseCurrency(d.Despesa), 0);
     const margemOperacional = dreReceita > 0 ? ((dreReceita - dreDespesa) / dreReceita) * 100 : 0;
 
-    return { receitaTotal, receitaLocacao, saldoDevedor, totalVencido, dreReceita, dreDespesa, margemOperacional };
+    // NOVOS KPIs: EBITDA, DMR (Dias Médios de Recebimento)
+    const ebitda = dreReceita - dreDespesa; // Simplificado - resultado operacional
+    
+    // DMR: Média ponderada de dias de atraso
+    const totalSaldo = filteredInadimplencia.reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
+    const somaDiasPonderado = filteredInadimplencia.reduce((s, i) => {
+      const dias = Math.max(0, i.DiasAtraso || 0);
+      const saldo = parseCurrency(i.SaldoDevedor);
+      return s + (dias * saldo);
+    }, 0);
+    const dmr = totalSaldo > 0 ? somaDiasPonderado / totalSaldo : 0;
+
+    // Taxa de inadimplência
+    const taxaInadimplencia = receitaTotal > 0 ? (totalVencido / receitaTotal) * 100 : 0;
+
+    return { 
+      receitaTotal, receitaLocacao, saldoDevedor, totalVencido, dreReceita, dreDespesa, margemOperacional,
+      // Novos KPIs
+      ebitda, dmr, taxaInadimplencia
+    };
   }, [filteredFaturamento, filteredInadimplencia, dreData]);
 
   const faturamentoMensal = useMemo(() => {
@@ -115,7 +134,33 @@ export default function FinancialDashboard(): JSX.Element {
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
   }, [dreData]);
 
-  const tabs = ['Visão Geral', 'DRE', 'Inadimplência', 'Detalhamento'];
+  // Cash Flow Data
+  const cashFlowData = useMemo(() => {
+    const map: Record<string, { entradas: number; saidas: number }> = {};
+    dreData.forEach(d => {
+      const k = d.Competencia;
+      if (!k) return;
+      if (!map[k]) map[k] = { entradas: 0, saidas: 0 };
+      map[k].entradas += parseCurrency(d.Receita);
+      map[k].saidas += parseCurrency(d.Despesa);
+    });
+    
+    let saldoAcumulado = 0;
+    return Object.keys(map).sort().slice(-12).map(k => {
+      const fluxo = map[k].entradas - map[k].saidas;
+      saldoAcumulado += fluxo;
+      return { 
+        mes: k, 
+        label: monthLabel(k), 
+        Entradas: map[k].entradas, 
+        Saídas: map[k].saidas, 
+        Fluxo: fluxo,
+        Acumulado: saldoAcumulado
+      };
+    });
+  }, [dreData]);
+
+  const tabs = ['Visão Geral', 'DRE', 'Cash Flow', 'Inadimplência', 'Detalhamento'];
 
   if (l1) return <div className="bg-slate-50 min-h-screen p-6 flex items-center justify-center"><div className="animate-pulse text-slate-500">Carregando dados financeiros...</div></div>;
 
@@ -137,11 +182,31 @@ export default function FinancialDashboard(): JSX.Element {
 
       {activeTab === 0 && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* KPIs Principais */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card decoration="top" decorationColor="blue"><Text>Receita Total</Text><Metric>{fmtCompact(kpis.receitaTotal)}</Metric></Card>
             <Card decoration="top" decorationColor="emerald"><Text>Margem Operacional</Text><Metric className={kpis.margemOperacional >= 0 ? 'text-emerald-600' : 'text-red-600'}>{kpis.margemOperacional.toFixed(1)}%</Metric></Card>
             <Card decoration="top" decorationColor="amber"><Text>Saldo Devedor</Text><Metric>{fmtCompact(kpis.saldoDevedor)}</Metric></Card>
             <Card decoration="top" decorationColor="rose"><Text>Vencido (+0 dias)</Text><Metric className="text-red-600">{fmtCompact(kpis.totalVencido)}</Metric></Card>
+          </div>
+          
+          {/* Novos KPIs: EBITDA, DMR, Taxa Inadimplência */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Card decoration="top" decorationColor="indigo" className="bg-gradient-to-br from-indigo-50 to-white">
+              <Text className="font-medium">EBITDA</Text>
+              <Metric className={kpis.ebitda >= 0 ? 'text-indigo-700' : 'text-rose-700'}>{fmtCompact(kpis.ebitda)}</Metric>
+              <Text className="text-xs text-slate-500">Resultado operacional</Text>
+            </Card>
+            <Card decoration="top" decorationColor="cyan" className="bg-gradient-to-br from-cyan-50 to-white">
+              <Text className="font-medium">DMR (dias)</Text>
+              <Metric className="text-cyan-700">{kpis.dmr.toFixed(0)}</Metric>
+              <Text className="text-xs text-slate-500">Dias médios de recebimento</Text>
+            </Card>
+            <Card decoration="top" decorationColor={kpis.taxaInadimplencia <= 5 ? 'emerald' : kpis.taxaInadimplencia <= 15 ? 'amber' : 'rose'} className="bg-gradient-to-br from-amber-50 to-white">
+              <Text className="font-medium">Taxa Inadimplência</Text>
+              <Metric className={kpis.taxaInadimplencia <= 5 ? 'text-emerald-700' : kpis.taxaInadimplencia <= 15 ? 'text-amber-700' : 'text-rose-700'}>{kpis.taxaInadimplencia.toFixed(1)}%</Metric>
+              <Text className="text-xs text-slate-500">Vencido / Receita</Text>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -259,7 +324,76 @@ export default function FinancialDashboard(): JSX.Element {
         </div>
       )}
 
+      {/* Cash Flow Tab */}
       {activeTab === 2 && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card decoration="top" decorationColor="emerald">
+              <Text className="font-medium">Total Entradas</Text>
+              <Metric className="text-emerald-700">{fmtCompact(cashFlowData.reduce((s, d) => s + d.Entradas, 0))}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="rose">
+              <Text className="font-medium">Total Saídas</Text>
+              <Metric className="text-rose-700">{fmtCompact(cashFlowData.reduce((s, d) => s + d.Saídas, 0))}</Metric>
+            </Card>
+            <Card decoration="top" decorationColor="blue">
+              <Text className="font-medium">Fluxo Líquido</Text>
+              <Metric className={cashFlowData.reduce((s, d) => s + d.Fluxo, 0) >= 0 ? 'text-blue-700' : 'text-rose-700'}>
+                {fmtCompact(cashFlowData.reduce((s, d) => s + d.Fluxo, 0))}
+              </Metric>
+            </Card>
+            <Card decoration="top" decorationColor="violet">
+              <Text className="font-medium">Saldo Acumulado</Text>
+              <Metric className={cashFlowData.length > 0 && cashFlowData[cashFlowData.length - 1].Acumulado >= 0 ? 'text-violet-700' : 'text-rose-700'}>
+                {cashFlowData.length > 0 ? fmtCompact(cashFlowData[cashFlowData.length - 1].Acumulado) : 'R$ 0'}
+              </Metric>
+            </Card>
+          </div>
+
+          <Card>
+            <Title>Fluxo de Caixa Mensal (12 meses)</Title>
+            <div className="h-80 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={cashFlowData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                  <XAxis dataKey="label" fontSize={12}/>
+                  <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact}/>
+                  <YAxis yAxisId="right" orientation="right" fontSize={12} tickFormatter={fmtCompact}/>
+                  <Tooltip formatter={(v: any) => fmtBRL(v)}/>
+                  <Legend/>
+                  <Bar yAxisId="left" dataKey="Entradas" fill="#10b981" radius={[4,4,0,0]}/>
+                  <Bar yAxisId="left" dataKey="Saídas" fill="#ef4444" radius={[4,4,0,0]}/>
+                  <Line yAxisId="right" type="monotone" dataKey="Acumulado" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6' }}/>
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card>
+            <Title>Evolução do Fluxo Líquido</Title>
+            <div className="h-64 mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cashFlowData}>
+                  <defs>
+                    <linearGradient id="colorFluxo" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                  <XAxis dataKey="label" fontSize={12}/>
+                  <YAxis fontSize={12} tickFormatter={fmtCompact}/>
+                  <Tooltip formatter={(v: any) => fmtBRL(v)}/>
+                  <Area type="monotone" dataKey="Fluxo" stroke="#3b82f6" fill="url(#colorFluxo)"/>
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Inadimplência Tab */}
+      {activeTab === 3 && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card decoration="top" decorationColor="amber">
