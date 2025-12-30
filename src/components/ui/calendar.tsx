@@ -384,6 +384,7 @@ export default function CalendarApp(): JSX.Element {
           team_id: d.team_id || null,
           is_private: typeof d.is_private !== 'undefined' ? !!d.is_private : null,
           task_id: d.task_id || null,
+          category_id: d.category_id || null,
         })));
       } catch (err) {
         console.error('Erro genérico ao carregar calendar_events:', err);
@@ -480,8 +481,21 @@ export default function CalendarApp(): JSX.Element {
       if (String(e.id).startsWith('s-')) return true;
       return canViewItem(e);
     });
+    // Aplicar filtro por categoria (se selecionada)
+    const filteredByCategory = (filterCategory === 'all')
+      ? visible
+      : (() => {
+          const taskIdsWithCategory = new Set((taskEvents || []).map((te: any) => te.task_id));
+          return visible.filter((e: any) => {
+            // se evento tem category_id direto (calendar_events), usa isso
+            if (e.category_id) return String(e.category_id) === String(filterCategory);
+            // se evento está vinculado a uma task que passou pelo filtro, mantém
+            if (e.task_id && taskIdsWithCategory.has(e.task_id)) return true;
+            return false;
+          });
+        })();
     const map = new Map<string, AppEvent>();
-    for (const e of visible) {
+    for (const e of filteredByCategory) {
       const key = `${e.title}|${e.start}`;
       if (!map.has(key)) map.set(key, e);
     }
