@@ -19,9 +19,7 @@ export function CustosImplantacaoTab() {
       setFormData({
         custo_emplacamento: parameters.custo_emplacamento || 0,
         custo_licenciamento: parameters.custo_licenciamento || 0,
-        custo_instalacao_telemetria: parameters.custo_instalacao_telemetria || 0,
-        custo_desmobilizacao: parameters.custo_desmobilizacao || 0,
-        custo_combustivel_inicial: parameters.custo_combustivel_inicial || 0,
+        custo_telemetria_mensal: parameters.custo_telemetria_mensal || 0,
       });
     }
   }, [parameters]);
@@ -58,9 +56,7 @@ export function CustosImplantacaoTab() {
       setFormData({
         custo_emplacamento: parameters.custo_emplacamento || 0,
         custo_licenciamento: parameters.custo_licenciamento || 0,
-        custo_instalacao_telemetria: parameters.custo_instalacao_telemetria || 0,
-        custo_desmobilizacao: parameters.custo_desmobilizacao || 0,
-        custo_combustivel_inicial: parameters.custo_combustivel_inicial || 0,
+        custo_telemetria_mensal: parameters.custo_telemetria_mensal || 0,
       });
       toast.info('Alterações descartadas');
     }
