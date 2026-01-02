@@ -183,7 +183,8 @@ export function filterTasksByHierarchy(
 export function filterProjectsByHierarchy<T extends Project>(
   projects: T[],
   currentUser: Profile,
-  hierarchyData: { user_id: string; supervisor_id: string }[]
+  hierarchyData: { user_id: string; supervisor_id: string }[],
+  projectMembers?: { project_id: string; user_id: string }[]
 ): T[] {
   const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin vê tudo
@@ -199,15 +200,20 @@ export function filterProjectsByHierarchy<T extends Project>(
       return true;
     }
 
+    // Verificar se o usuário é membro do projeto
+    if (projectMembers) {
+      const isMember = projectMembers.some(
+        (m) => m.project_id === project.id && m.user_id === currentUser.id
+      );
+      if (isMember) {
+        return true;
+      }
+    }
+
     // Verificar se o usuário criou o projeto
     if (project.user_id && visibleUserIds.includes(project.user_id)) {
       return true;
     }
-
-    // TODO: Adicionar verificação de membros do projeto quando implementado
-    // if (project.members && project.members.some(m => visibleUserIds.includes(m.user_id))) {
-    //   return true;
-    // }
 
     return false;
   });
