@@ -43,13 +43,11 @@ export const useProjects = () => {
 
       if (fetchError) throw new Error(fetchError.message);
       
-      const allProjects = (data || []).map((p: any) => ({
+      const allProjects: ProjectWithStats[] = (data || []).map((p: any) => ({
         ...p,
-        team_id: p.team_id ?? null,
-        privacy: p.privacy ?? null,
-        portfolio_id: p.portfolio_id ?? null,
-        description: p.description ?? null,
-        user_id: p.user_id ?? null,
+        task_count: p.task_count ?? 0,
+        completed_count: p.completed_count ?? 0,
+        late_count: p.late_count ?? 0,
       }));
 
       // Aplicar filtro hierárquico client-side
