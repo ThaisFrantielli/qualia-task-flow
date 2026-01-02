@@ -4051,7 +4051,9 @@ export type Database = {
           late_count: number
           name: string
           portfolio_id: string
+          privacy: string
           task_count: number
+          team_id: string
           updated_at: string
           user_id: string
         }[]
@@ -4100,6 +4102,7 @@ export type Database = {
           team_member_id: string
         }[]
       }
+      get_user_team_ids: { Args: { _user_id?: string }; Returns: string[] }
       has_analytics_page_access: {
         Args: { _page_key: string; _user_id: string }
         Returns: boolean
@@ -4124,6 +4127,14 @@ export type Database = {
       is_member_of_project: { Args: { _project_id: string }; Returns: boolean }
       is_owner_of_project: { Args: { _project_id: string }; Returns: boolean }
       is_supervisor_or_above: { Args: { _user_id?: string }; Returns: boolean }
+      is_team_member: {
+        Args: { _team_id: string; _user_id?: string }
+        Returns: boolean
+      }
+      is_team_owner: {
+        Args: { _team_id: string; _user_id?: string }
+        Returns: boolean
+      }
       is_user_admin:
         | { Args: never; Returns: boolean }
         | { Args: { user_id_text: string }; Returns: boolean }
