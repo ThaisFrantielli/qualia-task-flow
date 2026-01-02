@@ -180,11 +180,11 @@ export function filterTasksByHierarchy(
  * @param hierarchyData - Dados da hierarquia organizacional
  * @returns Projetos que o usuário tem permissão de ver
  */
-export function filterProjectsByHierarchy(
-  projects: Project[],
+export function filterProjectsByHierarchy<T extends Project>(
+  projects: T[],
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[]
-): Project[] {
+): T[] {
   const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin vê tudo
   if (isAdmin) {
