@@ -27,10 +27,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Edit, Trash2, Save, Car } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, Car, Download } from 'lucide-react';
 import { useModelosVeiculos } from '@/hooks/useModelosVeiculos';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+const handleImportFromDW = async () => {
+  toast.info('Importação em desenvolvimento', {
+    description: 'Execute o script: node scripts/populate-modelos-from-dw.js'
+  });
+};
 
 export function ModelosVeiculosTab() {
   const { modelos, isLoading: loading } = useModelosVeiculos();
@@ -46,6 +52,7 @@ export function ModelosVeiculosTab() {
     preco_publico: 0,
     percentual_desconto: 0,
     valor_final: 0,
+    valor_km_adicional: 0.70,
     consumo_medio: 12.0,
     ativo: true,
   });
@@ -60,6 +67,7 @@ export function ModelosVeiculosTab() {
       preco_publico: modelo.preco_publico,
       percentual_desconto: modelo.percentual_desconto,
       valor_final: modelo.valor_final,
+      valor_km_adicional: modelo.valor_km_adicional || 0.70,
       consumo_medio: modelo.consumo_medio || 12.0,
       ativo: modelo.ativo,
     });
@@ -76,6 +84,7 @@ export function ModelosVeiculosTab() {
       preco_publico: 0,
       percentual_desconto: 0,
       valor_final: 0,
+      valor_km_adicional: 0.70,
       consumo_medio: 12.0,
       ativo: true,
     });
@@ -157,13 +166,18 @@ export function ModelosVeiculosTab() {
             Gerencie o catálogo de veículos disponíveis para locação
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Modelo
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleImportFromDW}>
+            <Download className="h-4 w-4 mr-2" />
+            Importar do DW
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Modelo
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
@@ -263,18 +277,28 @@ export function ModelosVeiculosTab() {
                     onChange={(e) => setFormData({ ...formData, consumo_medio: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
-                <div className="flex items-center space-x-2 pt-8">
-                  <input
-                    type="checkbox"
-                    id="ativo"
-                    checked={formData.ativo}
-                    onChange={(e) => setFormData({ ...formData, ativo: e.target.checked })}
-                    className="h-4 w-4"
+                <div className="space-y-2">
+                  <Label>Valor KM Adicional (R$/km)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.valor_km_adicional}
+                    onChange={(e) => setFormData({ ...formData, valor_km_adicional: parseFloat(e.target.value) || 0 })}
                   />
-                  <Label htmlFor="ativo" className="cursor-pointer">
-                    Ativo
-                  </Label>
                 </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="ativo"
+                  checked={formData.ativo}
+                  onChange={(e) => setFormData({ ...formData, ativo: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="ativo" className="cursor-pointer">
+                  Ativo
+                </Label>
               </div>
             </div>
             <div className="flex justify-end gap-3">
@@ -289,8 +313,9 @@ export function ModelosVeiculosTab() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
 
-      <Card>
+    <Card>
         <Table>
           <TableHeader>
             <TableRow>
@@ -301,6 +326,7 @@ export function ModelosVeiculosTab() {
               <TableHead className="text-right">Preço Público</TableHead>
               <TableHead className="text-right">Desconto</TableHead>
               <TableHead className="text-right">Valor Final</TableHead>
+              <TableHead className="text-right">R$/KM Adic.</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -308,13 +334,13 @@ export function ModelosVeiculosTab() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={10} className="text-center py-8">
                   Carregando modelos...
                 </TableCell>
               </TableRow>
             ) : modelos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                   <Car className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
                   <p>Nenhum modelo cadastrado</p>
                 </TableCell>
@@ -332,6 +358,9 @@ export function ModelosVeiculosTab() {
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatCurrency(modelo.valor_final ?? 0)}
+                  </TableCell>
+                  <TableCell className="text-right text-blue-600 font-medium">
+                    {formatCurrency(modelo.valor_km_adicional ?? 0)}
                   </TableCell>
                   <TableCell className="text-center">
                     {modelo.ativo ? (

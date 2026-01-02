@@ -48,6 +48,7 @@ const formSchema = z.object({
   ano_fabricacao: z.coerce.number().min(2000).max(2030).optional(),
   preco_publico: z.coerce.number().min(0),
   percentual_desconto: z.coerce.number().min(0).max(1),
+  valor_km_adicional: z.coerce.number().min(0).optional(),
   motor: z.string().optional(),
   potencia: z.string().optional(),
   transmissao: z.string().optional(),
@@ -91,6 +92,7 @@ export function ModeloVeiculoForm({
       ano_fabricacao: new Date().getFullYear(),
       preco_publico: 0,
       percentual_desconto: 0,
+      valor_km_adicional: 0.75,
       motor: '',
       potencia: '',
       transmissao: '',
@@ -114,6 +116,7 @@ export function ModeloVeiculoForm({
         ano_fabricacao: editingModelo.ano_fabricacao || undefined,
         preco_publico: editingModelo.preco_publico,
         percentual_desconto: editingModelo.percentual_desconto,
+        valor_km_adicional: editingModelo.valor_km_adicional || 0.75,
         motor: editingModelo.motor || '',
         potencia: editingModelo.potencia || '',
         transmissao: editingModelo.transmissao || '',
@@ -368,6 +371,28 @@ export function ModeloVeiculoForm({
                       {formatCurrency(valorFinal)}
                     </span>
                   </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="valor_km_adicional"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor KM Adicional (R$/km)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.75"
+                            {...field}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Valor cobrado por quilômetro excedente neste modelo
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <FormField
