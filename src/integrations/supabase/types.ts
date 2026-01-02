@@ -3997,6 +3997,7 @@ export type Database = {
         Returns: Json
       }
       generate_ticket_number: { Args: never; Returns: string }
+      get_all_subordinates: { Args: { _manager_id: string }; Returns: string[] }
       get_direct_reports: {
         Args: { supervisor_uuid: string }
         Returns: {
@@ -4007,6 +4008,10 @@ export type Database = {
           subordinates_count: number
           user_id: string
         }[]
+      }
+      get_direct_subordinates: {
+        Args: { _supervisor_id: string }
+        Returns: string[]
       }
       get_direct_supervisor: {
         Args: { user_uuid: string }
@@ -4114,8 +4119,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_user: { Args: { _user_id?: string }; Returns: boolean }
+      is_gestao_or_above: { Args: { _user_id?: string }; Returns: boolean }
       is_member_of_project: { Args: { _project_id: string }; Returns: boolean }
       is_owner_of_project: { Args: { _project_id: string }; Returns: boolean }
+      is_supervisor_or_above: { Args: { _user_id?: string }; Returns: boolean }
       is_user_admin:
         | { Args: never; Returns: boolean }
         | { Args: { user_id_text: string }; Returns: boolean }
@@ -4151,7 +4159,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "manager" | "agent" | "user"
+      app_role: "admin" | "manager" | "agent" | "user" | "supervisor" | "gestao"
       survey_type: "comercial" | "entrega" | "manutencao" | "devolucao"
       ticket_departamento_enum:
         | "Manutenção"
@@ -4356,7 +4364,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "manager", "agent", "user"],
+      app_role: ["admin", "manager", "agent", "user", "supervisor", "gestao"],
       survey_type: ["comercial", "entrega", "manutencao", "devolucao"],
       ticket_departamento_enum: [
         "Manutenção",
