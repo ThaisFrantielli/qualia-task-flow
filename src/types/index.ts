@@ -7,14 +7,21 @@ import type { Database as SupabaseDatabase } from './supabase';
 export type Database = SupabaseDatabase;
 export type PublicSchema = SupabaseDatabase['public'];
 
+// --- Tipos de Roles (fonte autoritativa: tabela user_roles) ---
+export type AppRole = 'admin' | 'gestao' | 'supervisor' | 'agent' | 'manager' | 'user';
+
 // --- Tipos de Usuário ---
 export type Profile = PublicSchema['Tables']['profiles']['Row'];
 
 // O tipo AppUser combina o usuário do Supabase com o perfil da sua aplicação
 export type AppUser = SupabaseUser & Omit<Profile, 'permissoes'> & {
   permissoes?: Permissoes | null;
+  // Roles do usuário vindas da tabela user_roles (fonte autoritativa)
+  roles?: AppRole[];
   // campo derivado para facilitar checks no frontend
   isAdmin?: boolean;
+  // campo derivado para indicar se é Gestão ou superior
+  isGestao?: boolean;
   // campo derivado para indicar se o usuário tem nível de supervisão (Supervisão/Gestão/Admin)
   isSupervisor?: boolean;
   // flag criada no perfil para forçar troca de senha no primeiro acesso
