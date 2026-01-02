@@ -185,4 +185,68 @@ Para dúvidas ou problemas com acesso:
 
 ---
 
+## 9. Referência Técnica (Para TI)
+
+Esta seção contém informações técnicas para a equipe de TI.
+
+### 9.1. Tabelas Principais
+
+| Tabela | Descrição |
+|--------|-----------|
+| `profiles` | Dados do perfil do usuário (nome, email, cargo) |
+| `user_roles` | **Fonte autoritativa de roles** (admin, gestao, supervisor, user) |
+| `user_hierarchy` | Relacionamento supervisor-subordinado |
+| `teams` | Equipes/departamentos |
+| `team_members` | Membros de cada equipe |
+
+### 9.2. Funções de Verificação (SQL)
+
+| Função | Descrição |
+|--------|-----------|
+| `is_admin_user(uuid)` | Retorna true se o usuário é Admin |
+| `is_gestao_or_above(uuid)` | Retorna true se é Gestão ou Admin |
+| `is_supervisor_or_above(uuid)` | Retorna true se é Supervisão, Gestão ou Admin |
+| `get_direct_subordinates(uuid)` | Retorna IDs dos subordinados diretos |
+| `get_all_subordinates(uuid)` | Retorna IDs de todos os subordinados (recursivo) |
+| `has_role(uuid, app_role)` | Verifica se usuário tem uma role específica |
+
+### 9.3. Como Adicionar um Novo Usuário
+
+1. Criar o usuário no Supabase Auth
+2. O perfil é criado automaticamente via trigger `handle_new_user`
+3. Inserir a role na tabela `user_roles`:
+   ```sql
+   INSERT INTO user_roles (user_id, role) VALUES ('uuid-do-usuario', 'user');
+   ```
+4. Definir o supervisor na tabela `user_hierarchy`:
+   ```sql
+   INSERT INTO user_hierarchy (user_id, supervisor_id) 
+   VALUES ('uuid-do-usuario', 'uuid-do-supervisor');
+   ```
+5. Adicionar à equipe na tabela `team_members`:
+   ```sql
+   INSERT INTO team_members (team_id, user_id) 
+   VALUES ('uuid-da-equipe', 'uuid-do-usuario');
+   ```
+
+### 9.4. Políticas de Segurança (RLS)
+
+Todas as tabelas sensíveis possuem Row Level Security (RLS) habilitado. As políticas garantem:
+
+- **Usuários** só veem seus próprios dados
+- **Supervisores** veem dados dos subordinados diretos
+- **Gestores** veem dados de toda a cadeia hierárquica
+- **Admins** têm acesso total
+
+### 9.5. Checklist de Segurança
+
+- [ ] Toda nova tabela deve ter RLS habilitado
+- [ ] Nunca usar `USING (true)` em policies de dados sensíveis
+- [ ] Funções SECURITY DEFINER devem ter `SET search_path = public`
+- [ ] Roles devem estar apenas na tabela `user_roles` (não em `profiles`)
+- [ ] Testar policies com diferentes níveis de usuário
+
+---
+
 *Este documento substitui todas as versões anteriores sobre controle de acesso e permissões.*
+*Última atualização: Janeiro 2026*
