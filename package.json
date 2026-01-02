@@ -13,6 +13,7 @@
     "dev:all": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\"",
     "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\"",
     "db:sync": "bash scripts/sync_supabase.sh",
+    "sync:modelos": "node scripts/sync-modelos-from-analiticos.js",
     "supabase:functions:serve": "supabase functions serve",
     "supabase:functions:deploy:create-user": "supabase functions deploy create-user"
   },
@@ -71,6 +72,7 @@
     "laravel-echo": "^2.2.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.462.0",
+    "mssql": "^12.2.0",
     "next-themes": "^0.3.0",
     "pg": "^8.16.3",
     "pusher-js": "^8.4.0",

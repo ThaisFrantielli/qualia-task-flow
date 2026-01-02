@@ -74,6 +74,7 @@ export function ModeloVeiculoTable({
               <TableHead>Preço Público</TableHead>
               <TableHead>Desconto</TableHead>
               <TableHead>Valor Final</TableHead>
+              <TableHead>R$/km Adicional</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
@@ -87,6 +88,7 @@ export function ModeloVeiculoTable({
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                 <TableCell><Skeleton className="h-4 w-8" /></TableCell>
               </TableRow>
@@ -117,6 +119,7 @@ export function ModeloVeiculoTable({
               <TableHead className="text-right">Preço Público</TableHead>
               <TableHead className="text-center">Desconto</TableHead>
               <TableHead className="text-right">Valor Final</TableHead>
+              <TableHead className="text-right">R$/km Adicional</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
@@ -150,6 +153,9 @@ export function ModeloVeiculoTable({
                 </TableCell>
                 <TableCell className="text-right font-medium text-primary">
                   {formatCurrency(modelo.valor_final || modelo.preco_publico * (1 - modelo.percentual_desconto))}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {modelo.valor_km_adicional ? `R$ ${modelo.valor_km_adicional.toFixed(2)}` : '-'}
                 </TableCell>
                 <TableCell>
                   <Badge variant={modelo.ativo ? 'default' : 'secondary'}>
