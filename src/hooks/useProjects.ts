@@ -29,31 +29,40 @@ export const useProjects = () => {
     setLoading(true);
     setError(null);
     try {
-      // Buscar dados da hierarquia para aplicar filtros
-      const { data: hierarchyData, error: hierarchyError } = await supabase
-        .from('user_hierarchy')
-        .select('user_id, supervisor_id');
+      // Buscar dados da hierarquia e membros de projeto em paralelo
+      const [hierarchyResult, membersResult, projectsResult] = await Promise.all([
+        supabase.from('user_hierarchy').select('user_id, supervisor_id'),
+        supabase.from('project_members').select('project_id, user_id'),
+        supabase.rpc('get_projects_with_stats')
+      ]);
       
-      if (hierarchyError) {
-        console.error('Erro ao buscar hierarquia:', hierarchyError);
+      if (hierarchyResult.error) {
+        console.error('Erro ao buscar hierarquia:', hierarchyResult.error);
       }
-
-      // --- CHAMANDO A FUNÇÃO RPC ---
-      const { data, error: fetchError } = await supabase.rpc('get_projects_with_stats');
-
-      if (fetchError) throw new Error(fetchError.message);
+      if (membersResult.error) {
+        console.error('Erro ao buscar membros:', membersResult.error);
+      }
+      if (projectsResult.error) throw new Error(projectsResult.error.message);
       
-      const allProjects: ProjectWithStats[] = (data || []).map((p: any) => ({
+      const allProjects: ProjectWithStats[] = (projectsResult.data || []).map((p: any) => ({
         ...p,
         task_count: p.task_count ?? 0,
         completed_count: p.completed_count ?? 0,
         late_count: p.late_count ?? 0,
       }));
 
-      // Aplicar filtro hierárquico client-side
+      // Aplicar filtro hierárquico client-side incluindo membros do projeto
       let filteredProjects = allProjects;
-      if (hierarchyData && hierarchyData.length > 0) {
-        filteredProjects = filterProjectsByHierarchy(allProjects, user as Profile, hierarchyData);
+      const hierarchyData = hierarchyResult.data || [];
+      const projectMembers = membersResult.data || [];
+      
+      if (hierarchyData.length > 0 || projectMembers.length > 0) {
+        filteredProjects = filterProjectsByHierarchy(
+          allProjects, 
+          user as Profile, 
+          hierarchyData,
+          projectMembers
+        );
       }
 
       setProjects(filteredProjects);
