@@ -7,7 +7,6 @@ export interface KmPackage {
   descricao: string | null;
   km_mensal: number;
   is_ilimitado: boolean;
-  valor_km_adicional: number;
   ordem: number;
   ativo: boolean;
   created_at: string;

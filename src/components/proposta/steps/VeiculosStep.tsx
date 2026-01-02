@@ -73,6 +73,7 @@ export function VeiculosStep({ veiculos, onChange }: VeiculosStepProps) {
         ano_modelo: modelo.ano_modelo,
         valor_aquisicao: valorAquisicao,
         aluguel_unitario: aluguelSugerido,
+        valor_km_excedente: modelo.valor_km_adicional || 0.75, // Usar valor do modelo
       });
     }
   };

@@ -33,7 +33,6 @@ export function PacotesKmTab() {
     descricao: '',
     km_mensal: 0,
     is_ilimitado: false,
-    valor_km_adicional: 0,
     ordem: 0,
     ativo: true,
   });
@@ -45,7 +44,6 @@ export function PacotesKmTab() {
       descricao: pkg.descricao || '',
       km_mensal: pkg.km_mensal,
       is_ilimitado: pkg.is_ilimitado,
-      valor_km_adicional: pkg.valor_km_adicional,
       ordem: pkg.ordem,
       ativo: pkg.ativo,
     });
@@ -59,7 +57,6 @@ export function PacotesKmTab() {
       descricao: '',
       km_mensal: 0,
       is_ilimitado: false,
-      valor_km_adicional: 0,
       ordem: packages.length + 1,
       ativo: true,
     });
@@ -107,13 +104,6 @@ export function PacotesKmTab() {
         description: error.message
       });
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
   };
 
   return (
@@ -169,18 +159,6 @@ export function PacotesKmTab() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Valor KM Adicional (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.valor_km_adicional}
-                    onChange={(e) => setFormData({ ...formData, valor_km_adicional: parseFloat(e.target.value) || 0 })}
-                    disabled={formData.is_ilimitado}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
                   <Label>Ordem de Exibição</Label>
                   <Input
                     type="number"
@@ -188,7 +166,9 @@ export function PacotesKmTab() {
                     onChange={(e) => setFormData({ ...formData, ordem: parseInt(e.target.value) || 0 })}
                   />
                 </div>
-                <div className="flex items-center space-x-2 pt-8">
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2 pt-2">
                   <input
                     type="checkbox"
                     id="ilimitado"
@@ -235,7 +215,6 @@ export function PacotesKmTab() {
               <TableHead>Nome</TableHead>
               <TableHead>Descrição</TableHead>
               <TableHead className="text-right">KM/Mês</TableHead>
-              <TableHead className="text-right">Valor KM Adicional</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -243,7 +222,7 @@ export function PacotesKmTab() {
           <TableBody>
             {packages.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   Nenhum pacote cadastrado
                 </TableCell>
               </TableRow>
@@ -259,9 +238,6 @@ export function PacotesKmTab() {
                     ) : (
                       pkg.km_mensal.toLocaleString('pt-BR')
                     )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {pkg.is_ilimitado ? '-' : formatCurrency(pkg.valor_km_adicional)}
                   </TableCell>
                   <TableCell className="text-center">
                     {pkg.ativo ? (

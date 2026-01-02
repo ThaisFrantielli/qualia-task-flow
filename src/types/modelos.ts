@@ -24,6 +24,7 @@ export interface ModeloVeiculo {
   preco_publico: number;
   percentual_desconto: number;
   valor_final?: number;
+  valor_km_adicional?: number; // Valor por KM excedente (R$/km) - movido de km_packages
   
   motor?: string;
   potencia?: string;
