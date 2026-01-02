@@ -2,7 +2,7 @@
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Session } from '@supabase/supabase-js';
-import type { AppUser, Permissoes } from '@/types';
+import type { AppUser, AppRole, Permissoes } from '@/types';
 
 // Profile type for force password change and other profile-specific features
 export interface UserProfile {
@@ -38,15 +38,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserProfile = async (currentSession: Session) => {
     try {
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', currentSession.user.id)
-        .single();
+      // Buscar profile e roles em paralelo para melhor performance
+      const [profileResult, rolesResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', currentSession.user.id)
+          .single(),
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', currentSession.user.id)
+      ]);
 
-      if (error) {
-        throw error;
+      if (profileResult.error) {
+        throw profileResult.error;
       }
+
+      const profileData = profileResult.data;
+      
+      // Extrair roles da tabela user_roles (fonte autoritativa)
+      const roles: AppRole[] = (rolesResult.data?.map(r => r.role as AppRole)) || [];
+      
+      // Derivar flags de acesso baseado nas roles (fonte autoritativa)
+      const isAdmin = roles.includes('admin');
+      const isGestao = roles.some(r => ['gestao', 'admin'].includes(r));
+      const isSupervisor = roles.some(r => ['supervisor', 'gestao', 'admin'].includes(r));
 
       // Garante que as permissões sejam um objeto, não uma string JSON
       let finalPermissoes = profileData?.permissoes;
@@ -81,10 +98,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ...(profileData || {}),
         email: profileData?.email || currentSession.user.email || '',
         permissoes: finalPermissoes,
-        // Derivar isAdmin no frontend de forma consistente com as funções SQL
-        isAdmin: (profileData?.nivelAcesso === 'Admin') || (finalPermissoes?.is_admin === true) || false,
-        // Derivar isSupervisor para simplificar checks: Supervisão ou Gestão ou Admin
-        isSupervisor: ['Supervisão', 'Gestão', 'Admin'].includes(profileData?.nivelAcesso || '') || (finalPermissoes?.is_admin === true) || false,
+        // Roles da tabela user_roles (fonte autoritativa)
+        roles,
+        // Flags derivadas das roles (não mais de nivelAcesso)
+        isAdmin,
+        isGestao,
+        isSupervisor,
       };
 
       setUser(updatedUser);
