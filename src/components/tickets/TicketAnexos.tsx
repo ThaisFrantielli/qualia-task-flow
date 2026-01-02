@@ -31,11 +31,9 @@ interface TicketAnexosProps {
 export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteComplete }: TicketAnexosProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    const processFileUpload = async (file: File) => {
         setIsUploading(true);
         try {
             const fileExt = file.name.split('.').pop();
@@ -82,8 +80,58 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
             }
         } finally {
             setIsUploading(false);
-            // Reset input
-            e.target.value = '';
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        await processFileUpload(file);
+        // Reset input
+        e.target.value = '';
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+
+        for (const file of files) {
+            await processFileUpload(file);
+        }
+    };
+
+    const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (const item of Array.from(items)) {
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    // Gerar um nome para a imagem colada
+                    const timestamp = new Date().getTime();
+                    const extension = item.type.split('/')[1];
+                    const renamedFile = new File([file], `screenshot_${timestamp}.${extension}`, { type: item.type });
+                    await processFileUpload(renamedFile);
+                }
+            }
         }
     };
 
@@ -153,12 +201,32 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
             </CardHeader>
             <CardContent>
                 {anexos.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                    <div 
+                        className={`text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
+                            isDragging ? 'border-primary bg-primary/5' : ''
+                        }`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onPaste={handlePaste}
+                        tabIndex={0}
+                        onClick={() => document.getElementById('file-upload')?.click()}
+                    >
                         <Paperclip className="w-12 h-12 mx-auto mb-2 opacity-20" />
                         <p>Nenhum anexo vinculado a este ticket</p>
+                        <p className="text-xs mt-1">Clique aqui, arraste arquivos ou cole (Ctrl+V) imagens</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div 
+                        className={`grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-2 border-dashed rounded-lg transition-colors ${
+                            isDragging ? 'border-primary bg-primary/5' : 'border-transparent'
+                        }`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onPaste={handlePaste}
+                        tabIndex={0}
+                    >
                         {anexos.map((anexo) => (
                             <div
                                 key={anexo.id}

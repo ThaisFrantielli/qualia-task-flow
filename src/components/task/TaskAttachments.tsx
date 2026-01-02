@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Paperclip, Download, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
   const { attachments, loading, uploadAttachment, deleteAttachment } = useAttachments(taskId);
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -26,6 +27,49 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of files) {
+      await uploadAttachment(file, taskId);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Gerar um nome para a imagem colada
+          const timestamp = new Date().getTime();
+          const extension = item.type.split('/')[1];
+          const renamedFile = new File([file], `screenshot_${timestamp}.${extension}`, { type: item.type });
+          await uploadAttachment(renamedFile, taskId);
+        }
+      }
     }
   };
 
@@ -97,13 +141,32 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
             Carregando anexos...
           </div>
         ) : attachments.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div 
+            className={`text-center py-8 text-gray-500 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
+              isDragging ? 'border-primary bg-primary/5' : 'border-gray-300'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onPaste={handlePaste}
+            tabIndex={0}
+            onClick={() => fileInputRef.current?.click()}
+          >
             <Paperclip className="w-12 h-12 mx-auto mb-2 text-gray-300" />
             <p>Nenhum anexo adicionado</p>
-            <p className="text-sm">Clique em "Adicionar" para enviar arquivos</p>
+            <p className="text-sm">Clique aqui, arraste arquivos ou cole (Ctrl+V) imagens</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div 
+            className={`space-y-2 p-4 border-2 border-dashed rounded-lg transition-colors ${
+              isDragging ? 'border-primary bg-primary/5' : 'border-transparent'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onPaste={handlePaste}
+            tabIndex={0}
+          >
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
