@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, Badge, BarList } from '@tremor/react';
+import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff, Info } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -73,18 +74,20 @@ const MultiSelect = ({ options, selected, onChange, label }: { options: string[]
 
 export default function FleetDashboard(): JSX.Element {
   const { data: frotaData } = useBIData<AnyObject[]>('dim_frota.json');
-  const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
-  const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo.json');
+  const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
+  const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
   const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva.json');
+  const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
   const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
   const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
   const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
+  const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
 
   const manutencaoMap = useMemo(() => {
     const map: Record<string, number> = {};
-    manutencao.forEach((m: any) => { if(m.Placa) map[m.Placa] = (map[m.Placa] || 0) + parseCurrency(m.ValorTotal); });
+    manutencao.forEach((m: any) => { if(m.Placa) map[m.Placa] = (map[m.Placa] || 0) + parseCurrency(m.CustoTotalOS || m.ValorTotal); });
     return map;
   }, [manutencao]);
 
@@ -579,7 +582,7 @@ export default function FleetDashboard(): JSX.Element {
         let totalDays = 0, locacaoDays = 0, manutencaoDays = 0;
         
         if (eventos.length > 0) {
-            const firstEventDate = new Date(eventos[0].DataEvento);
+            const firstEventDate = new Date(eventos[0].Data || eventos[0].DataEvento);
             totalDays = (new Date().getTime() - firstEventDate.getTime()) / (1000 * 60 * 60 * 24);
         }
 
@@ -587,27 +590,29 @@ export default function FleetDashboard(): JSX.Element {
 
         for (let i = 0; i < eventos.length; i++) {
             const evento = eventos[i];
-            if (!evento.TipoEvento.startsWith('Início')) continue;
+            const tipoEvento = evento.TipoEvento || evento.Evento || '';
+            if (!tipoEvento || !tipoEvento.startsWith || !tipoEvento.startsWith('Início')) continue;
 
-            const start = new Date(evento.DataEvento);
+            const start = new Date(evento.Data || evento.DataEvento);
             let end = new Date();
             
             const closingEvent = eventos.slice(i + 1).find(e => {
-                if(evento.TipoEvento === 'Início de Locação') return e.TipoEvento === 'Fim de Locação' && e.Detalhe2 === evento.Detalhe2;
-                if(evento.TipoEvento === 'Início Manutenção') return e.TipoEvento === 'Fim Manutenção' && e.Detalhe1 === evento.Detalhe1;
+                const tipoE = e.TipoEvento || e.Evento || '';
+                if(tipoEvento === 'Início de Locação') return tipoE === 'Fim de Locação' && e.Detalhe2 === evento.Detalhe2;
+                if(tipoEvento === 'Início Manutenção') return tipoE === 'Fim Manutenção' && e.Detalhe1 === evento.Detalhe1;
                 return false;
             });
 
             if (closingEvent) {
-                end = new Date(closingEvent.DataEvento);
+                end = new Date(closingEvent.Data || closingEvent.DataEvento);
             }
             
             const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
             if(duration < 0) continue;
 
-            if (evento.TipoEvento === 'Início de Locação') {
+            if (tipoEvento === 'Início de Locação') {
                 locacaoDays += duration;
-            } else if (evento.TipoEvento === 'Início Manutenção') {
+            } else if (tipoEvento === 'Início Manutenção') {
                 manutencaoDays += duration;
             }
         }
@@ -699,17 +704,15 @@ export default function FleetDashboard(): JSX.Element {
     const patioPageItems = patioItems.slice(patioPage * pageSize, (patioPage + 1) * pageSize);
 
   const exportToExcel = (data: any[], filename: string) => {
-    const headers = Object.keys(data[0] || {}).join(';');
-    const rows = data.map(obj => Object.values(obj).map(v => typeof v === 'string' ? `"${v}"` : typeof v === 'number' ? v.toLocaleString('pt-BR') : v).join(';'));
-    const csvContent = "\uFEFF" + [headers, ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${filename}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        try {
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Dados');
+            const outName = `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, outName);
+        } catch (err) {
+            console.error('Erro exportando para Excel:', err);
+        }
   };
 
   const SortIcon = ({ column }: { column: keyof FleetTableItem }) => {
@@ -775,29 +778,7 @@ export default function FleetDashboard(): JSX.Element {
             <Card decoration="top" decorationColor="violet"><Text>Idade Média</Text><Metric>{kpis.idadeMedia.toFixed(1)} m</Metric></Card>
           </div>
           
-          {/* Novos KPIs: TCO, ROI, Health Score, Custo Ociosidade */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card decoration="top" decorationColor="amber" className="bg-gradient-to-br from-amber-50 to-white">
-              <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-amber-600"/><Text className="font-medium">TCO Médio</Text></div>
-              <Metric className="text-amber-700">{fmtCompact(kpis.tcoMedio)}</Metric>
-              <Text className="text-xs text-slate-500">Custo Total de Propriedade</Text>
-            </Card>
-            <Card decoration="top" decorationColor={kpis.roiEstimado >= 0 ? 'emerald' : 'rose'} className="bg-gradient-to-br from-emerald-50 to-white">
-              <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-emerald-600"/><Text className="font-medium">ROI Estimado</Text></div>
-              <Metric className={kpis.roiEstimado >= 0 ? 'text-emerald-700' : 'text-rose-700'}>{kpis.roiEstimado.toFixed(1)}%</Metric>
-              <Text className="text-xs text-slate-500">Retorno sobre investimento</Text>
-            </Card>
-            <Card decoration="top" decorationColor={kpis.healthScoreMedio >= 70 ? 'emerald' : kpis.healthScoreMedio >= 50 ? 'amber' : 'rose'} className="bg-gradient-to-br from-blue-50 to-white">
-              <div className="flex items-center gap-2 mb-1"><Info className="w-4 h-4 text-blue-600"/><Text className="font-medium">Health Score</Text></div>
-              <Metric className={kpis.healthScoreMedio >= 70 ? 'text-emerald-700' : kpis.healthScoreMedio >= 50 ? 'text-amber-700' : 'text-rose-700'}>{kpis.healthScoreMedio.toFixed(0)}/100</Metric>
-              <Text className="text-xs text-slate-500">Saúde média da frota</Text>
-            </Card>
-            <Card decoration="top" decorationColor="rose" className="bg-gradient-to-br from-rose-50 to-white">
-              <div className="flex items-center gap-2 mb-1"><FlagOff className="w-4 h-4 text-rose-600"/><Text className="font-medium">Custo Ociosidade</Text></div>
-              <Metric className="text-rose-700">{fmtCompact(kpis.custoOciosidade)}</Metric>
-              <Text className="text-xs text-slate-500">Receita perdida (improdutiva)</Text>
-            </Card>
-          </div>
+                    {/* KPIs executivos movidos para a visão executiva (removidos desta página) */}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="border-l-4 border-l-emerald-500"><div className="flex justify-between items-center mb-4"><Title className="text-emerald-700">Frota Produtiva</Title><span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-1 rounded text-xs">{kpis.produtivaQtd} veículos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraProd)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeProd)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeProd <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeProd.toFixed(1)}%</span></div></div></Card>
@@ -918,7 +899,7 @@ export default function FleetDashboard(): JSX.Element {
 
           <Card id="detail-table" className="p-0 overflow-hidden mt-6">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16}/> Exportar</button></div>
-              <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo"/></th></tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (<tr key={i} className="hover:bg-slate-50"><td className="px-6 py-3 font-medium font-mono">{r.Placa}</td><td className="px-6 py-3">{r.Modelo}</td><td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td><td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td><td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td><td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td><td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td><td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td></tr>))}</tbody></table></div>
+              <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info) <SortIcon column="KmInformado"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmConfirmado')}>Odômetro (Conf) <SortIcon column="KmConfirmado"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo"/></th></tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (<tr key={i} className="hover:bg-slate-50"><td className="px-6 py-3 font-medium font-mono">{r.Placa}</td><td className="px-6 py-3">{r.Modelo}</td><td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td><td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td><td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td><td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td><td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td><td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td><td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td><td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td></tr>))}</tbody></table></div>
               <div className="flex justify-between p-4 border-t border-slate-100"><div className="flex gap-2"><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button><button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button></div></div>
           </Card>
         </TabsContent>
@@ -962,6 +943,65 @@ export default function FleetDashboard(): JSX.Element {
                     </div>
                 </Card>
             </div>
+            
+            {/* Card de Movimentações Recentes */}
+            <Card>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <Timer size={16} className="text-indigo-600"/>
+                        <Title>Movimentações Recentes de Pátio (Últimas 20)</Title>
+                    </div>
+                    <a 
+                        href="/analytics/frota-improdutiva" 
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                    >
+                        Ver monitoramento completo →
+                    </a>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead className="bg-slate-50 text-slate-600 uppercase">
+                            <tr>
+                                <th className="px-4 py-2 text-left">Data/Hora</th>
+                                <th className="px-4 py-2 text-left">Placa</th>
+                                <th className="px-4 py-2 text-left">Pátio</th>
+                                <th className="px-4 py-2 text-left">Usuário</th>
+                                <th className="px-4 py-2 text-left">Comentários</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {patioMov
+                                .filter((m: any) => m.DataMovimentacao)
+                                .sort((a: any, b: any) => new Date(b.DataMovimentacao).getTime() - new Date(a.DataMovimentacao).getTime())
+                                .slice(0, 20)
+                                .map((mov: any, idx: number) => (
+                                    <tr key={idx} className="hover:bg-slate-50">
+                                        <td className="px-4 py-2 text-slate-600">
+                                            {new Date(mov.DataMovimentacao).toLocaleString('pt-BR', { 
+                                                day: '2-digit', 
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit', 
+                                                minute: '2-digit' 
+                                            })}
+                                        </td>
+                                        <td className="px-4 py-2 font-mono font-medium">{mov.Placa}</td>
+                                        <td className="px-4 py-2">
+                                            <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
+                                                {mov.Patio || 'Sem pátio'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-slate-600">{mov.UsuarioMovimentacao || '-'}</td>
+                                        <td className="px-4 py-2 text-slate-500 text-xs max-w-xs truncate">
+                                            {mov.Comentarios || '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+            
             <Card className="p-0 overflow-hidden">
                 <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                     <div className="flex items-center gap-2">

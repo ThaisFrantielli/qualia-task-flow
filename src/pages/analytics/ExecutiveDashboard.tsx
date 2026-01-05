@@ -18,13 +18,13 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function ExecutiveDashboard(): JSX.Element {
   const { data: rawFrota, loading: l1 } = useBIData<AnyObject[]>('dim_frota.json');
-  const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos.json');
+  const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
   const { data: rawClientes } = useBIData<AnyObject[]>('dim_clientes.json');
-  const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamento_*.json');
-  const { data: rawManutencao } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
+  const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
+  const { data: rawManutencao } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
   const { data: rawInadimplencia } = useBIData<AnyObject[]>('fat_inadimplencia.json');
   const { data: rawChurn } = useBIData<AnyObject[]>('fat_churn.json');
-  const { data: rawPropostas } = useBIData<AnyObject[]>('fat_propostas_*.json');
+  const { data: rawPropostas } = useBIData<AnyObject[]>('fat_propostas_*.json'); // TODO: Criar no ETL
   const { data: rawAuditoria } = useBIData<AnyObject[]>('auditoria_consolidada.json');
 
   const frota = useMemo(() => Array.isArray(rawFrota) ? rawFrota : [], [rawFrota]);
@@ -54,8 +54,8 @@ export default function ExecutiveDashboard(): JSX.Element {
     const locados = frota.filter(v => v.Status === 'Locado').length;
     const utilizacao = totalFrota > 0 ? (locados / totalFrota) * 100 : 0;
     
-    const receitaTotal = faturamento.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
-    const custoManutencao = manutencao.reduce((s, m) => s + parseCurrency(m.ValorTotal), 0);
+    const receitaTotal = faturamento.reduce((s, f) => s + parseCurrency(f.VlrTotal), 0);
+    const custoManutencao = manutencao.reduce((s, m) => s + parseCurrency(m.CustoTotalOS || m.ValorTotal), 0);
     const margemOperacional = receitaTotal > 0 ? ((receitaTotal - custoManutencao) / receitaTotal) * 100 : 0;
     
     const contratosAtivos = contratos.filter(c => c.Status === 'Ativo').length;
@@ -100,12 +100,12 @@ export default function ExecutiveDashboard(): JSX.Element {
     const d30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const d60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-    const receitaAtual = faturamento.filter(f => { const d = f.DataEmissao ? new Date(f.DataEmissao) : null; return d && d >= d30; }).reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
-    const receitaAnterior = faturamento.filter(f => { const d = f.DataEmissao ? new Date(f.DataEmissao) : null; return d && d >= d60 && d < d30; }).reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
+    const receitaAtual = faturamento.filter(f => { const d = f.DataEmissao ? new Date(f.DataEmissao) : null; return d && d >= d30; }).reduce((s, f) => s + parseCurrency(f.VlrTotal), 0);
+    const receitaAnterior = faturamento.filter(f => { const d = f.DataEmissao ? new Date(f.DataEmissao) : null; return d && d >= d60 && d < d30; }).reduce((s, f) => s + parseCurrency(f.VlrTotal), 0);
     const trendReceita = receitaAnterior > 0 ? ((receitaAtual - receitaAnterior) / receitaAnterior) * 100 : 0;
 
-    const custoAtual = manutencao.filter(m => { const d = m.DataEntrada ? new Date(m.DataEntrada) : null; return d && d >= d30; }).reduce((s, m) => s + parseCurrency(m.ValorTotal), 0);
-    const custoAnterior = manutencao.filter(m => { const d = m.DataEntrada ? new Date(m.DataEntrada) : null; return d && d >= d60 && d < d30; }).reduce((s, m) => s + parseCurrency(m.ValorTotal), 0);
+    const custoAtual = manutencao.filter(m => { const d = m.DataEntrada ? new Date(m.DataEntrada) : null; return d && d >= d30; }).reduce((s, m) => s + parseCurrency(m.CustoTotalOS || m.ValorTotal), 0);
+    const custoAnterior = manutencao.filter(m => { const d = m.DataEntrada ? new Date(m.DataEntrada) : null; return d && d >= d60 && d < d30; }).reduce((s, m) => s + parseCurrency(m.CustoTotalOS || m.ValorTotal), 0);
     const trendManutencao = custoAnterior > 0 ? ((custoAtual - custoAnterior) / custoAnterior) * 100 : 0;
 
     return { trendReceita, trendManutencao };

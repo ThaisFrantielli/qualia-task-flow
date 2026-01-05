@@ -47,14 +47,14 @@ function getCategoryFromStatus(status: string | undefined | null): 'Produtiva' |
   return 'Improdutiva';
 }
 function MaintenanceDashboardContent(): JSX.Element {
-  const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
+  const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
   const { data: manutencaoCompletaRaw, loading: loadingCompleta } = useBIData<AnyObject[]>('fat_manutencao_completa.json');
   const { data: rawFornecedores } = useBIData<AnyObject[]>('dim_fornecedores.json');
   const { data: manutencaoUnificadoRaw } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
-  const { data: faturamentoRaw } = useBIData<AnyObject[]>('fat_faturamento_*.json');
+  const { data: faturamentoRaw } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
   const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
   const { data: frotaRaw } = useBIData<AnyObject[]>('dim_frota.json');
-  const { data: contratosRaw } = useBIData<AnyObject[]>('dim_contratos.json');
+  const { data: contratosRaw } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
 
   const osList = useMemo(() => Array.isArray(osData) ? osData : [], [osData]);
   const manutencaoCompleta = useMemo(() => Array.isArray(manutencaoCompletaRaw) ? manutencaoCompletaRaw : [], [manutencaoCompletaRaw]);

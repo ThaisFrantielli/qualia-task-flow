@@ -39,8 +39,8 @@ function parseCurrency(v: any): number {
 
 export default function FinancialAnalytics(): JSX.Element {
   // Consome os arquivos gerados pelo ETL v6
-  const { data: financeiroData } = useBIData<AnyObject[]>('fat_faturamento_*.json');
-  const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
+  const { data: financeiroData } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
+  const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
 
   const financeiro = useMemo(() => {
     const raw = (financeiroData as any)?.data || financeiroData || [];
@@ -100,8 +100,8 @@ export default function FinancialAnalytics(): JSX.Element {
 
   // --- KPIs ---
   const kpisOverview = useMemo(() => {
-    const totalLocacao = filteredFin.reduce((s, r) => s + parseCurrency(r.ValorLocacao), 0);
-    const totalWithMultas = filteredFin.reduce((s, r) => s + parseCurrency(r.ValorTotal), 0);
+    const totalLocacao = filteredFin.reduce((s, r) => s + parseCurrency(r.VlrLocacao), 0);
+    const totalWithMultas = filteredFin.reduce((s, r) => s + parseCurrency(r.VlrTotal), 0);
     const veiculosSet = new Set(filteredFin.map(r => r.IdVeiculo).filter(Boolean));
     const qtdVeiculos = veiculosSet.size;
     return {

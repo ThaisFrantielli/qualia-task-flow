@@ -36,9 +36,9 @@ function monthLabel(ym: string): string {
 
 export default function CustomerAnalytics(): JSX.Element {
   const { data: clientesData, loading: loadingClientes } = useBIData<AnyObject[]>('dim_clientes.json');
-  const { data: faturamentoData, loading: loadingFat } = useBIData<AnyObject[]>('fat_faturamento_*.json');
-  const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
-  const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
+  const { data: faturamentoData, loading: loadingFat } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
+  const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
+  const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
   const { data: sinistrosData } = useBIData<AnyObject[]>('fat_sinistros_*.json');
   const { data: multasData } = useBIData<AnyObject[]>('fat_multas_*.json');
   useMemo(() => Array.isArray(clientesData) ? clientesData : [], [clientesData]);
@@ -82,12 +82,12 @@ export default function CustomerAnalytics(): JSX.Element {
     const mulCliente = multas.filter(m => placasCliente.has(m.Placa));
 
     // KPIs
-    const totalFaturamento = fatCliente.reduce((s, f) => s + (f.ValorTotal || 0), 0);
+    const totalFaturamento = fatCliente.reduce((s, f) => s + (f.VlrTotal || f.ValorTotal || 0), 0);
     const contratosAtivos = contratosCliente.filter(c => c.Status === 'Ativo').length;
     const veiculosLocados = placasCliente.size;
     const ticketMedio = fatCliente.length > 0 ? totalFaturamento / fatCliente.length : 0;
-    const custoManutencao = manCliente.reduce((s, m) => s + (m.ValorTotal || 0), 0);
-    const custoSinistros = sinCliente.reduce((s, si) => s + (si.ValorSinistro || 0), 0);
+    const custoManutencao = manCliente.reduce((s, m) => s + (m.CustoTotalOS || m.ValorTotal || 0), 0);
+    const custoSinistros = sinCliente.reduce((s, si) => s + (si.ValorTotal || si.ValorSinistro || 0), 0);
     const custoMultas = mulCliente.reduce((s, mu) => s + (mu.ValorMulta || 0), 0);
     const custoTotal = custoManutencao + custoSinistros + custoMultas;
     const percentualCusto = totalFaturamento > 0 ? (custoTotal / totalFaturamento) * 100 : 0;

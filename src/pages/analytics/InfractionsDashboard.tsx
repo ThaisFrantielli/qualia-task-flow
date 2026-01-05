@@ -5,6 +5,8 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import { AlertOctagon, TrendingUp } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
+import MultasDescontoAlert from '@/components/analytics/infractions/MultasDescontoAlert';
+import MultasHeatmap from '@/components/analytics/infractions/MultasHeatmap';
 
 type AnyObject = { [k: string]: any };
 
@@ -115,6 +117,9 @@ export default function InfractionsDashboard(): JSX.Element {
 
       <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
       <ChartFilterBadges filters={filters} onClearFilter={clearFilter} onClearAll={clearAllFilters} />
+
+      {/* Alerta de Descontos Expirando */}
+      <MultasDescontoAlert multas={filteredMultas} diasAlerta={7} />
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit">
         {tabs.map((tab, idx) => (
@@ -312,8 +317,12 @@ export default function InfractionsDashboard(): JSX.Element {
       )}
 
       {activeTab === 4 && (
-        <Card>
-          <Title>Detalhamento de Multas</Title>
+        <div className="space-y-6">
+          {/* Mapa de Calor de Infrações */}
+          <MultasHeatmap multas={filteredMultas} />
+
+          <Card>
+            <Title>Detalhamento de Multas</Title>
           <div className="mt-4 overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-rose-50 text-rose-800 sticky top-0">
@@ -341,6 +350,7 @@ export default function InfractionsDashboard(): JSX.Element {
             </table>
           </div>
         </Card>
+        </div>
       )}
     </div>
   );
