@@ -48,6 +48,39 @@ if (!SUPABASE_SERVICE_KEY) {
 // HELPER (Para campos texto sujos - USAR APENAS EM CAMPOS VARCHAR)
 const castM = (col) => `TRY_CAST(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(CAST(${col} AS VARCHAR), '0'), 'R$', ''), '.', ''), ',', '.'), ' ', '') AS FLOAT)`;
 
+// Variável global para armazenar a data de atualização do DW
+let dwLastUpdate = null;
+
+/**
+ * Busca a data mais recente de atualização dos dados no DW fonte
+ */
+async function getDWLastUpdateDate(pool) {
+    try {
+        const result = await pool.request().query(`
+            SELECT MAX(DataAtualizacaoDados) as LastUpdate
+            FROM (
+                SELECT MAX(DataAtualizacaoDados) as DataAtualizacaoDados FROM Veiculos
+                UNION ALL
+                SELECT MAX(DataAtualizacaoDados) FROM Clientes
+                UNION ALL
+                SELECT MAX(DataAtualizacaoDados) FROM ContratosLocacao
+                UNION ALL
+                SELECT MAX(DataAtualizacaoDados) FROM OrdensServico
+            ) AS AllDates
+        `);
+        
+        if (result.recordset && result.recordset[0].LastUpdate) {
+            dwLastUpdate = result.recordset[0].LastUpdate;
+            console.log(`📅 Data de atualização do DW fonte: ${dwLastUpdate.toISOString()}`);
+            return dwLastUpdate;
+        }
+        return null;
+    } catch (err) {
+        console.error('❌ Erro ao buscar data de atualização do DW:', err.message);
+        return null;
+    }
+}
+
 // ==============================================================================
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
@@ -320,6 +353,15 @@ function queueUpload(tableName, data, year = null, month = null) {
                   : `${tableName}_${year}`)
         : `${tableName}`;
     
+    // Adicionar metadata de atualização
+    const metadata = {
+        generated_at: new Date().toISOString(),
+        dw_last_update: dwLastUpdate ? dwLastUpdate.toISOString() : null,
+        table: tableName,
+        record_count: data.length,
+        etl_version: '2.0'
+    };
+    
     // Se dados são muito grandes, dividir em chunks
     if (data.length > MAX_CHUNK_SIZE) {
         const totalChunks = Math.ceil(data.length / MAX_CHUNK_SIZE);
@@ -329,13 +371,15 @@ function queueUpload(tableName, data, year = null, month = null) {
             const chunk = data.slice(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
             const chunkFileName = `${baseFileName}_part${i + 1}of${totalChunks}.json`;
             
+            const chunkMetadata = { ...metadata, chunk: i + 1, total_chunks: totalChunks, record_count: chunk.length };
+            
             const uploadPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ fileName: chunkFileName, data: chunk })
+                body: JSON.stringify({ fileName: chunkFileName, data: chunk, metadata: chunkMetadata })
             })
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -360,7 +404,7 @@ function queueUpload(tableName, data, year = null, month = null) {
                 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ fileName, data })
+            body: JSON.stringify({ fileName, data, metadata })
         })
         .then(response => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -574,6 +618,11 @@ async function runMasterETL() {
         console.log('🔌 Conectando ao PostgreSQL (destino) - Pool de 10 conexões...');
         pgClient = new Pool(pgConfig);
         console.log(`   ✅ Conectado: ${pgConfig.host}:${pgConfig.port} / ${pgConfig.database}\n`);
+
+        // ========== BUSCAR DATA DE ATUALIZAÇÃO DO DW ==========
+        console.log('📅 Buscando data de última atualização do DW de origem...');
+        await getDWLastUpdateDate(sqlPool);
+        console.log('');
 
         // ========== CONFIGURAÇÃO DE DADOS ==========
         const years = [2022, 2023, 2024, 2025, 2026];

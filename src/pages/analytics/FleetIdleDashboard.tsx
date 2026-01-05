@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, Users, MapPin, Clock, DollarSign, HelpCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import DataUpdateBadge from '@/components/DataUpdateBadge';
 
 type AnyObject = { [k: string]: any };
 
@@ -30,7 +31,7 @@ const getCategory = (status: string) => {
 };
 
 export default function FleetIdleDashboard(): JSX.Element {
-  const { data: frotaData } = useBIData<AnyObject[]>('dim_frota.json');
+  const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota.json');
   const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
   const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos.json');
@@ -42,6 +43,8 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  const [detailPage, setDetailPage] = useState<number>(1);
+  const pageSize = 10;
 
   // Debug: verificar dados carregados
   const hasPatioData = patioMov.length > 0;
@@ -154,6 +157,14 @@ export default function FleetIdleDashboard(): JSX.Element {
       };
     });
   }, [frota, patioMov, veiculoMov, selectedDate]);
+
+  useEffect(() => {
+    // resetar paginação quando seleciona uma nova data
+    setDetailPage(1);
+  }, [selectedDate]);
+
+  const totalDetailPages = Math.max(1, Math.ceil(vehiclesOnSelectedDate.length / pageSize));
+  const visibleVehicles = vehiclesOnSelectedDate.slice((detailPage - 1) * pageSize, (detailPage - 1) * pageSize + pageSize);
 
   const currentIdleKPIs = useMemo(() => {
     const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
@@ -341,8 +352,11 @@ export default function FleetIdleDashboard(): JSX.Element {
           <Title className="text-slate-900">Monitoramento de Frota Improdutiva</Title>
           <Text className="text-slate-500">Análise temporal e drill-down de veículos parados</Text>
         </div>
-        <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full flex gap-2 font-medium">
-          <AlertTriangle className="w-4 h-4"/> Controle de Ociosidade
+        <div className="flex items-center gap-3">
+          <DataUpdateBadge metadata={frotaMetadata} compact />
+          <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full flex gap-2 font-medium">
+            <AlertTriangle className="w-4 h-4"/> Controle de Ociosidade
+          </div>
         </div>
       </div>
 
@@ -458,7 +472,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         </div>
       </Card>
 
-      {/* Detalhamento do Dia Selecionado */}
+      {/* Detalhamento do Dia Selecionado (com rolagem e paginação) */}
       {selectedDate && (
         <Card className="p-0 overflow-hidden">
           <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-rose-50">
@@ -498,42 +512,64 @@ export default function FleetIdleDashboard(): JSX.Element {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
-                <tr>
-                  <th className="px-6 py-3">Placa</th>
-                  <th className="px-6 py-3">Modelo</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Pátio</th>
-                  <th className="px-6 py-3 text-right">Dias Parado</th>
-                  <th className="px-6 py-3">Data Início Status</th>
-                  <th className="px-6 py-3">Última Movimentação</th>
-                  <th className="px-6 py-3">Usuário</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {vehiclesOnSelectedDate.map((v, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
-                    <td className="px-6 py-3">{v.Modelo}</td>
-                    <td className="px-6 py-3">
-                      <span className="px-2 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
-                        {v.Status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3">{v.Patio}</td>
-                    <td className="px-6 py-3 text-right font-bold text-rose-600">{v.DiasNoStatus} dias</td>
-                    <td className="px-6 py-3 text-slate-500">
-                      {fmtDate(v.DataInicioStatus)}
-                    </td>
-                    <td className="px-6 py-3 text-slate-500">
-                      {v.UltimaMovimentacao !== '-' ? fmtDate(v.UltimaMovimentacao) : '-'}
-                    </td>
-                    <td className="px-6 py-3 text-xs text-slate-600">{v.UsuarioMovimentacao}</td>
+            <div className="max-h-[420px] overflow-y-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
+                  <tr>
+                    <th className="px-6 py-3">Placa</th>
+                    <th className="px-6 py-3">Modelo</th>
+                    <th className="px-6 py-3">Status</th>
+                    <th className="px-6 py-3">Pátio</th>
+                    <th className="px-6 py-3 text-right">Dias Parado</th>
+                    <th className="px-6 py-3">Data Início Status</th>
+                    <th className="px-6 py-3">Última Movimentação</th>
+                    <th className="px-6 py-3">Usuário</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {visibleVehicles.map((v, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
+                      <td className="px-6 py-3">{v.Modelo}</td>
+                      <td className="px-6 py-3">
+                        <span className="px-2 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
+                          {v.Status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3">{v.Patio}</td>
+                      <td className="px-6 py-3 text-right font-bold text-rose-600">{v.DiasNoStatus} dias</td>
+                      <td className="px-6 py-3 text-slate-500">
+                        {fmtDate(v.DataInicioStatus)}
+                      </td>
+                      <td className="px-6 py-3 text-slate-500">
+                        {v.UltimaMovimentacao !== '-' ? fmtDate(v.UltimaMovimentacao) : '-'}
+                      </td>
+                      <td className="px-6 py-3 text-xs text-slate-600">{v.UsuarioMovimentacao}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="p-4 border-t bg-slate-50 flex items-center justify-between">
+            <div className="text-sm text-slate-600">Mostrando {Math.min(pageSize, vehiclesOnSelectedDate.length)} de {vehiclesOnSelectedDate.length}</div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDetailPage(d => Math.max(1, d - 1))}
+                disabled={detailPage <= 1}
+                className="px-3 py-1 bg-white border rounded text-sm disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-slate-600">Página {detailPage} de {totalDetailPages}</span>
+              <button
+                onClick={() => setDetailPage(d => Math.min(totalDetailPages, d + 1))}
+                disabled={detailPage >= totalDetailPages}
+                className="px-3 py-1 bg-white border rounded text-sm disabled:opacity-50"
+              >
+                Próximo
+              </button>
+            </div>
           </div>
         </Card>
       )}
@@ -935,40 +971,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         </Card>
         )}
 
-        {/* Pátios Críticos - Resumo */}
-        {patioAnalysis.length > 0 && (
-        <Card className="mt-6">
-          <Title className="text-lg">🎯 Pátios Críticos - Ação Prioritária</Title>
-          <Text className="text-xs text-slate-500 mb-4">
-            Pátios com maior concentração de veículos improdutivos que exigem atenção imediata
-          </Text>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {patioAnalysis.slice(0, 3).map((patio, idx) => (
-              <div key={idx} className="border border-rose-200 bg-rose-50 p-4 rounded">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-semibold text-slate-800">{patio.patio}</p>
-                    <p className="text-xs text-slate-500">{patio.movimentacoes} movimentações</p>
-                  </div>
-                  <span className="bg-rose-600 text-white text-xs px-2 py-1 rounded font-bold">
-                    #{idx + 1}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Improdutivos:</span>
-                    <span className="font-bold text-rose-700">{patio.veiculosImprodutivos}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Tempo médio:</span>
-                    <span className="font-bold text-blue-700">{patio.mediaDias.toFixed(0)} dias</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        )}
+        
       </div>
       ) : (
         <Card className="mt-8">
