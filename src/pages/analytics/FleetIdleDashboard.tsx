@@ -43,7 +43,6 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
-  const [detailPage, setDetailPage] = useState<number>(1);
   const pageSize = 10;
 
   // Debug: verificar dados carregados
@@ -158,13 +157,7 @@ export default function FleetIdleDashboard(): JSX.Element {
     });
   }, [frota, patioMov, veiculoMov, selectedDate]);
 
-  useEffect(() => {
-    // resetar paginação quando seleciona uma nova data
-    setDetailPage(1);
-  }, [selectedDate]);
-
-  const totalDetailPages = Math.max(1, Math.ceil(vehiclesOnSelectedDate.length / pageSize));
-  const visibleVehicles = vehiclesOnSelectedDate.slice((detailPage - 1) * pageSize, (detailPage - 1) * pageSize + pageSize);
+  // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
   const currentIdleKPIs = useMemo(() => {
     const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
@@ -527,7 +520,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {visibleVehicles.map((v, idx) => (
+                  {vehiclesOnSelectedDate.map((v, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
                       <td className="px-6 py-3">{v.Modelo}</td>
@@ -553,23 +546,7 @@ export default function FleetIdleDashboard(): JSX.Element {
           </div>
           <div className="p-4 border-t bg-slate-50 flex items-center justify-between">
             <div className="text-sm text-slate-600">Mostrando {Math.min(pageSize, vehiclesOnSelectedDate.length)} de {vehiclesOnSelectedDate.length}</div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setDetailPage(d => Math.max(1, d - 1))}
-                disabled={detailPage <= 1}
-                className="px-3 py-1 bg-white border rounded text-sm disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              <span className="text-sm text-slate-600">Página {detailPage} de {totalDetailPages}</span>
-              <button
-                onClick={() => setDetailPage(d => Math.min(totalDetailPages, d + 1))}
-                disabled={detailPage >= totalDetailPages}
-                className="px-3 py-1 bg-white border rounded text-sm disabled:opacity-50"
-              >
-                Próximo
-              </button>
-            </div>
+            <div className="text-sm text-slate-600">Role para ver todos</div>
           </div>
         </Card>
       )}
