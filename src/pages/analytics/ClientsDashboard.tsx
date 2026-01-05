@@ -20,7 +20,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export default function ClientsDashboard(): JSX.Element {
   const { data: rawClientes } = useBIData<AnyObject[]>('dim_clientes.json');
-  const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamento_*.json');
+  const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
   const { data: rawChurn } = useBIData<AnyObject[]>('fat_churn.json');
   const { data: rawInadimplencia } = useBIData<AnyObject[]>('fat_inadimplencia.json');
 
@@ -74,7 +74,7 @@ export default function ClientsDashboard(): JSX.Element {
 
     const clientesNomes = new Set(filteredClientes.map(c => c.NomeFantasia || c.Nome));
     const receitaClientes = faturamento.filter(f => clientesNomes.has(f.Cliente));
-    const totalReceita = receitaClientes.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
+    const totalReceita = receitaClientes.reduce((s, f) => s + parseCurrency(f.VlrTotal), 0);
     const avgReceita = totalClientes > 0 ? totalReceita / totalClientes : 0;
 
     const encerrados = churn.length;
@@ -90,7 +90,7 @@ export default function ClientsDashboard(): JSX.Element {
     const map: Record<string, number> = {};
     faturamento.forEach(f => {
       const c = f.Cliente || 'N/A';
-      map[c] = (map[c] || 0) + parseCurrency(f.ValorTotal);
+      map[c] = (map[c] || 0) + parseCurrency(f.VlrTotal);
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))

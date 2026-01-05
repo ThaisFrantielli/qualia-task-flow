@@ -16,7 +16,7 @@ async function fetchFile(fileName: string, signal?: AbortSignal) {
   const url = `${BASE_URL}/${fileName}?t=${Date.now()}`;
   const res = await fetch(url, { signal });
   if (!res.ok) {
-    if (res.status === 404) return null; // Arquivo não existe (ano futuro ou sem dados)
+    if (res.status === 404 || res.status === 400) return null; // Arquivo não existe ou request inválido
     throw new Error(`HTTP ${res.status}`);
   }
   return await res.json();
@@ -85,8 +85,48 @@ export default function useBIData<T = any>(fileName: string): BIResult<T> {
         }
         // MODO SIMPLES (Arquivo único)
         else {
-          const json = await fetchFile(fileName, controller.signal);
-          if (json) {
+          const baseFileName = fileName.replace('.json', '');
+          
+          // Tenta buscar o arquivo direto primeiro
+          let json = await fetchFile(fileName, controller.signal);
+          
+          // Se não encontrar, tenta buscar chunks
+          if (!json && !fileName.includes('_part')) {
+            console.log(`📦 Arquivo ${fileName} não encontrado, tentando buscar chunks...`);
+            const chunkedFiles: any[] = [];
+            
+            // Tenta detectar total de partes olhando padrões comuns (até 20 partes)
+            for (let totalParts = 2; totalParts <= 20; totalParts++) {
+              let allPartsFound = true;
+              const tempChunks: any[] = [];
+              
+              // Tenta buscar todas as partes para esse total
+              for (let partNum = 1; partNum <= totalParts; partNum++) {
+                const chunkFileName = `${baseFileName}_part${partNum}of${totalParts}.json`;
+                const partJson = await fetchFile(chunkFileName, controller.signal);
+                
+                if (partJson) {
+                  const partData = partJson?.data ?? partJson;
+                  if (Array.isArray(partData)) {
+                    tempChunks.push(...partData);
+                  }
+                } else {
+                  allPartsFound = false;
+                  break;
+                }
+              }
+              
+              // Se encontrou todas as partes para esse total, usa elas
+              if (allPartsFound && tempChunks.length > 0) {
+                finalData = tempChunks;
+                finalMeta.chunked = true;
+                finalMeta.totalParts = totalParts;
+                finalMeta.totalRecords = tempChunks.length;
+                console.log(`✅ Carregado ${tempChunks.length} registros de ${totalParts} chunks: ${baseFileName}`);
+                break;
+              }
+            }
+          } else if (json) {
             finalData = json?.data ?? json;
             // Support both new format (metadata object) and legacy format (root properties)
             if (json.metadata) {

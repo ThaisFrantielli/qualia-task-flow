@@ -20,7 +20,7 @@ const COLORS = ['#ef4444', '#f59e0b', '#64748b', '#ec4899', '#8b5cf6', '#06b6d4'
 
 export default function ChurnDashboard(): JSX.Element {
   const { data: rawChurn } = useBIData<AnyObject[]>('fat_churn.json');
-  const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos.json');
+  const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
 
   const churn = useMemo(() => {
     const raw = (rawChurn as any)?.data || rawChurn || [];
