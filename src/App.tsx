@@ -21,6 +21,7 @@ import TaskSettingsPage from '@/pages/TaskSettingsPage';
 import Notifications from '@/pages/Notifications';
 import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
+import FleetIdleDashboard from '@/pages/analytics/FleetIdleDashboard';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 import ContractAnalysisDashboard from '@/pages/analytics/ContractAnalysisDashboard';
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
@@ -119,6 +120,7 @@ function App() {
               <Route path="/analytics">
                 <Route index element={<AnalyticsIndex />} />
                 <Route path="frota" element={<FleetDashboard />} />
+                <Route path="frota-improdutiva" element={<FleetIdleDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="vendas" element={<SalesDashboard />} />
                 <Route path="churn" element={<ChurnDashboard />} />

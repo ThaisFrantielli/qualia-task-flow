@@ -16,11 +16,11 @@ function monthLabel(ym: string) { if (!ym) return ''; const [y, m] = ym.split('-
 
 export default function ContractsDashboard(): JSX.Element {
     // --- HOOKS DE DADOS (ETL V6) ---
-    const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos.json');
-    const { data: churnData } = useBIData<AnyObject[]>('dim_churn.json');
-    const { data: rentabilidadeData } = useBIData<AnyObject[]>('dim_rentabilidade.json');
-    const { data: faturamentoData } = useBIData<AnyObject[]>('fat_faturamento_*.json');
-    const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_os_*.json');
+    const { data: contratosData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
+    const { data: churnData } = useBIData<AnyObject[]>('fat_churn.json');
+    const { data: rentabilidadeData } = useBIData<AnyObject[]>('rentabilidade_360_geral.json');
+    const { data: faturamentoData } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
+    const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
 
     // Normalização
     const contratos = useMemo(() => Array.isArray(contratosData) ? contratosData : [], [contratosData]);
@@ -69,13 +69,13 @@ export default function ContractsDashboard(): JSX.Element {
         // Soma Receita (Realizado) - Tipagem explícita adicionada
         faturamento.forEach((f: AnyObject) => {
             const k = getMonthKey(f.DataCompetencia);
-            if (map[k]) map[k].receita += parseCurrency(f.ValorTotal);
+            if (map[k]) map[k].receita += parseCurrency(f.VlrTotal);
         });
 
         // Soma Custo (Manutenção) - Link indireto - Tipagem explícita adicionada
         manutencao.forEach((m: AnyObject) => {
             const k = getMonthKey(m.DataEntrada);
-            if (map[k]) map[k].custo += parseCurrency(m.ValorTotal);
+            if (map[k]) map[k].custo += parseCurrency(m.CustoTotalOS || m.ValorTotal);
         });
 
         // Soma Previsto (Baseado nos contratos ativos no mês)

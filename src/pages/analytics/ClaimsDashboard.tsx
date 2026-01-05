@@ -3,6 +3,8 @@ import useBIData from '@/hooks/useBIData';
 import { Card, Title, Text, Metric } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, PieChart, Pie, Legend } from 'recharts';
 import { ShieldX, Filter, X } from 'lucide-react';
+import SinistrosMapView from '@/components/analytics/claims/SinistrosMapView';
+import SinistrosCulpaChart from '@/components/analytics/claims/SinistrosCulpaChart';
 
 type AnyObject = { [k: string]: any };
 
@@ -32,7 +34,7 @@ export default function ClaimsDashboard(): JSX.Element {
   }, [sinistros, filterState]);
 
   const kpis = useMemo(() => {
-    const valorSinistros = filteredSinistros.reduce((s, r) => s + parseCurrency(r.ValorSinistro), 0);
+    const valorSinistros = filteredSinistros.reduce((s, r) => s + parseCurrency(r.ValorTotal || r.ValorSinistro), 0);
     const valorRecuperado = filteredSinistros.reduce((s, r) => s + parseCurrency(r.ValorRecuperado), 0);
     const qtd = filteredSinistros.length;
     const uniqueVeiculos = new Set(filteredSinistros.map(r => r.Placa).filter(Boolean)).size;
@@ -151,6 +153,15 @@ export default function ClaimsDashboard(): JSX.Element {
                 </ResponsiveContainer>
             </div>
         </Card>
+      </div>
+
+      {/* Novos Componentes de Visualização */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SinistrosMapView sinistros={filteredSinistros as any} />
+        <SinistrosCulpaChart sinistros={filteredSinistros as any} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
         <Card>
             <Title>Detalhamento Recente</Title>
             <div className="overflow-x-auto h-64">

@@ -16,7 +16,7 @@ function monthLabel(ym: string): string { if (!ym || ym.length < 7) return ym; c
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
 export default function FinancialDashboard(): JSX.Element {
-  const { data: rawFaturamento, loading: l1 } = useBIData<AnyObject[]>('fat_faturamento_*.json');
+  const { data: rawFaturamento, loading: l1 } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
   const { data: rawDRE } = useBIData<AnyObject[]>('agg_dre_mensal.json');
   const { data: rawInadimplencia } = useBIData<AnyObject[]>('fat_inadimplencia.json');
 
@@ -54,8 +54,8 @@ export default function FinancialDashboard(): JSX.Element {
   }, [inadimplencia, filters, getFilterValues]);
 
   const kpis = useMemo(() => {
-    const receitaTotal = filteredFaturamento.reduce((s, f) => s + parseCurrency(f.ValorTotal), 0);
-    const receitaLocacao = filteredFaturamento.reduce((s, f) => s + parseCurrency(f.ValorLocacao), 0);
+    const receitaTotal = filteredFaturamento.reduce((s, f) => s + parseCurrency(f.VlrTotal), 0);
+    const receitaLocacao = filteredFaturamento.reduce((s, f) => s + parseCurrency(f.VlrLocacao), 0);
     
     const saldoDevedor = filteredInadimplencia.reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);
     const totalVencido = filteredInadimplencia.filter(i => i.DiasAtraso > 0).reduce((s, i) => s + parseCurrency(i.SaldoDevedor), 0);

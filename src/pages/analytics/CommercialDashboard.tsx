@@ -29,8 +29,8 @@ const exportToExcel = (data: any[], filename: string) => {
 };
 
 export default function CommercialDashboard(): JSX.Element {
-  const { data: rawPropostas, loading } = useBIData<AnyObject[]>('fat_propostas_*.json');
-  const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos.json');
+  const { data: rawPropostas, loading } = useBIData<AnyObject[]>('fat_propostas_*.json'); // TODO: Criar no ETL
+  const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
 
   const propostas = useMemo(() => {
     const raw = (rawPropostas as any)?.data || rawPropostas || [];
