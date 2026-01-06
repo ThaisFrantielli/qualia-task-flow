@@ -3,6 +3,7 @@ import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
 import { Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, Square, History, Filter, Search, FileSpreadsheet, MapPin } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { calcStateDurationsDays, normalizeEventName } from '@/lib/analytics/fleetTimeline';
 
 type AnyObject = { [k: string]: any };
 
@@ -15,20 +16,20 @@ interface TimelineTabProps {
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
 
 const EVENT_COLORS: Record<string, string> = {
-  'Início de Locação': '#10b981',
-  'Fim de Locação': '#ef4444',
-  'Início Manutenção': '#f59e0b',
-  'Fim Manutenção': '#8b5cf6',
-  'Movimentação': '#3b82f6',
+  'LOCAÇÃO': '#10b981',
+  'DEVOLUÇÃO': '#ef4444',
+  'MANUTENÇÃO': '#f59e0b',
+  'SINISTRO': '#8b5cf6',
+  'MOVIMENTAÇÃO': '#3b82f6',
   'default': '#94a3b8'
 };
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
-  'Início de Locação': <Play size={14} className="text-emerald-500" />,
-  'Fim de Locação': <Square size={14} className="text-rose-500" />,
-  'Início Manutenção': <Wrench size={14} className="text-amber-500" />,
-  'Fim Manutenção': <Wrench size={14} className="text-purple-500" />,
-  'Movimentação': <MapPin size={14} className="text-blue-500" />
+  'LOCAÇÃO': <Play size={14} className="text-emerald-500" />,
+  'DEVOLUÇÃO': <Square size={14} className="text-rose-500" />,
+  'MANUTENÇÃO': <Wrench size={14} className="text-amber-500" />,
+  'SINISTRO': <Wrench size={14} className="text-purple-500" />,
+  'MOVIMENTAÇÃO': <MapPin size={14} className="text-blue-500" />
 };
 
 export default function TimelineTab({ timeline, filteredData, frota }: TimelineTabProps) {
@@ -39,61 +40,32 @@ export default function TimelineTab({ timeline, filteredData, frota }: TimelineT
 
   // Agrupa eventos por placa
   const timelineGrouped = useMemo(() => {
-    const placasFiltradas = new Set(filteredData.map(f => f.Placa));
-    const data = placasFiltradas.size > 0 
+    const placasFiltradas = new Set(filteredData.map(f => f.Placa).filter(Boolean));
+    const data = placasFiltradas.size > 0
       ? timeline.filter(t => placasFiltradas.has(t.Placa))
       : timeline;
-    
+
     const grouped: Record<string, AnyObject[]> = {};
     data.forEach(item => {
-      if (!grouped[item.Placa]) grouped[item.Placa] = [];
-      grouped[item.Placa].push(item);
+      const placa = item.Placa;
+      if (!placa) return;
+      if (!grouped[placa]) grouped[placa] = [];
+      grouped[placa].push(item);
     });
-    
+
     return Object.entries(grouped).map(([placa, eventos]) => {
       const veiculoInfo = frota.find(f => f.Placa === placa) || filteredData.find(f => f.Placa === placa);
-      
-      // Ordenar eventos por data
-      const sortedEvents = [...eventos].sort((a, b) => 
-        new Date(a.DataEvento || a.Data).getTime() - new Date(b.DataEvento || b.Data).getTime()
-      );
-      
-      // Calcular métricas
-      let totalDays = 0, locacaoDays = 0, manutencaoDays = 0;
-      
-      if (sortedEvents.length > 0) {
-        const firstDate = new Date(sortedEvents[0].DataEvento || sortedEvents[0].Data);
-        totalDays = Math.max(1, (new Date().getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
-      }
 
-      for (let i = 0; i < sortedEvents.length; i++) {
-        const evento = sortedEvents[i];
-        const tipo = evento.TipoEvento || evento.Evento || '';
-        if (!tipo?.startsWith?.('Início')) continue;
+      const sortedEvents = [...eventos]
+        .filter(e => !!(e.DataEvento || e.Data))
+        .sort((a, b) => new Date(a.DataEvento || a.Data).getTime() - new Date(b.DataEvento || b.Data).getTime());
 
-        const start = new Date(evento.DataEvento || evento.Data);
-        let end = new Date();
-        
-        const closingEvent = sortedEvents.slice(i + 1).find(e => {
-          const t = e.TipoEvento || e.Evento || '';
-          if (tipo === 'Início de Locação') return t === 'Fim de Locação';
-          if (tipo === 'Início Manutenção') return t === 'Fim Manutenção';
-          return false;
-        });
+      const { totalDays, locacaoDays, manutencaoDays } = calcStateDurationsDays(sortedEvents);
+      const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDays / totalDays) * 100)) : 0;
 
-        if (closingEvent) end = new Date(closingEvent.DataEvento || closingEvent.Data);
-        
-        const duration = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (tipo === 'Início de Locação') locacaoDays += duration;
-        else if (tipo === 'Início Manutenção') manutencaoDays += duration;
-      }
-
-      const utilization = Math.min(100, Math.max(0, (locacaoDays / totalDays) * 100));
-
-      return { 
-        placa, 
-        modelo: veiculoInfo?.Modelo || 'N/A', 
+      return {
+        placa,
+        modelo: veiculoInfo?.Modelo || 'N/A',
         status: veiculoInfo?.Status || 'N/A',
         eventos: sortedEvents,
         totalEvents: sortedEvents.length,
@@ -130,7 +102,7 @@ export default function TimelineTab({ timeline, filteredData, frota }: TimelineT
     // Distribuição por tipo de evento
     const eventTypes: Record<string, number> = {};
     timeline.forEach(e => {
-      const tipo = e.TipoEvento || e.Evento || 'Outro';
+      const tipo = normalizeEventName(e.TipoEvento || e.Evento || 'Outro') || 'Outro';
       eventTypes[tipo] = (eventTypes[tipo] || 0) + 1;
     });
 
@@ -410,7 +382,7 @@ export default function TimelineTab({ timeline, filteredData, frota }: TimelineT
                 <div className="px-4 pb-4 pl-14">
                   <div className="relative border-l-2 border-slate-200 ml-2 space-y-3">
                     {eventos.slice(0, 20).map((evento, idx) => {
-                      const tipo = evento.TipoEvento || evento.Evento || 'Evento';
+                      const tipo = normalizeEventName(evento.TipoEvento || evento.Evento || 'Evento') || 'OUTRO';
                       const date = new Date(evento.DataEvento || evento.Data);
                       const formattedDate = isNaN(date.getTime()) ? 'Data inválida' : date.toLocaleDateString('pt-BR');
                       const icon = EVENT_ICONS[tipo] || <Clock size={14} className="text-slate-400" />;

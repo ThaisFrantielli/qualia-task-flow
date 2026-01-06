@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Wrench, Target, AlertTriangle, Gauge, Zap } from 'lucide-react';
+import { calcStateDurationsDays } from '@/lib/analytics/fleetTimeline';
 
 type AnyObject = { [k: string]: any };
 
@@ -26,18 +27,20 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
 
   // Agrupa eventos por placa
   const timelineGrouped = useMemo(() => {
-    const placasFiltradas = new Set(filteredData.map(f => f.Placa));
+    const placasFiltradas = new Set(filteredData.map(f => f.Placa).filter(Boolean));
     // Se filteredData estiver vazio, usar todas as placas da timeline
-    const data = placasFiltradas.size > 0 
+    const data = placasFiltradas.size > 0
       ? timeline.filter(t => placasFiltradas.has(t.Placa))
       : timeline;
-    
+
     const grouped: Record<string, AnyObject[]> = {};
     data.forEach(item => {
-      if (!grouped[item.Placa]) grouped[item.Placa] = [];
-      grouped[item.Placa].push(item);
+      const placa = item.Placa;
+      if (!placa) return;
+      if (!grouped[placa]) grouped[placa] = [];
+      grouped[placa].push(item);
     });
-    
+
     return Object.entries(grouped).map(([placa, eventos]) => {
       const veiculoInfo = frota.find(f => f.Placa === placa) || filteredData.find(f => f.Placa === placa);
       return { placa, modelo: veiculoInfo?.Modelo || 'N/A', eventos };
@@ -47,48 +50,21 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
   // Calcula métricas de eficiência por veículo
   const vehicleMetrics = useMemo(() => {
     return timelineGrouped.map(({ placa, modelo, eventos }) => {
-      let totalDays = 0, locacaoDays = 0, manutencaoDays = 0, disponibilidadeDays = 0;
-      
-      if (eventos.length > 0) {
-        const sortedEvents = [...eventos].sort((a, b) => 
-          new Date(a.DataEvento || a.Data).getTime() - new Date(b.DataEvento || b.Data).getTime()
-        );
-        const firstEventDate = new Date(sortedEvents[0].DataEvento || sortedEvents[0].Data);
-        totalDays = Math.max(1, (new Date().getTime() - firstEventDate.getTime()) / (1000 * 60 * 60 * 24));
-      }
+      const sortedEvents = [...eventos]
+        .filter(e => !!(e.DataEvento || e.Data))
+        .sort((a, b) => new Date(a.DataEvento || a.Data).getTime() - new Date(b.DataEvento || b.Data).getTime());
 
-      for (let i = 0; i < eventos.length; i++) {
-        const evento = eventos[i];
-        const tipoEvento = evento.TipoEvento || evento.Evento || '';
-        if (!tipoEvento?.startsWith?.('Início')) continue;
+      const { totalDays, locacaoDays, manutencaoDays } = calcStateDurationsDays(sortedEvents);
+      const disponibilidadeDays = Math.max(0, totalDays - locacaoDays - manutencaoDays);
 
-        const start = new Date(evento.DataEvento || evento.Data);
-        let end = new Date();
-        
-        const closingEvent = eventos.slice(i + 1).find(e => {
-          const tipoE = e.TipoEvento || e.Evento || '';
-          if (tipoEvento === 'Início de Locação') return tipoE === 'Fim de Locação';
-          if (tipoEvento === 'Início Manutenção') return tipoE === 'Fim Manutenção';
-          return false;
-        });
+      const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDays / totalDays) * 100)) : 0;
+      const manutPct = totalDays > 0 ? Math.min(100, Math.max(0, (manutencaoDays / totalDays) * 100)) : 0;
 
-        if (closingEvent) end = new Date(closingEvent.DataEvento || closingEvent.Data);
-        
-        const duration = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (tipoEvento === 'Início de Locação') locacaoDays += duration;
-        else if (tipoEvento === 'Início Manutenção') manutencaoDays += duration;
-      }
-      
-      disponibilidadeDays = Math.max(0, totalDays - locacaoDays - manutencaoDays);
-      const utilization = Math.min(100, Math.max(0, (locacaoDays / totalDays) * 100));
-      const manutPct = Math.min(100, Math.max(0, (manutencaoDays / totalDays) * 100));
-
-      return { 
-        placa, 
+      return {
+        placa,
         modelo,
         totalDays: Math.round(totalDays),
-        locacaoDays: Math.round(locacaoDays), 
+        locacaoDays: Math.round(locacaoDays),
         manutencaoDays: Math.round(manutencaoDays),
         disponibilidadeDays: Math.round(disponibilidadeDays),
         utilization,
