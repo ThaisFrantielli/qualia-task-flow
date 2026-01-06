@@ -1321,9 +1321,9 @@ export default function FleetDashboard(): JSX.Element {
                                     {expandedCategories.length === modelosPorCategoria.length ? '− Colapsar Todas' : '+ Expandir Todas'}
                                 </button>
                             </div>
-                            <div className="h-96 mt-2 overflow-y-auto pr-2">
-                                <ResponsiveContainer width="100%" height={Math.max(400, modelosHierarchicalData.length * 28)}>
-                                    <BarChart data={modelosHierarchicalData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                            <div className="h-[400px] mt-1 overflow-y-auto pr-2">
+                                <ResponsiveContainer width="100%" height={Math.max(300, modelosHierarchicalData.length * 28)}>
+                                    <BarChart data={modelosHierarchicalData} layout="vertical" margin={{ left: 0, right: 80, top: 6 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={240} tick={{fontSize:10}} />
@@ -1357,15 +1357,15 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
                         
                         <Card>
-                            <div className="flex justify-between items-center mb-2">
+                            <div className="flex justify-between items-center mb-6">
                                 <Title>Classificação por Odômetro</Title>
                             </div>
-                            <Text className="text-xs text-slate-500 mb-2">Distribuição de veículos por faixa de quilometragem informada</Text>
-                            <div className="h-96 mt-2">
+                            <Text className="text-xs text-slate-500 mb-3">Distribuição de veículos por faixa de quilometragem informada</Text>
+                            <div className="h-[400px] mt-2">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={odometroData} margin={{ left: 20, right: 60 }}>
+                                    <BarChart data={odometroData} margin={{ left: 20, right: 60, bottom: 36, top: 6 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={64} />
                                         <YAxis tick={{ fontSize: 12 }} />
                                         <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
                                         <Bar dataKey="value" radius={[6,6,0,0]} barSize={32} fill="#06b6d4">
@@ -1377,7 +1377,7 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
                     </div>
 
-          <Card id="detail-table" className="p-0 overflow-hidden mt-6">
+          <Card id="detail-table" className="p-0 overflow-hidden mt-4">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16}/> Exportar</button></div>
               <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr>
                   <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th>
