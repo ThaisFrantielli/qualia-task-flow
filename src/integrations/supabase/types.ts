@@ -695,6 +695,74 @@ export type Database = {
           },
         ]
       }
+      email_accounts: {
+        Row: {
+          access_token: string | null
+          created_at: string | null
+          display_name: string | null
+          email: string
+          encrypted_password: string | null
+          id: string
+          imap_host: string | null
+          imap_port: number | null
+          is_active: boolean | null
+          last_sync_at: string | null
+          provider: string
+          refresh_token: string | null
+          smtp_host: string | null
+          smtp_port: number | null
+          token_expires_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          email: string
+          encrypted_password?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_port?: number | null
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          provider: string
+          refresh_token?: string | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          email?: string
+          encrypted_password?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_port?: number | null
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          provider?: string
+          refresh_token?: string | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funil_estagios: {
         Row: {
           cor: string | null
@@ -2626,6 +2694,54 @@ export type Database = {
           },
           {
             foreignKeyName: "task_delegations_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_email_links: {
+        Row: {
+          created_at: string | null
+          email_account_id: string | null
+          email_date: string | null
+          email_from: string | null
+          email_message_id: string
+          email_subject: string | null
+          id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_account_id?: string | null
+          email_date?: string | null
+          email_from?: string | null
+          email_message_id: string
+          email_subject?: string | null
+          id?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_account_id?: string | null
+          email_date?: string | null
+          email_from?: string | null
+          email_message_id?: string
+          email_subject?: string | null
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_email_links_email_account_id_fkey"
+            columns: ["email_account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_email_links_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"

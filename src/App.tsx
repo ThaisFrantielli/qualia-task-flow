@@ -67,6 +67,7 @@ import PrecificacaoConfigPage from '@/pages/PrecificacaoConfigPage';
 // removed unused analytics/page imports to satisfy typecheck
 import { useEnabledModules } from '@/modules/registry';
 import React from 'react';
+import EmailPage from '@/pages/EmailPage';
 
 function App() {
   const enabledModules = useEnabledModules();
@@ -116,7 +117,7 @@ function App() {
               <Route path="/atendimento" element={<AtendimentoCentralPage />} />
               <Route path="/whatsapp" element={<WhatsAppCentralPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
-
+              <Route path="/emails" element={<EmailPage />} />
               <Route path="/analytics">
                 <Route index element={<AnalyticsIndex />} />
                 <Route path="frota" element={<FleetDashboard />} />
