@@ -145,9 +145,9 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
             media_type: file.type,
             file_name: file.name
           },
-          message_type: file.type.startsWith('image/') ? 'image' : 
-                        file.type.startsWith('video/') ? 'video' : 
-                        file.type.startsWith('audio/') ? 'audio' : 'document',
+          message_type: (file.type || '').startsWith('image/') ? 'image' : 
+                        (file.type || '').startsWith('video/') ? 'video' : 
+                        (file.type || '').startsWith('audio/') ? 'audio' : 'document',
           sender_type: 'agent',
           status: 'pending'
         })
@@ -165,7 +165,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
           phoneNumber: conversation.customer_phone,
           message: '',
           mediaUrl: publicUrl,
-          mediaType: file.type,
+            mediaType: file.type || '',
           fileName: file.name,
           conversation_id: conversation.id,
           message_id: messageData.id

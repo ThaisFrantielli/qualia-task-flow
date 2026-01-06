@@ -1449,7 +1449,7 @@ const TimelineRow = ({ placa, modelo, eventos, isExpanded, onToggle }: { placa: 
 
         for (let i = 0; i < eventos.length; i++) {
             const evento = eventos[i];
-            if (!evento.TipoEvento.startsWith('Início')) continue;
+            if (!((evento.TipoEvento || '').startsWith('Início'))) continue;
 
             const start = new Date(evento.DataEvento);
             let end = new Date();
@@ -1509,10 +1509,11 @@ const TimelineRow = ({ placa, modelo, eventos, isExpanded, onToggle }: { placa: 
 };
 
 const TimelineDetails = ({ eventos }: { eventos: any[] }) => {
-    const getIcon = (type: string) => {
-        if (type.includes('Início de Locação')) return <Calendar size={14} className="text-emerald-500" />;
-        if (type.includes('Fim de Locação')) return <FlagOff size={14} className="text-rose-500" />;
-        if (type.includes('Manutenção')) return <Wrench size={14} className="text-amber-500" />;
+    const getIcon = (type?: string) => {
+        const t = type || '';
+        if (t.includes('Início de Locação')) return <Calendar size={14} className="text-emerald-500" />;
+        if (t.includes('Fim de Locação')) return <FlagOff size={14} className="text-rose-500" />;
+        if (t.includes('Manutenção')) return <Wrench size={14} className="text-amber-500" />;
         return <Warehouse size={14} className="text-slate-500" />;
     };
 
@@ -1524,7 +1525,7 @@ const TimelineDetails = ({ eventos }: { eventos: any[] }) => {
                     const formattedDate = isNaN(date.getTime()) ? 'Data inválida' : date.toLocaleDateString('pt-BR');
                     let endDate = null, duration = null;
 
-                    const isStartEvent = evento.TipoEvento.startsWith('Início');
+                    const isStartEvent = (evento.TipoEvento || '').startsWith('Início');
                     if(isStartEvent) {
                         const closingEvent = eventos.slice(index + 1).find(e => {
                             if(evento.TipoEvento === 'Início de Locação') return e.TipoEvento === 'Fim de Locação' && e.Detalhe2 === evento.Detalhe2;
@@ -1536,7 +1537,7 @@ const TimelineDetails = ({ eventos }: { eventos: any[] }) => {
                             duration = (endDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
                         }
                     }
-                    if (evento.TipoEvento.startsWith('Fim')) return null;
+                    if ((evento.TipoEvento || '').startsWith('Fim')) return null;
 
                     return (
                         <div key={index} className="mb-6 ml-6">
