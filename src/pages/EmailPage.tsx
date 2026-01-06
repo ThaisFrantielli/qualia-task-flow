@@ -1,67 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { EmailProvider } from '@/contexts/EmailContext';
 import { EmailSidebar } from '@/components/email/EmailSidebar';
-import { EmailList } from '@/components/email/EmailList';
-import { EmailDetail } from '@/components/email/EmailDetail';
-import { EmailFilters } from '@/components/email/EmailFilters';
 import { EmailConnectWizard } from '@/components/email/EmailConnectWizard';
-import { EmailToTaskDialog } from '@/components/email/EmailToTaskDialog';
 import { EmailCompose } from '@/components/email/EmailCompose';
-import { useEmailAccounts, useEmailList } from '@/hooks/useEmails';
-import { EmailAccount, EmailMessage, EmailFolder } from '@/types/email';
+import { useEmailAccounts } from '@/hooks/useEmails';
+import { EmailAccount, EmailFolder } from '@/types/email';
 import { Button } from '@/components/ui/button';
-import { PenSquare, Mail } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PenSquare, Mail, CheckCircle2, Settings, Server, ExternalLink } from 'lucide-react';
 
 function EmailPageContent() {
   const { accounts } = useEmailAccounts();
   
   const [activeAccount, setActiveAccount] = useState<EmailAccount | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<EmailFolder>('inbox');
-  const [selectedEmail, setSelectedEmail] = useState<EmailMessage | null>(null);
-  const [search, setSearch] = useState('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
   
   // Dialogs
   const [showConnectWizard, setShowConnectWizard] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
-  const [showTaskDialog, setShowTaskDialog] = useState(false);
-  const [emailForTask, setEmailForTask] = useState<EmailMessage | null>(null);
-  const [replyToEmail, setReplyToEmail] = useState<EmailMessage | null>(null);
 
   // Set active account when accounts load
-  useState(() => {
+  useEffect(() => {
     if (accounts.length > 0 && !activeAccount) {
       setActiveAccount(accounts[0]);
     }
-  });
-
-  const { data: emailData, isLoading: isLoadingEmails } = useEmailList({
-    accountId: activeAccount?.id,
-    folder: selectedFolder,
-    search,
-    unreadOnly,
-    enabled: !!activeAccount
-  });
+  }, [accounts, activeAccount]);
 
   const handleAccountChange = (account: EmailAccount) => {
     setActiveAccount(account);
-    setSelectedEmail(null);
-  };
-
-  const handleCreateTask = (email: EmailMessage) => {
-    setEmailForTask(email);
-    setShowTaskDialog(true);
-  };
-
-  const handleReply = (email: EmailMessage) => {
-    setReplyToEmail(email);
-    setShowCompose(true);
   };
 
   const handleConnectSuccess = () => {
-    if (accounts.length === 0) {
-      // Refresh will happen via query invalidation
-    }
+    // Account will be refreshed via query invalidation
   };
 
   return (
@@ -74,10 +45,8 @@ function EmailPageContent() {
         onAccountChange={handleAccountChange}
         onFolderChange={(folder) => {
           setSelectedFolder(folder);
-          setSelectedEmail(null);
         }}
         onAddAccount={() => setShowConnectWizard(true)}
-        unreadCounts={{ inbox: emailData?.emails.filter(e => !e.isRead).length || 0 }}
       />
 
       {/* Main Content */}
@@ -97,41 +66,137 @@ function EmailPageContent() {
         </div>
 
         {activeAccount ? (
-          <div className="flex-1 flex min-h-0">
-            {/* Email List Panel */}
-            <div className="w-96 border-r flex flex-col">
-              <EmailFilters
-                search={search}
-                onSearchChange={setSearch}
-                unreadOnly={unreadOnly}
-                onUnreadOnlyChange={setUnreadOnly}
-              />
-              <EmailList
-                emails={emailData?.emails || []}
-                selectedEmail={selectedEmail}
-                onSelectEmail={setSelectedEmail}
-                isLoading={isLoadingEmails}
-              />
-            </div>
-
-            {/* Email Detail Panel */}
-            <div className="flex-1 min-w-0">
-              {selectedEmail ? (
-                <EmailDetail
-                  email={selectedEmail}
-                  accountId={activeAccount.id}
-                  onBack={() => setSelectedEmail(null)}
-                  onReply={handleReply}
-                  onCreateTask={handleCreateTask}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  <div className="text-center">
-                    <Mail className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                    <p>Selecione um email para visualizar</p>
+          <div className="flex-1 p-6 overflow-auto">
+            {/* Connected Account Info */}
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Success Card */}
+              <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Conta Conectada com Sucesso
+                  </CardTitle>
+                  <CardDescription>
+                    Suas credenciais foram salvas de forma segura.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Email</p>
+                      <p className="font-medium">{activeAccount.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Nome de Exibição</p>
+                      <p className="font-medium">{activeAccount.display_name || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Provedor</p>
+                      <Badge variant="secondary">{activeAccount.provider?.toUpperCase()}</Badge>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Status</p>
+                      <Badge variant="default" className="bg-green-600">Ativo</Badge>
+                    </div>
                   </div>
-                </div>
-              )}
+                </CardContent>
+              </Card>
+
+              {/* Server Configuration */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Server className="h-4 w-4" />
+                    Configuração do Servidor
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Servidor IMAP</p>
+                      <p className="font-mono text-xs">{activeAccount.imap_host}:{activeAccount.imap_port}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Servidor SMTP</p>
+                      <p className="font-mono text-xs">{activeAccount.smtp_host}:{activeAccount.smtp_port}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Next Steps */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Settings className="h-4 w-4" />
+                    Próximos Passos para Integração Completa
+                  </CardTitle>
+                  <CardDescription>
+                    Para visualizar emails em tempo real, configure uma das opções abaixo:
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-1">1. Microsoft Graph API (Outlook/365)</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Recomendado para contas Microsoft. Suporta OAuth e acesso completo à caixa de email.
+                      </p>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://docs.microsoft.com/graph/api/resources/mail-api-overview" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Documentação
+                        </a>
+                      </Button>
+                    </div>
+
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-1">2. Gmail API (Google)</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Recomendado para contas Gmail. Requer configuração de OAuth no Google Cloud.
+                      </p>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://developers.google.com/gmail/api" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Documentação
+                        </a>
+                      </Button>
+                    </div>
+
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-1">3. Serviço IMAP Externo</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Use um serviço como Nylas, Mailgun, ou um backend Node.js com bibliotecas IMAP.
+                      </p>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://www.nylas.com/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3 w-3 mr-2" />
+                          Nylas
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="text-sm">
+                      <strong>Nota:</strong> A conexão IMAP direta via Edge Functions do Supabase tem limitações 
+                      técnicas. As credenciais salvas podem ser usadas por um backend Node.js ou serviço externo 
+                      para buscar emails em tempo real.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <Button onClick={() => setShowCompose(true)}>
+                  <PenSquare className="h-4 w-4 mr-2" />
+                  Compor Email
+                </Button>
+                <Button variant="outline" onClick={() => setShowConnectWizard(true)}>
+                  Adicionar Outra Conta
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -140,7 +205,7 @@ function EmailPageContent() {
               <Mail className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
               <h2 className="text-lg font-medium mb-2">Nenhuma conta conectada</h2>
               <p className="text-muted-foreground mb-4">
-                Conecte sua conta de email para visualizar e gerenciar suas mensagens.
+                Conecte sua conta de email para começar.
               </p>
               <Button onClick={() => setShowConnectWizard(true)}>
                 Conectar Conta de Email
@@ -161,15 +226,7 @@ function EmailPageContent() {
         open={showCompose}
         onOpenChange={setShowCompose}
         account={activeAccount}
-        replyTo={replyToEmail}
-        onSuccess={() => setReplyToEmail(null)}
-      />
-
-      <EmailToTaskDialog
-        open={showTaskDialog}
-        onOpenChange={setShowTaskDialog}
-        email={emailForTask}
-        accountId={activeAccount?.id || ''}
+        onSuccess={() => {}}
       />
     </div>
   );
