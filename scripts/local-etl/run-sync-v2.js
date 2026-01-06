@@ -113,7 +113,13 @@ const DIMENSIONS = [
                     g.GrupoVeiculo as Categoria, 
                     g.TaxaDeDepreciacaoAnual, 
                     v.SituacaoVeiculo as Status, 
+                    v.SituacaoFinanceira,
+                    v.DiasSituacao,
+                    -- FORMAT(v.DataInicioStatus, 'yyyy-MM-dd') as DataInicioStatus,
                     COALESCE(p.Patio, NULLIF(v.LocalizacaoVeiculo, ''), 'Em Cliente') AS Localizacao, 
+                    v.LocalizacaoVeiculo,
+                    v.DiasLocalizacao,
+                    v.ObservacaoLocalizacao,
                     COALESCE(v.OdometroConfirmado, v.OdometroInformado, 0) as KM, 
                     CAST(ISNULL(v.OdometroInformado, 0) AS INT) as KmInformado,
                     CAST(ISNULL(v.OdometroConfirmado, 0) AS INT) as KmConfirmado,
@@ -126,15 +132,32 @@ const DIMENSIONS = [
                     DATEDIFF(MONTH, v.DataCompra, GETDATE()) as IdadeVeiculo,
                     v.Proprietario,
                     v.EstadoLicenciamento as UF_Lic,
+                    v.CidadeLicenciamento,
                     v.NumeroMotor,
                     CAST(ISNULL(v.TanqueLitros, 0) AS INT) as Tanque,
                     FORMAT(v.UltimaManutencao, 'yyyy-MM-dd') as UltimaManutencao,
+                    FORMAT(v.UltimaManutencaoPreventiva, 'yyyy-MM-dd') as UltimaManutencaoPreventiva,
+                    CAST(ISNULL(v.KmUltimaManutencaoPreventiva, 0) AS INT) as KmUltimaManutencaoPreventiva,
+                    v.ProvedorTelemetria,
+                    FORMAT(v.UltimaAtualizacaoTelemetria, 'yyyy-MM-dd HH:mm:ss') as UltimaAtualizacaoTelemetria,
+                    CAST(v.Latitude AS FLOAT) as Latitude,
+                    CAST(v.Longitude AS FLOAT) as Longitude,
+                    v.UltimoEnderecoTelemetria,
+                    v.FinalidadeUso,
+                    v.ComSeguroVigente,
+                    CAST(ISNULL(v.CustoTotalPorKmRodado, 0) AS FLOAT) as CustoTotalPorKmRodado,
+                    v.IdCondutor,
+                    c.Nome as NomeCondutor,
+                    c.CPF as CPFCondutor,
+                    c.Telefone1 as TelefoneCondutor,
+                    v.SituacaoFinanceiraContratoLocacao,
                     al.Instituicao as BancoFinanciador, 
                     FORMAT(al.Termino, 'yyyy-MM-dd') as Quitacao, 
                     FORMAT(al.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimParcela 
                 FROM Veiculos v 
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo 
                 LEFT JOIN Patios p ON v.IdPatio = p.IdPatio 
+                LEFT JOIN Condutores c ON v.IdCondutor = c.IdCondutor
                 -- Preco FIPE na época da compra (mes/ano) quando existe
                                 OUTER APPLY (
                                         SELECT TOP 1 pf.PrecoFIPE as PrecoFIPE
@@ -488,7 +511,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
 
         await ensureTableExists(pgClient, tableName, recordset[0]);
 
-        const BATCH_SIZE = 2000; // Reduzido para evitar overflow de placeholders
+        const BATCH_SIZE = 500; // Reduzido para evitar overflow de placeholders
         const totalRows = recordset.length;
         const columns = Object.keys(recordset[0]);
         const columnNames = columns.map(col => `"${col.replace(/[^a-zA-Z0-9_]/g, "")}"`).join(', ');
