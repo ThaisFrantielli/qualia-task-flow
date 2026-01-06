@@ -246,10 +246,24 @@ export const KNOWN_IMAP_CONFIGS: Record<string, ImapConfig> = {
 };
 
 // Função helper para obter configuração IMAP pelo email
+// Para domínios corporativos desconhecidos, tenta Office 365 como padrão
 export function getImapConfigByEmail(email: string): ImapConfig | null {
   const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) return null;
-  return KNOWN_IMAP_CONFIGS[domain] || null;
+  
+  // Se encontrar configuração conhecida, usar ela
+  if (KNOWN_IMAP_CONFIGS[domain]) {
+    return KNOWN_IMAP_CONFIGS[domain];
+  }
+  
+  // Para domínios corporativos (não públicos), tentar Office 365 como padrão
+  // A maioria das empresas usa Microsoft 365
+  return {
+    imap_host: 'outlook.office365.com',
+    imap_port: 993,
+    smtp_host: 'smtp.office365.com',
+    smtp_port: 587
+  };
 }
 
 // Folders padrão com labels e ícones
