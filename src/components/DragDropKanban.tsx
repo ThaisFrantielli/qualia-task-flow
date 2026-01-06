@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 const DragDropKanban: React.FC = () => {
-  const { tasks, updateTask, createTask } = useTasks();
+  const { tasks, updateTask, createTask, startTask } = useTasks();
   const { user } = useAuth();
   const dragCounter = useRef(0);
 
@@ -66,14 +66,16 @@ const DragDropKanban: React.FC = () => {
       if (payload.from === targetColumn) return; // nothing to do
 
       // call updateTask to change status
-      if (updateTask) {
-        try {
+      try {
+        if (targetColumn === 'progress' && startTask) {
+          await startTask(payload.id);
+        } else if (updateTask) {
           await updateTask({ id: payload.id, updates: { status: targetColumn } as any });
-          toast.success('Tarefa movida');
-        } catch (err: any) {
-          console.error('Erro ao atualizar tarefa:', err);
-          toast.error('Erro ao mover tarefa', { description: err?.message || String(err) });
         }
+        toast.success('Tarefa movida');
+      } catch (err: any) {
+        console.error('Erro ao atualizar tarefa:', err);
+        toast.error('Erro ao mover tarefa', { description: err?.message || String(err) });
       }
     } catch (err) {
       console.error('Erro ao processar drop:', err);
