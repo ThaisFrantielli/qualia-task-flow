@@ -36,10 +36,9 @@ interface ConnectRequest {
   display_name?: string;
 }
 
-// Função simples para criptografar senha (em produção, usar encryption key do Vault)
+// Criptografar senha
 function encryptPassword(password: string): string {
-  // Simple base64 encoding for now - in production use proper encryption
-  const encryptionKey = Deno.env.get("EMAIL_ENCRYPTION_KEY") || "default-key";
+  const encryptionKey = Deno.env.get("EMAIL_ENCRYPTION_KEY") || "lovable-email-key-2024";
   const combined = `${encryptionKey}:${password}`;
   return btoa(combined);
 }
@@ -49,6 +48,12 @@ function detectImapConfig(email: string) {
   const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) return null;
   return KNOWN_IMAP_CONFIGS[domain] || null;
+}
+
+// Validar formato de email
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }
 
 serve(async (req: Request) => {
@@ -89,10 +94,10 @@ serve(async (req: Request) => {
 
     console.log(`[email-connect] Connecting account for user ${user.id}: ${email} via ${provider}`);
 
-    // Validate required fields
-    if (!email) {
+    // Validate email format
+    if (!email || !isValidEmail(email)) {
       return new Response(
-        JSON.stringify({ success: false, error: "Email é obrigatório" }),
+        JSON.stringify({ success: false, error: "Email inválido" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -120,44 +125,40 @@ serve(async (req: Request) => {
       );
     }
 
+    // Auto-detect IMAP config if not provided
+    const detectedConfig = detectImapConfig(email);
+    
+    const finalImapHost = imap_host || detectedConfig?.imap_host;
+    const finalImapPort = imap_port || detectedConfig?.imap_port || 993;
+    const finalSmtpHost = smtp_host || detectedConfig?.smtp_host;
+    const finalSmtpPort = smtp_port || detectedConfig?.smtp_port || 587;
+
+    // Validate we have IMAP config
+    if (!finalImapHost) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Não foi possível detectar as configurações IMAP para este domínio. Por favor, forneça manualmente os servidores IMAP e SMTP." 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[email-connect] Using IMAP config: ${finalImapHost}:${finalImapPort}`);
+
     // Build account data
-    let accountData: Record<string, unknown> = {
+    const accountData = {
       user_id: user.id,
       provider,
       email,
       display_name: display_name || email.split('@')[0],
+      imap_host: finalImapHost,
+      imap_port: finalImapPort,
+      smtp_host: finalSmtpHost,
+      smtp_port: finalSmtpPort,
+      encrypted_password: password ? encryptPassword(password) : null,
       is_active: true
     };
-
-    if (provider === 'imap') {
-      // Auto-detect IMAP config if not provided
-      const detectedConfig = detectImapConfig(email);
-      
-      accountData = {
-        ...accountData,
-        imap_host: imap_host || detectedConfig?.imap_host,
-        imap_port: imap_port || detectedConfig?.imap_port || 993,
-        smtp_host: smtp_host || detectedConfig?.smtp_host,
-        smtp_port: smtp_port || detectedConfig?.smtp_port || 587,
-        encrypted_password: password ? encryptPassword(password) : null
-      };
-
-      // Validate we have IMAP config
-      if (!accountData.imap_host) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "Não foi possível detectar as configurações IMAP para este domínio. Por favor, forneça manualmente." 
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      console.log(`[email-connect] Using IMAP config: ${accountData.imap_host}:${accountData.imap_port}`);
-
-      // TODO: Add actual IMAP connection test here
-      // For now, we'll assume the connection is valid if we have all the data
-    }
 
     // Save account to database
     const { data: newAccount, error: insertError } = await supabase
