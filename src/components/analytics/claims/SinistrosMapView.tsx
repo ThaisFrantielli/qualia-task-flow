@@ -51,10 +51,33 @@ const formatCurrency = (value: number | undefined | null): string => {
   }).format(value);
 };
 
+// Função robusta para obter valor
+function getValorSinistro(s: Sinistro): number {
+  if (typeof s.ValorTotal === 'number' && s.ValorTotal > 0) return s.ValorTotal;
+  if (typeof s.ValorOrcado === 'number' && s.ValorOrcado > 0) return s.ValorOrcado;
+  // Tentar parsear string
+  const parseVal = (v: any) => {
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    return parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
+  };
+  return parseVal(s.ValorTotal) || parseVal(s.ValorOrcado) || 0;
+}
+
+// Função robusta para determinar cor do marcador
 const getMarkerColor = (sinistro: Sinistro): string => {
-  if (sinistro.MotoristaCulpado === 'Sim' || sinistro.MotoristaCulpado === '1') return '#ef4444'; // Vermelho
-  if (sinistro.ResponsavelCulpado === 'Sim' || sinistro.ResponsavelCulpado === '1') return '#f59e0b'; // Laranja
-  return '#10b981'; // Verde (terceiros)
+  // Verificar campo Culpabilidade primeiro (se existir de dados normalizados)
+  const culpa = (sinistro as any).Culpabilidade;
+  if (culpa) {
+    const c = String(culpa).toLowerCase();
+    if (c.includes('motorista') || c.includes('condutor')) return '#ef4444';
+    if (c.includes('empresa') || c.includes('responsavel')) return '#f59e0b';
+    if (c.includes('terceiro')) return '#10b981';
+  }
+  // Fallback para campos booleanos
+  if (sinistro.MotoristaCulpado === 'Sim' || sinistro.MotoristaCulpado === '1') return '#ef4444';
+  if (sinistro.ResponsavelCulpado === 'Sim' || sinistro.ResponsavelCulpado === '1') return '#f59e0b';
+  return '#10b981';
 };
 
 const SinistrosMapView: React.FC<SinistrosMapViewProps> = ({
@@ -79,13 +102,13 @@ const SinistrosMapView: React.FC<SinistrosMapViewProps> = ({
     return [avgLat, avgLng];
   }, [sinistrosComGPS, defaultCenter]);
 
-  // Estatísticas rápidas
+  // Estatísticas rápidas com fallbacks robustos
   const stats = useMemo(() => {
     const total = sinistros.length;
     const comGPS = sinistrosComGPS.length;
     const semGPS = total - comGPS;
-    const valorTotal = sinistrosComGPS.reduce((sum, s) => sum + (s.ValorTotal || 0), 0);
-    const comBO = sinistrosComGPS.filter((s) => s.BoletimOcorrencia).length;
+    const valorTotal = sinistrosComGPS.reduce((sum, s) => sum + getValorSinistro(s), 0);
+    const comBO = sinistrosComGPS.filter((s) => s.BoletimOcorrencia && s.BoletimOcorrencia.trim()).length;
 
     return { total, comGPS, semGPS, valorTotal, comBO };
   }, [sinistros, sinistrosComGPS]);
@@ -208,7 +231,7 @@ const SinistrosMapView: React.FC<SinistrosMapViewProps> = ({
 
                         <div className="flex items-center gap-2 pt-2 border-t">
                           <DollarSign className="h-4 w-4 text-orange-500" />
-                          <span className="font-bold">{formatCurrency(sinistro.ValorTotal)}</span>
+                          <span className="font-bold">{formatCurrency(getValorSinistro(sinistro))}</span>
                         </div>
 
                         {sinistro.IndenizacaoSeguradora && sinistro.IndenizacaoSeguradora > 0 && (
