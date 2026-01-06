@@ -1,14 +1,17 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResponsiveContainer, PieChart, Pie, Cell, Legend, Tooltip } from 'recharts';
-import { AlertTriangle, User, Building2 } from 'lucide-react';
+import { AlertTriangle, User, Building2, ShieldCheck } from 'lucide-react';
 
 interface Sinistro {
-  IdOcorrencia: number;
-  Placa: string;
+  IdOcorrencia?: number;
+  Placa?: string;
   MotoristaCulpado?: string;
   ResponsavelCulpado?: string;
+  Culpabilidade?: string;
   ValorTotal?: number;
+  ValorSinistro?: number;
+  ValorOrcado?: number;
 }
 
 interface SinistrosCulpaChartProps {
@@ -22,32 +25,48 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
+// Função robusta para obter valor do sinistro
+function getValor(s: Sinistro): number {
+  if (typeof s.ValorTotal === 'number' && s.ValorTotal > 0) return s.ValorTotal;
+  if (typeof s.ValorSinistro === 'number' && s.ValorSinistro > 0) return s.ValorSinistro;
+  if (typeof s.ValorOrcado === 'number' && s.ValorOrcado > 0) return s.ValorOrcado;
+  // Tentar parsear strings
+  const parseVal = (v: any) => {
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    return parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
+  };
+  return parseVal(s.ValorTotal) || parseVal(s.ValorSinistro) || parseVal(s.ValorOrcado) || 0;
+}
+
+// Função robusta para determinar culpabilidade
+function getCulpa(s: Sinistro): 'Motorista' | 'Empresa' | 'Terceiros' {
+  // Primeiro verificar campo Culpabilidade direto
+  if (s.Culpabilidade) {
+    const c = s.Culpabilidade.toLowerCase().trim();
+    if (c.includes('motorista') || c.includes('condutor')) return 'Motorista';
+    if (c.includes('empresa') || c.includes('responsavel') || c.includes('responsável')) return 'Empresa';
+    if (c.includes('terceiro')) return 'Terceiros';
+  }
+  // Fallback para campos booleanos
+  if (s.MotoristaCulpado === 'Sim' || s.MotoristaCulpado === '1' || s.MotoristaCulpado === 'true') return 'Motorista';
+  if (s.ResponsavelCulpado === 'Sim' || s.ResponsavelCulpado === '1' || s.ResponsavelCulpado === 'true') return 'Empresa';
+  return 'Terceiros';
+}
+
 const SinistrosCulpaChart: React.FC<SinistrosCulpaChartProps> = ({ sinistros }) => {
   const culpaData = useMemo(() => {
-    const motoristaCulpado = sinistros.filter(
-      (s) => s.MotoristaCulpado === 'Sim' || s.MotoristaCulpado === '1'
-    );
-    const empresaResponsavel = sinistros.filter(
-      (s) =>
-        (s.ResponsavelCulpado === 'Sim' || s.ResponsavelCulpado === '1') &&
-        s.MotoristaCulpado !== 'Sim' &&
-        s.MotoristaCulpado !== '1'
-    );
-    const terceiros = sinistros.filter(
-      (s) =>
-        s.MotoristaCulpado !== 'Sim' &&
-        s.MotoristaCulpado !== '1' &&
-        s.ResponsavelCulpado !== 'Sim' &&
-        s.ResponsavelCulpado !== '1'
-    );
+    const motoristaCulpado = sinistros.filter(s => getCulpa(s) === 'Motorista');
+    const empresaResponsavel = sinistros.filter(s => getCulpa(s) === 'Empresa');
+    const terceiros = sinistros.filter(s => getCulpa(s) === 'Terceiros');
 
-    const valorMotorista = motoristaCulpado.reduce((sum, s) => sum + (s.ValorTotal || 0), 0);
-    const valorEmpresa = empresaResponsavel.reduce((sum, s) => sum + (s.ValorTotal || 0), 0);
-    const valorTerceiros = terceiros.reduce((sum, s) => sum + (s.ValorTotal || 0), 0);
+    const valorMotorista = motoristaCulpado.reduce((sum, s) => sum + getValor(s), 0);
+    const valorEmpresa = empresaResponsavel.reduce((sum, s) => sum + getValor(s), 0);
+    const valorTerceiros = terceiros.reduce((sum, s) => sum + getValor(s), 0);
 
     return [
       {
-        name: 'Motorista Culpado',
+        name: 'Motorista',
         value: motoristaCulpado.length,
         valorTotal: valorMotorista,
         color: '#ef4444',
@@ -55,7 +74,7 @@ const SinistrosCulpaChart: React.FC<SinistrosCulpaChartProps> = ({ sinistros }) 
         percentual: sinistros.length > 0 ? (motoristaCulpado.length / sinistros.length) * 100 : 0,
       },
       {
-        name: 'Empresa Responsável',
+        name: 'Empresa',
         value: empresaResponsavel.length,
         valorTotal: valorEmpresa,
         color: '#f59e0b',
@@ -67,10 +86,10 @@ const SinistrosCulpaChart: React.FC<SinistrosCulpaChartProps> = ({ sinistros }) 
         value: terceiros.length,
         valorTotal: valorTerceiros,
         color: '#10b981',
-        icon: AlertTriangle,
+        icon: ShieldCheck,
         percentual: sinistros.length > 0 ? (terceiros.length / sinistros.length) * 100 : 0,
       },
-    ];
+    ].filter(d => d.value > 0); // Remover categorias vazias
   }, [sinistros]);
 
   const totalValor = useMemo(() => {
@@ -103,17 +122,16 @@ const SinistrosCulpaChart: React.FC<SinistrosCulpaChartProps> = ({ sinistros }) 
   if (sinistros.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
             Análise de Responsabilidade
           </CardTitle>
-          <CardDescription>Distribuição de culpa em sinistros</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <AlertTriangle className="h-12 w-12 mb-4 opacity-50" />
-            <p>Nenhum sinistro para analisar</p>
+          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+            <AlertTriangle className="h-10 w-10 mb-3 opacity-50" />
+            <p className="text-sm">Nenhum sinistro para analisar</p>
           </div>
         </CardContent>
       </Card>
@@ -122,28 +140,27 @@ const SinistrosCulpaChart: React.FC<SinistrosCulpaChartProps> = ({ sinistros }) 
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5" />
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4" />
           Análise de Responsabilidade
         </CardTitle>
         <CardDescription>
-          {totalSinistros} sinistro(s) • {formatCurrency(totalValor)} em custos totais
+          {totalSinistros} sinistro(s) • {formatCurrency(totalValor)}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          {/* Gráfico de Pizza */}
-          <ResponsiveContainer width="100%" height={300}>
+        <div className="space-y-4">
+          {/* Gráfico de Pizza Compacto */}
+          <ResponsiveContainer width="100%" height={180}>
             <PieChart>
               <Pie
                 data={culpaData}
                 cx="50%"
                 cy="50%"
-                labelLine={false}
-                label={({ name, percentual }) => `${name}: ${percentual.toFixed(1)}%`}
-                outerRadius={100}
-                fill="#8884d8"
+                innerRadius={40}
+                outerRadius={70}
+                paddingAngle={3}
                 dataKey="value"
               >
                 {culpaData.map((entry, index) => (
@@ -151,69 +168,42 @@ const SinistrosCulpaChart: React.FC<SinistrosCulpaChartProps> = ({ sinistros }) 
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: '12px' }} />
             </PieChart>
           </ResponsiveContainer>
 
-          {/* Cards de Detalhes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Cards de Detalhes Compactos */}
+          <div className="grid grid-cols-3 gap-2">
             {culpaData.map((item, index) => {
               const Icon = item.icon;
               return (
                 <div
                   key={index}
-                  className="border rounded-lg p-4 space-y-2"
-                  style={{ borderLeftWidth: '4px', borderLeftColor: item.color }}
+                  className="border rounded-lg p-2 space-y-1"
+                  style={{ borderLeftWidth: '3px', borderLeftColor: item.color }}
                 >
                   <div className="flex items-center justify-between">
-                    <Icon className="h-5 w-5" style={{ color: item.color }} />
-                    <span className="text-2xl font-bold">{item.value}</span>
+                    <Icon className="h-4 w-4" style={{ color: item.color }} />
+                    <span className="text-lg font-bold">{item.value}</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.percentual.toFixed(1)}% dos casos
-                    </p>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-sm font-mono">{formatCurrency(item.valorTotal)}</p>
-                    <p className="text-xs text-muted-foreground">Custo total</p>
-                  </div>
+                  <p className="text-xs font-medium truncate">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">{item.percentual.toFixed(0)}%</p>
                 </div>
               );
             })}
           </div>
 
-          {/* Insights */}
-          <div className="bg-muted rounded-lg p-4 space-y-2">
-            <p className="text-sm font-medium">💡 Insights:</p>
-            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-              {culpaData[0].percentual > 50 && (
-                <li>
-                  Alta incidência de culpa do motorista ({culpaData[0].percentual.toFixed(1)}%)
-                  - considerar treinamentos preventivos
-                </li>
+          {/* Insights Compactos */}
+          {culpaData.some(d => d.percentual > 40) && (
+            <div className="bg-muted rounded-lg p-3 text-xs">
+              <p className="font-medium mb-1">💡 Insight:</p>
+              {culpaData[0]?.percentual > 40 && (
+                <p className="text-muted-foreground">
+                  Alta incidência de culpa do motorista ({culpaData[0].percentual.toFixed(0)}%) - considerar treinamentos
+                </p>
               )}
-              {culpaData[1].percentual > 30 && (
-                <li>
-                  Percentual significativo de responsabilidade empresarial (
-                  {culpaData[1].percentual.toFixed(1)}%) - revisar processos de manutenção
-                </li>
-              )}
-              {culpaData[2].percentual > 40 && (
-                <li>
-                  Maioria dos sinistros causados por terceiros ({culpaData[2].percentual.toFixed(1)}
-                  %) - cobertura de seguro adequada
-                </li>
-              )}
-              {culpaData[0].valorTotal / culpaData[0].value > 5000 && (
-                <li>
-                  Custo médio por sinistro de motorista elevado (
-                  {formatCurrency(culpaData[0].valorTotal / culpaData[0].value)})
-                </li>
-              )}
-            </ul>
-          </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
