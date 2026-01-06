@@ -130,19 +130,77 @@ export default function FleetDashboard(): JSX.Element {
 
   // Mapa de Contratos por Placa (para enriquecer dim_frota)
   const contratosMap = useMemo(() => {
-    const map: Record<string, { NomeCliente: string, TipoLocacao: string }> = {};
-    if (contratosLocacao.length > 0) {
-        contratosLocacao.forEach(c => {
-           if (c.PlacaPrincipal && c.StatusLocacao !== 'Encerrado' && c.StatusLocacao !== 'Cancelado') {
-               // Prioriza contratos ativos ou vigentes
-               map[c.PlacaPrincipal] = {
-                   NomeCliente: c.NomeCliente || 'Sem Cliente',
-                   TipoLocacao: c.TipoLocacao || 'Não Definido'
-               };
-           }
-        });
-    }
-    return map;
+        const map: Record<string, {
+            NomeCliente: string;
+            TipoLocacao: string;
+            NumeroContratoLocacao?: string;
+            SituacaoLocacao?: string;
+            DataPrevistaTerminoLocacao?: string;
+            DataEncerramentoLocacao?: string;
+            __inicio?: string;
+        }> = {};
+
+        const normalizeText = (v: any) => String(v ?? '').trim();
+        const getStatus = (c: AnyObject) => normalizeText(c.StatusLocacao ?? c.Status ?? c.Situacao ?? c.situacao);
+        const isClosed = (status: string) => {
+            const s = status.toUpperCase();
+            return s.includes('ENCERR') || s.includes('CANCEL');
+        };
+        const pickDate = (c: AnyObject, keys: string[]) => {
+            for (const k of keys) {
+                const raw = normalizeText((c as any)[k]);
+                if (raw) return raw;
+            }
+            return undefined;
+        };
+        const parseSortableDate = (raw?: string) => {
+            if (!raw) return 0;
+            const t = new Date(raw).getTime();
+            return Number.isFinite(t) ? t : 0;
+        };
+        const getStartDate = (c: AnyObject) => pickDate(c, ['DataInicio', 'InicioContrato', 'DataInicioContrato', 'DataRetirada', 'DataAbertura']);
+
+        for (const c of contratosLocacao) {
+            const placa = String(c.PlacaPrincipal ?? c.Placa ?? '').trim();
+            if (!placa) continue;
+
+            const status = getStatus(c);
+            const contratoId = normalizeText(c.NumeroContrato ?? c.Contrato ?? c.IdContratoLocacao ?? c.ContratoId);
+
+            const inicio = getStartDate(c);
+            const next = {
+                NomeCliente: normalizeText(c.NomeCliente ?? c.Cliente ?? 'Sem Cliente') || 'Sem Cliente',
+                TipoLocacao: normalizeText(c.TipoLocacao ?? 'Não Definido') || 'Não Definido',
+                NumeroContratoLocacao: contratoId || undefined,
+                SituacaoLocacao: status || undefined,
+                DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'DataFimPrevista', 'DataFimPrevisto', 'DataFim', 'DataTerminoPrevisto', 'DataFimLocacao']) || undefined,
+                DataEncerramentoLocacao: pickDate(c, ['DataEncerramento', 'DataEncerrado', 'DataFimEfetiva', 'DataFim', 'DataTermino', 'DataFimLocacao']) || undefined,
+                __inicio: inicio || undefined,
+            };
+
+            const prev = map[placa];
+            if (!prev) {
+                map[placa] = next;
+                continue;
+            }
+
+            // Preferir contrato não encerrado/cancelado; em empate, pegar o mais recente por data de início
+            const prevClosed = isClosed(prev.SituacaoLocacao || '');
+            const nextClosed = isClosed(status);
+            if (prevClosed && !nextClosed) {
+                map[placa] = next;
+                continue;
+            }
+            if (prevClosed === nextClosed) {
+                const prevStart = parseSortableDate(prev.__inicio);
+                const nextStart = parseSortableDate(inicio);
+                if (nextStart >= prevStart) {
+                    map[placa] = next;
+                }
+            }
+        }
+
+        return map;
   }, [contratosLocacao]);
 
   const frotaEnriched = useMemo(() => {
@@ -151,8 +209,19 @@ export default function FleetDashboard(): JSX.Element {
          return {
              ...v,
              NomeCliente: contrato?.NomeCliente || 'N/A',
-             TipoLocacao: contrato?.TipoLocacao || 'N/A'
-         } as typeof v & { NomeCliente: string; TipoLocacao: string };
+             TipoLocacao: contrato?.TipoLocacao || 'N/A',
+             NumeroContratoLocacao: contrato?.NumeroContratoLocacao || v.ContratoAtual || 'N/A',
+             SituacaoLocacao: contrato?.SituacaoLocacao || 'N/A',
+             DataPrevistaTerminoLocacao: contrato?.DataPrevistaTerminoLocacao || v.DataFimLocacao || null,
+             DataEncerramentoLocacao: contrato?.DataEncerramentoLocacao || v.DataFimLocacao || null,
+         } as typeof v & {
+           NomeCliente: string;
+           TipoLocacao: string;
+           NumeroContratoLocacao: string;
+           SituacaoLocacao: string;
+           DataPrevistaTerminoLocacao: string | null;
+           DataEncerramentoLocacao: string | null;
+         };
      });
   }, [frota, contratosMap]);
 
@@ -1893,7 +1962,7 @@ export default function FleetDashboard(): JSX.Element {
         </TabsContent>
 
         <TabsContent value="timeline">
-            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frota} />
+            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} contratosLocacao={contratosLocacao} />
         </TabsContent>
 
         <TabsContent value="carro-reserva" className="space-y-6">

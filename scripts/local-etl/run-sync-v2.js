@@ -389,6 +389,46 @@ function queueUpload(tableName, data, year = null, month = null) {
     if (data.length > MAX_CHUNK_SIZE) {
         const totalChunks = Math.ceil(data.length / MAX_CHUNK_SIZE);
         console.log(`         📦 ${tableName}: Dividindo ${data.length} registros em ${totalChunks} partes`);
+
+        // Upload de manifest para evitar detecção por tentativa no frontend
+        const manifestFileName = `${baseFileName}_manifest.json`;
+        const manifestData = {
+            totalParts: totalChunks,
+            total_chunks: totalChunks,
+            totalRecords: data.length,
+            chunkSize: MAX_CHUNK_SIZE,
+            baseFileName,
+            year,
+            month,
+        };
+        const manifestMetadata = {
+            ...metadata,
+            kind: 'manifest',
+            total_chunks: totalChunks,
+            record_count: data.length,
+            chunk_size: MAX_CHUNK_SIZE,
+        };
+
+        const manifestPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ fileName: manifestFileName, data: manifestData, metadata: manifestMetadata })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(() => {
+            console.log(`         📤 Upload: ${manifestFileName} (manifest)`);
+        })
+        .catch(err => {
+            console.error(`         ❌ Erro upload ${manifestFileName}:`, err.message);
+        });
+
+        uploadQueue.push(manifestPromise);
         
         for (let i = 0; i < totalChunks; i++) {
             const chunk = data.slice(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
@@ -697,7 +737,12 @@ async function runMasterETL() {
                     oi.EmRecurso, oi.MotivoRecurso,
                     oi.Latitude, oi.Longitude, oi.Cidade, oi.Estado
                 FROM OcorrenciasInfracoes oi 
-                LEFT JOIN ContratosLocacao cl ON oi.Placa = cl.PlacaPrincipal 
+                OUTER APPLY (
+                    SELECT TOP 1 cl.IdContrato, cl.PlacaPrincipal
+                    FROM ContratosLocacao cl
+                    WHERE cl.PlacaPrincipal = oi.Placa
+                    ORDER BY cl.DataInicial DESC
+                ) cl
                 LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial 
                 LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente 
                 WHERE YEAR(oi.DataInfracao) = ${year}`
