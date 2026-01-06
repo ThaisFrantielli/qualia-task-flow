@@ -1,12 +1,14 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
-import { Card, Title, Text, Metric, Badge, BarList } from '@tremor/react';
+import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Wrench, TrendingUp, Clock, Calendar, FlagOff, Info } from 'lucide-react';
+import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
+import EfficiencyTab from '@/components/analytics/fleet/EfficiencyTab';
+import TimelineTab from '@/components/analytics/fleet/TimelineTab';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -172,8 +174,8 @@ export default function FleetDashboard(): JSX.Element {
   const [page, setPage] = useState(0);
   const pageSize = 15;
   const [sortConfig, setSortConfig] = useState<{ key: keyof FleetTableItem; direction: 'asc' | 'desc' } | null>(null);
-  const [timelinePage, setTimelinePage] = useState(0);
-  const [expandedPlates, setExpandedPlates] = useState<string[]>([]);
+  const [_timelinePage, _setTimelinePage] = useState(0);
+  const [_expandedPlates, _setExpandedPlates] = useState<string[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [reservaPage, setReservaPage] = useState(0);
     const [patioPage, setPatioPage] = useState(0);
@@ -531,18 +533,7 @@ export default function FleetDashboard(): JSX.Element {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filteredData]);
 
-    // Distribuição por modelo da frota filtrada (usado em visualizações)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const modelosData = useMemo(() => {
-            const map: Record<string, number> = {};
-            filteredData.forEach(r => {
-                    const m = r.Modelo || 'Não Definido';
-                    map[m] = (map[m] || 0) + 1;
-            });
-            return Object.entries(map)
-                .map(([name, value]) => ({ name, value }))
-                .sort((a, b) => b.value - a.value);
-    }, [filteredData]);
+    // Distribuição por modelo removida - usar modelosPorCategoria (hierárquico)
 
     // Dados hierárquicos: categorias e modelos (usa GrupoVeiculo do banco)
     const modelosPorCategoria = useMemo(() => {
@@ -997,93 +988,7 @@ export default function FleetDashboard(): JSX.Element {
 
   const reservaPageItems = filteredReservas.slice(reservaPage * pageSize, (reservaPage + 1) * pageSize);
 
-  // TIMELINE & EFFICIENCY KPIS
-  const timelineGrouped = useMemo(() => {
-    const placasFiltradas = new Set(filteredData.map(f => f.Placa));
-    const data = timeline.filter(t => placasFiltradas.has(t.Placa));
-    const grouped: Record<string, AnyObject[]> = {};
-    data.forEach(item => {
-      if (!grouped[item.Placa]) grouped[item.Placa] = [];
-      grouped[item.Placa].push(item);
-    });
-    return Object.entries(grouped).map(([placa, eventos]) => {
-      const veiculoInfo = filteredData.find(f => f.Placa === placa);
-      return { placa, modelo: veiculoInfo?.Modelo || 'N/A', eventos };
-    });
-  }, [timeline, filteredData]);
-  
-  const efficiencyKPIs = useMemo(() => {
-    const kpisByPlate = timelineGrouped.map(({ placa, eventos }) => {
-        let totalDays = 0, locacaoDays = 0, manutencaoDays = 0;
-        
-        if (eventos.length > 0) {
-            const firstEventDate = new Date(eventos[0].Data || eventos[0].DataEvento);
-            totalDays = (new Date().getTime() - firstEventDate.getTime()) / (1000 * 60 * 60 * 24);
-        }
-
-        if (totalDays <= 0) totalDays = 1;
-
-        for (let i = 0; i < eventos.length; i++) {
-            const evento = eventos[i];
-            const tipoEvento = evento.TipoEvento || evento.Evento || '';
-            if (!tipoEvento || !tipoEvento.startsWith || !tipoEvento.startsWith('Início')) continue;
-
-            const start = new Date(evento.Data || evento.DataEvento);
-            let end = new Date();
-            
-            const closingEvent = eventos.slice(i + 1).find(e => {
-                const tipoE = e.TipoEvento || e.Evento || '';
-                if(tipoEvento === 'Início de Locação') return tipoE === 'Fim de Locação' && e.Detalhe2 === evento.Detalhe2;
-                if(tipoEvento === 'Início Manutenção') return tipoE === 'Fim Manutenção' && e.Detalhe1 === evento.Detalhe1;
-                return false;
-            });
-
-            if (closingEvent) {
-                end = new Date(closingEvent.Data || closingEvent.DataEvento);
-            }
-            
-            const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-            if(duration < 0) continue;
-
-            if (tipoEvento === 'Início de Locação') {
-                locacaoDays += duration;
-            } else if (tipoEvento === 'Início Manutenção') {
-                manutencaoDays += duration;
-            }
-        }
-        
-        const utilization = (locacaoDays / totalDays) * 100;
-
-        return { 
-            placa, 
-            locacaoDays: Math.round(locacaoDays), 
-            manutencaoDays: Math.round(manutencaoDays), 
-            utilization: Math.min(100, Math.max(0, utilization))
-        };
-    });
-
-    const totalVehicles = kpisByPlate.length;
-    if (totalVehicles === 0) return { avgUtilization: 0, avgManutencao: 0, topUtilization: [], topManutencao: [] };
-
-    const avgUtilization = kpisByPlate.reduce((sum, item) => sum + item.utilization, 0) / totalVehicles;
-    const avgManutencao = kpisByPlate.reduce((sum, item) => sum + item.manutencaoDays, 0) / totalVehicles;
-
-    const sortedByUtilization = [...kpisByPlate].sort((a,b) => b.utilization - a.utilization);
-    const sortedByManutencao = [...kpisByPlate].sort((a,b) => b.manutencaoDays - a.manutencaoDays);
-
-    return {
-        avgUtilization,
-        avgManutencao,
-        topUtilization: sortedByUtilization.slice(0, 5).map(i => ({ name: i.placa, value: Math.round(i.utilization) })),
-        topManutencao: sortedByManutencao.slice(0, 5).map(i => ({ name: i.placa, value: Math.round(i.manutencaoDays) })),
-    }
-  }, [timelineGrouped]);
-
-  const timelinePageItems = timelineGrouped.slice(timelinePage * pageSize, (timelinePage + 1) * pageSize);
-
-  const togglePlateExpansion = (placa: string) => {
-    setExpandedPlates(prev => prev.includes(placa) ? prev.filter(p => p !== placa) : [...prev, placa]);
-  };
+  // TIMELINE & EFFICIENCY - componentes movidos para EfficiencyTab e TimelineTab
 
     const toggleProductivity = (opt: string) => {
         if (opt === 'Todos') {
@@ -1218,7 +1123,8 @@ export default function FleetDashboard(): JSX.Element {
           <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
           <TabsTrigger value="patio">Gestão de Pátio</TabsTrigger>
           <TabsTrigger value="telemetria">Telemetria & Mapa</TabsTrigger>
-          <TabsTrigger value="timeline">Eficiência & Linha do Tempo</TabsTrigger>
+          <TabsTrigger value="eficiencia">Eficiência</TabsTrigger>
+          <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
           <TabsTrigger value="carro-reserva">Carro Reserva</TabsTrigger>
         </TabsList>
 
@@ -1982,50 +1888,12 @@ export default function FleetDashboard(): JSX.Element {
             </Card>
         </TabsContent>
 
-        <TabsContent value="timeline" className="space-y-6">
-            {timeline.length === 0 && (
-                <Card>
-                    <div className="p-8 text-center">
-                        <Info className="w-12 h-12 mx-auto text-slate-400 mb-4" />
-                        <Title>Sem Dados de Linha do Tempo</Title>
-                        <Text className="mt-2 text-slate-500">Nenhum evento de linha do tempo foi encontrado. Verifique se o arquivo `hist_vida_veiculo_timeline.json` está disponível.</Text>
-                    </div>
-                </Card>
-            )}
-            {timeline.length > 0 && (
-            <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card decoration="top" decorationColor="blue">
-                    <Text>Utilização Média</Text>
-                    <Metric>{efficiencyKPIs.avgUtilization.toFixed(1)}%</Metric>
-                </Card>
-                <Card decoration="top" decorationColor="amber">
-                    <Text>Tempo Médio em Manutenção</Text>
-                    <Metric>{efficiencyKPIs.avgManutencao.toFixed(1)} dias</Metric>
-                </Card>
-                <Card className="md:col-span-2 lg:col-span-1">
-                    <Title>Top 5 Utilização</Title>
-                    <BarList data={efficiencyKPIs.topUtilization} className="mt-2" valueFormatter={(v) => `${v}%`} />
-                </Card>
-                <Card className="md:col-span-2 lg:col-span-1">
-                    <Title>Top 5 Dias em Manutenção</Title>
-                    <BarList data={efficiencyKPIs.topManutencao} className="mt-2" valueFormatter={(v) => `${v}d`} color="amber"/>
-                </Card>
-            </div>
+        <TabsContent value="eficiencia">
+            <EfficiencyTab timeline={timeline} filteredData={filteredData} frota={frota} />
+        </TabsContent>
 
-            <Card className="p-0 overflow-hidden">
-                <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-                    <div className="flex items-center gap-2"><Clock className="w-5 h-5 text-slate-600" /><Title>Detalhamento: Linha do Tempo do Veículo</Title><span className="bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded-full font-bold">{timelineGrouped.length} veículos</span></div>
-                </div>
-                <div className="divide-y divide-slate-200">
-                    {timelinePageItems.map(({ placa, modelo, eventos }) => (
-                        <TimelineRow key={placa} placa={placa} modelo={modelo} eventos={eventos} isExpanded={expandedPlates.includes(placa)} onToggle={() => togglePlateExpansion(placa)} />
-                    ))}
-                </div>
-                <div className="flex justify-between p-4 border-t border-slate-100"><div className="flex gap-2"><button onClick={() => setTimelinePage(Math.max(0, timelinePage - 1))} disabled={timelinePage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button><button onClick={() => setTimelinePage(timelinePage + 1)} disabled={(timelinePage + 1) * pageSize >= timelineGrouped.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button></div></div>
-            </Card>
-            </>
-            )}
+        <TabsContent value="timeline">
+            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frota} />
         </TabsContent>
 
         <TabsContent value="carro-reserva" className="space-y-6">
@@ -2384,130 +2252,4 @@ export default function FleetDashboard(): JSX.Element {
     </div>
   );
 }
-
-const TimelineRow = ({ placa, modelo, eventos, isExpanded, onToggle }: { placa: string, modelo: string, eventos: any[], isExpanded: boolean, onToggle: () => void }) => {
-    
-    const kpis = useMemo(() => {
-        let totalDays = 0, locacaoDays = 0, manutencaoDays = 0;
-        
-        if (eventos.length > 0) {
-            const firstEventDate = new Date(eventos[0].DataEvento);
-            totalDays = (new Date().getTime() - firstEventDate.getTime()) / (1000 * 60 * 60 * 24);
-        }
-
-        if (totalDays <= 0) totalDays = 1;
-
-        for (let i = 0; i < eventos.length; i++) {
-            const evento = eventos[i];
-            if (!((evento.TipoEvento || '').startsWith('Início'))) continue;
-
-            const start = new Date(evento.DataEvento);
-            let end = new Date();
-            
-            const closingEvent = eventos.slice(i + 1).find(e => {
-                if(evento.TipoEvento === 'Início de Locação') return e.TipoEvento === 'Fim de Locação' && e.Detalhe2 === evento.Detalhe2;
-                if(evento.TipoEvento === 'Início Manutenção') return e.TipoEvento === 'Fim Manutenção' && e.Detalhe1 === evento.Detalhe1;
-                return false;
-            });
-
-            if (closingEvent) {
-                end = new Date(closingEvent.DataEvento);
-            }
-            
-            const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-            if(duration < 0) continue;
-
-            if (evento.TipoEvento === 'Início de Locação') locacaoDays += duration;
-            else if (evento.TipoEvento === 'Início Manutenção') manutencaoDays += duration;
-        }
-        
-        const utilization = (locacaoDays / totalDays) * 100;
-
-        return {
-            locacaoDays: Math.round(locacaoDays),
-            manutencaoDays: Math.round(manutencaoDays),
-            utilization: Math.min(100, Math.max(0, Math.round(utilization)))
-        };
-    }, [eventos]);
-
-    return (
-        <div className="p-4 hover:bg-slate-50 cursor-pointer" onClick={onToggle}>
-            <div className="flex justify-between items-center">
-                <div>
-                    <p className="font-mono font-medium text-blue-600">{placa}</p>
-                    <p className="text-sm text-slate-600">{modelo}</p>
-                </div>
-                <div className="flex items-center gap-6 text-right">
-                    <div>
-                        <Text className="flex items-center justify-end gap-1 text-slate-500"><Car size={14} /> Em Locação</Text>
-                        <Metric className="text-slate-800">{kpis.locacaoDays}d</Metric>
-                    </div>
-                    <div>
-                        <Text className="flex items-center justify-end gap-1 text-slate-500"><Wrench size={14} /> Em Manutenção</Text>
-                        <Metric className="text-slate-800">{kpis.manutencaoDays}d</Metric>
-                    </div>
-                    <div>
-                        <Text className="flex items-center justify-end gap-1 text-slate-500"><TrendingUp size={14} /> Utilização</Text>
-                        <Metric className="text-slate-800">{kpis.utilization}%</Metric>
-                    </div>
-                    <ChevronDown size={20} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </div>
-            </div>
-            {isExpanded && <TimelineDetails eventos={eventos} />}
-        </div>
-    );
-};
-
-const TimelineDetails = ({ eventos }: { eventos: any[] }) => {
-    const getIcon = (type?: string) => {
-        const t = type || '';
-        if (t.includes('Início de Locação')) return <Calendar size={14} className="text-emerald-500" />;
-        if (t.includes('Fim de Locação')) return <FlagOff size={14} className="text-rose-500" />;
-        if (t.includes('Manutenção')) return <Wrench size={14} className="text-amber-500" />;
-        return <Warehouse size={14} className="text-slate-500" />;
-    };
-
-    return (
-        <div className="pt-6 pl-4 mt-4 border-t border-slate-200">
-            <div className="relative border-l-2 border-slate-200 ml-2">
-                {eventos.map((evento, index) => {
-                    const date = new Date(evento.DataEvento);
-                    const formattedDate = isNaN(date.getTime()) ? 'Data inválida' : date.toLocaleDateString('pt-BR');
-                    let endDate = null, duration = null;
-
-                    const isStartEvent = (evento.TipoEvento || '').startsWith('Início');
-                    if(isStartEvent) {
-                        const closingEvent = eventos.slice(index + 1).find(e => {
-                            if(evento.TipoEvento === 'Início de Locação') return e.TipoEvento === 'Fim de Locação' && e.Detalhe2 === evento.Detalhe2;
-                            if(evento.TipoEvento === 'Início Manutenção') return e.TipoEvento === 'Fim Manutenção' && e.Detalhe1 === evento.Detalhe1;
-                            return false;
-                        });
-                        if (closingEvent) {
-                            endDate = new Date(closingEvent.DataEvento);
-                            duration = (endDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
-                        }
-                    }
-                    if ((evento.TipoEvento || '').startsWith('Fim')) return null;
-
-                    return (
-                        <div key={index} className="mb-6 ml-6">
-                            <span className="absolute flex items-center justify-center w-6 h-6 bg-slate-100 rounded-full -left-3 ring-4 ring-white">
-                                {getIcon(evento.TipoEvento)}
-                            </span>
-                            <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-semibold text-slate-800">{evento.TipoEvento}</span>
-                                    {duration !== null && duration >= 0 && <Badge color="gray">{`${Math.max(1, Math.round(duration))} dias`}</Badge>}
-                                </div>
-                                <p className="text-sm text-slate-600 truncate">{evento.Detalhe1} {evento.Detalhe2 && `- ${evento.Detalhe2}`}</p>
-                                <time className="text-xs font-normal text-slate-500 mt-1 block">
-                                    {formattedDate} {endDate ? ` a ${endDate.toLocaleDateString('pt-BR')}`: '(em andamento)'}
-                                </time>
-                            </div>
-                        </div>
-                    );
-                }).filter(Boolean)}
-            </div>
-        </div>
-    );
-};
+// TimelineRow e TimelineDetails movidos para TimelineTab component
