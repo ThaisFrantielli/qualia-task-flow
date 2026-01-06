@@ -481,7 +481,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               }
             });
             
-            groups.forEach((date, key) => {
+            groups.forEach((_date, key) => {
               nextRows.add(key);
             });
           }
@@ -1096,7 +1096,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             const topDetail = topItem?.Detalhe1 || topItem?.Descricao || topItem?.DescricaoEvento || 
                                             topItem?.Observacao || topItem?.TipoEvento || topItem?.Evento || tipo;
 
-                            const alwaysExpandable = ['LOCACAO', 'DEVOLUCAO', 'SINISTRO', 'COMPRA', 'MOVIMENTACAO', 'MULTA'].includes(tipoNorm);
                             const isExpandable = true; // Sempre permitir expandir para ver detalhes
 
                             return (
@@ -1169,15 +1168,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           contrato?.DataEncerramento ?? contrato?.DataEncerrado ?? contrato?.__fimEncerramento
                                         );
 
-                                        const showContrato = (tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO') && 
-                                          (contratoComercial || contratoLocacao || contratoCliente || situacao || dataInicio || previsto || encerramento);
+                                        // SEMPRE mostrar detalhes para LOCACAO/DEVOLUCAO
+                                        const showContrato = tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO';
                                         
                                         // Sinistro - Campos expandidos
                                         const showSinistro = tipoNorm === 'SINISTRO';
                                         const numeroOcorrencia = String(
-                                          it?.NumeroOcorrencia ?? it?.numero_ocorrencia ?? it?.Ocorrencia ?? it?.ocorrencia ?? ''
-                                        ).trim();
-                                        const idOcorrencia = String(
+                                          it?.NumeroOcorrencia ?? it?.numero_ocorrencia ?? it?.Ocorrencia ?? it?.ocorrencia ??
                                           it?.IdOcorrencia ?? it?.id_ocorrencia ?? it?.IdSinistro ?? it?.id_sinistro ?? ''
                                         ).trim();
                                         const tipoSinistro = String(
@@ -1201,127 +1198,162 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               <div className="text-slate-400 shrink-0">{fmtDateBR(dd)}</div>
                                             </div>
 
-                                            {/* Detalhes de Locação/Devolução */}
+                                            {/* Detalhes de Locação/Devolução - SEMPRE mostrar */}
                                             {showContrato && (
-                                              <div className="space-y-1 text-slate-600 bg-emerald-50/50 rounded p-2 mt-1">
-                                                {contratoComercial && (
+                                              <div className="space-y-1.5 text-slate-600 bg-emerald-50/50 rounded-lg p-3 mt-2 border border-emerald-100">
+                                                <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-2">
+                                                  {tipoNorm === 'DEVOLUCAO' ? '📋 Detalhes da Devolução' : '📋 Detalhes da Locação'}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Contrato Comercial:</span>
-                                                    <span className="font-mono font-semibold text-emerald-700">{contratoComercial}</span>
+                                                    <span className="font-mono font-semibold text-emerald-700">{contratoComercial || '—'}</span>
                                                   </div>
-                                                )}
-                                                {contratoLocacao && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Contrato Locação:</span>
-                                                    <span className="font-mono font-semibold text-emerald-700">{contratoLocacao}</span>
+                                                    <span className="font-mono font-semibold text-emerald-700">{contratoLocacao || '—'}</span>
                                                   </div>
-                                                )}
-                                                {contratoCliente && (
-                                                  <div className="flex gap-2">
+                                                  <div className="flex gap-2 col-span-2">
                                                     <span className="text-slate-500 font-medium">Cliente:</span>
-                                                    <span className="text-slate-700">{contratoCliente}</span>
+                                                    <span className="text-slate-700">{contratoCliente || '—'}</span>
                                                   </div>
-                                                )}
-                                                {situacao && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Situação:</span>
-                                                    <Badge 
-                                                      color={isLocacaoEmAndamento(situacao) ? 'emerald' : isLocacaoEncerrada(situacao) ? 'slate' : 'amber'}
-                                                      className="text-xs"
-                                                    >
-                                                      {situacao}
-                                                    </Badge>
+                                                    {situacao ? (
+                                                      <Badge 
+                                                        color={isLocacaoEmAndamento(situacao) ? 'emerald' : isLocacaoEncerrada(situacao) ? 'slate' : 'amber'}
+                                                        className="text-xs"
+                                                      >
+                                                        {situacao}
+                                                      </Badge>
+                                                    ) : (
+                                                      <span className="text-slate-400">—</span>
+                                                    )}
                                                   </div>
-                                                )}
-                                                {dataInicio && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Início:</span>
                                                     <span>{fmtDateBR(dataInicio)}</span>
                                                   </div>
-                                                )}
-                                                {(isLocacaoEmAndamento(situacao) || !encerramento) && previsto && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Término Previsto:</span>
                                                     <span>{fmtDateBR(previsto)}</span>
                                                   </div>
-                                                )}
-                                                {encerramento && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Término Efetivo:</span>
-                                                    <span className="font-semibold">{fmtDateBR(encerramento)}</span>
-                                                  </div>
-                                                )}
+                                                  {tipoNorm === 'DEVOLUCAO' && (
+                                                    <div className="flex gap-2">
+                                                      <span className="text-slate-500 font-medium">Encerramento:</span>
+                                                      <span className="font-semibold text-rose-600">{fmtDateBR(encerramento) || fmtDateBR(dd)}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
                                             )}
 
-                                            {/* Detalhes de Sinistro */}
-                                            {showSinistro && (numeroOcorrencia || idOcorrencia || tipoSinistro || statusSinistro || valorSinistro) && (
-                                              <div className="space-y-1 text-slate-600 bg-purple-50/50 rounded p-2 mt-1">
-                                                {numeroOcorrencia && (
+                                            {/* Detalhes de Sinistro - SEMPRE mostrar */}
+                                            {showSinistro && (
+                                              <div className="space-y-1.5 text-slate-600 bg-purple-50/50 rounded-lg p-3 mt-2 border border-purple-100">
+                                                <div className="text-[10px] font-semibold text-purple-700 uppercase tracking-wide mb-2">
+                                                  ⚠️ Detalhes do Sinistro
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Nº Ocorrência:</span>
-                                                    <span className="font-mono font-semibold text-purple-700">{numeroOcorrencia}</span>
+                                                    <span className="font-mono font-semibold text-purple-700">{numeroOcorrencia || '—'}</span>
                                                   </div>
-                                                )}
-                                                {idOcorrencia && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">ID Sinistro:</span>
-                                                    <span className="font-mono text-slate-700">{idOcorrencia}</span>
-                                                  </div>
-                                                )}
-                                                {tipoSinistro && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Tipo:</span>
-                                                    <span className="text-slate-700">{tipoSinistro}</span>
+                                                    <span className="text-slate-700">{tipoSinistro || '—'}</span>
                                                   </div>
-                                                )}
-                                                {statusSinistro && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Status:</span>
-                                                    <Badge color="purple" className="text-xs">{statusSinistro}</Badge>
-                                                  </div>
-                                                )}
-                                                {dataOcorrencia && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Data Ocorrência:</span>
-                                                    <span>{fmtDateBR(dataOcorrencia)}</span>
-                                                  </div>
-                                                )}
-                                                {valorSinistro && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Valor:</span>
                                                     <span className="font-semibold text-purple-700">
-                                                      {typeof valorSinistro === 'number' 
-                                                        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorSinistro)
-                                                        : String(valorSinistro)
+                                                      {valorSinistro != null 
+                                                        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valorSinistro))
+                                                        : '—'
                                                       }
                                                     </span>
                                                   </div>
-                                                )}
-                                                {it?.Detalhe2 && (
                                                   <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Observação:</span>
+                                                    <span className="text-slate-500 font-medium">Status:</span>
+                                                    {statusSinistro ? (
+                                                      <Badge color="purple" className="text-xs">{statusSinistro}</Badge>
+                                                    ) : (
+                                                      <span className="text-slate-400">—</span>
+                                                    )}
+                                                  </div>
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Data:</span>
+                                                    <span>{fmtDateBR(dataOcorrencia)}</span>
+                                                  </div>
+                                                </div>
+                                                {it?.Detalhe2 && (
+                                                  <div className="flex gap-2 mt-1">
+                                                    <span className="text-slate-500 font-medium">Obs:</span>
                                                     <span className="text-slate-600">{String(it.Detalhe2)}</span>
                                                   </div>
                                                 )}
                                               </div>
                                             )}
 
-                                            {/* Detalhes de Movimentação */}
-                                            {showMovimentacao && (origem || destino) && (
-                                              <div className="space-y-1 text-slate-600 bg-blue-50/50 rounded p-2 mt-1">
-                                                {origem && (
+                                            {/* Detalhes de Movimentação - SEMPRE mostrar */}
+                                            {showMovimentacao && (
+                                              <div className="space-y-1.5 text-slate-600 bg-blue-50/50 rounded-lg p-3 mt-2 border border-blue-100">
+                                                <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-2">
+                                                  📍 Detalhes da Movimentação
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Origem:</span>
-                                                    <span className="text-slate-700">{origem}</span>
+                                                    <span className="text-slate-700">{origem || '—'}</span>
                                                   </div>
-                                                )}
-                                                {destino && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Destino:</span>
-                                                    <span className="text-slate-700">{destino}</span>
+                                                    <span className="text-slate-700">{destino || '—'}</span>
                                                   </div>
-                                                )}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Detalhes de COMPRA - SEMPRE mostrar */}
+                                            {tipoNorm === 'COMPRA' && (
+                                              <div className="space-y-1.5 text-slate-600 bg-amber-50/50 rounded-lg p-3 mt-2 border border-amber-100">
+                                                <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-2">
+                                                  🛒 Detalhes da Compra
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Valor:</span>
+                                                    <span className="font-semibold text-amber-700">
+                                                      {it?.ValorCompra ?? it?.ValorAquisicao ?? it?.Valor
+                                                        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(it?.ValorCompra ?? it?.ValorAquisicao ?? it?.Valor ?? 0))
+                                                        : '—'
+                                                      }
+                                                    </span>
+                                                  </div>
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Fornecedor:</span>
+                                                    <span className="text-slate-700">{it?.Fornecedor ?? it?.VendedorNome ?? it?.Concessionaria ?? '—'}</span>
+                                                  </div>
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Nota Fiscal:</span>
+                                                    <span className="font-mono text-slate-700">{it?.NotaFiscal ?? it?.NF ?? it?.NumeroNF ?? '—'}</span>
+                                                  </div>
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Data:</span>
+                                                    <span>{fmtDateBR(parseDateAny(it?.DataCompra ?? it?.DataAquisicao ?? it?.DataNF ?? it?.Data))}</span>
+                                                  </div>
+                                                  {it?.Chassi && (
+                                                    <div className="flex gap-2">
+                                                      <span className="text-slate-500 font-medium">Chassi:</span>
+                                                      <span className="font-mono text-slate-700">{it.Chassi}</span>
+                                                    </div>
+                                                  )}
+                                                  {it?.Renavam && (
+                                                    <div className="flex gap-2">
+                                                      <span className="text-slate-500 font-medium">Renavam:</span>
+                                                      <span className="font-mono text-slate-700">{it.Renavam}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
                                             )}
                                           </div>
