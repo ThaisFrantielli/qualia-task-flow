@@ -5,3 +5,15 @@ verify_jwt = false
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.email-connect]
+verify_jwt = false
+
+[functions.email-list]
+verify_jwt = false
+
+[functions.email-read]
+verify_jwt = false
+
+[functions.email-send]
+verify_jwt = false
