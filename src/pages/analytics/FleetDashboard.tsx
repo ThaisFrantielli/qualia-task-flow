@@ -21,6 +21,8 @@ L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, 
 
 type AnyObject = { [k: string]: any };
 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
@@ -51,30 +53,58 @@ interface FleetTableItem {
   NomeCondutor?: string;
   CPFCondutor?: string;
   TelefoneCondutor?: string;
-}
+  NomeCliente?: string;
+  TipoLocacao?: string;
+    };
 
+// Componente MultiSelect personalizado (reutilizado de outros dashboards)
 const MultiSelect = ({ options, selected, onChange, label }: { options: string[], selected: string[], onChange: (val: string[]) => void, label: string }) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
+  
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false); };
+        const handleClickOutside = (event: MouseEvent) => {
+            if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false);
+        };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [ref]);
-    const handleSelect = (val: string) => { if (selected.includes(val)) onChange(selected.filter(v => v !== val)); else onChange([...selected, val]); };
-    const toggleAll = () => { if (selected.length === options.length) onChange([]); else onChange([...options]); };
+  
+    const handleSelect = (val: string) => {
+        if (selected.includes(val)) onChange(selected.filter(v => v !== val));
+        else onChange([...selected, val]);
+    };
+  
+    const toggleAll = () => {
+        if (selected.length === options.length) onChange([]);
+        else onChange([...options]);
+    };
+  
     const allSelected = options.length > 0 && selected.length === options.length;
+  
     return (
         <div className="relative w-full" ref={ref}>
             <label className="text-xs text-slate-500 block mb-1">{label}</label>
             <div onClick={() => setIsOpen(!isOpen)} className="w-full border border-slate-300 rounded-md p-2 text-sm bg-white cursor-pointer flex justify-between items-center h-10 hover:border-blue-400 transition-colors">
-                <span className="truncate text-slate-700">{selected.length === 0 ? 'Selecione...' : selected.length === options.length ? 'Todos' : `${selected.length} sel.`}</span>
+                <span className="truncate text-slate-700">
+                    {selected.length === 0 ? 'Selecione...' : selected.length === options.length ? 'Todos' : `${selected.length} sel.`}
+                </span>
                 <ChevronDown size={16} className="text-slate-400" />
             </div>
             {isOpen && (
                 <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    <div onClick={toggleAll} className="flex items-center gap-2 p-2 hover:bg-slate-100 cursor-pointer border-b border-slate-100 font-medium text-blue-600 sticky top-0 bg-white">{allSelected ? <CheckSquare size={16} /> : <Square size={16} />}<span className="text-sm">Selecionar Todos</span></div>
-                    {options.map(opt => (<div key={opt} onClick={() => handleSelect(opt)} className="flex items-center gap-2 p-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0"><div className={`w-4 h-4 border rounded flex items-center justify-center ${selected.includes(opt) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>{selected.includes(opt) && <Check size={12} className="text-white" />}</div><span className="text-sm text-slate-700 truncate">{opt}</span></div>))}
+                    <div onClick={toggleAll} className="flex items-center gap-2 p-2 hover:bg-slate-100 cursor-pointer border-b border-slate-100 font-medium text-blue-600 sticky top-0 bg-white">
+                        {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                        <span className="text-sm">Selecionar Todos</span>
+                    </div>
+                    {options.map(opt => (
+                        <div key={opt} onClick={() => handleSelect(opt)} className="flex items-center gap-2 p-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
+                            <div className={`w-4 h-4 border rounded flex items-center justify-center ${selected.includes(opt) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                                {selected.includes(opt) && <Check size={12} className="text-white" />}
+                            </div>
+                            <span className="text-sm text-slate-700 truncate">{opt}</span>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
@@ -87,12 +117,42 @@ export default function FleetDashboard(): JSX.Element {
   const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
   const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva.json');
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
+  const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
   const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
   const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
   const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
+  const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
+
+  // Mapa de Contratos por Placa (para enriquecer dim_frota)
+  const contratosMap = useMemo(() => {
+    const map: Record<string, { NomeCliente: string, TipoLocacao: string }> = {};
+    if (contratosLocacao.length > 0) {
+        contratosLocacao.forEach(c => {
+           if (c.PlacaPrincipal && c.StatusLocacao !== 'Encerrado' && c.StatusLocacao !== 'Cancelado') {
+               // Prioriza contratos ativos ou vigentes
+               map[c.PlacaPrincipal] = {
+                   NomeCliente: c.NomeCliente || 'Sem Cliente',
+                   TipoLocacao: c.TipoLocacao || 'Não Definido'
+               };
+           }
+        });
+    }
+    return map;
+  }, [contratosLocacao]);
+
+  const frotaEnriched = useMemo(() => {
+     return frota.map(v => {
+         const contrato = contratosMap[v.Placa];
+         return {
+             ...v,
+             NomeCliente: contrato?.NomeCliente || 'N/A',
+             TipoLocacao: contrato?.TipoLocacao || 'N/A'
+         } as typeof v & { NomeCliente: string; TipoLocacao: string };
+     });
+  }, [frota, contratosMap]);
 
   const manutencaoMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -145,12 +205,88 @@ export default function FleetDashboard(): JSX.Element {
   };
 
   const uniqueOptions = useMemo(() => ({
-    status: Array.from(new Set(frota.map(r => r.Status).filter(Boolean))).sort(),
-    modelos: Array.from(new Set(frota.map(r => r.Modelo).filter(Boolean))).sort(),
-    filiais: Array.from(new Set(frota.map(r => r.Filial).filter(Boolean))).sort()
-  }), [frota]);
+    status: Array.from(new Set(frotaEnriched.map(r => r.Status).filter(Boolean))).sort(),
+    modelos: Array.from(new Set(frotaEnriched.map(r => r.Modelo).filter(Boolean))).sort(),
+    filiais: Array.from(new Set(frotaEnriched.map(r => r.Filial).filter(Boolean))).sort(),
+    clientes: Array.from(new Set(frotaEnriched.map(r => r.NomeCliente).filter((c: string) => c && c !== 'N/A'))).sort(),
+    tiposLocacao: Array.from(new Set(frotaEnriched.map(r => r.TipoLocacao).filter((t: string) => t && t !== 'N/A'))).sort()
+  }), [frotaEnriched]);
 
   // note: use `getFilterValues(key)` to read current selections, e.g. getFilterValues('status')
+
+  const [selectedLocation, setSelectedLocation] = useState<{city: string, uf: string} | null>(null);
+
+  // Helper centralizado para extração de localização
+  const extractLocation = (address: string): { uf: string, city: string } => {
+      const fullAddr = (address || '').trim();
+      let uf = 'ND';
+      let city = 'Não Identificado';
+
+      const ufMatch = fullAddr.match(/\(([A-Z]{2})\)/);
+      if (ufMatch) uf = ufMatch[1];
+      else if (fullAddr.toUpperCase().includes('DISTRITO FEDERAL')) uf = 'DF';
+      else {
+          const suffixMatch = fullAddr.match(/[\s-]([A-Z]{2})(?:$|[,\s])/);
+          if(suffixMatch) uf = suffixMatch[1];
+      }
+
+      try {
+          let cleanAddr = fullAddr.replace(/^[^\(]+\([A-Z]{2}\)[:\s]*/, '');
+          const parts = cleanAddr.split(',').map(p => p.trim()).filter(p => p.length > 0);
+          
+          for (let i = parts.length - 1; i >= 0; i--) {
+              const part = parts[i].toUpperCase();
+              if (part === 'BRASIL') continue;
+              if (/\d{5}-?\d{3}/.test(part)) continue;
+              if (part.startsWith('REGIÃO')) continue;
+              if (part.startsWith('MICRORREGIÃO')) continue;
+              if (part.startsWith('VILA ')) continue;
+              if (part.startsWith('JARDIM ')) continue;
+              if (part.length < 3 || /^\d+/.test(part)) continue;
+              
+              city = parts[i];
+              break;
+          }
+      } catch (e) {}
+
+      // --- CORREÇÕES MANUAIS ---
+      const stateCorrections: Record<string, string> = {
+          'DE': 'GO', 'DA': 'MT', 'DO': 'SP', 'GM': 'SP', 'VW': 'SP', 'EM': 'SP', 'FEDERAL DISTRICT': 'DF'
+      };
+      if (stateCorrections[uf]) uf = stateCorrections[uf];
+
+      const cityCorrections: Record<string, string> = {
+          'Sia': 'Brasília', 'Scia': 'Brasília', 'Plano Piloto': 'Brasília', 'Gama': 'Brasília',
+          'Taguatinga': 'Brasília', 'Ceilândia': 'Brasília', 'Sobradinho': 'Brasília', 'Guará': 'Brasília',
+          'Samambaia': 'Brasília', 'Planaltina': 'Brasília', 'Santa Maria': 'Brasília', 'Cruzeiro': 'Brasília',
+          'Lago Sul': 'Brasília', 'Lago Norte': 'Brasília', 'Vicente Pires': 'Brasília', 'Sudoeste / Octogonal': 'Brasília',
+          'Recanto Das Emas': 'Brasília', 'Paranoá': 'Brasília', 'Riacho Fundo': 'Brasília', 'São Sebastião': 'Brasília',
+          'Águas Claras': 'Brasília', 'Candangolândia': 'Brasília', 'Núcleo Bandeirante': 'Brasília', 'Park Way': 'Brasília',
+          'Imbiribeira': 'Recife', 'Hauer': 'Curitiba', 'Pilarzinho': 'Curitiba', 'Portão': 'Curitiba', 'Centro': 'Curitiba',
+          'Parolin': 'Curitiba', 'Demarchi': 'São Bernardo do Campo', 'Santana': 'São Paulo', 'Barra Funda': 'São Paulo',
+          'República': 'São Paulo', 'Vila Leopoldina': 'São Paulo', 'Brás': 'São Paulo', 'Santo Amaro': 'São Paulo',
+          'Itaquera': 'São Paulo', 'Jabaquara': 'São Paulo', 'Moema': 'São Paulo', 'Perdizes': 'São Paulo',
+          'Pinheiros': 'São Paulo', 'Limão': 'São Paulo', 'Cachoeirinha': 'São Paulo', 'Brasilândia': 'São Paulo', 
+          'Jardim Goiás': 'Goiânia', 'Setor Leste': 'Goiânia', 'Setor Norte': 'Brasília',
+          'Sol Nascente/pôr Do Sol': 'Brasília'
+      };
+
+      if (city.toUpperCase() === 'SÃO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
+          if (uf !== 'SP') uf = 'SP';
+      }
+      if (city.toUpperCase() === 'RIO DE JANEIRO') if (uf !== 'RJ') uf = 'RJ';
+      if (city.toUpperCase() === 'BELO HORIZONTE') if (uf !== 'MG') uf = 'MG';
+      if (city.toUpperCase() === 'BRASÍLIA' || city.toUpperCase().includes('DISTRITO FEDERAL')) {
+          uf = 'DF';
+          city = 'Brasília';
+      }
+      if(city.toUpperCase() === 'GOIÂNIA' || city.toUpperCase() === 'APARECIDA DE GOIÂNIA') if(uf !== 'GO') uf = 'GO';
+
+      city = city.toLowerCase().replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
+      if (cityCorrections[city]) city = cityCorrections[city];
+
+      return { uf, city };
+  };
 
     const filteredData = useMemo(() => {
         const prodFilters = getFilterValues('productivity');
@@ -160,8 +296,11 @@ export default function FleetDashboard(): JSX.Element {
         const patioFilters = getFilterValues('patio');
         const agingFilters = getFilterValues('aging');
         const search = (getFilterValues('search') || [])[0] || '';
+        
+        const clienteFilters = getFilterValues('cliente');
+        const tipoLocacaoFilters = getFilterValues('tipoLocacao');
 
-        return frota.filter(r => {
+        return frotaEnriched.filter(r => {
             const cat = getCategory(r.Status);
             if (prodFilters.length > 0) {
                 const allowed = new Set<string>();
@@ -175,8 +314,16 @@ export default function FleetDashboard(): JSX.Element {
             if (statusFilters.length > 0 && !statusFilters.includes(r.Status)) return false;
             if (modeloFilters.length > 0 && !modeloFilters.includes(r.Modelo)) return false;
             if (filialFilters.length > 0 && !filialFilters.includes(r.Filial)) return false;
+            if (clienteFilters.length > 0 && !clienteFilters.includes(r.NomeCliente)) return false;
+            if (tipoLocacaoFilters.length > 0 && !tipoLocacaoFilters.includes(r.TipoLocacao)) return false;
 
             if (patioFilters.length > 0 && !patioFilters.includes(r.Patio)) return false;
+
+            // Filtra por seleção de localização (quando usuário clica no mapa/accordion)
+            if (selectedLocation) {
+                const loc = extractLocation(r.UltimoEnderecoTelemetria);
+                if (loc.uf !== selectedLocation.uf || loc.city !== selectedLocation.city) return false;
+            }
 
             if (agingFilters.length > 0) {
                 const dias = parseNum(r.DiasNoStatus);
@@ -196,7 +343,7 @@ export default function FleetDashboard(): JSX.Element {
             }
             return true;
         });
-    }, [frota, filters, getFilterValues]);
+    }, [frotaEnriched, filters, getFilterValues, selectedLocation]);
 
   const kpis = useMemo(() => {
     const total = filteredData.length;
@@ -311,11 +458,66 @@ export default function FleetDashboard(): JSX.Element {
         return Object.entries(map).map(([name, value]) => ({ name, value, color: statusColorMap[name?.toUpperCase?.() as string] || '#8884d8' }));
     }, [filteredData]);
 
+    const cityCoordinates: Record<string, [number, number]> = {
+        'Manaus': [-3.1190, -60.0217],
+        'Brasília': [-15.7975, -47.8919],
+        'São Paulo': [-23.5505, -46.6333],
+        'Rio de Janeiro': [-22.9068, -43.1729],
+        'Belo Horizonte': [-19.9167, -43.9345],
+        'Curitiba': [-25.4244, -49.2654],
+        'Fortaleza': [-3.7172, -38.5434],
+        'Salvador': [-12.9777, -38.5016],
+        'Recife': [-8.0476, -34.8770],
+        'Porto Alegre': [-30.0346, -51.2177],
+        'Goiânia': [-16.6869, -49.2648],
+        'Campinas': [-22.9099, -47.0626],
+        'Belém': [-1.4558, -48.4902],
+        'São Luís': [-2.5307, -44.3068],
+        'Maceió': [-9.6498, -35.7089],
+        'Natal': [-5.7945, -35.2110],
+        'Campo Grande': [-20.4697, -54.6201],
+        'Teresina': [-5.0920, -42.8038],
+        'João Pessoa': [-7.1195, -34.8450],
+        'Aracaju': [-10.9472, -37.0731],
+        'Cuiabá': [-15.6014, -56.0979],
+        'Florianópolis': [-27.5954, -48.5480],
+        'Macapá': [0.0355, -51.0705],
+        'Vitória': [-20.3155, -40.3128],
+        'Porto Velho': [-8.7612, -63.9039],
+        'Rio Branco': [-9.9754, -67.8249],
+        'Palmas': [-10.1753, -48.3318],
+        'Boa Vista': [2.8235, -60.6758]
+    };
+
     const mapData = useMemo(() => {
             return filteredData
-                .map(r => ({ ...r, _lat: parseNum(r.Latitude), _lng: parseNum(r.Longitude) }))
-                .filter(r => isFinite(r._lat) && isFinite(r._lng) && r._lat !== 0 && r._lng !== 0);
-    }, [filteredData]);
+                .map(r => {
+                    const loc = extractLocation(r.UltimoEnderecoTelemetria);
+                    let lat = parseNum(r.Latitude);
+                    let lng = parseNum(r.Longitude);
+
+                    // Fallback para cidades conhecidas se GPS zerado/ausente
+                    if ((!lat || !lng || (lat === 0 && lng === 0)) && cityCoordinates[loc.city]) {
+                        const [cLat, cLng] = cityCoordinates[loc.city];
+                        // Adiciona pequeno jitter para não empilhar exatamente no mesmo ponto
+                        lat = cLat + (Math.random() - 0.5) * 0.02;
+                        lng = cLng + (Math.random() - 0.5) * 0.02;
+                    }
+
+                    return { 
+                        ...r, 
+                        _lat: lat, 
+                        _lng: lng,
+                        _city: loc.city,
+                        _uf: loc.uf
+                    } as typeof r & { _lat: number; _lng: number; _city: string; _uf: string };
+                })
+                .filter(r => isFinite(r._lat) && isFinite(r._lng) && r._lat !== 0 && r._lng !== 0)
+                .filter(r => {
+                    if(!selectedLocation) return true;
+                    return r._city === selectedLocation.city && r._uf === selectedLocation.uf;
+                });
+    }, [filteredData, selectedLocation]);
 
   const kmDifferenceData = useMemo(() => {
     const ranges = { 'Sem Divergência': 0, 'Baixa (<1k)': 0, 'Média (1k-5k)': 0, 'Alta (>5k)': 0 };
@@ -329,7 +531,8 @@ export default function FleetDashboard(): JSX.Element {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filteredData]);
 
-    // Distribuição por modelo da frota filtrada
+    // Distribuição por modelo da frota filtrada (usado em visualizações)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const modelosData = useMemo(() => {
             const map: Record<string, number> = {};
             filteredData.forEach(r => {
@@ -517,6 +720,47 @@ export default function FleetDashboard(): JSX.Element {
           .map(([name, value]) => ({ name, value }))
           .sort((a, b) => b.value - a.value);
   }, [filteredData]);
+
+  const localizacaoHierarquica = useMemo(() => {
+    const hierarquia: Record<string, Record<string, number>> = {};
+    const totalByUF: Record<string, number> = {};
+
+    filteredData.filter(r => r.UltimoEnderecoTelemetria).forEach(r => {
+        const { uf, city } = extractLocation(r.UltimoEnderecoTelemetria);
+
+        if (uf !== 'ND') {
+            if (!hierarquia[uf]) hierarquia[uf] = {};
+            hierarquia[uf][city] = (hierarquia[uf][city] || 0) + 1;
+            totalByUF[uf] = (totalByUF[uf] || 0) + 1;
+        }
+    });
+
+    const sortedUFs = Object.entries(totalByUF)
+        .sort((a,b) => b[1] - a[1])
+        .map(([uf, total]) => ({
+            uf,
+            total,
+            cities: Object.entries(hierarquia[uf])
+                .map(([name, value]) => ({ name, value }))
+                .sort((a,b) => b.value - a.value)
+        }));
+
+    return sortedUFs;
+  }, [filteredData]);
+
+    const handleLocationClick = (uf: string, city: string | null) => {
+        if (selectedLocation && selectedLocation.uf === uf && selectedLocation.city === city) {
+             setSelectedLocation(null);
+        } else if (city) {
+             setSelectedLocation({ uf, city });
+             setTimeout(() => {
+                 const mapEl = document.querySelector('.leaflet-container');
+                  if(mapEl) {
+                      mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+             }, 100);
+        }
+    };
 
   // ANÁLISE DE PÁTIO
   const agingData = useMemo(() => {
@@ -864,6 +1108,7 @@ export default function FleetDashboard(): JSX.Element {
         const tco = compra + manut;
         return {
             Placa: r.Placa, Modelo: r.Modelo, Status: r.Status,
+            NomeCliente: r.NomeCliente || 'N/A', TipoLocacao: r.TipoLocacao || 'N/A',
             IdadeVeiculo: parseNum(r.IdadeVeiculo),
             KmInformado: parseNum(r.KmInformado), KmConfirmado: parseNum(r.KmConfirmado),
             lat: parseNum(r.Latitude), lng: parseNum(r.Longitude),
@@ -949,11 +1194,19 @@ export default function FleetDashboard(): JSX.Element {
                 <button onClick={() => toggleProductivity('Inativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Inativa') ? 'bg-white shadow text-slate-600' : 'text-slate-500'}`}><Archive size={12}/> Inativa</button>
             </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <MultiSelect label="Status" options={uniqueOptions.status} selected={getFilterValues('status')} onChange={(v) => setFilterValues('status', v)} />
             <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={getFilterValues('modelo')} onChange={(v) => setFilterValues('modelo', v)} />
             <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={getFilterValues('filial')} onChange={(v) => setFilterValues('filial', v)} />
-            <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={(getFilterValues('search') || [])[0] || ''} onChange={e => setFilterValues('search', [e.target.value])}/></div></div>
+            <MultiSelect label="Cliente" options={uniqueOptions.clientes} selected={getFilterValues('cliente')} onChange={(v) => setFilterValues('cliente', v)} />
+            <MultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={getFilterValues('tipoLocacao')} onChange={(v) => setFilterValues('tipoLocacao', v)} />
+            <div>
+                <Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text>
+                <div className="relative">
+                    <Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/>
+                    <input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={(getFilterValues('search') || [])[0] || ''} onChange={e => setFilterValues('search', [e.target.value])}/>
+                </div>
+            </div>
         </div>
         <div className="flex gap-2 mt-4 flex-wrap">
             {/* ChartFilterBadges shows active filters */}
@@ -1149,7 +1402,34 @@ export default function FleetDashboard(): JSX.Element {
 
           <Card id="detail-table" className="p-0 overflow-hidden mt-6">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16}/> Exportar</button></div>
-              <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th><th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info) <SortIcon column="KmInformado"/></th><th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmConfirmado')}>Odômetro (Conf) <SortIcon column="KmConfirmado"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe"/></th><th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo"/></th></tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (<tr key={i} className="hover:bg-slate-50"><td className="px-6 py-3 font-medium font-mono">{r.Placa}</td><td className="px-6 py-3">{r.Modelo}</td><td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td><td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td><td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td><td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td><td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td><td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td><td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td><td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td></tr>))}</tbody></table></div>
+              <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr>
+                  <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th>
+                  <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th>
+                  <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('NomeCliente')}>Cliente <SortIcon column="NomeCliente"/></th>
+                  <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('TipoLocacao')}>Contrato <SortIcon column="TipoLocacao"/></th>
+                  <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status"/></th>
+                  <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo"/></th>
+                  <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra"/></th>
+                  <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe"/></th>
+                  <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info) <SortIcon column="KmInformado"/></th>
+                  <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmConfirmado')}>Odômetro (Conf) <SortIcon column="KmConfirmado"/></th>
+                  <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe"/></th>
+                  <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo"/></th>
+              </tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (
+                  <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-6 py-3 font-medium font-mono">{r.Placa}</td>
+                      <td className="px-6 py-3">{r.Modelo}</td>
+                      <td className="px-6 py-3 text-xs max-w-[150px] truncate" title={r.NomeCliente}>{r.NomeCliente}</td>
+                      <td className="px-6 py-3 text-xs">{r.TipoLocacao}</td>
+                      <td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td>
+                      <td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td>
+                      <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
+                      <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
+                      <td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td>
+                      <td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
+                      <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
+                      <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
+                  </tr>))}</tbody></table></div>
               <div className="flex justify-between p-4 border-t border-slate-100"><div className="flex gap-2"><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button><button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button></div></div>
           </Card>
         </TabsContent>
@@ -1423,12 +1703,85 @@ export default function FleetDashboard(): JSX.Element {
                 </Card>
             </div>
 
+            {/* Gráficos de Localização (Telemetria) - Hierárquico */}
+            <div className="grid grid-cols-1 gap-6">
+                <Card className="p-0 overflow-hidden">
+                    <div className="p-4 border-b border-slate-200">
+                        <Title>Distribuição Geográfica de Veículos (Por Estado)</Title>
+                        <Text className="text-xs text-slate-500">Expanda o estado para visualizar as cidades</Text>
+                    </div>
+                    <div className="p-4">
+                        <Accordion type="single" collapsible className="w-full">
+                            {localizacaoHierarquica.map((item) => (
+                                <AccordionItem key={item.uf} value={item.uf} className="border-b border-slate-100 last:border-0">
+                                    <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
+                                        <div className="flex w-full items-center justify-between pr-4">
+                                            <div className="flex items-center gap-3">
+                                                <Badge size="lg" className="w-12 justify-center font-bold bg-slate-800">{item.uf}</Badge>
+                                                <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} veículos</span>
+                                                <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden ml-2">
+                                                    <div 
+                                                        className="h-full bg-blue-600 rounded-full" 
+                                                        style={{ width: `${Math.min(100, (item.total / mapData.length) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-4 pt-2">
+                                        <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                                            <Title className="text-sm mb-3 text-slate-600">Veículos por Município em {item.uf}</Title>
+                                            <div className="mt-2 space-y-1">
+                                                {item.cities.map((city) => (
+                                                    <div 
+                                                        key={city.name}
+                                                        className={`flex items-center justify-between text-sm p-2 rounded cursor-pointer transition-colors ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-indigo-100 ring-1 ring-indigo-500' : 'hover:bg-indigo-50'}`}
+                                                        onClick={() => handleLocationClick(item.uf, city.name)}
+                                                    >
+                                                        <div className="flex items-center gap-2 truncate">
+                                                             <div className={`h-2 w-2 rounded-full ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-indigo-600' : 'bg-indigo-300'}`} />
+                                                             <span className="truncate text-slate-700 font-medium">{city.name}</span>
+                                                        </div>
+                                                        <span className="text-slate-500">{city.value} veículos</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                        {localizacaoHierarquica.length === 0 && (
+                            <div className="p-8 text-center text-slate-500 text-sm">
+                                Nenhuma informação de localização disponível nos filtros atuais.
+                            </div>
+                        )}
+                    </div>
+                </Card>
+            </div>
+
             {/* Mapa */}
             <Card className="p-0 overflow-hidden relative">
                 <div className="p-4 border-b border-slate-100 flex items-center gap-2 absolute top-0 left-0 bg-white/90 z-10 w-full rounded-t-lg">
                     <MapPin className="w-5 h-5 text-blue-600" />
-                    <Title>Localização dos Veículos</Title>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                            <Title>Localização</Title> 
+                            {selectedLocation && <Badge color="indigo">{selectedLocation.city}/{selectedLocation.uf}</Badge>}
+                        </div>
+                    </div>
                     <Badge className="ml-2">{mapData.length} veículos</Badge>
+                    {selectedLocation && (
+                        <button 
+                            onClick={() => setSelectedLocation(null)}
+                            className="ml-2 px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100"
+                        >
+                            Limpar
+                        </button>
+                    )}
                 </div>
                 <div className="h-[500px] w-full mt-14">
                     <MapContainer center={[-15.7942, -47.8822]} zoom={4} style={{ height: '100%', width: '100%' }}>
@@ -1442,6 +1795,7 @@ export default function FleetDashboard(): JSX.Element {
                                     <div className="text-sm">
                                         <p className="font-bold">{v.Placa}</p>
                                         <p>{v.Modelo}</p>
+                                        <p className="text-xs text-slate-600 font-medium">{v.NomeCliente}</p>
                                         <p className="text-xs text-slate-500">{v.Status}</p>
                                         {v.UltimoEnderecoTelemetria && (
                                             <p className="text-xs text-blue-600 mt-1">{v.UltimoEnderecoTelemetria}</p>
@@ -1629,6 +1983,17 @@ export default function FleetDashboard(): JSX.Element {
         </TabsContent>
 
         <TabsContent value="timeline" className="space-y-6">
+            {timeline.length === 0 && (
+                <Card>
+                    <div className="p-8 text-center">
+                        <Info className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                        <Title>Sem Dados de Linha do Tempo</Title>
+                        <Text className="mt-2 text-slate-500">Nenhum evento de linha do tempo foi encontrado. Verifique se o arquivo `hist_vida_veiculo_timeline.json` está disponível.</Text>
+                    </div>
+                </Card>
+            )}
+            {timeline.length > 0 && (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card decoration="top" decorationColor="blue">
                     <Text>Utilização Média</Text>
@@ -1659,9 +2024,22 @@ export default function FleetDashboard(): JSX.Element {
                 </div>
                 <div className="flex justify-between p-4 border-t border-slate-100"><div className="flex gap-2"><button onClick={() => setTimelinePage(Math.max(0, timelinePage - 1))} disabled={timelinePage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button><button onClick={() => setTimelinePage(timelinePage + 1)} disabled={(timelinePage + 1) * pageSize >= timelineGrouped.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button></div></div>
             </Card>
+            </>
+            )}
         </TabsContent>
 
         <TabsContent value="carro-reserva" className="space-y-6">
+            {carroReserva.length === 0 && (
+                <Card>
+                    <div className="p-8 text-center">
+                        <Info className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                        <Title>Sem Dados de Carro Reserva</Title>
+                        <Text className="mt-2 text-slate-500">Nenhuma ocorrência de carro reserva foi encontrada. Verifique se o arquivo `fat_carro_reserva.json` está disponível.</Text>
+                    </div>
+                </Card>
+            )}
+            {carroReserva.length > 0 && (
+            <>
             {/* Filtros */}
             <Card className="bg-white shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-4">
@@ -1999,6 +2377,8 @@ export default function FleetDashboard(): JSX.Element {
                     </div>
                 </div>
             </Card>
+            </>
+            )}
         </TabsContent>
       </Tabs>
     </div>
