@@ -707,6 +707,29 @@ export default function FleetDashboard(): JSX.Element {
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
 
+    // Toggle view for odometer card: 'odometro' or 'idade' (idade em meses)
+    const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
+
+    // Distribuição por faixa de idade (12 em 12 meses até 48+)
+    const idadeFaixaData = useMemo(() => {
+        const ranges: Record<string, number> = {
+            '0-12m': 0,
+            '13-24m': 0,
+            '25-36m': 0,
+            '37-48m': 0,
+            '48m+': 0
+        };
+        filteredData.forEach(r => {
+            const idade = parseNum(r.IdadeVeiculo);
+            if (idade <= 12) ranges['0-12m']++;
+            else if (idade <= 24) ranges['13-24m']++;
+            else if (idade <= 36) ranges['25-36m']++;
+            else if (idade <= 48) ranges['37-48m']++;
+            else ranges['48m+']++;
+        });
+        return Object.entries(ranges).map(([name, value]) => ({ name, value }));
+    }, [filteredData]);
+
   // ANÁLISES DE TELEMETRIA
   const telemetriaData = useMemo(() => {
       const map: Record<string, number> = {};
@@ -1359,13 +1382,21 @@ export default function FleetDashboard(): JSX.Element {
                         <Card>
                             <div className="flex justify-between items-center mb-6">
                                 <Title>Classificação por Odômetro</Title>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setOdometroView('odometro')} className={`text-xs px-2 py-1 rounded ${odometroView === 'odometro' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-slate-500 border border-transparent'}`}>
+                                        Odômetro
+                                    </button>
+                                    <button onClick={() => setOdometroView('idade')} className={`text-xs px-2 py-1 rounded ${odometroView === 'idade' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-slate-500 border border-transparent'}`}>
+                                        Idade (m)
+                                    </button>
+                                </div>
                             </div>
                             <Text className="text-xs text-slate-500 mb-3">Distribuição de veículos por faixa de quilometragem informada</Text>
-                            <div className="h-[400px] mt-2">
+                            <div className="h-[400px] mt-8">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={odometroData} margin={{ left: 20, right: 60, bottom: 36, top: 6 }}>
+                                    <BarChart data={odometroView === 'odometro' ? odometroData : idadeFaixaData} margin={{ left: 20, right: 60, bottom: 36, top: 24 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={64} />
+                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={odometroView === 'odometro' ? -45 : 0} textAnchor={odometroView === 'odometro' ? 'end' : 'middle'} height={odometroView === 'odometro' ? 64 : 48} />
                                         <YAxis tick={{ fontSize: 12 }} />
                                         <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
                                         <Bar dataKey="value" radius={[6,6,0,0]} barSize={32} fill="#06b6d4">
