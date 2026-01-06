@@ -166,6 +166,23 @@ export function useTasks(filters: Partial<AllTaskFilters> = {}) {
         }
     });
 
+    const startTaskMutation = useMutation({
+        mutationFn: async (tId: string) => {
+            const updates = {
+                status: 'progress',
+                start_date: dateToLocalISO(new Date())
+            };
+            const { data, error } = await supabase.from('tasks').update(updates).eq('id', tId);
+            if (error) throw new Error(error.message);
+            return data;
+        },
+        onSuccess: (_data, variables) => {
+            toast.success("Tarefa iniciada!");
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+            if (variables) queryClient.invalidateQueries({ queryKey: ['task', variables] });
+        }
+    });
+
     return {
         tasks: data ?? [],
         loading: isLoading,
@@ -174,6 +191,7 @@ export function useTasks(filters: Partial<AllTaskFilters> = {}) {
         createTask: createTaskMutation.mutateAsync,
         deleteTask: deleteTaskMutation.mutateAsync,
         updateTask: updateTaskMutation.mutateAsync,
+        startTask: startTaskMutation.mutateAsync,
     };
 }
 
@@ -290,22 +308,7 @@ export function useTask(taskId: string) {
         }
     });
 
-    const startTaskMutation = useMutation({
-        mutationFn: async (tId: string) => {
-            const updates = {
-                status: 'progress',
-                start_date: dateToLocalISO(new Date())
-            };
-            const { data, error } = await supabase.from('tasks').update(updates).eq('id', tId);
-            if (error) throw new Error(error.message);
-            return data;
-        },
-        onSuccess: (_data, variables) => {
-            toast.success("Tarefa iniciada!");
-            queryClient.invalidateQueries({ queryKey: ['task', variables] });
-            queryClient.invalidateQueries({ queryKey: ['tasks'] });
-        }
-    });
+    
 
     return {
         task,
