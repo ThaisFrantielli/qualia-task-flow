@@ -13,6 +13,7 @@ interface EmptyDataStateProps {
   };
   icon?: React.ReactNode;
   className?: string;
+  compact?: boolean;
 }
 
 const defaultConfigs: Record<EmptyStateVariant, { icon: React.ReactNode; title: string; description: string }> = {
@@ -50,8 +51,25 @@ export function EmptyDataState({
   action,
   icon,
   className = '',
+  compact = false,
 }: EmptyDataStateProps) {
   const config = defaultConfigs[variant];
+
+  if (compact) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-6 px-4 text-center ${className}`}>
+        <div className="scale-75">{icon || config.icon}</div>
+        <p className="mt-2 text-sm font-medium text-slate-600">
+          {title || config.title}
+        </p>
+        {(description || config.description) && (
+          <p className="mt-1 text-xs text-slate-400">
+            {description || config.description}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col items-center justify-center py-12 px-6 text-center ${className}`}>
