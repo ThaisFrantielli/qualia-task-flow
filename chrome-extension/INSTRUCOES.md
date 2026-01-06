@@ -3,12 +3,15 @@
 ## 1. Preparar os Arquivos
 
 ### Criar os Ícones
+
 Crie 3 arquivos de ícone PNG na pasta `icons/`:
+
 - `icon16.png` (16x16 pixels)
-- `icon48.png` (48x48 pixels)  
+- `icon48.png` (48x48 pixels)
 - `icon128.png` (128x128 pixels)
 
 ### Gerar o Arquivo ZIP
+
 1. Selecione **todos os arquivos** da pasta `chrome-extension/`:
    - `manifest.json`
    - `popup.html`
@@ -38,18 +41,21 @@ Crie 3 arquivos de ícone PNG na pasta `icons/`:
 3. Preencha as informações:
 
 ### Informações Obrigatórias:
-| Campo | Valor Sugerido |
-|-------|----------------|
-| Nome | Quality Frotas - Criador de Tarefas |
+
+| Campo     | Valor Sugerido                                                            |
+| --------- | ------------------------------------------------------------------------- |
+| Nome      | Quality Frotas - Criador de Tarefas                                       |
 | Descrição | Extensão interna para criar tarefas rapidamente no sistema Quality Frotas |
-| Categoria | Produtividade |
-| Idioma | Português (Brasil) |
+| Categoria | Produtividade                                                             |
+| Idioma    | Português (Brasil)                                                        |
 
 ### Screenshots (Obrigatórias):
+
 - Tire 1-2 screenshots da extensão funcionando
 - Tamanho: 1280x800 ou 640x400 pixels
 
 ### Ícone Promocional:
+
 - Tamanho: 128x128 pixels (mesmo que o icon128.png)
 
 ---
@@ -90,6 +96,7 @@ Compartilhe o link da Chrome Web Store com sua equipe. Eles poderão instalar di
 ## 🔧 Atualizações Futuras
 
 Para atualizar a extensão:
+
 1. Aumente a versão no `manifest.json` (ex: "1.0.0" → "1.0.1")
 2. Gere um novo arquivo ZIP
 3. No Developer Dashboard, clique em **"Enviar atualização"**
