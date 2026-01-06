@@ -40,8 +40,17 @@ interface FleetTableItem {
   Placa: string; Modelo: string; Status: string; IdadeVeiculo: number;
   compra: number; fipe: number; manut: number; tco: number; depreciacao: number;
   tipo: string; lat: number; lng: number; KmInformado: number; KmConfirmado: number; pctFipe: number;
-    Patio: string; DiasNoStatus: number;
-    DataInicioStatus: string;
+  Patio: string; DiasNoStatus: number;
+  DataInicioStatus: string;
+  ProvedorTelemetria?: string;
+  UltimaAtualizacaoTelemetria?: string;
+  UltimoEnderecoTelemetria?: string;
+  ComSeguroVigente?: any;
+  Proprietario?: string;
+  FinalidadeUso?: string;
+  NomeCondutor?: string;
+  CPFCondutor?: string;
+  TelefoneCondutor?: string;
 }
 
 const MultiSelect = ({ options, selected, onChange, label }: { options: string[], selected: string[], onChange: (val: string[]) => void, label: string }) => {
@@ -105,6 +114,7 @@ export default function FleetDashboard(): JSX.Element {
   const [sortConfig, setSortConfig] = useState<{ key: keyof FleetTableItem; direction: 'asc' | 'desc' } | null>(null);
   const [timelinePage, setTimelinePage] = useState(0);
   const [expandedPlates, setExpandedPlates] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [reservaPage, setReservaPage] = useState(0);
     const [patioPage, setPatioPage] = useState(0);
   // Slider de período para gráfico de ocupação
@@ -301,7 +311,11 @@ export default function FleetDashboard(): JSX.Element {
         return Object.entries(map).map(([name, value]) => ({ name, value, color: statusColorMap[name?.toUpperCase?.() as string] || '#8884d8' }));
     }, [filteredData]);
 
-  const mapData = useMemo(() => filteredData.filter(r => r.Latitude && r.Longitude), [filteredData]);
+    const mapData = useMemo(() => {
+            return filteredData
+                .map(r => ({ ...r, _lat: parseNum(r.Latitude), _lng: parseNum(r.Longitude) }))
+                .filter(r => isFinite(r._lat) && isFinite(r._lng) && r._lat !== 0 && r._lng !== 0);
+    }, [filteredData]);
 
   const kmDifferenceData = useMemo(() => {
     const ranges = { 'Sem Divergência': 0, 'Baixa (<1k)': 0, 'Média (1k-5k)': 0, 'Alta (>5k)': 0 };
@@ -326,6 +340,183 @@ export default function FleetDashboard(): JSX.Element {
                 .map(([name, value]) => ({ name, value }))
                 .sort((a, b) => b.value - a.value);
     }, [filteredData]);
+
+    // Dados hierárquicos: categorias e modelos (usa GrupoVeiculo do banco)
+    const modelosPorCategoria = useMemo(() => {
+        const categoryMap: Record<string, Record<string, number>> = {};
+        
+        filteredData.forEach(r => {
+            const modelo = r.Modelo || 'Não Definido';
+            const categoria = r.Categoria || r.GrupoVeiculo || 'Outros';
+            
+            if (!categoryMap[categoria]) categoryMap[categoria] = {};
+            categoryMap[categoria][modelo] = (categoryMap[categoria][modelo] || 0) + 1;
+        });
+        
+        return Object.entries(categoryMap)
+            .map(([categoria, modelos]) => {
+                const totalCategoria = Object.values(modelos).reduce((sum, val) => sum + val, 0);
+                const modelosArray = Object.entries(modelos)
+                    .map(([nome, qtd]) => ({ name: nome, value: qtd }))
+                    .sort((a, b) => b.value - a.value);
+                
+                return {
+                    categoria,
+                    total: totalCategoria,
+                    modelos: modelosArray
+                };
+            })
+            .sort((a, b) => b.total - a.total);
+    }, [filteredData]);
+
+    // Dados para exibição no gráfico (com categorias colapsáveis)
+    const modelosHierarchicalData = useMemo(() => {
+        const data: Array<{ name: string; value: number; isCategory?: boolean; categoria?: string }> = [];
+        
+        modelosPorCategoria.forEach(({ categoria, total, modelos }) => {
+            // Adiciona a linha da categoria
+            data.push({ 
+                name: `📁 ${categoria}`, 
+                value: total, 
+                isCategory: true,
+                categoria 
+            });
+            
+            // Se expandida, adiciona os modelos
+            if (expandedCategories.includes(categoria)) {
+                modelos.forEach(modelo => {
+                    data.push({ 
+                        name: `  └─ ${modelo.name}`, 
+                        value: modelo.value,
+                        isCategory: false,
+                        categoria
+                    });
+                });
+            }
+        });
+        
+        return data;
+    }, [modelosPorCategoria, expandedCategories]);
+
+    const toggleCategory = (categoria: string) => {
+        setExpandedCategories(prev => 
+            prev.includes(categoria) 
+                ? prev.filter(c => c !== categoria)
+                : [...prev, categoria]
+        );
+    };
+
+    // Distribuição por faixa de odômetro (10k em 10k até 120k+)
+    const odometroData = useMemo(() => {
+        const ranges: Record<string, number> = {
+            '0-10k': 0,
+            '10k-20k': 0,
+            '20k-30k': 0,
+            '30k-40k': 0,
+            '40k-50k': 0,
+            '50k-60k': 0,
+            '60k-70k': 0,
+            '70k-80k': 0,
+            '80k-90k': 0,
+            '90k-100k': 0,
+            '100k-110k': 0,
+            '110k-120k': 0,
+            '120k+': 0
+        };
+        
+        filteredData.forEach(r => {
+            const km = parseNum(r.KmInformado);
+            if (km < 10000) ranges['0-10k']++;
+            else if (km < 20000) ranges['10k-20k']++;
+            else if (km < 30000) ranges['20k-30k']++;
+            else if (km < 40000) ranges['30k-40k']++;
+            else if (km < 50000) ranges['40k-50k']++;
+            else if (km < 60000) ranges['50k-60k']++;
+            else if (km < 70000) ranges['60k-70k']++;
+            else if (km < 80000) ranges['70k-80k']++;
+            else if (km < 90000) ranges['80k-90k']++;
+            else if (km < 100000) ranges['90k-100k']++;
+            else if (km < 110000) ranges['100k-110k']++;
+            else if (km < 120000) ranges['110k-120k']++;
+            else ranges['120k+']++;
+        });
+        
+        return Object.entries(ranges).map(([name, value]) => ({ name, value }));
+    }, [filteredData]);
+
+  // ANÁLISES DE TELEMETRIA
+  const telemetriaData = useMemo(() => {
+      const map: Record<string, number> = {};
+      filteredData.forEach(r => {
+          const raw = (r.ProvedorTelemetria ?? '').toString().trim();
+          const provedor = raw || 'Sem Telemetria';
+          map[provedor] = (map[provedor] || 0) + 1;
+      });
+      return Object.entries(map)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
+  }, [filteredData]);
+
+  const veiculosComTelemetria = useMemo(() => {
+      return filteredData.filter(r => 
+          r.ProvedorTelemetria && 
+          r.ProvedorTelemetria !== 'NÃO DEFINIDO' && 
+          r.ProvedorTelemetria !== 'Não Definido'
+      );
+  }, [filteredData]);
+
+  const telemetriaAtualizada = useMemo(() => {
+      const agora = new Date();
+      const umDiaAtras = new Date(agora.getTime() - 24 * 60 * 60 * 1000);
+      
+      return veiculosComTelemetria.filter(r => {
+          if (!r.UltimaAtualizacaoTelemetria) return false;
+          const ultima = new Date(r.UltimaAtualizacaoTelemetria);
+          return isFinite(ultima.getTime()) && ultima >= umDiaAtras;
+      }).length;
+  }, [veiculosComTelemetria]);
+
+  const seguroData = useMemo(() => {
+      const map: Record<string, number> = {
+          'Com Seguro': 0,
+          'Sem Seguro': 0,
+          'Não Informado': 0
+      };
+      
+      filteredData.forEach(r => {
+          if (r.ComSeguroVigente === null || r.ComSeguroVigente === undefined) {
+              map['Não Informado']++;
+          } else if (r.ComSeguroVigente === 1 || r.ComSeguroVigente === true || r.ComSeguroVigente === 'true') {
+              map['Com Seguro']++;
+          } else {
+              map['Sem Seguro']++;
+          }
+      });
+      
+      return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [filteredData]);
+
+  const proprietarioData = useMemo(() => {
+      const map: Record<string, number> = {};
+      filteredData.forEach(r => {
+          const prop = r.Proprietario || 'Não Definido';
+          map[prop] = (map[prop] || 0) + 1;
+      });
+      return Object.entries(map)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
+  }, [filteredData]);
+
+  const finalidadeData = useMemo(() => {
+      const map: Record<string, number> = {};
+      filteredData.forEach(r => {
+          const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
+          map[finalidade] = (map[finalidade] || 0) + 1;
+      });
+      return Object.entries(map)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
+  }, [filteredData]);
 
   // ANÁLISE DE PÁTIO
   const agingData = useMemo(() => {
@@ -679,8 +870,18 @@ export default function FleetDashboard(): JSX.Element {
             compra, fipe, manut, tco, depreciacao: compra - fipe,
             tipo: getCategory(r.Status),
             pctFipe: fipe > 0 ? (compra / fipe) * 100 : 0,
-            Patio: r.Patio, DiasNoStatus: parseNum(r.DiasNoStatus)
-            , DataInicioStatus: r.DataInicioStatus
+            Patio: r.Patio, DiasNoStatus: parseNum(r.DiasNoStatus),
+            DataInicioStatus: r.DataInicioStatus,
+            // Campos adicionais para telemetria
+            ProvedorTelemetria: r.ProvedorTelemetria,
+            UltimaAtualizacaoTelemetria: r.UltimaAtualizacaoTelemetria,
+            UltimoEnderecoTelemetria: r.UltimoEnderecoTelemetria,
+            ComSeguroVigente: r.ComSeguroVigente,
+            Proprietario: r.Proprietario,
+            FinalidadeUso: r.FinalidadeUso,
+            NomeCondutor: r.NomeCondutor,
+            CPFCondutor: r.CPFCondutor,
+            TelefoneCondutor: r.TelefoneCondutor
         };
     });
     if (sortConfig !== null) {
@@ -873,29 +1074,78 @@ export default function FleetDashboard(): JSX.Element {
                                                 </Card>
                     </div>
 
-                    {/* Veículos por Modelo (frota filtrada) */}
-                    <Card>
-                        <Title>Veículos por Modelo <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                        <Text className="text-xs text-slate-500 mb-2">Distribuição por modelo considerando os filtros aplicados</Text>
-                        <div className="h-96 mt-2 overflow-y-auto pr-2">
-                            <ResponsiveContainer width="100%" height={Math.max(400, modelosData.length * 28)}>
-                                <BarChart data={modelosData} layout="vertical" margin={{ left: 0, right: 80 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
-                                    <Tooltip formatter={(value: any) => [String(value), 'Veículos']} />
-                                    <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#7c3aed"
-                                         onClick={(data: any, _index: number, event: any) => {
-                                             handleChartClick('modelo', data.name, event as unknown as React.MouseEvent);
-                                             if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' });
-                                         }}
-                                         cursor="pointer">
-                                        <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Card>
+                    {/* Veículos por Modelo e Classificação de Odômetro */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <Card>
+                            <div className="flex justify-between items-center mb-2">
+                                <div>
+                                    <Title>Veículos por Modelo <span className="text-xs text-slate-500 font-normal">(clique na categoria para expandir)</span></Title>
+                                    <Text className="text-xs text-slate-500">Agrupados por categoria de veículo</Text>
+                                </div>
+                                <button 
+                                    onClick={() => setExpandedCategories(prev => 
+                                        prev.length === modelosPorCategoria.length 
+                                            ? [] 
+                                            : modelosPorCategoria.map(c => c.categoria)
+                                    )}
+                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
+                                >
+                                    {expandedCategories.length === modelosPorCategoria.length ? '− Colapsar Todas' : '+ Expandir Todas'}
+                                </button>
+                            </div>
+                            <div className="h-96 mt-2 overflow-y-auto pr-2">
+                                <ResponsiveContainer width="100%" height={Math.max(400, modelosHierarchicalData.length * 28)}>
+                                    <BarChart data={modelosHierarchicalData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={240} tick={{fontSize:10}} />
+                                        <Tooltip formatter={(value: any) => [String(value), 'Veículos']} />
+                                        <Bar dataKey="value" radius={[6,6,6,6]} barSize={16}
+                                             onClick={(data: any, _index: number, event: any) => {
+                                                 if (data.isCategory) {
+                                                     // Se for categoria, expande/colapsa
+                                                     toggleCategory(data.categoria);
+                                                 } else {
+                                                     // Se for modelo, aplica filtro
+                                                     const modeloName = data.name.replace('  └─ ', '').trim();
+                                                     handleChartClick('modelo', modeloName, event as unknown as React.MouseEvent);
+                                                     if (!((event?.ctrlKey) || (event?.metaKey))) {
+                                                         document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' });
+                                                     }
+                                                 }
+                                             }}
+                                             cursor="pointer">
+                                            {modelosHierarchicalData.map((entry, idx) => (
+                                                <Cell 
+                                                    key={`cell-modelo-${idx}`} 
+                                                    fill={entry.isCategory ? '#7c3aed' : '#a78bfa'}
+                                                />
+                                            ))}
+                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </Card>
+                        
+                        <Card>
+                            <Title>Classificação por Odômetro</Title>
+                            <Text className="text-xs text-slate-500 mb-2">Distribuição de veículos por faixa de quilometragem informada</Text>
+                            <div className="h-96 mt-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={odometroData} margin={{ left: 20, right: 60 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                                        <YAxis tick={{ fontSize: 12 }} />
+                                        <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
+                                        <Bar dataKey="value" radius={[6,6,0,0]} barSize={32} fill="#06b6d4">
+                                            <LabelList dataKey="value" position="top" formatter={(v: any) => v > 0 ? String(v) : ''} fontSize={11} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </Card>
+                    </div>
 
           <Card id="detail-table" className="p-0 overflow-hidden mt-6">
               <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16}/> Exportar</button></div>
@@ -1052,10 +1302,330 @@ export default function FleetDashboard(): JSX.Element {
         </TabsContent>
 
         <TabsContent value="telemetria" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card><Title>Diferença de Odômetro (Info vs Conf)</Title><div className="h-72 mt-4"><ResponsiveContainer width="100%" height="100%"><BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40 }}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10} /><YAxis dataKey="name" type="category" width={100} fontSize={10} tick={{fill: '#475569'}}/><Tooltip /><Bar dataKey="value" fill="#0891b2" radius={[0,4,4,0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div></Card>
-                <Card className="p-0 overflow-hidden relative"><div className="p-4 border-b border-slate-100 flex items-center gap-2 absolute top-0 left-0 bg-white/90 z-10 w-full rounded-t-lg"><MapPin className="w-5 h-5 text-blue-600" /><Title>Localização</Title></div><div className="h-96 w-full"><MapContainer center={[-15.7942, -47.8822]} zoom={4} style={{ height: '100%', width: '100%' }}><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />{mapData.slice(0, 500).map((v, idx) => (<Marker key={idx} position={[v.Latitude, v.Longitude]}><Popup><div className="text-sm"><p className="font-bold">{v.Placa}</p><p>{v.Modelo}</p><p className="text-xs text-slate-500">{v.Status}</p></div></Popup></Marker>))}</MapContainer></div></Card>
+            {/* KPIs de Telemetria */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card decoration="top" decorationColor="blue">
+                    <Text>Veículos com Telemetria</Text>
+                    <Metric>{fmtDecimal(veiculosComTelemetria.length)}</Metric>
+                    <Text className="text-xs text-slate-500 mt-1">{((veiculosComTelemetria.length / filteredData.length) * 100).toFixed(1)}% da frota</Text>
+                </Card>
+                <Card decoration="top" decorationColor="emerald">
+                    <Text>Atualizado (Últimas 24h)</Text>
+                    <Metric>{fmtDecimal(telemetriaAtualizada)}</Metric>
+                    <Text className="text-xs text-slate-500 mt-1">Telemetria ativa</Text>
+                </Card>
+                <Card decoration="top" decorationColor="amber">
+                    <Text>Veículos Localizáveis</Text>
+                    <Metric>{fmtDecimal(mapData.length)}</Metric>
+                    <Text className="text-xs text-slate-500 mt-1">Com coordenadas GPS</Text>
+                </Card>
+                <Card decoration="top" decorationColor="violet">
+                    <Text>Taxa de Cobertura GPS</Text>
+                    <Metric>{((mapData.length / filteredData.length) * 100).toFixed(1)}%</Metric>
+                    <Text className="text-xs text-slate-500 mt-1">Lat/Long disponível</Text>
+                </Card>
             </div>
+
+            {/* Gráficos de Análise */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card>
+                    <Title>Provedores de Telemetria</Title>
+                    <div className="h-72 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={telemetriaData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={150} tick={{fontSize:11}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#3b82f6">
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+                
+                <Card>
+                    <Title>Situação de Seguro</Title>
+                    <div className="h-72 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={seguroData} margin={{ left: 0, right: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                <YAxis tick={{ fontSize: 12 }} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                <Bar dataKey="value" radius={[6,6,0,0]} barSize={40}>
+                                    {seguroData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={
+                                            entry.name === 'Com Seguro' ? '#10b981' : 
+                                            entry.name === 'Sem Seguro' ? '#ef4444' : '#94a3b8'
+                                        } />
+                                    ))}
+                                    <LabelList dataKey="value" position="top" fontSize={11} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                <Card>
+                    <Title>Diferença de Odômetro (Info vs Conf)</Title>
+                    <div className="h-72 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                <XAxis type="number" fontSize={10} />
+                                <YAxis dataKey="name" type="category" width={120} fontSize={10} tick={{fill: '#475569'}}/>
+                                <Tooltip />
+                                <Bar dataKey="value" fill="#0891b2" radius={[0,4,4,0]} barSize={20}>
+                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Gráficos Adicionais */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                    <Title>Proprietário do Veículo</Title>
+                    <div className="h-80 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={proprietarioData} margin={{ left: 0, right: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                                <YAxis tick={{ fontSize: 12 }} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                <Bar dataKey="value" fill="#8b5cf6" radius={[6,6,0,0]} barSize={32}>
+                                    <LabelList dataKey="value" position="top" fontSize={11} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                <Card>
+                    <Title>Finalidade de Uso</Title>
+                    <div className="h-80 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={finalidadeData} margin={{ left: 0, right: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                                <YAxis tick={{ fontSize: 12 }} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                <Bar dataKey="value" fill="#06b6d4" radius={[6,6,0,0]} barSize={32}>
+                                    <LabelList dataKey="value" position="top" fontSize={11} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Mapa */}
+            <Card className="p-0 overflow-hidden relative">
+                <div className="p-4 border-b border-slate-100 flex items-center gap-2 absolute top-0 left-0 bg-white/90 z-10 w-full rounded-t-lg">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    <Title>Localização dos Veículos</Title>
+                    <Badge className="ml-2">{mapData.length} veículos</Badge>
+                </div>
+                <div className="h-[500px] w-full mt-14">
+                    <MapContainer center={[-15.7942, -47.8822]} zoom={4} style={{ height: '100%', width: '100%' }}>
+                        <TileLayer 
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+                            attribution='&copy; OpenStreetMap' 
+                        />
+                        {mapData.slice(0, 500).map((v, idx) => (
+                            <Marker key={idx} position={[v._lat, v._lng]}>
+                                <Popup>
+                                    <div className="text-sm">
+                                        <p className="font-bold">{v.Placa}</p>
+                                        <p>{v.Modelo}</p>
+                                        <p className="text-xs text-slate-500">{v.Status}</p>
+                                        {v.UltimoEnderecoTelemetria && (
+                                            <p className="text-xs text-blue-600 mt-1">{v.UltimoEnderecoTelemetria}</p>
+                                        )}
+                                        {v.UltimaAtualizacaoTelemetria && (
+                                            <p className="text-xs text-slate-400 mt-1">
+                                                Atualizado: {new Date(v.UltimaAtualizacaoTelemetria).toLocaleString('pt-BR')}
+                                            </p>
+                                        )}
+                                    </div>
+                                </Popup>
+                            </Marker>
+                        ))}
+                    </MapContainer>
+                </div>
+            </Card>
+
+            {/* Tabela Detalhada de Telemetria */}
+            <Card className="p-0 overflow-hidden" id="telemetria-table">
+                <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <Info className="w-5 h-5 text-blue-600" />
+                        <Title>Detalhamento: Telemetria e Rastreamento</Title>
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">
+                            {fmtDecimal(filteredData.length)} veículos
+                        </span>
+                    </div>
+                    <button 
+                        onClick={() => {
+                            const detailData = filteredData.map(r => ({
+                                Placa: r.Placa,
+                                Modelo: r.Modelo,
+                                Status: r.Status,
+                                'Provedor Telemetria': r.ProvedorTelemetria || 'N/A',
+                                'Última Atualização': r.UltimaAtualizacaoTelemetria || 'N/A',
+                                Latitude: r.Latitude || 0,
+                                Longitude: r.Longitude || 0,
+                                'Último Endereço': r.UltimoEnderecoTelemetria || 'N/A',
+                                'Com Seguro': r.ComSeguroVigente ? 'Sim' : 'Não',
+                                Proprietário: r.Proprietario || 'N/A',
+                                'Finalidade': r.FinalidadeUso || 'N/A',
+                                'KM Informado': r.KmInformado || 0,
+                                'KM Confirmado': r.KmConfirmado || 0,
+                                'Condutor': r.NomeCondutor || 'N/A',
+                                'CPF Condutor': r.CPFCondutor || 'N/A',
+                                'Telefone Condutor': r.TelefoneCondutor || 'N/A'
+                            }));
+                            exportToExcel(detailData, 'frota_telemetria_detalhado');
+                        }}
+                        className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"
+                    >
+                        <FileSpreadsheet size={16}/> Exportar
+                    </button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
+                            <tr>
+                                <th className="px-4 py-3">Placa</th>
+                                <th className="px-4 py-3">Modelo</th>
+                                <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3">Provedor Telemetria</th>
+                                <th className="px-4 py-3">Última Atualização</th>
+                                <th className="px-4 py-3 text-center">GPS</th>
+                                <th className="px-4 py-3">Último Endereço</th>
+                                <th className="px-4 py-3 text-center">Seguro</th>
+                                <th className="px-4 py-3">Proprietário</th>
+                                <th className="px-4 py-3">Condutor</th>
+                                <th className="px-4 py-3 text-right">KM Info</th>
+                                <th className="px-4 py-3 text-right">KM Conf</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {pageItems.map((r, i) => {
+                                const temTelemetria = r.ProvedorTelemetria && 
+                                    r.ProvedorTelemetria !== 'NÃO DEFINIDO' && 
+                                    r.ProvedorTelemetria !== 'Não Definido';
+                                const temGPS = r.lat && r.lng && r.lat !== 0 && r.lng !== 0;
+                                const atualizadoRecente = r.UltimaAtualizacaoTelemetria ? 
+                                    (new Date().getTime() - new Date(r.UltimaAtualizacaoTelemetria).getTime()) < (24 * 60 * 60 * 1000) : 
+                                    false;
+                                const temSeguro = r.ComSeguroVigente === 1 || r.ComSeguroVigente === true || r.ComSeguroVigente === 'true';
+                                
+                                return (
+                                    <tr key={i} className="hover:bg-slate-50">
+                                        <td className="px-4 py-3 font-medium font-mono text-blue-600">{r.Placa}</td>
+                                        <td className="px-4 py-3 text-slate-700">{r.Modelo}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : 
+                                                r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 
+                                                'bg-slate-200 text-slate-600'
+                                            }`}>
+                                                {r.Status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {temTelemetria ? (
+                                                <span className="flex items-center gap-1">
+                                                    <span className={`w-2 h-2 rounded-full ${atualizadoRecente ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                                                    <span className="text-slate-700">{r.ProvedorTelemetria}</span>
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400 text-xs">Sem telemetria</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-xs text-slate-500">
+                                            {r.UltimaAtualizacaoTelemetria ? (
+                                                <span className={atualizadoRecente ? 'text-green-600 font-medium' : ''}>
+                                                    {new Date(r.UltimaAtualizacaoTelemetria).toLocaleString('pt-BR', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: '2-digit',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            {temGPS ? (
+                                                <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+                                                    <MapPin size={14} />
+                                                    Sim
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300 text-xs">Não</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-xs max-w-xs truncate" title={r.UltimoEnderecoTelemetria || 'N/A'}>
+                                            {r.UltimoEnderecoTelemetria ? (
+                                                <span className="text-blue-600">{r.UltimoEnderecoTelemetria}</span>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            {temSeguro ? (
+                                                <CheckCircle2 size={16} className="inline text-green-600" />
+                                            ) : (
+                                                <XCircle size={16} className="inline text-rose-400" />
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600 text-xs">{r.Proprietario || 'N/A'}</td>
+                                        <td className="px-4 py-3 text-slate-600 text-xs">{r.NomeCondutor || '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-700">
+                                            {r.KmInformado ? fmtDecimal(r.KmInformado) : '-'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-slate-700">
+                                            {r.KmConfirmado ? fmtDecimal(r.KmConfirmado) : '-'}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="flex justify-between items-center p-4 border-t border-slate-100">
+                    <div className="text-sm text-slate-500">
+                        Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, tableData.length)} de {fmtDecimal(tableData.length)} veículos
+                    </div>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setPage(Math.max(0, page - 1))} 
+                            disabled={page === 0} 
+                            className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 hover:bg-slate-200 transition-colors"
+                        >
+                            ← Anterior
+                        </button>
+                        <span className="px-3 py-1 text-sm text-slate-600">
+                            Página {page + 1} de {Math.ceil(tableData.length / pageSize)}
+                        </span>
+                        <button 
+                            onClick={() => setPage(page + 1)} 
+                            disabled={(page + 1) * pageSize >= tableData.length} 
+                            className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 hover:bg-slate-200 transition-colors"
+                        >
+                            Próxima →
+                        </button>
+                    </div>
+                </div>
+            </Card>
         </TabsContent>
 
         <TabsContent value="timeline" className="space-y-6">
