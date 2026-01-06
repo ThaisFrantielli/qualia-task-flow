@@ -67,7 +67,7 @@ export function WhatsAppMediaUpload({
         .getPublicUrl(filePath);
 
       // 3. Determine media type
-      const mimeType = selectedFile.type;
+      const mimeType = selectedFile.type || '';
       let mediaType = 'document';
       if (mimeType.startsWith('image/')) mediaType = 'image';
       else if (mimeType.startsWith('video/')) mediaType = 'video';
@@ -145,9 +145,10 @@ export function WhatsAppMediaUpload({
   };
 
   const getMediaIcon = (file: File) => {
-    if (file.type.startsWith('image/')) return <ImageIcon className="h-4 w-4" />;
-    if (file.type.startsWith('video/')) return <Video className="h-4 w-4" />;
-    if (file.type.startsWith('audio/')) return <FileText className="h-4 w-4" />;
+    const ft = file.type || '';
+    if (ft.startsWith('image/')) return <ImageIcon className="h-4 w-4" />;
+    if (ft.startsWith('video/')) return <Video className="h-4 w-4" />;
+    if (ft.startsWith('audio/')) return <FileText className="h-4 w-4" />;
     return <File className="h-4 w-4" />;
   };
 
