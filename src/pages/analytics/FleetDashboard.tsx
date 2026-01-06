@@ -1357,7 +1357,9 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
                         
                         <Card>
-                            <Title>Classificação por Odômetro</Title>
+                            <div className="flex justify-between items-center mb-2">
+                                <Title>Classificação por Odômetro</Title>
+                            </div>
                             <Text className="text-xs text-slate-500 mb-2">Distribuição de veículos por faixa de quilometragem informada</Text>
                             <div className="h-96 mt-2">
                                 <ResponsiveContainer width="100%" height="100%">
