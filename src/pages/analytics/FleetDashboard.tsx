@@ -119,6 +119,7 @@ export default function FleetDashboard(): JSX.Element {
   const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
   const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva.json');
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
+  const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos.json');
   const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
@@ -126,7 +127,68 @@ export default function FleetDashboard(): JSX.Element {
   const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
   const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
+  const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
   const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
+
+  const vehiclesDetailed = useMemo(() => {
+    const getCategory = (status: string) => {
+      const s = (status || '').toUpperCase();
+      if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+      if ([
+          'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
+          'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
+          'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
+          'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+      ].includes(s)) return 'Inativa';
+      return 'Improdutiva';
+    };
+    
+    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
+    return improdutivos.map(v => {
+        const movPatio = (patioMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
+                const dateA = new Date(a.DataMovimentacao || 0).getTime();
+                const dateB = new Date(b.DataMovimentacao || 0).getTime();
+                return dateB - dateA;
+            });
+        const ultimoMovPatio = movPatio[0];
+
+        const movVeiculo = (veiculoMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
+                const dateA = new Date(a.DataDevolucao || a.DataRetirada || 0).getTime();
+                const dateB = new Date(b.DataDevolucao || b.DataRetirada || 0).getTime();
+                return dateB - dateA;
+            });
+        const ultimaLocacao = movVeiculo[0];
+
+        let dataInicioStatus: string | null = null;
+        const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).getTime() : 0;
+        const dataMovPatio = ultimoMovPatio?.DataMovimentacao ? new Date(ultimoMovPatio.DataMovimentacao).getTime() : 0;
+        if (dataMovPatio > dataDevolucao && dataMovPatio > 0) {
+            dataInicioStatus = ultimoMovPatio.DataMovimentacao;
+        } else if (dataDevolucao > 0) {
+            dataInicioStatus = ultimaLocacao.DataDevolucao;
+        }
+
+        let diasNoStatus = 0;
+        if (dataInicioStatus) {
+            const dataInicio = new Date(dataInicioStatus);
+            const hoje = new Date();
+            diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem pátio';
+
+        return {
+            Placa: v.Placa,
+            Modelo: v.Modelo || 'N/A',
+            Status: v.Status || 'N/A',
+            Patio: patio,
+            DiasNoStatus: Math.max(0, diasNoStatus),
+            DataInicioStatus: dataInicioStatus || null,
+            UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
+            UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
+        };
+    });
+  }, [frota, patioMov, veiculoMov]);
 
   // Mapa de Contratos por Placa (para enriquecer dim_frota)
   const contratosMap = useMemo(() => {
@@ -1104,7 +1166,7 @@ export default function FleetDashboard(): JSX.Element {
         const manut = manutencaoMap[r.Placa] || 0;
         const tco = compra + manut;
         return {
-            Placa: r.Placa, Modelo: r.Modelo, Status: r.Status,
+            Placa: r.Placa, Modelo: r.Modelo || 'N/A', Status: r.Status || 'N/A',
             NomeCliente: r.NomeCliente || 'N/A', TipoLocacao: r.TipoLocacao || 'N/A',
             IdadeVeiculo: parseNum(r.IdadeVeiculo),
             KmInformado: parseNum(r.KmInformado), KmConfirmado: parseNum(r.KmConfirmado),
@@ -1112,8 +1174,8 @@ export default function FleetDashboard(): JSX.Element {
             compra, fipe, manut, tco, depreciacao: compra - fipe,
             tipo: getCategory(r.Status),
             pctFipe: fipe > 0 ? (compra / fipe) * 100 : 0,
-            Patio: r.Patio, DiasNoStatus: parseNum(r.DiasNoStatus),
-            DataInicioStatus: r.DataInicioStatus,
+            Patio: r.Patio || 'Sem pátio', DiasNoStatus: parseNum(r.DiasNoStatus),
+            DataInicioStatus: r.DataInicioStatus || '-',
             // Campos adicionais para telemetria
             ProvedorTelemetria: r.ProvedorTelemetria,
             UltimaAtualizacaoTelemetria: r.UltimaAtualizacaoTelemetria,
@@ -1482,109 +1544,58 @@ export default function FleetDashboard(): JSX.Element {
                 </Card>
             </div>
             
-            {/* Card de Movimentações Recentes */}
-            <Card>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <Timer size={16} className="text-indigo-600"/>
-                        <Title>Movimentações Recentes de Pátio (Últimas 20)</Title>
-                    </div>
-                    <a 
-                        href="/analytics/frota-improdutiva" 
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                    >
-                        Ver monitoramento completo →
-                    </a>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                        <thead className="bg-slate-50 text-slate-600 uppercase">
-                            <tr>
-                                <th className="px-4 py-2 text-left">Data/Hora</th>
-                                <th className="px-4 py-2 text-left">Placa</th>
-                                <th className="px-4 py-2 text-left">Pátio</th>
-                                <th className="px-4 py-2 text-left">Usuário</th>
-                                <th className="px-4 py-2 text-left">Comentários</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {patioMov
-                                .filter((m: any) => m.DataMovimentacao)
-                                .sort((a: any, b: any) => new Date(b.DataMovimentacao).getTime() - new Date(a.DataMovimentacao).getTime())
-                                .slice(0, 20)
-                                .map((mov: any, idx: number) => (
-                                    <tr key={idx} className="hover:bg-slate-50">
-                                        <td className="px-4 py-2 text-slate-600">
-                                            {new Date(mov.DataMovimentacao).toLocaleString('pt-BR', { 
-                                                day: '2-digit', 
-                                                month: '2-digit',
-                                                year: 'numeric',
-                                                hour: '2-digit', 
-                                                minute: '2-digit' 
-                                            })}
-                                        </td>
-                                        <td className="px-4 py-2 font-mono font-medium">{mov.Placa}</td>
-                                        <td className="px-4 py-2">
-                                            <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
-                                                {mov.Patio || 'Sem pátio'}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-2 text-slate-600">{mov.UsuarioMovimentacao || '-'}</td>
-                                        <td className="px-4 py-2 text-slate-500 text-xs max-w-xs truncate">
-                                            {mov.Comentarios || '-'}
-                                        </td>
-                                    </tr>
-                                ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+            {/* Movimentações recentes removidas conforme solicitado */}
             
             <Card className="p-0 overflow-hidden">
                 <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <Title>Veículos no Pátio</Title>
-                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.filter(r => r.tipo === 'Improdutiva').length)} registros</span>
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(vehiclesDetailed.length)} registros</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => exportToExcel(tableData.filter(r => r.tipo === 'Improdutiva'), 'veiculos_patio')}
+                        <a href="/analytics/frota-improdutiva" className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                            Ver monitoramento completo →
+                        </a>
+                        <button onClick={() => exportToExcel(vehiclesDetailed, 'veiculos_patio')}
                                 className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded">
                             <FileSpreadsheet size={16}/> Exportar
                         </button>
                     </div>
                 </div>
                 <div className="overflow-x-auto mt-4">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
-                            <tr>
-                                <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa"/></th>
-                                <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo"/></th>
-                                <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Patio')}>Pátio <SortIcon column="Patio"/></th>
-                                <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status"/></th>
-                                <th className="px-6 py-3">Data Início Status</th>
-                                <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('DiasNoStatus')}>Dias Parado <SortIcon column="DiasNoStatus"/></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {patioPageItems.map((v, i) => (
-                                <tr key={i} className="hover:bg-slate-50">
-                                    <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
-                                    <td className="px-6 py-3">{v.Modelo}</td>
-                                    <td className="px-6 py-3">{v.Patio}</td>
-                                    <td className="px-6 py-3"><span className="px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">{v.Status}</span></td>
-                                    <td className="px-6 py-3 text-slate-500">{v.DataInicioStatus ? new Date(v.DataInicioStatus + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
-                                    <td className="px-6 py-3 text-right font-bold text-rose-600">{v.DiasNoStatus} dias</td>
+                    <div className="max-h-[420px] overflow-y-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
+                                <tr>
+                                    <th className="px-6 py-3">Placa</th>
+                                    <th className="px-6 py-3">Modelo</th>
+                                    <th className="px-6 py-3">Status</th>
+                                    <th className="px-6 py-3">Pátio</th>
+                                    <th className="px-6 py-3 text-right">Dias Parado</th>
+                                    <th className="px-6 py-3">Data Início Status</th>
+                                    <th className="px-6 py-3">Última Movimentação</th>
+                                    <th className="px-6 py-3">Usuário</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {vehiclesDetailed.map((v, idx) => (
+                                    <tr key={v.Placa + idx} className="hover:bg-slate-50">
+                                        <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
+                                        <td className="px-6 py-3">{v.Modelo}</td>
+                                        <td className="px-6 py-3"><span className="px-2 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">{v.Status}</span></td>
+                                        <td className="px-6 py-3">{v.Patio}</td>
+                                        <td className="px-6 py-3 text-right font-bold text-rose-600">{v.DiasNoStatus} dias</td>
+                                        <td className="px-6 py-3 text-slate-500">{v.DataInicioStatus ? new Date(v.DataInicioStatus).toLocaleDateString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3 text-slate-500">{v.UltimaMovimentacao && v.UltimaMovimentacao !== '-' ? new Date(v.UltimaMovimentacao).toLocaleString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3 text-xs text-slate-600">{v.UsuarioMovimentacao}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 <div className="flex justify-between p-4 border-t border-slate-100">
-                    <div className="flex gap-2">
-                        <button onClick={() => setPatioPage(Math.max(0, patioPage - 1))} disabled={patioPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
-                        <button onClick={() => setPatioPage(patioPage + 1)} disabled={(patioPage + 1) * pageSize >= patioItems.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
-                    </div>
-                    <div className="text-xs text-slate-500">{fmtDecimal(patioItems.length)} registros</div>
+                    <div className="text-xs text-slate-500">{fmtDecimal(vehiclesDetailed.length)} registros</div>
                 </div>
             </Card>
         </TabsContent>
