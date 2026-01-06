@@ -161,17 +161,41 @@ export default function useBIData<T = unknown>(
         if (!json && !fileName.includes('_part')) {
           // Verifica se já conhecemos o número de partes
           let totalParts = chunkCountCache.get(baseFileName);
+
+          // Tenta usar manifest (evita detecção por tentativa e elimina 400)
+          if (!totalParts) {
+            const manifestFile = `${baseFileName}_manifest.json`;
+            const manifestJson = await fetchFile(manifestFile, controller.signal) as Record<string, unknown> | null;
+            if (manifestJson) {
+              const payload = (manifestJson as Record<string, unknown>)?.data ?? manifestJson;
+              if (payload && typeof payload === 'object') {
+                const p = payload as Record<string, unknown>;
+                const n = Number(
+                  (p.totalParts ?? p.total_parts ?? p.totalChunks ?? p.total_chunks ?? p.total_chunks)
+                );
+                if (Number.isFinite(n) && n > 0) {
+                  totalParts = n;
+                  chunkCountCache.set(baseFileName, totalParts);
+                  finalMeta.chunked = true;
+                  finalMeta.totalParts = totalParts;
+                  (finalMeta as any).manifestUsed = true;
+                }
+              }
+            }
+          }
           
           if (!totalParts) {
-            // Detecta quantas partes existem verificando part1ofN para N de 2 a 10 em paralelo
-            const detectionPromises = [2, 3, 4, 5, 6, 7, 8, 9, 10].map(async (n) => {
+            // Detecta quantas partes existem verificando part1ofN de forma SEQUENCIAL
+            // (evita vários 400 em paralelo no console do navegador)
+            const maxDetect = 12;
+            for (let n = 2; n <= maxDetect; n++) {
               const testFile = `${baseFileName}_part1of${n}.json`;
               const result = await fetchFile(testFile, controller.signal);
-              return result ? n : null;
-            });
-            
-            const detectionResults = await Promise.all(detectionPromises);
-            totalParts = detectionResults.find(n => n !== null) ?? undefined;
+              if (result) {
+                totalParts = n;
+                break;
+              }
+            }
             
             // Cacheia o número de partes para evitar re-detecção
             if (totalParts) {
