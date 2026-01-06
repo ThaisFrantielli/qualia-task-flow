@@ -38,18 +38,26 @@ export function useEmailAccounts() {
         body: request
       });
 
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Erro ao conectar com o servidor');
+      }
+      
+      // Check if the response indicates an error
+      if (data && !data.success && data.error) {
+        return { success: false, error: data.error };
+      }
+      
+      return data as EmailConnectResponse;
     },
     onSuccess: (data) => {
       if (data.success && data.account) {
         queryClient.invalidateQueries({ queryKey: ['email-accounts'] });
         toast.success('Conta de email conectada com sucesso!');
-      } else if (data.error) {
-        toast.error(data.error);
       }
     },
     onError: (error: Error) => {
+      console.error('Connect mutation error:', error);
       toast.error(`Erro ao conectar conta: ${error.message}`);
     }
   });

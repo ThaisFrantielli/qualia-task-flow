@@ -44,10 +44,24 @@ function encryptPassword(password: string): string {
 }
 
 // Detectar configuração IMAP pelo domínio do email
+// Para domínios desconhecidos, usa Office 365 como padrão (maioria das empresas)
 function detectImapConfig(email: string) {
   const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) return null;
-  return KNOWN_IMAP_CONFIGS[domain] || null;
+  
+  // Se encontrar configuração conhecida, usar ela
+  if (KNOWN_IMAP_CONFIGS[domain]) {
+    return KNOWN_IMAP_CONFIGS[domain];
+  }
+  
+  // Para domínios corporativos desconhecidos, tentar Office 365 como padrão
+  console.log(`[email-connect] Domain ${domain} not in known list, using Office 365 defaults`);
+  return {
+    imap_host: 'outlook.office365.com',
+    imap_port: 993,
+    smtp_host: 'smtp.office365.com',
+    smtp_port: 587
+  };
 }
 
 // Validar formato de email
