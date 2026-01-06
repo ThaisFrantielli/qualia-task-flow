@@ -27,12 +27,11 @@ const InfoItem: React.FC<{ icon: React.ElementType; label: string; value: string
 );
 
 const TaskLifecyclePanel: React.FC<TaskLifecyclePanelProps> = ({ task, onUpdate }) => {
-  const { updateTask, isLoading } = useTask(task.id);
+  const { updateTask, startTask, isLoading } = useTask(task.id);
 
   const handleStartTask = async () => {
     try {
-      await updateTask({ start_date: dateToLocalISO(new Date()), status: 'progress' });
-      toast.success("Tarefa iniciada!");
+      await startTask();
       onUpdate();
     } catch (error) {
       toast.error("Não foi possível iniciar a tarefa.");

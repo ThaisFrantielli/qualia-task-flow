@@ -47,7 +47,7 @@ const TasksPage = () => {
   const [defaultDueDate, setDefaultDueDate] = useState<Date | undefined>();
   
   const { projects } = useProjects();
-  const { tasks, deleteTask, loading, updateTask } = useTasks(filters);
+  const { tasks, deleteTask, loading, updateTask, startTask } = useTasks(filters);
 
   // Sincronizar filtro com URL quando assignee muda
   useEffect(() => {
@@ -146,7 +146,11 @@ const TasksPage = () => {
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
-      await updateTask({ id: taskId, updates: { status: newStatus } });
+      if (newStatus === 'progress' && startTask) {
+        await startTask(taskId);
+      } else {
+        await updateTask({ id: taskId, updates: { status: newStatus } });
+      }
       toast.success('Status atualizado!');
     } catch (error) {
       toast.error('Erro ao atualizar status');
