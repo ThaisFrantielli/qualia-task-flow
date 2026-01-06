@@ -10,6 +10,30 @@ import MultasHeatmap from '@/components/analytics/infractions/MultasHeatmap';
 
 type AnyObject = { [k: string]: any };
 
+interface Multa {
+  IdOcorrencia: number;
+  Ocorrencia: string;
+  Placa: string;
+  DataInfracao: string;
+  TipoInfracao?: string;
+  Condutor?: string;
+  ValorMulta?: number;
+  ValorReembolsado?: number;
+  DataLimitePagamento?: string;
+  ValorDesconto?: number;
+  Status?: string;
+  DescricaoInfracao?: string;
+  CodigoInfracao?: string;
+  OrgaoAutuador?: string;
+  Pontuacao?: number;
+  Modelo?: string;
+  AutoInfracao?: string;
+  Latitude?: number;
+  Longitude?: number;
+  Cidade?: string;
+  Estado?: string;
+}
+
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function fmtBRL(v: number): string { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
 function fmtCompact(v: number): string { 
@@ -23,22 +47,22 @@ function monthLabel(ym: string): string { if (!ym) return ''; const [y, m] = ym.
 const COLORS = ['#f43f5e', '#f97316', '#fbbf24', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
 
 export default function InfractionsDashboard(): JSX.Element {
-  const { data: multasData, loading } = useBIData<AnyObject[]>('fat_multas_*.json');
-  const multas = useMemo(() => Array.isArray(multasData) ? multasData : [], [multasData]);
+  const { data: multasData, loading } = useBIData<Multa[]>('fat_multas_*.json');
+  const multas = useMemo<Multa[]>(() => Array.isArray(multasData) ? multasData : [], [multasData]);
 
   const [activeTab, setActiveTab] = useState(0);
   const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
 
-  const filteredMultas = useMemo(() => {
-    return multas.filter((r: AnyObject) => {
+  const filteredMultas = useMemo<Multa[]>(() => {
+    return multas.filter((r) => {
       const mesValues = getFilterValues('mes');
       const condutorValues = getFilterValues('condutor');
       const tipoValues = getFilterValues('tipo');
       const placaValues = getFilterValues('placa');
       
       if (mesValues.length > 0 && !mesValues.includes(getMonthKey(r.DataInfracao))) return false;
-      if (condutorValues.length > 0 && !condutorValues.includes(r.Condutor)) return false;
-      if (tipoValues.length > 0 && !tipoValues.includes(r.TipoInfracao)) return false;
+      if (condutorValues.length > 0 && !condutorValues.includes(r.Condutor || '')) return false;
+      if (tipoValues.length > 0 && !tipoValues.includes(r.TipoInfracao || '')) return false;
       if (placaValues.length > 0 && !placaValues.includes(r.Placa)) return false;
       return true;
     });
