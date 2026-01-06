@@ -63,12 +63,23 @@ export function EmailConnectWizard({ open, onOpenChange, onSuccess }: EmailConne
 
     setStep('testing');
     setTestStatus('testing');
+    setErrorMessage('');
 
     try {
       // Auto-detect IMAP config
       const autoConfig = getImapConfigByEmail(email);
       
       const provider: EmailProvider = 'imap';
+      
+      console.log('Connecting with config:', {
+        provider,
+        email,
+        display_name: displayName || email.split('@')[0],
+        imap_host: connectionMethod === 'manual' ? imapHost : autoConfig?.imap_host,
+        imap_port: connectionMethod === 'manual' ? parseInt(imapPort) : autoConfig?.imap_port,
+        smtp_host: connectionMethod === 'manual' ? smtpHost : autoConfig?.smtp_host,
+        smtp_port: connectionMethod === 'manual' ? parseInt(smtpPort) : autoConfig?.smtp_port
+      });
       
       const result = await connectAccount({
         provider,
@@ -81,14 +92,19 @@ export function EmailConnectWizard({ open, onOpenChange, onSuccess }: EmailConne
         smtp_port: connectionMethod === 'manual' ? parseInt(smtpPort) : autoConfig?.smtp_port
       });
 
-      if (result.success) {
+      console.log('Connect result:', result);
+
+      if (result && result.success) {
         setTestStatus('success');
         setStep('success');
       } else {
         setTestStatus('error');
-        setErrorMessage(result.error || 'Erro desconhecido ao conectar');
+        const errorMsg = result?.error || 'Erro desconhecido ao conectar. Verifique suas credenciais.';
+        setErrorMessage(errorMsg);
+        console.error('Connection failed:', errorMsg);
       }
     } catch (error) {
+      console.error('Connection error:', error);
       setTestStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao conectar conta');
     }
@@ -187,7 +203,8 @@ export function EmailConnectWizard({ open, onOpenChange, onSuccess }: EmailConne
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Para Gmail e Outlook, use uma "Senha de App" se tiver 2FA habilitado.
+                Para Gmail, use uma "Senha de App". Para Microsoft 365/Outlook corporativo, use sua senha normal.
+                Se tiver autenticação de dois fatores, gere uma senha de aplicativo.
               </p>
             </div>
 
