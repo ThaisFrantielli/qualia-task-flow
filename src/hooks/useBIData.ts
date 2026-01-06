@@ -19,6 +19,9 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
+// Cache para número de partes por arquivo (evita re-detecção)
+const chunkCountCache = new Map<string, number>();
+
 // Retry config
 const MAX_RETRIES = 3;
 const RETRY_DELAY_BASE = 1000; // 1 segundo, dobra a cada retry
@@ -156,41 +159,54 @@ export default function useBIData<T = unknown>(
         
         // Se não encontrar, tenta buscar chunks
         if (!json && !fileName.includes('_part')) {
-          if (import.meta.env.DEV) {
-            console.log(`📦 Arquivo ${fileName} não encontrado, tentando buscar chunks...`);
+          // Verifica se já conhecemos o número de partes
+          let totalParts = chunkCountCache.get(baseFileName);
+          
+          if (!totalParts) {
+            // Detecta quantas partes existem verificando part1ofN para N de 2 a 10 em paralelo
+            const detectionPromises = [2, 3, 4, 5, 6, 7, 8, 9, 10].map(async (n) => {
+              const testFile = `${baseFileName}_part1of${n}.json`;
+              const result = await fetchFile(testFile, controller.signal);
+              return result ? n : null;
+            });
+            
+            const detectionResults = await Promise.all(detectionPromises);
+            totalParts = detectionResults.find(n => n !== null) ?? undefined;
+            
+            // Cacheia o número de partes para evitar re-detecção
+            if (totalParts) {
+              chunkCountCache.set(baseFileName, totalParts);
+            }
           }
           
-          // Tenta detectar total de partes olhando padrões comuns (até 20 partes)
-          for (let totalParts = 2; totalParts <= 20; totalParts++) {
-            let allPartsFound = true;
-            const tempChunks: unknown[] = [];
+          if (totalParts) {
+            // Busca todas as partes em paralelo
+            const chunkPromises = Array.from({ length: totalParts }, (_, i) => {
+              const chunkFileName = `${baseFileName}_part${i + 1}of${totalParts}.json`;
+              return fetchFile(chunkFileName, controller.signal);
+            });
             
-            // Tenta buscar todas as partes para esse total
-            for (let partNum = 1; partNum <= totalParts; partNum++) {
-              const chunkFileName = `${baseFileName}_part${partNum}of${totalParts}.json`;
-              const partJson = await fetchFile(chunkFileName, controller.signal) as Record<string, unknown> | null;
-              
+            const chunkResults = await Promise.all(chunkPromises);
+            const combinedChunks: unknown[] = [];
+            
+            chunkResults.forEach(partJson => {
               if (partJson) {
-                const partData = partJson?.data ?? partJson;
+                const pJson = partJson as Record<string, unknown>;
+                const partData = pJson?.data ?? pJson;
                 if (Array.isArray(partData)) {
-                  tempChunks.push(...partData);
+                  combinedChunks.push(...partData);
                 }
-              } else {
-                allPartsFound = false;
-                break;
               }
-            }
+            });
             
-            // Se encontrou todas as partes para esse total, usa elas
-            if (allPartsFound && tempChunks.length > 0) {
-              finalData = tempChunks;
+            if (combinedChunks.length > 0) {
+              finalData = combinedChunks;
               finalMeta.chunked = true;
               finalMeta.totalParts = totalParts;
-              finalMeta.totalRecords = tempChunks.length;
+              finalMeta.totalRecords = combinedChunks.length;
               if (import.meta.env.DEV) {
-                console.log(`✅ Carregado ${tempChunks.length} registros de ${totalParts} chunks: ${baseFileName}`);
+                console.log(`✅ Carregado ${combinedChunks.length} registros de ${totalParts} chunks: ${baseFileName}`);
               }
-              break;
             }
           }
         } else if (json) {
@@ -254,8 +270,12 @@ export default function useBIData<T = unknown>(
 export function clearBIDataCache(fileName?: string) {
   if (fileName) {
     dataCache.delete(fileName);
+    // Also clear chunk count cache for this file
+    const baseFileName = fileName.replace('.json', '');
+    chunkCountCache.delete(baseFileName);
   } else {
     dataCache.clear();
+    chunkCountCache.clear();
   }
 }
 
