@@ -910,24 +910,33 @@ export default function FleetDashboard(): JSX.Element {
   // ANÁLISE DE PÁTIO
   const agingData = useMemo(() => {
       const ranges = { '0-30 dias': 0, '31-60 dias': 0, '61-90 dias': 0, '90+ dias': 0 };
-      filteredData.filter(r => getCategory(r.Status) === 'Improdutiva').forEach(r => {
-          const dias = parseNum(r.DiasNoStatus);
+      vehiclesDetailed.forEach(v => {
+          const dias = v.DiasNoStatus;
           if (dias <= 30) ranges['0-30 dias']++;
           else if (dias <= 60) ranges['31-60 dias']++;
           else if (dias <= 90) ranges['61-90 dias']++;
           else ranges['90+ dias']++;
       });
       return Object.entries(ranges).map(([name, value]) => ({ name, value }));
-  }, [filteredData]);
+  }, [vehiclesDetailed]);
 
   const patioData = useMemo(() => {
       const map: Record<string, number> = {};
-      filteredData.filter(r => getCategory(r.Status) === 'Improdutiva').forEach(r => {
-          const patio = r.Patio || 'Não Definido';
+      vehiclesDetailed.forEach(v => {
+          const patio = v.Patio;
           map[patio] = (map[patio] || 0) + 1;
       });
       return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 10);
-  }, [filteredData]);
+  }, [vehiclesDetailed]);
+
+  const statusImprodutivoData = useMemo(() => {
+      const map: Record<string, number> = {};
+      vehiclesDetailed.forEach(v => {
+          const status = v.Status;
+          map[status] = (map[status] || 0) + 1;
+      });
+      return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+  }, [vehiclesDetailed]);
 
   // stuckVehicles - disponível para uso futuro em tabela de veículos parados
   // const stuckVehicles = useMemo(() => {
@@ -1505,7 +1514,7 @@ export default function FleetDashboard(): JSX.Element {
         </TabsContent>
 
         <TabsContent value="patio" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Card>
                     <div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600"/><Title>Aging de Pátio (Dias Parado)</Title></div>
                     <div className="h-64 mt-4">
@@ -1535,6 +1544,24 @@ export default function FleetDashboard(): JSX.Element {
                                 <Tooltip/>
                                 <Bar dataKey="value" fill="#3b82f6" radius={[0,4,4,0]} barSize={20}
                                      onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#666"/>
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+                <Card>
+                    <div className="flex items-center gap-2 mb-4"><Info size={16} className="text-rose-600"/><Title>Veículos por Status (Improdutivos)</Title></div>
+                    <div className="h-64 mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={statusImprodutivoData} layout="vertical" margin={{ left: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                <XAxis type="number" fontSize={12}/>
+                                <YAxis dataKey="name" type="category" width={120} fontSize={10}/>
+                                <Tooltip/>
+                                <Bar dataKey="value" fill="#ef4444" radius={[0,4,4,0]} barSize={20}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); }}
                                      cursor="pointer">
                                     <LabelList dataKey="value" position="right" fontSize={10} fill="#666"/>
                                 </Bar>
