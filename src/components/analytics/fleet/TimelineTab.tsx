@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
-import { Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, Square, History, Search, FileSpreadsheet, MapPin } from 'lucide-react';
+import { Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search, FileSpreadsheet, MapPin, AlertTriangle, DollarSign, ShoppingCart, FileWarning, RotateCcw, Archive } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { calcStateDurationsDays, normalizeEventName } from '@/lib/analytics/fleetTimeline';
 
@@ -171,12 +171,16 @@ function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): Main
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   // Tipos vêm normalizados (sem acento) via normalizeEventName()
   'LOCACAO': <Play size={14} className="text-emerald-500" />,
-  'DEVOLUCAO': <Square size={14} className="text-rose-500" />,
+  'DEVOLUCAO': <RotateCcw size={14} className="text-blue-500" />,
   'MANUTENCAO': <Wrench size={14} className="text-amber-500" />,
-  'SINISTRO': <Wrench size={14} className="text-purple-500" />,
-  'MOVIMENTACAO': <MapPin size={14} className="text-blue-500" />,
-  'MULTA': <Clock size={14} className="text-sky-500" />,
-  'MULTAS': <Clock size={14} className="text-sky-500" />,
+  'SINISTRO': <AlertTriangle size={14} className="text-red-500" />,
+  'MOVIMENTACAO': <MapPin size={14} className="text-slate-500" />,
+  'MULTA': <FileWarning size={14} className="text-yellow-600" />,
+  'MULTAS': <FileWarning size={14} className="text-yellow-600" />,
+  'COMPRA': <ShoppingCart size={14} className="text-purple-500" />,
+  'AQUISICAO': <ShoppingCart size={14} className="text-purple-500" />,
+  'VENDA': <DollarSign size={14} className="text-emerald-600" />,
+  'BAIXA': <Archive size={14} className="text-slate-500" />,
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -184,6 +188,13 @@ const EVENT_LABELS: Record<string, string> = {
   DEVOLUCAO: 'DEVOLUÇÃO',
   MANUTENCAO: 'MANUTENÇÃO',
   MOVIMENTACAO: 'MOVIMENTAÇÃO',
+  SINISTRO: 'SINISTRO',
+  MULTA: 'MULTA',
+  MULTAS: 'MULTAS',
+  COMPRA: 'COMPRA',
+  AQUISICAO: 'AQUISIÇÃO',
+  VENDA: 'VENDA',
+  BAIXA: 'BAIXA',
 };
 
 export default function TimelineTab({ timeline, filteredData, frota, manutencao, contratosLocacao, sinistros }: TimelineTabProps) {
