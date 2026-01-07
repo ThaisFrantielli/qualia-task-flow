@@ -304,7 +304,181 @@ const CONSOLIDATED = [
     },
     { 
         table: 'hist_vida_veiculo_timeline', 
-        query: `SELECT * FROM ( SELECT Placa, DataCompra as Data, 'COMPRA' as Evento FROM Veiculos UNION ALL SELECT PlacaPrincipal, DataInicial, 'LOCAÇÃO' FROM ContratosLocacao UNION ALL SELECT Placa, DataInfracao, 'MULTA' FROM OcorrenciasInfracoes UNION ALL SELECT Placa, DataInicioServico, 'MANUTENÇÃO' FROM OrdensServico UNION ALL SELECT Placa, DataSinistro, 'SINISTRO' FROM OcorrenciasSinistro UNION ALL SELECT Placa, DataConclusaoOcorrencia, 'DEVOLUÇÃO' FROM OcorrenciasDevolucao ) as T WHERE Data IS NOT NULL ORDER BY Data DESC` 
+        query: `
+            -- LOCAÇÃO (Início de contrato)
+            SELECT 
+                v.Placa,
+                v.IdVeiculo,
+                v.Modelo,
+                v.Montadora as Marca,
+                v.AnoFabricacao,
+                v.Cor,
+                'LOCACAO' as TipoEvento,
+                FORMAT(cl.DataInicial, 'yyyy-MM-dd') as DataEvento,
+                cc.NumeroDocumento as ContratoComercial,
+                cl.ContratoLocacao as ContratoLocacao,
+                c.NomeFantasia as Cliente,
+                c.CNPJ as ClienteDocumento,
+                cl.SituacaoContratoLocacao as Situacao,
+                FORMAT(cl.DataInicial, 'yyyy-MM-dd') as DataInicio,
+                FORMAT(cl.DataFinal, 'yyyy-MM-dd') as DataFimPrevista,
+                FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataFimReal,
+                CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)) as ValorMensal,
+                cl.PeriodoEmMeses as Observacao,
+                NULL as IdOrdemServico,
+                NULL as TipoManutencao,
+                NULL as Fornecedor,
+                NULL as CustoTotal,
+                NULL as NumeroBO,
+                NULL as TipoSinistro,
+                NULL as ValorMulta,
+                NULL as TipoInfracao
+            FROM Veiculos v
+            INNER JOIN ContratosLocacao cl ON cl.PlacaPrincipal = v.Placa
+            INNER JOIN ContratosComerciais cc ON cc.IdContratoComercial = cl.IdContrato
+            LEFT JOIN Clientes c ON c.IdCliente = cc.IdCliente
+            OUTER APPLY (
+                SELECT TOP 1 PrecoUnitario FROM ContratosLocacaoPrecos
+                WHERE IdContratoLocacao = cl.IdContratoLocacao
+                ORDER BY DataInicial DESC
+            ) preco
+            WHERE cl.DataInicial IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            UNION ALL
+
+            -- DEVOLUÇÃO (Fim de contrato)
+            SELECT 
+                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                'DEVOLUCAO' as TipoEvento,
+                FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataEvento,
+                cc.NumeroDocumento, cl.ContratoLocacao,
+                c.NomeFantasia, c.CNPJ,
+                'DEVOLVIDO' as Situacao,
+                FORMAT(cl.DataInicial, 'yyyy-MM-dd'), FORMAT(cl.DataFinal, 'yyyy-MM-dd'), FORMAT(cl.DataEncerramento, 'yyyy-MM-dd'),
+                CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)), cl.PeriodoEmMeses,
+                NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+            FROM Veiculos v
+            INNER JOIN ContratosLocacao cl ON cl.PlacaPrincipal = v.Placa
+            INNER JOIN ContratosComerciais cc ON cc.IdContratoComercial = cl.IdContrato
+            LEFT JOIN Clientes c ON c.IdCliente = cc.IdCliente
+            OUTER APPLY (
+                SELECT TOP 1 PrecoUnitario FROM ContratosLocacaoPrecos
+                WHERE IdContratoLocacao = cl.IdContratoLocacao ORDER BY DataInicial DESC
+            ) preco
+            WHERE cl.DataEncerramento IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            UNION ALL
+
+            -- MANUTENÇÃO
+            SELECT 
+                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                'MANUTENCAO' as TipoEvento,
+                FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEvento,
+                NULL, NULL,
+                os.Fornecedor as Cliente,
+                NULL,
+                os.SituacaoOrdemServico as Situacao,
+                FORMAT(os.DataInicioServico, 'yyyy-MM-dd'),
+                FORMAT(os.DataPrevistaTermino, 'yyyy-MM-dd'),
+                FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
+                NULL, os.Motivo,
+                os.IdOrdemServico,
+                os.Tipo as TipoManutencao,
+                os.Fornecedor,
+                ${castM('os.ValorTotal')} as CustoTotal,
+                NULL, NULL, NULL, NULL
+            FROM Veiculos v
+            INNER JOIN OrdensServico os ON os.Placa = v.Placa
+            WHERE os.DataInicioServico IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            UNION ALL
+
+            -- SINISTRO
+            SELECT 
+                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                'SINISTRO' as TipoEvento,
+                FORMAT(s.DataSinistro, 'yyyy-MM-dd') as DataEvento,
+                NULL, NULL,
+                c.NomeFantasia,
+                c.CNPJ,
+                s.SituacaoOcorrencia as Situacao,
+                FORMAT(s.DataSinistro, 'yyyy-MM-dd'),
+                NULL,
+                FORMAT(s.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
+                NULL, s.Observacoes,
+                NULL, NULL, NULL,
+                ${castM('s.ValorSinistro')} as CustoTotal,
+                s.NumeroBO,
+                s.Tipo as TipoSinistro,
+                NULL, NULL
+            FROM Veiculos v
+            INNER JOIN OcorrenciasSinistro s ON s.Placa = v.Placa
+            LEFT JOIN Clientes c ON c.IdCliente = s.IdCliente
+            WHERE s.DataSinistro IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            UNION ALL
+
+            -- MULTA
+            SELECT 
+                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                'MULTA' as TipoEvento,
+                FORMAT(m.DataInfracao, 'yyyy-MM-dd') as DataEvento,
+                NULL, NULL,
+                con.Nome as Cliente,
+                con.CPF,
+                m.SituacaoOcorrencia as Situacao,
+                FORMAT(m.DataInfracao, 'yyyy-MM-dd'),
+                NULL,
+                FORMAT(m.DataPagamento, 'yyyy-MM-dd'),
+                NULL, m.Observacoes,
+                NULL, NULL, NULL, NULL,
+                m.NumeroAIT as NumeroBO,
+                NULL,
+                ${castM('m.ValorInfracao')} as ValorMulta,
+                m.DescricaoInfracao as TipoInfracao
+            FROM Veiculos v
+            INNER JOIN OcorrenciasInfracoes m ON m.Placa = v.Placa
+            LEFT JOIN Condutores con ON con.IdCondutor = m.IdCondutor
+            WHERE m.DataInfracao IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            UNION ALL
+
+            -- COMPRA/AQUISIÇÃO
+            SELECT 
+                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                'COMPRA' as TipoEvento,
+                FORMAT(v.DataCompra, 'yyyy-MM-dd') as DataEvento,
+                NULL, NULL,
+                NULL, NULL,
+                'ADQUIRIDO' as Situacao,
+                FORMAT(v.DataCompra, 'yyyy-MM-dd'), NULL, NULL,
+                NULL, NULL,
+                NULL, NULL, NULL,
+                ${castM('v.ValorCompra')} as CustoTotal,
+                NULL, NULL, NULL, NULL
+            FROM Veiculos v
+            WHERE v.DataCompra IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            UNION ALL
+
+            -- VENDA/BAIXA
+            SELECT 
+                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                'VENDA' as TipoEvento,
+                FORMAT(v.DataVenda, 'yyyy-MM-dd') as DataEvento,
+                NULL, NULL,
+                NULL, NULL,
+                'BAIXADO' as Situacao,
+                FORMAT(v.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
+                NULL, v.MotivoBaixa,
+                NULL, NULL, NULL,
+                ${castM('v.ValorVenda')} as CustoTotal,
+                NULL, NULL, NULL, NULL
+            FROM Veiculos v
+            WHERE v.DataVenda IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+
+            ORDER BY Placa, DataEvento DESC
+        ` 
     },
     { 
         table: 'fat_churn', 
