@@ -12,6 +12,9 @@ import VazaoTab from '@/components/analytics/maintenance/VazaoTab';
 import AnaliseVeiculoTab from '@/components/analytics/maintenance/AnaliseVeiculoTab';
 import LeadTimeTab from '@/components/analytics/maintenance/LeadTimeTab';
 import CustosDetalhadosTab from '@/components/analytics/maintenance/CustosDetalhadosTab';
+import AnalisePecasTab from '@/components/analytics/maintenance/AnalisePecasTab';
+import { KPITooltip } from '@/components/analytics/KPITooltip';
+import { OSDetailsModal } from '@/components/analytics/maintenance/OSDetailsModal';
 type AnyObject = { [k: string]: any };
 
 // Função para normalizar data para meia-noite no timezone local (evita problemas de UTC)
@@ -49,7 +52,7 @@ function getCategoryFromStatus(status: string | undefined | null): 'Produtiva' |
 function MaintenanceDashboardContent(): JSX.Element {
   const { data: osData, loading } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
   const { data: manutencaoCompletaRaw, loading: loadingCompleta } = useBIData<AnyObject[]>('fat_manutencao_completa.json');
-  
+
   const { data: manutencaoUnificadoRaw } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
   const { data: faturamentoRaw } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
   const { data: frotaRaw } = useBIData<AnyObject[]>('dim_frota.json');
@@ -67,7 +70,16 @@ function MaintenanceDashboardContent(): JSX.Element {
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
-  const { filters, handleChartClick, isValueSelected, getFilterValues } = useChartFilter();
+  // Modal de detalhes da OS
+  const [selectedOS, setSelectedOS] = useState<AnyObject | null>(null);
+  const [isOSModalOpen, setIsOSModalOpen] = useState(false);
+
+  const { filters, handleChartFilter, isValueSelected, getFilterValues } = useChartFilter();
+
+  const handleOSClick = (os: AnyObject) => {
+    setSelectedOS(os);
+    setIsOSModalOpen(true);
+  };
 
 
 
@@ -77,29 +89,29 @@ function MaintenanceDashboardContent(): JSX.Element {
       const oficinaFilters = getFilterValues('oficina');
       const placaFilters = getFilterValues('placa');
       const tipoFilters = getFilterValues('tipo');
-      
+
       // Filtro de data range (do Context) - aplica a DataEntrada (data de chegada na oficina)
       if (globalFilters.dateRange?.from && r.DataEntrada) {
         const dataEntrada = normalizeDate(r.DataEntrada);
         const fromDate = new Date(globalFilters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
-        
+
         if (dataEntrada < fromDate) return false;
-        
+
         if (globalFilters.dateRange.to) {
           const toDate = new Date(globalFilters.dateRange.to);
           toDate.setHours(23, 59, 59, 999);
           if (dataEntrada > toDate) return false;
         }
       }
-      
+
       // TODOS os filtros globais do Context
       if (globalFilters.fornecedores.length > 0 && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
       if (globalFilters.modelos.length > 0 && !globalFilters.modelos.includes(r.Modelo)) return false;
       if (globalFilters.tiposOcorrencia.length > 0 && !globalFilters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
       if (globalFilters.clientes.length > 0 && !globalFilters.clientes.includes(r.Cliente)) return false;
       if (globalFilters.placas.length > 0 && !globalFilters.placas.includes(r.Placa)) return false;
-      
+
       // Filtros do useChartFilter (mantidos para drill-down interativo)
       if (mesFilters.length > 0 && !mesFilters.includes(getMonthKey(r.DataEntrada))) return false;
       if (oficinaFilters.length > 0 && !oficinaFilters.includes(r.Fornecedor)) return false;
@@ -127,16 +139,16 @@ function MaintenanceDashboardContent(): JSX.Element {
         const dataEntrada = normalizeDate(r.DataEntradaOficina);
         const fromDate = new Date(globalFilters.dateRange.from);
         fromDate.setHours(0, 0, 0, 0);
-        
+
         if (dataEntrada < fromDate) return false;
-        
+
         if (globalFilters.dateRange.to) {
           const toDate = new Date(globalFilters.dateRange.to);
           toDate.setHours(23, 59, 59, 999);
           if (dataEntrada > toDate) return false;
         }
       }
-      
+
       // TODOS os filtros globais
       if (globalFilters.fornecedores.length > 0 && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
       if (globalFilters.modelos.length > 0 && !globalFilters.modelos.includes(r.Modelo)) return false;
@@ -153,7 +165,7 @@ function MaintenanceDashboardContent(): JSX.Element {
           if (cat !== globalFilters.status) return false;
         }
       }
-      
+
       return true;
     });
   }, [manutencaoCompleta, globalFilters]);
@@ -162,7 +174,7 @@ function MaintenanceDashboardContent(): JSX.Element {
     // Data de hoje às 23:59:59 para filtrar datas futuras
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
-    
+
     return manutencaoUnificado.filter((r: AnyObject) => {
       // CRÍTICO: Filtrar datas futuras ANTES de qualquer outro filtro
       if ((r as any).IsFuture === 1 || (r as any).IsFuture === '1') return false;
@@ -182,7 +194,7 @@ function MaintenanceDashboardContent(): JSX.Element {
         if (!Number.isNaN(ts)) dataEvento = new Date(ts * 1000);
       }
       if (dataEvento && dataEvento > todayEnd) return false;
-      
+
       // Filtro de data range (se houver)
       if (globalFilters.dateRange?.from && dataEvento) {
         const fromDate = new Date(globalFilters.dateRange.from);
@@ -195,7 +207,7 @@ function MaintenanceDashboardContent(): JSX.Element {
           if (dataEvento > toDate) return false;
         }
       }
-      
+
       // TODOS os filtros globais
       if (globalFilters.fornecedores.length > 0 && r.Fornecedor && !globalFilters.fornecedores.includes(r.Fornecedor)) return false;
       if (globalFilters.modelos.length > 0 && r.Modelo && !globalFilters.modelos.includes(r.Modelo)) return false;
@@ -212,7 +224,7 @@ function MaintenanceDashboardContent(): JSX.Element {
           if (cat !== globalFilters.status) return false;
         }
       }
-      
+
       return true;
     });
   }, [manutencaoUnificado, globalFilters]);
@@ -230,8 +242,8 @@ function MaintenanceDashboardContent(): JSX.Element {
     // NOVOS KPIs: MTTR, MTBF, Taxa de Reincidência
     // MTTR (Mean Time to Repair): Média de dias parado por OS concluída
     const osConcluidas = filteredOS.filter(r => r.DataSaida || r.DataConclusao);
-    const mttr = osConcluidas.length > 0 
-      ? osConcluidas.reduce((s, r) => s + parseNum(r.DiasParado), 0) / osConcluidas.length 
+    const mttr = osConcluidas.length > 0
+      ? osConcluidas.reduce((s, r) => s + parseNum(r.DiasParado), 0) / osConcluidas.length
       : 0;
 
     // MTBF (Mean Time Between Failures): Intervalo médio entre OS por veículo
@@ -242,14 +254,14 @@ function MaintenanceDashboardContent(): JSX.Element {
         osByPlaca[r.Placa].push(normalizeDate(r.DataEntrada));
       }
     });
-    
+
     let totalIntervalos = 0;
     let countIntervalos = 0;
     Object.values(osByPlaca).forEach(datas => {
       if (datas.length < 2) return;
       datas.sort((a, b) => a.getTime() - b.getTime());
       for (let i = 1; i < datas.length; i++) {
-        const diff = (datas[i].getTime() - datas[i-1].getTime()) / (1000 * 60 * 60 * 24);
+        const diff = (datas[i].getTime() - datas[i - 1].getTime()) / (1000 * 60 * 60 * 24);
         if (diff > 0) { totalIntervalos += diff; countIntervalos++; }
       }
     });
@@ -265,7 +277,7 @@ function MaintenanceDashboardContent(): JSX.Element {
       });
       for (let i = 1; i < osVeiculo.length; i++) {
         const current = osVeiculo[i];
-        const prev = osVeiculo[i-1];
+        const prev = osVeiculo[i - 1];
         if (!current.DataEntrada || !prev.DataEntrada) continue;
         const diff = (new Date(current.DataEntrada).getTime() - new Date(prev.DataEntrada).getTime()) / (1000 * 60 * 60 * 24);
         if (diff <= 30 && current.TipoManutencao === prev.TipoManutencao) {
@@ -276,14 +288,14 @@ function MaintenanceDashboardContent(): JSX.Element {
     const taxaReincidencia = count > 0 ? (reincidencias / count) * 100 : 0;
 
     // Preventiva vs Corretiva
-    const osPreventiva = filteredOS.filter(r => 
-      (r.TipoManutencao || '').toLowerCase().includes('preventiv') || 
+    const osPreventiva = filteredOS.filter(r =>
+      (r.TipoManutencao || '').toLowerCase().includes('preventiv') ||
       (r.TipoOcorrencia || '').toLowerCase().includes('preventiv')
     ).length;
     const osCorretiva = count - osPreventiva;
     const pctPreventiva = count > 0 ? (osPreventiva / count) * 100 : 0;
 
-    return { 
+    return {
       totalCost, avgCost, avgDays, stopped, cpk, count,
       // Novos KPIs
       mttr, mtbf, taxaReincidencia, osPreventiva, osCorretiva, pctPreventiva
@@ -294,7 +306,7 @@ function MaintenanceDashboardContent(): JSX.Element {
     const map: Record<string, { Valor: number; Count: number }> = {};
     const getKeyFn = globalFilters.timeGranularity === 'year' ? getYearKey : globalFilters.timeGranularity === 'day' ? getDayKey : getMonthKey;
     const getLabelFn = globalFilters.timeGranularity === 'year' ? yearLabel : globalFilters.timeGranularity === 'day' ? dayLabel : monthLabel;
-    
+
     filteredOS.forEach(r => {
       const k = getKeyFn(r.DataEntrada);
       if (!k) return;
@@ -302,10 +314,10 @@ function MaintenanceDashboardContent(): JSX.Element {
       map[k].Valor += parseCurrency(r.ValorTotal);
       map[k].Count += 1;
     });
-    
+
     const sortedKeys = Object.keys(map).sort();
     const limitedKeys = globalFilters.timeGranularity === 'day' ? sortedKeys.slice(-90) : globalFilters.timeGranularity === 'month' ? sortedKeys.slice(-24) : sortedKeys;
-    
+
     return limitedKeys.map(k => ({ date: k, label: getLabelFn(k), ...map[k] }));
   }, [filteredOS, globalFilters.timeGranularity]);
 
@@ -362,7 +374,7 @@ function MaintenanceDashboardContent(): JSX.Element {
     link.click();
   };
 
-  const tabs = ['Visão Geral', 'Performance', 'Custos', 'Fluxo', 'Detalhamento'];
+  const tabs = ['Visão Geral', 'Performance', 'Custos', 'Fluxo', 'Peças', 'Detalhamento'];
 
   const isLoading = loading || loadingCompleta;
 
@@ -374,10 +386,10 @@ function MaintenanceDashboardContent(): JSX.Element {
         <div><Title className="text-slate-900">Gestão de Manutenção</Title><Text className="text-slate-500">Controle de custos, oficinas e eficiência</Text></div>
         <div className="flex items-center gap-3">
           <button onClick={exportCSV} className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium hover:bg-emerald-200 transition-all">
-            <Download className="w-4 h-4"/> Exportar
+            <Download className="w-4 h-4" /> Exportar
           </button>
-          <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Wrench className="w-4 h-4"/> Hub Operacional</div>
-          
+          <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Wrench className="w-4 h-4" /> Hub Operacional</div>
+
         </div>
       </div>
 
@@ -403,14 +415,46 @@ function MaintenanceDashboardContent(): JSX.Element {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
             <Card decoration="top" decorationColor="amber"><Text>Custo Total</Text><Metric>{fmtCompact(kpis.totalCost)}</Metric><Text className="text-xs text-slate-400">{kpis.count} OS</Text></Card>
             <Card decoration="top" decorationColor="blue"><Text>Ticket Médio</Text><Metric>{fmtBRL(kpis.avgCost)}</Metric></Card>
-            <Card decoration="top" decorationColor="emerald"><Text>MTTR</Text><Metric>{kpis.mttr.toFixed(1)}d</Metric><Text className="text-xs text-slate-400">Tempo médio reparo</Text></Card>
-            <Card decoration="top" decorationColor="cyan"><Text>MTBF</Text><Metric>{kpis.mtbf.toFixed(0)}d</Metric><Text className="text-xs text-slate-400">Entre falhas</Text></Card>
+            <Card decoration="top" decorationColor="emerald">
+              <div className="flex items-center">
+                <Text>MTTR</Text>
+                <KPITooltip
+                  title="MTTR - Mean Time to Repair"
+                  description="Tempo médio de reparo das ordens de serviço concluídas. Indica a eficiência operacional das oficinas."
+                  formula="avg(dias_parado) para OS concluídas"
+                  benchmark="< 3 dias = Excelente | 3-5 dias = Bom | > 5 dias = Atenção"
+                />
+              </div>
+              <Metric>{kpis.mttr.toFixed(1)}d</Metric>
+              <Text className="text-xs text-slate-400">Tempo médio reparo</Text>
+            </Card>
+            <Card decoration="top" decorationColor="cyan">
+              <div className="flex items-center">
+                <Text>MTBF</Text>
+                <KPITooltip
+                  title="MTBF - Mean Time Between Failures"
+                  description="Intervalo médio em dias entre manutenções do mesmo veículo. Quanto maior, melhor a confiabilidade da frota."
+                  formula="avg(dias_entre_OS) por veículo"
+                  benchmark="> 90 dias = Excelente | 60-90 dias = Bom | < 60 dias = Atenção"
+                />
+              </div>
+              <Metric>{kpis.mtbf.toFixed(0)}d</Metric>
+              <Text className="text-xs text-slate-400">Entre falhas</Text>
+            </Card>
             <Card decoration="top" decorationColor={kpis.taxaReincidencia <= 5 ? 'emerald' : kpis.taxaReincidencia <= 15 ? 'amber' : 'rose'}>
-              <Text>Reincidência</Text>
+              <div className="flex items-center">
+                <Text>Reincidência</Text>
+                <KPITooltip
+                  title="Taxa de Reincidência"
+                  description="Percentual de OS do mesmo tipo que ocorrem em menos de 30 dias no mesmo veículo. Indica qualidade do reparo."
+                  formula="(OS_repetidas_<30d / total_OS) * 100"
+                  benchmark="< 5% = Excelente | 5-15% = Aceitável | > 15% = Crítico"
+                />
+              </div>
               <Metric className={kpis.taxaReincidencia <= 5 ? 'text-emerald-600' : kpis.taxaReincidencia <= 15 ? 'text-amber-600' : 'text-rose-600'}>{kpis.taxaReincidencia.toFixed(1)}%</Metric>
             </Card>
           </div>
-          
+
           {/* Mini-cards Preventiva/Corretiva + Em Manutenção */}
           <div className="grid grid-cols-3 gap-3">
             <Card className="bg-gradient-to-br from-emerald-50 to-white">
@@ -443,15 +487,15 @@ function MaintenanceDashboardContent(): JSX.Element {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                    <XAxis dataKey="label" fontSize={11}/>
-                    <YAxis yAxisId="left" fontSize={11} tickFormatter={fmtCompact}/>
-                    <YAxis yAxisId="right" orientation="right" fontSize={11}/>
-                    <Tooltip formatter={(v: any, n) => [n === 'Valor' ? fmtBRL(v) : v, n]}/>
-                    <Bar yAxisId="left" dataKey="Valor" fill="#f59e0b" radius={[4,4,0,0]} cursor="pointer" onClick={(d, _, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" fontSize={11} />
+                    <YAxis yAxisId="left" fontSize={11} tickFormatter={fmtCompact} />
+                    <YAxis yAxisId="right" orientation="right" fontSize={11} />
+                    <Tooltip formatter={(v: any, n) => [n === 'Valor' ? fmtBRL(v) : v, n]} />
+                    <Bar yAxisId="left" dataKey="Valor" fill="#f59e0b" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(d, _, e) => handleChartClick('mes', d.date, e as unknown as React.MouseEvent)}>
                       {monthlyData.map((entry) => (<Cell key={entry.date} fill={isValueSelected('mes', entry.date) ? '#d97706' : '#f59e0b'} />))}
                     </Bar>
-                    <Line yAxisId="right" type="monotone" dataKey="Count" stroke="#3b82f6" strokeWidth={2}/>
+                    <Line yAxisId="right" type="monotone" dataKey="Count" stroke="#3b82f6" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -483,7 +527,7 @@ function MaintenanceDashboardContent(): JSX.Element {
                     <Pie data={typeData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" cursor="pointer" onClick={(d, _, e) => handleChartClick('tipo', d.name, e as unknown as React.MouseEvent)}>
                       {typeData.map((entry, i) => (<Cell key={i} fill={isValueSelected('tipo', entry.name) ? '#b45309' : ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#64748b'][i % 6]} />))}
                     </Pie>
-                    <Tooltip formatter={fmtBRL}/><Legend/>
+                    <Tooltip formatter={fmtBRL} /><Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -493,11 +537,11 @@ function MaintenanceDashboardContent(): JSX.Element {
               <div className="h-64 mt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topFornecedores} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                    <XAxis type="number" fontSize={10} tickFormatter={fmtCompact}/>
-                    <YAxis dataKey="name" type="category" width={120} fontSize={9}/>
-                    <Tooltip formatter={(v: any) => fmtBRL(v)}/>
-                    <Bar dataKey="valor" radius={[0,4,4,0]} barSize={14} cursor="pointer" onClick={(d, _, e) => handleChartClick('oficina', d.name, e as unknown as React.MouseEvent)}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" fontSize={10} tickFormatter={fmtCompact} />
+                    <YAxis dataKey="name" type="category" width={120} fontSize={9} />
+                    <Tooltip formatter={(v: any) => fmtBRL(v)} />
+                    <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={14} cursor="pointer" onClick={(d, _, e) => handleChartClick('oficina', d.name, e as unknown as React.MouseEvent)}>
                       {topFornecedores.map((entry) => (<Cell key={entry.name} fill={isValueSelected('oficina', entry.name) ? '#b45309' : '#f59e0b'} />))}
                     </Bar>
                   </BarChart>
@@ -510,18 +554,21 @@ function MaintenanceDashboardContent(): JSX.Element {
 
       {/* Aba Performance = antigo Lead Time */}
       {activeTab === 1 && <LeadTimeTab manutencaoData={filteredManutencaoCompleta} />}
-      
+
       {/* Aba Custos */}
       {activeTab === 2 && <CustosDetalhadosTab manutencaoData={filteredManutencaoCompleta} />}
 
       {/* Aba Fluxo = antigo Vazão */}
       {activeTab === 3 && <VazaoTab vazaoData={filteredManutencaoUnificado} />}
 
+      {/* Aba Peças = Nova aba de análise de peças */}
+      {activeTab === 4 && <AnalisePecasTab />}
+
       {/* Aba Detalhamento = antiga Detalhamento + Por Veículo */}
-      {activeTab === 4 && (
+      {activeTab === 5 && (
         <div className="space-y-6">
           <AnaliseVeiculoTab frotaData={frotaData} contratosData={contratosData} manutencaoData={osList} />
-          
+
           <Card>
             <div className="flex items-center justify-between mb-4"><Title>Detalhamento de OS</Title><Text className="text-slate-500">{filteredOS.length} registros</Text></div>
             <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
@@ -531,12 +578,16 @@ function MaintenanceDashboardContent(): JSX.Element {
                 </thead>
                 <tbody>
                   {pageItems.map((r, idx) => (
-                    <tr key={idx} className="border-t hover:bg-slate-50">
+                    <tr
+                      key={idx}
+                      className="border-t hover:bg-amber-50 cursor-pointer transition-colors"
+                      onClick={() => handleOSClick(r)}
+                    >
                       <td className="p-2 text-xs">{r.DataEntrada ? new Date(r.DataEntrada).toLocaleDateString('pt-BR') : '-'}</td>
-                      <td className={`p-2 font-mono text-xs cursor-pointer hover:text-amber-600 ${isValueSelected('placa', r.Placa) ? 'text-amber-600 font-bold' : ''}`} onClick={(e) => handleChartClick('placa', r.Placa, e)}>{r.Placa}</td>
+                      <td className={`p-2 font-mono text-xs hover:text-amber-600 ${isValueSelected('placa', r.Placa) ? 'text-amber-600 font-bold' : ''}`} onClick={(e) => { e.stopPropagation(); handleChartClick('placa', r.Placa, e); }}>{r.Placa}</td>
                       <td className="p-2 truncate max-w-[100px] text-xs">{r.Modelo || '-'}</td>
-                      <td className={`p-2 truncate max-w-[120px] text-xs cursor-pointer hover:text-amber-600 ${isValueSelected('oficina', r.Fornecedor) ? 'text-amber-600 font-bold' : ''}`} onClick={(e) => handleChartClick('oficina', r.Fornecedor, e)}>{r.Fornecedor || '-'}</td>
-                      <td className={`p-2 truncate max-w-[80px] text-xs cursor-pointer hover:text-amber-600 ${isValueSelected('tipo', r.TipoManutencao) ? 'text-amber-600 font-bold' : ''}`} onClick={(e) => handleChartClick('tipo', r.TipoManutencao, e)}>{r.TipoManutencao || '-'}</td>
+                      <td className={`p-2 truncate max-w-[120px] text-xs hover:text-amber-600 ${isValueSelected('oficina', r.Fornecedor) ? 'text-amber-600 font-bold' : ''}`} onClick={(e) => { e.stopPropagation(); handleChartClick('oficina', r.Fornecedor, e); }}>{r.Fornecedor || '-'}</td>
+                      <td className={`p-2 truncate max-w-[80px] text-xs hover:text-amber-600 ${isValueSelected('tipo', r.TipoManutencao) ? 'text-amber-600 font-bold' : ''}`} onClick={(e) => { e.stopPropagation(); handleChartClick('tipo', r.TipoManutencao, e); }}>{r.TipoManutencao || '-'}</td>
                       <td className="p-2 text-right text-xs">{parseNum(r.DiasParado)}</td>
                       <td className="p-2 text-right font-bold text-amber-600 text-xs">{fmtBRL(parseCurrency(r.ValorTotal))}</td>
                     </tr>
@@ -555,6 +606,15 @@ function MaintenanceDashboardContent(): JSX.Element {
             )}
           </Card>
         </div>
+      )}
+
+      {/* Modal de Detalhes da OS */}
+      {selectedOS && (
+        <OSDetailsModal
+          isOpen={isOSModalOpen}
+          onClose={() => setIsOSModalOpen(false)}
+          osData={selectedOS}
+        />
       )}
     </div>
   );
