@@ -179,7 +179,7 @@ export default function AnalisePecasTab() {
                                     }}
                                 />
                                 <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={20}>
-                                    {top10Pecas.map((entry, index) => (
+                                    {top10Pecas.map((_entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Bar>
@@ -203,7 +203,7 @@ export default function AnalisePecasTab() {
                                     paddingAngle={3}
                                     dataKey="value"
                                 >
-                                    {porGrupoDespesa.map((entry, index) => (
+                                    {porGrupoDespesa.map((_entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
@@ -235,7 +235,7 @@ export default function AnalisePecasTab() {
                                 }}
                             />
                             <Bar dataKey="valor" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                                {top10Veiculos.map((entry, index) => (
+                                {top10Veiculos.map((_entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Bar>
