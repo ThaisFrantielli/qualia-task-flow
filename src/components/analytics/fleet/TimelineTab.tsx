@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
-import { Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, Square, History, Filter, Search, FileSpreadsheet, MapPin } from 'lucide-react';
+import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
+import { Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, Square, History, Search, FileSpreadsheet, MapPin } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { calcStateDurationsDays, normalizeEventName } from '@/lib/analytics/fleetTimeline';
 
@@ -167,16 +167,6 @@ function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): Main
 
   return intervals;
 }
-
-const EVENT_COLORS: Record<string, string> = {
-  'LOCAÇÃO': '#10b981',
-  'DEVOLUÇÃO': '#ef4444',
-  'MANUTENÇÃO': '#f59e0b',
-  'SINISTRO': '#8b5cf6',
-  'MOVIMENTAÇÃO': '#3b82f6',
-  'MULTA': '#0ea5e9',
-  'default': '#94a3b8'
-};
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   // Tipos vêm normalizados (sem acento) via normalizeEventName()
