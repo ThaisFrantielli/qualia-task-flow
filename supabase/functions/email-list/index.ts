@@ -94,12 +94,13 @@ serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[email-list] Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro ao buscar emails";
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || "Erro ao buscar emails",
+        error: errorMessage,
         emails: [],
         total: 0,
         hasMore: false,
