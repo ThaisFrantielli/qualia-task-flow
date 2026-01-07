@@ -153,7 +153,12 @@ const DIMENSIONS = [
                     v.SituacaoFinanceiraContratoLocacao,
                     al.Instituicao as BancoFinanciador, 
                     FORMAT(al.Termino, 'yyyy-MM-dd') as Quitacao, 
-                    FORMAT(al.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimParcela 
+                    FORMAT(al.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimParcela,
+                    ContratoAtivo.NomeCliente,
+                    ContratoAtivo.TipoLocacao,
+                    CAST(ISNULL(ContratoAtivo.ValorLocacao, 0) AS FLOAT) as ValorLocacao,
+                    ContratoAtivo.IdContratoLocacao,
+                    ContratoAtivo.ContratoLocacao as NumeroContratoLocacao
                 FROM Veiculos v 
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo 
                 LEFT JOIN Patios p ON v.IdPatio = p.IdPatio 
@@ -182,6 +187,27 @@ const DIMENSIONS = [
                     WHERE Placa = v.Placa 
                     ORDER BY Inicio DESC
                 ) al 
+                -- Contrato ativo para NomeCliente, TipoLocacao e ValorLocacao
+                OUTER APPLY (
+                    SELECT TOP 1
+                        cli2.NomeFantasia as NomeCliente,
+                        cc2.TipoLocacao,
+                        clp.PrecoUnitario as ValorLocacao,
+                        cl2.IdContratoLocacao,
+                        cl2.ContratoLocacao
+                    FROM ContratosLocacao cl2
+                    JOIN ContratosComerciais cc2 ON cl2.IdContrato = cc2.IdContratoComercial
+                    LEFT JOIN Clientes cli2 ON cc2.IdCliente = cli2.IdCliente
+                    OUTER APPLY (
+                        SELECT TOP 1 PrecoUnitario
+                        FROM ContratosLocacaoPrecos
+                        WHERE IdContratoLocacao = cl2.IdContratoLocacao
+                        ORDER BY DataInicial DESC
+                    ) clp
+                    WHERE cl2.PlacaPrincipal = v.Placa
+                      AND cl2.SituacaoContratoLocacao NOT IN ('Encerrado', 'Cancelado')
+                    ORDER BY cl2.DataInicial DESC
+                ) ContratoAtivo
                 WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro'` 
     },
     { 
@@ -338,18 +364,76 @@ const CONSOLIDATED = [
                     ovt.Placa as PlacaTitular,
                     ovt.PlacaReserva,
                     ovt.ModeloVeiculoReserva,
+                    ovt.ModeloVeiculoReserva as ModeloReserva,
                     ovt.GrupoVeiculoReserva,
                     ovt.FornecedorReserva,
+                    FORMAT(ovt.DataCriacao, 'yyyy-MM-dd') as DataCriacao,
                     FORMAT(ovt.DataRetiradaEfetiva, 'yyyy-MM-dd') as DataRetirada,
+                    FORMAT(ovt.DataRetiradaEfetiva, 'yyyy-MM-dd') as DataInicio,
                     FORMAT(ovt.DataDevolucaoEfetiva, 'yyyy-MM-dd') as DataDevolucao,
+                    FORMAT(ovt.DataDevolucaoEfetiva, 'yyyy-MM-dd') as DataFim,
                     CAST(ISNULL(ovt.DiariasEfetivas, 0) AS INT) as Diarias,
                     ovt.Motivo,
-                    ovt.SituacaoOcorrencia
-                FROM OcorrenciasVeiculoTemporario ovt` 
+                    ovt.SituacaoOcorrencia,
+                    ovt.SituacaoOcorrencia as StatusOcorrencia,
+                    -- Preferir valores já presentes na ocorrência; se ausentes, buscar via contratos/cliente relacionados
+                    COALESCE(ovt.NomeCliente, cli_t.NomeFantasia, cli.NomeFantasia, '') as Cliente,
+                    COALESCE(ovt.IdContratoComercial, cc.IdContratoComercial, cc_t.IdContratoComercial) as IdContratoComercial,
+                    COALESCE(ovt.ContratoComercial, cc.NumeroDocumento, cc_t.NumeroDocumento, '') as ContratoComercial,
+                    COALESCE(ovt.IdContratoLocacao, cl.IdContratoLocacao) as IdContratoLocacao,
+                    COALESCE(ovt.ContratoLocacao, cl.ContratoLocacao, '') as ContratoLocacao,
+                    COALESCE(ovt.IdCliente, cli_t.IdCliente, cli.IdCliente) as IdCliente
+                FROM OcorrenciasVeiculoTemporario ovt
+                -- Tentar casar pelo IdContratoLocacao quando disponível, senão por placa principal ativa
+                LEFT JOIN ContratosLocacao cl ON (ovt.IdContratoLocacao IS NOT NULL AND ovt.IdContratoLocacao = cl.IdContratoLocacao) OR (ovt.Placa = cl.PlacaPrincipal AND cl.SituacaoContratoLocacao = 'Ativo')
+                -- Contrato comercial vinculado ao contrato de locação
+                LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
+                -- Contrato comercial declarado diretamente na ocorrência (fallback)
+                LEFT JOIN ContratosComerciais cc_t ON ovt.IdContratoComercial = cc_t.IdContratoComercial
+                -- Cliente via contrato comercial vinculado
+                LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente
+                -- Cliente informado diretamente na ocorrência (fallback)
+                LEFT JOIN Clientes cli_t ON ovt.IdCliente = cli_t.IdCliente` 
     },
     { 
         table: 'fat_manutencao_unificado', 
-        query: `SELECT 'Chegada' as TipoEvento, os.OrdemServico, os.Placa, os.ModeloVeiculo as Modelo, os.Fornecedor, os.Tipo as TipoOcorrencia, FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEvento, 1 as Chegadas, 0 as Conclusoes, ${castM('os.ValorTotal')} as CustoTotalOS, 0 as CustoPecas, 0 as CustoServicos, DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias FROM OrdensServico os WHERE os.SituacaoOrdemServico <> 'Cancelada' UNION ALL SELECT 'Conclusao', os.OrdemServico, os.Placa, os.ModeloVeiculo, os.Fornecedor, os.Tipo, FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd'), 0, 1, ${castM('os.ValorTotal')}, 0, 0, DATEDIFF(DAY, os.DataInicioServico, os.DataConclusaoOcorrencia) FROM OrdensServico os WHERE os.DataConclusaoOcorrencia IS NOT NULL AND os.SituacaoOrdemServico <> 'Cancelada'` 
+        query: `SELECT 
+                    os.IdOrdemServico,
+                    os.OrdemServico,
+                    os.IdOcorrencia,
+                    os.Ocorrencia,
+                    os.Ocorrencia as NumeroOcorrencia,
+                    os.Placa,
+                    os.ModeloVeiculo as Modelo,
+                    os.IdFornecedor,
+                    os.Fornecedor,
+                    os.IdTipo,
+                    os.Tipo as TipoOcorrencia,
+                    os.IdMotivo,
+                    os.Motivo,
+                    ISNULL(os.Categoria, '') as Categoria,
+                    ISNULL(os.Despesa, '') as Despesa,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEvento,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
+                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
+                    os.SituacaoOcorrencia as StatusOcorrencia,
+                    os.SituacaoOrdemServico as StatusOS,
+                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as KmEntrada,
+                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as KmSaida,
+                    ${castM('os.ValorTotal')} as CustoTotalOS,
+                    ${castM('os.ValorTotal')} as ValorTotal,
+                    ${castM('os.ValorNaoReembolsavel')} as ValorNaoReembolsavel,
+                    ${castM('os.ValorReembolsavel')} as ValorReembolsavel,
+                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
+                    os.IdContratoLocacao,
+                    os.ContratoLocacao,
+                    os.IdContratoComercial,
+                    os.ContratoComercial,
+                    os.IdCliente,
+                    os.Cliente,
+                    os.OrdemCompra
+                FROM OrdensServico os
+                WHERE os.SituacaoOrdemServico <> 'Cancelada'` 
     },
     { 
         table: 'fat_manutencao_completa', 
@@ -514,12 +598,22 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
         return `"${safeKey}" ${getPgType(sampleRow[key])}`;
     }).join(',\n');
 
-    const createSql = `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns});`;
+    // Identificar possível chave primária (IdOcorrencia, IdNota, IdOrdemServico, etc)
+    const firstKey = Object.keys(sampleRow)[0];
+    const pkColumn = firstKey.replace(/[^a-zA-Z0-9_]/g, "");
+    const hasPK = firstKey.toLowerCase().startsWith('id');
+
+    const createSql = hasPK 
+        ? `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns}, PRIMARY KEY ("${pkColumn}"));`
+        : `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns});`;
     
     try {
         await pgClient.query(createSql);
     } catch (err) {
-        console.error(`         ⚠️  Erro ao criar tabela ${tableName}:`, err.message);
+        // Ignorar erro se PRIMARY KEY já existe
+        if (!err.message.includes('já existe')) {
+            console.error(`         ⚠️  Erro ao criar tabela ${tableName}:`, err.message);
+        }
     }
 }
 
@@ -575,13 +669,34 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             return sanitized;
         });
 
+        // Remover duplicatas se houver ID column (manter última ocorrência)
+        const pkRaw = columns[0];
+        const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
+        let finalData = sanitizedData;
+
+        if (hasIdColumn) {
+            const seen = new Map();
+            sanitizedData.forEach(row => {
+                seen.set(row[pkRaw], row); // Última ocorrência sobrescreve
+            });
+            finalData = Array.from(seen.values());
+
+            if (finalData.length < sanitizedData.length) {
+                console.log(`         ⚠️  Removidas ${sanitizedData.length - finalData.length} duplicatas de ${tableName}`);
+            }
+        }
+
+        // Identificar primeira coluna como possível PK para UPSERT (nome seguro)
+        const firstCol = (pkRaw || '').replace(/[^a-zA-Z0-9_]/g, "");
+        const finalRowCount = finalData.length;
+        
         // Usar transação única para todos os batches da tabela
         const client = await pgClient.connect();
         try {
             await client.query('BEGIN');
             
-            for (let i = 0; i < totalRows; i += BATCH_SIZE) {
-                const chunk = sanitizedData.slice(i, i + BATCH_SIZE);
+            for (let i = 0; i < finalRowCount; i += BATCH_SIZE) {
+                const chunk = finalData.slice(i, i + BATCH_SIZE);
                 const chunkSize = chunk.length;
                 
                 // Construir placeholders dinamicamente
@@ -601,7 +716,23 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
                     placeholders.push(`(${rowPlaceholders.join(', ')})`);
                 }
 
-                const insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')};`;
+                // UPSERT se tiver ID column (evita duplicatas)
+                let insertQuery;
+                if (hasIdColumn) {
+                    const updateSet = columns
+                        .filter(col => col !== columns[0]) // Excluir PK do UPDATE
+                        .map(col => {
+                            const safeName = col.replace(/[^a-zA-Z0-9_]/g, "");
+                            return `"${safeName}" = EXCLUDED."${safeName}"`;
+                        })
+                        .join(', ');
+                    
+                    insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')} 
+                                  ON CONFLICT ("${firstCol}") DO UPDATE SET ${updateSet};`;
+                } else {
+                    insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')};`;
+                }
+                
                 await client.query(insertQuery, flatValues);
             }
             
@@ -614,10 +745,10 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         }
 
         const duration = ((performance.now() - start) / 1000).toFixed(2);
-        console.log(`      ✅ ${progressStr} ${tableName} (${recordset.length} linhas) - ${duration}s`);
+        console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
 
         // ========== UPLOAD PARA SUPABASE STORAGE (ASSÍNCRONO) ==========
-        queueUpload(tableName, recordset, year, month);
+        queueUpload(tableName, finalData, year, month);
 
     } catch (err) {
         console.error(`      ❌ ${progressStr} Erro PostgreSQL (${tableName}):`, err.message);
@@ -705,16 +836,33 @@ async function runMasterETL() {
             {
                 table: 'fat_sinistros',
                 queryGen: (year) => `SELECT 
-                    os.IdOcorrencia, os.Ocorrencia, os.IdVeiculo, os.Placa, 
-                    FORMAT(os.DataSinistro, 'yyyy-MM-dd') as DataSinistro, 
-                    os.Descricao, os.SituacaoOcorrencia as Status,
+                    os.IdOcorrencia,
+                    os.Ocorrencia,
+                    os.Ocorrencia as NumeroOcorrencia,
+                    os.IdVeiculo,
+                    os.Placa, 
+                    FORMAT(os.DataSinistro, 'yyyy-MM-dd') as DataSinistro,
+                    FORMAT(os.DataSinistro, 'yyyy-MM-dd') as DataOcorrencia,
+                    os.Descricao,
+                    os.SituacaoOcorrencia as Status,
                     ${castM('os.ValorOrcamento')} as ValorOrcado, 
-                    os.BoletimOcorrencia, os.ApoliceSeguro,
-                    os.NomeCondutor as Condutor, os.EmailRequisitante, os.TelefoneRequisitante,
-                    os.MotoristaCulpado, os.ResponsavelCulpado,
-                    os.DanosLataria, os.DanosMotor, os.DanosAcessorios, os.DanosOutros,
-                    os.ContratoLocacao, cli.NomeFantasia as Cliente,
-                    os.Latitude, os.Longitude, os.Cidade, os.Estado
+                    os.BoletimOcorrencia,
+                    os.ApoliceSeguro,
+                    os.NomeCondutor as Condutor,
+                    os.EmailRequisitante,
+                    os.TelefoneRequisitante,
+                    os.MotoristaCulpado,
+                    os.ResponsavelCulpado,
+                    os.DanosLataria,
+                    os.DanosMotor,
+                    os.DanosAcessorios,
+                    os.DanosOutros,
+                    os.ContratoLocacao,
+                    cli.NomeFantasia as Cliente,
+                    os.Latitude,
+                    os.Longitude,
+                    os.Cidade,
+                    os.Estado
                 FROM OcorrenciasSinistro os 
                 LEFT JOIN ContratosLocacao cl ON os.Placa = cl.PlacaPrincipal 
                 LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial 
