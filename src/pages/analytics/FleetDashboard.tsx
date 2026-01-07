@@ -121,14 +121,50 @@ export default function FleetDashboard(): JSX.Element {
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
   const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos.json');
   const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
+  
+  // Carregar fat_sinistros anuais (2022-2026) e combinar
+  const { data: sinistros2022 } = useBIData<AnyObject[]>('fat_sinistros_2022.json');
+  const { data: sinistros2023 } = useBIData<AnyObject[]>('fat_sinistros_2023.json');
+  const { data: sinistros2024 } = useBIData<AnyObject[]>('fat_sinistros_2024.json');
+  const { data: sinistros2025 } = useBIData<AnyObject[]>('fat_sinistros_2025.json');
+  const { data: sinistros2026 } = useBIData<AnyObject[]>('fat_sinistros_2026.json');
+  
+  const sinistrosData = useMemo(() => {
+    const all: AnyObject[] = [];
+    if (Array.isArray(sinistros2022)) all.push(...sinistros2022);
+    if (Array.isArray(sinistros2023)) all.push(...sinistros2023);
+    if (Array.isArray(sinistros2024)) all.push(...sinistros2024);
+    if (Array.isArray(sinistros2025)) all.push(...sinistros2025);
+    if (Array.isArray(sinistros2026)) all.push(...sinistros2026);
+    return all;
+  }, [sinistros2022, sinistros2023, sinistros2024, sinistros2025, sinistros2026]);
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
   const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
   const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
   const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
+    // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
+    const carroReservaFiltered = useMemo(() => {
+        // Se o arquivo já é específico de "carro reserva" (sem campo Tipo/IdTipo),
+        // assume todos os registros pertencem a carro reserva. Caso contrário,
+        // aplica o filtro por Tipo/TipoOcorrencia/IdTipo quando presente.
+        if (!Array.isArray(carroReserva) || carroReserva.length === 0) return [];
+
+        const sample = carroReserva[0] || {};
+        const hasTipoField = Object.prototype.hasOwnProperty.call(sample, 'Tipo') || Object.prototype.hasOwnProperty.call(sample, 'TipoOcorrencia') || Object.prototype.hasOwnProperty.call(sample, 'IdTipo');
+
+        if (!hasTipoField) return carroReserva; // já é um arquivo de carro reserva
+
+        return carroReserva.filter(r => {
+            const tipo = String(r.Tipo || r.TipoOcorrencia || '').toLowerCase();
+            const idTipo = String(r.IdTipo || '').trim();
+            return tipo.includes('carro') || tipo.includes('reserva') || idTipo === '5' || idTipo === '21';
+        });
+    }, [carroReserva]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
   const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
   const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
+  const sinistros = useMemo(() => sinistrosData || [], [sinistrosData]);
 
   const vehiclesDetailed = useMemo(() => {
     const getCategory = (status: string) => {
@@ -866,6 +902,20 @@ export default function FleetDashboard(): JSX.Element {
           .sort((a, b) => b.value - a.value);
   }, [filteredData]);
 
+  const veiculosPorClienteData = useMemo(() => {
+      const map: Record<string, number> = {};
+      filteredData.forEach(r => {
+          const cliente = r.NomeCliente || 'N/A';
+          if (cliente !== 'N/A') {
+              map[cliente] = (map[cliente] || 0) + 1;
+          }
+      });
+      return Object.entries(map)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 15);
+  }, [filteredData]);
+
   const localizacaoHierarquica = useMemo(() => {
     const hierarquia: Record<string, Record<string, number>> = {};
     const totalByUF: Record<string, number> = {};
@@ -947,11 +997,11 @@ export default function FleetDashboard(): JSX.Element {
   // }, [filteredData]);
 
   // CARRO RESERVA ANALYTICS
-  const reservaUniqueOptions = useMemo(() => ({
-    motivos: Array.from(new Set(carroReserva.map(r => r.Motivo).filter(Boolean))).sort(),
-    clientes: Array.from(new Set(carroReserva.map(r => r.Cliente).filter(Boolean))).sort(),
-    statuses: Array.from(new Set(carroReserva.map(r => r.StatusOcorrencia).filter(Boolean))).sort()
-  }), [carroReserva]);
+    const reservaUniqueOptions = useMemo(() => ({
+        motivos: Array.from(new Set(carroReservaFiltered.map(r => r.Motivo).filter(Boolean))).sort(),
+        clientes: Array.from(new Set(carroReservaFiltered.map(r => r.Cliente).filter(Boolean))).sort(),
+        statuses: Array.from(new Set(carroReservaFiltered.map(r => r.StatusOcorrencia).filter(Boolean))).sort()
+    }), [carroReservaFiltered]);
 
     const setReservaFilterValues = (key: string, values: string[]) => {
         // translate key names to use chart filter storage
@@ -965,7 +1015,7 @@ export default function FleetDashboard(): JSX.Element {
         const clientes = getFilterValues('reserva_cliente');
         const statuses = getFilterValues('reserva_status');
         const search = (getFilterValues('reserva_search') || [])[0] || '';
-        return carroReserva.filter(r => {
+        return carroReservaFiltered.filter(r => {
             if (motivos.length > 0 && !motivos.includes(r.Motivo)) return false;
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
@@ -975,7 +1025,7 @@ export default function FleetDashboard(): JSX.Element {
             }
             return true;
         });
-    }, [carroReserva, filters, getFilterValues]);
+    }, [carroReservaFiltered, filters, getFilterValues]);
 
   const reservaKPIs = useMemo(() => {
     const total = filteredReservas.length;
@@ -1024,12 +1074,12 @@ export default function FleetDashboard(): JSX.Element {
 
     // Calcular min/max dates do histórico de reservas
     const reservaDateBounds = useMemo(() => {
-        if (carroReserva.length === 0) return null;
+        if (carroReservaFiltered.length === 0) return null;
         
         let minDate: Date | null = null;
         let maxDate: Date | null = null;
         
-        carroReserva.forEach(r => {
+        carroReservaFiltered.forEach(r => {
             if (r.DataInicio) {
                 const di = new Date(r.DataInicio);
                 if (!minDate || di < minDate) minDate = di;
@@ -1050,7 +1100,7 @@ export default function FleetDashboard(): JSX.Element {
         maxDate.setHours(23, 59, 59, 999);
         
         return { minDate, maxDate };
-    }, [carroReserva]);
+    }, [carroReservaFiltered]);
     
     // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider)
     const ocupacaoSimultaneaData = useMemo(() => {
@@ -1078,7 +1128,7 @@ export default function FleetDashboard(): JSX.Element {
             const diaTime = dia.getTime();
             
             // Contar veículos em uso neste dia específico
-            const veiculosEmUso = carroReserva.filter(reserva => {
+            const veiculosEmUso = carroReservaFiltered.filter(reserva => {
                 if (!reserva.DataInicio) return false;
                 
                 const dataInicio = new Date(reserva.DataInicio);
@@ -1102,7 +1152,7 @@ export default function FleetDashboard(): JSX.Element {
         });
         
         return ocupacaoPorDia;
-    }, [carroReserva, sliderRange, reservaDateBounds]);
+    }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
     
     // Distribuição por modelo dos veículos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
     // Filtra automaticamente pelo período do slider
@@ -1117,7 +1167,7 @@ export default function FleetDashboard(): JSX.Element {
         const map: Record<string, number> = {};
         
         // Filtrar pelo período do slider
-        const dadosFiltrados = carroReserva.filter(r => {
+        const dadosFiltrados = carroReservaFiltered.filter(r => {
             if (!r.DataInicio) return false;
             const di = new Date(r.DataInicio);
             const df = r.DataFim ? new Date(r.DataFim) : new Date();
@@ -1131,7 +1181,7 @@ export default function FleetDashboard(): JSX.Element {
             map[m] = (map[m] || 0) + 1; 
         });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    }, [carroReserva, sliderRange, reservaDateBounds]);
+    }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
     
     // KPIs de Eficiência de Ocupação
     const ocupacaoKPIs = useMemo(() => {
@@ -1509,7 +1559,12 @@ export default function FleetDashboard(): JSX.Element {
                       <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
                       <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
                   </tr>))}</tbody></table></div>
-              <div className="flex justify-between p-4 border-t border-slate-100"><div className="flex gap-2"><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button><button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button></div></div>
+                            <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
+                                <div className="flex gap-2">
+                                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
+                                    <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+                                </div>
+                            </div>
           </Card>
         </TabsContent>
 
@@ -1621,7 +1676,7 @@ export default function FleetDashboard(): JSX.Element {
                         </table>
                     </div>
                 </div>
-                <div className="flex justify-between p-4 border-t border-slate-100">
+                <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
                     <div className="text-xs text-slate-500">{fmtDecimal(vehiclesDetailed.length)} registros</div>
                 </div>
             </Card>
@@ -1653,18 +1708,20 @@ export default function FleetDashboard(): JSX.Element {
             </div>
 
             {/* Gráficos de Análise */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                 <Card>
                     <Title>Provedores de Telemetria</Title>
-                    <div className="h-72 mt-4">
+                    <div className="h-56 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={telemetriaData} layout="vertical" margin={{ left: 0, right: 80 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={150} tick={{fontSize:11}} />
+                                <YAxis dataKey="name" type="category" width={150} tick={{fontSize:11, fill: '#475569'}} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={20} fill="#3b82f6">
-                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                <Bar dataKey="value" radius={[0,6,6,0]} barSize={20} fill="#3b82f6"
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('telemetria', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} fill="#1e293b" />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -1673,21 +1730,23 @@ export default function FleetDashboard(): JSX.Element {
                 
                 <Card>
                     <Title>Situação de Seguro</Title>
-                    <div className="h-72 mt-4">
+                    <div className="h-56 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={seguroData} margin={{ left: 0, right: 60 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                <YAxis tick={{ fontSize: 12 }} />
+                                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} />
+                                <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                <Bar dataKey="value" radius={[6,6,0,0]} barSize={40}>
+                                <Bar dataKey="value" radius={[6,6,0,0]} barSize={40}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('seguro', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
                                     {seguroData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={
                                             entry.name === 'Com Seguro' ? '#10b981' : 
                                             entry.name === 'Sem Seguro' ? '#ef4444' : '#94a3b8'
                                         } />
                                     ))}
-                                    <LabelList dataKey="value" position="top" fontSize={11} />
+                                    <LabelList dataKey="value" position="top" fontSize={11} fill="#1e293b" />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -1696,52 +1755,74 @@ export default function FleetDashboard(): JSX.Element {
 
                 <Card>
                     <Title>Diferença de Odômetro (Info vs Conf)</Title>
-                    <div className="h-72 mt-4">
+                    <div className="h-56 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                                <XAxis type="number" fontSize={10} />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9"/>
+                                <XAxis type="number" fontSize={10} tick={{ fill: '#475569' }} />
                                 <YAxis dataKey="name" type="category" width={120} fontSize={10} tick={{fill: '#475569'}}/>
                                 <Tooltip />
-                                <Bar dataKey="value" fill="#0891b2" radius={[0,4,4,0]} barSize={20}>
-                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" />
+                                <Bar dataKey="value" fill="#0891b2" radius={[0,4,4,0]} barSize={20}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('km_diff', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#1e293b" />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </Card>
-            </div>
 
-            {/* Gráficos Adicionais */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
+                <Card className="lg:col-start-1 lg:row-span-2">
+                    <Title>Veículos por Cliente</Title>
+                    <div className="h-[520px] mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={veiculosPorClienteData} layout="vertical" margin={{ left: 0, right: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={150} fontSize={9} tick={{fill: '#475569'}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                <Bar dataKey="value" fill="#8b5cf6" radius={[0,6,6,0]} barSize={20}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#1e293b" />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                <Card className="lg:col-start-2 lg:col-span-1">
                     <Title>Proprietário do Veículo</Title>
                     <div className="h-80 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={proprietarioData} margin={{ left: 0, right: 60 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
-                                <YAxis tick={{ fontSize: 12 }} />
+                                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} angle={-45} textAnchor="end" height={80} />
+                                <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                <Bar dataKey="value" fill="#8b5cf6" radius={[6,6,0,0]} barSize={32}>
-                                    <LabelList dataKey="value" position="top" fontSize={11} />
+                                <Bar dataKey="value" fill="#8b5cf6" radius={[6,6,0,0]} barSize={32}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('proprietario', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="top" fontSize={11} fill="#1e293b" />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </Card>
 
-                <Card>
+                <Card className="lg:col-start-3 lg:col-span-1">
                     <Title>Finalidade de Uso</Title>
                     <div className="h-80 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={finalidadeData} margin={{ left: 0, right: 60 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
-                                <YAxis tick={{ fontSize: 12 }} />
+                                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} angle={-45} textAnchor="end" height={80} />
+                                <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
                                 <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                <Bar dataKey="value" fill="#06b6d4" radius={[6,6,0,0]} barSize={32}>
-                                    <LabelList dataKey="value" position="top" fontSize={11} />
+                                <Bar dataKey="value" fill="#06b6d4" radius={[6,6,0,0]} barSize={32}
+                                     onClick={(data: any, _index: number, event: any) => { handleChartClick('finalidade', data.name, event as unknown as React.MouseEvent); }}
+                                     cursor="pointer">
+                                    <LabelList dataKey="value" position="top" fontSize={11} fill="#1e293b" />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -1763,7 +1844,7 @@ export default function FleetDashboard(): JSX.Element {
                                     <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
                                         <div className="flex w-full items-center justify-between pr-4">
                                             <div className="flex items-center gap-3">
-                                                <Badge size="lg" className="w-12 justify-center font-bold bg-slate-800">{item.uf}</Badge>
+                                                <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf}</Badge>
                                                 <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -1779,19 +1860,19 @@ export default function FleetDashboard(): JSX.Element {
                                     </AccordionTrigger>
                                     <AccordionContent className="px-4 pb-4 pt-2">
                                         <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                                            <Title className="text-sm mb-3 text-slate-600">Veículos por Município em {item.uf}</Title>
-                                            <div className="mt-2 space-y-1">
+                                            <Title className="text-sm mb-3 text-slate-700">Veículos por Município em {item.uf}</Title>
+                                            <div className="mt-2 space-y-1 max-h-96 overflow-y-auto">
                                                 {item.cities.map((city) => (
                                                     <div 
                                                         key={city.name}
-                                                        className={`flex items-center justify-between text-sm p-2 rounded cursor-pointer transition-colors ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-indigo-100 ring-1 ring-indigo-500' : 'hover:bg-indigo-50'}`}
+                                                        className={`flex items-center justify-between text-sm p-2 rounded cursor-pointer transition-colors ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-100 ring-1 ring-blue-500' : 'hover:bg-blue-50'}`}
                                                         onClick={() => handleLocationClick(item.uf, city.name)}
                                                     >
                                                         <div className="flex items-center gap-2 truncate">
-                                                             <div className={`h-2 w-2 rounded-full ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-indigo-600' : 'bg-indigo-300'}`} />
+                                                             <div className={`h-2 w-2 rounded-full ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-600' : 'bg-blue-400'}`} />
                                                              <span className="truncate text-slate-700 font-medium">{city.name}</span>
                                                         </div>
-                                                        <span className="text-slate-500">{city.value} veículos</span>
+                                                        <span className="text-slate-600 font-medium">{city.value} veículos</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1902,6 +1983,7 @@ export default function FleetDashboard(): JSX.Element {
                             <tr>
                                 <th className="px-4 py-3">Placa</th>
                                 <th className="px-4 py-3">Modelo</th>
+                                <th className="px-4 py-3">Cliente</th>
                                 <th className="px-4 py-3">Status</th>
                                 <th className="px-4 py-3">Provedor Telemetria</th>
                                 <th className="px-4 py-3">Última Atualização</th>
@@ -1929,6 +2011,7 @@ export default function FleetDashboard(): JSX.Element {
                                     <tr key={i} className="hover:bg-slate-50">
                                         <td className="px-4 py-3 font-medium font-mono text-blue-600">{r.Placa}</td>
                                         <td className="px-4 py-3 text-slate-700">{r.Modelo}</td>
+                                        <td className="px-4 py-3 text-slate-700 text-xs">{r.NomeCliente}</td>
                                         <td className="px-4 py-3">
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                 r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : 
@@ -2033,7 +2116,7 @@ export default function FleetDashboard(): JSX.Element {
         </TabsContent>
 
         <TabsContent value="timeline">
-            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} contratosLocacao={contratosLocacao} />
+            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} contratosLocacao={contratosLocacao} sinistros={sinistros} />
         </TabsContent>
 
         <TabsContent value="carro-reserva" className="space-y-6">
@@ -2097,10 +2180,10 @@ export default function FleetDashboard(): JSX.Element {
             </div>
 
             {/* Gráficos */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card>
                     <Title>Evolução Mensal de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <div className="h-80 mt-4">
+                    <div className="h-64 mt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={reservaKPIs.monthlyData} margin={{ left: 0, right: 40, bottom: 40 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2117,7 +2200,7 @@ export default function FleetDashboard(): JSX.Element {
 
                 <Card>
                     <Title>Ocorrências por Motivo <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <div className="h-80 mt-2">
+                    <div className="h-64 mt-2">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={reservaKPIs.motivoData} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
@@ -2133,12 +2216,12 @@ export default function FleetDashboard(): JSX.Element {
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card>
                     <Title>Ocorrências por Cliente <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
                     <Text className="text-xs text-slate-500 mb-2">Todos os clientes com ocorrências</Text>
-                    <div className="h-96 mt-2 overflow-y-auto pr-2">
-                        <ResponsiveContainer width="100%" height={Math.max(400, reservaKPIs.clienteData.length * 32)}>
+                    <div className="h-80 mt-2 overflow-y-auto pr-2">
+                        <ResponsiveContainer width="100%" height={Math.max(360, reservaKPIs.clienteData.length * 28)}>
                             <BarChart data={reservaKPIs.clienteData} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                 <XAxis type="number" hide />
@@ -2154,7 +2237,7 @@ export default function FleetDashboard(): JSX.Element {
 
                 <Card>
                     <Title>Status das Ocorrências <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <div className="h-96 mt-2">
+                    <div className="h-80 mt-2">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={reservaKPIs.statusData} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
@@ -2171,7 +2254,7 @@ export default function FleetDashboard(): JSX.Element {
             </div>
 
             {/* NOVO: Gráfico de Ocupação Simultânea Diária */}
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
                 <Card>
                     <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -2350,35 +2433,45 @@ export default function FleetDashboard(): JSX.Element {
                         <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-3">Data Criação</th>
-                                <th className="px-6 py-3">ID Ocorrência</th>
+                                <th className="px-6 py-3">Ocorrência</th>
                                 <th className="px-6 py-3">Placa Reserva</th>
                                 <th className="px-6 py-3">Modelo Reserva</th>
+                                <th className="px-6 py-3">Data Devolução</th>
+                                <th className="px-6 py-3">Diárias</th>
+                                <th className="px-6 py-3">Contrato Locação</th>
                                 <th className="px-6 py-3">Cliente</th>
                                 <th className="px-6 py-3">Motivo</th>
                                 <th className="px-6 py-3 text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {reservaPageItems.map((r, i) => {
+                            {reservaPageItems
+                                .filter(r => (r.PlacaReserva || r.ModeloReserva || r.Cliente || r.Motivo) // Filtrar linhas totalmente vazias
+                                    && !['cancelado','cancelada'].includes(String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase())
+                                )
+                                .map((r, i) => {
                                 const isAtiva = !['Finalizado', 'Cancelado', 'Concluída'].includes(r.StatusOcorrencia || '');
                                 const badgeColor = isAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600';
                                 return (
                                     <tr key={i} className="hover:bg-slate-50">
                                         <td className="px-6 py-3">{r.DataCriacao ? new Date(r.DataCriacao).toLocaleDateString('pt-BR') : '-'}</td>
-                                        <td className="px-6 py-3 font-mono text-xs">{r.IdOcorrencia}</td>
-                                        <td className="px-6 py-3 font-medium font-mono">{r.PlacaReserva}</td>
-                                        <td className="px-6 py-3">{r.ModeloReserva}</td>
-                                        <td className="px-6 py-3 max-w-xs truncate">{r.Cliente}</td>
-                                        <td className="px-6 py-3"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">{r.Motivo}</span></td>
-                                        <td className="px-6 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${badgeColor}`}>{r.StatusOcorrencia}</span></td>
+                                        <td className="px-6 py-3 font-mono text-xs">{r.Ocorrencia || r.IdOcorrencia || '-'}</td>
+                                        <td className="px-6 py-3 font-medium font-mono">{r.PlacaReserva || '-'}</td>
+                                        <td className="px-6 py-3">{r.ModeloReserva || '-'}</td>
+                                        <td className="px-6 py-3">{r.DataDevolucao ? new Date(r.DataDevolucao).toLocaleDateString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3">{(r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-'}</td>
+                                        <td className="px-6 py-3">{r.ContratoLocacao || r.NumeroContratoLocacao || r.IdContratoLocacao || '-'}</td>
+                                        <td className="px-6 py-3 max-w-xs truncate">{r.Cliente || '-'}</td>
+                                        <td className="px-6 py-3">{r.Motivo ? <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">{r.Motivo}</span> : '-'}</td>
+                                        <td className="px-6 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${badgeColor}`}>{r.StatusOcorrencia || 'Sem status'}</span></td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
-                <div className="flex justify-between p-4 border-t border-slate-100">
-                    <div className="flex gap-2">
+                <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
+                    <div className="flex gap-2 items-center">
                         <button onClick={() => setReservaPage(Math.max(0, reservaPage - 1))} disabled={reservaPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
                         <span className="px-3 py-1 text-sm text-slate-600">Página {reservaPage + 1} de {Math.ceil(filteredReservas.length / pageSize)}</span>
                         <button onClick={() => setReservaPage(reservaPage + 1)} disabled={(reservaPage + 1) * pageSize >= filteredReservas.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>

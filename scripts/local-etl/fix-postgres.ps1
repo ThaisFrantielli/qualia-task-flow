@@ -118,8 +118,13 @@ Write-Host "4. Executando configuracao..." -ForegroundColor Cyan
 Write-Host "   Digite a senha do usuario 'postgres' quando solicitado" -ForegroundColor Yellow
 Write-Host ""
 
-$env:PGPASSWORD = Read-Host "   Senha do usuario postgres" -AsSecureString
-$env:PGPASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($env:PGPASSWORD))
+if (-not $env:PGPASSWORD) {
+    $securePass = Read-Host "   Senha do usuario postgres" -AsSecureString
+    $plainPass = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePass))
+    $env:PGPASSWORD = $plainPass
+} else {
+    Write-Host "   Usando PG_PASSWORD já definido nas variáveis de ambiente" -ForegroundColor Cyan
+}
 
 $result = & $psqlPath -U postgres -h localhost -p 5432 -d postgres -f $tempSqlFile 2>&1
 
