@@ -500,7 +500,7 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 'BAIXADO' as Situacao,
                 FORMAT(v.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
-                NULL, vv.Observacoes,
+                NULL, NULL,
                 NULL, NULL, NULL,
                 ${castM('vv.ValorVenda')} as CustoTotal,
                 NULL, NULL, NULL, NULL
