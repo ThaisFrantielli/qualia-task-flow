@@ -351,6 +351,7 @@ export default function FleetDashboard(): JSX.Element {
     const [selectedResumoChart, setSelectedResumoChart] = useState<'motivo' | 'status' | 'tipo' | 'modelo' | 'cliente' | 'local'>('motivo');
     const [expandedYears, setExpandedYears] = useState<string[]>([]);
     const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
+    const [selectedTemporalFilter, setSelectedTemporalFilter] = useState<{year?: string, month?: string} | null>(null); // Filtro temporal ativo
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
     // apply default filter: show 'Ativa' productivity on first load
@@ -1037,20 +1038,22 @@ export default function FleetDashboard(): JSX.Element {
         
         // Se há reservas ativas OU não há maxDate, usar hoje como máximo
         const hoje = new Date();
-        if (hasActiveReserva || !maxDate) {
-            maxDate = hoje;
-        } else {
-            // Sempre considerar até hoje se a última DataFim for anterior
-            if (maxDate < hoje) maxDate = hoje;
+        let finalMaxDate = hoje;
+        
+        if (!hasActiveReserva && maxDate) {
+            const mDate = maxDate as Date;
+            if (mDate.getTime() > hoje.getTime()) {
+                finalMaxDate = mDate;
+            }
         }
         
         // Garantir que minDate existe
-        if (!minDate) minDate = new Date(maxDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const finalMinDate = minDate || new Date(finalMaxDate.getTime() - 365 * 24 * 60 * 60 * 1000);
         
-        minDate.setHours(0, 0, 0, 0);
-        maxDate.setHours(23, 59, 59, 999);
+        finalMinDate.setHours(0, 0, 0, 0);
+        finalMaxDate.setHours(23, 59, 59, 999);
         
-        return { minDate, maxDate };
+        return { minDate: finalMinDate, maxDate: finalMaxDate };
     }, [carroReservaFiltered]);
 
     const filteredReservas = useMemo(() => {
@@ -1070,12 +1073,22 @@ export default function FleetDashboard(): JSX.Element {
         dataFim.setHours(23, 59, 59, 999);
         
         return carroReservaFiltered.filter(r => {
-            // Filtro de período
+            // Filtro de período (slider)
             if (r.DataInicio) {
                 const di = new Date(r.DataInicio);
                 const df = r.DataFim ? new Date(r.DataFim) : new Date();
                 // Incluir se há sobreposição com o período selecionado
                 if (!(di <= dataFim && df >= dataInicio)) return false;
+            }
+            
+            // Filtro temporal (clique em ano/mês na evolução)
+            if (selectedTemporalFilter && r.DataCriacao) {
+                const dataCriacao = new Date(r.DataCriacao);
+                const year = dataCriacao.getFullYear().toString();
+                const month = String(dataCriacao.getMonth() + 1).padStart(2, '0');
+                
+                if (selectedTemporalFilter.year && year !== selectedTemporalFilter.year) return false;
+                if (selectedTemporalFilter.month && month !== selectedTemporalFilter.month) return false;
             }
             
             if (modelosSel.length > 0 && !modelosSel.includes(r.ModeloReserva)) return false;
@@ -1088,7 +1101,7 @@ export default function FleetDashboard(): JSX.Element {
             }
             return true;
         });
-    }, [carroReservaFiltered, filters, getFilterValues, sliderRange, reservaDateBounds]);
+    }, [carroReservaFiltered, filters, getFilterValues, sliderRange, reservaDateBounds, selectedTemporalFilter]);
 
   const reservaKPIs = useMemo(() => {
     const total = filteredReservas.length;
@@ -1108,12 +1121,26 @@ export default function FleetDashboard(): JSX.Element {
     filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'Não Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
     const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
     
-    // Tempo médio de reserva
-    const ativasComData = filteredReservas.filter(r => !['Finalizado', 'Cancelado', 'Concluída'].includes(r.StatusOcorrencia || '') && r.DataCriacao);
-    const tempoMedio = ativasComData.length > 0 ? ativasComData.reduce((sum, r) => {
-      const dias = (new Date().getTime() - new Date(r.DataCriacao).getTime()) / (1000 * 60 * 60 * 24);
-      return sum + dias;
-    }, 0) / ativasComData.length : 0;
+    // Tempo médio de reserva (Concluídas)
+    const concluidas = filteredReservas.filter(r => 
+      ['Finalizado', 'Concluída'].includes(r.StatusOcorrencia || '') && 
+      (r.DiariasEfetivas || (r.DataInicio && r.DataDevolucao))
+    );
+    
+    const tempoMedioConcluidas = concluidas.length > 0 ? concluidas.reduce((sum, r) => {
+      let dias = Number(r.DiariasEfetivas) || 0;
+      if (dias === 0 && r.DataInicio && r.DataDevolucao) {
+        dias = (new Date(r.DataDevolucao).getTime() - new Date(r.DataInicio).getTime()) / (1000 * 60 * 60 * 24);
+      }
+      return sum + Math.max(0, dias);
+    }, 0) / concluidas.length : 0;
+
+    // Reservas com atraso (Ativas que passaram da DataFim prevista)
+    const hoje = new Date();
+    const atrasadas = filteredReservas.filter(r => 
+      !['Finalizado', 'Cancelado', 'Concluída'].includes(r.StatusOcorrencia || '') && 
+      r.DataFim && new Date(r.DataFim) < hoje
+    ).length;
     
     // Gráfico hierárquico com comparação YoY
     const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> mês -> dia -> count
@@ -1171,19 +1198,53 @@ export default function FleetDashboard(): JSX.Element {
         };
       });
     
-    return { total, ativas, principalMotivo: principalMotivo?.[0] || 'N/A', motivoData, clienteData, statusData, tempoMedio, monthlyData };
+    return { 
+      total, 
+      ativas, 
+      atrasadas,
+      principalMotivo: principalMotivo?.[0] || 'N/A', 
+      motivoData, 
+      clienteData, 
+      statusData, 
+      tempoMedio: tempoMedioConcluidas, 
+      monthlyData 
+    };
   }, [filteredReservas]);
     
-    // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider)
+    // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider E filtro temporal)
     const ocupacaoSimultaneaData = useMemo(() => {
         if (!reservaDateBounds) return [];
         
         const { minDate, maxDate } = reservaDateBounds;
         const totalMs = maxDate.getTime() - minDate.getTime();
         
-        // Calcular datas baseado no slider
-        const dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
-        const dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
+        // Se há filtro temporal ativo, usar o período do filtro
+        let dataInicio: Date;
+        let dataFim: Date;
+        
+        if (selectedTemporalFilter) {
+            if (selectedTemporalFilter.month) {
+                // Filtro de mês específico
+                const year = parseInt(selectedTemporalFilter.year!);
+                const month = parseInt(selectedTemporalFilter.month) - 1;
+                dataInicio = new Date(year, month, 1);
+                dataFim = new Date(year, month + 1, 0, 23, 59, 59, 999);
+            } else if (selectedTemporalFilter.year) {
+                // Filtro de ano específico
+                const year = parseInt(selectedTemporalFilter.year);
+                dataInicio = new Date(year, 0, 1);
+                dataFim = new Date(year, 11, 31, 23, 59, 59, 999);
+            } else {
+                // Fallback: usar slider
+                dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
+                dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
+            }
+        } else {
+            // Sem filtro temporal: usar slider
+            dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
+            dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
+        }
+        
         dataInicio.setHours(0, 0, 0, 0);
         dataFim.setHours(23, 59, 59, 999);
         
@@ -1195,12 +1256,12 @@ export default function FleetDashboard(): JSX.Element {
             dataAtual.setDate(dataAtual.getDate() + 1);
         }
         
-        // Para cada dia, contar quantos veículos estavam "na rua"
+        // Para cada dia, contar quantos veículos estavam "na rua" (usar filteredReservas para respeitar filtros)
         const ocupacaoPorDia = datas.map(dia => {
             const diaTime = dia.getTime();
             
             // Contar veículos em uso neste dia específico
-            const veiculosEmUso = carroReservaFiltered.filter(reserva => {
+            const veiculosEmUso = filteredReservas.filter(reserva => {
                 if (!reserva.DataInicio) return false;
                 
                 const dataInicio = new Date(reserva.DataInicio);
@@ -1224,7 +1285,7 @@ export default function FleetDashboard(): JSX.Element {
         });
         
         return ocupacaoPorDia;
-    }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
+    }, [filteredReservas, sliderRange, reservaDateBounds, selectedTemporalFilter]);
 
     // Novos agregados solicitados:
     // - Diárias por Local (Cidade/UF)
@@ -2251,40 +2312,61 @@ export default function FleetDashboard(): JSX.Element {
                     <MultiSelect label="Status" options={reservaUniqueOptions.statuses} selected={getFilterValues('reserva_status')} onChange={(v) => setReservaFilterValues('status', v)} />
                     <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa/Cliente/ID)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Buscar..." value={(getFilterValues('reserva_search') || [])[0] || ''} onChange={e => setReservaFilterValues('search', [e.target.value])}/></div></div>
                 </div>
-                <div className="flex gap-2 mt-4 flex-wrap">
+                <div className="flex gap-2 mt-4 flex-wrap items-center">
                     {/* reserva badges are handled by ChartFilterBadges (labelMap) */}
+                    {selectedTemporalFilter && (
+                        <Badge 
+                            className="bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
+                            onClick={() => setSelectedTemporalFilter(null)}
+                        >
+                            📅 {selectedTemporalFilter.month 
+                                ? `${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][parseInt(selectedTemporalFilter.month) - 1]}/${selectedTemporalFilter.year}` 
+                                : selectedTemporalFilter.year
+                            } ✕
+                        </Badge>
+                    )}
                 </div>
             </Card>
 
-            {/* KPIs - ATUALIZADO: Novos KPIs de Ocupação */}
+            {/* KPIs - ATUALIZADO: KPIs de performance e ocupação */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <Card decoration="top" decorationColor="blue">
-                    <Text>Total de Ocorrências</Text>
-                    <Metric>{fmtDecimal(reservaKPIs.total)}</Metric>
+                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Total de Ocorrências</Text>
+                    <Metric className="mt-1">{fmtDecimal(reservaKPIs.total)}</Metric>
+                    <Text className="text-xs text-slate-400 mt-2">No período selecionado</Text>
                 </Card>
                 <Card decoration="top" decorationColor="emerald">
-                    <Text>Reservas Ativas</Text>
-                    <Metric>{fmtDecimal(reservaKPIs.ativas)}</Metric>
-                    <Text className="text-xs text-slate-500 mt-1">Em andamento</Text>
+                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Reservas Ativas</Text>
+                    <div className="flex items-baseline gap-2 mt-1">
+                        <Metric>{fmtDecimal(reservaKPIs.ativas)}</Metric>
+                        {reservaKPIs.atrasadas > 0 && (
+                            <Badge color="rose" size="xs" tooltip="Passaram da data prevista">
+                                {reservaKPIs.atrasadas} em atraso
+                            </Badge>
+                        )}
+                    </div>
+                    <Text className="text-xs text-slate-400 mt-2">Em andamento</Text>
                 </Card>
                 <Card decoration="top" decorationColor="amber">
-                    <Text>Principal Motivo</Text>
-                    <Metric className="text-xl">{reservaKPIs.principalMotivo}</Metric>
+                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Principal Motivo</Text>
+                    <div className="h-10 flex items-center mt-1">
+                        <Metric className="text-xl truncate" title={reservaKPIs.principalMotivo}>{reservaKPIs.principalMotivo}</Metric>
+                    </div>
                 </Card>
                 <Card decoration="top" decorationColor="violet">
-                    <Text>Tempo Médio (Ativas)</Text>
-                    <Metric>{reservaKPIs.tempoMedio.toFixed(1)} dias</Metric>
-                    <Text className="text-xs text-slate-500 mt-1">Duração reserva</Text>
+                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo Médio (Geral)</Text>
+                    <Metric className="mt-1">{reservaKPIs.tempoMedio.toFixed(1)} <span className="text-sm font-normal text-slate-500">dias</span></Metric>
+                    <Text className="text-xs text-slate-400 mt-2">Base: Reservas concluídas</Text>
                 </Card>
                 <Card decoration="top" decorationColor="rose">
-                    <Text>Pico de Utilização</Text>
-                    <Metric>{ocupacaoKPIs.picoUtilizacao}</Metric>
-                    <Text className="text-xs text-slate-500 mt-1">Máx simultâneo (período)</Text>
+                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Pico de Utilização</Text>
+                    <Metric className="mt-1">{ocupacaoKPIs.picoUtilizacao}</Metric>
+                    <Text className="text-xs text-slate-400 mt-2">Máx simultâneo no período</Text>
                 </Card>
                 <Card decoration="top" decorationColor="cyan">
-                    <Text>Média de Carros na Rua</Text>
-                    <Metric>{ocupacaoKPIs.mediaCarrosNaRua}</Metric>
-                    <Text className="text-xs text-slate-500 mt-1">Por dia (período)</Text>
+                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Média de Frota Ativa</Text>
+                    <Metric className="mt-1">{ocupacaoKPIs.mediaCarrosNaRua.toFixed(1)}</Metric>
+                    <Text className="text-xs text-slate-400 mt-2">Carros/dia no período</Text>
                 </Card>
             </div>
 
@@ -2310,7 +2392,17 @@ export default function FleetDashboard(): JSX.Element {
                 {reservaDateBounds && (
                     <div className="mb-4 px-2">
                         <div className="flex items-center justify-between mb-2">
-                            <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
+                            <div className="flex items-center gap-2">
+                                <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
+                                {selectedTemporalFilter && (
+                                    <Badge color="purple" size="xs">
+                                        Filtrado: {selectedTemporalFilter.month 
+                                            ? `${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][parseInt(selectedTemporalFilter.month) - 1]}/${selectedTemporalFilter.year}` 
+                                            : selectedTemporalFilter.year
+                                        }
+                                    </Badge>
+                                )}
+                            </div>
                             <div className="flex gap-2">
                                 <button onClick={() => setSliderRange({startPercent: 90, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
                                 <button onClick={() => setSliderRange({startPercent: 75, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
@@ -2424,7 +2516,7 @@ export default function FleetDashboard(): JSX.Element {
             {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
             <Card className="mt-4">
                 <div className="flex items-center justify-between mb-2">
-                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique no ano/mês para expandir)</span></Title>
+                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique: filtrar | Ctrl+clique: expandir)</span></Title>
                     <div className="flex gap-2">
                         <button 
                             onClick={() => {
@@ -2448,14 +2540,30 @@ export default function FleetDashboard(): JSX.Element {
                             <div key={yearData.year} className="border border-slate-200 rounded-lg overflow-hidden">
                                 {/* Linha do Ano */}
                                 <div 
-                                    onClick={() => {
-                                        setExpandedYears(prev => 
-                                            prev.includes(yearData.year) 
-                                                ? prev.filter(y => y !== yearData.year)
-                                                : [...prev, yearData.year]
-                                        );
+                                    onClick={(e) => {
+                                        if (e.ctrlKey || e.metaKey) {
+                                            // Ctrl+click: expandir/colapsar meses
+                                            setExpandedYears(prev => 
+                                                prev.includes(yearData.year) 
+                                                    ? prev.filter(y => y !== yearData.year)
+                                                    : [...prev, yearData.year]
+                                            );
+                                            if (expandedYears.includes(yearData.year)) {
+                                                setExpandedMonths([]);
+                                            }
+                                        } else {
+                                            // Click normal: filtrar por este ano
+                                            if (selectedTemporalFilter?.year === yearData.year && !selectedTemporalFilter?.month) {
+                                                setSelectedTemporalFilter(null);
+                                            } else {
+                                                setSelectedTemporalFilter({ year: yearData.year });
+                                            }
+                                            setTimeout(() => {
+                                                document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                            }, 100);
+                                        }
                                     }}
-                                    className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors"
+                                    className={`flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors ${selectedTemporalFilter?.year === yearData.year && !selectedTemporalFilter?.month ? 'ring-2 ring-blue-600 ring-inset' : ''}`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <span className="text-lg font-bold text-blue-700">
@@ -2484,20 +2592,38 @@ export default function FleetDashboard(): JSX.Element {
                                                 <div key={monthKey} className="border-t border-slate-100">
                                                     {/* Linha do Mês */}
                                                     <div 
-                                                        onClick={() => {
-                                                            setExpandedMonths(prev => 
-                                                                prev.includes(monthKey)
-                                                                    ? prev.filter(m => m !== monthKey)
-                                                                    : [...prev, monthKey]
-                                                            );
+                                                        onClick={(e) => {
+                                                            // Ctrl+click: expandir/colapsar dias
+                                                            if (e.ctrlKey || e.metaKey) {
+                                                                setExpandedMonths(prev => 
+                                                                    prev.includes(monthKey)
+                                                                        ? prev.filter(m => m !== monthKey)
+                                                                        : [...prev, monthKey]
+                                                                );
+                                                            } else {
+                                                                // Click normal: filtrar por este mês
+                                                                if (selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month) {
+                                                                    setSelectedTemporalFilter(null);
+                                                                } else {
+                                                                    setSelectedTemporalFilter({ year: yearData.year, month: monthData.month });
+                                                                }
+                                                                // Scroll suave para a tabela
+                                                                setTimeout(() => {
+                                                                    document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                }, 100);
+                                                            }
                                                         }}
-                                                        className="flex items-center justify-between p-2 pl-8 hover:bg-slate-50 cursor-pointer transition-colors"
+                                                        className={`flex items-center justify-between p-2 pl-8 hover:bg-blue-50 cursor-pointer transition-colors ${selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-100 border-l-4 border-blue-600' : ''}`}
                                                     >
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-sm font-medium text-slate-700">
+                                                            <span className={`text-sm font-medium ${
+                                                                selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month 
+                                                                    ? 'text-blue-700 font-bold' 
+                                                                    : 'text-slate-700'
+                                                            }`}>
                                                                 {isMonthExpanded ? '▼' : '▶'} {monthNames[parseInt(monthData.month) - 1]}
                                                             </span>
-                                                            <Badge size="xs" className="bg-slate-600 text-white">{monthData.monthTotal}</Badge>
+                                                            <Badge size="xs" className={selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-600 text-white' : 'bg-slate-600 text-white'}>{monthData.monthTotal}</Badge>
                                                             {monthData.prevMonthTotal > 0 && (
                                                                 <span className={`text-xs ${monthData.monthYoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                     {monthData.monthYoyChange >= 0 ? '▲' : '▼'} {Math.abs(monthData.monthYoyChange).toFixed(0)}%
