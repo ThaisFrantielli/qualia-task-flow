@@ -30,6 +30,7 @@ interface MaintenanceFiltersContextType {
   setContratosLocacao: (contratos: string[]) => void;
   setModelos: (modelos: string[]) => void;
   setPlacas: (placas: string[]) => void;
+  updateFilters: (partialFilters: Partial<MaintenanceFilters>) => void;
   clearAllFilters: () => void;
   hasActiveFilters: boolean;
 }
@@ -100,6 +101,10 @@ export const MaintenanceFiltersProvider: React.FC<{ children: React.ReactNode }>
     setFilters(initialFilters);
   };
 
+  const updateFilters = (partialFilters: Partial<MaintenanceFilters>) => {
+    setFilters(prev => ({ ...prev, ...partialFilters }));
+  };
+
   const hasActiveFilters = useMemo(() => {
     return !!(
       filters.dateRange ||
@@ -128,6 +133,7 @@ export const MaintenanceFiltersProvider: React.FC<{ children: React.ReactNode }>
     setContratosLocacao,
     setModelos,
     setPlacas,
+    updateFilters,
     clearAllFilters,
     hasActiveFilters,
   };
