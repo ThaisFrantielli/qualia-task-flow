@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 import EfficiencyTab from '@/components/analytics/fleet/EfficiencyTab';
@@ -22,8 +23,6 @@ delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
 
 type AnyObject = { [k: string]: any };
-
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
@@ -345,9 +344,13 @@ export default function FleetDashboard(): JSX.Element {
   const [_expandedPlates, _setExpandedPlates] = useState<string[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [reservaPage, setReservaPage] = useState(0);
-    const [patioPage, setPatioPage] = useState(0);
+        const [patioPage, setPatioPage] = useState(0);
+        void setPatioPage;
   // Slider de período para gráfico de ocupação
   const [sliderRange, setSliderRange] = useState<{startPercent: number, endPercent: number}>({startPercent: 0, endPercent: 100});
+    const [selectedResumoChart, setSelectedResumoChart] = useState<'motivo' | 'status' | 'tipo' | 'modelo' | 'cliente' | 'local'>('motivo');
+    const [expandedYears, setExpandedYears] = useState<string[]>([]);
+    const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
     // apply default filter: show 'Ativa' productivity on first load
@@ -402,7 +405,7 @@ export default function FleetDashboard(): JSX.Element {
       try {
           let cleanAddr = fullAddr.replace(/^[^\(]+\([A-Z]{2}\)[:\s]*/, '');
           const parts = cleanAddr.split(',').map(p => p.trim()).filter(p => p.length > 0);
-          
+
           for (let i = parts.length - 1; i >= 0; i--) {
               const part = parts[i].toUpperCase();
               if (part === 'BRASIL') continue;
@@ -1010,12 +1013,72 @@ export default function FleetDashboard(): JSX.Element {
         setReservaPage(0);
     };
 
+    // Calcular min/max dates do histórico de reservas ANTES de filteredReservas
+    const reservaDateBounds = useMemo(() => {
+        if (carroReservaFiltered.length === 0) return null;
+        
+        let minDate: Date | null = null;
+        let maxDate: Date | null = null;
+        let hasActiveReserva = false;
+        
+        carroReservaFiltered.forEach(r => {
+            if (r.DataInicio) {
+                const di = new Date(r.DataInicio);
+                if (!minDate || di < minDate) minDate = di;
+            }
+            if (r.DataFim) {
+                const df = new Date(r.DataFim);
+                if (!maxDate || df > maxDate) maxDate = df;
+            } else {
+                // Se não tem DataFim, é uma reserva ativa
+                hasActiveReserva = true;
+            }
+        });
+        
+        // Se há reservas ativas OU não há maxDate, usar hoje como máximo
+        const hoje = new Date();
+        if (hasActiveReserva || !maxDate) {
+            maxDate = hoje;
+        } else {
+            // Sempre considerar até hoje se a última DataFim for anterior
+            if (maxDate < hoje) maxDate = hoje;
+        }
+        
+        // Garantir que minDate existe
+        if (!minDate) minDate = new Date(maxDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        
+        minDate.setHours(0, 0, 0, 0);
+        maxDate.setHours(23, 59, 59, 999);
+        
+        return { minDate, maxDate };
+    }, [carroReservaFiltered]);
+
     const filteredReservas = useMemo(() => {
         const motivos = getFilterValues('reserva_motivo');
         const clientes = getFilterValues('reserva_cliente');
+        const modelosSel = getFilterValues('reserva_modelo');
         const statuses = getFilterValues('reserva_status');
         const search = (getFilterValues('reserva_search') || [])[0] || '';
+        
+        // Filtrar pelo período do slider
+        if (!reservaDateBounds) return [];
+        const { minDate, maxDate } = reservaDateBounds;
+        const totalMs = maxDate.getTime() - minDate.getTime();
+        const dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
+        const dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
+        dataInicio.setHours(0, 0, 0, 0);
+        dataFim.setHours(23, 59, 59, 999);
+        
         return carroReservaFiltered.filter(r => {
+            // Filtro de período
+            if (r.DataInicio) {
+                const di = new Date(r.DataInicio);
+                const df = r.DataFim ? new Date(r.DataFim) : new Date();
+                // Incluir se há sobreposição com o período selecionado
+                if (!(di <= dataFim && df >= dataInicio)) return false;
+            }
+            
+            if (modelosSel.length > 0 && !modelosSel.includes(r.ModeloReserva)) return false;
             if (motivos.length > 0 && !motivos.includes(r.Motivo)) return false;
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
@@ -1025,7 +1088,7 @@ export default function FleetDashboard(): JSX.Element {
             }
             return true;
         });
-    }, [carroReservaFiltered, filters, getFilterValues]);
+    }, [carroReservaFiltered, filters, getFilterValues, sliderRange, reservaDateBounds]);
 
   const reservaKPIs = useMemo(() => {
     const total = filteredReservas.length;
@@ -1052,55 +1115,64 @@ export default function FleetDashboard(): JSX.Element {
       return sum + dias;
     }, 0) / ativasComData.length : 0;
     
-    // Gráfico mês a mês
-    const monthMap: Record<string, number> = {};
+    // Gráfico hierárquico com comparação YoY
+    const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> mês -> dia -> count
+    const yearTotals: Record<string, number> = {};
+    
     filteredReservas.forEach(r => {
       if (r.DataCriacao) {
         const date = new Date(r.DataCriacao);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        monthMap[key] = (monthMap[key] || 0) + 1;
+        const year = date.getFullYear().toString();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        if (!yearMap[year]) yearMap[year] = {};
+        if (!yearMap[year][month]) yearMap[year][month] = {};
+        if (!yearMap[year][month][day]) yearMap[year][month][day] = 0;
+        yearMap[year][month][day]++;
+        yearTotals[year] = (yearTotals[year] || 0) + 1;
       }
     });
-    const monthlyData = Object.entries(monthMap)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, value]) => {
-        const [year, m] = month.split('-');
-        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        return { name: `${monthNames[parseInt(m) - 1]}/${year}`, value, fullKey: month };
+    
+    const monthlyData = Object.entries(yearMap)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([year, months]) => {
+        const yearTotal = yearTotals[year] || 0;
+        const prevYear = (parseInt(year) - 1).toString();
+        const prevYearTotal = yearTotals[prevYear] || 0;
+        const yoyChange = prevYearTotal > 0 ? ((yearTotal - prevYearTotal) / prevYearTotal) * 100 : 0;
+        
+        return {
+          year,
+          yearTotal,
+          prevYearTotal,
+          yoyChange,
+          months: Object.entries(months)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([month, days]) => {
+              const monthTotal = Object.values(days).reduce((sum, val) => sum + val, 0);
+              const prevYearMonth = yearMap[prevYear]?.[month];
+              const prevMonthTotal = prevYearMonth ? Object.values(prevYearMonth).reduce((sum, val) => sum + val, 0) : 0;
+              const monthYoyChange = prevMonthTotal > 0 ? ((monthTotal - prevMonthTotal) / prevMonthTotal) * 100 : 0;
+              
+              return {
+                month,
+                monthTotal,
+                prevMonthTotal,
+                monthYoyChange,
+                days: Object.entries(days)
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([day, count]) => ({
+                    day,
+                    count
+                  }))
+              };
+            })
+        };
       });
     
     return { total, ativas, principalMotivo: principalMotivo?.[0] || 'N/A', motivoData, clienteData, statusData, tempoMedio, monthlyData };
   }, [filteredReservas]);
-
-    // Calcular min/max dates do histórico de reservas
-    const reservaDateBounds = useMemo(() => {
-        if (carroReservaFiltered.length === 0) return null;
-        
-        let minDate: Date | null = null;
-        let maxDate: Date | null = null;
-        
-        carroReservaFiltered.forEach(r => {
-            if (r.DataInicio) {
-                const di = new Date(r.DataInicio);
-                if (!minDate || di < minDate) minDate = di;
-            }
-            if (r.DataFim) {
-                const df = new Date(r.DataFim);
-                if (!maxDate || df > maxDate) maxDate = df;
-            }
-        });
-        
-        // Se não há DataFim, usar hoje como max
-        if (!maxDate) maxDate = new Date();
-        
-        // Garantir que minDate existe
-        if (!minDate) minDate = new Date(maxDate.getTime() - 365 * 24 * 60 * 60 * 1000);
-        
-        minDate.setHours(0, 0, 0, 0);
-        maxDate.setHours(23, 59, 59, 999);
-        
-        return { minDate, maxDate };
-    }, [carroReservaFiltered]);
     
     // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider)
     const ocupacaoSimultaneaData = useMemo(() => {
@@ -1153,6 +1225,52 @@ export default function FleetDashboard(): JSX.Element {
         
         return ocupacaoPorDia;
     }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
+
+    // Novos agregados solicitados:
+    // - Diárias por Local (Cidade/UF)
+    // - Contagem por TipoVeiculoTemporario
+    // - Estrutura Cliente -> Contratos com soma de diárias (para o gráfico colapsável)
+    const diariasByLocation = useMemo(() => {
+        const map: Record<string, number> = {};
+        (filteredReservas || []).forEach(r => {
+            const city = (r.Cidade || 'Não Identificado').trim();
+            const uf = (r.Estado || '').trim();
+            const key = uf ? `${city} / ${uf}` : city;
+            const diarias = Number(r.DiariasEfetivas ?? r.Diarias ?? 0) || 0;
+            map[key] = (map[key] || 0) + diarias;
+        });
+        return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    }, [filteredReservas]);
+
+    const tipoVeiculoCounts = useMemo(() => {
+        const map: Record<string, number> = {};
+        (filteredReservas || []).forEach(r => {
+            const t = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
+            map[t] = (map[t] || 0) + 1;
+        });
+        return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    }, [filteredReservas]);
+
+    const clienteContracts = useMemo(() => {
+        const map: Record<string, { totalDiarias: number; contracts: Record<string, { diarias: number; ocorrencias: number }> }> = {};
+        (filteredReservas || []).forEach(r => {
+            const cliente = String(r.Cliente || 'Não Definido');
+            const contrato = String(r.ContratoLocacao || r.ContratoComercial || r.IdContratoLocacao || 'Sem Contrato');
+            const diarias = Number(r.DiariasEfetivas ?? r.Diarias ?? 0) || 0;
+            if (!map[cliente]) map[cliente] = { totalDiarias: 0, contracts: {} };
+            map[cliente].totalDiarias += diarias;
+            if (!map[cliente].contracts[contrato]) map[cliente].contracts[contrato] = { diarias: 0, ocorrencias: 0 };
+            map[cliente].contracts[contrato].diarias += diarias;
+            map[cliente].contracts[contrato].ocorrencias += 1;
+        });
+        // Convert to array
+        return Object.entries(map).map(([cliente, data]) => ({ cliente, totalDiarias: data.totalDiarias, contracts: Object.entries(data.contracts).map(([cn, cd]) => ({ contrato: cn, diarias: cd.diarias, ocorrencias: cd.ocorrencias })).sort((a,b) => b.diarias - a.diarias) })).sort((a,b) => b.totalDiarias - a.totalDiarias);
+    }, [filteredReservas]);
+
+    const diariasByCliente = useMemo(() => {
+        return clienteContracts.map(c => ({ name: c.cliente, value: c.totalDiarias }));
+    }, [clienteContracts]);
+    
     
     // Distribuição por modelo dos veículos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
     // Filtra automaticamente pelo período do slider
@@ -1266,6 +1384,7 @@ export default function FleetDashboard(): JSX.Element {
     }, [tableData]);
 
     const patioPageItems = patioItems.slice(patioPage * pageSize, (patioPage + 1) * pageSize);
+    void patioPageItems;
 
   const exportToExcel = (data: any[], filename: string) => {
         try {
@@ -1318,16 +1437,6 @@ export default function FleetDashboard(): JSX.Element {
             <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={getFilterValues('filial')} onChange={(v) => setFilterValues('filial', v)} />
             <MultiSelect label="Cliente" options={uniqueOptions.clientes} selected={getFilterValues('cliente')} onChange={(v) => setFilterValues('cliente', v)} />
             <MultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={getFilterValues('tipoLocacao')} onChange={(v) => setFilterValues('tipoLocacao', v)} />
-            <div>
-                <Text className="text-xs text-slate-500 mb-1">Busca (Placa)</Text>
-                <div className="relative">
-                    <Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400"/>
-                    <input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Placa ou Modelo" value={(getFilterValues('search') || [])[0] || ''} onChange={e => setFilterValues('search', [e.target.value])}/>
-                </div>
-            </div>
-        </div>
-        <div className="flex gap-2 mt-4 flex-wrap">
-            {/* ChartFilterBadges shows active filters */}
         </div>
       </Card>
 
@@ -2179,28 +2288,297 @@ export default function FleetDashboard(): JSX.Element {
                 </Card>
             </div>
 
-            {/* Gráficos */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card>
-                    <Title>Evolução Mensal de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <div className="h-64 mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={reservaKPIs.monthlyData} margin={{ left: 0, right: 40, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" tick={{ fontSize: 11 }} height={60} interval={0} />
-                                <YAxis tick={{ fontSize: 12 }} />
-                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" fill="#3b82f6" radius={[6,6,0,0]} barSize={24}>
-                                    <LabelList dataKey="value" position="top" fontSize={10} fill="#64748b" />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+            {/* 1) Ocupação simultânea diária - destaque em largura total */}
+            <Card className="mt-4">
+                <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <Title>Ocupação Simultânea Diária</Title>
+                        <div className="group relative">
+                            <Info size={16} className="text-slate-400 hover:text-blue-600 cursor-help transition-colors" />
+                            <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
+                                <p className="font-semibold mb-2">📊 Como funciona este gráfico:</p>
+                                <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
+                                <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
+                                <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio ≤ dia E (DataFim ≥ dia OU DataFim = null)</p>
+                                <p><strong>💡 Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
+                                <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
+                            </div>
+                        </div>
                     </div>
-                </Card>
+                </div>
 
-                <Card>
-                    <Title>Ocorrências por Motivo <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <div className="h-64 mt-2">
+                {reservaDateBounds && (
+                    <div className="mb-4 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                            <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
+                            <div className="flex gap-2">
+                                <button onClick={() => setSliderRange({startPercent: 90, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
+                                <button onClick={() => setSliderRange({startPercent: 75, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
+                                <button onClick={() => setSliderRange({startPercent: 50, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
+                                <button onClick={() => setSliderRange({startPercent: 0, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo período</button>
+                            </div>
+                        </div>
+
+                        <div className="relative pt-1">
+                            <div className="flex items-center gap-3">
+                                <Text className="text-xs text-slate-500 min-w-[80px]">
+                                    {new Date(reservaDateBounds!.minDate.getTime() + ((reservaDateBounds!.maxDate.getTime() - reservaDateBounds!.minDate.getTime()) * sliderRange.startPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'})}
+                                </Text>
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={sliderRange.startPercent}
+                                        onChange={(e) => {
+                                            const newStart = Number(e.target.value);
+                                            if (newStart < sliderRange.endPercent) {
+                                                setSliderRange(prev => ({...prev, startPercent: newStart}));
+                                            }
+                                        }}
+                                        className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer z-20"
+                                        style={{
+                                            background: 'transparent',
+                                            WebkitAppearance: 'none',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={sliderRange.endPercent}
+                                        onChange={(e) => {
+                                            const newEnd = Number(e.target.value);
+                                            if (newEnd > sliderRange.startPercent) {
+                                                setSliderRange(prev => ({...prev, endPercent: newEnd}));
+                                            }
+                                        }}
+                                        className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer z-10"
+                                        style={{
+                                            background: 'transparent',
+                                            WebkitAppearance: 'none',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                    <div className="relative h-2 bg-slate-200 rounded-full">
+                                        <div
+                                            className="absolute h-2 bg-cyan-500 rounded-full"
+                                            style={{
+                                                left: `${sliderRange.startPercent}%`,
+                                                width: `${sliderRange.endPercent - sliderRange.startPercent}%`
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+                                <Text className="text-xs text-slate-500 min-w-[80px] text-right">
+                                    {new Date(reservaDateBounds!.minDate.getTime() + ((reservaDateBounds!.maxDate.getTime() - reservaDateBounds!.minDate.getTime()) * sliderRange.endPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'})}
+                                </Text>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia</Text>
+                <div className="h-80 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={ocupacaoSimultaneaData} margin={{ left: 10, right: 30, top: 10, bottom: 20 }}>
+                            <defs>
+                                <linearGradient id="colorOcupacao" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis
+                                dataKey="date"
+                                tick={{ fontSize: 10 }}
+                                tickFormatter={(value) => {
+                                    const date = new Date(value);
+                                    return `${date.getDate()}/${date.getMonth() + 1}`;
+                                }}
+                                interval={Math.floor(ocupacaoSimultaneaData.length / 12)}
+                            />
+                            <YAxis tick={{ fontSize: 12 }} label={{ value: 'Veículos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
+                            <Tooltip
+                                formatter={(value: any) => [value, 'Veículos em Uso']}
+                                labelFormatter={(label) => {
+                                    const date = new Date(label);
+                                    return date.toLocaleDateString('pt-BR');
+                                }}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="count"
+                                stroke="#06b6d4"
+                                strokeWidth={2}
+                                fillOpacity={1}
+                                fill="url(#colorOcupacao)"
+                                dot={false}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            </Card>
+
+            {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
+            <Card className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique no ano/mês para expandir)</span></Title>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => {
+                                const allYears = reservaKPIs.monthlyData.map(y => y.year);
+                                setExpandedYears(expandedYears.length === allYears.length ? [] : allYears);
+                                setExpandedMonths([]);
+                            }}
+                            className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600 transition-colors"
+                        >
+                            {expandedYears.length === reservaKPIs.monthlyData.length ? '− Colapsar Tudo' : '+ Expandir Tudo'}
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="space-y-2">
+                    {reservaKPIs.monthlyData.map(yearData => {
+                        const isYearExpanded = expandedYears.includes(yearData.year);
+                        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                        
+                        return (
+                            <div key={yearData.year} className="border border-slate-200 rounded-lg overflow-hidden">
+                                {/* Linha do Ano */}
+                                <div 
+                                    onClick={() => {
+                                        setExpandedYears(prev => 
+                                            prev.includes(yearData.year) 
+                                                ? prev.filter(y => y !== yearData.year)
+                                                : [...prev, yearData.year]
+                                        );
+                                    }}
+                                    className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-lg font-bold text-blue-700">
+                                            {isYearExpanded ? '▼' : '▶'} {yearData.year}
+                                        </span>
+                                        <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorrências</Badge>
+                                        {yearData.prevYearTotal > 0 && (
+                                            <span className={`text-xs font-medium ${yearData.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {yearData.yoyChange >= 0 ? '▲' : '▼'} {Math.abs(yearData.yoyChange).toFixed(1)}% vs {parseInt(yearData.year) - 1}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="w-48 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, (yearData.yearTotal / Math.max(...reservaKPIs.monthlyData.map(y => y.yearTotal))) * 100)}%` }}></div>
+                                    </div>
+                                </div>
+                                
+                                {/* Meses do Ano (se expandido) */}
+                                {isYearExpanded && (
+                                    <div className="bg-white">
+                                        {yearData.months.map(monthData => {
+                                            const monthKey = `${yearData.year}-${monthData.month}`;
+                                            const isMonthExpanded = expandedMonths.includes(monthKey);
+                                            
+                                            return (
+                                                <div key={monthKey} className="border-t border-slate-100">
+                                                    {/* Linha do Mês */}
+                                                    <div 
+                                                        onClick={() => {
+                                                            setExpandedMonths(prev => 
+                                                                prev.includes(monthKey)
+                                                                    ? prev.filter(m => m !== monthKey)
+                                                                    : [...prev, monthKey]
+                                                            );
+                                                        }}
+                                                        className="flex items-center justify-between p-2 pl-8 hover:bg-slate-50 cursor-pointer transition-colors"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-medium text-slate-700">
+                                                                {isMonthExpanded ? '▼' : '▶'} {monthNames[parseInt(monthData.month) - 1]}
+                                                            </span>
+                                                            <Badge size="xs" className="bg-slate-600 text-white">{monthData.monthTotal}</Badge>
+                                                            {monthData.prevMonthTotal > 0 && (
+                                                                <span className={`text-xs ${monthData.monthYoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                    {monthData.monthYoyChange >= 0 ? '▲' : '▼'} {Math.abs(monthData.monthYoyChange).toFixed(0)}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-slate-600 rounded-full" style={{ width: `${Math.min(100, (monthData.monthTotal / yearData.yearTotal) * 100)}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Dias do Mês (se expandido) */}
+                                                    {isMonthExpanded && (
+                                                        <div className="bg-slate-50 px-4 py-2">
+                                                            <div className="grid grid-cols-7 gap-1">
+                                                                {monthData.days.map(dayData => (
+                                                                    <div key={dayData.day} className="text-center p-1 bg-white rounded border border-slate-200">
+                                                                        <div className="text-xs font-medium text-slate-500">Dia {parseInt(dayData.day)}</div>
+                                                                        <div className="text-sm font-bold text-blue-600">{dayData.count}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </Card>
+
+            {/* 3) Abas para Motivo / Status / Tipo Veículo / Modelo / Cliente / Local */}
+            <Card className="mt-4">
+                <div className="flex items-center justify-between mb-3">
+                    <Title>Resumo Analítico de Carro Reserva</Title>
+                    <div className="flex gap-2 flex-wrap">
+                        <button
+                            onClick={() => setSelectedResumoChart('motivo')}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'motivo' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            Motivo
+                        </button>
+                        <button
+                            onClick={() => setSelectedResumoChart('status')}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'status' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            Status
+                        </button>
+                        <button
+                            onClick={() => setSelectedResumoChart('tipo')}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'tipo' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            Tipo Veículo
+                        </button>
+                        <button
+                            onClick={() => setSelectedResumoChart('modelo')}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'modelo' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            Modelo
+                        </button>
+                        <button
+                            onClick={() => setSelectedResumoChart('cliente')}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'cliente' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            Diárias por Cliente
+                        </button>
+                        <button
+                            onClick={() => setSelectedResumoChart('local')}
+                            className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'local' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            Diárias por Local
+                        </button>
+                    </div>
+                </div>
+
+                <div className="h-72 mt-1">
+                    {selectedResumoChart === 'motivo' && (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={reservaKPIs.motivoData} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
@@ -2212,32 +2590,9 @@ export default function FleetDashboard(): JSX.Element {
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
-                    </div>
-                </Card>
-            </div>
+                    )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card>
-                    <Title>Ocorrências por Cliente <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <Text className="text-xs text-slate-500 mb-2">Todos os clientes com ocorrências</Text>
-                    <div className="h-80 mt-2 overflow-y-auto pr-2">
-                        <ResponsiveContainer width="100%" height={Math.max(360, reservaKPIs.clienteData.length * 28)}>
-                            <BarChart data={reservaKPIs.clienteData} layout="vertical" margin={{ left: 0, right: 80 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                                <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
-                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-
-                <Card>
-                    <Title>Status das Ocorrências <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                    <div className="h-80 mt-2">
+                    {selectedResumoChart === 'status' && (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={reservaKPIs.statusData} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
@@ -2249,173 +2604,67 @@ export default function FleetDashboard(): JSX.Element {
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
-                    </div>
-                </Card>
-            </div>
-
-            {/* NOVO: Gráfico de Ocupação Simultânea Diária */}
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
-                <Card>
-                    <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <Title>Ocupação Simultânea Diária</Title>
-                            <div className="group relative">
-                                <Info size={16} className="text-slate-400 hover:text-blue-600 cursor-help transition-colors" />
-                                <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
-                                    <p className="font-semibold mb-2">📊 Como funciona este gráfico:</p>
-                                    <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
-                                    <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
-                                    <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio ≤ dia E (DataFim ≥ dia OU DataFim = null)</p>
-                                    <p><strong>💡 Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
-                                    <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* Slider de Período */}
-                    {reservaDateBounds && (
-                        <div className="mb-4 px-2">
-                            <div className="flex items-center justify-between mb-2">
-                                <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setSliderRange({startPercent: 90, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
-                                    <button onClick={() => setSliderRange({startPercent: 75, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
-                                    <button onClick={() => setSliderRange({startPercent: 50, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
-                                    <button onClick={() => setSliderRange({startPercent: 0, endPercent: 100})} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo período</button>
-                                </div>
-                            </div>
-                            
-                            <div className="relative pt-1">
-                                <div className="flex items-center gap-3">
-                                    <Text className="text-xs text-slate-500 min-w-[80px]">
-                                        {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.startPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'})}
-                                    </Text>
-                                    <div className="flex-1 relative">
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="100" 
-                                            value={sliderRange.startPercent}
-                                            onChange={(e) => {
-                                                const newStart = Number(e.target.value);
-                                                if (newStart < sliderRange.endPercent) {
-                                                    setSliderRange(prev => ({...prev, startPercent: newStart}));
-                                                }
-                                            }}
-                                            className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer z-20"
-                                            style={{
-                                                background: 'transparent',
-                                                WebkitAppearance: 'none',
-                                                outline: 'none'
-                                            }}
-                                        />
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="100" 
-                                            value={sliderRange.endPercent}
-                                            onChange={(e) => {
-                                                const newEnd = Number(e.target.value);
-                                                if (newEnd > sliderRange.startPercent) {
-                                                    setSliderRange(prev => ({...prev, endPercent: newEnd}));
-                                                }
-                                            }}
-                                            className="absolute w-full h-2 bg-transparent appearance-none cursor-pointer z-10"
-                                            style={{
-                                                background: 'transparent',
-                                                WebkitAppearance: 'none',
-                                                outline: 'none'
-                                            }}
-                                        />
-                                        <div className="relative h-2 bg-slate-200 rounded-full">
-                                            <div 
-                                                className="absolute h-2 bg-cyan-500 rounded-full"
-                                                style={{
-                                                    left: `${sliderRange.startPercent}%`,
-                                                    width: `${sliderRange.endPercent - sliderRange.startPercent}%`
-                                                }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                    <Text className="text-xs text-slate-500 min-w-[80px] text-right">
-                                        {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.endPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'})}
-                                    </Text>
-                                </div>
-                            </div>
-                        </div>
                     )}
-                    
-                    <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia</Text>
-                    <div className="h-80 mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={ocupacaoSimultaneaData} margin={{ left: 10, right: 30, top: 10, bottom: 20 }}>
-                                <defs>
-                                    <linearGradient id="colorOcupacao" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                                <XAxis 
-                                    dataKey="date" 
-                                    tick={{ fontSize: 10 }} 
-                                    tickFormatter={(value) => {
-                                        const date = new Date(value);
-                                        return `${date.getDate()}/${date.getMonth() + 1}`;
-                                    }}
-                                    interval={Math.floor(ocupacaoSimultaneaData.length / 12)}
-                                />
-                                <YAxis tick={{ fontSize: 12 }} label={{ value: 'Veículos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
-                                <Tooltip 
-                                    formatter={(value: any) => [value, 'Veículos em Uso']}
-                                    labelFormatter={(label) => {
-                                        const date = new Date(label);
-                                        return date.toLocaleDateString('pt-BR');
-                                    }}
-                                />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="count" 
-                                    stroke="#06b6d4" 
-                                    strokeWidth={2}
-                                    fillOpacity={1} 
-                                    fill="url(#colorOcupacao)"
-                                    dot={false}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-                <Card id="modelos-chart">
-                    <div className="flex items-center justify-between mb-1">
-                        <Title>Modelos dos Veículos Reserva <span className="text-xs text-slate-500 font-normal">(clique | Ctrl+clique: múltiplo)</span></Title>
-                        {(sliderRange.startPercent > 0 || sliderRange.endPercent < 100) && reservaDateBounds && (
-                            <Badge color="cyan" className="text-xs">
-                                📅 Período: {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.startPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})} - {new Date(reservaDateBounds.minDate.getTime() + ((reservaDateBounds.maxDate.getTime() - reservaDateBounds.minDate.getTime()) * sliderRange.endPercent / 100)).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
-                            </Badge>
-                        )}
-                    </div>
-                    <Text className="text-xs text-slate-500 mb-2">{(sliderRange.startPercent > 0 || sliderRange.endPercent < 100) ? 'Modelos usados no período selecionado pelo slider' : 'Top modelos de veículos mais demandados como reserva (histórico completo)'}</Text>
-                    <div className="h-96 mt-2 overflow-y-auto pr-2">
-                        <ResponsiveContainer width="100%" height={Math.max(400, reservaModelData.length * 32)}>
-                            <BarChart data={reservaModelData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                    {selectedResumoChart === 'tipo' && (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={tipoVeiculoCounts} layout="vertical" margin={{ left: 0, right: 80 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={220} tick={{fontSize:11}} />
-                                <Tooltip formatter={(value: any) => [`${value}`, 'Vezes Usado']} />
-                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#7c3aed" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_modelo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                <YAxis dataKey="name" type="category" width={180} tick={{fontSize:11}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#7c3aed" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_tipo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
-                    </div>
-                </Card>
+                    )}
+                    
+                    {selectedResumoChart === 'modelo' && (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={reservaModelData.slice(0, 10)} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={180} tick={{fontSize:11}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Vezes Usado']} />
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={16} fill="#8b5cf6" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_modelo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                    
+                    {selectedResumoChart === 'cliente' && (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={diariasByCliente.slice(0, 15)} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={200} tick={{fontSize:10}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={14} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                    
+                    {selectedResumoChart === 'local' && (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={diariasByLocation.slice(0, 15)} layout="vertical" margin={{ left: 0, right: 50 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={200} tick={{fontSize:10}} />
+                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
+                                <Bar dataKey="value" radius={[6,6,6,6]} barSize={14} fill="#2563eb" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_local', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </Card>
 
-            </div>
+            {/* Modelos agora acessíveis via o card de Resumo (botão 'Modelo') - card duplicado removido */}
 
             {/* Tabela de Detalhamento */}
             <Card id="reserva-table" className="p-0 overflow-hidden">
@@ -2440,7 +2689,19 @@ export default function FleetDashboard(): JSX.Element {
                                 <th className="px-6 py-3">Diárias</th>
                                 <th className="px-6 py-3">Contrato Locação</th>
                                 <th className="px-6 py-3">Cliente</th>
+                                <th className="px-6 py-3">Tipo Veículo</th>
+                                <th className="px-6 py-3">Fornecedor Reserva</th>
                                 <th className="px-6 py-3">Motivo</th>
+                                <th className="px-6 py-3">Número Reserva</th>
+                                <th className="px-6 py-3">Requisitante</th>
+                                <th className="px-6 py-3">Telefone</th>
+                                <th className="px-6 py-3">Origem</th>
+                                <th className="px-6 py-3">Local (Cidade/UF)</th>
+                                <th className="px-6 py-3">Km Inicial</th>
+                                <th className="px-6 py-3">Km Final</th>
+                                <th className="px-6 py-3">Cancelado Em</th>
+                                <th className="px-6 py-3">Motivo Cancelamento</th>
+                                <th className="px-6 py-3">Observações</th>
                                 <th className="px-6 py-3 text-center">Status</th>
                             </tr>
                         </thead>
@@ -2459,10 +2720,22 @@ export default function FleetDashboard(): JSX.Element {
                                         <td className="px-6 py-3 font-medium font-mono">{r.PlacaReserva || '-'}</td>
                                         <td className="px-6 py-3">{r.ModeloReserva || '-'}</td>
                                         <td className="px-6 py-3">{r.DataDevolucao ? new Date(r.DataDevolucao).toLocaleDateString('pt-BR') : '-'}</td>
-                                        <td className="px-6 py-3">{(r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-'}</td>
+                                        <td className="px-6 py-3">{(r.DiariasEfetivas !== undefined && r.DiariasEfetivas !== null) ? String(r.DiariasEfetivas) : ((r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-')}</td>
                                         <td className="px-6 py-3">{r.ContratoLocacao || r.NumeroContratoLocacao || r.IdContratoLocacao || '-'}</td>
                                         <td className="px-6 py-3 max-w-xs truncate">{r.Cliente || '-'}</td>
+                                        <td className="px-6 py-3">{r.TipoVeiculoTemporario || r.Tipo || '-'}</td>
+                                        <td className="px-6 py-3">{r.FornecedorReservaOriginal || r.FornecedorReserva || '-'}</td>
                                         <td className="px-6 py-3">{r.Motivo ? <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">{r.Motivo}</span> : '-'}</td>
+                                        <td className="px-6 py-3 font-mono">{r.NumeroReserva || '-'}</td>
+                                        <td className="px-6 py-3">{r.NomeRequisitante || '-'}</td>
+                                        <td className="px-6 py-3">{r.TelefoneRequisitante || '-'}</td>
+                                        <td className="px-6 py-3">{r.Origem || '-'}</td>
+                                        <td className="px-6 py-3">{(r.Cidade || '-') + (r.Estado ? ' / ' + r.Estado : '')}</td>
+                                        <td className="px-6 py-3">{r.OdometroInicial !== undefined && r.OdometroInicial !== null ? r.OdometroInicial : '-'}</td>
+                                        <td className="px-6 py-3">{r.OdometroFinal !== undefined && r.OdometroFinal !== null ? r.OdometroFinal : '-'}</td>
+                                        <td className="px-6 py-3">{r.CanceladoEm ? new Date(r.CanceladoEm).toLocaleDateString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3">{r.MotivoCancelamento || '-'}</td>
+                                        <td className="px-6 py-3 max-w-xl truncate">{r.Observacoes ? String(r.Observacoes).slice(0, 140) : '-'}</td>
                                         <td className="px-6 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${badgeColor}`}>{r.StatusOcorrencia || 'Sem status'}</span></td>
                                     </tr>
                                 );

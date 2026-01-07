@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Activity, Wrench, Target, AlertTriangle, Gauge, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Wrench, Target, AlertTriangle, Zap } from 'lucide-react';
 import { calcStateDurationsDays } from '@/lib/analytics/fleetTimeline';
 
 type AnyObject = { [k: string]: any };
