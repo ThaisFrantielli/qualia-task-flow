@@ -81,6 +81,39 @@ async function getDWLastUpdateDate(pool) {
     }
 }
 
+// Variável global para armazenar a data de atualização do DW
+let dwLastUpdate = null;
+
+/**
+ * Busca a data mais recente de atualização dos dados no DW fonte
+ */
+async function getDWLastUpdateDate(pool) {
+    try {
+        const result = await pool.request().query(`
+            SELECT MAX(DataAtualizacaoDados) as LastUpdate
+            FROM (
+                SELECT MAX(DataAtualizacaoDados) as DataAtualizacaoDados FROM Veiculos
+                UNION ALL
+                SELECT MAX(DataAtualizacaoDados) FROM Clientes
+                UNION ALL
+                SELECT MAX(DataAtualizacaoDados) FROM ContratosLocacao
+                UNION ALL
+                SELECT MAX(DataAtualizacaoDados) FROM OrdensServico
+            ) AS AllDates
+        `);
+        
+        if (result.recordset && result.recordset[0].LastUpdate) {
+            dwLastUpdate = result.recordset[0].LastUpdate;
+            console.log(`📅 Data de atualização do DW fonte: ${dwLastUpdate.toISOString()}`);
+            return dwLastUpdate;
+        }
+        return null;
+    } catch (err) {
+        console.error('❌ Erro ao buscar data de atualização do DW:', err.message);
+        return null;
+    }
+}
+
 // ==============================================================================
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
