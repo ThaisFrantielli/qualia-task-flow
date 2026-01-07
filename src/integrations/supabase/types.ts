@@ -639,6 +639,117 @@ export type Database = {
           },
         ]
       }
+      configuracoes_dashboard_manutencao: {
+        Row: {
+          alerta_custo_anomalo_ativo: boolean | null
+          alerta_custo_anomalo_multiplicador: number | null
+          alerta_etapa_travada_ativo: boolean | null
+          alerta_etapa_travada_dias: number | null
+          alerta_fornecedor_lead_time_ativo: boolean | null
+          alerta_fornecedor_lead_time_variacao_pct: number | null
+          alerta_os_atencao_ativo: boolean | null
+          alerta_os_atencao_dias: number | null
+          alerta_os_critica_ativo: boolean | null
+          alerta_os_critica_dias: number | null
+          alerta_retrabalho_ativo: boolean | null
+          alerta_retrabalho_max_pct: number | null
+          alerta_sem_movimentacao_72h_ativo: boolean | null
+          ativo: boolean | null
+          capacidade_diaria_os: number | null
+          capacidade_mensal_os: number | null
+          created_at: string | null
+          exportar_com_formatacao: boolean | null
+          fornecedor_id: number | null
+          fornecedor_nome: string | null
+          granularidade_padrao: string | null
+          id: number
+          meta_custo_km_maximo: number | null
+          meta_lead_time_agendamento_dias: number | null
+          meta_lead_time_oficina_dias: number | null
+          meta_lead_time_total_dias: number | null
+          meta_sla_cumprido_pct: number | null
+          meta_taxa_preventiva_pct: number | null
+          meta_ticket_medio: number | null
+          mostrar_canceladas: boolean | null
+          periodo_padrao: string | null
+          tipo_configuracao: string
+          updated_at: string | null
+          usuario_id: number | null
+        }
+        Insert: {
+          alerta_custo_anomalo_ativo?: boolean | null
+          alerta_custo_anomalo_multiplicador?: number | null
+          alerta_etapa_travada_ativo?: boolean | null
+          alerta_etapa_travada_dias?: number | null
+          alerta_fornecedor_lead_time_ativo?: boolean | null
+          alerta_fornecedor_lead_time_variacao_pct?: number | null
+          alerta_os_atencao_ativo?: boolean | null
+          alerta_os_atencao_dias?: number | null
+          alerta_os_critica_ativo?: boolean | null
+          alerta_os_critica_dias?: number | null
+          alerta_retrabalho_ativo?: boolean | null
+          alerta_retrabalho_max_pct?: number | null
+          alerta_sem_movimentacao_72h_ativo?: boolean | null
+          ativo?: boolean | null
+          capacidade_diaria_os?: number | null
+          capacidade_mensal_os?: number | null
+          created_at?: string | null
+          exportar_com_formatacao?: boolean | null
+          fornecedor_id?: number | null
+          fornecedor_nome?: string | null
+          granularidade_padrao?: string | null
+          id?: number
+          meta_custo_km_maximo?: number | null
+          meta_lead_time_agendamento_dias?: number | null
+          meta_lead_time_oficina_dias?: number | null
+          meta_lead_time_total_dias?: number | null
+          meta_sla_cumprido_pct?: number | null
+          meta_taxa_preventiva_pct?: number | null
+          meta_ticket_medio?: number | null
+          mostrar_canceladas?: boolean | null
+          periodo_padrao?: string | null
+          tipo_configuracao: string
+          updated_at?: string | null
+          usuario_id?: number | null
+        }
+        Update: {
+          alerta_custo_anomalo_ativo?: boolean | null
+          alerta_custo_anomalo_multiplicador?: number | null
+          alerta_etapa_travada_ativo?: boolean | null
+          alerta_etapa_travada_dias?: number | null
+          alerta_fornecedor_lead_time_ativo?: boolean | null
+          alerta_fornecedor_lead_time_variacao_pct?: number | null
+          alerta_os_atencao_ativo?: boolean | null
+          alerta_os_atencao_dias?: number | null
+          alerta_os_critica_ativo?: boolean | null
+          alerta_os_critica_dias?: number | null
+          alerta_retrabalho_ativo?: boolean | null
+          alerta_retrabalho_max_pct?: number | null
+          alerta_sem_movimentacao_72h_ativo?: boolean | null
+          ativo?: boolean | null
+          capacidade_diaria_os?: number | null
+          capacidade_mensal_os?: number | null
+          created_at?: string | null
+          exportar_com_formatacao?: boolean | null
+          fornecedor_id?: number | null
+          fornecedor_nome?: string | null
+          granularidade_padrao?: string | null
+          id?: number
+          meta_custo_km_maximo?: number | null
+          meta_lead_time_agendamento_dias?: number | null
+          meta_lead_time_oficina_dias?: number | null
+          meta_lead_time_total_dias?: number | null
+          meta_sla_cumprido_pct?: number | null
+          meta_taxa_preventiva_pct?: number | null
+          meta_ticket_medio?: number | null
+          mostrar_canceladas?: boolean | null
+          periodo_padrao?: string | null
+          tipo_configuracao?: string
+          updated_at?: string | null
+          usuario_id?: number | null
+        }
+        Relationships: []
+      }
       crm_pipelines: {
         Row: {
           created_at: string | null
@@ -4081,6 +4192,61 @@ export type Database = {
           tempo_total_resolucao: unknown
           titulo: string | null
           total_departamentos: number | null
+        }
+        Relationships: []
+      }
+      v_alertas_dashboard: {
+        Row: {
+          alerta_custo_anomalo_ativo: boolean | null
+          alerta_custo_anomalo_multiplicador: number | null
+          alerta_etapa_travada_ativo: boolean | null
+          alerta_etapa_travada_dias: number | null
+          alerta_fornecedor_lead_time_ativo: boolean | null
+          alerta_fornecedor_lead_time_variacao_pct: number | null
+          alerta_os_atencao_ativo: boolean | null
+          alerta_os_atencao_dias: number | null
+          alerta_os_critica_ativo: boolean | null
+          alerta_os_critica_dias: number | null
+          alerta_retrabalho_ativo: boolean | null
+          alerta_retrabalho_max_pct: number | null
+          alerta_sem_movimentacao_72h_ativo: boolean | null
+        }
+        Relationships: []
+      }
+      v_capacidade_fornecedores: {
+        Row: {
+          capacidade_diaria_os: number | null
+          capacidade_mensal_os: number | null
+          fornecedor_id: number | null
+          fornecedor_nome: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          capacidade_diaria_os?: number | null
+          capacidade_mensal_os?: number | null
+          fornecedor_id?: number | null
+          fornecedor_nome?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          capacidade_diaria_os?: number | null
+          capacidade_mensal_os?: number | null
+          fornecedor_id?: number | null
+          fornecedor_nome?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      v_metas_dashboard: {
+        Row: {
+          meta_custo_km_maximo: number | null
+          meta_lead_time_agendamento_dias: number | null
+          meta_lead_time_oficina_dias: number | null
+          meta_lead_time_total_dias: number | null
+          meta_sla_cumprido_pct: number | null
+          meta_taxa_preventiva_pct: number | null
+          meta_ticket_medio: number | null
+          updated_at: string | null
         }
         Relationships: []
       }
