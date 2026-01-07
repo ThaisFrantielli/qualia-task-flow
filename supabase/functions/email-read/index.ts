@@ -75,10 +75,11 @@ serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[email-read] Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro ao ler email";
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro ao ler email" }),
+      JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
