@@ -13,6 +13,7 @@ interface TimelineTabProps {
   frota: AnyObject[];
   manutencao?: AnyObject[];
   contratosLocacao?: AnyObject[];
+  sinistros?: AnyObject[];
 }
 
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
@@ -195,7 +196,7 @@ const EVENT_LABELS: Record<string, string> = {
   MOVIMENTACAO: 'MOVIMENTAÇÃO',
 };
 
-export default function TimelineTab({ timeline, filteredData, frota, manutencao, contratosLocacao }: TimelineTabProps) {
+export default function TimelineTab({ timeline, filteredData, frota, manutencao, contratosLocacao, sinistros }: TimelineTabProps) {
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
@@ -204,6 +205,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
   // Auto-expandir primeiro veículo
   const [autoExpanded, setAutoExpanded] = useState(false);
+
+  // Criar mapa de sinistros por placa para enriquecimento rápido
+  const sinistrosByPlaca = useMemo(() => {
+    const map: Record<string, AnyObject[]> = {};
+    if (!Array.isArray(sinistros)) return map;
+    for (const s of sinistros) {
+      const placa = s?.Placa;
+      if (!placa) continue;
+      if (!map[placa]) map[placa] = [];
+      map[placa].push(s);
+    }
+    return map;
+  }, [sinistros]);
 
   const contratosByPlaca = useMemo(() => {
     const map: Record<string, AnyObject[]> = {};
@@ -400,32 +414,61 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return { totalVehicles, totalEvents, avgEvents, avgUtilization, eventTypes };
   }, [timelineGrouped, timeline]);
 
-  // Gráfico de eventos por mês
-  const eventsByMonth = useMemo(() => {
-    const months: Record<string, number> = {};
-    timeline.forEach(e => {
-      const date = new Date(e.DataEvento || e.Data);
-      if (isNaN(date.getTime())) return;
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      months[key] = (months[key] || 0) + 1;
-    });
-    
-    return Object.entries(months)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-12)
-      .map(([month, count]) => ({
-        month: new Date(month + '-01').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        eventos: count
-      }));
-  }, [timeline]);
+  // Gráfico 1: Veículos por faixa de dias locados
+  const vehiclesByRentalDays = useMemo(() => {
+    const ranges = [
+      { name: '0-30 dias', min: 0, max: 30, count: 0, color: '#ef4444' },
+      { name: '31-90 dias', min: 31, max: 90, count: 0, color: '#f59e0b' },
+      { name: '91-180 dias', min: 91, max: 180, count: 0, color: '#eab308' },
+      { name: '181-365 dias', min: 181, max: 365, count: 0, color: '#3b82f6' },
+      { name: '> 365 dias', min: 366, max: Infinity, count: 0, color: '#10b981' }
+    ];
 
-  // Distribuição de eventos
-  const eventDistribution = useMemo(() => {
-    return Object.entries(kpis.eventTypes)
-      .map(([name, value]) => ({ name, value, color: EVENT_COLORS[name] || EVENT_COLORS.default }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [kpis.eventTypes]);
+    timelineGrouped.forEach(v => {
+      const days = v.locacaoDays;
+      const range = ranges.find(r => days >= r.min && days <= r.max);
+      if (range) range.count++;
+    });
+
+    return ranges.filter(r => r.count > 0);
+  }, [timelineGrouped]);
+
+  // Gráfico 2: Veículos por faixa de dias de manutenção
+  const vehiclesByMaintenanceDays = useMemo(() => {
+    const ranges = [
+      { name: '0 dias', min: 0, max: 0, count: 0, color: '#10b981' },
+      { name: '1-7 dias', min: 1, max: 7, count: 0, color: '#3b82f6' },
+      { name: '8-15 dias', min: 8, max: 15, count: 0, color: '#eab308' },
+      { name: '16-30 dias', min: 16, max: 30, count: 0, color: '#f59e0b' },
+      { name: '> 30 dias', min: 31, max: Infinity, count: 0, color: '#ef4444' }
+    ];
+
+    timelineGrouped.forEach(v => {
+      const days = v.manutencaoDays;
+      const range = ranges.find(r => days >= r.min && days <= r.max);
+      if (range) range.count++;
+    });
+
+    return ranges.filter(r => r.count > 0);
+  }, [timelineGrouped]);
+
+  // Gráfico 3: Veículos por faixa de utilização
+  const vehiclesByUtilization = useMemo(() => {
+    const ranges = [
+      { name: '< 40% (Crítico)', min: 0, max: 39.99, count: 0, color: '#ef4444' },
+      { name: '40-59% (Regular)', min: 40, max: 59.99, count: 0, color: '#f59e0b' },
+      { name: '60-79% (Bom)', min: 60, max: 79.99, count: 0, color: '#3b82f6' },
+      { name: '≥ 80% (Excelente)', min: 80, max: 100, count: 0, color: '#10b981' }
+    ];
+
+    timelineGrouped.forEach(v => {
+      const util = v.utilization;
+      const range = ranges.find(r => util >= r.min && util <= r.max);
+      if (range) range.count++;
+    });
+
+    return ranges.filter(r => r.count > 0);
+  }, [timelineGrouped]);
 
   const togglePlate = (placa: string) => {
     const isCurrentlyExpanded = expandedPlates.has(placa);
@@ -561,7 +604,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-white">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
@@ -597,72 +640,79 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
             </div>
           </div>
         </Card>
-
-        <Card className="bg-gradient-to-br from-amber-50 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-amber-600" />
-            </div>
-            <div>
-              <Text className="text-slate-500 text-xs">Utilização Média</Text>
-              <Metric className="text-amber-600">{kpis.avgUtilization.toFixed(1)}%</Metric>
-            </div>
-          </div>
-        </Card>
       </div>
 
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Eventos por mês */}
+      {/* Gráficos - Novos gráficos de faixas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Veículos por faixa de dias locados */}
         <Card className="shadow-lg">
           <Title className="flex items-center gap-2 mb-4">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            Eventos por Mês
+            <Car className="w-5 h-5 text-emerald-600" />
+            Veículos por Dias Locados
           </Title>
-          <div className="h-64">
+          <Text className="text-xs text-slate-500 mb-2">Distribuição por faixa de dias em locação</Text>
+          <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={eventsByMonth} margin={{ left: 0, right: 10, top: 10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorEventos" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value: number) => [value, 'Eventos']} />
-                <Area 
-                  type="monotone" 
-                  dataKey="eventos" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorEventos)"
-                />
-              </AreaChart>
+              <BarChart data={vehiclesByRentalDays} layout="vertical" margin={{ left: 10, right: 50 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
+                  {vehiclesByRentalDays.map((entry, index) => (
+                    <Cell key={`rental-${index}`} fill={entry.color} />
+                  ))}
+                  <LabelList dataKey="count" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={11} fill="#1e293b" />
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* Distribuição de tipos */}
+        {/* Veículos por faixa de dias de manutenção */}
         <Card className="shadow-lg">
           <Title className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5 text-purple-600" />
-            Tipos de Evento
+            <Wrench className="w-5 h-5 text-amber-600" />
+            Veículos por Dias de Manutenção
           </Title>
-          <div className="h-64">
+          <Text className="text-xs text-slate-500 mb-2">Distribuição por faixa de dias em oficina</Text>
+          <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={eventDistribution} layout="vertical" margin={{ left: 10, right: 50 }}>
+              <BarChart data={vehiclesByMaintenanceDays} layout="vertical" margin={{ left: 10, right: 50 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
+                  {vehiclesByMaintenanceDays.map((entry, index) => (
+                    <Cell key={`maint-${index}`} fill={entry.color} />
+                  ))}
+                  <LabelList dataKey="count" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={11} fill="#1e293b" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* Veículos por faixa de utilização */}
+        <Card className="shadow-lg">
+          <Title className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            Veículos por Faixa de Utilização
+          </Title>
+          <Text className="text-xs text-slate-500 mb-2">Distribuição por % de utilização</Text>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={vehiclesByUtilization} layout="vertical" margin={{ left: 10, right: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Ocorrências']} />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
-                  {eventDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
+                  {vehiclesByUtilization.map((entry, index) => (
+                    <Cell key={`util-${index}`} fill={entry.color} />
                   ))}
-                  <LabelList dataKey="value" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={10} />
+                  <LabelList dataKey="count" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={11} fill="#1e293b" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1092,9 +1142,10 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             const label = row.count > 1 ? `${labelBase} (${row.count})` : labelBase;
                             const topItem = row.items[0];
                             
-                            // Melhorar busca de descrição
+                            // Melhorar busca de descrição - garantir fallback
                             const topDetail = topItem?.Detalhe1 || topItem?.Descricao || topItem?.DescricaoEvento || 
-                                            topItem?.Observacao || topItem?.TipoEvento || topItem?.Evento || tipo;
+                                            topItem?.Observacao || topItem?.TipoEvento || topItem?.Evento || 
+                                            `${labelBase} registrado em ${formattedDate}`;
 
                             const isExpandable = true; // Sempre permitir expandir para ver detalhes
 
@@ -1127,30 +1178,67 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                   <div className="mt-2 ml-3 space-y-2 border-l-2 border-blue-200 pl-3">
                                     {row.items.slice(0, 10).map((it, i) => {
                                         const dd = parseDateAny(it.DataEvento || it.Data);
-                                        const detail = it.Detalhe1 || it.Descricao || it.DescricaoInfracao || it.Detalhe2 || it.DescricaoEvento || it.Observacao || it.TipoEvento || tipo;
+                                        // Melhorar busca de descrição com fallback garantido
+                                        const detail = it.Detalhe1 || it.Descricao || it.DescricaoInfracao || 
+                                                      it.Detalhe2 || it.DescricaoEvento || it.Observacao || 
+                                                      it.TipoEvento || tipo || `Evento ${i + 1}`;
 
                                         const contrato = (tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO' || tipoNorm === 'SINISTRO')
                                           ? resolveContratoFor(placa, dd)
                                           : null;
+                                        
+                                        // Para SINISTRO, buscar dados adicionais no fat_sinistros
+                                        const sinistroData = tipoNorm === 'SINISTRO' ? (() => {
+                                          const sinistrosPlaca = sinistrosByPlaca[placa] ?? [];
+                                          if (sinistrosPlaca.length === 0) return null;
+                                          // Tentar encontrar sinistro pela data ou ID de ocorrência
+                                          const idOcorrencia = it?.IdOcorrencia ?? it?.NumeroOcorrencia ?? it?.Ocorrencia;
+                                          if (idOcorrencia) {
+                                            const found = sinistrosPlaca.find(s => 
+                                              String(s?.IdOcorrencia ?? s?.NumeroOcorrencia ?? s?.Ocorrencia ?? '') === String(idOcorrencia)
+                                            );
+                                            if (found) return found;
+                                          }
+                                          // Fallback: buscar por proximidade de data
+                                          if (dd) {
+                                            const ddTime = dd.getTime();
+                                            const closest = sinistrosPlaca
+                                              .map(s => ({
+                                                s,
+                                                dt: parseDateAny(s?.DataOcorrencia ?? s?.DataSinistro ?? s?.Data),
+                                              }))
+                                              .filter(x => x.dt != null)
+                                              .map(x => ({
+                                                s: x.s,
+                                                diff: Math.abs((x.dt as Date).getTime() - ddTime),
+                                              }))
+                                              .sort((a, b) => a.diff - b.diff)[0];
+                                            if (closest && closest.diff < 7 * 24 * 60 * 60 * 1000) { // 7 dias de tolerância
+                                              return closest.s;
+                                            }
+                                          }
+                                          return sinistrosPlaca[0]; // Fallback para o primeiro
+                                        })() : null;
 
-                                        // Contrato Comercial e Locação
+                                        // Contrato Comercial e Locação (priorizando dim_contratos_locacao)
                                         const contratoComercial = String(
-                                          it?.NumeroContratoComercial ?? it?.ContratoComercial ?? it?.ContratoCorporativo ?? 
-                                          contrato?.NumeroContratoComercial ?? contrato?.ContratoComercial ?? ''
+                                          contrato?.NumeroContratoComercial ?? contrato?.ContratoComercial ?? contrato?.ContratoCorporativo ?? contrato?.NumeroContrato ??
+                                          it?.NumeroContratoComercial ?? it?.ContratoComercial ?? it?.ContratoCorporativo ?? ''
                                         ).trim();
                                         
                                         const contratoLocacao = String(
-                                          it?.NumeroContratoLocacao ?? it?.ContratoLocacao ?? it?.NumeroContrato ?? it?.numero_contrato ?? it?.Contrato ?? it?.IdContratoLocacao ?? it?.id_contrato_locacao ??
-                                          contrato?.NumeroContratoLocacao ?? contrato?.NumeroContrato ?? contrato?.ContratoLocacao ?? contrato?.IdContratoLocacao ?? ''
+                                          contrato?.NumeroContratoLocacao ?? contrato?.ContratoLocacao ?? contrato?.NumeroContrato ?? contrato?.IdContratoLocacao ??
+                                          it?.NumeroContratoLocacao ?? it?.ContratoLocacao ?? it?.NumeroContrato ?? it?.numero_contrato ?? it?.Contrato ?? it?.IdContratoLocacao ?? it?.id_contrato_locacao ?? ''
                                         ).trim();
                                         
                                         const contratoCliente = String(
-                                          it?.NomeCliente ?? it?.Cliente ?? it?.cliente ?? contrato?.NomeCliente ?? contrato?.Cliente ?? ''
+                                          contrato?.NomeCliente ?? contrato?.Cliente ?? contrato?.NomeFantasia ??
+                                          it?.NomeCliente ?? it?.Cliente ?? it?.cliente ?? ''
                                         ).trim();
 
                                         const situacao = String(
-                                          it?.StatusLocacao ?? it?.SituacaoLocacao ?? it?.situacao_locacao ?? it?.Situacao ?? it?.Status ?? it?.status ??
-                                          contrato?.StatusLocacao ?? contrato?.SituacaoLocacao ?? contrato?.Status ?? contrato?.situacao ?? ''
+                                          contrato?.StatusLocacao ?? contrato?.SituacaoLocacao ?? contrato?.Status ?? contrato?.situacao ?? contrato?.Situacao ??
+                                          it?.StatusLocacao ?? it?.SituacaoLocacao ?? it?.situacao_locacao ?? it?.Situacao ?? it?.Status ?? it?.status ?? ''
                                         ).trim();
                                         
                                         const dataInicio = parseDateAny(
@@ -1171,20 +1259,28 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         // SEMPRE mostrar detalhes para LOCACAO/DEVOLUCAO
                                         const showContrato = tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO';
                                         
-                                        // Sinistro - Campos expandidos
+                                        // Sinistro - Campos expandidos (enriquecidos com fat_sinistros)
                                         const showSinistro = tipoNorm === 'SINISTRO';
                                         const numeroOcorrencia = String(
+                                          sinistroData?.NumeroOcorrencia ?? sinistroData?.numero_ocorrencia ?? sinistroData?.Ocorrencia ?? sinistroData?.IdOcorrencia ??
                                           it?.NumeroOcorrencia ?? it?.numero_ocorrencia ?? it?.Ocorrencia ?? it?.ocorrencia ??
                                           it?.IdOcorrencia ?? it?.id_ocorrencia ?? it?.IdSinistro ?? it?.id_sinistro ?? ''
                                         ).trim();
                                         const tipoSinistro = String(
-                                          it?.TipoSinistro ?? it?.tipo_sinistro ?? it?.Tipo ?? it?.tipo ?? ''
+                                          sinistroData?.TipoSinistro ?? sinistroData?.tipo_sinistro ?? sinistroData?.Tipo ?? sinistroData?.Descricao ??
+                                          it?.TipoSinistro ?? it?.tipo_sinistro ?? it?.Tipo ?? it?.tipo ?? it?.Descricao ?? 'Sinistro'
                                         ).trim();
                                         const statusSinistro = String(
-                                          it?.StatusSinistro ?? it?.status_sinistro ?? it?.Status ?? it?.status ?? ''
+                                          sinistroData?.StatusSinistro ?? sinistroData?.status_sinistro ?? sinistroData?.Status ?? sinistroData?.Situacao ?? sinistroData?.SituacaoOcorrencia ??
+                                          it?.StatusSinistro ?? it?.status_sinistro ?? it?.Status ?? it?.status ?? it?.SituacaoOcorrencia ?? ''
                                         ).trim();
-                                        const valorSinistro = it?.ValorSinistro ?? it?.valor_sinistro ?? it?.ValorEvento ?? it?.Valor;
-                                        const dataOcorrencia = parseDateAny(it?.DataOcorrencia ?? it?.data_ocorrencia ?? it?.DataEvento);
+                                        const valorSinistro = sinistroData?.ValorSinistro ?? sinistroData?.valor_sinistro ?? sinistroData?.ValorEvento ?? sinistroData?.Valor ?? sinistroData?.ValorOrcado ?? sinistroData?.ValorOrcamento ??
+                                                             it?.ValorSinistro ?? it?.valor_sinistro ?? it?.ValorEvento ?? it?.Valor ?? it?.ValorOrcado ?? it?.ValorOrcamento;
+                                        const dataOcorrencia = parseDateAny(
+                                          sinistroData?.DataOcorrencia ?? sinistroData?.data_ocorrencia ?? sinistroData?.DataSinistro ?? sinistroData?.Data ??
+                                          it?.DataOcorrencia ?? it?.data_ocorrencia ?? it?.DataSinistro ?? it?.DataEvento
+                                        );
+                                        const descricaoSinistro = sinistroData?.Descricao ?? sinistroData?.DescricaoSinistro ?? sinistroData?.Observacao ?? it?.Detalhe2;
 
                                         // Movimentação
                                         const showMovimentacao = tipoNorm === 'MOVIMENTACAO';
@@ -1194,7 +1290,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         return (
                                           <div key={`${row.key}:it:${i}`} className="text-xs border-l-2 border-slate-200 pl-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
                                             <div className="flex items-start justify-between gap-3 mb-1">
-                                              <div className="font-medium text-slate-700">{detail || '(sem descrição)'}</div>
+                                              <div className="font-medium text-slate-700 min-w-0 flex-1">{detail}</div>
                                               <div className="text-slate-400 shrink-0">{fmtDateBR(dd)}</div>
                                             </div>
 
@@ -1285,7 +1381,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <span>{fmtDateBR(dataOcorrencia)}</span>
                                                   </div>
                                                 </div>
-                                                {it?.Detalhe2 && (
+                                                {descricaoSinistro && (
+                                                  <div className="flex gap-2 mt-1 col-span-2">
+                                                    <span className="text-slate-500 font-medium">Descrição:</span>
+                                                    <span className="text-slate-600">{String(descricaoSinistro)}</span>
+                                                  </div>
+                                                )}
+                                                {it?.Detalhe2 && it?.Detalhe2 !== detail && it?.Detalhe2 !== descricaoSinistro && (
                                                   <div className="flex gap-2 mt-1">
                                                     <span className="text-slate-500 font-medium">Obs:</span>
                                                     <span className="text-slate-600">{String(it.Detalhe2)}</span>

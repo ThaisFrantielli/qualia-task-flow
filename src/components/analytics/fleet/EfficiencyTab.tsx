@@ -150,22 +150,6 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
 
   return (
     <div className="space-y-6">
-      {/* Header com gradiente */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl p-6 text-white shadow-xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <Gauge className="w-8 h-8" />
-              Central de Eficiência da Frota
-            </h2>
-            <p className="text-indigo-200 mt-1">Análise de utilização, produtividade e performance dos veículos</p>
-          </div>
-          <div className="text-right">
-            <div className="text-4xl font-bold">{kpis.avgUtilization.toFixed(1)}%</div>
-            <div className="text-indigo-200 text-sm">Utilização Média</div>
-          </div>
-        </div>
-      </div>
 
       {/* KPIs em cards modernos */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
