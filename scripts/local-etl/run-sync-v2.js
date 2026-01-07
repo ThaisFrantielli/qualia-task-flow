@@ -45,8 +45,8 @@ if (!SUPABASE_SERVICE_KEY) {
     console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY não configurado. Upload para Storage será desabilitado.');
 }
 
-// HELPER (Para campos texto sujos - USAR APENAS EM CAMPOS VARCHAR)
-const castM = (col) => `TRY_CAST(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(CAST(${col} AS VARCHAR), '0'), 'R$', ''), '.', ''), ',', '.'), ' ', '') AS FLOAT)`;
+// HELPER (Para campos monetários - converte formato BR para US e usa DECIMAL para precisão)
+const castM = (col) => `TRY_CAST(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(CAST(${col} AS VARCHAR), '0'), 'R$', ''), '.', ''), ',', '.'), ' ', '') AS DECIMAL(15,2))`;
 
 // Variável global para armazenar a data de atualização do DW
 let dwLastUpdate = null;
@@ -145,7 +145,7 @@ const DIMENSIONS = [
                     v.UltimoEnderecoTelemetria,
                     v.FinalidadeUso,
                     v.ComSeguroVigente,
-                    CAST(ISNULL(v.CustoTotalPorKmRodado, 0) AS FLOAT) as CustoTotalPorKmRodado,
+                    CAST(ISNULL(v.CustoTotalPorKmRodado, 0) AS DECIMAL(15,2)) as CustoTotalPorKmRodado,
                     v.IdCondutor,
                     c.Nome as NomeCondutor,
                     c.CPF as CPFCondutor,
@@ -156,7 +156,7 @@ const DIMENSIONS = [
                     FORMAT(al.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimParcela,
                     ContratoAtivo.NomeCliente,
                     ContratoAtivo.TipoLocacao,
-                    CAST(ISNULL(ContratoAtivo.ValorLocacao, 0) AS FLOAT) as ValorLocacao,
+                    CAST(ISNULL(ContratoAtivo.ValorLocacao, 0) AS DECIMAL(15,2)) as ValorLocacao,
                     ContratoAtivo.IdContratoLocacao,
                     ContratoAtivo.ContratoLocacao as NumeroContratoLocacao
                 FROM Veiculos v 
@@ -300,7 +300,7 @@ const CONSOLIDATED = [
     },
     { 
         table: 'rentabilidade_360_geral', 
-        query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro' ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi JOIN Faturamentos f ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS FLOAT) as CustoOp, CAST(F.FatTotal AS FLOAT) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo` 
+        query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro' ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi JOIN Faturamentos f ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo` 
     },
     { 
         table: 'hist_vida_veiculo_timeline', 
@@ -316,7 +316,7 @@ const CONSOLIDATED = [
                     cc.SituacaoContrato as Status, 
                     FORMAT(DataEnc.DataEncerramento, 'yyyy-MM-dd') as DataEncerramento, 
                     DataEnc.DuracaoMeses, 
-                    CAST(ISNULL(Valores.SomaMensal, 0) AS FLOAT) as ValorMensal 
+                    CAST(ISNULL(Valores.SomaMensal, 0) AS DECIMAL(15,2)) as ValorMensal 
                 FROM ContratosComerciais cc 
                 LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente 
                 OUTER APPLY (
@@ -353,7 +353,7 @@ const CONSOLIDATED = [
     },
     { 
         table: 'auditoria_consolidada', 
-        query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS FLOAT) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS FLOAT) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'` 
+        query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'` 
     },
     { 
         table: 'fat_carro_reserva', 
@@ -441,46 +441,373 @@ const CONSOLIDATED = [
     { 
         table: 'fat_manutencao_unificado', 
         query: `SELECT 
+                    -- Identificação da OS
                     os.IdOrdemServico,
                     os.OrdemServico,
                     os.IdOcorrencia,
                     os.Ocorrencia,
                     os.Ocorrencia as NumeroOcorrencia,
+                    
+                    -- Veículo (com JOIN para enriquecer)
+                    os.IdVeiculo,
                     os.Placa,
+                    os.IdModeloVeiculo,
                     os.ModeloVeiculo as Modelo,
+                    ISNULL(g.GrupoVeiculo, '') as CategoriaVeiculo,
+                    
+                    -- Fornecedor/Oficina
                     os.IdFornecedor,
                     os.Fornecedor,
+                    
+                    -- Classificação da Manutenção
                     os.IdTipo,
                     os.Tipo as TipoOcorrencia,
                     os.IdMotivo,
                     os.Motivo,
                     ISNULL(os.Categoria, '') as Categoria,
                     ISNULL(os.Despesa, '') as Despesa,
+                    
+                    -- Datas (CRÍTICO para Lead Time) - Agora com DataAgendamento
+                    FORMAT(ISNULL(
+                        (SELECT TOP 1 DataDeConfirmacao FROM MovimentacaoOcorrencias 
+                         WHERE Ocorrencia = os.Ocorrencia AND Etapa = 'Pré-Agendamento' 
+                         ORDER BY DataDeConfirmacao ASC),
+                        os.DataInicioServico
+                    ), 'yyyy-MM-dd') as DataAgendamento,
                     FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEvento,
                     FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
                     FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
+                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataConclusao,
+                    
+                    -- Status
+                    os.IdSituacaoOcorrencia,
                     os.SituacaoOcorrencia as StatusOcorrencia,
+                    os.IdSituacaoOrdemServico,
                     os.SituacaoOrdemServico as StatusOS,
+                    
+                    -- Odômetro (nota: OrdensServico só tem um campo OdometroConfirmado)
                     CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as KmEntrada,
                     CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as KmSaida,
+                    0 as KmPercorrido, -- Campo calculado - requer entrada/saída separados que não existem
+                    
+                    -- Valores Financeiros (agora com agregação de peças/serviços)
                     ${castM('os.ValorTotal')} as CustoTotalOS,
                     ${castM('os.ValorTotal')} as ValorTotal,
                     ${castM('os.ValorNaoReembolsavel')} as ValorNaoReembolsavel,
                     ${castM('os.ValorReembolsavel')} as ValorReembolsavel,
+                    ${castM('(SELECT ISNULL(SUM(ValorTotal), 0) FROM ItensOrdemServico WHERE IdOrdemServico = os.IdOrdemServico AND GrupoDespesa LIKE \'%pe%\')')} as CustoPecas,
+                    ${castM('(SELECT ISNULL(SUM(ValorTotal), 0) FROM ItensOrdemServico WHERE IdOrdemServico = os.IdOrdemServico AND GrupoDespesa LIKE \'%servi%\')')} as CustoServicos,
+                    
+                    -- Lead Time (CRÍTICO para MTTR)
                     DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
+                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as DiasParado,
+                    
+                    -- Contratos (com JOINs para dados reais)
                     os.IdContratoLocacao,
                     os.ContratoLocacao,
                     os.IdContratoComercial,
-                    os.ContratoComercial,
+                    ISNULL(cc.NumeroDocumento, os.ContratoComercial) as ContratoComercial,
+                    
+                    -- Cliente (com JOIN para nome fantasia real)
                     os.IdCliente,
-                    os.Cliente,
-                    os.OrdemCompra
+                    ISNULL(cli.NomeFantasia, os.Cliente) as Cliente,
+                    
+                    -- Outros
+                    os.OrdemCompra,
+                    
+                    -- Tipo de Manutenção (inferido para análises)
+                    CASE 
+                        WHEN os.Tipo LIKE '%preventiv%' OR os.Tipo LIKE '%Preventiv%' THEN 'Preventiva'
+                        WHEN os.Tipo LIKE '%corretiv%' OR os.Tipo LIKE '%Corretiv%' THEN 'Corretiva'
+                        WHEN os.Tipo LIKE '%preditiv%' OR os.Tipo LIKE '%Preditiv%' THEN 'Preditiva'
+                        ELSE 'Outros'
+                    END as TipoManutencao
+                    
                 FROM OrdensServico os
+                -- JOINs para enriquecer com dados de relacionamento
+                LEFT JOIN Veiculos v ON os.Placa = v.Placa
+                LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
+                LEFT JOIN ContratosLocacao cl ON os.IdContratoLocacao = cl.IdContratoLocacao OR (os.Placa = cl.PlacaPrincipal AND cl.SituacaoContratoLocacao = 'Ativo')
+                LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial OR os.IdContratoComercial = cc.IdContratoComercial
+                LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente OR os.IdCliente = cli.IdCliente
                 WHERE os.SituacaoOrdemServico <> 'Cancelada'` 
     },
-    { 
-        table: 'fat_manutencao_completa', 
-        query: `SELECT os.IdOrdemServico, os.OrdemServico, os.IdOcorrencia, os.Ocorrencia, os.IdVeiculo, os.Placa, os.IdModeloVeiculo, os.ModeloVeiculo as Modelo, os.IdContratoLocacao, os.ContratoLocacao, os.IdContratoComercial, os.ContratoComercial as ContratoOriginal, os.IdCliente, os.Cliente as ClienteOriginal, os.IdFornecedor, os.Fornecedor, os.IdTipo, os.Tipo, os.IdMotivo, os.Motivo, os.IdSituacaoOrdemServico, os.SituacaoOrdemServico, os.OrdemCompra, FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataInicio, ${castM('os.ValorTotal')} as ValorTotal, g.GrupoVeiculo as Categoria, cli.NomeFantasia as Cliente, cc.NumeroDocumento as ContratoComercial FROM OrdensServico os LEFT JOIN Veiculos v ON os.Placa = v.Placa LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo LEFT JOIN ContratosLocacao cl ON os.Placa = cl.PlacaPrincipal LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente WHERE os.SituacaoOrdemServico <> 'Cancelada'` 
+    {
+        table: 'agg_kpis_manutencao_mensal',
+        query: `WITH ManutencaoBase AS (
+                    SELECT 
+                        FORMAT(os.DataInicioServico, 'yyyy-MM') as MesAno,
+                        os.IdOrdemServico,
+                        os.Placa,
+                        os.Fornecedor,
+                        CASE 
+                            WHEN os.Tipo LIKE '%preventiv%' OR os.Tipo LIKE '%Preventiv%' THEN 'Preventiva'
+                            WHEN os.Tipo LIKE '%corretiv%' OR os.Tipo LIKE '%Corretiv%' THEN 'Corretiva'
+                            ELSE 'Outros'
+                        END as TipoManutencao,
+                        CAST(ISNULL(os.ValorTotal, 0) AS DECIMAL(15,2)) as ValorTotal,
+                        DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as DiasParado,
+                        FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
+                        CASE WHEN os.DataConclusaoOcorrencia IS NOT NULL THEN 1 ELSE 0 END as OSConcluida
+                    FROM OrdensServico os
+                    WHERE os.SituacaoOrdemServico <> 'Cancelada'
+                      AND os.DataInicioServico >= DATEADD(MONTH, -24, GETDATE())
+                ),
+                KPIsPorMes AS (
+                    SELECT 
+                        MesAno,
+                        -- Totalizadores
+                        COUNT(*) as TotalOS,
+                        COUNT(DISTINCT Placa) as TotalVeiculos,
+                        COUNT(DISTINCT Fornecedor) as TotalFornecedores,
+                        SUM(ValorTotal) as CustoTotal,
+                        
+                        -- Médias
+                        AVG(ValorTotal) as TicketMedio,
+                        AVG(CASE WHEN OSConcluida = 1 THEN DiasParado ELSE NULL END) as MTTR,
+                        
+                        -- Por Tipo
+                        SUM(CASE WHEN TipoManutencao = 'Preventiva' THEN 1 ELSE 0 END) as OSPreventiva,
+                        SUM(CASE WHEN TipoManutencao = 'Corretiva' THEN 1 ELSE 0 END) as OSCorretiva,
+                        SUM(CASE WHEN TipoManutencao = 'Preventiva' THEN ValorTotal ELSE 0 END) as CustoPreventiva,
+                        SUM(CASE WHEN TipoManutencao = 'Corretiva' THEN ValorTotal ELSE 0 END) as CustoCorretiva
+                    FROM ManutencaoBase
+                    GROUP BY MesAno
+                )
+                SELECT 
+                    MesAno,
+                    TotalOS,
+                    TotalVeiculos,
+                    TotalFornecedores,
+                    CustoTotal,
+                    TicketMedio,
+                    ISNULL(MTTR, 0) as MTTR,
+                    OSPreventiva,
+                    OSCorretiva,
+                    CustoPreventiva,
+                    CustoCorretiva,
+                    CASE WHEN TotalOS > 0 THEN (CAST(OSPreventiva AS FLOAT) / TotalOS) * 100 ELSE 0 END as PctPreventiva,
+                    CASE WHEN TotalOS > 0 THEN (CAST(OSCorretiva AS FLOAT) / TotalOS) * 100 ELSE 0 END as PctCorretiva
+                FROM KPIsPorMes
+                ORDER BY MesAno DESC`
+    },
+    {
+        table: 'fat_movimentacao_ocorrencias',
+        query: `SELECT 
+                    -- Identificação da Ocorrência
+                    mo.Ocorrencia,
+                    mo.Tipo,
+                    mo.Motivo,
+                    mo.Placa,
+                    mo.ModeloVeiculo,
+                    mo.IdCliente,
+                    
+                    -- Situação Atual
+                    mo.Situacao,
+                    mo.EtapaAtual,
+                    
+                    -- Dados de Cancelamento
+                    mo.CanceladoPor,
+                    FORMAT(mo.CanceladoEm, 'yyyy-MM-dd HH:mm:ss') as DataCancelamento,
+                    mo.MotivoCancelamento,
+                    
+                    -- Dados de Criação
+                    mo.CriadoPor,
+                    FORMAT(mo.CriadoEm, 'yyyy-MM-dd HH:mm:ss') as DataCriacao,
+                    
+                    -- Dados da Etapa (histórico de movimentação)
+                    mo.Etapa,
+                    FORMAT(mo.DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataEtapa,
+                    mo.Usuario as UsuarioEtapa,
+                    
+                    -- Metadata
+                    FORMAT(mo.DataAtualizacaoDados, 'yyyy-MM-dd') as DataAtualizacao,
+                    
+                    -- Campos calculados para análise
+                    DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao) as HorasAteConclusaoEtapa,
+                    DATEDIFF(DAY, mo.CriadoEm, mo.DataDeConfirmacao) as DiasAteConclusaoEtapa,
+                    
+                    -- Indicadores booleanos
+                    CASE WHEN mo.Situacao = 'Concluída' THEN 1 ELSE 0 END as IsConcluida,
+                    CASE WHEN mo.Situacao = 'Cancelada' THEN 1 ELSE 0 END as IsCancelada,
+                    CASE WHEN mo.Situacao = 'Aberta' THEN 1 ELSE 0 END as IsAberta
+                    
+                FROM MovimentacaoOcorrencias mo
+                WHERE mo.Etapa IS NOT NULL 
+                  AND mo.DataDeConfirmacao IS NOT NULL
+                ORDER BY mo.Ocorrencia, mo.DataDeConfirmacao`
+    },
+    {
+        table: 'agg_lead_time_etapas',
+        query: `WITH EtapasOrdenadas AS (
+                    SELECT 
+                        mo.Ocorrencia,
+                        mo.Tipo,
+                        mo.Motivo,
+                        mo.Placa,
+                        mo.Situacao,
+                        mo.Etapa,
+                        mo.DataDeConfirmacao,
+                        mo.Usuario,
+                        LAG(mo.DataDeConfirmacao) OVER (PARTITION BY mo.Ocorrencia ORDER BY mo.DataDeConfirmacao) as DataEtapaAnterior,
+                        LAG(mo.Etapa) OVER (PARTITION BY mo.Ocorrencia ORDER BY mo.DataDeConfirmacao) as EtapaAnterior,
+                        LAG(mo.Usuario) OVER (PARTITION BY mo.Ocorrencia ORDER BY mo.DataDeConfirmacao) as UsuarioAnterior,
+                        ROW_NUMBER() OVER (PARTITION BY mo.Ocorrencia ORDER BY mo.DataDeConfirmacao) as OrdemEtapa
+                    FROM MovimentacaoOcorrencias mo
+                    WHERE mo.Etapa IS NOT NULL 
+                      AND mo.DataDeConfirmacao IS NOT NULL
+                )
+                SELECT 
+                    Ocorrencia,
+                    Tipo,
+                    Motivo,
+                    Placa,
+                    Situacao,
+                    EtapaAnterior,
+                    Etapa as EtapaAtual,
+                    FORMAT(DataEtapaAnterior, 'yyyy-MM-dd HH:mm:ss') as DataEtapaAnterior,
+                    FORMAT(DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataEtapaAtual,
+                    UsuarioAnterior,
+                    Usuario as UsuarioAtual,
+                    OrdemEtapa,
+                    DATEDIFF(MINUTE, DataEtapaAnterior, DataDeConfirmacao) as TempoEntreEtapas_Minutos,
+                    DATEDIFF(HOUR, DataEtapaAnterior, DataDeConfirmacao) as TempoEntreEtapas_Horas,
+                    DATEDIFF(DAY, DataEtapaAnterior, DataDeConfirmacao) as TempoEntreEtapas_Dias,
+                    -- Indicador de retrabalho (voltou para etapa anterior)
+                    CASE 
+                        WHEN OrdemEtapa > 1 AND Etapa IN (
+                            SELECT Etapa FROM MovimentacaoOcorrencias mo2 
+                            WHERE mo2.Ocorrencia = EtapasOrdenadas.Ocorrencia 
+                              AND mo2.DataDeConfirmacao < DataEtapaAnterior
+                        ) THEN 1 
+                        ELSE 0 
+                    END as IsRetrabalho
+                FROM EtapasOrdenadas
+                WHERE EtapaAnterior IS NOT NULL
+                ORDER BY Ocorrencia, OrdemEtapa`
+    },
+    {
+        table: 'agg_funil_conversao',
+        query: `SELECT 
+                    mo.Etapa,
+                    mo.Tipo,
+                    COUNT(*) as TotalMovimentacoes,
+                    COUNT(DISTINCT mo.Ocorrencia) as TotalOcorrencias,
+                    SUM(CASE WHEN mo.Situacao = 'Concluída' THEN 1 ELSE 0 END) as TotalConcluidas,
+                    SUM(CASE WHEN mo.Situacao = 'Cancelada' THEN 1 ELSE 0 END) as TotalCanceladas,
+                    SUM(CASE WHEN mo.Situacao = 'Aberta' THEN 1 ELSE 0 END) as TotalAbertas,
+                    AVG(DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao)) as TempoMedioAteEtapa_Horas,
+                    AVG(DATEDIFF(DAY, mo.CriadoEm, mo.DataDeConfirmacao)) as TempoMedioAteEtapa_Dias,
+                    MIN(DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao)) as TempoMinimo_Horas,
+                    MAX(DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao)) as TempoMaximo_Horas,
+                    -- Taxa de conversão (chegar nesta etapa)
+                    CAST(COUNT(DISTINCT mo.Ocorrencia) AS FLOAT) / 
+                        (SELECT COUNT(DISTINCT Ocorrencia) FROM MovimentacaoOcorrencias) * 100 as TaxaConversao
+                FROM MovimentacaoOcorrencias mo
+                WHERE mo.Etapa IS NOT NULL 
+                  AND mo.DataDeConfirmacao IS NOT NULL
+                GROUP BY mo.Etapa, mo.Tipo
+                ORDER BY mo.Tipo, TotalOcorrencias DESC`
+    },
+    {
+        table: 'agg_performance_usuarios',
+        query: `SELECT 
+                    mo.Usuario,
+                    mo.Etapa,
+                    mo.Tipo,
+                    COUNT(*) as TotalProcessadas,
+                    COUNT(DISTINCT mo.Ocorrencia) as TotalOcorrenciasDistintas,
+                    SUM(CASE WHEN mo.Situacao = 'Concluída' THEN 1 ELSE 0 END) as TotalConcluidas,
+                    SUM(CASE WHEN mo.Situacao = 'Cancelada' THEN 1 ELSE 0 END) as TotalCanceladas,
+                    AVG(DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao)) as TempoMedio_Horas,
+                    MIN(FORMAT(mo.DataDeConfirmacao, 'yyyy-MM-dd')) as PrimeiraAtividade,
+                    MAX(FORMAT(mo.DataDeConfirmacao, 'yyyy-MM-dd')) as UltimaAtividade,
+                    -- Taxa de conclusão
+                    CASE 
+                        WHEN COUNT(*) > 0 
+                        THEN CAST(SUM(CASE WHEN mo.Situacao = 'Concluída' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) * 100 
+                        ELSE 0 
+                    END as TaxaConclusao,
+                    -- Taxa de cancelamento
+                    CASE 
+                        WHEN COUNT(*) > 0 
+                        THEN CAST(SUM(CASE WHEN mo.Situacao = 'Cancelada' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) * 100 
+                        ELSE 0 
+                    END as TaxaCancelamento
+                FROM MovimentacaoOcorrencias mo
+                WHERE mo.Usuario IS NOT NULL 
+                  AND mo.Etapa IS NOT NULL
+                  AND mo.DataDeConfirmacao IS NOT NULL
+                GROUP BY mo.Usuario, mo.Etapa, mo.Tipo
+                ORDER BY TotalProcessadas DESC`
+    },
+    {
+        table: 'agg_custos_detalhados',
+        query: `SELECT 
+                    os.IdOrdemServico,
+                    os.OrdemServico,
+                    os.Ocorrencia,
+                    os.Placa,
+                    os.ModeloVeiculo,
+                    os.Fornecedor,
+                    os.Tipo,
+                    os.Motivo,
+                    os.Cliente,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataServico,
+                    -- Agregação de custos por grupo de despesa
+                    ISNULL(
+                        (SELECT SUM(ios.ValorTotal) 
+                         FROM ItensOrdemServico ios 
+                         WHERE ios.IdOrdemServico = os.IdOrdemServico 
+                           AND (ios.GrupoDespesa LIKE '%peça%' 
+                                OR ios.GrupoDespesa LIKE '%peças%' 
+                                OR ios.GrupoDespesa LIKE '%Peça%'
+                                OR ios.GrupoDespesa LIKE '%Peças%')
+                        ), 0) as CustoPecas,
+                    ISNULL(
+                        (SELECT SUM(ios.ValorTotal) 
+                         FROM ItensOrdemServico ios 
+                         WHERE ios.IdOrdemServico = os.IdOrdemServico 
+                           AND (ios.GrupoDespesa LIKE '%serviço%' 
+                                OR ios.GrupoDespesa LIKE '%serviços%'
+                                OR ios.GrupoDespesa LIKE '%Serviço%'
+                                OR ios.GrupoDespesa LIKE '%Serviços%'
+                                OR ios.GrupoDespesa LIKE '%mão de obra%'
+                                OR ios.GrupoDespesa LIKE '%mao de obra%')
+                        ), 0) as CustoServicos,
+                    ISNULL(
+                        (SELECT SUM(ios.ValorTotal) 
+                         FROM ItensOrdemServico ios 
+                         WHERE ios.IdOrdemServico = os.IdOrdemServico 
+                           AND ios.GrupoDespesa NOT LIKE '%peça%' 
+                           AND ios.GrupoDespesa NOT LIKE '%peças%'
+                           AND ios.GrupoDespesa NOT LIKE '%Peça%'
+                           AND ios.GrupoDespesa NOT LIKE '%Peças%'
+                           AND ios.GrupoDespesa NOT LIKE '%serviço%'
+                           AND ios.GrupoDespesa NOT LIKE '%serviços%'
+                           AND ios.GrupoDespesa NOT LIKE '%Serviço%'
+                           AND ios.GrupoDespesa NOT LIKE '%Serviços%'
+                           AND ios.GrupoDespesa NOT LIKE '%mão de obra%'
+                           AND ios.GrupoDespesa NOT LIKE '%mao de obra%'
+                        ), 0) as CustoOutros,
+                    os.ValorTotal as CustoTotal,
+                    -- KM percorrido (campo não disponível em OrdensServico - seria necessário MovimentacaoOcorrencias)
+                    0 as KmPercorrido,
+                    -- Custo por KM (sempre 0 por enquanto)
+                    0.0 as CustoPorKm,
+                    -- Valores de reembolso
+                    os.ValorReembolsavel,
+                    os.ValorNaoReembolsavel,
+                    -- Taxa de reembolso
+                    CASE 
+                        WHEN os.ValorTotal > 0 
+                        THEN (os.ValorReembolsavel / os.ValorTotal) * 100
+                        ELSE 0
+                    END as TaxaReembolso
+                FROM OrdensServico os
+                WHERE os.SituacaoOrdemServico <> 'Cancelada'
+                  AND os.ValorTotal > 0
+                ORDER BY os.DataInicioServico DESC`
     }
 ];
 
