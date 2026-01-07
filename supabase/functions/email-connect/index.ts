@@ -211,10 +211,11 @@ serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[email-connect] Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro interno do servidor";
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno do servidor" }),
+      JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
