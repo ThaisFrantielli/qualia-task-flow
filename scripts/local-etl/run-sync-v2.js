@@ -81,9 +81,6 @@ async function getDWLastUpdateDate(pool) {
     }
 }
 
-// Variável global para armazenar a data de atualização do DW
-let dwLastUpdate = null;
-
 /**
  * Busca a data mais recente de atualização dos dados no DW fonte
  */
@@ -503,11 +500,12 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 'BAIXADO' as Situacao,
                 FORMAT(v.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
-                NULL, v.MotivoBaixa,
+                NULL, vv.Observacoes,
                 NULL, NULL, NULL,
-                ${castM('v.ValorVenda')} as CustoTotal,
+                ${castM('vv.ValorVenda')} as CustoTotal,
                 NULL, NULL, NULL, NULL
             FROM Veiculos v
+            LEFT JOIN VeiculosVendidos vv ON vv.Placa = v.Placa
             WHERE v.DataVenda IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             ORDER BY Placa, DataEvento DESC
@@ -891,7 +889,8 @@ const CONSOLIDATED = [
                     END as IsRetrabalho
                 FROM EtapasOrdenadas
                 WHERE EtapaAnterior IS NOT NULL
-                ORDER BY Ocorrencia, OrdemEtapa`
+                ORDER BY Ocorrencia, OrdemEtapa
+                OPTION (MAXDOP 2, FAST 1000)`
     },
     {
         table: 'agg_funil_conversao',
@@ -1014,7 +1013,8 @@ const CONSOLIDATED = [
                 FROM OrdensServico os
                 WHERE os.SituacaoOrdemServico <> 'Cancelada'
                   AND os.ValorTotal > 0
-                ORDER BY os.DataInicioServico DESC`
+                ORDER BY os.DataInicioServico DESC
+                OPTION (MAXDOP 2, FAST 1000)`
     }
 ];
 
