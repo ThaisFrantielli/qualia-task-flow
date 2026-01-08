@@ -35,11 +35,13 @@ export default function FleetIdleDashboard(): JSX.Element {
   const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
   const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos.json');
+  const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos.json');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
   const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
   const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
+  const historicoSituacao = useMemo(() => Array.isArray(historicoSituacaoRaw) ? historicoSituacaoRaw : [], [historicoSituacaoRaw]);
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
@@ -52,100 +54,124 @@ export default function FleetIdleDashboard(): JSX.Element {
   const dailyIdleHistory = useMemo(() => {
     const today = new Date();
     const data: { date: string; pct: number; improdutiva: number; total: number; displayDate: string }[] = [];
-    
+
+    // Preprocessar historico: mapa placa -> eventos ordenados por DataAtualizacaoDados asc
+    const histMap = new Map<string, any[]>();
+    historicoSituacao.forEach((h: any) => {
+      const placa = h.Placa;
+      if (!placa) return;
+      if (!histMap.has(placa)) histMap.set(placa, []);
+      const arr = histMap.get(placa)!;
+      arr.push(h);
+    });
+    histMap.forEach((arr) => arr.sort((a: any, b: any) => new Date(a?.DataAtualizacaoDados || 0).getTime() - new Date(b?.DataAtualizacaoDados || 0).getTime()));
+
+    const placas = frota.map(v => v.Placa).filter(Boolean);
+
     // Gerar últimos 90 dias
     for (let i = 89; i >= 0; i--) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() - i);
-      checkDate.setHours(0, 0, 0, 0);
-      
+      checkDate.setHours(23, 59, 59, 999); // considerar até o fim do dia
+
       const dateStr = checkDate.toISOString().split('T')[0];
-      const displayDate = checkDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      
-      // Para cada dia, contar quantos veículos eram improdutivos
-      // Usamos a frota atual como proxy (idealmente precisaríamos de snapshot diário)
-      // Para demo, vamos simular variação baseada em timeline
-      const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
-      const total = frota.filter(v => {
-        const cat = getCategory(v.Status);
-        return cat === 'Produtiva' || cat === 'Improdutiva';
+      const displayDate = new Date(checkDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+      let improdutivaCount = 0;
+      let activeCount = 0;
+
+      placas.forEach((placa: string) => {
+        const events = histMap.get(placa) || [];
+        // buscar último evento com DataAtualizacaoDados <= checkDate
+        let status = null;
+        for (let j = events.length - 1; j >= 0; j--) {
+          const evDate = new Date(events[j]?.DataAtualizacaoDados || 0);
+          if (evDate.getTime() <= checkDate.getTime()) {
+            status = events[j]?.SituacaoVeiculo || events[j]?.Situacao || null;
+            break;
+          }
+        }
+        // se não houver evento, fallback para status atual em frota
+        if (!status) {
+          const v = frota.find(f => f.Placa === placa);
+          status = v ? v.Status : null;
+        }
+
+        const cat = getCategory(status || '');
+        if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
+        if (cat === 'Improdutiva') improdutivaCount += 1;
       });
-      
-      // Adiciona variação aleatória pequena para demonstração (remover em produção com dados reais)
-      const variance = Math.sin(i / 7) * 0.03; // variação de ±3%
-      const basePct = total.length > 0 ? (improdutivos.length / total.length) : 0;
-      const pct = Math.max(0, Math.min(1, basePct + variance)) * 100;
-      
-      data.push({
-        date: dateStr,
-        pct: Number(pct.toFixed(1)),
-        improdutiva: Math.round(improdutivos.length * (1 + variance)),
-        total: total.length,
-        displayDate
-      });
+
+      const pct = activeCount > 0 ? (improdutivaCount / activeCount) * 100 : 0;
+      data.push({ date: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate });
     }
-    
+
     return data;
-  }, [frota, timeline]);
+  }, [frota, timeline, historicoSituacao]);
 
   // Veículos improdutivos na data selecionada
   const vehiclesOnSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
-    
-    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
-    
-    // Enriquecer com dados de movimentação
-    return improdutivos.map(v => {
+    const checkDate = new Date(selectedDate + 'T23:59:59');
+    const placas = frota.map(v => v.Placa).filter(Boolean);
+
+    // Para a lista de veículos improdutivos naquela data, usamos historicoSituacao
+    const improdutivos = placas.filter(placa => {
+      const events = (historicoSituacao || []).filter((h: any) => h.Placa === placa).sort((a: any,b:any)=>new Date(a?.DataAtualizacaoDados || 0).getTime()-new Date(b?.DataAtualizacaoDados || 0).getTime());
+      let status = null;
+      for (let j = events.length -1; j>=0; j--) {
+        if (new Date(events[j]?.DataAtualizacaoDados || 0).getTime() <= checkDate.getTime()) { status = events[j]?.SituacaoVeiculo || events[j]?.Situacao; break; }
+      }
+      if (!status) {
+        const v = frota.find(f=>f.Placa===placa); status = v ? v.Status : null;
+      }
+      return getCategory(status||'') === 'Improdutiva';
+    });
+
+    return improdutivos.map((placa: string) => {
+      const v = frota.find(f => f.Placa === placa) || {} as any;
       // Movimentações de pátio
       const movPatio = patioMov
-        .filter((m: any) => m.Placa === v.Placa)
+        .filter((m: any) => m.Placa === placa)
         .sort((a: any, b: any) => {
           const dateA = new Date(a.DataMovimentacao || 0).getTime();
           const dateB = new Date(b.DataMovimentacao || 0).getTime();
           return dateB - dateA;
         });
-      
       const ultimoMovPatio = movPatio[0];
-      
-      // Movimentações de veículos (locações)
+
       const movVeiculo = veiculoMov
-        .filter((m: any) => m.Placa === v.Placa)
+        .filter((m: any) => m.Placa === placa)
         .sort((a: any, b: any) => {
           const dateA = new Date(a.DataDevolucao || a.DataRetirada || 0).getTime();
           const dateB = new Date(b.DataDevolucao || b.DataRetirada || 0).getTime();
           return dateB - dateA;
         });
-      
       const ultimaLocacao = movVeiculo[0];
-      
-      // Lógica corrigida para data de início do status:
-      // Comparar última movimentação de pátio vs última devolução
-      // Usar a mais recente entre as duas
+
+      // Calcular dias no status usando historicoSituacao se disponível
       let dataInicioStatus = null;
-      
-      const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).getTime() : 0;
-      const dataMovPatio = ultimoMovPatio?.DataMovimentacao ? new Date(ultimoMovPatio.DataMovimentacao).getTime() : 0;
-      
-      // Usa a data mais recente
-      if (dataMovPatio > dataDevolucao && dataMovPatio > 0) {
-        dataInicioStatus = ultimoMovPatio.DataMovimentacao;
-      } else if (dataDevolucao > 0) {
-        dataInicioStatus = ultimaLocacao.DataDevolucao;
+      const events = (historicoSituacao || []).filter((h:any)=>h.Placa===placa).sort((a:any,b:any)=>new Date(a?.DataAtualizacaoDados || 0).getTime()-new Date(b?.DataAtualizacaoDados || 0).getTime());
+      for (let j = events.length-1; j>=0; j--) {
+        const ev = events[j];
+        if (new Date(ev?.DataAtualizacaoDados || 0).getTime() <= checkDate.getTime()) { dataInicioStatus = ev?.DataAtualizacaoDados ?? null; break; }
       }
-      
-      // Calcular dias no status
+      if (!dataInicioStatus) {
+        const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).toISOString() : null;
+        dataInicioStatus = dataDevolucao || ultimoMovPatio?.DataMovimentacao || null;
+      }
+
       let diasNoStatus = 0;
       if (dataInicioStatus) {
         const dataInicio = new Date(dataInicioStatus);
         const hoje = new Date();
         diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
       }
-      
-      // Pátio: prioriza o da última movimentação de pátio, depois Localizacao da frota
+
       const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
-      
+
       return {
-        Placa: v.Placa,
+        Placa: placa,
         Modelo: v.Modelo,
         Status: v.Status,
         Patio: patio,
