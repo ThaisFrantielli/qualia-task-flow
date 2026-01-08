@@ -1,7 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
-import { Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search, FileSpreadsheet, MapPin, AlertTriangle, DollarSign, ShoppingCart, FileWarning, RotateCcw, Archive } from 'lucide-react';
+import { 
+  Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search, 
+  FileSpreadsheet, MapPin, AlertTriangle, DollarSign, ShoppingCart, FileWarning, 
+  RotateCcw, Archive, Store, User, UserCheck
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { calcStateDurationsDays, normalizeEventName } from '@/lib/analytics/fleetTimeline';
 
@@ -17,6 +21,12 @@ interface TimelineTabProps {
 }
 
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
+
+function fmtMoney(v: any) {
+  const num = typeof v === 'string' ? parseFloat(v.replace('R$', '').trim()) : v;
+  if (!num || isNaN(num)) return 'R$ 0,00';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+}
 
 function normalizePlacaKey(raw: unknown): string {
   return String(raw ?? '')
@@ -41,9 +51,52 @@ function toISODateKey(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function fmtDateTimeBR(d: Date | null | undefined): string {
+  if (!d) return '—';
+  try {
+    const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+    return new Intl.DateTimeFormat('pt-BR', options).format(d);
+  } catch (err) {
+    return d.toLocaleString('pt-BR');
+  }
+}
+
 function fmtDateBR(d: Date | null | undefined): string {
   if (!d) return '—';
-  return d.toLocaleDateString('pt-BR');
+  try {
+    const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
+    return new Intl.DateTimeFormat('pt-BR', options).format(d as Date);
+  } catch (err) {
+    return d ? (d as Date).toLocaleDateString('pt-BR') : '—';
+  }
+}
+
+function getMinutesConclusaoRetirada(row: any): number | null {
+  try {
+    const first = row?.osRecords?.[0] ?? {};
+    if (first?.Minutos_Conclusao_Retirada != null) return Number(first.Minutos_Conclusao_Retirada);
+    if (first?.Minutos_Conclusao_Ret != null) return Number(first.Minutos_Conclusao_Ret);
+    if (row?.osRecords?.[0]?.Horas_Conclusao_Retirada != null) return Number(row.osRecords[0].Horas_Conclusao_Retirada) * 60;
+    if (row?.osRecords?.[0]?.Dias_Conclusao_Retirada != null) return Number(row.osRecords[0].Dias_Conclusao_Retirada) * 24 * 60;
+    if (row?.horasConclusaoRetirada != null) return Number(row.horasConclusaoRetirada) * 60;
+    if (row?.diasConclusaoRetirada != null) return Number(row.diasConclusaoRetirada) * 24 * 60;
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function fmtDurationFromMinutes(mins?: number | null): string {
+  if (mins == null || isNaN(mins)) return '—';
+  const total = Math.max(0, Math.floor(mins));
+  const days = Math.floor(total / (60 * 24));
+  const hours = Math.floor((total % (60 * 24)) / 60);
+  const minutes = total % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} d`);
+  if (hours > 0) parts.push(`${hours} h`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} m`);
+  return parts.join(' ');
 }
 
 function parseDateAny(raw?: string | null): Date | null {
@@ -98,6 +151,25 @@ type MaintenanceInterval = {
   records: AnyObject[];
 };
 
+type MaintenanceOccurrence = {
+  kind: 'MANUTENCAO_OCORRENCIA';
+  key: string;
+  ocorrenciaId: string;
+  ocorrencia?: string;
+  ocorrenciaDate: Date;
+  osRecords: AnyObject[];
+  situacao?: string;
+  tipoOcorrencia?: string;
+  custoTotal?: number;
+  dataAberturaOcorrencia?: Date | null;
+  dataConclusaoOcorrencia?: Date | null;
+  dataRetiradaVeiculo?: Date | null;
+  dataChegadaVeiculo?: Date | null;
+  movimentacoes?: Array<{ Etapa?: string; DataConfirmacao?: string; Usuario?: string; MinutosDesdeAnterior?: number | null; HorasDesdeAnterior?: number | null; DiasDesdeAnterior?: number | null }>;
+  horasConclusaoRetirada?: number | null;
+  diasConclusaoRetirada?: number | null;
+};
+
 type EventGroupRow = {
   kind: 'EVENTO_DIA_TIPO';
   key: string;
@@ -107,12 +179,127 @@ type EventGroupRow = {
   items: AnyObject[];
 };
 
-type TimelineRow = MaintenanceInterval | EventGroupRow;
+type TimelineRow = MaintenanceInterval | MaintenanceOccurrence | EventGroupRow;
 
 function getMaintenanceId(r: AnyObject): string {
   return String(
     r?.NumeroOS ?? r?.OS ?? r?.IdOS ?? r?.IdOcorrencia ?? r?.Ocorrencia ?? r?.CodigoOS ?? r?.Codigo ?? ''
   ).trim();
+}
+
+function getOccurrenceId(r: AnyObject): string {
+  return String(
+    r?.IdOcorrencia ?? r?.NumeroOcorrencia ?? r?.Ocorrencia ?? r?.ocorrencia ?? ''
+  ).trim();
+}
+
+// Nova função: agrupa manutenções por Ocorrência
+function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurrence[] {
+  // Agrupar por IdOcorrencia/Ocorrencia
+  const occurrenceMap = new Map<string, AnyObject[]>();
+  
+  for (const r of records) {
+    const occId = getOccurrenceId(r);
+    if (!occId || occId === '' || occId === 'undefined' || occId === 'null') {
+      // Se não tem ID de ocorrência, criar uma ocorrência única para esta OS
+      const osId = getMaintenanceId(r);
+      const uniqueKey = `solo-${osId || Math.random()}`;
+      occurrenceMap.set(uniqueKey, [r]);
+    } else {
+      const existing = occurrenceMap.get(occId);
+      if (existing) {
+        existing.push(r);
+      } else {
+        occurrenceMap.set(occId, [r]);
+      }
+    }
+  }
+
+  // Converter para array de MaintenanceOccurrence
+  const occurrences: MaintenanceOccurrence[] = [];
+  
+  for (const [occId, osRecords] of occurrenceMap.entries()) {
+    // Pegar a data mais antiga como data da ocorrência
+    const dates = osRecords
+      .map(r => normalizeDateLocal(
+        r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura ?? r?.DataAgendamento ?? 
+        r?.DataEntrada ?? r?.DataEntradaOficina ?? r?.DataCriacao ?? r?.Data
+      ))
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    if (dates.length === 0) continue;
+
+    const firstRecord = osRecords[0];
+    
+    // Calcular custo total da ocorrência
+    const custoTotal = osRecords.reduce((sum, r) => {
+      const val = Number(r?.CustoTotalOS ?? r?.ValorTotal ?? 0);
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+    
+    // padronizar datas: pegar primeiro valor disponível por campo
+    const dataAberturaOcorrencia = osRecords
+      .map(r => normalizeDateLocal(r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura ?? r?.DataEntrada ?? r?.Data))
+      .filter((d): d is Date => !!d)[0] ?? null;
+
+    const dataConclusaoOcorrencia = osRecords
+      .map(r => normalizeDateLocal(r?.DataConclusaoOcorrencia ?? r?.DataConclusao ?? r?.DataSaida ?? r?.Data))
+      .filter((d): d is Date => !!d).sort((a,b)=>a.getTime()-b.getTime()).pop() ?? null;
+
+    const dataChegadaVeiculo = osRecords
+      .map(r => normalizeDateLocal(r?.DataChegadaVeiculo ?? r?.DataChegada ?? r?.DataConfirmacaoChegada))
+      .filter((d): d is Date => !!d)[0] ?? null;
+
+    const dataRetiradaVeiculo = osRecords
+      .map(r => normalizeDateLocal(r?.DataRetiradaVeiculo ?? r?.DataRetirada ?? r?.DataSaida))
+      .filter((d): d is Date => !!d)[0] ?? null;
+
+    // movimentacoes: pode vir como JSON string ou como array já desserializado
+    let movimentacoes: any[] = [];
+    try {
+      const sample = osRecords.find(r => r?.MovimentacoesJson || r?.Movimentacoes);
+      const raw = sample?.MovimentacoesJson ?? sample?.Movimentacoes ?? null;
+      if (raw) {
+        if (typeof raw === 'string') movimentacoes = JSON.parse(raw);
+        else if (Array.isArray(raw)) movimentacoes = raw;
+      }
+    } catch (err) {
+      movimentacoes = [];
+    }
+
+    const horasConclusaoRetirada = (osRecords[0]?.Horas_Conclusao_Retirada != null) ? Number(osRecords[0].Horas_Conclusao_Retirada) : null;
+    const diasConclusaoRetirada = (osRecords[0]?.Dias_Conclusao_Retirada != null) ? Number(osRecords[0].Dias_Conclusao_Retirada) : null;
+
+    occurrences.push({
+      kind: 'MANUTENCAO_OCORRENCIA',
+      key: `occ:${occId}`,
+      ocorrenciaId: occId,
+      ocorrencia: (osRecords[0]?.Ocorrencia ?? osRecords[0]?.NumeroOcorrencia ?? occId) as string,
+      ocorrenciaDate: dates[0],
+      osRecords: osRecords.sort((a, b) => {
+        const aDate = normalizeDateLocal(a?.DataEntrada ?? a?.DataCriacaoOS ?? a?.DataAgendamento ?? a?.Data);
+        const bDate = normalizeDateLocal(b?.DataEntrada ?? b?.DataCriacaoOS ?? b?.DataAgendamento ?? b?.Data);
+        if (!aDate || !bDate) return 0;
+        return aDate.getTime() - bDate.getTime();
+      }),
+      situacao: firstRecord?.SituacaoOcorrencia ?? firstRecord?.StatusOcorrencia ?? firstRecord?.Situacao,
+      tipoOcorrencia: firstRecord?.TipoOcorrencia ?? firstRecord?.TipoManutencao ?? firstRecord?.Tipo,
+      custoTotal
+      ,
+      dataAberturaOcorrencia,
+      dataConclusaoOcorrencia,
+      dataRetiradaVeiculo
+      ,
+      dataChegadaVeiculo,
+      movimentacoes,
+      horasConclusaoRetirada,
+      diasConclusaoRetirada
+    });
+  }
+
+  // Ordenar por data da ocorrência (mais recente primeiro)
+  return occurrences.sort((a, b) => b.ocorrenciaDate.getTime() - a.ocorrenciaDate.getTime());
 }
 
 function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): MaintenanceInterval[] {
@@ -196,6 +383,49 @@ const EVENT_LABELS: Record<string, string> = {
   VENDA: 'VENDA',
   BAIXA: 'BAIXA',
 };
+
+// Identifica o Ator para evitar confusão na coluna Cliente
+function getEventActor(tipoNorm: string, item: AnyObject) {
+  const genericClient = item.Cliente || item.NomeCliente || '';
+  
+  if (tipoNorm === 'MANUTENCAO') {
+    return { 
+      label: 'Oficina', 
+      value: item.Fornecedor || genericClient || 'Oficina não inf.', 
+      icon: <Store size={12}/> 
+    };
+  }
+  
+  if (tipoNorm === 'MULTA' || tipoNorm === 'MULTAS') {
+    return { 
+      label: 'Condutor', 
+      value: item.NomeCondutor || genericClient || 'Condutor não inf.', 
+      icon: <User size={12}/> 
+    };
+  }
+  
+  if (tipoNorm === 'COMPRA' || tipoNorm === 'AQUISICAO') {
+    return { 
+      label: 'Fornecedor', 
+      value: item.Fornecedor || item.Proprietario || genericClient, 
+      icon: <Store size={12}/> 
+    };
+  }
+  
+  if (tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO') {
+    return { 
+      label: 'Cliente', 
+      value: genericClient, 
+      icon: <UserCheck size={12}/> 
+    };
+  }
+  
+  return { 
+    label: 'Responsável', 
+    value: genericClient, 
+    icon: <User size={12}/> 
+  };
+}
 
 export default function TimelineTab({ timeline, filteredData, frota, manutencao, contratosLocacao, sinistros }: TimelineTabProps) {
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
@@ -342,7 +572,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           return ad.getTime() - bd.getTime();
         });
 
-      const { totalDays, locacaoDays, manutencaoDays } = calcStateDurationsDays(sortedEvents);
+      const { totalDays, locacaoDays, manutencaoDays, sinistroDays } = calcStateDurationsDays(sortedEvents);
+      // Utilização = dias locado / (total - dias inativos por sinistro/manutenção longa)
+      // Considera produtivo quando em locação; improdutivo quando em manutenção/sinistro
       const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDays / totalDays) * 100)) : 0;
 
       const numeroContratoLocacao = veiculoInfo?.NumeroContratoLocacao || veiculoInfo?.ContratoAtual || veiculoInfo?.NumeroContrato;
@@ -362,6 +594,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         totalEvents: sortedEvents.length,
         locacaoDays: Math.round(locacaoDays),
         manutencaoDays: Math.round(manutencaoDays),
+        sinistroDays: Math.round(sinistroDays),
         utilization
       };
     }).sort((a, b) => b.totalEvents - a.totalEvents);
@@ -407,12 +640,32 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
     // Distribuição por tipo de evento
     const eventTypes: Record<string, number> = {};
+    let totalMultas = 0;
+    let totalSinistros = 0;
+    
     timeline.forEach(e => {
       const tipo = normalizeEventName(e.TipoEvento || e.Evento || 'Outro') || 'Outro';
       eventTypes[tipo] = (eventTypes[tipo] || 0) + 1;
+      
+      if (tipo.includes('MULTA')) totalMultas++;
+      if (tipo.includes('SINISTRO')) totalSinistros++;
     });
 
-    return { totalVehicles, totalEvents, avgEvents, avgUtilization, eventTypes };
+    // Somar dias totais de manutenção e sinistro
+    const totalManutencaoDays = timelineGrouped.reduce((sum, g) => sum + g.manutencaoDays, 0);
+    const totalSinistroDays = timelineGrouped.reduce((sum, g) => sum + g.sinistroDays, 0);
+
+    return { 
+      totalVehicles, 
+      totalEvents, 
+      avgEvents, 
+      avgUtilization, 
+      eventTypes, 
+      totalMultas, 
+      totalSinistros,
+      totalManutencaoDays,
+      totalSinistroDays
+    };
   }, [timelineGrouped, timeline]);
 
   // Gráfico 1: Veículos por faixa de dias locados
@@ -605,7 +858,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-white">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
@@ -630,14 +883,38 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           </div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-white">
+        <Card className="bg-gradient-to-br from-amber-50 to-white">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
+              <Wrench className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Média Eventos/Veículo</Text>
-              <Metric className="text-purple-600">{kpis.avgEvents.toFixed(1)}</Metric>
+              <Text className="text-slate-500 text-xs">Dias Manutenção</Text>
+              <Metric className="text-amber-600">{fmtDecimal(kpis.totalManutencaoDays)}</Metric>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-red-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+            </div>
+            <div>
+              <Text className="text-slate-500 text-xs">Sinistros / Dias</Text>
+              <Metric className="text-red-600">{kpis.totalSinistros} / {fmtDecimal(kpis.totalSinistroDays)}d</Metric>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center">
+              <FileWarning className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div>
+              <Text className="text-slate-500 text-xs">Total Multas</Text>
+              <Metric className="text-yellow-600">{fmtDecimal(kpis.totalMultas)}</Metric>
             </div>
           </div>
         </Card>
@@ -753,7 +1030,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         </div>
 
         <div className="divide-y">
-          {pageItems.map(({ placa, modelo, eventos, totalEvents, locacaoDays, manutencaoDays, utilization }) => (
+          {pageItems.map(({ placa, modelo, eventos, totalEvents, locacaoDays, manutencaoDays, sinistroDays, utilization }) => (
             <div key={placa} className="hover:bg-slate-50 transition-colors">
               <div 
                 className="p-4 flex items-center justify-between cursor-pointer"
@@ -769,7 +1046,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                   </div>
                   <Badge color="slate" className="ml-2">{totalEvents} eventos</Badge>
                 </div>
-                <div className="flex items-center gap-8 text-sm">
+                <div className="flex items-center gap-6 text-sm">
                   <div className="text-center">
                     <div className="text-emerald-600 font-bold">{locacaoDays}d</div>
                     <div className="text-xs text-slate-400">Locado</div>
@@ -778,6 +1055,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                     <div className="text-amber-600 font-bold">{manutencaoDays}d</div>
                     <div className="text-xs text-slate-400">Manutenção</div>
                   </div>
+                  {sinistroDays > 0 && (
+                    <div className="text-center">
+                      <div className="text-red-600 font-bold">{sinistroDays}d</div>
+                      <div className="text-xs text-slate-400">Sinistro</div>
+                    </div>
+                  )}
                   <div className="text-center">
                     <div className={`font-bold ${utilization >= 70 ? 'text-emerald-600' : utilization >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
                       {utilization.toFixed(0)}%
@@ -795,17 +1078,17 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                       // Deriva linhas “colapsadas” para validação: manutenção por período + agrupamento de eventos por dia/tipo
                       // 1) Manutenção (via dataset fat_manutencao_unificado)
                       const manutRecords = manutencaoByPlaca[placa] ?? [];
-                      const manutIntervals = buildMaintenanceIntervals(manutRecords);
+                      const manutOccurrences = groupMaintenanceByOccurrence(manutRecords);
 
-                      const manutDaysDerived = manutIntervals.reduce((sum, it) => sum + (it.days || 0), 0);
-
-                      // 2) Eventos agrupados por dia/tipo (removendo os marcadores de manutenção, para não duplicar)
+                      // 2) Eventos agrupados por dia/tipo
+                      // Se houver intervalos de manutenção consolidados, não mostrar eventos individuais de manutenção
                       // Multas serão exibidas em um tópico próprio.
                       const groups = new Map<string, { tipo: string; date: Date; items: AnyObject[] }>();
                       for (const ev of [...eventos].slice().reverse()) {
                         // reverse para manter o último evento do dia no topo ao expandir o grupo
                         const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
-                        if (tipo.includes('MANUT')) continue;
+                        // Se há ocorrências consolidadas, pular eventos de manutenção individuais
+                        if (tipo.includes('MANUT') && manutOccurrences.length > 0) continue;
                         if (tipo.includes('MULTA')) continue;
                         const d = new Date(ev.DataEvento || ev.Data);
                         if (Number.isNaN(d.getTime())) continue;
@@ -833,31 +1116,31 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         items: g.items
                       }));
 
-                      const rows: TimelineRow[] = [...manutIntervals, ...eventRows]
+                      const rows: TimelineRow[] = [...manutOccurrences, ...eventRows]
                         .sort((a, b) => {
-                          const ad = a.kind === 'MANUTENCAO_PERIODO' ? a.start : a.date;
-                          const bd = b.kind === 'MANUTENCAO_PERIODO' ? b.start : b.date;
+                          const ad = a.kind === 'MANUTENCAO_OCORRENCIA' ? a.ocorrenciaDate : a.date;
+                          const bd = b.kind === 'MANUTENCAO_OCORRENCIA' ? b.ocorrenciaDate : b.date;
                           return bd.getTime() - ad.getTime();
                         })
                         .slice(0, 30);
 
                       return (
                         <>
-                          {manutIntervals.length > 0 && (
+                          {manutOccurrences.length > 0 && (
                             <div className="pl-6 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                               <div className="flex items-center gap-2 text-sm">
                                 <Wrench className="w-4 h-4 text-amber-600" />
                                 <span className="font-semibold text-amber-800">
-                                  {manutIntervals.length} período(s) de manutenção • {manutDaysDerived} dias total
+                                  {manutOccurrences.length} ocorrência(s) de manutenção • {manutRecords.length} OS total
                                 </span>
                               </div>
                               <div className="text-xs text-amber-600 mt-1">
-                                Clique nos itens abaixo para ver detalhes de cada período
+                                Clique nas ocorrências abaixo para ver as ordens de serviço detalhadas
                               </div>
                             </div>
                           )}
                           
-                          {manutIntervals.length === 0 && manutencaoDays > 0 && (
+                          {manutOccurrences.length === 0 && manutencaoDays > 0 && (
                             <div className="pl-6 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                               <div className="flex items-center gap-2 text-sm">
                                 <Wrench className="w-4 h-4 text-amber-600" />
@@ -1007,6 +1290,218 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                           })()}
 
                           {rows.map((row) => {
+                            // MANUTENCAO_OCORRENCIA - novo agrupamento por ocorrência
+                            if (row.kind === 'MANUTENCAO_OCORRENCIA') {
+                              const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
+                              const title = `${row.ocorrencia ?? row.ocorrenciaId}`;
+                              const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
+                              const firstRec = row.osRecords[0];
+                              const motivo = firstRec?.Motivo ?? '';
+                              const descricao = firstRec?.DescricaoOcorrencia ?? firstRec?.Descricao ?? '';
+                              const fornecedor = firstRec?.FornecedorOcorrencia ?? firstRec?.FornecedorOS ?? firstRec?.Fornecedor ?? '';
+                              const cliente = firstRec?.Cliente ?? firstRec?.NomeCliente ?? '';
+
+                              return (
+                                <div key={row.key} className="relative pl-6">
+                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
+                                    {icon}
+                                  </div>
+                                  <div
+                                    className="bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all"
+                                    onClick={() => toggleRow(row.key)}
+                                  >
+                                      <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-bold text-sm text-amber-800">{title}</span>
+                                          <Badge color="amber" className="shrink-0">{row.osRecords.length} OS</Badge>
+                                          {row.tipoOcorrencia && (
+                                            <Badge color="slate" className="shrink-0 text-[10px]">{row.tipoOcorrencia}</Badge>
+                                          )}
+                                          {row.situacao && (
+                                            <Badge 
+                                              color={row.situacao.toLowerCase().includes('conclu') ? 'emerald' : 
+                                                     row.situacao.toLowerCase().includes('cancel') ? 'rose' : 'blue'} 
+                                              className="shrink-0 text-[10px]"
+                                            >
+                                              {row.situacao}
+                                            </Badge>
+                                          )}
+                                          {row.custoTotal != null && row.custoTotal > 0 && (
+                                            <span className="text-amber-700 font-bold text-xs ml-auto">{fmtMoney(row.custoTotal)}</span>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
+                                          <div><b>Data:</b> {dataOcorrencia} {motivo && <>• <b>Motivo:</b> {motivo}</>}</div>
+                                          {descricao && <div className="italic text-slate-500 line-clamp-1">{descricao}</div>}
+                                          {(fornecedor || cliente) && (
+                                            <div className="text-[10px] text-slate-500">
+                                              {fornecedor && <><b>Fornecedor:</b> {fornecedor} </>}
+                                              {cliente && <><b>Cliente:</b> {cliente}</>}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col items-end gap-2 shrink-0">
+                                        <div className="text-right text-[11px] text-slate-600">
+                                          <div><b>Abertura:</b> {fmtDateTimeBR(row.dataAberturaOcorrencia ?? row.ocorrenciaDate)}</div>
+                                          <div><b>Conclusão:</b> {fmtDateTimeBR(row.dataConclusaoOcorrencia)}</div>
+                                          {row.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(row.dataChegadaVeiculo)}</div>}
+                                          <div><b>Retirada:</b> {fmtDateTimeBR(row.dataRetiradaVeiculo)}</div>
+                                          {(() => {
+                                            const minsConclRet = getMinutesConclusaoRetirada(row);
+                                            return minsConclRet != null ? (
+                                              <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                            ) : null;
+                                          })()}
+                                        </div>
+                                        <div className="text-xs text-amber-600 font-medium">
+                                          {expandedRows.has(row.key) ? '▼ Ocultar' : '▶ Expandir'}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {expandedRows.has(row.key) && (
+                                      <div className="mt-3 space-y-2">
+                                        {/* Movimentações: mostrar etapas com data e tempo desde anterior */}
+                                        {Array.isArray(row.movimentacoes) && row.movimentacoes.length > 0 && (
+                                          <div className="bg-slate-50 p-2 rounded text-xs text-slate-700">
+                                            <div className="font-medium text-[12px] mb-1">Etapas</div>
+                                            <div className="flex flex-col gap-1">
+                                              {row.movimentacoes.map((m, idx) => (
+                                                <div key={`mov:${idx}`} className="flex items-center justify-between gap-3">
+                                                  <div className="min-w-0">
+                                                    <div className="flex items-baseline gap-2">
+                                                      <div className="font-medium text-[12px]">{m?.Etapa ?? '—'}</div>
+                                                      {m?.Usuario ? <div className="text-[11px] text-slate-400">• {String(m.Usuario)}</div> : null}
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500">{m?.DataConfirmacao ? (function(){ try { return fmtDateTimeBR(new Date(m.DataConfirmacao)); } catch(e){ return m.DataConfirmacao; } })() : '—'}</div>
+                                                  </div>
+                                                  <div className="text-[11px] text-slate-600">{fmtDurationFromMinutes(m?.MinutosDesdeAnterior ?? (m?.HorasDesdeAnterior != null ? Number(m.HorasDesdeAnterior) * 60 : null))}</div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* detalhamento das OS */}
+                                        {row.osRecords.map((r, i) => {
+                                          const osId = r?.OrdemServico ?? getMaintenanceId(r);
+                                          const entrada = normalizeDateLocal(r?.DataEntrada ?? r?.DataCriacaoOS ?? r?.DataAgendamento);
+                                          const saida = normalizeDateLocal(r?.DataSaida ?? r?.DataConclusaoOcorrencia);
+                                          const statusOS = r?.StatusOS ?? r?.SituacaoOrdemServico;
+                                          const categoria = r?.Categoria ?? '';
+                                          const despesa = r?.Despesa ?? '';
+                                          const custo = r?.CustoTotalOS ?? r?.ValorTotal;
+                                          const valorReembolsavel = r?.ValorReembolsavel;
+                                          const valorNaoReembolsavel = r?.ValorNaoReembolsavel;
+                                          const odometro = r?.OdometroOS ?? r?.Odometro;
+                                          const fornecedorOS = r?.FornecedorOS ?? r?.Fornecedor;
+                                          const ordemCompra = r?.OrdemCompra;
+                                          
+                                          return (
+                                            <div key={`${row.key}:os:${i}`} className="text-xs bg-white p-3 border-l-4 border-amber-400 rounded shadow-sm space-y-2">
+                                              {/* Linha 1: ID da OS e Valor */}
+                                              <div className="flex justify-between items-start font-medium">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-slate-700 font-mono text-sm font-bold">{osId || `OS #${i+1}`}</span>
+                                                  {statusOS && (
+                                                    <Badge 
+                                                      color={statusOS.toLowerCase().includes('conclu') ? 'emerald' : 
+                                                             statusOS.toLowerCase().includes('cancel') ? 'rose' : 'blue'}
+                                                      size="xs"
+                                                    >
+                                                      {statusOS}
+                                                    </Badge>
+                                                  )}
+                                                </div>
+                                                {custo != null && Number(custo) > 0 && (
+                                                  <span className="text-amber-700 font-bold">{fmtMoney(custo)}</span>
+                                                )}
+                                              </div>
+
+                                              {/* Linha 2: Datas e Odômetro */}
+                                              <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-amber-50/50 p-2 rounded">
+                                                {entrada && (
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Entrada:</span>
+                                                    <div className="font-semibold">{fmtDateBR(entrada)}</div>
+                                                  </div>
+                                                )}
+                                                {saida && (
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Saída:</span>
+                                                    <div className="font-semibold">{fmtDateBR(saida)}</div>
+                                                  </div>
+                                                )}
+                                                {odometro != null && Number(odometro) > 0 && (
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Odômetro:</span>
+                                                    <div className="font-semibold">{fmtDecimal(Number(odometro))} km</div>
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              {/* Linha 3: Categoria, Despesa, Ordem de Compra */}
+                                              {(categoria || despesa || ordemCompra) && (
+                                                <div className="flex flex-wrap gap-2 items-center">
+                                                  {categoria && (
+                                                    <div className="flex items-center gap-1">
+                                                      <span className="text-slate-500 text-[10px]">Categoria:</span>
+                                                      <Badge color="amber" size="xs">{categoria}</Badge>
+                                                    </div>
+                                                  )}
+                                                  {despesa && (
+                                                    <div className="flex items-center gap-1">
+                                                      <span className="text-slate-500 text-[10px]">Despesa:</span>
+                                                      <Badge color="purple" size="xs">{despesa}</Badge>
+                                                    </div>
+                                                  )}
+                                                  {ordemCompra && (
+                                                    <div className="flex items-center gap-1">
+                                                      <span className="text-slate-500 text-[10px]">OC:</span>
+                                                      <span className="text-slate-700 font-mono text-[10px]">{ordemCompra}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {/* Linha 4: Valores Reembolsáveis */}
+                                              {(valorReembolsavel != null && Number(valorReembolsavel) > 0) || 
+                                               (valorNaoReembolsavel != null && Number(valorNaoReembolsavel) > 0) ? (
+                                                <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
+                                                  {valorReembolsavel != null && Number(valorReembolsavel) > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Reembolsável:</span>
+                                                      <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
+                                                    </div>
+                                                  )}
+                                                  {valorNaoReembolsavel != null && Number(valorNaoReembolsavel) > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Não Reembolsável:</span>
+                                                      <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ) : null}
+
+                                              {/* Linha 5: Fornecedor da OS */}
+                                              {fornecedorOS && (
+                                                <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit">
+                                                  <Store size={12} className="text-amber-600" />
+                                                  <span className="text-[10px]">Fornecedor: <b>{fornecedorOS}</b></span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             if (row.kind === 'MANUTENCAO_PERIODO') {
                               const endLabel = row.end ? fmtDateBR(row.end) : 'Em aberto';
                               const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
@@ -1054,73 +1549,122 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       <div className="mt-2 space-y-2">
                                         {row.records.slice(0, 8).map((r, i) => {
                                           const id = getMaintenanceId(r);
-                                          const entrada = normalizeDateLocal(r?.DataEntrada ?? r?.DataEntradaOficina);
-                                          const saida = normalizeDateLocal(r?.DataSaida ?? r?.DataSaidaOficina);
-                                          const fornecedorR = r?.Fornecedor || r?.Oficina;
-                                          const tipoR = r?.TipoOcorrencia || r?.TipoManutencao;
-                                          const custo = r?.CustoTotalOS ?? r?.ValorTotal;
-                                          const kmEntrada = r?.KmEntrada ?? r?.KM_Entrada;
+                                          const ocorrencia = r?.IdOcorrencia ?? r?.Ocorrencia ?? r?.NumeroOcorrencia ?? id;
+                                          const entrada = normalizeDateLocal(r?.DataEntrada ?? r?.DataEntradaOficina ?? r?.DataAgendamento);
+                                          const saida = normalizeDateLocal(r?.DataSaida ?? r?.DataSaidaOficina ?? r?.DataConclusao);
+                                          const conclusao = normalizeDateLocal(r?.DataConclusao);
+                                          const tipoR = r?.TipoOcorrencia ?? r?.TipoManutencao ?? r?.Tipo;
+                                          const situacao = r?.Situacao ?? r?.SituacaoOcorrencia ?? r?.Status;
+                                          const despesa = r?.Despesa ?? r?.TipoDespesa ?? r?.CategoriaServico;
+                                          const custo = r?.CustoTotalOS ?? r?.ValorTotal ?? r?.ValorServico;
+                                          const valorReembolsavel = r?.ValorReembolsavel ?? r?.ValorReembolso;
+                                          const valorNaoReembolsavel = r?.ValorNaoReembolsavel ?? r?.ValorNaoReembolso;
+                                          const kmEntrada = r?.KmEntrada ?? r?.KM_Entrada ?? r?.Odometro;
                                           const kmSaida = r?.KmSaida ?? r?.KM_Saida;
-                                          const descricao = r?.DescricaoOS ?? r?.Descricao ?? r?.DescricaoServico;
-                                          const status = r?.StatusOS ?? r?.Status;
+                                          const descricao = r?.DescricaoOS ?? r?.Descricao ?? r?.DescricaoServico ?? r?.Observacao;
+                                          const status = r?.StatusOS ?? r?.Status ?? r?.StatusOcorrencia;
+                                          const actor = getEventActor('MANUTENCAO', r);
                                           
                                           return (
-                                            <div key={`${row.key}:os:${i}`} className="text-xs border-l-2 border-amber-200 pl-3 py-2 bg-white rounded hover:border-amber-400 hover:bg-amber-50/30 transition-all">
-                                              <div className="space-y-1 text-slate-600">
-                                                {id && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">OS:</span>
-                                                    <span className="font-mono font-semibold text-amber-700">{id}</span>
-                                                  </div>
-                                                )}
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Período:</span>
-                                                  <span>{fmtDateBR(entrada)} → {fmtDateBR(saida)}</span>
+                                            <div key={`${row.key}:os:${i}`} className="text-xs bg-white p-3 border-l-2 border-amber-400 rounded shadow-sm space-y-2">
+                                              {/* Linha 1: ID e Valor */}
+                                              <div className="flex justify-between items-start font-medium">
+                                                <div className="flex flex-col gap-0.5">
+                                                  <span className="text-slate-700 font-mono">OS: {id || ocorrencia || '—'}</span>
+                                                  {ocorrencia && ocorrencia !== id && (
+                                                    <span className="text-[10px] text-slate-500">Ocorrência: {ocorrencia}</span>
+                                                  )}
                                                 </div>
-                                                {fornecedorR && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Oficina:</span>
-                                                    <span className="text-slate-700">{fornecedorR}</span>
-                                                  </div>
-                                                )}
-                                                {tipoR && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Tipo:</span>
-                                                    <span className="text-slate-700">{tipoR}</span>
-                                                  </div>
-                                                )}
-                                                {descricao && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Descrição:</span>
-                                                    <span className="text-slate-600">{String(descricao)}</span>
-                                                  </div>
-                                                )}
-                                                {status && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Status:</span>
-                                                    <Badge color="amber" className="text-xs">{String(status)}</Badge>
-                                                  </div>
-                                                )}
-                                                {(kmEntrada || kmSaida) && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">KM:</span>
-                                                    <span>
-                                                      {kmEntrada ? `${fmtDecimal(Number(kmEntrada))} km` : '—'} → {kmSaida ? `${fmtDecimal(Number(kmSaida))} km` : '—'}
-                                                    </span>
-                                                  </div>
-                                                )}
-                                                {(typeof custo === 'number' || (typeof custo === 'string' && String(custo).trim() !== '')) && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Custo:</span>
-                                                    <span className="font-semibold text-amber-700">
-                                                      {typeof custo === 'number' 
-                                                        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(custo)
-                                                        : String(custo)
-                                                      }
-                                                    </span>
+                                                {custo && <span className="text-amber-700 font-bold">{fmtMoney(custo)}</span>}
+                                              </div>
+
+                                              {/* Linha 2: Datas */}
+                                              <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-amber-50/50 p-2 rounded">
+                                                <div>
+                                                  <span className="text-slate-500 font-medium">Entrada:</span>
+                                                  <div className="font-semibold">{fmtDateBR(entrada)}</div>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-500 font-medium">Saída:</span>
+                                                  <div className="font-semibold">{fmtDateBR(saida)}</div>
+                                                </div>
+                                                {conclusao && (
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Conclusão:</span>
+                                                    <div className="font-semibold">{fmtDateBR(conclusao)}</div>
                                                   </div>
                                                 )}
                                               </div>
+
+                                              {/* Linha 3: Tipo, Situação, Status */}
+                                              <div className="flex flex-wrap gap-2 items-center">
+                                                {tipoR && (
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-slate-500 text-[10px]">Tipo:</span>
+                                                    <Badge color="amber" size="xs">{tipoR}</Badge>
+                                                  </div>
+                                                )}
+                                                {situacao && (
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-slate-500 text-[10px]">Situação:</span>
+                                                    <Badge color="blue" size="xs">{situacao}</Badge>
+                                                  </div>
+                                                )}
+                                                {status && (
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-slate-500 text-[10px]">Status:</span>
+                                                    <Badge color="slate" size="xs">{status}</Badge>
+                                                  </div>
+                                                )}
+                                                {despesa && (
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-slate-500 text-[10px]">Despesa:</span>
+                                                    <Badge color="purple" size="xs">{despesa}</Badge>
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              {/* Linha 4: Valores Reembolsáveis */}
+                                              {(valorReembolsavel != null || valorNaoReembolsavel != null) && (
+                                                <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
+                                                  {valorReembolsavel != null && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Reembolsável:</span>
+                                                      <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
+                                                    </div>
+                                                  )}
+                                                  {valorNaoReembolsavel != null && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Não Reembolsável:</span>
+                                                      <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {/* Linha 5: Descrição */}
+                                              {descricao && (
+                                                <div className="text-slate-600 italic text-[11px] bg-slate-50 p-2 rounded">
+                                                  {descricao}
+                                                </div>
+                                              )}
+
+                                              {/* Linha 6: Oficina */}
+                                              {actor.value && actor.value !== 'Oficina não inf.' && (
+                                                <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit">
+                                                  {actor.icon} <span className="text-[10px]">Oficina: <b>{actor.value}</b></span>
+                                                </div>
+                                              )}
+
+                                              {/* Linha 7: KM */}
+                                              {(kmEntrada || kmSaida) && (
+                                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                                  <span className="font-medium">Odômetro:</span>
+                                                  <span>{kmEntrada ? fmtDecimal(Number(kmEntrada)) : '—'} km</span>
+                                                  <span>→</span>
+                                                  <span>{kmSaida ? fmtDecimal(Number(kmSaida)) : '—'} km</span>
+                                                </div>
+                                              )}
                                             </div>
                                           );
                                         })}
@@ -1224,17 +1768,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         // Contrato Comercial e Locação (priorizando dim_contratos_locacao)
                                         const contratoComercial = String(
                                           contrato?.NumeroContratoComercial ?? contrato?.ContratoComercial ?? contrato?.ContratoCorporativo ?? contrato?.NumeroContrato ??
-                                          it?.NumeroContratoComercial ?? it?.ContratoComercial ?? it?.ContratoCorporativo ?? ''
+                                          it?.NumeroContratoComercial ?? it?.ContratoComercial ?? it?.ContratoCorporativo ?? 
+                                          it?.Detalhe1 ?? it?.Detalhe2 ?? ''
                                         ).trim();
                                         
                                         const contratoLocacao = String(
                                           contrato?.NumeroContratoLocacao ?? contrato?.ContratoLocacao ?? contrato?.NumeroContrato ?? contrato?.IdContratoLocacao ??
-                                          it?.NumeroContratoLocacao ?? it?.ContratoLocacao ?? it?.NumeroContrato ?? it?.numero_contrato ?? it?.Contrato ?? it?.IdContratoLocacao ?? it?.id_contrato_locacao ?? ''
+                                          it?.NumeroContratoLocacao ?? it?.ContratoLocacao ?? it?.NumeroContrato ?? it?.numero_contrato ?? 
+                                          it?.Contrato ?? it?.IdContratoLocacao ?? it?.id_contrato_locacao ?? ''
                                         ).trim();
                                         
                                         const contratoCliente = String(
                                           contrato?.NomeCliente ?? contrato?.Cliente ?? contrato?.NomeFantasia ??
-                                          it?.NomeCliente ?? it?.Cliente ?? it?.cliente ?? ''
+                                          it?.NomeCliente ?? it?.Cliente ?? it?.cliente ?? it?.RazaoSocial ?? ''
                                         ).trim();
 
                                         const situacao = String(
@@ -1268,8 +1814,8 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           it?.IdOcorrencia ?? it?.id_ocorrencia ?? it?.IdSinistro ?? it?.id_sinistro ?? ''
                                         ).trim();
                                         const tipoSinistro = String(
-                                          sinistroData?.TipoSinistro ?? sinistroData?.tipo_sinistro ?? sinistroData?.Tipo ?? sinistroData?.Descricao ??
-                                          it?.TipoSinistro ?? it?.tipo_sinistro ?? it?.Tipo ?? it?.tipo ?? it?.Descricao ?? 'Sinistro'
+                                          sinistroData?.TipoSinistro ?? sinistroData?.tipo_sinistro ?? sinistroData?.Tipo ??
+                                          it?.TipoSinistro ?? it?.tipo_sinistro ?? it?.Tipo ?? it?.tipo ?? 'Sinistro'
                                         ).trim();
                                         const statusSinistro = String(
                                           sinistroData?.StatusSinistro ?? sinistroData?.status_sinistro ?? sinistroData?.Status ?? sinistroData?.Situacao ?? sinistroData?.SituacaoOcorrencia ??
@@ -1280,6 +1826,14 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         const dataOcorrencia = parseDateAny(
                                           sinistroData?.DataOcorrencia ?? sinistroData?.data_ocorrencia ?? sinistroData?.DataSinistro ?? sinistroData?.Data ??
                                           it?.DataOcorrencia ?? it?.data_ocorrencia ?? it?.DataSinistro ?? it?.DataEvento
+                                        );
+                                        const dataAbertura = parseDateAny(
+                                          sinistroData?.DataAbertura ?? sinistroData?.data_abertura ?? sinistroData?.DataAberturaOcorrencia ?? sinistroData?.DataInicio ??
+                                          it?.DataAbertura ?? it?.data_abertura ?? it?.DataAberturaOcorrencia ?? it?.DataInicio
+                                        );
+                                        const dataEncerramento = parseDateAny(
+                                          sinistroData?.DataEncerramento ?? sinistroData?.data_encerramento ?? sinistroData?.DataEncerramentoOcorrencia ?? sinistroData?.DataFim ??
+                                          it?.DataEncerramento ?? it?.data_encerramento ?? it?.DataEncerramentoOcorrencia ?? it?.DataFim
                                         );
                                         const descricaoSinistro = sinistroData?.Descricao ?? sinistroData?.DescricaoSinistro ?? sinistroData?.Observacao ?? it?.Detalhe2;
 
@@ -1301,44 +1855,63 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-2">
                                                   {tipoNorm === 'DEVOLUCAO' ? '📋 Detalhes da Devolução' : '📋 Detalhes da Locação'}
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Contrato Comercial:</span>
-                                                    <span className="font-mono font-semibold text-emerald-700">{contratoComercial || '—'}</span>
-                                                  </div>
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Contrato Locação:</span>
-                                                    <span className="font-mono font-semibold text-emerald-700">{contratoLocacao || '—'}</span>
-                                                  </div>
-                                                  <div className="flex gap-2 col-span-2">
-                                                    <span className="text-slate-500 font-medium">Cliente:</span>
-                                                    <span className="text-slate-700">{contratoCliente || '—'}</span>
-                                                  </div>
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Situação:</span>
-                                                    {situacao ? (
-                                                      <Badge 
-                                                        color={isLocacaoEmAndamento(situacao) ? 'emerald' : isLocacaoEncerrada(situacao) ? 'slate' : 'amber'}
-                                                        className="text-xs"
-                                                      >
-                                                        {situacao}
-                                                      </Badge>
-                                                    ) : (
-                                                      <span className="text-slate-400">—</span>
+                                                <div className="grid grid-cols-1 gap-y-1.5">
+                                                  {(contratoComercial || contratoLocacao) && (
+                                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                                      {contratoComercial && (
+                                                        <div className="flex gap-2">
+                                                          <span className="text-slate-500 font-medium">Contrato Comercial:</span>
+                                                          <span className="font-mono font-semibold text-emerald-700">{contratoComercial}</span>
+                                                        </div>
+                                                      )}
+                                                      {contratoLocacao && (
+                                                        <div className="flex gap-2">
+                                                          <span className="text-slate-500 font-medium">Contrato Locação:</span>
+                                                          <span className="font-mono font-semibold text-emerald-700">{contratoLocacao}</span>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                  {contratoCliente && (
+                                                    <div className="flex gap-2">
+                                                      <span className="text-slate-500 font-medium">Cliente:</span>
+                                                      <span className="text-slate-700 font-semibold">{contratoCliente}</span>
+                                                    </div>
+                                                  )}
+                                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                                    {situacao && (
+                                                      <div className="flex gap-2 items-center">
+                                                        <span className="text-slate-500 font-medium">Situação:</span>
+                                                        <Badge 
+                                                          color={isLocacaoEmAndamento(situacao) ? 'emerald' : isLocacaoEncerrada(situacao) ? 'slate' : 'amber'}
+                                                          className="text-xs"
+                                                        >
+                                                          {situacao}
+                                                        </Badge>
+                                                      </div>
+                                                    )}
+                                                    {dataInicio && (
+                                                      <div className="flex gap-2">
+                                                        <span className="text-slate-500 font-medium">Início:</span>
+                                                        <span className="font-semibold">{fmtDateBR(dataInicio)}</span>
+                                                      </div>
+                                                    )}
+                                                    {previsto && (
+                                                      <div className="flex gap-2">
+                                                        <span className="text-slate-500 font-medium">Término Previsto:</span>
+                                                        <span>{fmtDateBR(previsto)}</span>
+                                                      </div>
+                                                    )}
+                                                    {tipoNorm === 'DEVOLUCAO' && (encerramento || dd) && (
+                                                      <div className="flex gap-2">
+                                                        <span className="text-slate-500 font-medium">Encerramento:</span>
+                                                        <span className="font-semibold text-rose-600">{fmtDateBR(encerramento) || fmtDateBR(dd)}</span>
+                                                      </div>
                                                     )}
                                                   </div>
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Início:</span>
-                                                    <span>{fmtDateBR(dataInicio)}</span>
-                                                  </div>
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Término Previsto:</span>
-                                                    <span>{fmtDateBR(previsto)}</span>
-                                                  </div>
-                                                  {tipoNorm === 'DEVOLUCAO' && (
-                                                    <div className="flex gap-2">
-                                                      <span className="text-slate-500 font-medium">Encerramento:</span>
-                                                      <span className="font-semibold text-rose-600">{fmtDateBR(encerramento) || fmtDateBR(dd)}</span>
+                                                  {!contratoCliente && !contratoComercial && !contratoLocacao && (
+                                                    <div className="text-xs text-amber-600 italic">
+                                                      ⚠️ Dados de contrato não disponíveis - verifique dim_contratos_locacao
                                                     </div>
                                                   )}
                                                 </div>
@@ -1377,11 +1950,30 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                       <span className="text-slate-400">—</span>
                                                     )}
                                                   </div>
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Data:</span>
-                                                    <span>{fmtDateBR(dataOcorrencia)}</span>
-                                                  </div>
                                                 </div>
+
+                                                {/* Datas da Ocorrência */}
+                                                <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-purple-100/50 p-2 rounded mt-2">
+                                                  {dataAbertura && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Abertura:</span>
+                                                      <div className="font-semibold">{fmtDateBR(dataAbertura)}</div>
+                                                    </div>
+                                                  )}
+                                                  {dataOcorrencia && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Ocorrência:</span>
+                                                      <div className="font-semibold">{fmtDateBR(dataOcorrencia)}</div>
+                                                    </div>
+                                                  )}
+                                                  {dataEncerramento && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Encerramento:</span>
+                                                      <div className="font-semibold text-green-700">{fmtDateBR(dataEncerramento)}</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+
                                                 {descricaoSinistro && (
                                                   <div className="flex gap-2 mt-1 col-span-2">
                                                     <span className="text-slate-500 font-medium">Descrição:</span>
@@ -1396,6 +1988,187 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 )}
                                               </div>
                                             )}
+
+                                            {/* Detalhes de Manutenção - quando EVENTO_DIA_TIPO for MANUTENCAO */}
+                                            {tipoNorm === 'MANUTENCAO' && (() => {
+                                              // Buscar dados do fat_manutencao_unificado
+                                              const manutRecords = manutencaoByPlaca[placa] ?? [];
+                                              const manutData = (() => {
+                                                if (manutRecords.length === 0) return null;
+                                                // Tentar encontrar por ID de ocorrência
+                                                const idOcorrencia = it?.IdOcorrencia ?? it?.NumeroOcorrencia ?? it?.Ocorrencia ?? it?.IdOS;
+                                                if (idOcorrencia) {
+                                                  const found = manutRecords.find(m => 
+                                                    String(m?.IdOcorrencia ?? m?.NumeroOcorrencia ?? m?.Ocorrencia ?? m?.IdOS ?? '') === String(idOcorrencia)
+                                                  );
+                                                  if (found) return found;
+                                                }
+                                                // Fallback: buscar por proximidade de data
+                                                if (dd) {
+                                                  const ddTime = dd.getTime();
+                                                  const closest = manutRecords
+                                                    .map(m => ({
+                                                      m,
+                                                      dt: parseDateAny(m?.DataEntrada ?? m?.DataEntradaOficina ?? m?.DataAgendamento ?? m?.Data),
+                                                    }))
+                                                    .filter(x => x.dt != null)
+                                                    .map(x => ({
+                                                      m: x.m,
+                                                      diff: Math.abs((x.dt as Date).getTime() - ddTime),
+                                                    }))
+                                                    .sort((a, b) => a.diff - b.diff)[0];
+                                                  if (closest && closest.diff < 7 * 24 * 60 * 60 * 1000) { // 7 dias de tolerância
+                                                    return closest.m;
+                                                  }
+                                                }
+                                                return null;
+                                              })();
+
+                                              // Usar dados enriquecidos se disponível, senão usar dados do evento
+                                              const sourceData = manutData ?? it;
+                                              const id = manutData ? getMaintenanceId(manutData) : (it?.IdOS ?? it?.IdOcorrencia ?? it?.NumeroOS ?? '—');
+                                              const ocorrencia = sourceData?.IdOcorrencia ?? sourceData?.Ocorrencia ?? sourceData?.NumeroOcorrencia ?? id;
+                                              const entrada = normalizeDateLocal(sourceData?.DataEntrada ?? sourceData?.DataEntradaOficina ?? sourceData?.DataAgendamento ?? it?.DataEvento ?? it?.Data);
+                                              const saida = normalizeDateLocal(sourceData?.DataSaida ?? sourceData?.DataSaidaOficina ?? sourceData?.DataConclusao);
+                                              const conclusao = normalizeDateLocal(sourceData?.DataConclusao);
+                                              const tipoR = sourceData?.TipoOcorrencia ?? sourceData?.TipoManutencao ?? sourceData?.Tipo ?? it?.TipoEvento;
+                                              const situacao = sourceData?.Situacao ?? sourceData?.SituacaoOcorrencia ?? sourceData?.Status ?? it?.Situacao;
+                                              const despesa = sourceData?.Despesa ?? sourceData?.TipoDespesa ?? sourceData?.CategoriaServico;
+                                              const custo = sourceData?.CustoTotalOS ?? sourceData?.ValorTotal ?? sourceData?.ValorServico ?? it?.Valor;
+                                              const valorReembolsavel = sourceData?.ValorReembolsavel ?? sourceData?.ValorReembolso;
+                                              const valorNaoReembolsavel = sourceData?.ValorNaoReembolsavel ?? sourceData?.ValorNaoReembolso;
+                                              const kmEntrada = sourceData?.KmEntrada ?? sourceData?.KM_Entrada ?? sourceData?.Odometro ?? it?.KM ?? it?.Odometro;
+                                              const kmSaida = sourceData?.KmSaida ?? sourceData?.KM_Saida;
+                                              const descricaoManut = sourceData?.DescricaoOS ?? sourceData?.Descricao ?? sourceData?.DescricaoServico ?? sourceData?.Observacao ?? it?.Descricao ?? it?.Detalhe1;
+                                              const statusManut = sourceData?.StatusOS ?? sourceData?.Status ?? sourceData?.StatusOcorrencia ?? it?.Status;
+                                              const oficina = sourceData?.Oficina ?? sourceData?.Fornecedor ?? sourceData?.NomeFornecedor ?? it?.Oficina ?? it?.Fornecedor;
+
+                                              return (
+                                                <div className="space-y-2 text-slate-600 bg-amber-50/50 rounded-lg p-3 mt-2 border border-amber-100">
+                                                  <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-2">
+                                                    🔧 Detalhes da Manutenção
+                                                  </div>
+
+                                                  {/* Linha 1: ID e Valor */}
+                                                  <div className="flex justify-between items-start font-medium">
+                                                    <div className="flex flex-col gap-0.5">
+                                                      <span className="text-slate-700 font-mono text-xs">OS: {id || '—'}</span>
+                                                      {ocorrencia && ocorrencia !== id && (
+                                                        <span className="text-[10px] text-slate-500">Ocorrência: {ocorrencia}</span>
+                                                      )}
+                                                    </div>
+                                                    {custo && <span className="text-amber-700 font-bold text-xs">{fmtMoney(custo)}</span>}
+                                                  </div>
+
+                                                  {/* Linha 2: Datas */}
+                                                  {(entrada || saida || conclusao) && (
+                                                    <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-amber-100/50 p-2 rounded">
+                                                      {entrada && (
+                                                        <div>
+                                                          <span className="text-slate-500 font-medium">Entrada:</span>
+                                                          <div className="font-semibold">{fmtDateBR(entrada)}</div>
+                                                        </div>
+                                                      )}
+                                                      {saida && (
+                                                        <div>
+                                                          <span className="text-slate-500 font-medium">Saída:</span>
+                                                          <div className="font-semibold">{fmtDateBR(saida)}</div>
+                                                        </div>
+                                                      )}
+                                                      {conclusao && (
+                                                        <div>
+                                                          <span className="text-slate-500 font-medium">Conclusão:</span>
+                                                          <div className="font-semibold">{fmtDateBR(conclusao)}</div>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {/* Linha 3: Tipo, Situação, Status */}
+                                                  {(tipoR || situacao || statusManut || despesa) && (
+                                                    <div className="flex flex-wrap gap-2 items-center">
+                                                      {tipoR && (
+                                                        <div className="flex items-center gap-1">
+                                                          <span className="text-slate-500 text-[10px]">Tipo:</span>
+                                                          <Badge color="amber" size="xs">{tipoR}</Badge>
+                                                        </div>
+                                                      )}
+                                                      {situacao && (
+                                                        <div className="flex items-center gap-1">
+                                                          <span className="text-slate-500 text-[10px]">Situação:</span>
+                                                          <Badge color="blue" size="xs">{situacao}</Badge>
+                                                        </div>
+                                                      )}
+                                                      {statusManut && (
+                                                        <div className="flex items-center gap-1">
+                                                          <span className="text-slate-500 text-[10px]">Status:</span>
+                                                          <Badge color="slate" size="xs">{statusManut}</Badge>
+                                                        </div>
+                                                      )}
+                                                      {despesa && (
+                                                        <div className="flex items-center gap-1">
+                                                          <span className="text-slate-500 text-[10px]">Despesa:</span>
+                                                          <Badge color="purple" size="xs">{despesa}</Badge>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {/* Linha 4: Valores Reembolsáveis */}
+                                                  {(valorReembolsavel != null || valorNaoReembolsavel != null) && (
+                                                    <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
+                                                      {valorReembolsavel != null && (
+                                                        <div>
+                                                          <span className="text-slate-500 font-medium">Reembolsável:</span>
+                                                          <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
+                                                        </div>
+                                                      )}
+                                                      {valorNaoReembolsavel != null && (
+                                                        <div>
+                                                          <span className="text-slate-500 font-medium">Não Reembolsável:</span>
+                                                          <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {/* Linha 5: Descrição */}
+                                                  {descricaoManut && (
+                                                    <div className="text-slate-600 italic text-[11px] bg-slate-50 p-2 rounded">
+                                                      {descricaoManut}
+                                                    </div>
+                                                  )}
+
+                                                  {/* Linha 6: Oficina */}
+                                                  {oficina && (
+                                                    <div className="flex items-center gap-1.5 text-slate-600 bg-amber-100/50 px-2 py-1 rounded border border-amber-200 w-fit">
+                                                      <Store size={12} className="text-amber-600" />
+                                                      <span className="text-[10px]">Oficina: <b>{oficina}</b></span>
+                                                    </div>
+                                                  )}
+
+                                                  {/* Linha 7: KM */}
+                                                  {(kmEntrada || kmSaida) && (
+                                                    <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                                      <span className="font-medium">Odômetro:</span>
+                                                      <span>{kmEntrada ? fmtDecimal(Number(kmEntrada)) : '—'} km</span>
+                                                      {kmSaida && (
+                                                        <>
+                                                          <span>→</span>
+                                                          <span>{fmtDecimal(Number(kmSaida))} km</span>
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {!manutData && (
+                                                    <div className="text-xs text-amber-600 italic mt-2 bg-amber-100/30 p-2 rounded">
+                                                      ℹ️ Detalhes básicos - dados completos não encontrados em fat_manutencao_unificado
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
 
                                             {/* Detalhes de Movimentação - SEMPRE mostrar */}
                                             {showMovimentacao && (

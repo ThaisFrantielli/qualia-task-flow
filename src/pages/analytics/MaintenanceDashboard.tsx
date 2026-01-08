@@ -54,6 +54,8 @@ function MaintenanceDashboardContent(): JSX.Element {
   const { data: faturamentoRaw } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
   const { data: frotaRaw } = useBIData<AnyObject[]>('dim_frota.json');
   const { data: contratosRaw } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
+  // Histórico de situação de veículos (gestão de pátio / monitoramento)
+  const { data: historicoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos.json');
 
   const osList = useMemo(() => {
     if (!Array.isArray(osData)) return [];
@@ -74,6 +76,7 @@ function MaintenanceDashboardContent(): JSX.Element {
   const faturamentoData = useMemo(() => Array.isArray(faturamentoRaw) ? faturamentoRaw : [], [faturamentoRaw]);
   const frotaData = useMemo(() => Array.isArray(frotaRaw) ? frotaRaw : [], [frotaRaw]);
   const contratosData = useMemo(() => Array.isArray(contratosRaw) ? contratosRaw : [], [contratosRaw]);
+  const historicoData = useMemo(() => Array.isArray(historicoRaw) ? historicoRaw : [], [historicoRaw]);
 
   const { filters: globalFilters } = useMaintenanceFilters();
   const [activeTab, setActiveTab] = useState(0);
@@ -203,6 +206,19 @@ function MaintenanceDashboardContent(): JSX.Element {
         contratosLocacao={contratosLocacao}
         placasList={placasList}
       />
+
+      {/* Indicador rápido de histórico de situação (gestão de pátio) */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <Title className="text-sm">Registros Histórico (DW)</Title>
+              <Text className="text-xs text-slate-500">Últimos eventos de situação / localização</Text>
+            </div>
+            <div className="text-amber-600 font-bold text-lg">{historicoData.length ?? 0}</div>
+          </div>
+        </Card>
+      </div>
 
       <div className="flex gap-2 bg-slate-200 p-1 rounded-lg w-fit flex-wrap">
         {tabs.map((tab, idx) => (

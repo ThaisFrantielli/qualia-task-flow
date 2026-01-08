@@ -81,36 +81,6 @@ async function getDWLastUpdateDate(pool) {
     }
 }
 
-/**
- * Busca a data mais recente de atualização dos dados no DW fonte
- */
-async function getDWLastUpdateDate(pool) {
-    try {
-        const result = await pool.request().query(`
-            SELECT MAX(DataAtualizacaoDados) as LastUpdate
-            FROM (
-                SELECT MAX(DataAtualizacaoDados) as DataAtualizacaoDados FROM Veiculos
-                UNION ALL
-                SELECT MAX(DataAtualizacaoDados) FROM Clientes
-                UNION ALL
-                SELECT MAX(DataAtualizacaoDados) FROM ContratosLocacao
-                UNION ALL
-                SELECT MAX(DataAtualizacaoDados) FROM OrdensServico
-            ) AS AllDates
-        `);
-        
-        if (result.recordset && result.recordset[0].LastUpdate) {
-            dwLastUpdate = result.recordset[0].LastUpdate;
-            console.log(`📅 Data de atualização do DW fonte: ${dwLastUpdate.toISOString()}`);
-            return dwLastUpdate;
-        }
-        return null;
-    } catch (err) {
-        console.error('❌ Erro ao buscar data de atualização do DW:', err.message);
-        return null;
-    }
-}
-
 // ==============================================================================
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
@@ -145,7 +115,6 @@ const DIMENSIONS = [
                     v.SituacaoVeiculo as Status, 
                     v.SituacaoFinanceira,
                     v.DiasSituacao,
-                    -- FORMAT(v.DataInicioStatus, 'yyyy-MM-dd') as DataInicioStatus,
                     COALESCE(p.Patio, NULLIF(v.LocalizacaoVeiculo, ''), 'Em Cliente') AS Localizacao, 
                     v.LocalizacaoVeiculo,
                     v.DiasLocalizacao,
@@ -157,7 +126,13 @@ const DIMENSIONS = [
                     CAST(ISNULL(v.ValorAtualFIPE, 0) AS FLOAT) as ValorFipeAtual,
                     -- Normaliza Valor FIPE: usa ValorAtualFIPE quando disponível, senão último PrecoFIPE conhecido
                     CAST(COALESCE(v.ValorAtualFIPE, FipeLatest.PrecoFIPE, 0) AS FLOAT) as ValorFipe,
+                    
+                    -- FIPE na Compra (Corrigido: Data Aproximada)
                     CAST(ISNULL(FipeData.PrecoFIPE, 0) AS FLOAT) as ValorFipeNaCompra,
+
+                    -- FIPE Zero KM (Esta é a linha que faltava no seu SELECT)
+                    CAST(ISNULL(FipeZeroKm.PrecoFIPE, 0) AS FLOAT) as ValorFipeZeroKmAtual,
+
                     FORMAT(v.DataCompra, 'yyyy-MM-dd') as DataCompra,
                     DATEDIFF(MONTH, v.DataCompra, GETDATE()) as IdadeVeiculo,
                     v.Proprietario,
@@ -193,17 +168,18 @@ const DIMENSIONS = [
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo 
                 LEFT JOIN Patios p ON v.IdPatio = p.IdPatio 
                 LEFT JOIN Condutores c ON v.IdCondutor = c.IdCondutor
-                -- Preco FIPE na época da compra (mes/ano) quando existe
-                                OUTER APPLY (
-                                        SELECT TOP 1 pf.PrecoFIPE as PrecoFIPE
-                                        FROM PrecosFIPE pf
-                                        WHERE pf.CodigoFIPE = v.CodigoFIPE
-                                            AND pf.AnoModelo = v.AnoModelo
-                                            AND v.DataCompra IS NOT NULL
-                                            AND YEAR(pf.DataMesFIPE) = YEAR(v.DataCompra)
-                                            AND MONTH(pf.DataMesFIPE) = MONTH(v.DataCompra)
-                                ) FipeData
-                -- Último PrecoFIPE disponível (fallback para ValorFipe)
+                
+                -- LÓGICA 1: Preco FIPE na época da compra (Melhor Aproximação)
+                OUTER APPLY (
+                        SELECT TOP 1 pf.PrecoFIPE as PrecoFIPE
+                        FROM PrecosFIPE pf
+                        WHERE pf.CodigoFIPE = v.CodigoFIPE
+                            AND pf.AnoModelo = v.AnoModelo
+                            AND v.DataCompra IS NOT NULL
+                        ORDER BY ABS(DATEDIFF(MONTH, pf.DataMesFIPE, v.DataCompra)) ASC
+                ) FipeData
+
+                -- LÓGICA 2: Último PrecoFIPE disponível (Valor Atual de Mercado do usado)
                 OUTER APPLY (
                     SELECT TOP 1 pf2.PrecoFIPE as PrecoFIPE
                     FROM PrecosFIPE pf2
@@ -211,6 +187,18 @@ const DIMENSIONS = [
                       AND pf2.AnoModelo = v.AnoModelo
                     ORDER BY pf2.DataMesFIPE DESC
                 ) FipeLatest
+
+                -- LÓGICA 3: Preço Zero KM (Prioriza 32000, senão pega o mais novo)
+                OUTER APPLY (
+                    SELECT TOP 1 pf3.PrecoFIPE as PrecoFIPE
+                    FROM PrecosFIPE pf3
+                    WHERE pf3.CodigoFIPE = v.CodigoFIPE
+                    ORDER BY 
+                        CASE WHEN pf3.AnoModelo = 32000 THEN 1 ELSE 0 END DESC, -- Tenta Zero KM primeiro
+                        pf3.AnoModelo DESC, -- Senão pega o ano mais alto
+                        pf3.DataMesFIPE DESC -- Sempre a tabela mais recente
+                ) FipeZeroKm
+
                 OUTER APPLY (
                     SELECT TOP 1 Instituicao, Termino, VencimentoPrimeiraParcela 
                     FROM Alienacoes 
@@ -243,6 +231,25 @@ const DIMENSIONS = [
     { 
         table: 'dim_veiculos_acessorios', 
         query: `SELECT IdVeiculo, NomeAcessorio as Acessorio, TipoInstalacao as Origem FROM VeiculosAcessorios` 
+    },
+    {
+        table: 'historico_situacao_veiculos',
+        query: `SELECT
+                    FORMAT(DataAtualizacaoDados, 'yyyy-MM-dd HH:mm:ss') as DataAtualizacaoDados,
+                    IdVeiculo,
+                    Placa,
+                    FORMAT(UltimaAtualizacao, 'yyyy-MM-dd HH:mm:ss') as UltimaAtualizacao,
+                    AtualizadoPor,
+                    SituacaoAnteriorVeiculo,
+                    SituacaoVeiculo,
+                    LocalizacaoAnteriorVeiculo,
+                    LocalizacaoVeiculo,
+                    SituacaoFinanceiraAnteriorVeiculo,
+                    SituacaoFinanceiraVeiculo,
+                    Informacoes
+                FROM HistoricoSituacaoVeiculos WITH (NOLOCK)
+                WHERE Placa IS NOT NULL
+                ORDER BY DataAtualizacaoDados DESC` 
     },
         { 
                 table: 'dim_contratos_locacao', 
@@ -332,10 +339,10 @@ const CONSOLIDATED = [
         table: 'rentabilidade_360_geral', 
         query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro' ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi JOIN Faturamentos f ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo` 
     },
-    { 
+   { 
         table: 'hist_vida_veiculo_timeline', 
         query: `
-            -- LOCAÇÃO (Início de contrato)
+            /* 1. LOCAÇÃO (Início de contrato) */
             SELECT 
                 v.Placa,
                 v.IdVeiculo,
@@ -344,169 +351,149 @@ const CONSOLIDATED = [
                 v.AnoFabricacao,
                 v.Cor,
                 'LOCACAO' as TipoEvento,
-                FORMAT(cl.DataInicial, 'yyyy-MM-dd') as DataEvento,
-                cc.NumeroDocumento as ContratoComercial,
-                cl.ContratoLocacao as ContratoLocacao,
-                c.NomeFantasia as Cliente,
-                c.CNPJ as ClienteDocumento,
-                cl.SituacaoContratoLocacao as Situacao,
+                CAST(cl.DataInicial AS DATETIME) as DataEvento,
+                ISNULL(cc.NumeroDocumento, 'S/N') as ContratoComercial,
+                ISNULL(cl.ContratoLocacao, 'S/N') as ContratoLocacao,
+                ISNULL(c.NomeFantasia, 'Consumidor Final / Não Identificado') as Cliente,
+                ISNULL(c.CNPJ, c.CPF) as ClienteDocumento,
+                ISNULL(cl.SituacaoContratoLocacao, 'Ativo') as Situacao,
                 FORMAT(cl.DataInicial, 'yyyy-MM-dd') as DataInicio,
                 FORMAT(cl.DataFinal, 'yyyy-MM-dd') as DataFimPrevista,
                 FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataFimReal,
                 CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)) as ValorMensal,
-                cl.PeriodoEmMeses as Observacao,
-                NULL as IdOrdemServico,
-                NULL as TipoManutencao,
-                NULL as Fornecedor,
-                NULL as CustoTotal,
-                NULL as NumeroBO,
-                NULL as TipoSinistro,
-                NULL as ValorMulta,
-                NULL as TipoInfracao
-            FROM Veiculos v
-            INNER JOIN ContratosLocacao cl ON cl.PlacaPrincipal = v.Placa
-            INNER JOIN ContratosComerciais cc ON cc.IdContratoComercial = cl.IdContrato
-            LEFT JOIN Clientes c ON c.IdCliente = cc.IdCliente
-            OUTER APPLY (
-                SELECT TOP 1 PrecoUnitario FROM ContratosLocacaoPrecos
-                WHERE IdContratoLocacao = cl.IdContratoLocacao
-                ORDER BY DataInicial DESC
-            ) preco
+                LEFT(cl.PeriodoEmMeses, 150) as Observacao,
+                NULL as IdOrdemServico, NULL as TipoManutencao, NULL as Fornecedor, NULL as CustoTotal, NULL as NumeroBO, NULL as TipoSinistro, NULL as ValorMulta, NULL as TipoInfracao
+            FROM Veiculos v WITH (NOLOCK)
+            INNER JOIN ContratosLocacao cl WITH (NOLOCK) ON cl.PlacaPrincipal = v.Placa
+            LEFT JOIN ContratosComerciais cc WITH (NOLOCK) ON cc.IdContratoComercial = cl.IdContrato
+            LEFT JOIN Clientes c WITH (NOLOCK) ON c.IdCliente = cc.IdCliente
+            OUTER APPLY (SELECT TOP 1 PrecoUnitario FROM ContratosLocacaoPrecos WHERE IdContratoLocacao = cl.IdContratoLocacao ORDER BY DataInicial DESC) preco
             WHERE cl.DataInicial IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             UNION ALL
 
-            -- DEVOLUÇÃO (Fim de contrato)
+            /* 2. DEVOLUÇÃO (Fim de contrato) */
             SELECT 
                 v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
                 'DEVOLUCAO' as TipoEvento,
-                FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataEvento,
-                cc.NumeroDocumento, cl.ContratoLocacao,
-                c.NomeFantasia, c.CNPJ,
+                CAST(cl.DataEncerramento AS DATETIME) as DataEvento,
+                ISNULL(cc.NumeroDocumento, 'S/N'), ISNULL(cl.ContratoLocacao, 'S/N'),
+                ISNULL(c.NomeFantasia, 'Consumidor Final'), ISNULL(c.CNPJ, c.CPF),
                 'DEVOLVIDO' as Situacao,
                 FORMAT(cl.DataInicial, 'yyyy-MM-dd'), FORMAT(cl.DataFinal, 'yyyy-MM-dd'), FORMAT(cl.DataEncerramento, 'yyyy-MM-dd'),
-                CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)), cl.PeriodoEmMeses,
+                CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)), 
+                'Encerrado em: ' + FORMAT(cl.DataEncerramento, 'dd/MM/yyyy'),
                 NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-            FROM Veiculos v
-            INNER JOIN ContratosLocacao cl ON cl.PlacaPrincipal = v.Placa
-            INNER JOIN ContratosComerciais cc ON cc.IdContratoComercial = cl.IdContrato
-            LEFT JOIN Clientes c ON c.IdCliente = cc.IdCliente
-            OUTER APPLY (
-                SELECT TOP 1 PrecoUnitario FROM ContratosLocacaoPrecos
-                WHERE IdContratoLocacao = cl.IdContratoLocacao ORDER BY DataInicial DESC
-            ) preco
+            FROM Veiculos v WITH (NOLOCK)
+            INNER JOIN ContratosLocacao cl WITH (NOLOCK) ON cl.PlacaPrincipal = v.Placa
+            LEFT JOIN ContratosComerciais cc WITH (NOLOCK) ON cc.IdContratoComercial = cl.IdContrato
+            LEFT JOIN Clientes c WITH (NOLOCK) ON c.IdCliente = cc.IdCliente
+            OUTER APPLY (SELECT TOP 1 PrecoUnitario FROM ContratosLocacaoPrecos WHERE IdContratoLocacao = cl.IdContratoLocacao ORDER BY DataInicial DESC) preco
             WHERE cl.DataEncerramento IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             UNION ALL
 
-            -- MANUTENÇÃO
+            /* 3. MANUTENÇÃO */
             SELECT 
                 v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
                 'MANUTENCAO' as TipoEvento,
-                FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEvento,
+                CAST(os.DataInicioServico AS DATETIME) as DataEvento,
                 NULL, NULL,
-                os.Fornecedor as Cliente,
-                NULL,
-                os.SituacaoOrdemServico as Situacao,
-                FORMAT(os.DataInicioServico, 'yyyy-MM-dd'),
-                FORMAT(os.DataPrevistaTermino, 'yyyy-MM-dd'),
+                ISNULL(os.Fornecedor, 'Oficina não informada'), NULL,
+                os.SituacaoOrdemServico,
+                FORMAT(os.DataInicioServico, 'yyyy-MM-dd'), 
+                NULL, -- DataPrevista removida
                 FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
-                NULL, os.Motivo,
-                os.IdOrdemServico,
-                os.Tipo as TipoManutencao,
-                os.Fornecedor,
-                ${castM('os.ValorTotal')} as CustoTotal,
+                NULL, 
+                LEFT(os.Motivo, 150),
+                os.IdOrdemServico, os.Tipo, os.Fornecedor,
+                ${castM('os.ValorTotal')},
                 NULL, NULL, NULL, NULL
-            FROM Veiculos v
-            INNER JOIN OrdensServico os ON os.Placa = v.Placa
-            WHERE os.DataInicioServico IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+            FROM Veiculos v WITH (NOLOCK)
+            INNER JOIN OrdensServico os WITH (NOLOCK) ON os.Placa = v.Placa
+            WHERE os.DataInicioServico IS NOT NULL AND os.SituacaoOrdemServico <> 'Cancelada' AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             UNION ALL
 
-            -- SINISTRO
+            /* 4. SINISTRO */
             SELECT 
                 v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
                 'SINISTRO' as TipoEvento,
-                FORMAT(s.DataSinistro, 'yyyy-MM-dd') as DataEvento,
+                CAST(s.DataSinistro AS DATETIME) as DataEvento,
                 NULL, NULL,
-                c.NomeFantasia,
-                c.CNPJ,
-                s.SituacaoOcorrencia as Situacao,
-                FORMAT(s.DataSinistro, 'yyyy-MM-dd'),
-                NULL,
-                FORMAT(s.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
-                NULL, s.Observacoes,
+                ISNULL(c.NomeFantasia, 'Sem Cliente Vinculado'), NULL,
+                s.SituacaoOcorrencia,
+                FORMAT(s.DataSinistro, 'yyyy-MM-dd'), NULL, FORMAT(s.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
+                NULL, LEFT(s.Observacoes, 150),
                 NULL, NULL, NULL,
-                ${castM('s.ValorSinistro')} as CustoTotal,
-                s.NumeroBO,
-                s.Tipo as TipoSinistro,
-                NULL, NULL
-            FROM Veiculos v
-            INNER JOIN OcorrenciasSinistro s ON s.Placa = v.Placa
-            LEFT JOIN Clientes c ON c.IdCliente = s.IdCliente
+                ${castM('s.ValorOrcamento')}, -- Corrigido para ValorOrcamento
+                s.BoletimOcorrencia, 
+                s.Tipo, NULL, NULL
+            FROM Veiculos v WITH (NOLOCK)
+            INNER JOIN OcorrenciasSinistro s WITH (NOLOCK) ON s.Placa = v.Placa
+            LEFT JOIN Clientes c WITH (NOLOCK) ON c.IdCliente = s.IdCliente
             WHERE s.DataSinistro IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             UNION ALL
 
-            -- MULTA
+            /* 5. MULTA */
             SELECT 
                 v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
                 'MULTA' as TipoEvento,
-                FORMAT(m.DataInfracao, 'yyyy-MM-dd') as DataEvento,
+                CAST(m.DataInfracao AS DATETIME) as DataEvento,
                 NULL, NULL,
-                con.Nome as Cliente,
-                con.CPF,
-                m.SituacaoOcorrencia as Situacao,
-                FORMAT(m.DataInfracao, 'yyyy-MM-dd'),
-                NULL,
-                FORMAT(m.DataPagamento, 'yyyy-MM-dd'),
-                NULL, m.Observacoes,
+                ISNULL(con.Nome, 'Condutor não identificado'), con.CPF,
+                m.SituacaoOcorrencia,
+                FORMAT(m.DataInfracao, 'yyyy-MM-dd'), NULL, NULL, -- DataPagamento removida
+                NULL, LEFT(m.Observacoes, 150),
                 NULL, NULL, NULL, NULL,
-                m.NumeroAIT as NumeroBO,
+                m.AutoInfracao, -- Corrigido para AutoInfracao
                 NULL,
-                ${castM('m.ValorInfracao')} as ValorMulta,
-                m.DescricaoInfracao as TipoInfracao
-            FROM Veiculos v
-            INNER JOIN OcorrenciasInfracoes m ON m.Placa = v.Placa
-            LEFT JOIN Condutores con ON con.IdCondutor = m.IdCondutor
+                ${castM('m.ValorInfracao')},
+                m.DescricaoInfracao
+            FROM Veiculos v WITH (NOLOCK)
+            INNER JOIN OcorrenciasInfracoes m WITH (NOLOCK) ON m.Placa = v.Placa
+            LEFT JOIN Condutores con WITH (NOLOCK) ON con.IdCondutor = m.IdCondutor
             WHERE m.DataInfracao IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             UNION ALL
 
-            -- COMPRA/AQUISIÇÃO
+            /* 6. COMPRA */
             SELECT 
                 v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
                 'COMPRA' as TipoEvento,
-                FORMAT(v.DataCompra, 'yyyy-MM-dd') as DataEvento,
+                CAST(v.DataCompra AS DATETIME) as DataEvento,
                 NULL, NULL,
-                NULL, NULL,
-                'ADQUIRIDO' as Situacao,
+                ISNULL(v.Proprietario, 'Aquisição Frota'), NULL,
+                'ADQUIRIDO',
                 FORMAT(v.DataCompra, 'yyyy-MM-dd'), NULL, NULL,
-                NULL, NULL,
-                NULL, NULL, NULL,
-                ${castM('v.ValorCompra')} as CustoTotal,
+                NULL, 
+                LEFT(ISNULL(v.InformacoesAdicionais, 'Nota Fiscal não detalhada'), 150), -- Corrigido para InformacoesAdicionais
+                NULL, NULL, 
+                ISNULL(v.Proprietario, 'Fornecedor Padrão'), 
+                ${castM('v.ValorCompra')},
                 NULL, NULL, NULL, NULL
-            FROM Veiculos v
+            FROM Veiculos v WITH (NOLOCK)
             WHERE v.DataCompra IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             UNION ALL
 
-            -- VENDA/BAIXA
+            /* 7. VENDA */
             SELECT 
                 v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
                 'VENDA' as TipoEvento,
-                FORMAT(v.DataVenda, 'yyyy-MM-dd') as DataEvento,
+                CAST(vv.DataVenda AS DATETIME) as DataEvento,
                 NULL, NULL,
-                NULL, NULL,
-                'BAIXADO' as Situacao,
-                FORMAT(v.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
-                NULL, NULL,
+                ISNULL(vv.Comprador, 'Comprador não inf.'), NULL,
+                'BAIXADO',
+                FORMAT(vv.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
+                NULL, 'Fatura: ' + ISNULL(vv.FaturaVenda, '-'),
                 NULL, NULL, NULL,
-                ${castM('vv.ValorVenda')} as CustoTotal,
+                ${castM('vv.ValorVenda')},
                 NULL, NULL, NULL, NULL
-            FROM Veiculos v
-            LEFT JOIN VeiculosVendidos vv ON vv.Placa = v.Placa
-            WHERE v.DataVenda IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+            FROM Veiculos v WITH (NOLOCK)
+            LEFT JOIN VeiculosVendidos vv WITH (NOLOCK) ON vv.Placa = v.Placa
+            WHERE vv.DataVenda IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             ORDER BY Placa, DataEvento DESC
         ` 
@@ -646,96 +633,140 @@ const CONSOLIDATED = [
     { 
         table: 'fat_manutencao_unificado', 
         query: `SELECT 
-                    -- Identificação da OS
+                    -- Identificação da Ocorrência (tabela principal)
+                    om.IdOcorrencia,
+                    om.Ocorrencia,
+                    om.Ocorrencia as NumeroOcorrencia,
+                    
+                    -- Dados da Ocorrência
+                    om.IdSituacaoOcorrencia as IdSituacaoOcorrenciaManut,
+                    om.SituacaoOcorrencia,
+                    om.IdEtapa,
+                    om.Etapa,
+                    om.IdTipo as IdTipoOcorrencia,
+                    om.Tipo as TipoOcorrencia,
+                    om.IdMotivo as IdMotivoOcorrencia,
+                    om.Motivo,
+                    om.Descricao as DescricaoOcorrencia,
+                    om.Observacoes,
+                    
+                    -- Datas da Ocorrência
+                    FORMAT(om.DataCriacao, 'yyyy-MM-dd') as DataAberturaOcorrencia,
+                    FORMAT(om.DataAgendamento, 'yyyy-MM-dd') as DataAgendamento,
+                    FORMAT(om.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataConclusaoOcorrencia,
+                    FORMAT(om.DataPrevisaoConclusaoServico, 'yyyy-MM-dd') as DataPrevisaoConclusao,
+                    FORMAT(om.DataConfirmacaoSaida, 'yyyy-MM-dd') as DataConfirmacaoSaida,
+                    FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd') as DataRetiradaVeiculo,
+                    -- Data de chegada baseada em movimentações (Etapa 'Aguardando Chegada')
+                    (
+                        SELECT TOP 1 FORMAT(mo3.DataDeConfirmacao, 'yyyy-MM-dd')
+                        FROM MovimentacaoOcorrencias mo3
+                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
+                        ORDER BY mo3.DataDeConfirmacao ASC
+                    ) as DataChegadaVeiculo,
+                    -- Movimentações detalhadas por ocorrência (etapa + data + tempo desde etapa anterior)
+                    (
+                        SELECT
+                            mo2.Etapa as Etapa,
+                            FORMAT(mo2.DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataConfirmacao,
+                            DATEDIFF(MINUTE, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as MinutosDesdeAnterior,
+                            DATEDIFF(HOUR, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as HorasDesdeAnterior,
+                            DATEDIFF(DAY, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as DiasDesdeAnterior
+                        FROM MovimentacaoOcorrencias mo2
+                        WHERE mo2.Ocorrencia = om.Ocorrencia AND mo2.DataDeConfirmacao IS NOT NULL
+                        ORDER BY mo2.DataDeConfirmacao
+                        FOR JSON PATH
+                    ) as MovimentacoesJson,
+
+                    -- KPI: diferença entre conclusão da ocorrência e retirada do veículo
+                    DATEDIFF(MINUTE, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Minutos_Conclusao_Retirada,
+                    DATEDIFF(HOUR, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Horas_Conclusao_Retirada,
+                    DATEDIFF(DAY, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Dias_Conclusao_Retirada,
+                    
+                    -- Veículo
+                    om.IdVeiculo,
+                    om.Placa,
+                    v.Modelo,
+                    ISNULL(g.GrupoVeiculo, '') as CategoriaVeiculo,
+                    om.OdometroAtual as Odometro,
+                    
+                    -- Fornecedor/Oficina (da ocorrência)
+                    om.IdFornecedor as IdFornecedorOcorrencia,
+                    om.Fornecedor as FornecedorOcorrencia,
+                    
+                    -- Cliente e Condutor
+                    om.IdCliente,
+                    om.NomeCliente as Cliente,
+                    om.IdCondutor,
+                    om.NomeCondutor as Condutor,
+                    om.NomeRequisitante,
+                    om.EmailRequisitante,
+                    om.TelefoneRequisitante,
+                    
+                    -- Contratos
+                    om.IdContratoLocacao,
+                    om.ContratoLocacao,
+                    om.IdContratoComercial,
+                    om.ContratoComercial,
+                    om.IdClassificacaoContrato,
+                    om.ClassificacaoContrato,
+                    
+                    -- Localização
+                    om.Endereco,
+                    om.Numero,
+                    om.Bairro,
+                    om.Cidade,
+                    om.Estado,
+                    
+                    -- Cancelamento
+                    om.CanceladoPor,
+                    FORMAT(om.CanceladoEm, 'yyyy-MM-dd') as DataCancelamento,
+                    om.MotivoCancelamento,
+                    
+                    -- Origem
+                    om.Origem,
+                    
+                    -- Dados da OS (quando existir)
                     os.IdOrdemServico,
                     os.OrdemServico,
-                    os.IdOcorrencia,
-                    os.Ocorrencia,
-                    os.Ocorrencia as NumeroOcorrencia,
-                    
-                    -- Veículo (com JOIN para enriquecer)
-                    os.IdVeiculo,
-                    os.Placa,
-                    os.IdModeloVeiculo,
-                    os.ModeloVeiculo as Modelo,
-                    ISNULL(g.GrupoVeiculo, '') as CategoriaVeiculo,
-                    
-                    -- Fornecedor/Oficina
-                    os.IdFornecedor,
-                    os.Fornecedor,
-                    
-                    -- Classificação da Manutenção
-                    os.IdTipo,
-                    os.Tipo as TipoOcorrencia,
-                    os.IdMotivo,
-                    os.Motivo,
-                    ISNULL(os.Categoria, '') as Categoria,
-                    ISNULL(os.Despesa, '') as Despesa,
-                    
-                    -- Datas (CRÍTICO para Lead Time) - Agora com DataAgendamento
-                    FORMAT(ISNULL(
-                        (SELECT TOP 1 DataDeConfirmacao FROM MovimentacaoOcorrencias 
-                         WHERE Ocorrencia = os.Ocorrencia AND Etapa = 'Pré-Agendamento' 
-                         ORDER BY DataDeConfirmacao ASC),
-                        os.DataInicioServico
-                    ), 'yyyy-MM-dd') as DataAgendamento,
-                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEvento,
-                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
-                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
-                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataConclusao,
-                    
-                    -- Status
-                    os.IdSituacaoOcorrencia,
-                    os.SituacaoOcorrencia as StatusOcorrencia,
                     os.IdSituacaoOrdemServico,
                     os.SituacaoOrdemServico as StatusOS,
-                    
-                    -- Odômetro (nota: OrdensServico só tem um campo OdometroConfirmado)
-                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as KmEntrada,
-                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as KmSaida,
-                    0 as KmPercorrido, -- Campo calculado - requer entrada/saída separados que não existem
-                    
-                    -- Valores Financeiros (agora com agregação de peças/serviços)
-                    ${castM('os.ValorTotal')} as CustoTotalOS,
-                    ${castM('os.ValorTotal')} as ValorTotal,
-                    ${castM('os.ValorNaoReembolsavel')} as ValorNaoReembolsavel,
-                    ${castM('os.ValorReembolsavel')} as ValorReembolsavel,
-                    ${castM('(SELECT ISNULL(SUM(ValorTotal), 0) FROM ItensOrdemServico WHERE IdOrdemServico = os.IdOrdemServico AND GrupoDespesa LIKE \'%pe%\')')} as CustoPecas,
-                    ${castM('(SELECT ISNULL(SUM(ValorTotal), 0) FROM ItensOrdemServico WHERE IdOrdemServico = os.IdOrdemServico AND GrupoDespesa LIKE \'%servi%\')')} as CustoServicos,
-                    
-                    -- Lead Time (CRÍTICO para MTTR)
-                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
-                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as DiasParado,
-                    
-                    -- Contratos (com JOINs para dados reais)
-                    os.IdContratoLocacao,
-                    os.ContratoLocacao,
-                    os.IdContratoComercial,
-                    ISNULL(cc.NumeroDocumento, os.ContratoComercial) as ContratoComercial,
-                    
-                    -- Cliente (com JOIN para nome fantasia real)
-                    os.IdCliente,
-                    ISNULL(cli.NomeFantasia, os.Cliente) as Cliente,
-                    
-                    -- Outros
+                    os.Categoria,
+                    os.Despesa,
                     os.OrdemCompra,
+                    os.IdFornecedor as IdFornecedorOS,
+                    os.Fornecedor as FornecedorOS,
+                    FORMAT(os.OrdemServicoCriadaEm, 'yyyy-MM-dd') as DataCriacaoOS,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
+                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
+                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as OdometroOS,
                     
-                    -- Tipo de Manutenção (inferido para análises)
+                    -- Valores Financeiros (da OS)
+                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as CustoTotalOS,
+                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as ValorTotal,
+                    (${castM('ISNULL(os.ValorNaoReembolsavel, 0)')} / 100.0) as ValorNaoReembolsavel,
+                    (${castM('ISNULL(os.ValorReembolsavel, 0)')} / 100.0) as ValorReembolsavel,
+                    
+                    -- Lead Time
+                    DATEDIFF(DAY, om.DataCriacao, ISNULL(om.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
+                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, os.OrdemServicoCriadaEm)) as DiasOS,
+                    
+                    -- Tipo de Manutenção (inferido)
                     CASE 
-                        WHEN os.Tipo LIKE '%preventiv%' OR os.Tipo LIKE '%Preventiv%' THEN 'Preventiva'
-                        WHEN os.Tipo LIKE '%corretiv%' OR os.Tipo LIKE '%Corretiv%' THEN 'Corretiva'
-                        WHEN os.Tipo LIKE '%preditiv%' OR os.Tipo LIKE '%Preditiv%' THEN 'Preditiva'
+                        WHEN om.Tipo LIKE '%preventiv%' OR om.Tipo LIKE '%Preventiv%' THEN 'Preventiva'
+                        WHEN om.Tipo LIKE '%corretiv%' OR om.Tipo LIKE '%Corretiv%' THEN 'Corretiva'
+                        WHEN om.Tipo LIKE '%preditiv%' OR om.Tipo LIKE '%Preditiv%' THEN 'Preditiva'
                         ELSE 'Outros'
                     END as TipoManutencao
                     
-                FROM OrdensServico os
+                FROM OcorrenciasManutencao om
+                -- JOIN com Ordens de Serviço
+                LEFT JOIN OrdensServico os ON om.IdOcorrencia = os.IdOcorrencia
                 -- JOINs para enriquecer com dados de relacionamento
-                LEFT JOIN Veiculos v ON os.Placa = v.Placa
+                LEFT JOIN Veiculos v ON om.Placa = v.Placa
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
-                LEFT JOIN ContratosLocacao cl ON os.IdContratoLocacao = cl.IdContratoLocacao OR (os.Placa = cl.PlacaPrincipal AND cl.SituacaoContratoLocacao = 'Ativo')
-                LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial OR os.IdContratoComercial = cc.IdContratoComercial
-                LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente OR os.IdCliente = cli.IdCliente
-                WHERE os.SituacaoOrdemServico <> 'Cancelada'` 
+                WHERE om.SituacaoOcorrencia NOT IN ('Cancelada')
+                  AND om.DataCriacao >= DATEADD(YEAR, -3, GETDATE())` 
     },
     {
         table: 'agg_kpis_manutencao_mensal',
@@ -1031,7 +1062,7 @@ const uploadQueue = [];
 function queueUpload(tableName, data, year = null, month = null) {
     if (!SUPABASE_SERVICE_KEY) return;
 
-    const MAX_CHUNK_SIZE = 30000; // Máximo 30K registros por upload (reduzido para evitar HTTP 546)
+    const MAX_CHUNK_SIZE = 10000; // Reduzido para 10K para evitar HTTP 546 (Edge Function limit)
     const baseFileName = year 
         ? (month ? `${tableName}_${year}_${month.toString().padStart(2, '0')}` 
                   : `${tableName}_${year}`)
