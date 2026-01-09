@@ -180,12 +180,26 @@ function normalizePlacaKey(raw: unknown): string {
 
 /**
  * Calcula dias de locação somando todos os períodos de contratos
+ * Campos do ETL dim_contratos_locacao: Inicio, Fim, DataEncerramento
  */
 function calcDiasLocadoFromContratos(contratos: AnyObject[], now = new Date()): number {
+  if (!Array.isArray(contratos) || contratos.length === 0) return 0;
+  
   return contratos.reduce((sum, c) => {
-    const inicio = parseDateAny(c?.Inicio ?? c?.DataInicial ?? c?.InicioContrato ?? c?.DataInicio);
-    const fim = parseDateAny(c?.Fim ?? c?.DataEncerramento ?? c?.DataFimEfetiva ?? c?.DataTermino);
+    // Campos do ETL: Inicio (formato yyyy-MM-dd), Fim, DataEncerramento
+    const inicio = parseDateAny(
+      c?.Inicio ?? c?.DataInicial ?? c?.InicioContrato ?? c?.DataInicio ?? 
+      c?.DataRetirada ?? c?.DataInicioLocacao
+    );
+    // Data real de encerramento tem prioridade sobre data prevista
+    const fim = parseDateAny(
+      c?.DataEncerramento ?? c?.Fim ?? c?.DataFimEfetiva ?? c?.DataTermino ?? 
+      c?.DataFimLocacao
+    );
+    
     if (!inicio) return sum;
+    
+    // Se não tem data de encerramento, usa data atual (contrato ainda ativo)
     const end = fim || now;
     const days = Math.max(0, (end.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
     return sum + days;
@@ -194,12 +208,25 @@ function calcDiasLocadoFromContratos(contratos: AnyObject[], now = new Date()): 
 
 /**
  * Calcula dias de manutenção somando (dataRetirada - dataChegada) de cada OS
+ * Campos do ETL fat_manutencao_unificado: DataChegadaVeiculo, DataRetiradaVeiculo
  */
 function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date()): number {
+  if (!Array.isArray(osRecords) || osRecords.length === 0) return 0;
+  
   return osRecords.reduce((sum, os) => {
-    const chegada = parseDateAny(os?.DataEntrada ?? os?.DataChegada ?? os?.DataAgendamento ?? os?.Data);
-    const retirada = parseDateAny(os?.DataSaida ?? os?.DataRetirada ?? os?.DataConclusao);
+    // Campos do ETL fat_manutencao_unificado
+    const chegada = parseDateAny(
+      os?.DataChegadaVeiculo ?? os?.DataAgendamento ?? os?.DataAberturaOcorrencia ??
+      os?.DataEntrada ?? os?.DataChegada ?? os?.Data
+    );
+    const retirada = parseDateAny(
+      os?.DataRetiradaVeiculo ?? os?.DataConclusaoOcorrencia ?? os?.DataConfirmacaoSaida ??
+      os?.DataSaida ?? os?.DataRetirada ?? os?.DataConclusao
+    );
+    
     if (!chegada) return sum;
+    
+    // Se não tem data de retirada, veículo ainda está na oficina - conta até hoje
     const end = retirada || now;
     const days = Math.max(0, (end.getTime() - chegada.getTime()) / (1000 * 60 * 60 * 24));
     return sum + days;
@@ -225,12 +252,17 @@ export function aggregateFleetMetrics(
   manutencao: AnyObject[],
   now = new Date()
 ): FleetAggregatedMetrics {
+  // Normalizar inputs para arrays
+  const frotaArr = Array.isArray(frota) ? frota : [];
+  const contratosArr = Array.isArray(contratos) ? contratos : (contratos as any)?.data || [];
+  const manutArr = Array.isArray(manutencao) ? manutencao : (manutencao as any)?.data || [];
+  
   // Criar mapas por placa
   const contratosByPlaca: Record<string, AnyObject[]> = {};
   const manutencaoByPlaca: Record<string, AnyObject[]> = {};
   
   // Agrupar contratos por placa
-  (contratos || []).forEach(c => {
+  contratosArr.forEach((c: AnyObject) => {
     const placa = normalizePlacaKey(c?.PlacaPrincipal ?? c?.Placa);
     if (!placa) return;
     if (!contratosByPlaca[placa]) contratosByPlaca[placa] = [];
@@ -238,7 +270,7 @@ export function aggregateFleetMetrics(
   });
   
   // Agrupar manutenções por placa
-  (manutencao || []).forEach(m => {
+  manutArr.forEach((m: AnyObject) => {
     const placa = normalizePlacaKey(m?.Placa);
     if (!placa) return;
     if (!manutencaoByPlaca[placa]) manutencaoByPlaca[placa] = [];
@@ -248,7 +280,7 @@ export function aggregateFleetMetrics(
   // Processar cada veículo
   const metricsPerVehicle: VehicleLifecycleMetrics[] = [];
   
-  (frota || []).forEach(v => {
+  frotaArr.forEach((v: AnyObject) => {
     const placa = normalizePlacaKey(v?.Placa);
     if (!placa) return;
     
