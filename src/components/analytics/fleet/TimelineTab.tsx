@@ -7,7 +7,7 @@ import {
   RotateCcw, Archive, Store, User, UserCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { calcStateDurationsDays, normalizeEventName } from '@/lib/analytics/fleetTimeline';
+import { normalizeEventName } from '@/lib/analytics/fleetTimeline';
 
 type AnyObject = { [k: string]: any };
 
@@ -18,6 +18,7 @@ interface TimelineTabProps {
   manutencao?: AnyObject[];
   contratosLocacao?: AnyObject[];
   sinistros?: AnyObject[];
+  multas?: AnyObject[];
 }
 
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
@@ -26,6 +27,35 @@ function fmtMoney(v: any) {
   const num = typeof v === 'string' ? parseFloat(v.replace('R$', '').trim()) : v;
   if (!num || isNaN(num)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+}
+
+// Normaliza valores vindos do ETL / API que podem vir em formatos diferentes:
+// - strings com vírgula/ex.: "195,23"
+// - strings com R$ e separadores: "R$ 19.523,00"
+// - números inteiros representando centavos (ex.: 19523 -> 195.23)
+function normalizeMonetaryValue(v: any): number | null {
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    const s = String(v).trim();
+    // remove prefix currency symbols and spaces
+    const cleaned = s.replace(/[^0-9.,-]/g, '').trim();
+    if (!cleaned) return null;
+    // If contains only comma as decimal separator (e.g. "195,23"), convert to dot
+    if (cleaned.indexOf(',') !== -1 && cleaned.indexOf('.') === -1) {
+      const n = parseFloat(cleaned.replace(',', '.'));
+      return Number.isNaN(n) ? null : n;
+    }
+    // Otherwise remove thousand separators (.) and replace comma with dot
+    const normalized = cleaned.replace(/\./g, '').replace(/,/g, '.');
+    const n = parseFloat(normalized);
+    return Number.isNaN(n) ? null : n;
+  }
+  if (typeof v === 'number') {
+    // Heurística: se for inteiro e grande (>=1000) provavelmente veio em centavos
+    if (Number.isInteger(v) && Math.abs(v) >= 1000) return v / 100;
+    return v;
+  }
+  return null;
 }
 
 function normalizePlacaKey(raw: unknown): string {
@@ -447,9 +477,10 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
   };
 }
 
-export default function TimelineTab({ timeline, filteredData, frota, manutencao, contratosLocacao, sinistros }: TimelineTabProps) {
+export default function TimelineTab({ timeline, filteredData, frota, manutencao, contratosLocacao, sinistros, multas }: TimelineTabProps) {
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedVersion, setExpandedVersion] = useState(0); // Force re-render trigger
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 15;
@@ -470,10 +501,30 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return map;
   }, [sinistros]);
 
+  // Criar mapa de multas por placa usando fat_multas
+  const multasByPlaca = useMemo(() => {
+    const map: Record<string, AnyObject[]> = {};
+    if (!Array.isArray(multas)) return map;
+    for (const m of multas) {
+      const placa = normalizePlacaKey(m?.Placa);
+      if (!placa) continue;
+      if (!map[placa]) map[placa] = [];
+      map[placa].push(m);
+    }
+    // Ordenar multas por data (mais recente primeiro)
+    for (const placa of Object.keys(map)) {
+      map[placa].sort((a, b) => {
+        const da = parseDateAny(a?.DataInfracao);
+        const db = parseDateAny(b?.DataInfracao);
+        return (db?.getTime() ?? 0) - (da?.getTime() ?? 0);
+      });
+    }
+    return map;
+  }, [multas]);
+
   const contratosByPlaca = useMemo(() => {
     const map: Record<string, AnyObject[]> = {};
     const list = Array.isArray(contratosLocacao) ? contratosLocacao : [];
-    console.log('📋 contratosLocacao recebido:', list.length, 'registros', list.slice(0, 3));
 
     const pickDate = (c: AnyObject, keys: string[]): Date | null => {
       for (const k of keys) {
@@ -500,20 +551,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         __fimEncerramento: fimEncerramento,
       });
     }
-    
-    // Debug: Log amostra de contratos
-    const amostraPlacas = Object.keys(map).slice(0, 5);
-    console.log('📋 Amostra de contratosByPlaca:', amostraPlacas.map(p => ({
-      placa: p,
-      contratos: map[p].length,
-      primeiro: {
-        ContratoComercial: map[p][0]?.ContratoComercial,
-        ContratoLocacao: map[p][0]?.ContratoLocacao,
-        NomeCliente: map[p][0]?.NomeCliente,
-        PlacaPrincipal: map[p][0]?.PlacaPrincipal,
-        Placa: map[p][0]?.Placa
-      }
-    })));
 
     for (const placaKey of Object.keys(map)) {
       map[placaKey].sort((a, b) => {
@@ -522,8 +559,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         return bt - at;
       });
     }
-    
-    console.log('📋 contratosByPlaca mapeado:', Object.keys(map).length, 'placas únicas');
 
     return map;
   }, [contratosLocacao]);
@@ -533,12 +568,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     const arr = contratosByPlaca[placaKey] ?? [];
     const t = d?.getTime() ?? 0;
     
-    // Debug: Log quando não encontra contratos
-    if (arr.length === 0) {
-      console.log(`⚠️ Nenhum contrato encontrado em contratosByPlaca para placa: ${placa} (normalizada: ${placaKey})`);
-      console.log('   Placas disponíveis em contratosByPlaca:', Object.keys(contratosByPlaca).slice(0, 20));
-      return null;
-    }
+    if (arr.length === 0) return null;
 
     if (!t) return arr[0] ?? null;
 
@@ -563,7 +593,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
   const manutencaoByPlaca = useMemo(() => {
     const map: Record<string, AnyObject[]> = {};
-    console.log('📊 Manutenção total recebida:', Array.isArray(manutencao) ? manutencao.length : 'não é array', manutencao);
     if (!Array.isArray(manutencao)) return map;
     for (const r of manutencao) {
       const placa = r?.Placa;
@@ -571,7 +600,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       if (!map[placa]) map[placa] = [];
       map[placa].push(r);
     }
-    console.log('📊 Manutenção agrupada por placa:', Object.keys(map).length, 'veículos', map);
     return map;
   }, [manutencao]);
 
@@ -601,10 +629,46 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           return ad.getTime() - bd.getTime();
         });
 
-      const { totalDays, locacaoDays, manutencaoDays, sinistroDays } = calcStateDurationsDays(sortedEvents);
-      // Utilização = dias locado / (total - dias inativos por sinistro/manutenção longa)
-      // Considera produtivo quando em locação; improdutivo quando em manutenção/sinistro
-      const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDays / totalDays) * 100)) : 0;
+      // Calcular dias reais de locação (de contratos)
+      const contratosPlaca = contratosByPlaca[normalizePlacaKey(placa)] || [];
+      const locacaoDaysReal = contratosPlaca.reduce((sum, c) => {
+        const inicio = normalizeDateLocal(c.Inicio);
+        const fim = normalizeDateLocal(c.Fim || c.DataEncerramento);
+        if (!inicio) return sum;
+        const end = fim || new Date();
+        const days = Math.max(0, (end.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        return sum + days;
+      }, 0);
+
+      // Calcular dias reais de manutenção (de OSs)
+      const manutPlaca = manutencaoByPlaca[placa] || [];
+      const manutencaoDaysReal = manutPlaca.reduce((sum, os) => {
+        const entrada = normalizeDateLocal(os.DataEntrada);
+        const saida = normalizeDateLocal(os.DataSaida);
+        if (!entrada) return sum;
+        const end = saida || new Date();
+        const days = Math.max(0, (end.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24));
+        return sum + days;
+      }, 0);
+
+      // Calcular dias reais de sinistro (de ocorrências)
+      const sinistrosPlaca = sinistrosByPlaca[normalizePlacaKey(placa)] || [];
+      const sinistroDaysReal = sinistrosPlaca.reduce((sum, s) => {
+        const abertura = normalizeDateLocal(s.DataAberturaOcorrencia);
+        const conclusao = normalizeDateLocal(s.DataConclusaoOcorrencia);
+        if (!abertura) return sum;
+        const end = conclusao || new Date();
+        const days = Math.max(0, (end.getTime() - abertura.getTime()) / (1000 * 60 * 60 * 24));
+        return sum + days;
+      }, 0);
+
+      // Total days desde primeiro evento
+      const totalDays = sortedEvents.length > 0 
+        ? Math.max(1, (new Date().getTime() - (parseDateAny(sortedEvents[0].DataEvento || sortedEvents[0].Data) || new Date()).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+      
+      // Utilização = dias locado / total days
+      const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDaysReal / totalDays) * 100)) : 0;
 
       const numeroContratoLocacao = veiculoInfo?.NumeroContratoLocacao || veiculoInfo?.ContratoAtual || veiculoInfo?.NumeroContrato;
       const situacaoLocacao = veiculoInfo?.SituacaoLocacao || veiculoInfo?.StatusLocacao || veiculoInfo?.StatusContrato || veiculoInfo?.Situacao;
@@ -621,9 +685,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         dataEncerramentoLocacao: dataEncerramentoLocacao || null,
         eventos: sortedEvents,
         totalEvents: sortedEvents.length,
-        locacaoDays: Math.round(locacaoDays),
-        manutencaoDays: Math.round(manutencaoDays),
-        sinistroDays: Math.round(sinistroDays),
+        locacaoDays: Math.round(locacaoDaysReal),
+        manutencaoDays: Math.round(manutencaoDaysReal),
+        sinistroDays: Math.round(sinistroDaysReal),
         utilization
       };
     }).sort((a, b) => b.totalEvents - a.totalEvents);
@@ -828,6 +892,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       else next.add(key);
       return next;
     });
+    setExpandedVersion(v => v + 1);
   };
 
   const exportToExcel = () => {
@@ -1111,14 +1176,14 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                       // 2) Eventos agrupados por dia/tipo
                       // Se houver intervalos de manutenção consolidados, não mostrar eventos individuais de manutenção
-                      // Multas serão exibidas em um tópico próprio.
+                      // Multas serão exibidas em um tópico próprio (usando fat_multas).
                       const groups = new Map<string, { tipo: string; date: Date; items: AnyObject[] }>();
                       for (const ev of [...eventos].slice().reverse()) {
                         // reverse para manter o último evento do dia no topo ao expandir o grupo
                         const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
                         // Se há ocorrências consolidadas, pular eventos de manutenção individuais
                         if (tipo.includes('MANUT') && manutOccurrences.length > 0) continue;
-                        if (tipo.includes('MULTA')) continue;
+                        if (tipo.includes('MULTA')) continue; // Multas vêm de fat_multas
                         const d = new Date(ev.DataEvento || ev.Data);
                         if (Number.isNaN(d.getTime())) continue;
                         const key = `${tipo}:${toISODateKey(d)}`;
@@ -1127,14 +1192,8 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         else prev.items.push(ev);
                       }
 
-                      // 3) Multas (tópico dedicado)
-                      const multas = [...eventos]
-                        .filter((ev) => (normalizeEventName(ev.TipoEvento || ev.Evento || ''))?.includes('MULTA'))
-                        .map((ev) => {
-                          const d = new Date(ev.DataEvento || ev.Data);
-                          return { ev, d: Number.isNaN(d.getTime()) ? null : d };
-                        })
-                        .sort((a, b) => (b.d?.getTime() || 0) - (a.d?.getTime() || 0));
+                      // 3) Multas - agora usando fat_multas via multasByPlaca
+                      const placaMultas = multasByPlaca[normalizePlacaKey(placa)] || [];
 
                       const eventRows: EventGroupRow[] = Array.from(groups.entries()).map(([key, g]) => ({
                         kind: 'EVENTO_DIA_TIPO',
@@ -1183,7 +1242,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             </div>
                           )}
 
-                          {multas.length > 0 && (() => {
+                          {placaMultas.length > 0 && (() => {
                             const multasKey = `multas:${placa}`;
                             const opened = expandedRows.has(multasKey);
                             return (
@@ -1193,13 +1252,16 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                 </div>
                                 <div
                                   className="bg-slate-50 rounded-lg p-3 cursor-pointer border border-slate-100"
-                                  onClick={() => toggleRow(multasKey)}
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    toggleRow(multasKey); 
+                                  }}
                                 >
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-2">
                                         <span className="font-medium text-sm text-slate-700 truncate">MULTAS</span>
-                                        <Badge color="slate" className="shrink-0">{multas.length}</Badge>
+                                        <Badge color="slate" className="shrink-0">{placaMultas.length}</Badge>
                                       </div>
                                       <div className="text-xs text-slate-500 mt-1">
                                         Clique para {opened ? 'ocultar' : 'ver'} todas as multas por data
@@ -1209,46 +1271,49 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                   </div>
 
                                   {opened && (
-                                    <div className="mt-2 space-y-2">
-                                      {multas.map(({ ev, d }, i) => {
-                                        const k = `multa:${placa}:${String(ev?.IdOcorrencia || ev?.Ocorrencia || ev?.AutoInfracao || i)}`;
+                                    <div className="mt-2 space-y-2" key={`multas-list-${expandedVersion}`}>
+                                      {placaMultas.map((multa, i) => {
+                                        const k = `multa:${placa}:${multa?.IdOcorrencia || multa?.Ocorrencia || i}`;
                                         const itemOpen = expandedRows.has(k);
-                                        const detail = ev?.DescricaoInfracao || ev?.Detalhe1 || ev?.Descricao || ev?.Detalhe2;
-                                        const codigoInfracao = ev?.CodigoInfracao ?? ev?.codigo_infracao;
-                                        const orgaoAutuador = ev?.OrgaoAutuador ?? ev?.orgao_autuador;
-                                        const valorMulta = ev?.ValorMulta ?? ev?.ValorEvento ?? ev?.valor_multa;
-                                        const valorDesconto = ev?.ValorDesconto ?? ev?.valor_desconto;
-                                        const status = ev?.Status ?? ev?.status ?? ev?.Situacao;
-                                        const dataInfracao = parseDateAny(ev?.DataInfracao ?? ev?.data_infracao);
-                                        const dataLimitePagamento = parseDateAny(ev?.DataLimitePagamento ?? ev?.data_limite_pagamento);
-                                        const localInfracao = ev?.Cidade ? `${ev.Cidade}${ev.Estado ? ` - ${ev.Estado}` : ''}` : (ev?.LocalInfracao ?? ev?.local_infracao ?? ev?.Local);
-                                        const pontos = ev?.PontosCarteira ?? ev?.pontos_carteira ?? ev?.Pontos;
-                                        const condutor = ev?.Condutor ?? ev?.condutor ?? ev?.NomeCondutor;
-                                        const cliente = ev?.Cliente ?? ev?.cliente;
-                                        const numeroAuto = ev?.AutoInfracao ?? ev?.NumeroAuto ?? ev?.numero_auto;
-                                        const emRecurso = ev?.EmRecurso ?? ev?.em_recurso;
-                                        const motivoRecurso = ev?.MotivoRecurso ?? ev?.motivo_recurso;
+                                        const dataInfracao = parseDateAny(multa?.DataInfracao);
+                                        const detail = multa?.DescricaoInfracao;
+                                        const codigoInfracao = multa?.CodigoInfracao;
+                                        const orgaoAutuador = multa?.OrgaoAutuador;
+                                        const valorMulta = multa?.ValorMulta;
+                                        const valorDesconto = multa?.ValorDesconto;
+                                        const displayValorMulta = normalizeMonetaryValue(valorMulta);
+                                        const displayValorDesconto = normalizeMonetaryValue(valorDesconto);
+                                        const status = multa?.Status;
+                                        const dataLimitePagamento = parseDateAny(multa?.DataLimitePagamento);
+                                        const dataLimiteRecurso = parseDateAny(multa?.DataLimiteRecurso);
+                                        const localInfracao = multa?.Cidade ? `${multa.Cidade}${multa.Estado ? ` - ${multa.Estado}` : ''}` : null;
+                                        const condutor = multa?.Condutor;
+                                        const cliente = multa?.Cliente;
+                                        const numeroAuto = multa?.AutoInfracao;
+                                        const emRecurso = multa?.EmRecurso;
+                                        const motivoRecurso = multa?.MotivoRecurso;
+                                        const contratoLocacao = multa?.ContratoLocacao;
 
                                         return (
                                           <div key={k} className="bg-white rounded border border-slate-200">
                                             <div
                                               className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer hover:bg-sky-50"
-                                              onClick={(e) => { e.stopPropagation(); toggleRow(k); }}
+                                              onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                toggleRow(k); 
+                                              }}
                                             >
                                               <div className="min-w-0">
                                                 <div className="text-sm text-slate-700 font-medium">
-                                                  {d ? d.toLocaleDateString('pt-BR') : '—'}
+                                                  {dataInfracao ? dataInfracao.toLocaleDateString('pt-BR') : '—'}
                                                   {numeroAuto ? <span className="ml-2 text-slate-400 font-mono">• {String(numeroAuto)}</span> : null}
                                                 </div>
                                                 {detail ? <div className="text-xs text-slate-500 truncate mt-0.5">{String(detail)}</div> : null}
                                               </div>
                                               <div className="flex items-center gap-2">
-                                                {valorMulta && (
+                                                {displayValorMulta != null && !Number.isNaN(displayValorMulta) && (
                                                   <span className="text-sm font-semibold text-sky-700">
-                                                    {typeof valorMulta === 'number' 
-                                                      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorMulta)
-                                                      : String(valorMulta)
-                                                    }
+                                                    {fmtMoney(displayValorMulta)}
                                                   </span>
                                                 )}
                                                 <div className="text-xs text-slate-400 shrink-0">{itemOpen ? '▼' : '▶'}</div>
@@ -1281,6 +1346,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <span className="font-semibold text-orange-600">{fmtDateBR(dataLimitePagamento)}</span>
                                                   </div>
                                                 )}
+                                                {dataLimiteRecurso && (
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Limite Recurso:</span>
+                                                    <span className="font-semibold text-amber-600">{fmtDateBR(dataLimiteRecurso)}</span>
+                                                  </div>
+                                                )}
                                                 {localInfracao && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Local:</span>
@@ -1293,22 +1364,22 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <span className="text-slate-700">{String(cliente)}</span>
                                                   </div>
                                                 )}
+                                                {contratoLocacao && (
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Contrato:</span>
+                                                    <span className="text-slate-700 font-mono">{String(contratoLocacao)}</span>
+                                                  </div>
+                                                )}
                                                 {condutor && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Condutor:</span>
                                                     <span className="text-slate-700">{String(condutor)}</span>
                                                   </div>
                                                 )}
-                                                {pontos && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Pontos CNH:</span>
-                                                    <span className="font-semibold text-orange-600">{String(pontos)}</span>
-                                                  </div>
-                                                )}
-                                                {valorDesconto != null && valorDesconto > 0 && (
+                                                {displayValorDesconto != null && displayValorDesconto > 0 && (
                                                   <div className="flex gap-2">
                                                     <span className="text-slate-500 font-medium">Valor c/ Desconto:</span>
-                                                    <span className="font-semibold text-green-600">{fmtMoney(valorDesconto)}</span>
+                                                    <span className="font-semibold text-green-600">{fmtMoney(displayValorDesconto)}</span>
                                                   </div>
                                                 )}
                                                 {status && (
@@ -1322,18 +1393,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <span className="text-slate-500 font-medium">Em Recurso:</span>
                                                     <Badge color="amber" className="text-xs">Sim</Badge>
                                                     {motivoRecurso && <span className="text-slate-600 ml-1">- {String(motivoRecurso)}</span>}
-                                                  </div>
-                                                )}
-                                                {ev?.Detalhe2 && ev?.Detalhe2 !== detail && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Observação:</span>
-                                                    <span className="text-slate-600">{String(ev.Detalhe2)}</span>
-                                                  </div>
-                                                )}
-                                                {ev?.Usuario && (
-                                                  <div className="flex gap-2">
-                                                    <span className="text-slate-500 font-medium">Registrado por:</span>
-                                                    <span className="text-slate-600">{String(ev.Usuario)}</span>
                                                   </div>
                                                 )}
                                               </div>
@@ -1803,11 +1862,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         const contrato = (tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO' || tipoNorm === 'SINISTRO')
                                           ? resolveContratoFor(placa, dd)
                                           : null;
-                                        
-                                        // Debug log para Locação/Devolução
-                                        if ((tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO') && i === 0) {
-                                          console.log(`📋 ${tipoNorm} para placa ${placa}:`, { contrato, it, dd });
-                                        }
                                         
                                         // Para SINISTRO, buscar dados adicionais no fat_sinistros
                                         const sinistroData = tipoNorm === 'SINISTRO' ? (() => {
