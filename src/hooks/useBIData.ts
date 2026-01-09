@@ -187,7 +187,8 @@ export default function useBIData<T = unknown>(
           if (!totalParts) {
             // Detecta quantas partes existem verificando part1ofN de forma SEQUENCIAL
             // (evita vários 400 em paralelo no console do navegador)
-            const maxDetect = 12;
+            // Limitar número de tentativas sequenciais para evitar muitos 400s no console
+            const maxDetect = 4;
             for (let n = 2; n <= maxDetect; n++) {
               const testFile = `${baseFileName}_part1of${n}.json`;
               const result = await fetchFile(testFile, controller.signal);
