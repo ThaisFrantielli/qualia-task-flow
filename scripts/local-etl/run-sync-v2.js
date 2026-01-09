@@ -254,6 +254,7 @@ const DIMENSIONS = [
         { 
                 table: 'dim_contratos_locacao', 
                 query: `SELECT 
+                                        cl.IdContratoLocacao, 
                                         cc.IdContratoComercial, 
                                         cl.ContratoComercial,           
                                         cl.ContratoLocacao,             
@@ -270,7 +271,6 @@ const DIMENSIONS = [
                                             ELSE cc.TipoLocacao
                                         END as TipoLocacao,
                                         cc.NomePromotor, 
-                                        cl.IdContratoLocacao, 
                                         cl.PlacaPrincipal, 
                                         cl.SituacaoContratoLocacao as StatusLocacao, 
                                         cl.SituacaoDoFaturamento,
@@ -651,15 +651,15 @@ const CONSOLIDATED = [
                     om.Observacoes,
                     
                     -- Datas da Ocorrência
-                    FORMAT(om.DataCriacao, 'yyyy-MM-dd') as DataAberturaOcorrencia,
-                    FORMAT(om.DataAgendamento, 'yyyy-MM-dd') as DataAgendamento,
-                    FORMAT(om.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataConclusaoOcorrencia,
+                    FORMAT(om.DataCriacao, 'yyyy-MM-dd HH:mm:ss') as DataAberturaOcorrencia,
+                    FORMAT(om.DataAgendamento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
+                    FORMAT(om.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
                     FORMAT(om.DataPrevisaoConclusaoServico, 'yyyy-MM-dd') as DataPrevisaoConclusao,
                     FORMAT(om.DataConfirmacaoSaida, 'yyyy-MM-dd') as DataConfirmacaoSaida,
-                    FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd') as DataRetiradaVeiculo,
+                    FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
                     -- Data de chegada baseada em movimentações (Etapa 'Aguardando Chegada')
                     (
-                        SELECT TOP 1 FORMAT(mo3.DataDeConfirmacao, 'yyyy-MM-dd')
+                        SELECT TOP 1 mo3.DataDeConfirmacao
                         FROM MovimentacaoOcorrencias mo3
                         WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
                         ORDER BY mo3.DataDeConfirmacao ASC
@@ -669,6 +669,7 @@ const CONSOLIDATED = [
                         SELECT
                             mo2.Etapa as Etapa,
                             FORMAT(mo2.DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataConfirmacao,
+                            mo2.Usuario as Usuario,
                             DATEDIFF(MINUTE, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as MinutosDesdeAnterior,
                             DATEDIFF(HOUR, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as HorasDesdeAnterior,
                             DATEDIFF(DAY, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as DiasDesdeAnterior
@@ -682,6 +683,25 @@ const CONSOLIDATED = [
                     DATEDIFF(MINUTE, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Minutos_Conclusao_Retirada,
                     DATEDIFF(HOUR, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Horas_Conclusao_Retirada,
                     DATEDIFF(DAY, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Dias_Conclusao_Retirada,
+                    -- KPI: diferença entre chegada do veículo (Aguardando Chegada) e retirada do veículo
+                    DATEDIFF(MINUTE, (
+                        SELECT TOP 1 mo3.DataDeConfirmacao
+                        FROM MovimentacaoOcorrencias mo3
+                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
+                        ORDER BY mo3.DataDeConfirmacao ASC
+                    ), om.DataRetiradaVeiculo) as Minutos_Chegada_Retirada,
+                    DATEDIFF(HOUR, (
+                        SELECT TOP 1 mo3.DataDeConfirmacao
+                        FROM MovimentacaoOcorrencias mo3
+                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
+                        ORDER BY mo3.DataDeConfirmacao ASC
+                    ), om.DataRetiradaVeiculo) as Horas_Chegada_Retirada,
+                    DATEDIFF(DAY, (
+                        SELECT TOP 1 mo3.DataDeConfirmacao
+                        FROM MovimentacaoOcorrencias mo3
+                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
+                        ORDER BY mo3.DataDeConfirmacao ASC
+                    ), om.DataRetiradaVeiculo) as Dias_Chegada_Retirada,
                     
                     -- Veículo
                     om.IdVeiculo,
@@ -1128,23 +1148,32 @@ function queueUpload(tableName, data, year = null, month = null) {
             
             const chunkMetadata = { ...metadata, chunk: i + 1, total_chunks: totalChunks, record_count: chunk.length };
             
-            const uploadPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ fileName: chunkFileName, data: chunk, metadata: chunkMetadata })
-            })
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json();
-            })
-            .then(result => {
-                console.log(`         📤 Upload: ${chunkFileName} (${result.recordCount} registros)`);
-            })
-            .catch(err => {
-                console.error(`         ❌ Erro upload ${chunkFileName}:`, err.message);
+            // tentativa com retries para uploads de chunk (corrige falhas intermitentes HTTP 546)
+            const attemptUploadChunk = async (tries = 3, delayMs = 1500) => {
+                for (let attempt = 1; attempt <= tries; attempt++) {
+                    try {
+                        const resp = await fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ fileName: chunkFileName, data: chunk, metadata: chunkMetadata })
+                        });
+                        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                        const result = await resp.json();
+                        console.log(`         📤 Upload: ${chunkFileName} (${result.recordCount} registros)`);
+                        return result;
+                    } catch (err) {
+                        console.error(`         ❌ Erro upload ${chunkFileName} (attempt ${attempt}):`, err.message);
+                        if (attempt < tries) await new Promise(r => setTimeout(r, delayMs));
+                        else throw err;
+                    }
+                }
+            };
+
+            const uploadPromise = attemptUploadChunk().catch(err => {
+                console.error(`         ❌ Upload final falhou para ${chunkFileName}:`, err.message);
             });
 
             uploadQueue.push(uploadPromise);
@@ -1278,11 +1307,13 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         });
 
         // Remover duplicatas se houver ID column (manter última ocorrência)
+        // EXCETO para dim_contratos_locacao que pode ter múltiplos contratos por placa
         const pkRaw = columns[0];
         const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
+        const shouldDedup = hasIdColumn && tableName !== 'dim_contratos_locacao';
         let finalData = sanitizedData;
 
-        if (hasIdColumn) {
+        if (shouldDedup) {
             const seen = new Map();
             sanitizedData.forEach(row => {
                 seen.set(row[pkRaw], row); // Última ocorrência sobrescreve
@@ -1449,8 +1480,12 @@ async function runMasterETL() {
                     os.Ocorrencia as NumeroOcorrencia,
                     os.IdVeiculo,
                     os.Placa, 
-                    FORMAT(os.DataSinistro, 'yyyy-MM-dd') as DataSinistro,
-                    FORMAT(os.DataSinistro, 'yyyy-MM-dd') as DataOcorrencia,
+                    FORMAT(os.DataSinistro, 'yyyy-MM-dd HH:mm:ss') as DataSinistro,
+                    FORMAT(os.DataSinistro, 'yyyy-MM-dd HH:mm:ss') as DataOcorrencia,
+                    FORMAT(os.DataAberturaOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataAberturaOcorrencia,
+                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
+                    FORMAT(os.DataAgendamentoAtendimento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
+                    FORMAT(os.DataLiberacao, 'yyyy-MM-dd HH:mm:ss') as DataLiberacao,
                     os.Descricao,
                     os.SituacaoOcorrencia as Status,
                     ${castM('os.ValorOrcamento')} as ValorOrcado, 
