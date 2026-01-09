@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
 import { 
-  Clock, Calendar, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search, 
+  Clock, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search, 
   FileSpreadsheet, MapPin, AlertTriangle, DollarSign, ShoppingCart, FileWarning, 
   RotateCcw, Archive, Store, User, UserCheck
 } from 'lucide-react';
@@ -101,6 +101,33 @@ function fmtDateBR(d: Date | null | undefined): string {
   }
 }
 
+// Verifica recursivamente se um objeto/valor contém o termo de busca
+function objectContainsTerm(obj: any, term: string): boolean {
+  if (obj == null) return false;
+  const t = term.toLowerCase();
+  if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+    return String(obj).toLowerCase().includes(t);
+  }
+  if (obj instanceof Date) {
+    return fmtDateBR(obj).toLowerCase().includes(t) || obj.toLocaleString('pt-BR').toLowerCase().includes(t);
+  }
+  if (Array.isArray(obj)) {
+    for (const item of obj) if (objectContainsTerm(item, t)) return true;
+    return false;
+  }
+  if (typeof obj === 'object') {
+    for (const k of Object.keys(obj)) {
+      try {
+        if (objectContainsTerm(obj[k], t)) return true;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return false;
+  }
+  return false;
+}
+
 function getMinutesConclusaoRetirada(row: any): number | null {
   try {
     const first = row?.osRecords?.[0] ?? {};
@@ -129,6 +156,21 @@ function fmtDurationFromMinutes(mins?: number | null): string {
   if (days > 0) parts.push(`${days} d`);
   if (hours > 0) parts.push(`${hours} h`);
   if (minutes > 0 || parts.length === 0) parts.push(`${minutes} m`);
+  return parts.join(' ');
+}
+
+// Formata uma duração em dias para representação mista: anos, meses, dias.
+function formatDurationDays(days?: number | null): string {
+  if (days == null || isNaN(days)) return '—';
+  const d = Math.max(0, Math.floor(days));
+  if (d === 0) return '0 d';
+  const years = Math.floor(d / 365);
+  const months = Math.floor((d % 365) / 30);
+  const remDays = d - years * 365 - months * 30;
+  const parts: string[] = [];
+  if (years > 0) parts.push(`${years} a`);
+  if (months > 0) parts.push(`${months} m`);
+  if (remDays > 0) parts.push(`${remDays} d`);
   return parts.join(' ');
 }
 
@@ -297,7 +339,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
       .map(r => parseDateAny(r?.DataConclusaoOcorrencia ?? r?.DataConclusao ?? r?.DataSaida ?? r?.Data))
       .filter((d): d is Date => !!d).sort((a,b)=>a.getTime()-b.getTime()).pop() ?? null;
 
-    const dataChegadaVeiculo = osRecords
+    let dataChegadaVeiculo = osRecords
       .map(r => parseDateAny(r?.DataChegadaVeiculo ?? r?.DataChegada ?? r?.DataConfirmacaoChegada))
       .filter((d): d is Date => !!d)[0] ?? null;
 
@@ -316,6 +358,19 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
       }
     } catch (err) {
       movimentacoes = [];
+    }
+
+    // Preferir data de chegada indicada nas movimentações (etapa 'Aguardando Chegada')
+    try {
+      if (Array.isArray(movimentacoes) && movimentacoes.length > 0) {
+        const busca = movimentacoes.find((m: any) => typeof m?.Etapa === 'string' && m.Etapa.toLowerCase().includes('aguardando chegada') && (m.DataConfirmacao || m.DataDeConfirmacao));
+        if (busca) {
+          const candidate = parseDateAny(busca.DataConfirmacao ?? busca.DataDeConfirmacao);
+          if (candidate) dataChegadaVeiculo = candidate;
+        }
+      }
+    } catch (e) {
+      // ignore
     }
 
     const horasConclusaoRetirada = (osRecords[0]?.Horas_Conclusao_Retirada != null) ? Number(osRecords[0].Horas_Conclusao_Retirada) : null;
@@ -493,10 +548,10 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     const map: Record<string, AnyObject[]> = {};
     if (!Array.isArray(sinistros)) return map;
     for (const s of sinistros) {
-      const placa = s?.Placa;
-      if (!placa) continue;
-      if (!map[placa]) map[placa] = [];
-      map[placa].push(s);
+      const placaKey = normalizePlacaKey(s?.Placa);
+      if (!placaKey) continue;
+      if (!map[placaKey]) map[placaKey] = [];
+      map[placaKey].push(s);
     }
     return map;
   }, [sinistros]);
@@ -595,10 +650,10 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     const map: Record<string, AnyObject[]> = {};
     if (!Array.isArray(manutencao)) return map;
     for (const r of manutencao) {
-      const placa = r?.Placa;
-      if (!placa) continue;
-      if (!map[placa]) map[placa] = [];
-      map[placa].push(r);
+      const placaKey = normalizePlacaKey(r?.Placa);
+      if (!placaKey) continue;
+      if (!map[placaKey]) map[placaKey] = [];
+      map[placaKey].push(r);
     }
     return map;
   }, [manutencao]);
@@ -618,8 +673,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       grouped[placa].push(item);
     });
 
+    // Construir mapas por placa normalizada para lookups robustos (evita diferenças de formatação)
+    const frotaMap: Record<string, AnyObject> = {};
+    for (const f of frota || []) {
+      if (f?.Placa) frotaMap[normalizePlacaKey(f.Placa)] = f;
+    }
+    const filteredDataMap: Record<string, AnyObject> = {};
+    for (const f of filteredData || []) {
+      if (f?.Placa) filteredDataMap[normalizePlacaKey(f.Placa)] = f;
+    }
+
     return Object.entries(grouped).map(([placa, eventos]) => {
-      const veiculoInfo = frota.find(f => f.Placa === placa) || filteredData.find(f => f.Placa === placa);
+      const placaKey = normalizePlacaKey(placa);
+      const veiculoInfo = frotaMap[placaKey] || filteredDataMap[placaKey] || frota.find(f => normalizePlacaKey(f?.Placa) === placaKey) || filteredData.find(f => normalizePlacaKey(f?.Placa) === placaKey);
 
       const sortedEvents = [...eventos]
         .filter(e => !!(e.DataEvento || e.Data))
@@ -641,7 +707,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       }, 0);
 
       // Calcular dias reais de manutenção (de OSs)
-      const manutPlaca = manutencaoByPlaca[placa] || [];
+      const manutPlaca = manutencaoByPlaca[placaKey] || [];
       const manutencaoDaysReal = manutPlaca.reduce((sum, os) => {
         const entrada = normalizeDateLocal(os.DataEntrada);
         const saida = normalizeDateLocal(os.DataSaida);
@@ -652,7 +718,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       }, 0);
 
       // Calcular dias reais de sinistro (de ocorrências)
-      const sinistrosPlaca = sinistrosByPlaca[normalizePlacaKey(placa)] || [];
+      const sinistrosPlaca = sinistrosByPlaca[placaKey] || [];
       const sinistroDaysReal = sinistrosPlaca.reduce((sum, s) => {
         const abertura = normalizeDateLocal(s.DataAberturaOcorrencia);
         const conclusao = normalizeDateLocal(s.DataConclusaoOcorrencia);
@@ -669,6 +735,48 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       
       // Utilização = dias locado / total days
       const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDaysReal / totalDays) * 100)) : 0;
+
+      // Frota parada por veículo: tempo entre compra e venda (ou hoje) menos tempo locado
+      let frotaParadaDays = 0;
+      let compra: Date | null = null;
+      let venda: Date | null = null;
+      let ownershipDays = 0;
+      try {
+        const dataCompraRaw = veiculoInfo?.DataCompra ?? veiculoInfo?.DataAquisicao ?? null;
+        const dataVendaRaw = veiculoInfo?.DataVenda ?? veiculoInfo?.DataAlienacao ?? veiculoInfo?.DataBaixa ?? null;
+        compra = parseDateAny(dataCompraRaw) ?? (eventos?.[0] ? parseDateAny(eventos[0].DataEvento || eventos[0].Data) : null);
+        venda = parseDateAny(dataVendaRaw) ?? null;
+        const end = venda ?? new Date();
+        if (compra) {
+          ownershipDays = Math.max(0, (end.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
+          frotaParadaDays = Math.max(0, ownershipDays - locacaoDaysReal);
+        }
+      } catch (e) {
+        frotaParadaDays = 0;
+      }
+
+      // DEBUG: registrar no console quando for a placa específica para investigação
+      try {
+        const debugKey = 'SGW0E99';
+        if (placaKey === debugKey) {
+          console.debug('DEBUG Timeline SGW-0E99', {
+            placa,
+            placaKey,
+            veiculoInfo,
+            dataCompraRaw: veiculoInfo?.DataCompra ?? veiculoInfo?.DataAquisicao ?? null,
+            compra: compra ? compra?.toISOString() : null,
+            dataVendaRaw: veiculoInfo?.DataVenda ?? veiculoInfo?.DataAlienacao ?? veiculoInfo?.DataBaixa ?? null,
+            venda: venda ? venda?.toISOString() : null,
+            contratosPlaca: contratosPlaca.map((c: any) => ({ Inicio: c.__inicio ? c.__inicio?.toISOString() : null, Fim: c.__fimPrevisto ? c.__fimPrevisto?.toISOString() : null, Encerr: c.__fimEncerramento ? c.__fimEncerramento?.toISOString() : null })),
+            locacaoDaysReal,
+            manutencaoDaysReal,
+            utilization,
+            frotaParadaDays
+          });
+        }
+      } catch (err) {
+        // ignore debug errors
+      }
 
       const numeroContratoLocacao = veiculoInfo?.NumeroContratoLocacao || veiculoInfo?.ContratoAtual || veiculoInfo?.NumeroContrato;
       const situacaoLocacao = veiculoInfo?.SituacaoLocacao || veiculoInfo?.StatusLocacao || veiculoInfo?.StatusContrato || veiculoInfo?.Situacao;
@@ -688,6 +796,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         locacaoDays: Math.round(locacaoDaysReal),
         manutencaoDays: Math.round(manutencaoDaysReal),
         sinistroDays: Math.round(sinistroDaysReal),
+        frotaParadaDays: Math.round(frotaParadaDays),
         utilization
       };
     }).sort((a, b) => b.totalEvents - a.totalEvents);
@@ -696,11 +805,15 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   // Filtrar por busca
   const filteredGrouped = useMemo(() => {
     if (!searchTerm) return timelineGrouped;
-    const term = searchTerm.toLowerCase();
-    return timelineGrouped.filter(g => 
-      g.placa.toLowerCase().includes(term) || 
-      g.modelo.toLowerCase().includes(term)
-    );
+    const term = searchTerm.trim().toLowerCase();
+    return timelineGrouped.filter(g => {
+      // Procurar em qualquer campo do objeto do grupo (placa, modelo, eventos, contrato, status...)
+      try {
+        return objectContainsTerm(g, term);
+      } catch (e) {
+        return false;
+      }
+    });
   }, [timelineGrouped, searchTerm]);
 
   // Paginação
@@ -745,8 +858,42 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     });
 
     // Somar dias totais de manutenção e sinistro
-    const totalManutencaoDays = timelineGrouped.reduce((sum, g) => sum + g.manutencaoDays, 0);
-    const totalSinistroDays = timelineGrouped.reduce((sum, g) => sum + g.sinistroDays, 0);
+    const totalManutencaoDays = timelineGrouped.reduce((sum, g) => sum + (g.manutencaoDays || 0), 0);
+    const totalSinistroDays = timelineGrouped.reduce((sum, g) => sum + (g.sinistroDays || 0), 0);
+
+    // Total de dias locados a partir dos contratos (soma por veículo)
+    const totalLocadoDays = timelineGrouped.reduce((sum, g) => sum + (g.locacaoDays || 0), 0);
+
+    // Frota parada: para cada veículo, tempo entre compra e venda (ou hoje) menos tempo locado
+    const frotaMapByPlaca: Record<string, any> = {};
+    frota.forEach(f => { if (f?.Placa) frotaMapByPlaca[String(f.Placa).trim()] = f; });
+
+    let totalFrotaParadaDays = 0;
+    timelineGrouped.forEach(g => {
+      try {
+        const placa = String(g.placa || '').trim();
+        const v = frotaMapByPlaca[placa];
+        // Datas possíveis de compra / venda
+        const dataCompraRaw = v?.DataCompra ?? v?.DataAquisicao ?? null;
+        const dataVendaRaw = v?.DataVenda ?? v?.DataAlienacao ?? v?.DataBaixa ?? null;
+        const compra = parseDateAny(dataCompraRaw) ?? (g.eventos?.[0] ? parseDateAny(g.eventos[0].DataEvento || g.eventos[0].Data) : null);
+        const venda = parseDateAny(dataVendaRaw) ?? null;
+        const end = venda ?? new Date();
+        if (compra) {
+          const ownershipDays = Math.max(0, (end.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
+          const locDays = (g.locacaoDays || 0);
+          const parada = Math.max(0, ownershipDays - locDays);
+          totalFrotaParadaDays += parada;
+        }
+      } catch (e) {
+        // ignore malformed entries
+      }
+    });
+
+    // % utilização: proporção de tempo em locação sobre o período (locado / (locado + parado))
+    const utilizationPct = (totalLocadoDays + totalFrotaParadaDays) > 0
+      ? (totalLocadoDays / (totalLocadoDays + totalFrotaParadaDays)) * 100
+      : avgUtilization;
 
     return { 
       totalVehicles, 
@@ -757,7 +904,10 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       totalMultas, 
       totalSinistros,
       totalManutencaoDays,
-      totalSinistroDays
+      totalSinistroDays,
+      totalLocadoDays,
+      totalFrotaParadaDays,
+      utilizationPct
     };
   }, [timelineGrouped, timeline]);
 
@@ -848,7 +998,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           const nextRows = new Set(prevRows);
           
           // Expandir manutenções
-          const manutRecords = manutencaoByPlaca[placa] ?? [];
+                      const manutRecords = manutencaoByPlaca[normalizePlacaKey(placa)] ?? [];
           if (manutRecords.length > 0) {
             const intervals = buildMaintenanceIntervals(manutRecords);
             intervals.forEach(interval => {
@@ -951,30 +1101,18 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <Text className="text-slate-500 text-xs">Total Eventos</Text>
-              <Metric className="text-blue-600">{fmtDecimal(kpis.totalEvents)}</Metric>
-            </div>
-          </div>
-        </Card>
-
+      {/* KPIs: Locado, Manutenção, Frota Parada, % Utilização */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-              <Car className="w-6 h-6 text-emerald-600" />
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <Play className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <Text className="text-slate-500 text-xs">Locado</Text>
+                <Metric className="text-emerald-600">{formatDurationDays(Math.round(kpis.totalLocadoDays || 0))}</Metric>
+              </div>
             </div>
-            <div>
-              <Text className="text-slate-500 text-xs">Veículos</Text>
-              <Metric className="text-emerald-600">{fmtDecimal(kpis.totalVehicles)}</Metric>
-            </div>
-          </div>
         </Card>
 
         <Card className="bg-gradient-to-br from-amber-50 to-white">
@@ -983,32 +1121,32 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Wrench className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Dias Manutenção</Text>
-              <Metric className="text-amber-600">{fmtDecimal(kpis.totalManutencaoDays)}</Metric>
+              <Text className="text-slate-500 text-xs">Manutenção</Text>
+              <Metric className="text-amber-600">{formatDurationDays(Math.round(kpis.totalManutencaoDays || 0))}</Metric>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-50 to-white">
+        <Card className="bg-gradient-to-br from-slate-50 to-white">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
+            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
+              <Archive className="w-6 h-6 text-slate-700" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Sinistros / Dias</Text>
-              <Metric className="text-red-600">{kpis.totalSinistros} / {fmtDecimal(kpis.totalSinistroDays)}d</Metric>
+              <Text className="text-slate-500 text-xs">Frota Parada</Text>
+              <Metric className="text-slate-700">{formatDurationDays(Math.round(kpis.totalFrotaParadaDays || 0))}</Metric>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-50 to-white">
+        <Card className="bg-gradient-to-br from-blue-50 to-white">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center">
-              <FileWarning className="w-6 h-6 text-yellow-600" />
+            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Total Multas</Text>
-              <Metric className="text-yellow-600">{fmtDecimal(kpis.totalMultas)}</Metric>
+              <Text className="text-slate-500 text-xs">% Utilização</Text>
+              <Metric className="text-blue-600">{(kpis.utilizationPct ?? 0).toFixed(1)}%</Metric>
             </div>
           </div>
         </Card>
@@ -1107,7 +1245,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
               <input 
                 type="text"
-                placeholder="Buscar placa..."
+                placeholder="Buscar (placa, contrato, modelo, evento...)"
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
                 className="pl-9 pr-4 py-2 text-sm border rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1124,7 +1262,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         </div>
 
         <div className="divide-y">
-          {pageItems.map(({ placa, modelo, eventos, totalEvents, locacaoDays, manutencaoDays, sinistroDays, utilization }) => (
+          {pageItems.map(({ placa, modelo, eventos, totalEvents, locacaoDays, manutencaoDays, frotaParadaDays, utilization }) => (
             <div key={placa} className="hover:bg-slate-50 transition-colors">
               <div 
                 className="p-4 flex items-center justify-between cursor-pointer"
@@ -1142,19 +1280,17 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                 </div>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-center">
-                    <div className="text-emerald-600 font-bold">{locacaoDays}d</div>
+                    <div className="text-emerald-600 font-bold">{formatDurationDays(locacaoDays)}</div>
                     <div className="text-xs text-slate-400">Locado</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-amber-600 font-bold">{manutencaoDays}d</div>
+                    <div className="text-amber-600 font-bold">{formatDurationDays(manutencaoDays)}</div>
                     <div className="text-xs text-slate-400">Manutenção</div>
                   </div>
-                  {sinistroDays > 0 && (
-                    <div className="text-center">
-                      <div className="text-red-600 font-bold">{sinistroDays}d</div>
-                      <div className="text-xs text-slate-400">Sinistro</div>
-                    </div>
-                  )}
+                  <div className="text-center">
+                    <div className="text-slate-700 font-bold">{formatDurationDays(frotaParadaDays)}</div>
+                    <div className="text-xs text-slate-400">Frota Parada</div>
+                  </div>
                   <div className="text-center">
                     <div className={`font-bold ${utilization >= 70 ? 'text-emerald-600' : utilization >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
                       {utilization.toFixed(0)}%
@@ -1171,7 +1307,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                     {(() => {
                       // Deriva linhas “colapsadas” para validação: manutenção por período + agrupamento de eventos por dia/tipo
                       // 1) Manutenção (via dataset fat_manutencao_unificado)
-                      const manutRecords = manutencaoByPlaca[placa] ?? [];
+                      const manutRecords = manutencaoByPlaca[normalizePlacaKey(placa)] ?? [];
                       const manutOccurrences = groupMaintenanceByOccurrence(manutRecords);
 
                       // 2) Eventos agrupados por dia/tipo
@@ -1506,7 +1642,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                       <div className="font-medium text-[12px]">{m?.Etapa ?? '—'}</div>
                                                       {m?.Usuario ? <div className="text-[11px] text-slate-400">• {String(m.Usuario)}</div> : null}
                                                     </div>
-                                                    <div className="text-[11px] text-slate-500">{m?.DataConfirmacao ? (function(){ try { return fmtDateTimeBR(new Date(m.DataConfirmacao)); } catch(e){ return m.DataConfirmacao; } })() : '—'}</div>
+                                                    <div className="text-[11px] text-slate-500">{m?.DataConfirmacao ? (function(){ const dt = parseDateAny(m.DataConfirmacao); return dt ? fmtDateTimeBR(dt) : String(m.DataConfirmacao); })() : '—'}</div>
                                                   </div>
                                                   <div className="text-[11px] text-slate-600">{fmtDurationFromMinutes(m?.MinutosDesdeAnterior ?? (m?.HorasDesdeAnterior != null ? Number(m.HorasDesdeAnterior) * 60 : null))}</div>
                                                 </div>
@@ -1865,7 +2001,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         
                                         // Para SINISTRO, buscar dados adicionais no fat_sinistros
                                         const sinistroData = tipoNorm === 'SINISTRO' ? (() => {
-                                          const sinistrosPlaca = sinistrosByPlaca[placa] ?? [];
+                                          const sinistrosPlaca = sinistrosByPlaca[normalizePlacaKey(placa)] ?? [];
                                           if (sinistrosPlaca.length === 0) return null;
                                           // Tentar encontrar sinistro pela data ou ID de ocorrência
                                           const idOcorrencia = it?.IdOcorrencia ?? it?.NumeroOcorrencia ?? it?.Ocorrencia;
@@ -2237,7 +2373,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             {/* Detalhes de Manutenção - quando EVENTO_DIA_TIPO for MANUTENCAO */}
                                             {tipoNorm === 'MANUTENCAO' && (() => {
                                               // Buscar dados do fat_manutencao_unificado
-                                              const manutRecords = manutencaoByPlaca[placa] ?? [];
+                                              const manutRecords = manutencaoByPlaca[normalizePlacaKey(placa)] ?? [];
                                               const manutData = (() => {
                                                 if (manutRecords.length === 0) return null;
                                                 // Tentar encontrar por ID de ocorrência
@@ -2579,9 +2715,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
         {/* Paginação */}
         <div className="p-4 border-t bg-slate-50 flex items-center justify-between">
-          <Text className="text-slate-500">
-            Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, filteredGrouped.length)} de {fmtDecimal(filteredGrouped.length)}
-          </Text>
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setPage(Math.max(0, page - 1))}
@@ -2601,6 +2734,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               Próxima →
             </button>
           </div>
+          <Text className="text-slate-500">
+            Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, filteredGrouped.length)} de {fmtDecimal(filteredGrouped.length)}
+          </Text>
         </div>
       </Card>
     </div>
