@@ -127,6 +127,13 @@ export default function FleetDashboard(): JSX.Element {
   const { data: sinistros2024 } = useBIData<AnyObject[]>('fat_sinistros_2024.json');
   const { data: sinistros2025 } = useBIData<AnyObject[]>('fat_sinistros_2025.json');
   const { data: sinistros2026 } = useBIData<AnyObject[]>('fat_sinistros_2026.json');
+
+  // Carregar fat_multas anuais (2022-2026) e combinar
+  const { data: multas2022 } = useBIData<AnyObject[]>('fat_multas_2022.json');
+  const { data: multas2023 } = useBIData<AnyObject[]>('fat_multas_2023.json');
+  const { data: multas2024 } = useBIData<AnyObject[]>('fat_multas_2024.json');
+  const { data: multas2025 } = useBIData<AnyObject[]>('fat_multas_2025.json');
+  const { data: multas2026 } = useBIData<AnyObject[]>('fat_multas_2026.json');
   
   const sinistrosData = useMemo(() => {
     const all: AnyObject[] = [];
@@ -137,6 +144,16 @@ export default function FleetDashboard(): JSX.Element {
     if (Array.isArray(sinistros2026)) all.push(...sinistros2026);
     return all;
   }, [sinistros2022, sinistros2023, sinistros2024, sinistros2025, sinistros2026]);
+
+  const multasData = useMemo(() => {
+    const all: AnyObject[] = [];
+    if (Array.isArray(multas2022)) all.push(...multas2022);
+    if (Array.isArray(multas2023)) all.push(...multas2023);
+    if (Array.isArray(multas2024)) all.push(...multas2024);
+    if (Array.isArray(multas2025)) all.push(...multas2025);
+    if (Array.isArray(multas2026)) all.push(...multas2026);
+    return all;
+  }, [multas2022, multas2023, multas2024, multas2025, multas2026]);
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
   const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
@@ -164,6 +181,7 @@ export default function FleetDashboard(): JSX.Element {
   const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
   const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
   const sinistros = useMemo(() => sinistrosData || [], [sinistrosData]);
+  const multas = useMemo(() => multasData || [], [multasData]);
 
   const vehiclesDetailed = useMemo(() => {
     const getCategory = (status: string) => {
@@ -2286,7 +2304,7 @@ export default function FleetDashboard(): JSX.Element {
         </TabsContent>
 
         <TabsContent value="timeline">
-            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} contratosLocacao={contratosLocacao} sinistros={sinistros} />
+            <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
         </TabsContent>
 
         <TabsContent value="carro-reserva" className="space-y-6">
