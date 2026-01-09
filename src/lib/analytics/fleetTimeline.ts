@@ -179,6 +179,54 @@ function normalizePlacaKey(raw: unknown): string {
 }
 
 /**
+ * Extrai data de compra do veículo considerando múltiplos formatos de campo
+ * ETL pode usar: DataCompra, DataAquisicao, "Data Compra", "Data de Aquisição", etc.
+ */
+function extractDataCompra(veiculo: AnyObject): Date | null {
+  const candidates = [
+    veiculo?.DataCompra,
+    veiculo?.DataAquisicao,
+    veiculo?.['Data Compra'],
+    veiculo?.['Data de Compra'],
+    veiculo?.['Data de Aquisição'],
+    veiculo?.['Data Aquisicao'],
+    veiculo?.datacompra,
+    veiculo?.dataaquisicao,
+    veiculo?.DATACOMPRA,
+    veiculo?.DATAAQUISICAO,
+  ];
+  
+  for (const c of candidates) {
+    const d = parseDateAny(c);
+    if (d) return d;
+  }
+  return null;
+}
+
+/**
+ * Extrai data de venda/baixa do veículo
+ */
+function extractDataVenda(veiculo: AnyObject): Date | null {
+  const candidates = [
+    veiculo?.DataVenda,
+    veiculo?.DataAlienacao,
+    veiculo?.DataBaixa,
+    veiculo?.['Data Venda'],
+    veiculo?.['Data de Venda'],
+    veiculo?.['Data Baixa'],
+    veiculo?.['Data de Baixa'],
+    veiculo?.datavenda,
+    veiculo?.databaixa,
+  ];
+  
+  for (const c of candidates) {
+    const d = parseDateAny(c);
+    if (d) return d;
+  }
+  return null;
+}
+
+/**
  * Calcula dias de locação somando todos os períodos de contratos
  * Campos do ETL dim_contratos_locacao: Inicio, Fim, DataEncerramento
  */
@@ -214,15 +262,22 @@ function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date()): num
   if (!Array.isArray(osRecords) || osRecords.length === 0) return 0;
   
   return osRecords.reduce((sum, os) => {
-    // Campos do ETL fat_manutencao_unificado
-    const chegada = parseDateAny(
-      os?.DataChegadaVeiculo ?? os?.DataAgendamento ?? os?.DataAberturaOcorrencia ??
-      os?.DataEntrada ?? os?.DataChegada ?? os?.Data
-    );
-    const retirada = parseDateAny(
-      os?.DataRetiradaVeiculo ?? os?.DataConclusaoOcorrencia ?? os?.DataConfirmacaoSaida ??
-      os?.DataSaida ?? os?.DataRetirada ?? os?.DataConclusao
-    );
+    // Campos do ETL fat_manutencao_unificado - múltiplos formatos
+    const chegadaCandidates = [
+      os?.DataChegadaVeiculo, os?.DataAgendamento, os?.DataAberturaOcorrencia,
+      os?.DataEntrada, os?.DataChegada, os?.Data,
+      os?.['Data Chegada'], os?.['Data Entrada'], os?.['Data Agendamento'],
+      os?.DataInicio, os?.['Data Inicio']
+    ];
+    const retiradaCandidates = [
+      os?.DataRetiradaVeiculo, os?.DataConclusaoOcorrencia, os?.DataConfirmacaoSaida,
+      os?.DataSaida, os?.DataRetirada, os?.DataConclusao,
+      os?.['Data Saida'], os?.['Data Retirada'], os?.['Data Conclusao'],
+      os?.DataFim, os?.['Data Fim']
+    ];
+    
+    const chegada = chegadaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
+    const retirada = retiradaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
     
     if (!chegada) return sum;
     
@@ -284,8 +339,9 @@ export function aggregateFleetMetrics(
     const placa = normalizePlacaKey(v?.Placa);
     if (!placa) return;
     
-    const dataCompra = parseDateAny(v?.DataCompra ?? v?.DataAquisicao);
-    const dataVenda = parseDateAny(v?.DataVenda ?? v?.DataAlienacao ?? v?.DataBaixa);
+    // Usa funções robustas para extrair datas de compra/venda (múltiplos formatos de campo)
+    const dataCompra = extractDataCompra(v);
+    const dataVenda = extractDataVenda(v);
     
     const contratosPlaca = contratosByPlaca[placa] || [];
     const manutPlaca = manutencaoByPlaca[placa] || [];
@@ -360,4 +416,19 @@ export function formatDurationDays(days?: number | null): string {
   if (months > 0) parts.push(`${months} m`);
   if (remDays > 0) parts.push(`${remDays} d`);
   return parts.join(' ');
+}
+
+/**
+ * Exporta parseDateAny para uso externo
+ */
+export { parseDateAny };
+
+/**
+ * Exporta funções de extração de datas de veículo
+ */
+export function extractVehicleDates(veiculo: AnyObject): { compra: Date | null; venda: Date | null } {
+  return {
+    compra: extractDataCompra(veiculo),
+    venda: extractDataVenda(veiculo)
+  };
 }
