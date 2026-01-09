@@ -723,11 +723,22 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         return sum + days;
       }, 0);
 
-      // Calcular dias reais de manutenção (de OSs)
+      // Calcular dias reais de manutenção (de OSs) - campos ETL: DataChegadaVeiculo, DataRetiradaVeiculo
       const manutPlaca = manutencaoByPlaca[placaKey] || [];
       const manutencaoDaysReal = manutPlaca.reduce((sum, os) => {
-        const entrada = normalizeDateLocal(os.DataEntrada);
-        const saida = normalizeDateLocal(os.DataSaida);
+        // Múltiplos campos possíveis do ETL
+        const entradaCandidates = [
+          os?.DataChegadaVeiculo, os?.DataAgendamento, os?.DataAberturaOcorrencia,
+          os?.DataEntrada, os?.DataChegada, os?.Data, os?.['Data Entrada'], os?.['Data Chegada']
+        ];
+        const saidaCandidates = [
+          os?.DataRetiradaVeiculo, os?.DataConclusaoOcorrencia, os?.DataConfirmacaoSaida,
+          os?.DataSaida, os?.DataRetirada, os?.DataConclusao, os?.['Data Saida'], os?.['Data Retirada']
+        ];
+        
+        const entrada = entradaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
+        const saida = saidaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
+        
         if (!entrada) return sum;
         const end = saida || new Date();
         const days = Math.max(0, (end.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24));
@@ -759,10 +770,35 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       let venda: Date | null = null;
       let ownershipDays = 0;
       try {
-        const dataCompraRaw = veiculoInfo?.DataCompra ?? veiculoInfo?.DataAquisicao ?? null;
-        const dataVendaRaw = veiculoInfo?.DataVenda ?? veiculoInfo?.DataAlienacao ?? veiculoInfo?.DataBaixa ?? null;
-        compra = parseDateAny(dataCompraRaw) ?? (eventos?.[0] ? parseDateAny(eventos[0].DataEvento || eventos[0].Data) : null);
-        venda = parseDateAny(dataVendaRaw) ?? null;
+        // Mapeamento robusto de múltiplos formatos de campo para data de compra
+        const compraCandidates = [
+          veiculoInfo?.DataCompra, veiculoInfo?.DataAquisicao,
+          veiculoInfo?.['Data Compra'], veiculoInfo?.['Data de Compra'],
+          veiculoInfo?.['Data de Aquisição'], veiculoInfo?.['Data Aquisicao']
+        ];
+        const vendaCandidates = [
+          veiculoInfo?.DataVenda, veiculoInfo?.DataAlienacao, veiculoInfo?.DataBaixa,
+          veiculoInfo?.['Data Venda'], veiculoInfo?.['Data de Venda'],
+          veiculoInfo?.['Data Baixa'], veiculoInfo?.['Data de Baixa']
+        ];
+        
+        compra = compraCandidates.map(parseDateAny).find(d => d !== null) ?? null;
+        
+        // Se não achou data de compra, tenta usar primeira locação como proxy
+        if (!compra && contratosPlaca.length > 0) {
+          // Pega a data de início do contrato mais antigo
+          const datasInicio = contratosPlaca
+            .map(c => c.__inicio as Date | null)
+            .filter(Boolean)
+            .sort((a, b) => (a?.getTime() || 0) - (b?.getTime() || 0));
+          if (datasInicio.length > 0 && datasInicio[0]) {
+            // Assumir compra ~30 dias antes da primeira locação como fallback
+            compra = new Date(datasInicio[0].getTime() - (30 * 24 * 60 * 60 * 1000));
+          }
+        }
+        
+        venda = vendaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
+        
         const end = venda ?? new Date();
         if (compra) {
           ownershipDays = Math.max(0, (end.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
@@ -772,23 +808,34 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         frotaParadaDays = 0;
       }
 
-      // DEBUG: registrar no console quando for a placa específica para investigação
+      // DEBUG: registrar no console para investigação de campos
       try {
         const debugKey = 'SGW0E99';
         if (placaKey === debugKey) {
           console.debug('DEBUG Timeline SGW-0E99', {
             placa,
             placaKey,
+            veiculoInfoKeys: veiculoInfo ? Object.keys(veiculoInfo) : [],
             veiculoInfo,
-            dataCompraRaw: veiculoInfo?.DataCompra ?? veiculoInfo?.DataAquisicao ?? null,
             compra: compra ? compra?.toISOString() : null,
-            dataVendaRaw: veiculoInfo?.DataVenda ?? veiculoInfo?.DataAlienacao ?? veiculoInfo?.DataBaixa ?? null,
             venda: venda ? venda?.toISOString() : null,
-            contratosPlaca: contratosPlaca.map((c: any) => ({ Inicio: c.__inicio ? c.__inicio?.toISOString() : null, Fim: c.__fimPrevisto ? c.__fimPrevisto?.toISOString() : null, Encerr: c.__fimEncerramento ? c.__fimEncerramento?.toISOString() : null })),
+            ownershipDays,
+            contratosPlaca: contratosPlaca.map((c: any) => ({
+              Inicio: c.__inicio ? c.__inicio?.toISOString() : null,
+              Fim: c.__fimPrevisto ? c.__fimPrevisto?.toISOString() : null,
+              Encerr: c.__fimEncerramento ? c.__fimEncerramento?.toISOString() : null
+            })),
             locacaoDaysReal,
+            manutPlaca: manutPlaca.slice(0, 3).map((os: any) => ({
+              keys: Object.keys(os),
+              DataChegadaVeiculo: os.DataChegadaVeiculo,
+              DataRetiradaVeiculo: os.DataRetiradaVeiculo,
+              DataEntrada: os.DataEntrada,
+              DataSaida: os.DataSaida
+            })),
             manutencaoDaysReal,
-            utilization,
-            frotaParadaDays
+            frotaParadaDays,
+            utilization
           });
         }
       } catch (err) {
