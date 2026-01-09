@@ -438,7 +438,12 @@ const CONSOLIDATED = [
 
             /* 5. MULTA */
             SELECT 
-                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                ISNULL(v.Placa, m.Placa) as Placa,
+                v.IdVeiculo,
+                v.Modelo,
+                v.Montadora,
+                v.AnoFabricacao,
+                v.Cor,
                 'MULTA' as TipoEvento,
                 CAST(m.DataInfracao AS DATETIME) as DataEvento,
                 NULL, NULL,
@@ -451,10 +456,10 @@ const CONSOLIDATED = [
                 NULL,
                 ${castM('m.ValorInfracao')},
                 m.DescricaoInfracao
-            FROM Veiculos v WITH (NOLOCK)
-            INNER JOIN OcorrenciasInfracoes m WITH (NOLOCK) ON m.Placa = v.Placa
+            FROM OcorrenciasInfracoes m WITH (NOLOCK)
+            LEFT JOIN Veiculos v WITH (NOLOCK) ON v.Placa = m.Placa
             LEFT JOIN Condutores con WITH (NOLOCK) ON con.IdCondutor = m.IdCondutor
-            WHERE m.DataInfracao IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+            WHERE m.DataInfracao IS NOT NULL AND (v.Placa IS NULL OR COALESCE(v.FinalidadeUso, '') <> 'Terceiro')
 
             UNION ALL
 
