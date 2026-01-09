@@ -7,7 +7,9 @@ import {
   RotateCcw, Archive, Store, User, UserCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { normalizeEventName } from '@/lib/analytics/fleetTimeline';
+import { normalizeEventName, aggregateFleetMetrics } from '@/lib/analytics/fleetTimeline';
+import { useChartFilter } from '@/hooks/useChartFilter';
+import { ChartFilterBadges } from '@/components/analytics/ChartFilterBadges';
 
 type AnyObject = { [k: string]: any };
 
@@ -540,6 +542,21 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   const [page, setPage] = useState(0);
   const pageSize = 15;
 
+  // Hook de filtro Power BI-style para os gráficos
+  const { 
+    filters: chartFilters, 
+    handleChartClick, 
+    clearFilter, 
+    clearAllFilters, 
+    hasActiveFilters, 
+    isValueSelected 
+  } = useChartFilter();
+
+  // Métricas agregadas usando nova lógica
+  const aggregatedMetrics = useMemo(() => {
+    return aggregateFleetMetrics(frota, contratosLocacao || [], manutencao || []);
+  }, [frota, contratosLocacao, manutencao]);
+
   // Auto-expandir primeiro veículo
   const [autoExpanded, setAutoExpanded] = useState(false);
 
@@ -802,8 +819,8 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     }).sort((a, b) => b.totalEvents - a.totalEvents);
   }, [timeline, filteredData, frota]);
 
-  // Filtrar por busca
-  const filteredGrouped = useMemo(() => {
+  // Filtrar por busca - busca em QUALQUER campo do grupo
+  const searchFiltered = useMemo(() => {
     if (!searchTerm) return timelineGrouped;
     const term = searchTerm.trim().toLowerCase();
     return timelineGrouped.filter(g => {
@@ -815,6 +832,60 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       }
     });
   }, [timelineGrouped, searchTerm]);
+
+  // Aplicar filtros de gráfico (Ctrl+Click)
+  const filteredGrouped = useMemo(() => {
+    let result = searchFiltered;
+    
+    // Filtro por faixa de dias locados
+    const faixaLocacao = chartFilters['faixaLocacao'] || [];
+    if (faixaLocacao.length > 0) {
+      result = result.filter(v => {
+        const days = v.locacaoDays;
+        return faixaLocacao.some(faixa => {
+          if (faixa === '0-30 dias') return days >= 0 && days <= 30;
+          if (faixa === '31-90 dias') return days >= 31 && days <= 90;
+          if (faixa === '91-180 dias') return days >= 91 && days <= 180;
+          if (faixa === '181-365 dias') return days >= 181 && days <= 365;
+          if (faixa === '> 365 dias') return days > 365;
+          return false;
+        });
+      });
+    }
+    
+    // Filtro por faixa de dias de manutenção
+    const faixaManutencao = chartFilters['faixaManutencao'] || [];
+    if (faixaManutencao.length > 0) {
+      result = result.filter(v => {
+        const days = v.manutencaoDays;
+        return faixaManutencao.some(faixa => {
+          if (faixa === '0 dias') return days === 0;
+          if (faixa === '1-7 dias') return days >= 1 && days <= 7;
+          if (faixa === '8-15 dias') return days >= 8 && days <= 15;
+          if (faixa === '16-30 dias') return days >= 16 && days <= 30;
+          if (faixa === '> 30 dias') return days > 30;
+          return false;
+        });
+      });
+    }
+    
+    // Filtro por faixa de utilização
+    const faixaUtilizacao = chartFilters['faixaUtilizacao'] || [];
+    if (faixaUtilizacao.length > 0) {
+      result = result.filter(v => {
+        const util = v.utilization;
+        return faixaUtilizacao.some(faixa => {
+          if (faixa === '< 40% (Crítico)') return util < 40;
+          if (faixa === '40-59% (Regular)') return util >= 40 && util < 60;
+          if (faixa === '60-79% (Bom)') return util >= 60 && util < 80;
+          if (faixa === '≥ 80% (Excelente)') return util >= 80;
+          return false;
+        });
+      });
+    }
+    
+    return result;
+  }, [searchFiltered, chartFilters]);
 
   // Paginação
   const pageItems = filteredGrouped.slice(page * pageSize, (page + 1) * pageSize);
@@ -835,14 +906,22 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     }
   }, [pageItems, autoExpanded]);
 
-  // KPIs
+  // KPIs - Usar métricas agregadas (MÉDIAS)
   const kpis = useMemo(() => {
     const totalVehicles = timelineGrouped.length;
     const totalEvents = timeline.length;
     const avgEvents = totalVehicles > 0 ? totalEvents / totalVehicles : 0;
-    const avgUtilization = totalVehicles > 0 
-      ? timelineGrouped.reduce((sum, g) => sum + g.utilization, 0) / totalVehicles 
-      : 0;
+
+    // Usar as métricas agregadas
+    const {
+      mediaLocado,
+      mediaManutencao,
+      mediaParado,
+      totalLocadoDays,
+      totalManutencaoDays,
+      totalParadoDays,
+      utilizacaoPct
+    } = aggregatedMetrics;
 
     // Distribuição por tipo de evento
     const eventTypes: Record<string, number> = {};
@@ -857,59 +936,25 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       if (tipo.includes('SINISTRO')) totalSinistros++;
     });
 
-    // Somar dias totais de manutenção e sinistro
-    const totalManutencaoDays = timelineGrouped.reduce((sum, g) => sum + (g.manutencaoDays || 0), 0);
-    const totalSinistroDays = timelineGrouped.reduce((sum, g) => sum + (g.sinistroDays || 0), 0);
-
-    // Total de dias locados a partir dos contratos (soma por veículo)
-    const totalLocadoDays = timelineGrouped.reduce((sum, g) => sum + (g.locacaoDays || 0), 0);
-
-    // Frota parada: para cada veículo, tempo entre compra e venda (ou hoje) menos tempo locado
-    const frotaMapByPlaca: Record<string, any> = {};
-    frota.forEach(f => { if (f?.Placa) frotaMapByPlaca[String(f.Placa).trim()] = f; });
-
-    let totalFrotaParadaDays = 0;
-    timelineGrouped.forEach(g => {
-      try {
-        const placa = String(g.placa || '').trim();
-        const v = frotaMapByPlaca[placa];
-        // Datas possíveis de compra / venda
-        const dataCompraRaw = v?.DataCompra ?? v?.DataAquisicao ?? null;
-        const dataVendaRaw = v?.DataVenda ?? v?.DataAlienacao ?? v?.DataBaixa ?? null;
-        const compra = parseDateAny(dataCompraRaw) ?? (g.eventos?.[0] ? parseDateAny(g.eventos[0].DataEvento || g.eventos[0].Data) : null);
-        const venda = parseDateAny(dataVendaRaw) ?? null;
-        const end = venda ?? new Date();
-        if (compra) {
-          const ownershipDays = Math.max(0, (end.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
-          const locDays = (g.locacaoDays || 0);
-          const parada = Math.max(0, ownershipDays - locDays);
-          totalFrotaParadaDays += parada;
-        }
-      } catch (e) {
-        // ignore malformed entries
-      }
-    });
-
-    // % utilização: proporção de tempo em locação sobre o período (locado / (locado + parado))
-    const utilizationPct = (totalLocadoDays + totalFrotaParadaDays) > 0
-      ? (totalLocadoDays / (totalLocadoDays + totalFrotaParadaDays)) * 100
-      : avgUtilization;
-
     return { 
       totalVehicles, 
       totalEvents, 
       avgEvents, 
-      avgUtilization, 
+      avgUtilization: utilizacaoPct, 
       eventTypes, 
       totalMultas, 
       totalSinistros,
-      totalManutencaoDays,
-      totalSinistroDays,
+      // Médias (novos)
+      mediaLocado,
+      mediaManutencao,
+      mediaParado,
+      // Totais
       totalLocadoDays,
-      totalFrotaParadaDays,
-      utilizationPct
+      totalManutencaoDays,
+      totalParadoDays,
+      utilizationPct: utilizacaoPct
     };
-  }, [timelineGrouped, timeline]);
+  }, [timelineGrouped, timeline, aggregatedMetrics]);
 
   // Gráfico 1: Veículos por faixa de dias locados
   const vehiclesByRentalDays = useMemo(() => {
@@ -1046,15 +1091,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   };
 
   const exportToExcel = () => {
-    const data = timeline.map(e => ({
-      Placa: e.Placa,
-      Modelo: e.Modelo,
-      TipoEvento: e.TipoEvento || e.Evento,
-      DataEvento: e.DataEvento || e.Data,
-      Detalhe1: e.Detalhe1 || e.Descricao,
-      Detalhe2: e.Detalhe2
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Exportar apenas os veículos filtrados
+    const placasFiltradas = new Set(filteredGrouped.map(g => g.placa));
+    const dataToExport = timeline
+      .filter(e => placasFiltradas.has(e.Placa))
+      .map(e => ({
+        Placa: e.Placa,
+        Modelo: e.Modelo,
+        TipoEvento: e.TipoEvento || e.Evento,
+        DataEvento: e.DataEvento || e.Data,
+        Detalhe1: e.Detalhe1 || e.Descricao,
+        Detalhe2: e.Detalhe2
+      }));
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Timeline');
     XLSX.writeFile(wb, `timeline_veiculos_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -1101,7 +1150,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         </div>
       </div>
 
-      {/* KPIs: Locado, Manutenção, Frota Parada, % Utilização */}
+      {/* KPIs: Média Locado, Média Manutenção, Média Frota Parada, % Utilização */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-white">
             <div className="flex items-center gap-3">
@@ -1109,8 +1158,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                 <Play className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <Text className="text-slate-500 text-xs">Locado</Text>
-                <Metric className="text-emerald-600">{formatDurationDays(Math.round(kpis.totalLocadoDays || 0))}</Metric>
+                <Text className="text-slate-500 text-xs">Média Locado</Text>
+                <Metric className="text-emerald-600">{formatDurationDays(Math.round(kpis.mediaLocado || 0))}</Metric>
+                <Text className="text-[10px] text-slate-400">por veículo</Text>
               </div>
             </div>
         </Card>
@@ -1121,8 +1171,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Wrench className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Manutenção</Text>
-              <Metric className="text-amber-600">{formatDurationDays(Math.round(kpis.totalManutencaoDays || 0))}</Metric>
+              <Text className="text-slate-500 text-xs">Média Manutenção</Text>
+              <Metric className="text-amber-600">{formatDurationDays(Math.round(kpis.mediaManutencao || 0))}</Metric>
+              <Text className="text-[10px] text-slate-400">por veículo</Text>
             </div>
           </div>
         </Card>
@@ -1133,8 +1184,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Archive className="w-6 h-6 text-slate-700" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Frota Parada</Text>
-              <Metric className="text-slate-700">{formatDurationDays(Math.round(kpis.totalFrotaParadaDays || 0))}</Metric>
+              <Text className="text-slate-500 text-xs">Média Frota Parada</Text>
+              <Metric className="text-slate-700">{formatDurationDays(Math.round(kpis.mediaParado || 0))}</Metric>
+              <Text className="text-[10px] text-slate-400">por veículo</Text>
             </div>
           </div>
         </Card>
@@ -1147,10 +1199,25 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
             <div>
               <Text className="text-slate-500 text-xs">% Utilização</Text>
               <Metric className="text-blue-600">{(kpis.utilizationPct ?? 0).toFixed(1)}%</Metric>
+              <Text className="text-[10px] text-slate-400">{kpis.totalVehicles} veículos</Text>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* Filtros Ativos (ChartFilterBadges) */}
+      {hasActiveFilters && (
+        <ChartFilterBadges 
+          filters={chartFilters} 
+          onClearFilter={clearFilter}
+          onClearAll={clearAllFilters}
+          labelMap={{
+            faixaLocacao: 'Faixa Locação',
+            faixaManutencao: 'Faixa Manutenção',
+            faixaUtilizacao: 'Faixa Utilização'
+          }}
+        />
+      )}
 
       {/* Gráficos - Novos gráficos de faixas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1168,9 +1235,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20} style={{ cursor: 'pointer' }}>
                   {vehiclesByRentalDays.map((entry, index) => (
-                    <Cell key={`rental-${index}`} fill={entry.color} />
+                    <Cell 
+                      key={`rental-${index}`} 
+                      fill={isValueSelected('faixaLocacao', entry.name) ? '#065f46' : entry.color}
+                      onClick={(e) => handleChartClick('faixaLocacao', entry.name, e as unknown as React.MouseEvent)}
+                    />
                   ))}
                   <LabelList dataKey="count" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={11} fill="#1e293b" />
                 </Bar>
@@ -1193,9 +1264,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20} style={{ cursor: 'pointer' }}>
                   {vehiclesByMaintenanceDays.map((entry, index) => (
-                    <Cell key={`maint-${index}`} fill={entry.color} />
+                    <Cell 
+                      key={`maint-${index}`} 
+                      fill={isValueSelected('faixaManutencao', entry.name) ? '#78350f' : entry.color}
+                      onClick={(e) => handleChartClick('faixaManutencao', entry.name, e as unknown as React.MouseEvent)}
+                    />
                   ))}
                   <LabelList dataKey="count" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={11} fill="#1e293b" />
                 </Bar>
@@ -1218,9 +1293,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20}>
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20} style={{ cursor: 'pointer' }}>
                   {vehiclesByUtilization.map((entry, index) => (
-                    <Cell key={`util-${index}`} fill={entry.color} />
+                    <Cell 
+                      key={`util-${index}`} 
+                      fill={isValueSelected('faixaUtilizacao', entry.name) ? '#1e3a8a' : entry.color}
+                      onClick={(e) => handleChartClick('faixaUtilizacao', entry.name, e as unknown as React.MouseEvent)}
+                    />
                   ))}
                   <LabelList dataKey="count" position="right" formatter={(v: number) => fmtDecimal(v)} fontSize={11} fill="#1e293b" />
                 </Bar>
