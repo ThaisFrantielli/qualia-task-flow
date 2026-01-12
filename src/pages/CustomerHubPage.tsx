@@ -32,7 +32,7 @@ const CustomerHubPage: React.FC = () => {
   const { clientes, loading, error, refetch } = useClientes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clienteToEdit, setClienteToEdit] = useState<ClienteComContatos | null>(null);
 

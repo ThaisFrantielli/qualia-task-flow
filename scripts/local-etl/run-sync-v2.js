@@ -28,8 +28,8 @@ const sqlConfig = {
 const pgConfig = {
     host: process.env.PG_HOST || '127.0.0.1',
     port: process.env.PG_PORT || 5432,
-    user: process.env.PG_USER,
-    password: process.env.PG_PASSWORD,
+    user: (process.env.PG_USER || '').toLowerCase().trim(),
+    password: (process.env.PG_PASSWORD || '').trim(),
     database: (process.env.PG_DATABASE || 'bluconecta_dw').toLowerCase().trim(),
     max: 10,
     min: 2,
@@ -85,9 +85,9 @@ async function getDWLastUpdateDate(pool) {
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
 const DIMENSIONS = [
-    {
-        table: 'dim_clientes',
-        query: `SELECT IdCliente, NomeFantasia as Nome, CNPJ, CPF, Tipo, NaturezaCliente, Cidade, Estado, Segmento, Situacao FROM Clientes WITH (NOLOCK)`
+    { 
+        table: 'dim_clientes', 
+        query: `SELECT IdCliente, NomeFantasia as Nome, CNPJ, CPF, Tipo, NaturezaCliente, Cidade, Estado, Segmento, Situacao FROM Clientes WITH (NOLOCK)` 
     },
     {
         table: 'dim_condutores',
