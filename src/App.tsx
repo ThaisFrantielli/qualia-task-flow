@@ -1,3 +1,4 @@
+// App entrypoint - v2
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { OportunidadeProvider } from './contexts/OportunidadeContext';
 import { PresenceProvider } from './contexts/PresenceContext';
