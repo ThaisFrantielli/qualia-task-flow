@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SMTPClient } from "npm:emailjs@4.0.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,22 @@ interface SendRequest {
   body: string;
   bodyHtml?: string;
   replyToMessageId?: string;
+}
+
+// Decrypt password (same logic as email-connect)
+function decryptPassword(encryptedPassword: string): string {
+  try {
+    const key = Deno.env.get("EMAIL_ENCRYPTION_KEY") || "default-key-change-in-production";
+    // Simple XOR decryption
+    const encrypted = atob(encryptedPassword);
+    let decrypted = '';
+    for (let i = 0; i < encrypted.length; i++) {
+      decrypted += String.fromCharCode(encrypted.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return decrypted;
+  } catch {
+    return encryptedPassword;
+  }
 }
 
 serve(async (req: Request) => {
@@ -93,26 +110,59 @@ serve(async (req: Request) => {
       );
     }
 
-    // TODO: Implement actual SMTP connection to send email
-    // For now, simulate successful send
-    console.log(`[email-send] Email details:
-      From: ${account.email}
-      To: ${to.join(', ')}
-      CC: ${cc?.join(', ') || 'none'}
-      Subject: ${subject}
-      Reply to: ${replyToMessageId || 'none'}
-    `);
+    // Check if we have credentials
+    if (!account.encrypted_password) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Credenciais não encontradas. Por favor, reconecte a conta." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // Generate a mock message ID
+    const password = decryptPassword(account.encrypted_password);
+
+    console.log(`[email-send] Connecting to SMTP: ${account.smtp_host}:${account.smtp_port}`);
+
+    // Create SMTP client
+    const client = new SMTPClient({
+      user: account.email,
+      password: password,
+      host: account.smtp_host || 'smtp.office365.com',
+      port: account.smtp_port || 587,
+      tls: true,
+      timeout: 30000
+    });
+
+    // Build email message
+    const message = {
+      from: account.display_name ? `${account.display_name} <${account.email}>` : account.email,
+      to: to.join(', '),
+      cc: cc?.join(', ') || undefined,
+      bcc: bcc?.join(', ') || undefined,
+      subject: subject,
+      text: emailBody,
+      attachment: bodyHtml ? [
+        { data: bodyHtml, alternative: true }
+      ] : undefined
+    };
+
+    // Add reply-to header if replying
+    if (replyToMessageId) {
+      console.log(`[email-send] Replying to message: ${replyToMessageId}`);
+    }
+
+    // Send email
+    const result = await client.sendAsync(message);
+    
+    console.log(`[email-send] Email sent successfully`);
+
+    // Generate message ID from result or create one
     const messageId = `sent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    console.log(`[email-send] Email sent successfully with ID: ${messageId}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         messageId,
-        message: "Email enviado com sucesso (simulado)"
+        message: "Email enviado com sucesso"
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -120,8 +170,19 @@ serve(async (req: Request) => {
   } catch (error: unknown) {
     console.error("[email-send] Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro interno do servidor";
+    
+    // Provide more user-friendly error messages
+    let friendlyMessage = errorMessage;
+    if (errorMessage.includes('authentication') || errorMessage.includes('AUTH')) {
+      friendlyMessage = "Falha na autenticação. Verifique suas credenciais ou use uma senha de aplicativo.";
+    } else if (errorMessage.includes('connection') || errorMessage.includes('ETIMEDOUT')) {
+      friendlyMessage = "Erro de conexão com o servidor SMTP. Tente novamente.";
+    } else if (errorMessage.includes('recipient')) {
+      friendlyMessage = "Endereço de email do destinatário inválido.";
+    }
+    
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: friendlyMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
