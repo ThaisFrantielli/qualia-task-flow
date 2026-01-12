@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import {
   Select,
   SelectContent,
@@ -346,7 +346,7 @@ export function BroadcastForm({ onSuccess, onCancel, createBroadcast }: Broadcas
             {filteredClientes.length} clientes encontrados • {selectedClientes.size} selecionados
           </div>
 
-          <ScrollArea className="h-[300px] border rounded-lg p-2">
+          <div className="h-[300px] border rounded-lg p-2 overflow-y-auto">
             {loadingClientes ? (
               <div className="text-center py-4 text-muted-foreground">Carregando clientes...</div>
             ) : filteredClientes.length === 0 ? (
@@ -365,7 +365,7 @@ export function BroadcastForm({ onSuccess, onCancel, createBroadcast }: Broadcas
                       }`}
                       onClick={() => toggleCliente(cliente.id)}
                     >
-                      <Checkbox checked={isSelected} />
+                      <Checkbox checked={isSelected} onChange={() => {}} />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">
                           {cliente.nome_fantasia || cliente.razao_social || 'Sem nome'}
@@ -382,7 +382,7 @@ export function BroadcastForm({ onSuccess, onCancel, createBroadcast }: Broadcas
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6 mt-4">
