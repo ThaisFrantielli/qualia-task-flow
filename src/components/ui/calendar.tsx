@@ -650,8 +650,18 @@ export default function CalendarApp(): JSX.Element {
     }
   }, []);
 
+  // Estado para popup de ação ao clicar no evento
+  const [eventActionPopup, setEventActionPopup] = useState<{
+    open: boolean;
+    eventId: string;
+    eventTitle: string;
+    isTask: boolean;
+    position: { x: number; y: number };
+  } | null>(null);
+
   const handleEventClick = useCallback(async (info: EventClickArg) => {
     const id = info.event.id;
+    const jsEvent = info.jsEvent;
 
     // sample events (s- prefixed) -> edição local simples
     if (id.startsWith('s-')) {
@@ -667,17 +677,31 @@ export default function CalendarApp(): JSX.Element {
       return;
     }
 
+    // Mostra popup discreto com opções "Ir para" e "Editar"
+    const isTask = !id.startsWith('ce-');
+    setEventActionPopup({
+      open: true,
+      eventId: id,
+      eventTitle: info.event.title,
+      isTask,
+      position: { x: jsEvent.clientX, y: jsEvent.clientY }
+    });
+  }, []);
+
+  // Função para abrir edição do evento/tarefa
+  const openEventForEdit = useCallback(async (eventId: string) => {
+    setEventActionPopup(null);
+
     // calendar_events (ce- prefix) -> abrir modal de edição
-    if (id.startsWith('ce-')) {
-      const realId = id.replace('ce-', '');
+    if (eventId.startsWith('ce-')) {
+      const realId = eventId.replace('ce-', '');
       try {
         const data = await fetchSingleEvent(realId);
         if (!data) {
           toast.error('Não foi possível carregar o evento');
           return;
         }
-          if (data) {
-          // segurança: checar permissão antes de abrir o modal
+        if (data) {
           const candidate = {
             id: `ce-${data.id}`,
             title: data.title,
@@ -708,36 +732,40 @@ export default function CalendarApp(): JSX.Element {
       return;
     }
 
-    // casos restantes: abrir modal de edição para tarefas (id sem prefix)
-    // em vez de navegar diretamente, abrimos o modal e carregamos a task
+    // Tarefa -> abrir modal de edição
     try {
-      setSelectedTaskId(id);
-      setEditingEventId(`t-${id}`);
-      // buscar diretamente via supabase para preenchimento imediato do modal
-      try {
-        const { data, error } = await supabase.from('tasks').select('*').eq('id', id).single();
-        if (error || !data) {
-          // fallback: navegar se não conseguir carregar
-          navigate(`/tasks/${id}`);
-          return;
-        }
-        setFormTitle(data.title || '');
-        setFormCategoryId((data as any).category_id || (data as any).category?.id || null);
-        const nTask = normalizeFormStartEnd((data.due_date as any) || null, null);
-        setFormStart(nTask.s);
-        setFormEnd(nTask.e);
-        setFormDescription(data.description || '');
-        setFormColor('#7C3AED');
-        setModalMode('edit');
-        setModalOpen(true);
-      } catch (err) {
-        try { navigate(`/tasks/${id}`); } catch {};
+      setSelectedTaskId(eventId);
+      setEditingEventId(`t-${eventId}`);
+      const { data, error } = await supabase.from('tasks').select('*').eq('id', eventId).single();
+      if (error || !data) {
+        navigate(`/tasks/${eventId}`);
+        return;
       }
+      setFormTitle(data.title || '');
+      setFormCategoryId((data as any).category_id || (data as any).category?.id || null);
+      const nTask = normalizeFormStartEnd((data.due_date as any) || null, null);
+      setFormStart(nTask.s);
+      setFormEnd(nTask.e);
+      setFormDescription(data.description || '');
+      setFormColor('#7C3AED');
+      setModalMode('edit');
+      setModalOpen(true);
     } catch (err) {
-      // fallback para navegação
-      try { navigate(`/tasks/${id}`); } catch {};
+      try { navigate(`/tasks/${eventId}`); } catch {};
     }
-  }, [navigate]);
+  }, [navigate, canViewItem]);
+
+  // Função para ir para a página do evento/tarefa
+  const goToEventPage = useCallback((eventId: string, isTask: boolean) => {
+    setEventActionPopup(null);
+    if (isTask) {
+      const taskId = eventId.startsWith('t-') ? eventId.replace('t-', '') : eventId;
+      navigate(`/tasks/${taskId}`);
+    } else {
+      // Para eventos do calendário, não há página dedicada, então abre edição
+      openEventForEdit(eventId);
+    }
+  }, [navigate, openEventForEdit]);
 
   // Submissão do modal (create/edit)
   const handleSubmitModal = useCallback(async () => {
@@ -1333,6 +1361,33 @@ export default function CalendarApp(): JSX.Element {
           </div>
         </div>
       </main>
+
+      {/* Popup discreto de ação ao clicar em evento */}
+      {eventActionPopup?.open && (
+        <div 
+          className="fixed z-50 bg-background border rounded-lg shadow-lg p-2 min-w-[140px]"
+          style={{ 
+            left: Math.min(eventActionPopup.position.x, window.innerWidth - 160),
+            top: Math.min(eventActionPopup.position.y, window.innerHeight - 100)
+          }}
+          onMouseLeave={() => setEventActionPopup(null)}
+        >
+          <button
+            onClick={() => goToEventPage(eventActionPopup.eventId, eventActionPopup.isTask)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded flex items-center gap-2"
+          >
+            {eventActionPopup.isTask ? <CheckCircle className="w-4 h-4" /> : <CalendarIcon className="w-4 h-4" />}
+            {eventActionPopup.isTask ? 'Ver tarefa' : 'Ver evento'}
+          </button>
+          <button
+            onClick={() => openEventForEdit(eventActionPopup.eventId)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded flex items-center gap-2"
+          >
+            <span className="w-4 h-4 text-center">✏️</span>
+            Editar
+          </button>
+        </div>
+      )}
 
       {/* Modal (Dialog) */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
