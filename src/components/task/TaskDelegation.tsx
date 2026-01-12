@@ -78,6 +78,24 @@ const TaskDelegation: React.FC<TaskDelegationProps> = ({ taskId, currentAssignee
         if (insertData && insertData.length > 0) {
           setDelegations(prev => [insertData[0], ...prev]);
         }
+        
+        // Criar notificação para o co-responsável
+        try {
+          if (selectedUserId) {
+            await supabase.from('notifications').insert({
+              user_id: selectedUserId,
+              title: 'Você foi adicionado como co-responsável',
+              message: `${delegatedBy} adicionou você como co-responsável em uma tarefa.`,
+              type: 'task_assigned',
+              task_id: taskId,
+              data: { delegation_id: insertData?.[0]?.id || null, is_co_responsible: true },
+              read: false
+            });
+          }
+        } catch (notifErr) {
+          console.warn('Erro criando notificação de co-responsável:', notifErr);
+        }
+
         toast({ title: "Sucesso!", description: "Co-responsável adicionado.", });
         onDelegationSuccess();
         return;
