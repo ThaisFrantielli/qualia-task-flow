@@ -557,6 +557,30 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return aggregateFleetMetrics(frota, contratosLocacao || [], manutencao || []);
   }, [frota, contratosLocacao, manutencao]);
 
+  // Mapa de métricas por placa para lookup rápido
+  const metricsByPlaca = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const m of aggregatedMetrics.metricsPerVehicle || []) {
+      if (m?.placa) map[normalizePlacaKey(m.placa)] = m;
+    }
+    return map;
+  }, [aggregatedMetrics]);
+
+  // Expor métricas para depuração no console do navegador
+  useEffect(() => {
+    try {
+      // @ts-ignore
+      if (typeof window !== 'undefined') {
+        // Não poluir namespace em produção; apenas quando dev
+        // (o app roda em dev durante QA)
+        (window as any).__AGGREGATED_METRICS = aggregatedMetrics;
+        (window as any).__METRICS_BY_PLACA = metricsByPlaca;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [aggregatedMetrics, metricsByPlaca]);
+
   // Auto-expandir primeiro veículo
   const [autoExpanded, setAutoExpanded] = useState(false);
 
@@ -712,40 +736,14 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           return ad.getTime() - bd.getTime();
         });
 
-      // Calcular dias reais de locação (de contratos)
-      const contratosPlaca = contratosByPlaca[normalizePlacaKey(placa)] || [];
-      const locacaoDaysReal = contratosPlaca.reduce((sum, c) => {
-        const inicio = normalizeDateLocal(c.Inicio);
-        const fim = normalizeDateLocal(c.Fim || c.DataEncerramento);
-        if (!inicio) return sum;
-        const end = fim || new Date();
-        const days = Math.max(0, (end.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-        return sum + days;
-      }, 0);
+      // Usar métricas centralizadas calculadas por `aggregateFleetMetrics`
+      const metric = metricsByPlaca[placaKey] || null;
+      const locacaoDaysReal = metric ? (metric.diasLocado ?? 0) : 0;
+      const manutencaoDaysReal = metric ? (metric.diasManutencao ?? 0) : 0;
+      const ownershipDays = metric ? (metric.diasVida ?? 0) : 0;
+      const frotaParadaDays = metric ? (metric.diasParado ?? 0) : 0;
+      const utilization = metric ? (metric.percentualUtilizacao ?? 0) : 0;
 
-      // Calcular dias reais de manutenção (de OSs) - campos ETL: DataChegadaVeiculo, DataRetiradaVeiculo
-      const manutPlaca = manutencaoByPlaca[placaKey] || [];
-      const manutencaoDaysReal = manutPlaca.reduce((sum, os) => {
-        // Múltiplos campos possíveis do ETL
-        const entradaCandidates = [
-          os?.DataChegadaVeiculo, os?.DataAgendamento, os?.DataAberturaOcorrencia,
-          os?.DataEntrada, os?.DataChegada, os?.Data, os?.['Data Entrada'], os?.['Data Chegada']
-        ];
-        const saidaCandidates = [
-          os?.DataRetiradaVeiculo, os?.DataConclusaoOcorrencia, os?.DataConfirmacaoSaida,
-          os?.DataSaida, os?.DataRetirada, os?.DataConclusao, os?.['Data Saida'], os?.['Data Retirada']
-        ];
-        
-        const entrada = entradaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
-        const saida = saidaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
-        
-        if (!entrada) return sum;
-        const end = saida || new Date();
-        const days = Math.max(0, (end.getTime() - entrada.getTime()) / (1000 * 60 * 60 * 24));
-        return sum + days;
-      }, 0);
-
-      // Calcular dias reais de sinistro (de ocorrências)
       const sinistrosPlaca = sinistrosByPlaca[placaKey] || [];
       const sinistroDaysReal = sinistrosPlaca.reduce((sum, s) => {
         const abertura = normalizeDateLocal(s.DataAberturaOcorrencia);
@@ -755,92 +753,6 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         const days = Math.max(0, (end.getTime() - abertura.getTime()) / (1000 * 60 * 60 * 24));
         return sum + days;
       }, 0);
-
-      // Total days desde primeiro evento
-      const totalDays = sortedEvents.length > 0 
-        ? Math.max(1, (new Date().getTime() - (parseDateAny(sortedEvents[0].DataEvento || sortedEvents[0].Data) || new Date()).getTime()) / (1000 * 60 * 60 * 24))
-        : 0;
-      
-      // Utilização = dias locado / total days
-      const utilization = totalDays > 0 ? Math.min(100, Math.max(0, (locacaoDaysReal / totalDays) * 100)) : 0;
-
-      // Frota parada por veículo: tempo entre compra e venda (ou hoje) menos tempo locado
-      let frotaParadaDays = 0;
-      let compra: Date | null = null;
-      let venda: Date | null = null;
-      let ownershipDays = 0;
-      try {
-        // Mapeamento robusto de múltiplos formatos de campo para data de compra
-        const compraCandidates = [
-          veiculoInfo?.DataCompra, veiculoInfo?.DataAquisicao,
-          veiculoInfo?.['Data Compra'], veiculoInfo?.['Data de Compra'],
-          veiculoInfo?.['Data de Aquisição'], veiculoInfo?.['Data Aquisicao']
-        ];
-        const vendaCandidates = [
-          veiculoInfo?.DataVenda, veiculoInfo?.DataAlienacao, veiculoInfo?.DataBaixa,
-          veiculoInfo?.['Data Venda'], veiculoInfo?.['Data de Venda'],
-          veiculoInfo?.['Data Baixa'], veiculoInfo?.['Data de Baixa']
-        ];
-        
-        compra = compraCandidates.map(parseDateAny).find(d => d !== null) ?? null;
-        
-        // Se não achou data de compra, tenta usar primeira locação como proxy
-        if (!compra && contratosPlaca.length > 0) {
-          // Pega a data de início do contrato mais antigo
-          const datasInicio = contratosPlaca
-            .map(c => c.__inicio as Date | null)
-            .filter(Boolean)
-            .sort((a, b) => (a?.getTime() || 0) - (b?.getTime() || 0));
-          if (datasInicio.length > 0 && datasInicio[0]) {
-            // Assumir compra ~30 dias antes da primeira locação como fallback
-            compra = new Date(datasInicio[0].getTime() - (30 * 24 * 60 * 60 * 1000));
-          }
-        }
-        
-        venda = vendaCandidates.map(parseDateAny).find(d => d !== null) ?? null;
-        
-        const end = venda ?? new Date();
-        if (compra) {
-          ownershipDays = Math.max(0, (end.getTime() - compra.getTime()) / (1000 * 60 * 60 * 24));
-          frotaParadaDays = Math.max(0, ownershipDays - locacaoDaysReal);
-        }
-      } catch (e) {
-        frotaParadaDays = 0;
-      }
-
-      // DEBUG: registrar no console para investigação de campos
-      try {
-        const debugKey = 'SGW0E99';
-        if (placaKey === debugKey) {
-          console.debug('DEBUG Timeline SGW-0E99', {
-            placa,
-            placaKey,
-            veiculoInfoKeys: veiculoInfo ? Object.keys(veiculoInfo) : [],
-            veiculoInfo,
-            compra: compra ? compra?.toISOString() : null,
-            venda: venda ? venda?.toISOString() : null,
-            ownershipDays,
-            contratosPlaca: contratosPlaca.map((c: any) => ({
-              Inicio: c.__inicio ? c.__inicio?.toISOString() : null,
-              Fim: c.__fimPrevisto ? c.__fimPrevisto?.toISOString() : null,
-              Encerr: c.__fimEncerramento ? c.__fimEncerramento?.toISOString() : null
-            })),
-            locacaoDaysReal,
-            manutPlaca: manutPlaca.slice(0, 3).map((os: any) => ({
-              keys: Object.keys(os),
-              DataChegadaVeiculo: os.DataChegadaVeiculo,
-              DataRetiradaVeiculo: os.DataRetiradaVeiculo,
-              DataEntrada: os.DataEntrada,
-              DataSaida: os.DataSaida
-            })),
-            manutencaoDaysReal,
-            frotaParadaDays,
-            utilization
-          });
-        }
-      } catch (err) {
-        // ignore debug errors
-      }
 
       const numeroContratoLocacao = veiculoInfo?.NumeroContratoLocacao || veiculoInfo?.ContratoAtual || veiculoInfo?.NumeroContrato;
       const situacaoLocacao = veiculoInfo?.SituacaoLocacao || veiculoInfo?.StatusLocacao || veiculoInfo?.StatusContrato || veiculoInfo?.Situacao;
@@ -860,7 +772,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         locacaoDays: Math.round(locacaoDaysReal),
         manutencaoDays: Math.round(manutencaoDaysReal),
         sinistroDays: Math.round(sinistroDaysReal),
-        frotaParadaDays: Math.round(frotaParadaDays),
+        frotaParadaDays: Math.round(frotaParadaDays), // Vida do veículo - dias locado
         utilization
       };
     }).sort((a, b) => b.totalEvents - a.totalEvents);

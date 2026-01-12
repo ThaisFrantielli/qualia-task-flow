@@ -11,7 +11,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 
 const rootElement = document.getElementById("root");
-console.log('DEBUG: main.tsx carregado, rootElement:', rootElement);
 if (!rootElement) throw new Error("Elemento root não encontrado.");
 
 const root = createRoot(rootElement);
