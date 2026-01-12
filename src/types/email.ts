@@ -111,6 +111,15 @@ export interface EmailListResponse {
   total: number;
   hasMore: boolean;
   page: number;
+  success?: boolean;
+  error?: string;
+  requiresOAuth?: boolean;
+  instructions?: string;
+  accountInfo?: {
+    email: string;
+    provider: string;
+    connected: boolean;
+  };
 }
 
 // Para ler email específico
