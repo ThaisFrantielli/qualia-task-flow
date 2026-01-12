@@ -68,6 +68,7 @@ import PrecificacaoConfigPage from '@/pages/PrecificacaoConfigPage';
 import { useEnabledModules } from '@/modules/registry';
 import React from 'react';
 import EmailPage from '@/pages/EmailPage';
+import Broadcasts from '@/pages/Broadcasts';
 
 function App() {
   const enabledModules = useEnabledModules();
@@ -118,6 +119,7 @@ function App() {
               <Route path="/whatsapp" element={<WhatsAppCentralPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
               <Route path="/emails" element={<EmailPage />} />
+              <Route path="/broadcasts" element={<Broadcasts />} />
               <Route path="/analytics">
                 <Route index element={<AnalyticsIndex />} />
                 <Route path="frota" element={<FleetDashboard />} />
