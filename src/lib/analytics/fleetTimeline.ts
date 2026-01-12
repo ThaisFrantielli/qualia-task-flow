@@ -1,4 +1,4 @@
-// Centralized fleet timeline helpers
+// Centralized fleet timeline helpers - v2
 type AnyObject = Record<string, any>;
 
 export function parseDateAny(raw?: string | null): Date | null {
