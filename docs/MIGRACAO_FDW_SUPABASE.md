@@ -1,12 +1,24 @@
 # 🔗 Migração para Arquitetura Híbrida com FDW
 
-> **Status:** Planejado  
-> **Data:** 12/01/2026  
-> **Versão:** 1.0
+> **Status:** EM EXECUÇÃO  
+> **Data Início:** 12/01/2026  
+> **Versão:** 1.1
 
----
+## ✅ Progresso da Execução
 
-## 📋 Resumo Executivo
+| Fase | Item | Status |
+|------|------|--------|
+| **Código** | Edge Function `fdw-health-check` | ✅ Criada |
+| **Código** | Edge Function `fdw-query` | ✅ Criada |
+| **Código** | Hook `useBIDataFDW.ts` | ✅ Criado |
+| **Código** | Config `supabase/config.toml` | ✅ Atualizado |
+| **SQL** | Script PostgreSQL local | ✅ `scripts/sql/setup-postgresql-local-fdw.sql` |
+| **SQL** | Script Supabase FDW | ✅ `scripts/sql/setup-fdw-supabase.sql` |
+| **Infra** | Configurar postgresql.conf | ⏳ Manual |
+| **Infra** | Configurar pg_hba.conf | ⏳ Manual |
+| **Infra** | Firewall/NAT | ⏳ Manual |
+| **Supabase** | Executar SQL FDW | ⏳ Manual |
+| **Teste** | Validar conexão | ⏳ Pendente |
 
 Este documento descreve a migração da arquitetura atual (ETL → JSONs no Storage) para uma arquitetura híbrida usando **Foreign Data Wrapper (FDW)**, permitindo que o Supabase acesse diretamente o PostgreSQL local sem duplicar dados.
 
