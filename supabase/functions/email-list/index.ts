@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Imap from "npm:imap@0.8.19";
-import { simpleParser } from "npm:mailparser@3.6.5";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,11 +15,10 @@ interface ListRequest {
   unreadOnly?: boolean;
 }
 
-// Decrypt password (same logic as email-connect)
+// Decrypt password
 function decryptPassword(encryptedPassword: string): string {
   try {
     const key = Deno.env.get("EMAIL_ENCRYPTION_KEY") || "default-key-change-in-production";
-    // Simple XOR decryption (matches email-connect encryption)
     const encrypted = atob(encryptedPassword);
     let decrypted = '';
     for (let i = 0; i < encrypted.length; i++) {
@@ -33,40 +30,18 @@ function decryptPassword(encryptedPassword: string): string {
   }
 }
 
-// Map folder names to IMAP folder names
-function getImapFolderName(folder: string, provider: string): string {
-  const folderMap: Record<string, Record<string, string>> = {
-    'office365': {
-      'inbox': 'INBOX',
-      'sent': 'Sent Items',
-      'drafts': 'Drafts',
-      'trash': 'Deleted Items',
-      'spam': 'Junk Email',
-      'archive': 'Archive',
-      'starred': 'INBOX' // Will filter by flagged
-    },
-    'gmail': {
-      'inbox': 'INBOX',
-      'sent': '[Gmail]/Sent Mail',
-      'drafts': '[Gmail]/Drafts',
-      'trash': '[Gmail]/Trash',
-      'spam': '[Gmail]/Spam',
-      'archive': '[Gmail]/All Mail',
-      'starred': '[Gmail]/Starred'
-    },
-    'default': {
-      'inbox': 'INBOX',
-      'sent': 'Sent',
-      'drafts': 'Drafts',
-      'trash': 'Trash',
-      'spam': 'Spam',
-      'archive': 'Archive',
-      'starred': 'INBOX'
-    }
+// Map folder names to EWS/Graph folder names
+function getGraphFolderName(folder: string): string {
+  const folderMap: Record<string, string> = {
+    'inbox': 'inbox',
+    'sent': 'sentitems',
+    'drafts': 'drafts',
+    'trash': 'deleteditems',
+    'spam': 'junkemail',
+    'archive': 'archive',
+    'starred': 'inbox' // Will filter by importance
   };
-
-  const providerFolders = folderMap[provider] || folderMap['default'];
-  return providerFolders[folder] || folder.toUpperCase();
+  return folderMap[folder] || 'inbox';
 }
 
 interface EmailMessage {
@@ -82,209 +57,161 @@ interface EmailMessage {
   hasAttachments: boolean;
 }
 
-// Fetch emails via IMAP
-async function fetchEmailsViaIMAP(
-  account: { email: string; encrypted_password: string; imap_host: string; imap_port: number; provider: string },
+// Fetch emails via EWS Basic Auth (for Office 365 with basic auth enabled)
+async function fetchEmailsViaEWS(
+  email: string,
+  password: string,
   folder: string,
-  page: number,
-  limit: number,
-  unreadOnly: boolean
-): Promise<{ emails: EmailMessage[]; total: number }> {
-  return new Promise((resolve, reject) => {
-    const password = decryptPassword(account.encrypted_password);
-    const imapFolder = getImapFolderName(folder, account.provider || 'default');
+  limit: number
+): Promise<{ emails: EmailMessage[]; total: number; error?: string }> {
+  try {
+    // EWS endpoint for Office 365
+    const ewsUrl = 'https://outlook.office365.com/EWS/Exchange.asmx';
     
-    console.log(`[email-list] Connecting to IMAP: ${account.imap_host}:${account.imap_port}`);
-    console.log(`[email-list] Opening folder: ${imapFolder}`);
+    // Build SOAP request for FindItem
+    const folderName = folder === 'inbox' ? 'inbox' : 
+                       folder === 'sent' ? 'sentitems' :
+                       folder === 'drafts' ? 'drafts' :
+                       folder === 'trash' ? 'deleteditems' :
+                       folder === 'spam' ? 'junkemail' : 'inbox';
+    
+    const soapRequest = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types"
+               xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">
+  <soap:Header>
+    <t:RequestServerVersion Version="Exchange2016"/>
+  </soap:Header>
+  <soap:Body>
+    <m:FindItem Traversal="Shallow">
+      <m:ItemShape>
+        <t:BaseShape>Default</t:BaseShape>
+        <t:AdditionalProperties>
+          <t:FieldURI FieldURI="item:Subject"/>
+          <t:FieldURI FieldURI="item:DateTimeReceived"/>
+          <t:FieldURI FieldURI="message:From"/>
+          <t:FieldURI FieldURI="message:IsRead"/>
+          <t:FieldURI FieldURI="item:HasAttachments"/>
+          <t:FieldURI FieldURI="item:Importance"/>
+        </t:AdditionalProperties>
+      </m:ItemShape>
+      <m:IndexedPageItemView MaxEntriesReturned="${limit}" Offset="0" BasePoint="Beginning"/>
+      <m:SortOrder>
+        <t:FieldOrder Order="Descending">
+          <t:FieldURI FieldURI="item:DateTimeReceived"/>
+        </t:FieldOrder>
+      </m:SortOrder>
+      <m:ParentFolderIds>
+        <t:DistinguishedFolderId Id="${folderName}"/>
+      </m:ParentFolderIds>
+    </m:FindItem>
+  </soap:Body>
+</soap:Envelope>`;
 
-    const imap = new Imap({
-      user: account.email,
-      password: password,
-      host: account.imap_host,
-      port: account.imap_port,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-      connTimeout: 30000,
-      authTimeout: 15000
+    const authHeader = 'Basic ' + btoa(`${email}:${password}`);
+    
+    console.log(`[email-list] Fetching from EWS: ${ewsUrl}`);
+    
+    const response = await fetch(ewsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'Authorization': authHeader,
+      },
+      body: soapRequest,
     });
 
-    const emails: EmailMessage[] = [];
-    let totalEmails = 0;
-
-    imap.once('ready', () => {
-      console.log('[email-list] IMAP connected, opening mailbox...');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[email-list] EWS error response:', response.status, errorText.substring(0, 500));
       
-      imap.openBox(imapFolder, true, (err: Error | null, box: { messages: { total: number } }) => {
-        if (err) {
-          console.error('[email-list] Error opening mailbox:', err);
-          imap.end();
-          reject(new Error(`Erro ao abrir pasta ${folder}: ${err.message}`));
-          return;
-        }
+      if (response.status === 401) {
+        return { 
+          emails: [], 
+          total: 0, 
+          error: "Autenticação falhou. Para contas Microsoft 365 corporativas, pode ser necessário usar OAuth ou habilitar autenticação básica." 
+        };
+      }
+      
+      return { emails: [], total: 0, error: `Erro ao conectar: ${response.status}` };
+    }
 
-        totalEmails = box.messages.total;
-        console.log(`[email-list] Mailbox opened, total messages: ${totalEmails}`);
-
-        if (totalEmails === 0) {
-          imap.end();
-          resolve({ emails: [], total: 0 });
-          return;
-        }
-
-        // Calculate range (get most recent emails first)
-        const start = Math.max(1, totalEmails - (page * limit) + 1);
-        const end = Math.max(1, totalEmails - ((page - 1) * limit));
-        
-        console.log(`[email-list] Fetching messages ${start}:${end}`);
-
-        const searchCriteria = unreadOnly ? ['UNSEEN'] : ['ALL'];
-        
-        imap.search(searchCriteria, (searchErr: Error | null, results: number[]) => {
-          if (searchErr) {
-            console.error('[email-list] Search error:', searchErr);
-            imap.end();
-            reject(searchErr);
-            return;
-          }
-
-          if (results.length === 0) {
-            imap.end();
-            resolve({ emails: [], total: 0 });
-            return;
-          }
-
-          // Get most recent emails (reverse order, paginated)
-          const sortedResults = results.sort((a, b) => b - a);
-          const startIndex = (page - 1) * limit;
-          const endIndex = startIndex + limit;
-          const pageResults = sortedResults.slice(startIndex, endIndex);
-
-          if (pageResults.length === 0) {
-            imap.end();
-            resolve({ emails: [], total: results.length });
-            return;
-          }
-
-          const fetch = imap.fetch(pageResults, {
-            bodies: ['HEADER.FIELDS (FROM TO SUBJECT DATE)'],
-            struct: true
-          });
-
-          fetch.on('message', (msg: { on: (event: string, handler: (stream: ReadableStream | { flags: string[], uid: number, struct: unknown[] }, info?: { which: string }) => void) => void }, seqno: number) => {
-            let uid = 0;
-            let flags: string[] = [];
-            let headers = '';
-            let hasAttachments = false;
-
-            msg.on('body', (stream: { on: (event: string, handler: (chunk: Buffer) => void) => void }, info: { which: string }) => {
-              let buffer = '';
-              stream.on('data', (chunk: Buffer) => {
-                buffer += chunk.toString('utf8');
-              });
-              stream.on('end', () => {
-                if (info.which.includes('HEADER')) {
-                  headers = buffer;
-                }
-              });
-            });
-
-            msg.on('attributes', (attrs: { flags: string[], uid: number, struct?: unknown[] }) => {
-              uid = attrs.uid;
-              flags = attrs.flags || [];
-              // Check for attachments in structure
-              if (attrs.struct) {
-                hasAttachments = checkForAttachments(attrs.struct);
-              }
-            });
-
-            msg.once('end', async () => {
-              try {
-                const parsed = await simpleParser(headers);
-                
-                const fromAddr = parsed.from?.value?.[0] || { name: '', address: '' };
-                const toAddrs = parsed.to?.value || [];
-                
-                const email: EmailMessage = {
-                  id: `${uid}`,
-                  uid: uid,
-                  from: {
-                    name: fromAddr.name || '',
-                    email: fromAddr.address || ''
-                  },
-                  to: toAddrs.map((addr: { name?: string; address?: string }) => ({
-                    name: addr.name || '',
-                    email: addr.address || ''
-                  })),
-                  subject: parsed.subject || '(Sem assunto)',
-                  snippet: '',
-                  date: parsed.date?.toISOString() || new Date().toISOString(),
-                  isRead: flags.includes('\\Seen'),
-                  isStarred: flags.includes('\\Flagged'),
-                  hasAttachments: hasAttachments
-                };
-
-                emails.push(email);
-              } catch (parseErr) {
-                console.error('[email-list] Parse error:', parseErr);
-              }
-            });
-          });
-
-          fetch.once('error', (fetchErr: Error) => {
-            console.error('[email-list] Fetch error:', fetchErr);
-            imap.end();
-            reject(fetchErr);
-          });
-
-          fetch.once('end', () => {
-            console.log(`[email-list] Fetched ${emails.length} emails`);
-            imap.end();
-            // Sort by date descending
-            emails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            resolve({ emails, total: results.length });
-          });
-        });
-      });
-    });
-
-    imap.once('error', (err: Error) => {
-      console.error('[email-list] IMAP error:', err);
-      reject(new Error(`Erro de conexão IMAP: ${err.message}`));
-    });
-
-    imap.once('end', () => {
-      console.log('[email-list] IMAP connection ended');
-    });
-
-    imap.connect();
-  });
+    const xmlResponse = await response.text();
+    console.log('[email-list] EWS response received, parsing...');
+    
+    // Parse XML response
+    const emails = parseEWSResponse(xmlResponse);
+    
+    return { emails, total: emails.length };
+  } catch (error) {
+    console.error('[email-list] EWS fetch error:', error);
+    return { 
+      emails: [], 
+      total: 0, 
+      error: error instanceof Error ? error.message : 'Erro ao buscar emails' 
+    };
+  }
 }
 
-// Check if message has attachments
-function checkForAttachments(struct: unknown[]): boolean {
-  if (!Array.isArray(struct)) return false;
+// Parse EWS XML response
+function parseEWSResponse(xml: string): EmailMessage[] {
+  const emails: EmailMessage[] = [];
   
-  for (const part of struct) {
-    if (Array.isArray(part)) {
-      if (checkForAttachments(part)) return true;
-    } else if (typeof part === 'object' && part !== null) {
-      const p = part as { disposition?: { type?: string } };
-      if (p.disposition?.type?.toLowerCase() === 'attachment') {
-        return true;
-      }
+  try {
+    // Extract messages using regex (simple XML parsing)
+    const messageRegex = /<t:Message[^>]*>([\s\S]*?)<\/t:Message>/g;
+    let match;
+    let index = 0;
+    
+    while ((match = messageRegex.exec(xml)) !== null) {
+      const messageXml = match[1];
+      
+      // Extract fields
+      const itemIdMatch = messageXml.match(/<t:ItemId Id="([^"]+)"/);
+      const subjectMatch = messageXml.match(/<t:Subject>([^<]*)<\/t:Subject>/);
+      const dateMatch = messageXml.match(/<t:DateTimeReceived>([^<]+)<\/t:DateTimeReceived>/);
+      const isReadMatch = messageXml.match(/<t:IsRead>([^<]+)<\/t:IsRead>/);
+      const hasAttachMatch = messageXml.match(/<t:HasAttachments>([^<]+)<\/t:HasAttachments>/);
+      const importanceMatch = messageXml.match(/<t:Importance>([^<]+)<\/t:Importance>/);
+      
+      // Extract sender
+      const fromNameMatch = messageXml.match(/<t:Mailbox>[\s\S]*?<t:Name>([^<]*)<\/t:Name>/);
+      const fromEmailMatch = messageXml.match(/<t:Mailbox>[\s\S]*?<t:EmailAddress>([^<]+)<\/t:EmailAddress>/);
+      
+      const email: EmailMessage = {
+        id: itemIdMatch?.[1] || `msg-${index}`,
+        uid: index + 1,
+        from: {
+          name: fromNameMatch?.[1] || '',
+          email: fromEmailMatch?.[1] || ''
+        },
+        to: [],
+        subject: subjectMatch?.[1] || '(Sem assunto)',
+        snippet: '',
+        date: dateMatch?.[1] || new Date().toISOString(),
+        isRead: isReadMatch?.[1] === 'true',
+        isStarred: importanceMatch?.[1] === 'High',
+        hasAttachments: hasAttachMatch?.[1] === 'true'
+      };
+      
+      emails.push(email);
+      index++;
     }
+    
+    console.log(`[email-list] Parsed ${emails.length} emails from EWS response`);
+  } catch (error) {
+    console.error('[email-list] XML parsing error:', error);
   }
-  return false;
+  
+  return emails;
 }
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get authorization header
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(
@@ -293,17 +220,14 @@ serve(async (req: Request) => {
       );
     }
 
-    // Create Supabase client
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      console.error("Auth error:", userError);
       return new Response(
         JSON.stringify({ success: false, error: "Usuário não autenticado" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -313,9 +237,8 @@ serve(async (req: Request) => {
     const body: ListRequest = await req.json();
     const { accountId, folder = 'inbox', page = 1, limit = 20, unreadOnly = false } = body;
 
-    console.log(`[email-list] Listing emails for account ${accountId}, folder: ${folder}, page: ${page}`);
+    console.log(`[email-list] Listing emails for account ${accountId}, folder: ${folder}`);
 
-    // Get account
     const { data: account, error: accountError } = await supabase
       .from('email_accounts')
       .select('*')
@@ -324,14 +247,12 @@ serve(async (req: Request) => {
       .single();
 
     if (accountError || !account) {
-      console.error("[email-list] Account not found or access denied:", accountError);
       return new Response(
         JSON.stringify({ success: false, error: "Conta de email não encontrada" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Check if we have the encrypted password
     if (!account.encrypted_password) {
       return new Response(
         JSON.stringify({ 
@@ -346,34 +267,67 @@ serve(async (req: Request) => {
       );
     }
 
-    // Fetch emails via IMAP
-    const { emails, total } = await fetchEmailsViaIMAP(
-      {
-        email: account.email,
-        encrypted_password: account.encrypted_password,
-        imap_host: account.imap_host || 'outlook.office365.com',
-        imap_port: account.imap_port || 993,
-        provider: account.provider || 'imap'
-      },
-      folder,
-      page,
-      limit,
-      unreadOnly
-    );
+    const password = decryptPassword(account.encrypted_password);
+    
+    // Try EWS for Office 365 accounts
+    const isOffice365 = account.imap_host?.includes('office365') || 
+                        account.imap_host?.includes('outlook') ||
+                        account.email?.includes('@outlook') ||
+                        account.email?.includes('@hotmail');
+    
+    if (isOffice365) {
+      console.log('[email-list] Using EWS for Office 365 account');
+      const result = await fetchEmailsViaEWS(account.email, password, folder, limit);
+      
+      if (result.error) {
+        // Return a friendly error with instructions
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: result.error,
+            emails: [],
+            total: 0,
+            hasMore: false,
+            page,
+            requiresOAuth: true,
+            instructions: "Para acessar emails do Microsoft 365 corporativo, é necessário configurar o Microsoft Graph API com OAuth. Entre em contato com o administrador de TI para habilitar o acesso."
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Update last sync
+      await supabase
+        .from('email_accounts')
+        .update({ last_sync_at: new Date().toISOString() })
+        .eq('id', accountId);
 
-    // Update last sync
-    await supabase
-      .from('email_accounts')
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq('id', accountId);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          emails: result.emails,
+          total: result.total,
+          hasMore: result.emails.length >= limit,
+          page
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
+    // For other providers, return informative message
     return new Response(
       JSON.stringify({
-        emails,
-        total,
-        hasMore: (page * limit) < total,
+        success: false,
+        error: "Provedor de email requer configuração adicional. Use Microsoft Graph API para Office 365 ou Gmail API para Google.",
+        emails: [],
+        total: 0,
+        hasMore: false,
         page,
-        success: true
+        accountInfo: {
+          email: account.email,
+          provider: account.provider,
+          connected: true
+        }
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
