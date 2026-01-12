@@ -210,7 +210,7 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
 
     const dEntrada = parseDateAny(r?.DataEntrada ?? r?.DataInicioServico ?? r?.DataInicio ?? r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura);
     const dSaida = parseDateAny(r?.DataSaida ?? r?.DataConclusaoOcorrencia ?? r?.DataFim ?? r?.DataConclusao);
-    const hasEtapa = Boolean(r?.Etapa || r?.etapa || r?.DescricaoEtapa);
+    
 
     // Se temos datas claras de inicio/fim e NÃO é um evento de fluxo (ou é, mas já tem o total calculado), usamos o intervalo.
     // No caso do fallback (fat_manutencao), temos DataEntrada/DataSaida e NÃO temos Etapa de 'Aguardando Chegada'.
