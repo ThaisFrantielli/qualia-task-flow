@@ -58,9 +58,10 @@ export function useSyncClientesFromBI() {
       const novosClientes: AnyObject[] = [];
       
       for (const cliente of biClientes) {
-        // Campos possíveis do BI - adaptar conforme estrutura real
-        const codigo = String(cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
-        const cnpj = String(cliente.CNPJ || cliente.CpfCnpj || cliente.CPF_CNPJ || '').replace(/\D/g, '').trim();
+        // Campos do dim_clientes.json baseado na amostra:
+        // codigo_cliente | razao_social | nome_fantasia | cpf_cnpj | tipo_cliente | natureza_cliente | cidade | estado | ? | status
+        const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
+        const cnpj = String(cliente.cpf_cnpj || cliente.CNPJ || cliente.CpfCnpj || cliente.CPF_CNPJ || '').replace(/\D/g, '').trim();
         
         // Verificar se já existe
         const codigoExiste = codigo && existingCodigos.has(codigo);
@@ -71,25 +72,25 @@ export function useSyncClientesFromBI() {
           continue;
         }
 
-        // Mapear campos do BI para a tabela clientes
+        // Mapear campos do dim_clientes para a tabela clientes
         const novoCliente = {
           codigo_cliente: codigo || `BI_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          razao_social: cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || null,
-          nome_fantasia: cliente.NomeFantasia || cliente.Fantasia || null,
+          razao_social: cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || null,
+          nome_fantasia: cliente.nome_fantasia || cliente.NomeFantasia || cliente.Fantasia || null,
           cpf_cnpj: cnpj || null,
-          email: cliente.Email || null,
-          telefone: cliente.Telefone || cliente.Fone || null,
-          whatsapp_number: formatWhatsapp(cliente.Celular || cliente.WhatsApp || cliente.Telefone || null),
-          endereco: cliente.Endereco || cliente.Logradouro || null,
-          numero: cliente.Numero || null,
-          bairro: cliente.Bairro || null,
-          cidade: cliente.Cidade || cliente.Municipio || null,
-          estado: cliente.Estado || cliente.UF || null,
-          cep: cliente.CEP || cliente.Cep || null,
-          situacao: cliente.Status || cliente.Situacao || 'Ativo',
-          status: 'ativo',
-          tipo_cliente: cliente.TipoCliente || cliente.Segmento || 'PJ',
-          natureza_cliente: cliente.NaturezaCliente || null,
+          email: cliente.email || cliente.Email || null,
+          telefone: cliente.telefone || cliente.Telefone || cliente.Fone || null,
+          whatsapp_number: formatWhatsapp(cliente.celular || cliente.Celular || cliente.WhatsApp || cliente.telefone || null),
+          endereco: cliente.endereco || cliente.Endereco || cliente.Logradouro || null,
+          numero: cliente.numero || cliente.Numero || null,
+          bairro: cliente.bairro || cliente.Bairro || null,
+          cidade: cliente.cidade || cliente.Cidade || cliente.Municipio || null,
+          estado: cliente.estado || cliente.Estado || cliente.UF || null,
+          cep: cliente.cep || cliente.CEP || null,
+          situacao: cliente.status || cliente.Status || cliente.Situacao || 'Ativo',
+          status: (cliente.status || cliente.Status || '').toLowerCase() === 'ativo' ? 'ativo' : 'inativo',
+          tipo_cliente: cliente.tipo_cliente || cliente.TipoCliente || cliente.Segmento || null,
+          natureza_cliente: cliente.natureza_cliente || cliente.NaturezaCliente || null,
           origem: 'dim_clientes_bi',
         };
 
