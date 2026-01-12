@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { BroadcastList } from '@/components/broadcasts/BroadcastList';
 import { BroadcastForm } from '@/components/broadcasts/BroadcastForm';
 import { BroadcastProgress } from '@/components/broadcasts/BroadcastProgress';
+import { SyncClientesButton } from '@/components/broadcasts/SyncClientesButton';
 import { useBroadcasts, Broadcast } from '@/hooks/useBroadcasts';
 import {
   Dialog,
@@ -54,10 +55,13 @@ export default function Broadcasts() {
             Envie mensagens em massa pelo WhatsApp com proteção anti-banimento
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nova Campanha
-        </Button>
+        <div className="flex items-center gap-2">
+          <SyncClientesButton />
+          <Button onClick={() => setShowForm(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Nova Campanha
+          </Button>
+        </div>
       </div>
 
       <BroadcastList
