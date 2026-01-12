@@ -3,6 +3,7 @@ import { useClientes } from '@/hooks/useClientes';
 import { CustomerListEnhanced, CustomerDisplayInfo } from '@/components/customer-management/CustomerListEnhanced';
 import { CustomerDetailRedesign } from '@/components/customer-management/CustomerDetailRedesign';
 import ClienteFormModal from '@/components/customer-management/ClienteFormModal';
+import { SyncClientesButton } from '@/components/customer-management/SyncClientesButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -152,10 +153,13 @@ const CustomerHubPage: React.FC = () => {
                 Base de clientes centralizada
               </p>
             </div>
-            <Button onClick={handleOpenNewModal}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Cliente
-            </Button>
+            <div className="flex items-center gap-2">
+              <SyncClientesButton onSyncComplete={refetch} />
+              <Button onClick={handleOpenNewModal}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Cliente
+              </Button>
+            </div>
           </div>
 
           {/* Search and Filters */}
