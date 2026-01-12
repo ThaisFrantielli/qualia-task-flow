@@ -41,7 +41,7 @@ export function normalizePlacaKey(raw: unknown): string {
 
 function stripAccents(input: string): string {
   try {
-      return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   } catch (e) {
     return input;
   }
@@ -52,7 +52,7 @@ export function normalizeEventName(raw: unknown): string {
   const s = String(raw ?? '').trim();
   // remove accents and uppercase
   try {
-      return stripAccents(s).toUpperCase();
+    return stripAccents(s).toUpperCase();
   } catch (e) {
     return s.toUpperCase();
   }
@@ -118,7 +118,6 @@ export function extractDataCompra(veiculo: AnyObject): Date | null {
   if (!veiculo) return null;
   const candidates = [
     // Preferência: campo vindo de dim_frota (DW) conforme mapeamento do usuário
-    veiculo?.ValorCompra,
     veiculo?.DataCompra,
     veiculo?.DataAquisicao,
     veiculo?.['Data Compra'],
@@ -196,18 +195,52 @@ export function calcDiasLocadoFromContratos(contratos: AnyObject[], now = new Da
 export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date()): number {
   if (!Array.isArray(osRecords) || osRecords.length === 0) return 0;
 
-  // Heurística: agrupar por identificação de ocorrência/movimentação quando disponível,
-  // parear registro de chegada (etapa de chegada/entrada) com etapa de retirada (aguardando retirada/retirada/saida/conclusao).
+  const msPerDay = 1000 * 60 * 60 * 24;
+  let sum = 0;
+
+  // Separa registros que são "Intervalos Completos" (ex: fat_manutencao_unificado com DataEntrada/DataSaida)
+  // dos registros que são "Eventos de Movimentação" (ex: fat_movimentacao_ocorrencias com Etapa)
+  const eventStream: AnyObject[] = [];
+
+  for (const r of osRecords) {
+    // Se o registro tem DataEntrada E (DataSaida ou DataConclusao), podemos calcular direto
+    // Mas CUIDADO: fat_movimentacao também pode ter DataEtapa que se parece com data.
+    // A chave é que fat_manutencao NÃO tem 'Etapa' ou a 'Etapa' é null/generica, enquanto movimentacao tem 'Etapa' descritiva.
+    // Vamos priorizar o formato de intervalo se as datas existirem e parecerem ser de Entrada/Saida de OS.
+
+    const dEntrada = parseDateAny(r?.DataEntrada ?? r?.DataInicioServico ?? r?.DataInicio ?? r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura);
+    const dSaida = parseDateAny(r?.DataSaida ?? r?.DataConclusaoOcorrencia ?? r?.DataFim ?? r?.DataConclusao);
+    const hasEtapa = Boolean(r?.Etapa || r?.etapa || r?.DescricaoEtapa);
+
+    // Se temos datas claras de inicio/fim e NÃO é um evento de fluxo (ou é, mas já tem o total calculado), usamos o intervalo.
+    // No caso do fallback (fat_manutencao), temos DataEntrada/DataSaida e NÃO temos Etapa de 'Aguardando Chegada'.
+    // Se temos datas claras de inicio/fim, usamos o intervalo.
+    // Isso garante que fat_manutencao_unificado (que tem DataEntrada) seja processado como intervalo,
+    // enquanto fat_movimentacao_ocorrencias (que não tem DataEntrada, apenas DataEtapa) cai no fallback de eventos.
+    if (dEntrada) {
+      // É um intervalo.
+      const end = dSaida || now;
+      if (end.getTime() > dEntrada.getTime()) {
+        sum += (end.getTime() - dEntrada.getTime()) / msPerDay;
+      }
+      continue; // Processado
+    }
+
+    // Se não conseguimos processar como intervalo direto, jogamos para o stream de eventos
+    eventStream.push(r);
+  }
+
+  // Se não sobrou nada para evento, retornamos a soma dos intervalos
+  if (eventStream.length === 0) return sum;
+
+  // --- LOGICA DE EVENT STREAM (Pareamento de Etapas) ---
   const byOcc: Record<string, AnyObject[]> = {};
-  for (let i = 0; i < osRecords.length; i++) {
-    const r = osRecords[i];
-    const occKey = String(r?.OcorrenciaId ?? r?.MovimentacaoId ?? r?.Id ?? r?.IdOcorrencia ?? `${r?.Placa ?? 'NA'}_${i}`);
+  for (let i = 0; i < eventStream.length; i++) {
+    const r = eventStream[i];
+    const occKey = String(r?.Ocorrencia ?? r?.OcorrenciaId ?? r?.MovimentacaoId ?? r?.Id ?? r?.IdOcorrencia ?? `${r?.Placa ?? 'NA'}_${i}`);
     if (!byOcc[occKey]) byOcc[occKey] = [];
     byOcc[occKey].push(r);
   }
-
-  const msPerDay = 1000 * 60 * 60 * 24;
-  let sum = 0;
 
   function normalizeEtapaText(t?: any): string {
     if (!t) return '';
@@ -216,34 +249,34 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
 
   function isArrival(etapa: string): boolean {
     if (!etapa) return false;
-    return etapa.includes('CHEG') || etapa.includes('ENTR') || etapa.includes('RECEB') || etapa.includes('AGENDAMENTO');
+    return etapa.includes('AGUARDANDO CHEGADA') || etapa.includes('CHEG') || etapa.includes('ENTR') || etapa.includes('RECEB') || etapa.includes('AGENDAMENTO');
   }
 
   function isRetirada(etapa: string): boolean {
     if (!etapa) return false;
-    return etapa.includes('AGUARDANDO RETIRADA') || etapa.includes('RETIR') || etapa.includes('SAIDA') || etapa.includes('CONCLUI') || etapa.includes('LIBERAD');
+    return etapa.includes('AGUARDANDO RETIRADA DO VEICULO') || etapa.includes('AGUARDANDO RETIRADA') || etapa.includes('RETIR') || etapa.includes('SAIDA') || etapa.includes('CONCLUI') || etapa.includes('LIBERAD');
   }
 
   for (const key of Object.keys(byOcc)) {
-    const group = byOcc[key].slice().map((r) => ({ r, d: parseDateAny(r?.DataEtapa ?? r?.Data ?? r?.DataChegada ?? r?.DataEntrada) })).filter(x => x.d).sort((a, b) => (a.d as Date).getTime() - (b.d as Date).getTime());
+    const group = byOcc[key].slice().map((r) => ({ r, d: parseDateAny(r?.DataEtapa ?? r?.Data ?? r?.DataChegada ?? r?.DataEntrada ?? r?.DataConfirmacao ?? r?.DataDeConfirmacao) })).filter(x => x.d).sort((a, b) => (a.d as Date).getTime() - (b.d as Date).getTime());
     if (group.length === 0) continue;
 
-    // Tentar parear: para cada arrival -> next retirada (no mesmo grupo). Se não encontrar retirada, usa `now`.
     for (let i = 0; i < group.length; i++) {
       const rec = group[i];
       const etapaText = normalizeEtapaText(rec.r?.etapa ?? rec.r?.Etapa ?? rec.r?.EtapaMovimentacao ?? rec.r?.DescricaoEtapa);
       if (!isArrival(etapaText)) continue;
+
       const start = rec.d as Date;
-      // procurar retirada após a chegada
       let end: Date | null = null;
+
       for (let j = i + 1; j < group.length; j++) {
         const next = group[j];
         const nextEt = normalizeEtapaText(next.r?.etapa ?? next.r?.Etapa ?? next.r?.EtapaMovimentacao ?? next.r?.DescricaoEtapa);
         if (isRetirada(nextEt)) { end = next.d as Date; break; }
       }
+
       if (!end) end = now;
-      const days = Math.max(0, (end.getTime() - start.getTime()) / msPerDay);
-      sum += days;
+      sum += Math.max(0, (end.getTime() - start.getTime()) / msPerDay);
     }
   }
 
@@ -277,11 +310,16 @@ export function aggregateFleetMetrics(
   frota: AnyObject[],
   contratos: AnyObject[] | { data?: AnyObject[] } | null,
   manutencao: AnyObject[] | { data?: AnyObject[] } | null,
+  movimentacoes: AnyObject[] | { data?: AnyObject[] } | null = null, // Novo argumento opcional
   now = new Date()
 ): FleetAggregatedMetrics {
   const frotaArr = Array.isArray(frota) ? frota : [];
   const contratosArr = Array.isArray(contratos) ? contratos : (contratos as any)?.data || [];
   const manutArr = Array.isArray(manutencao) ? manutencao : (manutencao as any)?.data || [];
+  const movArr = Array.isArray(movimentacoes) ? movimentacoes : (movimentacoes as any)?.data || [];
+
+  // Se tivermos movimentações, usamos elas para o cálculo de dias. Se não, fallback para manutenção.
+  const sourceForMaintenanceDays = movArr.length > 0 ? movArr : manutArr;
 
   const contratosByPlaca: Record<string, AnyObject[]> = {};
   const manutByPlaca: Record<string, AnyObject[]> = {};
@@ -293,7 +331,7 @@ export function aggregateFleetMetrics(
     contratosByPlaca[placa].push(c);
   }
 
-  for (const m of manutArr) {
+  for (const m of sourceForMaintenanceDays) {
     const placa = normalizePlacaKey(m?.Placa ?? m?.placa);
     if (!placa) continue;
     if (!manutByPlaca[placa]) manutByPlaca[placa] = [];

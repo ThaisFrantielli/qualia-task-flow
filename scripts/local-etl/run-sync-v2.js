@@ -68,7 +68,7 @@ async function getDWLastUpdateDate(pool) {
                 SELECT MAX(DataAtualizacaoDados) FROM OrdensServico
             ) AS AllDates
         `);
-        
+
         if (result.recordset && result.recordset[0].LastUpdate) {
             dwLastUpdate = result.recordset[0].LastUpdate;
             console.log(`📅 Data de atualização do DW fonte: ${dwLastUpdate.toISOString()}`);
@@ -85,20 +85,20 @@ async function getDWLastUpdateDate(pool) {
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
 const DIMENSIONS = [
-    { 
-        table: 'dim_clientes', 
-        query: `SELECT IdCliente, NomeFantasia as Nome, CNPJ, CPF, Tipo, NaturezaCliente, Cidade, Estado, Segmento, Situacao FROM Clientes WITH (NOLOCK)` 
+    {
+        table: 'dim_clientes',
+        query: `SELECT IdCliente, NomeFantasia as Nome, CNPJ, CPF, Tipo, NaturezaCliente, Cidade, Estado, Segmento, Situacao FROM Clientes WITH (NOLOCK)`
     },
-    { 
-        table: 'dim_condutores', 
-        query: `SELECT IdCondutor, Nome, CPF, NúmeroCnh as NumeroCnh, TipoCnh, FORMAT(VencimentoCnh, 'yyyy-MM-dd') as VencCnh, Email, Telefone1, Telefone2, Telefone3 FROM Condutores WITH (NOLOCK)` 
+    {
+        table: 'dim_condutores',
+        query: `SELECT IdCondutor, Nome, CPF, NúmeroCnh as NumeroCnh, TipoCnh, FORMAT(VencimentoCnh, 'yyyy-MM-dd') as VencCnh, Email, Telefone1, Telefone2, Telefone3 FROM Condutores WITH (NOLOCK)`
     },
-    { 
-        table: 'dim_fornecedores', 
-        query: `SELECT IdFornecedor, NomeFantasia, CNPJ, CPF, Classificacao, Marca, Endereco, NumeroEndereco, Complemento, Bairro, Cidade, Estado, FORMAT(CriadoEm, 'yyyy-MM-dd') as CriadoEm FROM Fornecedores WITH (NOLOCK)` 
+    {
+        table: 'dim_fornecedores',
+        query: `SELECT IdFornecedor, NomeFantasia, CNPJ, CPF, Classificacao, Marca, Endereco, NumeroEndereco, Complemento, Bairro, Cidade, Estado, FORMAT(CriadoEm, 'yyyy-MM-dd') as CriadoEm FROM Fornecedores WITH (NOLOCK)`
     },
-    { 
-        table: 'dim_frota', 
+    {
+        table: 'dim_frota',
         query: `SELECT 
                     v.IdVeiculo, 
                     v.Placa, 
@@ -163,11 +163,13 @@ const DIMENSIONS = [
                     ContratoAtivo.TipoLocacao,
                     CAST(ISNULL(ContratoAtivo.ValorLocacao, 0) AS DECIMAL(15,2)) as ValorLocacao,
                     ContratoAtivo.IdContratoLocacao,
-                    ContratoAtivo.ContratoLocacao as NumeroContratoLocacao
+                    ContratoAtivo.ContratoLocacao as NumeroContratoLocacao,
+                    FORMAT(vv.DataVenda, 'yyyy-MM-dd') as DataVenda
                 FROM Veiculos v 
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo 
                 LEFT JOIN Patios p ON v.IdPatio = p.IdPatio 
                 LEFT JOIN Condutores c ON v.IdCondutor = c.IdCondutor
+                LEFT JOIN VeiculosVendidos vv ON vv.Placa = v.Placa
                 
                 -- LÓGICA 1: Preco FIPE na época da compra (Melhor Aproximação)
                 OUTER APPLY (
@@ -226,11 +228,11 @@ const DIMENSIONS = [
                       AND cl2.SituacaoContratoLocacao NOT IN ('Encerrado', 'Cancelado')
                     ORDER BY cl2.DataInicial DESC
                 ) ContratoAtivo
-                WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro'` 
+                WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro'`
     },
-    { 
-        table: 'dim_veiculos_acessorios', 
-        query: `SELECT IdVeiculo, NomeAcessorio as Acessorio, TipoInstalacao as Origem FROM VeiculosAcessorios` 
+    {
+        table: 'dim_veiculos_acessorios',
+        query: `SELECT IdVeiculo, NomeAcessorio as Acessorio, TipoInstalacao as Origem FROM VeiculosAcessorios`
     },
     {
         table: 'historico_situacao_veiculos',
@@ -249,11 +251,11 @@ const DIMENSIONS = [
                     Informacoes
                 FROM HistoricoSituacaoVeiculos WITH (NOLOCK)
                 WHERE Placa IS NOT NULL
-                ORDER BY DataAtualizacaoDados DESC` 
+                ORDER BY DataAtualizacaoDados DESC`
     },
-        { 
-                table: 'dim_contratos_locacao', 
-                query: `SELECT 
+    {
+        table: 'dim_contratos_locacao',
+        query: `SELECT 
                                         cl.IdContratoLocacao, 
                                         cc.IdContratoComercial, 
                                         cl.ContratoComercial,           
@@ -289,28 +291,28 @@ const DIMENSIONS = [
                                         WHERE clp.IdContratoLocacao = cl.IdContratoLocacao
                                             AND clp.DataInicial <= GETDATE() 
                                         ORDER BY clp.DataInicial DESC, clp.IdPrecoContratoLocacao DESC
-                                ) preco` 
-        },
-    { 
-        table: 'dim_itens_contrato', 
-        query: `SELECT IdItemContrato, IdContrato, NomeModelo, Quantidade, ${castM('ValorUnitario')} as Valor, PeriodoLocacao FROM ItensContratos` 
+                                ) preco`
     },
-    { 
-        table: 'dim_regras_contrato', 
-        query: `SELECT cc.NumeroDocumento as Contrato, pc.TipoPerfilContrato as NomeRegra, COALESCE(CAST(pc.ValorPerfil AS VARCHAR(MAX)), pc.TextoPerfil) as ConteudoRegra, pol.NomeTipoPoliticaContrato as NomePolitica, pol.TextoPolitica as ConteudoPolitica FROM ContratosComerciais cc LEFT JOIN PerfisContrato pc ON cc.IdContratoComercial = pc.IdContratoComercial LEFT JOIN PoliticasContrato pol ON cc.IdContratoComercial = pol.IdContrato` 
+    {
+        table: 'dim_itens_contrato',
+        query: `SELECT IdItemContrato, IdContrato, NomeModelo, Quantidade, ${castM('ValorUnitario')} as Valor, PeriodoLocacao FROM ItensContratos`
     },
-    { 
-        table: 'dim_movimentacao_patios', 
+    {
+        table: 'dim_regras_contrato',
+        query: `SELECT cc.NumeroDocumento as Contrato, pc.TipoPerfilContrato as NomeRegra, COALESCE(CAST(pc.ValorPerfil AS VARCHAR(MAX)), pc.TextoPerfil) as ConteudoRegra, pol.NomeTipoPoliticaContrato as NomePolitica, pol.TextoPolitica as ConteudoPolitica FROM ContratosComerciais cc LEFT JOIN PerfisContrato pc ON cc.IdContratoComercial = pc.IdContratoComercial LEFT JOIN PoliticasContrato pol ON cc.IdContratoComercial = pol.IdContrato`
+    },
+    {
+        table: 'dim_movimentacao_patios',
         query: `SELECT 
                     IdVeiculo, Placa, IdPatio, Patio, 
                     FORMAT(DataMovimentacao, 'yyyy-MM-dd HH:mm:ss') as DataMovimentacao, 
                     Comentarios, IdUsuarioMovimentacao, UsuarioMovimentacao 
                 FROM MovimentacaoPatios 
                 WHERE DataMovimentacao IS NOT NULL
-                ORDER BY Placa, DataMovimentacao` 
+                ORDER BY Placa, DataMovimentacao`
     },
-    { 
-        table: 'dim_movimentacao_veiculos', 
+    {
+        table: 'dim_movimentacao_veiculos',
         query: `SELECT 
                     IdContratoLocacao, ContratoLocacao, IdContratoComercial, ContratoComercial, 
                     IdClassificacaoContrato, ClassificacaoContrato, 
@@ -323,7 +325,7 @@ const DIMENSIONS = [
                     OdometroDevolucao, 
                     IdTipoLocacao, TipoLocacao, EnderecoEntrega, EnderecoDevolucao 
                 FROM MovimentacaoVeiculos 
-                ORDER BY Placa, DataRetirada` 
+                ORDER BY Placa, DataRetirada`
     }
 ];
 
@@ -331,16 +333,16 @@ const DIMENSIONS = [
 // 2. CONSOLIDADOS
 // ==============================================================================
 const CONSOLIDATED = [
-    { 
-        table: 'fat_historico_mobilizacao', 
-        query: `SELECT Contrato, Fila, Situacao, Pedido, Placa, Modelo, TempoEmDias, UltimoComentarioMobilizacao FROM HistoricoMobilizacao` 
+    {
+        table: 'fat_historico_mobilizacao',
+        query: `SELECT Contrato, Fila, Situacao, Pedido, Placa, Modelo, TempoEmDias, UltimoComentarioMobilizacao FROM HistoricoMobilizacao`
     },
-    { 
-        table: 'rentabilidade_360_geral', 
-        query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro' ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi JOIN Faturamentos f ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo` 
+    {
+        table: 'rentabilidade_360_geral',
+        query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro' ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi JOIN Faturamentos f ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo`
     },
-   { 
-        table: 'hist_vida_veiculo_timeline', 
+    {
+        table: 'hist_vida_veiculo_timeline',
         query: `
             /* 1. LOCAÇÃO (Início de contrato) */
             SELECT 
@@ -501,10 +503,10 @@ const CONSOLIDATED = [
             WHERE vv.DataVenda IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
             ORDER BY Placa, DataEvento DESC
-        ` 
+        `
     },
-    { 
-        table: 'fat_churn', 
+    {
+        table: 'fat_churn',
         query: `SELECT 
                     cc.IdContratoComercial, 
                     cc.NumeroDocumento as Contrato, 
@@ -538,22 +540,22 @@ const CONSOLIDATED = [
                     WHERE cl.IdContrato = cc.IdContratoComercial
                       AND cl.SituacaoContratoLocacao NOT IN ('Cancelado')
                 ) Valores
-                WHERE cc.SituacaoContrato IN ('Encerrado', 'Cancelado', 'Finalizado')` 
+                WHERE cc.SituacaoContrato IN ('Encerrado', 'Cancelado', 'Finalizado')`
     },
-    { 
-        table: 'fat_inadimplencia', 
-        query: `SELECT f.IdNota, f.Cliente, f.Nota, ${castM('f.ValorTotal')} as SaldoDevedor, FORMAT(f.Vencimento, 'yyyy-MM-dd') as Vencimento, DATEDIFF(DAY, f.Vencimento, GETDATE()) as DiasAtraso, CASE WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 0 THEN 'A Vencer' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 30 THEN '1-30 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 60 THEN '31-60 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 90 THEN '61-90 dias' ELSE '90+ dias' END as FaixaAging FROM Faturamentos f WHERE f.SituacaoNota = 'Pendente'` 
+    {
+        table: 'fat_inadimplencia',
+        query: `SELECT f.IdNota, f.Cliente, f.Nota, ${castM('f.ValorTotal')} as SaldoDevedor, FORMAT(f.Vencimento, 'yyyy-MM-dd') as Vencimento, DATEDIFF(DAY, f.Vencimento, GETDATE()) as DiasAtraso, CASE WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 0 THEN 'A Vencer' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 30 THEN '1-30 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 60 THEN '31-60 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 90 THEN '61-90 dias' ELSE '90+ dias' END as FaixaAging FROM Faturamentos f WHERE f.SituacaoNota = 'Pendente'`
     },
-    { 
-        table: 'agg_dre_mensal', 
-        query: `SELECT FORMAT(DataCompetencia, 'yyyy-MM') as Competencia, SUM(CASE WHEN Natureza LIKE '%Receita%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Receita, SUM(CASE WHEN Natureza LIKE '%Despesa%' OR Natureza LIKE '%Custo%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Despesa FROM LancamentosComNaturezas WHERE DataCompetencia >= DATEADD(YEAR, -2, GETDATE()) GROUP BY FORMAT(DataCompetencia, 'yyyy-MM')` 
+    {
+        table: 'agg_dre_mensal',
+        query: `SELECT FORMAT(DataCompetencia, 'yyyy-MM') as Competencia, SUM(CASE WHEN Natureza LIKE '%Receita%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Receita, SUM(CASE WHEN Natureza LIKE '%Despesa%' OR Natureza LIKE '%Custo%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Despesa FROM LancamentosComNaturezas WHERE DataCompetencia >= DATEADD(YEAR, -2, GETDATE()) GROUP BY FORMAT(DataCompetencia, 'yyyy-MM')`
     },
-    { 
-        table: 'auditoria_consolidada', 
-        query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'` 
+    {
+        table: 'auditoria_consolidada',
+        query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'`
     },
-    { 
-        table: 'fat_carro_reserva', 
+    {
+        table: 'fat_carro_reserva',
         query: `SELECT 
                     ovt.IdOcorrencia,
                     ovt.Ocorrencia,
@@ -633,10 +635,10 @@ const CONSOLIDATED = [
                 -- Cliente via contrato comercial vinculado
                 LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente
                 -- Cliente informado diretamente na ocorrência (fallback)
-                LEFT JOIN Clientes cli_t ON ovt.IdCliente = cli_t.IdCliente` 
+                LEFT JOIN Clientes cli_t ON ovt.IdCliente = cli_t.IdCliente`
     },
-    { 
-        table: 'fat_manutencao_unificado', 
+    {
+        table: 'fat_manutencao_unificado',
         query: `SELECT 
                     -- Identificação da Ocorrência (tabela principal)
                     om.IdOcorrencia,
@@ -791,7 +793,7 @@ const CONSOLIDATED = [
                 LEFT JOIN Veiculos v ON om.Placa = v.Placa
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
                 WHERE om.SituacaoOcorrencia NOT IN ('Cancelada')
-                  AND om.DataCriacao >= DATEADD(YEAR, -3, GETDATE())` 
+                  AND om.DataCriacao >= DATEADD(YEAR, -3, GETDATE())`
     },
     {
         table: 'agg_kpis_manutencao_mensal',
@@ -1088,11 +1090,11 @@ function queueUpload(tableName, data, year = null, month = null) {
     if (!SUPABASE_SERVICE_KEY) return;
 
     const MAX_CHUNK_SIZE = 10000; // Reduzido para 10K para evitar HTTP 546 (Edge Function limit)
-    const baseFileName = year 
-        ? (month ? `${tableName}_${year}_${month.toString().padStart(2, '0')}` 
-                  : `${tableName}_${year}`)
+    const baseFileName = year
+        ? (month ? `${tableName}_${year}_${month.toString().padStart(2, '0')}`
+            : `${tableName}_${year}`)
         : `${tableName}`;
-    
+
     // Adicionar metadata de atualização
     const metadata = {
         generated_at: new Date().toISOString(),
@@ -1101,7 +1103,7 @@ function queueUpload(tableName, data, year = null, month = null) {
         record_count: data.length,
         etl_version: '2.0'
     };
-    
+
     // Se dados são muito grandes, dividir em chunks
     if (data.length > MAX_CHUNK_SIZE) {
         const totalChunks = Math.ceil(data.length / MAX_CHUNK_SIZE);
@@ -1134,25 +1136,25 @@ function queueUpload(tableName, data, year = null, month = null) {
             },
             body: JSON.stringify({ fileName: manifestFileName, data: manifestData, metadata: manifestMetadata })
         })
-        .then(response => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-        })
-        .then(() => {
-            console.log(`         📤 Upload: ${manifestFileName} (manifest)`);
-        })
-        .catch(err => {
-            console.error(`         ❌ Erro upload ${manifestFileName}:`, err.message);
-        });
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(() => {
+                console.log(`         📤 Upload: ${manifestFileName} (manifest)`);
+            })
+            .catch(err => {
+                console.error(`         ❌ Erro upload ${manifestFileName}:`, err.message);
+            });
 
         uploadQueue.push(manifestPromise);
-        
+
         for (let i = 0; i < totalChunks; i++) {
             const chunk = data.slice(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
             const chunkFileName = `${baseFileName}_part${i + 1}of${totalChunks}.json`;
-            
+
             const chunkMetadata = { ...metadata, chunk: i + 1, total_chunks: totalChunks, record_count: chunk.length };
-            
+
             // tentativa com retries para uploads de chunk (corrige falhas intermitentes HTTP 546)
             const attemptUploadChunk = async (tries = 3, delayMs = 1500) => {
                 for (let attempt = 1; attempt <= tries; attempt++) {
@@ -1186,7 +1188,7 @@ function queueUpload(tableName, data, year = null, month = null) {
     } else {
         // Upload normal para arquivos pequenos
         const fileName = `${baseFileName}.json`;
-        
+
         const uploadPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
             method: 'POST',
             headers: {
@@ -1195,16 +1197,16 @@ function queueUpload(tableName, data, year = null, month = null) {
             },
             body: JSON.stringify({ fileName, data, metadata })
         })
-        .then(response => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-        })
-        .then(result => {
-            console.log(`         📤 Upload: ${fileName} (${result.recordCount} registros)`);
-        })
-        .catch(err => {
-            console.error(`         ❌ Erro upload ${fileName}:`, err.message);
-        });
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(result => {
+                console.log(`         📤 Upload: ${fileName} (${result.recordCount} registros)`);
+            })
+            .catch(err => {
+                console.error(`         ❌ Erro upload ${fileName}:`, err.message);
+            });
 
         uploadQueue.push(uploadPromise);
     }
@@ -1236,7 +1238,7 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
     };
 
     const columns = Object.keys(sampleRow).map(key => {
-        const safeKey = key.replace(/[^a-zA-Z0-9_]/g, ""); 
+        const safeKey = key.replace(/[^a-zA-Z0-9_]/g, "");
         return `"${safeKey}" ${getPgType(sampleRow[key])}`;
     }).join(',\n');
 
@@ -1245,10 +1247,10 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
     const pkColumn = firstKey.replace(/[^a-zA-Z0-9_]/g, "");
     const hasPK = firstKey.toLowerCase().startsWith('id');
 
-    const createSql = hasPK 
+    const createSql = hasPK
         ? `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns}, PRIMARY KEY ("${pkColumn}"));`
         : `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns});`;
-    
+
     try {
         await pgClient.query(createSql);
     } catch (err) {
@@ -1333,30 +1335,30 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         // Identificar primeira coluna como possível PK para UPSERT (nome seguro)
         const firstCol = (pkRaw || '').replace(/[^a-zA-Z0-9_]/g, "");
         const finalRowCount = finalData.length;
-        
+
         // Usar transação única para todos os batches da tabela
         const client = await pgClient.connect();
         try {
             await client.query('BEGIN');
-            
+
             for (let i = 0; i < finalRowCount; i += BATCH_SIZE) {
                 const chunk = finalData.slice(i, i + BATCH_SIZE);
                 const chunkSize = chunk.length;
-                
+
                 // Construir placeholders dinamicamente
                 const placeholders = [];
                 const flatValues = [];
-                
+
                 for (let rowIdx = 0; rowIdx < chunkSize; rowIdx++) {
                     const rowPlaceholders = [];
                     const row = chunk[rowIdx];
-                    
+
                     columns.forEach((col, colIdx) => {
                         const paramIndex = rowIdx * rowLength + colIdx + 1;
                         rowPlaceholders.push(`$${paramIndex}`);
                         flatValues.push(row[col]);
                     });
-                    
+
                     placeholders.push(`(${rowPlaceholders.join(', ')})`);
                 }
 
@@ -1370,16 +1372,16 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
                             return `"${safeName}" = EXCLUDED."${safeName}"`;
                         })
                         .join(', ');
-                    
+
                     insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')} 
                                   ON CONFLICT ("${firstCol}") DO UPDATE SET ${updateSet};`;
                 } else {
                     insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')};`;
                 }
-                
+
                 await client.query(insertQuery, flatValues);
             }
-            
+
             await client.query('COMMIT');
         } catch (err) {
             await client.query('ROLLBACK');
@@ -1404,10 +1406,10 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
  */
 const buildFinanceUniversalQuery = (year, month) => {
     const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const endDate = month === 12 
-        ? `${year + 1}-01-01` 
+    const endDate = month === 12
+        ? `${year + 1}-01-01`
         : `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
-    
+
     return `
         SELECT 
             L.NumeroLancamento, 
@@ -1545,12 +1547,12 @@ async function runMasterETL() {
             }
         ];
 
-        const totalSteps = 
-            DIMENSIONS.length + 
-            (factDefs.length * years.length) + 
-            (years.length * 12) + 
+        const totalSteps =
+            DIMENSIONS.length +
+            (factDefs.length * years.length) +
+            (years.length * 12) +
             CONSOLIDATED.length;
-            
+
         let currentStep = 0;
 
         const getProgress = () => {
@@ -1563,9 +1565,9 @@ async function runMasterETL() {
 
         console.log(`📦 FASE 1: Processando Dimensões (${DIMENSIONS.length} tabelas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
-        
+
         // Processar dimensões em paralelo (são independentes)
-        const dimPromises = DIMENSIONS.map(dim => 
+        const dimPromises = DIMENSIONS.map(dim =>
             processQuery(pgClient, sqlPool, dim.table, dim.query, false, getProgress())
         );
         await Promise.all(dimPromises);
@@ -1573,20 +1575,20 @@ async function runMasterETL() {
 
         console.log(`\n📅 FASE 2: Processando Fatos Anuais (${factDefs.length * years.length} etapas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
-        
+
         for (const fact of factDefs) {
             console.log(`   📊 ${fact.table}`);
             const client = await pgClient.connect();
-            try { 
-                await client.query(`DROP TABLE IF EXISTS public.${fact.table};`); 
-            } catch(e) {} finally {
+            try {
+                await client.query(`DROP TABLE IF EXISTS public.${fact.table};`);
+            } catch (e) { } finally {
                 client.release();
             }
-            
+
             // Processar anos em paralelo para cada fato (máximo 3 por vez para não sobrecarregar)
             for (let i = 0; i < years.length; i += 3) {
                 const yearBatch = years.slice(i, i + 3);
-                const yearPromises = yearBatch.map(year => 
+                const yearPromises = yearBatch.map(year =>
                     processQuery(pgClient, sqlPool, fact.table, fact.queryGen(year), true, `${getProgress()} [${year}]`, year)
                 );
                 await Promise.all(yearPromises);
@@ -1596,14 +1598,14 @@ async function runMasterETL() {
 
         console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
-        
+
         const client = await pgClient.connect();
-        try { 
-            await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal;`); 
-        } catch(e) {} finally {
+        try {
+            await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal;`);
+        } catch (e) { } finally {
             client.release();
         }
-        
+
         for (const year of years) {
             console.log(`   📆 Ano ${year}`);
             // Processar 6 meses por vez em paralelo
@@ -1612,12 +1614,12 @@ async function runMasterETL() {
                 for (let m = monthStart; m < monthStart + 6 && m <= 12; m++) {
                     months.push(m);
                 }
-                
+
                 const monthPromises = months.map(month => {
                     const yearMonthLabel = `[${year}-${month.toString().padStart(2, '0')}]`;
                     return processQuery(pgClient, sqlPool, 'fat_financeiro_universal', buildFinanceUniversalQuery(year, month), true, `${getProgress()} ${yearMonthLabel}`, year, month);
                 });
-                
+
                 await Promise.all(monthPromises);
             }
         }
@@ -1625,16 +1627,16 @@ async function runMasterETL() {
 
         console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
-        
+
         // Processar consolidados em paralelo (máximo 5 por vez)
         for (let i = 0; i < CONSOLIDATED.length; i += 5) {
             const batch = CONSOLIDATED.slice(i, i + 5);
-            const consPromises = batch.map(cons => 
+            const consPromises = batch.map(cons =>
                 processQuery(pgClient, sqlPool, cons.table, cons.query, false, getProgress())
             );
             await Promise.all(consPromises);
         }
-        
+
         // Aguardar todos os uploads restantes
         await flushUploads();
 
