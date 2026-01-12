@@ -96,14 +96,13 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         setOnlineUsers(users);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('User joined:', key, newPresences);
+        // Usuário entrou no canal (silenciado)
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('User left:', key, leftPresences);
+        // Usuário saiu do canal (silenciado)
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('Presence channel subscribed for user', user.id);
           channelRef.current = channel;
           subscribingRef.current = false;
           // Initial track
@@ -123,7 +122,6 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       try {
-        console.log('Unsubscribing presence channel for user', user?.id);
         channel.unsubscribe();
       } catch (e) {
         // ignore
