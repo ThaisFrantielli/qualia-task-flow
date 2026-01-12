@@ -32,35 +32,6 @@ function fmtMoney(v: any) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
 }
 
-// Normaliza valores vindos do ETL / API que podem vir em formatos diferentes:
-// - strings com vírgula/ex.: "195,23"
-// - strings com R$ e separadores: "R$ 19.523,00"
-// - números inteiros representando centavos (ex.: 19523 -> 195.23)
-function normalizeMonetaryValue(v: any): number | null {
-  if (v == null) return null;
-  if (typeof v === 'string') {
-    const s = String(v).trim();
-    // remove prefix currency symbols and spaces
-    const cleaned = s.replace(/[^0-9.,-]/g, '').trim();
-    if (!cleaned) return null;
-    // If contains only comma as decimal separator (e.g. "195,23"), convert to dot
-    if (cleaned.indexOf(',') !== -1 && cleaned.indexOf('.') === -1) {
-      const n = parseFloat(cleaned.replace(',', '.'));
-      return Number.isNaN(n) ? null : n;
-    }
-    // Otherwise remove thousand separators (.) and replace comma with dot
-    const normalized = cleaned.replace(/\./g, '').replace(/,/g, '.');
-    const n = parseFloat(normalized);
-    return Number.isNaN(n) ? null : n;
-  }
-  if (typeof v === 'number') {
-    // Heurística: se for inteiro e grande (>=1000) provavelmente veio em centavos
-    if (Number.isInteger(v) && Math.abs(v) >= 1000) return v / 100;
-    return v;
-  }
-  return null;
-}
-
 function normalizePlacaKey(raw: unknown): string {
   return String(raw ?? '')
     .trim()
@@ -528,10 +499,11 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
     };
   }
 
-  label: 'Responsável',
+  return {
+    label: 'Responsável',
     value: genericClient,
-      icon: <User size={12} />
-};
+    icon: <User size={12} />
+  };
 }
 
 // DEBUG HELPER
@@ -549,7 +521,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set()); // Novo controle para sub-seções (ex: lista de multas)
-  const [expandedVersion, setExpandedVersion] = useState(0); // Force re-render trigger
+  const [_expandedVersion, setExpandedVersion] = useState(0); // Force re-render trigger
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 15;
@@ -1471,178 +1443,94 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             </div>
                           )}
 
+                          {/* Multas Section */}
+                          {(() => {
                             // UX Improvement: Toggle para sub-seções
                             const toggleSubSection = (subKey: string) => {
-                                const next = new Set(expandedSubSections);
-                          if (next.has(subKey)) next.delete(subKey);
-                          else next.add(subKey);
-                          setExpandedSubSections(next);
+                              const next = new Set(expandedSubSections);
+                              if (next.has(subKey)) next.delete(subKey);
+                              else next.add(subKey);
+                              setExpandedSubSections(next);
                             };
 
-                          const multasKey = `multas:${placa}`;
-                          const isListOpen = expandedSubSections.has(multasKey);
+                            const multasKey = `multas:${placa}`;
+                            const isListOpen = expandedSubSections.has(multasKey);
 
-                          return (
-                          <div className="relative pl-6">
-                            <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center">
-                              {EVENT_ICONS['MULTA'] || <Clock size={14} className="text-slate-400" />}
-                            </div>
-                            <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                              <div
-                                className="p-3 cursor-pointer hover:bg-slate-100 flex items-center justify-between transition-colors"
-                                onClick={(e) => { e.stopPropagation(); toggleSubSection(multasKey); }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-sm text-slate-700">MULTAS</span>
-                                  <Badge color="red" className="shrink-0">{placaMultas.length} Multas</Badge>
+                            if (placaMultas.length === 0) return null;
+
+                            return (
+                              <div className="relative pl-6">
+                                <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center">
+                                  {EVENT_ICONS['MULTA'] || <Clock size={14} className="text-slate-400" />}
                                 </div>
-                                <div className="text-xs text-blue-500 font-medium font-mono">
-                                  {isListOpen ? '▼ Ocultar' : '▶ Expandir Detalhes'}
+                                <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                  <div
+                                    className="p-3 cursor-pointer hover:bg-slate-100 flex items-center justify-between transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); toggleSubSection(multasKey); }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-sm text-slate-700">MULTAS</span>
+                                      <Badge color="red" className="shrink-0">{placaMultas.length} Multas</Badge>
+                                    </div>
+                                    <div className="text-xs text-blue-500 font-medium font-mono">
+                                      {isListOpen ? '▼ Ocultar' : '▶ Expandir Detalhes'}
+                                    </div>
+                                  </div>
+                                  {isListOpen && (
+                                    <div className="border-t border-slate-200">
+                                      <div className="p-3 space-y-2 max-h-[400px] overflow-y-auto">
+                                        {placaMultas.map((multa: any, idx: number) => {
+                                          const dataMulta = multa.DataMulta || multa.Data || multa.DataInfracao;
+                                          const valor = multa.ValorMulta || multa.Valor || 0;
+                                          const descricao = multa.DescricaoInfracao || multa.Descricao || multa.Infracao || 'Infração não especificada';
+                                          const local = multa.LocalInfracao || multa.Local || '';
+                                          const condutor = multa.NomeCondutor || multa.Condutor || '';
+                                          const status = multa.StatusMulta || multa.Status || '';
+                                          const emRecurso = multa.EmRecurso === 'Sim' || multa.EmRecurso === true;
+                                          const motivoRecurso = multa.MotivoRecurso || '';
+
+                                          return (
+                                            <div key={idx} className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                              <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-xs text-slate-500 font-mono">
+                                                      {fmtDateTimeBR(dataMulta)}
+                                                    </span>
+                                                    {status && (
+                                                      <Badge color={status.toLowerCase().includes('pag') ? 'green' : 'amber'} className="text-xs">
+                                                        {status}
+                                                      </Badge>
+                                                    )}
+                                                  </div>
+                                                  <div className="text-sm font-medium text-slate-800 mb-1">{descricao}</div>
+                                                  {local && <div className="text-xs text-slate-500">📍 {local}</div>}
+                                                  {condutor && <div className="text-xs text-slate-500">👤 {condutor}</div>}
+                                                </div>
+                                                <div className="text-right">
+                                                  <div className="text-sm font-bold text-red-600">
+                                                    {fmtMoney(valor)}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              {emRecurso && (
+                                                <div className="mt-2 pt-2 border-t border-slate-100">
+                                                  <div className="flex gap-2">
+                                                    <span className="text-slate-500 font-medium">Em Recurso:</span>
+                                                    <Badge color="amber" className="text-xs">Sim</Badge>
+                                                    {motivoRecurso && <span className="text-slate-600 ml-1">- {String(motivoRecurso)}</span>}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-
-                              {isListOpen && (
-                                <div className="border-t border-slate-200 bg-white p-3 space-y-3 animate-in slide-in-from-top-1 duration-200">
-                                  {/* Header extra opcional dentro da lista */}
-                                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-2">
-                                    Listagem Completa de Infrações
-                                  </div>
-
-                                  <div className="mt-2 space-y-2" key={`multas-list-${expandedVersion}`}>
-                                    {placaMultas.map((multa, i) => {
-                                      const k = `multa:${placa}:${multa?.IdOcorrencia || multa?.Ocorrencia || i}`;
-                                      const itemOpen = expandedRows.has(k);
-                                      const dataInfracao = parseDateAny(multa?.DataInfracao);
-                                      const detail = multa?.DescricaoInfracao;
-                                      const codigoInfracao = multa?.CodigoInfracao;
-                                      const orgaoAutuador = multa?.OrgaoAutuador;
-                                      const valorMulta = multa?.ValorMulta;
-                                      const valorDesconto = multa?.ValorDesconto;
-                                      const displayValorMulta = normalizeMonetaryValue(valorMulta);
-                                      const displayValorDesconto = normalizeMonetaryValue(valorDesconto);
-                                      const status = multa?.Status;
-                                      const dataLimitePagamento = parseDateAny(multa?.DataLimitePagamento);
-                                      const dataLimiteRecurso = parseDateAny(multa?.DataLimiteRecurso);
-                                      const localInfracao = multa?.Cidade ? `${multa.Cidade}${multa.Estado ? ` - ${multa.Estado}` : ''}` : null;
-                                      const condutor = multa?.Condutor;
-                                      const cliente = multa?.Cliente;
-                                      const numeroAuto = multa?.AutoInfracao;
-                                      const emRecurso = multa?.EmRecurso;
-                                      const motivoRecurso = multa?.MotivoRecurso;
-                                      const contratoLocacao = multa?.ContratoLocacao;
-
-                                      return (
-                                        <div key={k} className="bg-white rounded border border-slate-200">
-                                          <div
-                                            className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer hover:bg-sky-50"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              toggleRow(k);
-                                            }}
-                                          >
-                                            <div className="min-w-0">
-                                              <div className="text-sm text-slate-700 font-medium">
-                                                {dataInfracao ? dataInfracao.toLocaleDateString('pt-BR') : '—'}
-                                                {numeroAuto ? <span className="ml-2 text-slate-400 font-mono">• {String(numeroAuto)}</span> : null}
-                                              </div>
-                                              {detail ? <div className="text-xs text-slate-500 truncate mt-0.5">{String(detail)}</div> : null}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              {displayValorMulta != null && !Number.isNaN(displayValorMulta) && (
-                                                <span className="text-sm font-semibold text-sky-700">
-                                                  {fmtMoney(displayValorMulta)}
-                                                </span>
-                                              )}
-                                              <div className="text-xs text-slate-400 shrink-0">{itemOpen ? '▼' : '▶'}</div>
-                                            </div>
-                                          </div>
-
-                                          {itemOpen && (
-                                            <div className="px-3 pb-3 text-xs space-y-1 border-t bg-sky-50/30">
-                                              {codigoInfracao && (
-                                                <div className="flex gap-2 pt-2">
-                                                  <span className="text-slate-500 font-medium">Código Infração:</span>
-                                                  <span className="font-mono font-semibold text-sky-700">{String(codigoInfracao)}</span>
-                                                </div>
-                                              )}
-                                              {orgaoAutuador && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Órgão Autuador:</span>
-                                                  <span className="text-slate-700">{String(orgaoAutuador)}</span>
-                                                </div>
-                                              )}
-                                              {dataInfracao && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Data Infração:</span>
-                                                  <span>{fmtDateBR(dataInfracao)}</span>
-                                                </div>
-                                              )}
-                                              {dataLimitePagamento && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Vencimento Pagamento:</span>
-                                                  <span className="font-semibold text-orange-600">{fmtDateBR(dataLimitePagamento)}</span>
-                                                </div>
-                                              )}
-                                              {dataLimiteRecurso && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Limite Recurso:</span>
-                                                  <span className="font-semibold text-amber-600">{fmtDateBR(dataLimiteRecurso)}</span>
-                                                </div>
-                                              )}
-                                              {localInfracao && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Local:</span>
-                                                  <span className="text-slate-700">{String(localInfracao)}</span>
-                                                </div>
-                                              )}
-                                              {cliente && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Cliente:</span>
-                                                  <span className="text-slate-700">{String(cliente)}</span>
-                                                </div>
-                                              )}
-                                              {contratoLocacao && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Contrato:</span>
-                                                  <span className="text-slate-700 font-mono">{String(contratoLocacao)}</span>
-                                                </div>
-                                              )}
-                                              {condutor && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Condutor:</span>
-                                                  <span className="text-slate-700">{String(condutor)}</span>
-                                                </div>
-                                              )}
-                                              {displayValorDesconto != null && displayValorDesconto > 0 && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Valor c/ Desconto:</span>
-                                                  <span className="font-semibold text-green-600">{fmtMoney(displayValorDesconto)}</span>
-                                                </div>
-                                              )}
-                                              {status && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Status:</span>
-                                                  <Badge color="sky" className="text-xs">{String(status)}</Badge>
-                                                </div>
-                                              )}
-                                              {emRecurso && (
-                                                <div className="flex gap-2">
-                                                  <span className="text-slate-500 font-medium">Em Recurso:</span>
-                                                  <Badge color="amber" className="text-xs">Sim</Badge>
-                                                  {motivoRecurso && <span className="text-slate-600 ml-1">- {String(motivoRecurso)}</span>}
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          );
+                            );
                           })()}
 
                           {rows.map((row) => {

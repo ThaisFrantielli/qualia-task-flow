@@ -4631,6 +4631,7 @@ export type Database = {
       is_user_supervisor:
         | { Args: { user_id_text: string }; Returns: boolean }
         | { Args: { user_uuid: string }; Returns: boolean }
+      limpar_clientes_bi: { Args: never; Returns: undefined }
       notify_sla_at_risk: { Args: never; Returns: undefined }
       notify_user: {
         Args: {
