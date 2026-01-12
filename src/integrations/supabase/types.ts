@@ -3722,6 +3722,146 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_broadcast_recipients: {
+        Row: {
+          broadcast_id: string | null
+          cliente_id: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          phone_number: string
+          processing_order: number | null
+          sent_at: string | null
+          status: string | null
+          variables: Json | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          broadcast_id?: string | null
+          cliente_id?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          phone_number: string
+          processing_order?: number | null
+          sent_at?: string | null
+          status?: string | null
+          variables?: Json | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          broadcast_id?: string | null
+          cliente_id?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          phone_number?: string
+          processing_order?: number | null
+          sent_at?: string | null
+          status?: string | null
+          variables?: Json | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_broadcasts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_broadcast_recipients_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_broadcasts: {
+        Row: {
+          batch_pause_minutes: number | null
+          batch_size: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          daily_limit: number | null
+          failed_count: number | null
+          id: string
+          instance_id: string | null
+          max_delay_seconds: number | null
+          message_template: string
+          min_delay_seconds: number | null
+          name: string
+          paused_at: string | null
+          scheduled_at: string | null
+          sent_count: number | null
+          skipped_count: number | null
+          started_at: string | null
+          status: string | null
+          total_recipients: number | null
+          updated_at: string | null
+          use_business_hours: boolean | null
+        }
+        Insert: {
+          batch_pause_minutes?: number | null
+          batch_size?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          daily_limit?: number | null
+          failed_count?: number | null
+          id?: string
+          instance_id?: string | null
+          max_delay_seconds?: number | null
+          message_template: string
+          min_delay_seconds?: number | null
+          name: string
+          paused_at?: string | null
+          scheduled_at?: string | null
+          sent_count?: number | null
+          skipped_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_recipients?: number | null
+          updated_at?: string | null
+          use_business_hours?: boolean | null
+        }
+        Update: {
+          batch_pause_minutes?: number | null
+          batch_size?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          daily_limit?: number | null
+          failed_count?: number | null
+          id?: string
+          instance_id?: string | null
+          max_delay_seconds?: number | null
+          message_template?: string
+          min_delay_seconds?: number | null
+          name?: string
+          paused_at?: string | null
+          scheduled_at?: string | null
+          sent_count?: number | null
+          skipped_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          total_recipients?: number | null
+          updated_at?: string | null
+          use_business_hours?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcasts_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_config: {
         Row: {
           connected_number: string | null
@@ -3850,6 +3990,41 @@ export type Database = {
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets_sla"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_daily_send_log: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_id: string | null
+          send_count: number | null
+          send_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          send_count?: number | null
+          send_date?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          send_count?: number | null
+          send_date?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_daily_send_log_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -4102,6 +4277,38 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_optouts: {
+        Row: {
+          broadcast_id: string | null
+          id: string
+          opted_out_at: string | null
+          phone_number: string
+          reason: string | null
+        }
+        Insert: {
+          broadcast_id?: string | null
+          id?: string
+          opted_out_at?: string | null
+          phone_number: string
+          reason?: string | null
+        }
+        Update: {
+          broadcast_id?: string | null
+          id?: string
+          opted_out_at?: string | null
+          phone_number?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_optouts_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_broadcasts"
             referencedColumns: ["id"]
           },
         ]
