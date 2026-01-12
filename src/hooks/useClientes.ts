@@ -20,21 +20,37 @@ export const useClientes = (): UseClientesReturn => {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
-      .from('clientes')
-      .select(`
-        *,
-        cliente_contatos ( * )
-      `)
-      .order('razao_social', { ascending: true });
+    try {
+      const pageSize = 1000; // PostgREST costuma limitar a 1000 por requisição
+      let offset = 0;
+      let all: ClienteComContatos[] = [];
 
-    if (error) {
-      console.error('ERRO NO HOOK useClientes:', error.message);
-      setError(new Error(error.message));
+      while (true) {
+        const { data, error } = await supabase
+          .from('clientes')
+          .select(`*, cliente_contatos ( * )`)
+          .order('razao_social', { ascending: true })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) {
+          console.error('ERRO NO HOOK useClientes (page):', error.message);
+          throw error;
+        }
+
+        if (!data || (Array.isArray(data) && data.length === 0)) break;
+
+        all = all.concat(data as ClienteComContatos[]);
+        if (!Array.isArray(data) || (data as any).length < pageSize) break;
+
+        offset += pageSize;
+      }
+
+      console.log('[useClientes] Clientes total agregados:', all.length);
+      setClientes(all);
+    } catch (err: any) {
+      console.error('ERRO NO HOOK useClientes:', err?.message || err);
+      setError(new Error(err?.message || 'Erro ao buscar clientes'));
       setClientes([]);
-    } else {
-      console.log('[useClientes] Clientes da tabela `clientes` buscados:', data);
-      setClientes(data as ClienteComContatos[]);
     }
 
     setLoading(false);
