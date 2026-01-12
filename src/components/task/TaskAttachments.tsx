@@ -11,7 +11,7 @@ interface TaskAttachmentsProps {
 }
 
 const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
-  const { attachments, loading, uploadAttachment, deleteAttachment } = useAttachments(taskId);
+  const { attachments, loading, uploadAttachment, deleteAttachment, canModify } = useAttachments(taskId);
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -120,6 +120,8 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
+            disabled={!canModify}
+            title={!canModify ? 'Você não tem permissão para adicionar anexos' : undefined}
           >
             <Upload className="w-4 h-4 mr-2" />
             Adicionar
@@ -169,7 +171,7 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
           >
             {attachments.map((attachment) => {
               // Verifica se o usuário atual é o criador do anexo
-              const canDelete = user?.isAdmin || (attachment as any).uploaded_by === user?.id;
+                    const canDelete = user?.isAdmin || (attachment as any).uploaded_by === user?.id || canModify;
               return (
                 <div
                   key={attachment.id}

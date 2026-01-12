@@ -2,11 +2,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Attachment } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useAttachments = (taskId?: string) => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const [canModify, setCanModify] = useState<boolean>(false);
 
   const fetchAttachments = async () => {
     if (!taskId) return;
@@ -44,8 +47,46 @@ export const useAttachments = (taskId?: string) => {
     }
   };
 
+  const fetchPermissions = async () => {
+    if (!taskId) return setCanModify(false);
+    try {
+      // fetch task basic info
+      const { data: taskData, error: taskErr } = await supabase.from('tasks').select('id, assignee_id, user_id').eq('id', taskId).single();
+      if (taskErr) {
+        // if permission error, assume cannot modify
+        return setCanModify(false);
+      }
+
+      // Admin or creator or assignee
+      if (!user) return setCanModify(false);
+      if (user.isAdmin) return setCanModify(true);
+      if (taskData) {
+        if (taskData.assignee_id === user.id) return setCanModify(true);
+        if (taskData.user_id === user.id) return setCanModify(true);
+      }
+
+      // check task_delegations for co-responsible entries for this user
+      const { data: delegations, error: delErr } = await supabase.from('task_delegations').select('id,status,delegated_to_id,delegated_at').eq('task_id', taskId).eq('delegated_to_id', user.id);
+      if (delErr) return setCanModify(false);
+      if (Array.isArray(delegations) && delegations.length > 0) {
+        // if exists any delegation with status containing 'co' or 'co_responsible' or 'temporary_co' -> allow
+        const hasCo = delegations.some((d: any) => (d.status || '').toString().toLowerCase().includes('co'));
+        if (hasCo) return setCanModify(true);
+      }
+
+      setCanModify(false);
+    } catch (e) {
+      setCanModify(false);
+    }
+  };
+
   const uploadAttachment = async (file: File, taskId: string) => {
     try {
+      // permission guard (frontend): only allow if user can modify
+      if (!canModify) {
+        setError('Você não tem permissão para adicionar anexos nesta tarefa');
+        return;
+      }
       // Upload file to Supabase Storage bucket 'ticket-attachments'
       const bucketName = 'ticket-attachments';
       // Sanitiza o nome do arquivo removendo espaços e caracteres especiais
@@ -88,6 +129,10 @@ export const useAttachments = (taskId?: string) => {
 
   const deleteAttachment = async (id: string) => {
     try {
+      if (!canModify) {
+        setError('Você não tem permissão para excluir anexos nesta tarefa');
+        return;
+      }
       const { error } = await supabase
         .from('attachments')
         .delete()
@@ -112,6 +157,7 @@ export const useAttachments = (taskId?: string) => {
 
   useEffect(() => {
     fetchAttachments();
+    fetchPermissions();
   }, [taskId]);
 
   return {
@@ -121,5 +167,6 @@ export const useAttachments = (taskId?: string) => {
     uploadAttachment,
     deleteAttachment,
     refetch: fetchAttachments
+    , canModify
   };
 };
