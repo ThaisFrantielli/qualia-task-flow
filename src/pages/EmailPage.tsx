@@ -3,22 +3,33 @@ import { EmailProvider } from '@/contexts/EmailContext';
 import { EmailSidebar } from '@/components/email/EmailSidebar';
 import { EmailConnectWizard } from '@/components/email/EmailConnectWizard';
 import { EmailCompose } from '@/components/email/EmailCompose';
-import { useEmailAccounts } from '@/hooks/useEmails';
-import { EmailAccount, EmailFolder } from '@/types/email';
+import { EmailList } from '@/components/email/EmailList';
+import { EmailDetail } from '@/components/email/EmailDetail';
+import { useEmailAccounts, useEmailList } from '@/hooks/useEmails';
+import { EmailAccount, EmailFolder, EmailMessage } from '@/types/email';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { PenSquare, Mail, CheckCircle2, Settings, Server, ExternalLink } from 'lucide-react';
+import { PenSquare, Mail, RefreshCw, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 function EmailPageContent() {
   const { accounts } = useEmailAccounts();
   
   const [activeAccount, setActiveAccount] = useState<EmailAccount | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<EmailFolder>('inbox');
+  const [selectedEmail, setSelectedEmail] = useState<EmailMessage | null>(null);
   
   // Dialogs
   const [showConnectWizard, setShowConnectWizard] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
+
+  // Fetch emails when account and folder are selected
+  const { data: emailListData, isLoading: isLoadingEmails, refetch, error } = useEmailList({
+    accountId: activeAccount?.id,
+    folder: selectedFolder,
+    page: 1,
+    limit: 50,
+    enabled: !!activeAccount
+  });
 
   // Set active account when accounts load
   useEffect(() => {
@@ -27,13 +38,33 @@ function EmailPageContent() {
     }
   }, [accounts, activeAccount]);
 
+  // Show error if email fetch fails
+  useEffect(() => {
+    if (error) {
+      toast.error('Erro ao carregar emails');
+    }
+  }, [error]);
+
   const handleAccountChange = (account: EmailAccount) => {
     setActiveAccount(account);
+    setSelectedEmail(null);
+  };
+
+  const handleFolderChange = (folder: EmailFolder) => {
+    setSelectedFolder(folder);
+    setSelectedEmail(null);
   };
 
   const handleConnectSuccess = () => {
     // Account will be refreshed via query invalidation
   };
+
+  const handleRefresh = () => {
+    refetch();
+    toast.success('Atualizando emails...');
+  };
+
+  const emails = emailListData?.emails || [];
 
   return (
     <div className="flex h-full bg-background">
@@ -43,9 +74,7 @@ function EmailPageContent() {
         activeAccount={activeAccount}
         selectedFolder={selectedFolder}
         onAccountChange={handleAccountChange}
-        onFolderChange={(folder) => {
-          setSelectedFolder(folder);
-        }}
+        onFolderChange={handleFolderChange}
         onAddAccount={() => setShowConnectWizard(true)}
       />
 
@@ -56,147 +85,59 @@ function EmailPageContent() {
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <Mail className="h-5 w-5" />
             Emails
+            {activeAccount && (
+              <span className="text-sm font-normal text-muted-foreground">
+                - {activeAccount.email}
+              </span>
+            )}
           </h1>
-          {activeAccount && (
-            <Button onClick={() => setShowCompose(true)}>
-              <PenSquare className="h-4 w-4 mr-2" />
-              Compor
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {activeAccount && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoadingEmails}>
+                  {isLoadingEmails ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button onClick={() => setShowCompose(true)}>
+                  <PenSquare className="h-4 w-4 mr-2" />
+                  Compor
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {activeAccount ? (
-          <div className="flex-1 p-6 overflow-auto">
-            {/* Connected Account Info */}
-            <div className="max-w-3xl mx-auto space-y-6">
-              {/* Success Card */}
-              <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                    <CheckCircle2 className="h-5 w-5" />
-                    Conta Conectada com Sucesso
-                  </CardTitle>
-                  <CardDescription>
-                    Suas credenciais foram salvas de forma segura.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Email</p>
-                      <p className="font-medium">{activeAccount.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Nome de Exibição</p>
-                      <p className="font-medium">{activeAccount.display_name || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Provedor</p>
-                      <Badge variant="secondary">{activeAccount.provider?.toUpperCase()}</Badge>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Status</p>
-                      <Badge variant="default" className="bg-green-600">Ativo</Badge>
-                    </div>
+          <div className="flex-1 flex overflow-hidden">
+            {/* Email List */}
+            <div className="w-96 border-r flex flex-col">
+              <EmailList
+                emails={emails}
+                selectedEmail={selectedEmail}
+                onSelectEmail={setSelectedEmail}
+                isLoading={isLoadingEmails}
+              />
+            </div>
+
+            {/* Email Detail */}
+            <div className="flex-1 overflow-auto">
+              {selectedEmail ? (
+                <EmailDetail
+                  email={selectedEmail}
+                  accountId={activeAccount.id}
+                  onReply={() => setShowCompose(true)}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Selecione um email para visualizar</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Server Configuration */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Server className="h-4 w-4" />
-                    Configuração do Servidor
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Servidor IMAP</p>
-                      <p className="font-mono text-xs">{activeAccount.imap_host}:{activeAccount.imap_port}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Servidor SMTP</p>
-                      <p className="font-mono text-xs">{activeAccount.smtp_host}:{activeAccount.smtp_port}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Next Steps */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Settings className="h-4 w-4" />
-                    Próximos Passos para Integração Completa
-                  </CardTitle>
-                  <CardDescription>
-                    Para visualizar emails em tempo real, configure uma das opções abaixo:
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-1">1. Microsoft Graph API (Outlook/365)</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Recomendado para contas Microsoft. Suporta OAuth e acesso completo à caixa de email.
-                      </p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://docs.microsoft.com/graph/api/resources/mail-api-overview" target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Documentação
-                        </a>
-                      </Button>
-                    </div>
-
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-1">2. Gmail API (Google)</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Recomendado para contas Gmail. Requer configuração de OAuth no Google Cloud.
-                      </p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://developers.google.com/gmail/api" target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Documentação
-                        </a>
-                      </Button>
-                    </div>
-
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-1">3. Serviço IMAP Externo</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Use um serviço como Nylas, Mailgun, ou um backend Node.js com bibliotecas IMAP.
-                      </p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://www.nylas.com/" target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-3 w-3 mr-2" />
-                          Nylas
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm">
-                      <strong>Nota:</strong> A conexão IMAP direta via Edge Functions do Supabase tem limitações 
-                      técnicas. As credenciais salvas podem ser usadas por um backend Node.js ou serviço externo 
-                      para buscar emails em tempo real.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Actions */}
-              <div className="flex gap-3">
-                <Button onClick={() => setShowCompose(true)}>
-                  <PenSquare className="h-4 w-4 mr-2" />
-                  Compor Email
-                </Button>
-                <Button variant="outline" onClick={() => setShowConnectWizard(true)}>
-                  Adicionar Outra Conta
-                </Button>
-              </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
