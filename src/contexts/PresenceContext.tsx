@@ -95,10 +95,10 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
         setOnlineUsers(users);
       })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      .on('presence', { event: 'join' }, (_payload) => {
         // Usuário entrou no canal (silenciado)
       })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+      .on('presence', { event: 'leave' }, (_payload) => {
         // Usuário saiu do canal (silenciado)
       })
       .subscribe(async (status) => {
