@@ -35,44 +35,21 @@ export function useSyncClientesFromBI() {
         return result;
       }
 
-      // Buscar clientes existentes para evitar duplicação
-      const { data: existingClientes, error: fetchError } = await supabase
-        .from('clientes')
-        .select('codigo_cliente, cpf_cnpj');
-
-      if (fetchError) {
-        console.error('Erro ao buscar clientes existentes:', fetchError);
-        toast.error('Erro ao verificar clientes existentes');
-        throw fetchError;
+      // Limpar clientes existentes do BI antes de reimportar
+      const { error: cleanError } = await supabase.rpc('limpar_clientes_bi');
+      if (cleanError) {
+        console.error('Erro ao limpar clientes BI:', cleanError);
+        toast.error('Erro ao limpar clientes existentes do BI');
+        throw cleanError;
       }
 
-      // Criar sets para verificação rápida
-      const existingCodigos = new Set(
-        existingClientes?.map(c => c.codigo_cliente?.toLowerCase().trim()).filter(Boolean) || []
-      );
-      const existingCnpjs = new Set(
-        existingClientes?.map(c => c.cpf_cnpj?.replace(/\D/g, '').trim()).filter(Boolean) || []
-      );
-
-      // Filtrar apenas clientes novos
-      const novosClientes: AnyObject[] = [];
+      // Preparar todos os clientes para inserção
+      const clientesToInsert: AnyObject[] = [];
       
       for (const cliente of biClientes) {
-        // Campos do dim_clientes.json baseado na amostra:
-        // codigo_cliente | razao_social | nome_fantasia | cpf_cnpj | tipo_cliente | natureza_cliente | cidade | estado | ? | status
         const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
         const cnpj = String(cliente.cpf_cnpj || cliente.CNPJ || cliente.CpfCnpj || cliente.CPF_CNPJ || '').replace(/\D/g, '').trim();
         
-        // Verificar se já existe
-        const codigoExiste = codigo && existingCodigos.has(codigo);
-        const cnpjExiste = cnpj && existingCnpjs.has(cnpj);
-        
-        if (codigoExiste || cnpjExiste) {
-          result.skipped++;
-          continue;
-        }
-
-        // Mapear campos do dim_clientes para a tabela clientes
         const novoCliente = {
           codigo_cliente: codigo || `BI_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           razao_social: cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || null,
@@ -94,18 +71,13 @@ export function useSyncClientesFromBI() {
           origem: 'dim_clientes_bi',
         };
 
-        novosClientes.push(novoCliente);
-      }
-
-      if (novosClientes.length === 0) {
-        toast.info('Todos os clientes do BI já estão cadastrados');
-        return result;
+        clientesToInsert.push(novoCliente);
       }
 
       // Inserir em lotes de 50 para evitar timeout
       const batchSize = 50;
-      for (let i = 0; i < novosClientes.length; i += batchSize) {
-        const batch = novosClientes.slice(i, i + batchSize);
+      for (let i = 0; i < clientesToInsert.length; i += batchSize) {
+        const batch = clientesToInsert.slice(i, i + batchSize);
         
         const { error: insertError } = await supabase
           .from('clientes')
@@ -120,7 +92,7 @@ export function useSyncClientesFromBI() {
       }
 
       if (result.added > 0) {
-        toast.success(`${result.added} novos clientes importados com sucesso!`);
+        toast.success(`${result.added} clientes importados com sucesso do dim_clientes.json!`);
       }
       if (result.errors > 0) {
         toast.warning(`${result.errors} clientes com erro na importação`);
