@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.email-send]
 verify_jwt = false
+
+[functions.fdw-health-check]
+verify_jwt = false
+
+[functions.fdw-query]
+verify_jwt = false
