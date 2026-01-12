@@ -4643,6 +4643,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      postgres_fdw_disconnect: { Args: { "": string }; Returns: boolean }
+      postgres_fdw_disconnect_all: { Args: never; Returns: boolean }
+      postgres_fdw_get_connections: {
+        Args: never
+        Returns: Record<string, unknown>[]
+      }
+      postgres_fdw_handler: { Args: never; Returns: unknown }
       prepare_user_profile: {
         Args: {
           user_full_name: string
