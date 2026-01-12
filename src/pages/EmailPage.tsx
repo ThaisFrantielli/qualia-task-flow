@@ -128,7 +128,12 @@ function EmailPageContent() {
                 <EmailDetail
                   email={selectedEmail}
                   accountId={activeAccount.id}
+                  onBack={() => setSelectedEmail(null)}
                   onReply={() => setShowCompose(true)}
+                  onCreateTask={() => {
+                    // TODO: Implement create task from email
+                    toast.info('Funcionalidade de criar tarefa em desenvolvimento');
+                  }}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center h-full">
