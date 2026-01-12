@@ -13,12 +13,17 @@ import {
 import { useSyncClientesFromBI } from '@/hooks/useSyncClientesFromBI';
 import { Progress } from '@/components/ui/progress';
 
-export function SyncClientesButton() {
+interface SyncClientesButtonProps {
+  onSyncComplete?: () => void;
+}
+
+export function SyncClientesButton({ onSyncComplete }: SyncClientesButtonProps) {
   const [open, setOpen] = useState(false);
   const { syncClientes, syncing, loadingBI, lastResult, clientesBICount } = useSyncClientesFromBI();
 
   const handleSync = async () => {
     await syncClientes();
+    onSyncComplete?.();
   };
 
   const getResultIcon = () => {
