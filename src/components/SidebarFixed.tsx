@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign, Car, FileCheck, AlertTriangle, Mail
+  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign, Car, FileCheck, AlertTriangle, Mail, Send
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -98,6 +98,7 @@ const baseMenuGroups: MenuGroup[] = [
       { label: 'Central de Atendimento', url: '/atendimento', icon: Headphones, permissionKey: 'crm' },
       { label: 'Central de Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' },
       { label: 'Emails', url: '/emails', icon: Mail, permissionKey: 'crm' },
+      { label: 'Lista de Transmissão', url: '/broadcasts', icon: Send, permissionKey: 'crm' },
       { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
       { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
       { label: 'Relatórios', url: '/tickets/reports', icon: BarChart3, permissionKey: 'crm' },
@@ -113,7 +114,15 @@ const baseMenuGroups: MenuGroup[] = [
       { label: 'Precificação', url: '/precificacao/config', icon: DollarSign, permissionKey: 'team' },
       { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
       { label: 'Motivos de Tickets', url: '/configuracoes/ticket-motivos', icon: Ticket, permissionKey: 'team' },
-      { label: 'Configuração WhatsApp', url: '/configuracoes/whatsapp', icon: MessageSquare, permissionKey: 'team' },
+      { 
+        label: 'Configuração WhatsApp', 
+        url: '/configuracoes/whatsapp', 
+        icon: MessageSquare, 
+        permissionKey: 'team',
+        children: [
+          { label: 'Lista de Transmissão', url: '/broadcasts', icon: Send },
+        ]
+      },
     ]
   }
 ];
