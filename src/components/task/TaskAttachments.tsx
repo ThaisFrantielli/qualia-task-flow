@@ -167,36 +167,42 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
             onPaste={handlePaste}
             tabIndex={0}
           >
-            {attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="flex items-center justify-between p-2 border rounded-lg hover:bg-gray-50"
-              >
-                <div className="flex items-center gap-3">
-                  <Paperclip className="w-4 h-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium">{attachment.filename}</p>
-                    <p className="text-xs text-gray-500">
-                      {attachment.file_size ? formatFileSize(attachment.file_size) : 'Tamanho desconhecido'}
-                    </p>
+            {attachments.map((attachment) => {
+              // Verifica se o usuário atual é o criador do anexo
+              const canDelete = user?.isAdmin || (attachment as any).uploaded_by === user?.id;
+              return (
+                <div
+                  key={attachment.id}
+                  className="flex items-center justify-between p-2 border rounded-lg hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <Paperclip className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-sm font-medium">{attachment.filename}</p>
+                      <p className="text-xs text-gray-500">
+                        {attachment.file_size ? formatFileSize(attachment.file_size) : 'Tamanho desconhecido'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleDownload(attachment)} title="Baixar">
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteAttachment(attachment.id)}
+                        title="Excluir anexo"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => handleDownload(attachment)}>
-                    <Download className="w-4 h-4" />
-                  </Button>
-                  {user?.isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteAttachment(attachment.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

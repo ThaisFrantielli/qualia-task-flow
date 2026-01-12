@@ -740,7 +740,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       const metric = metricsByPlaca[placaKey] || null;
       const locacaoDaysReal = metric ? (metric.diasLocado ?? 0) : 0;
       const manutencaoDaysReal = metric ? (metric.diasManutencao ?? 0) : 0;
-      const ownershipDays = metric ? (metric.diasVida ?? 0) : 0;
+      // ownershipDays não é usado diretamente, mas está disponível em metric.diasVida
       const frotaParadaDays = metric ? (metric.diasParado ?? 0) : 0;
       const utilization = metric ? (metric.percentualUtilizacao ?? 0) : 0;
 
