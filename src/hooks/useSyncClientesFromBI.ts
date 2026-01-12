@@ -129,12 +129,41 @@ export function useSyncClientesFromBI() {
         return result;
       }
 
+      // Criar mapa de clientes BI por codigo para lookup posterior
+      const biMapByCodigo: Record<string, AnyObject> = {};
+      for (const cliente of biClientes) {
+        const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
+        if (codigo) biMapByCodigo[codigo] = cliente;
+      }
+
+      // Criar mapas de clientes existentes para lookup
+      const existingByCodigo: Record<string, AnyObject> = {};
+      const existingByCnpj: Record<string, AnyObject> = {};
+      for (const c of existingClientes || []) {
+        const cod = c.codigo_cliente?.toLowerCase().trim();
+        const cnpj = c.cpf_cnpj?.replace(/\D/g, '').trim();
+        if (cod) existingByCodigo[cod] = c;
+        if (cnpj) existingByCnpj[cnpj] = c;
+      }
+
+      // Rastrear clientes que foram 'skipped' para verificar contatos depois
+      const existingMatches: Array<{ codigo: string; cnpj: string; cliente: AnyObject }> = [];
+      for (const cliente of biClientes) {
+        const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
+        const cnpj = String(cliente.cpf_cnpj || cliente.CNPJ || cliente.CpfCnpj || cliente.CPF_CNPJ || '').replace(/\D/g, '').trim();
+        const codigoExiste = codigo && existingCodigos.has(codigo);
+        const cnpjExiste = cnpj && existingCnpjs.has(cnpj);
+        if (codigoExiste || cnpjExiste) {
+          existingMatches.push({ codigo, cnpj, cliente });
+        }
+      }
+
       // Inserir em lotes de 50 para evitar timeout e capturar os ids inseridos
       const batchSize = 50;
       for (let i = 0; i < novosClientes.length; i += batchSize) {
         const batch = novosClientes.slice(i, i + batchSize);
         
-        const { error: insertError } = await supabase
+        const { data: insertedClients, error: insertError } = await supabase
           .from('clientes')
           .insert(batch)
           .select('id, codigo_cliente');
