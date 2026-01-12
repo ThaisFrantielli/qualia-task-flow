@@ -49,8 +49,9 @@ export const useAttachments = (taskId?: string) => {
       // Upload file to Supabase Storage bucket 'ticket-attachments'
       const bucketName = 'ticket-attachments';
       // Sanitiza o nome do arquivo removendo espaços e caracteres especiais
-      const sanitizedName = file.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-      const filePath = `${taskId}/${Date.now()}_${sanitizedName}`;
+      const sanitizedName = file.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+      // Mantém o prefixo 'tasks/' para compatibilidade com políticas RLS existentes
+      const filePath = `tasks/${taskId}/${Date.now()}_${sanitizedName}`;
 
       const { error: uploadError } = await supabase.storage
         .from(bucketName)

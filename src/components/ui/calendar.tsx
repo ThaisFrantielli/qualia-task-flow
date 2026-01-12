@@ -743,7 +743,10 @@ export default function CalendarApp(): JSX.Element {
       }
       setFormTitle(data.title || '');
       setFormCategoryId((data as any).category_id || (data as any).category?.id || null);
-      const nTask = normalizeFormStartEnd((data.due_date as any) || null, null);
+      // Usar start_date e end_date da tarefa para preencher o formulário
+      const taskStartDate = (data.start_date as any) || (data.due_date as any) || null;
+      const taskEndDate = (data.end_date as any) || null;
+      const nTask = normalizeFormStartEnd(taskStartDate, taskEndDate);
       setFormStart(nTask.s);
       setFormEnd(nTask.e);
       setFormDescription(data.description || '');
