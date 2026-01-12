@@ -58,7 +58,8 @@ export const CustomerListEnhanced: React.FC<CustomerListEnhancedProps> = ({
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto">
+      {/* Lista com altura fixa para ~10 itens (cada item ~60px) e scroll */}
+      <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
         {customers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <Users className="h-10 w-10 text-muted-foreground mb-3" />
