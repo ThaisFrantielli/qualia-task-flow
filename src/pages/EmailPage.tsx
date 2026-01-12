@@ -8,7 +8,10 @@ import { EmailDetail } from '@/components/email/EmailDetail';
 import { useEmailAccounts, useEmailList } from '@/hooks/useEmails';
 import { EmailAccount, EmailFolder, EmailMessage } from '@/types/email';
 import { Button } from '@/components/ui/button';
-import { PenSquare, Mail, RefreshCw, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { PenSquare, Mail, RefreshCw, Loader2, AlertTriangle, CheckCircle2, Server, ExternalLink, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 function EmailPageContent() {
@@ -38,13 +41,6 @@ function EmailPageContent() {
     }
   }, [accounts, activeAccount]);
 
-  // Show error if email fetch fails
-  useEffect(() => {
-    if (error) {
-      toast.error('Erro ao carregar emails');
-    }
-  }, [error]);
-
   const handleAccountChange = (account: EmailAccount) => {
     setActiveAccount(account);
     setSelectedEmail(null);
@@ -65,6 +61,8 @@ function EmailPageContent() {
   };
 
   const emails = emailListData?.emails || [];
+  const hasError = emailListData?.error || error;
+  const requiresOAuth = emailListData?.requiresOAuth;
 
   return (
     <div className="flex h-full bg-background">
@@ -111,40 +109,174 @@ function EmailPageContent() {
         </div>
 
         {activeAccount ? (
-          <div className="flex-1 flex overflow-hidden">
-            {/* Email List */}
-            <div className="w-96 border-r flex flex-col">
-              <EmailList
-                emails={emails}
-                selectedEmail={selectedEmail}
-                onSelectEmail={setSelectedEmail}
-                isLoading={isLoadingEmails}
-              />
-            </div>
+          <>
+            {/* Show OAuth required message or email list */}
+            {hasError || requiresOAuth || emails.length === 0 ? (
+              <div className="flex-1 p-6 overflow-auto">
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* Connected Account Info */}
+                  <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                        <CheckCircle2 className="h-5 w-5" />
+                        Conta Conectada
+                      </CardTitle>
+                      <CardDescription>
+                        Suas credenciais foram salvas de forma segura.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Email</p>
+                          <p className="font-medium">{activeAccount.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Nome de Exibição</p>
+                          <p className="font-medium">{activeAccount.display_name || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Provedor</p>
+                          <Badge variant="secondary">{activeAccount.provider?.toUpperCase()}</Badge>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Status</p>
+                          <Badge variant="default" className="bg-green-600">Ativo</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-            {/* Email Detail */}
-            <div className="flex-1 overflow-auto">
-              {selectedEmail ? (
-                <EmailDetail
-                  email={selectedEmail}
-                  accountId={activeAccount.id}
-                  onBack={() => setSelectedEmail(null)}
-                  onReply={() => setShowCompose(true)}
-                  onCreateTask={() => {
-                    // TODO: Implement create task from email
-                    toast.info('Funcionalidade de criar tarefa em desenvolvimento');
-                  }}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center h-full">
-                  <div className="text-center text-muted-foreground">
-                    <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Selecione um email para visualizar</p>
+                  {/* OAuth Required Alert */}
+                  {(hasError || requiresOAuth) && (
+                    <Alert variant="destructive" className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertTitle className="text-amber-700 dark:text-amber-400">Configuração Adicional Necessária</AlertTitle>
+                      <AlertDescription className="text-amber-600 dark:text-amber-300">
+                        {emailListData?.error || 'O Microsoft 365 corporativo requer autenticação OAuth para acessar emails. A autenticação básica foi desabilitada pela Microsoft por segurança.'}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Server Configuration */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Server className="h-4 w-4" />
+                        Configuração do Servidor
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Servidor IMAP</p>
+                          <p className="font-mono text-xs">{activeAccount.imap_host}:{activeAccount.imap_port}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Servidor SMTP</p>
+                          <p className="font-mono text-xs">{activeAccount.smtp_host}:{activeAccount.smtp_port}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Instructions */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Info className="h-4 w-4" />
+                        Como Acessar Seus Emails
+                      </CardTitle>
+                      <CardDescription>
+                        Para contas Microsoft 365 corporativas, é necessário uma das opções abaixo:
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="p-4 border rounded-lg bg-muted/30">
+                          <h4 className="font-medium mb-1">1. Solicitar ao TI: Habilitar Autenticação Básica</h4>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            O administrador de TI pode habilitar autenticação básica para IMAP/SMTP no painel do Microsoft 365 Admin.
+                          </p>
+                        </div>
+
+                        <div className="p-4 border rounded-lg bg-muted/30">
+                          <h4 className="font-medium mb-1">2. Usar Senha de Aplicativo (Se MFA estiver ativo)</h4>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Se sua conta tem autenticação multifator, crie uma senha de aplicativo em account.microsoft.com.
+                          </p>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href="https://account.microsoft.com/security" target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              Configurações de Segurança
+                            </a>
+                          </Button>
+                        </div>
+
+                        <div className="p-4 border rounded-lg bg-primary/5 border-primary/20">
+                          <h4 className="font-medium mb-1">3. Microsoft Graph API (Recomendado)</h4>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Para integração completa, configure o Microsoft Graph API com OAuth. Isso requer registro no Azure AD.
+                          </p>
+                          <Button variant="outline" size="sm" asChild>
+                            <a href="https://docs.microsoft.com/graph/auth-register-app-v2" target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              Documentação Azure
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <Button onClick={() => setShowCompose(true)}>
+                      <PenSquare className="h-4 w-4 mr-2" />
+                      Compor Email
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowConnectWizard(true)}>
+                      Reconectar com Nova Senha
+                    </Button>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex overflow-hidden">
+                {/* Email List */}
+                <div className="w-96 border-r flex flex-col">
+                  <EmailList
+                    emails={emails}
+                    selectedEmail={selectedEmail}
+                    onSelectEmail={setSelectedEmail}
+                    isLoading={isLoadingEmails}
+                  />
+                </div>
+
+                {/* Email Detail */}
+                <div className="flex-1 overflow-auto">
+                  {selectedEmail ? (
+                    <EmailDetail
+                      email={selectedEmail}
+                      accountId={activeAccount.id}
+                      onBack={() => setSelectedEmail(null)}
+                      onReply={() => setShowCompose(true)}
+                      onCreateTask={() => {
+                        toast.info('Funcionalidade de criar tarefa em desenvolvimento');
+                      }}
+                    />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center h-full">
+                      <div className="text-center text-muted-foreground">
+                        <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>Selecione um email para visualizar</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-md">
