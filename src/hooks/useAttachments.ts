@@ -133,6 +133,39 @@ export const useAttachments = (taskId?: string) => {
         setError('Você não tem permissão para excluir anexos nesta tarefa');
         return;
       }
+      // Antes de apagar o registro, tente remover o arquivo do bucket de storage
+      const bucketName = 'ticket-attachments';
+      try {
+        const { data: row, error: rowErr } = await supabase.from('attachments').select('file_path').eq('id', id).single();
+        if (!rowErr && row && row.file_path) {
+          let storagePath: string | null = null;
+          const fp: string = row.file_path;
+          // Supabase public URL padrão: /storage/v1/object/public/<bucket>/<path>
+          const publicToken = `/object/public/${bucketName}/`;
+          const idx = fp.indexOf(publicToken);
+          if (idx !== -1) {
+            storagePath = fp.substring(idx + publicToken.length);
+          } else if (fp.startsWith('/')) {
+            storagePath = fp.replace(/^\//, '');
+          } else if (fp.includes(bucketName)) {
+            // tentar extrair depois do bucketName/
+            const after = fp.split(`${bucketName}/`)[1];
+            storagePath = after || null;
+          }
+
+          if (storagePath) {
+            const { error: removeError } = await supabase.storage.from(bucketName).remove([storagePath]);
+            if (removeError) {
+              // não falhar totalmente se remoção do storage falhar; só logar
+              console.error('Erro ao remover arquivo do storage:', removeError.message || removeError);
+            }
+          }
+        }
+      } catch (e) {
+        // se falhar ao buscar/remover do storage, apenas logamos e continuamos para tentar remover o registro
+        console.error('Erro ao tentar remover arquivo do storage (ignorando):', e);
+      }
+
       const { error } = await supabase
         .from('attachments')
         .delete()
