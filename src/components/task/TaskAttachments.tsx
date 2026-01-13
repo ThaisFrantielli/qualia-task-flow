@@ -194,7 +194,10 @@ const TaskAttachments: React.FC<TaskAttachmentsProps> = ({ taskId }) => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteAttachment(attachment.id)}
+                        onClick={() => {
+                          if (!confirm('Confirmar exclusão do anexo? Esta ação removerá o arquivo e o registro.')) return;
+                          deleteAttachment(attachment.id);
+                        }}
                         title="Excluir anexo"
                         className="text-destructive hover:text-destructive"
                       >
