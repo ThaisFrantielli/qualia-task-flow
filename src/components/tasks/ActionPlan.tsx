@@ -341,6 +341,9 @@ function RecurrenceImporter({ taskId, add }: { taskId: string; add: (s: any) => 
               <option value="daily">Diária</option>
               <option value="weekly">Semanal</option>
               <option value="monthly">Mensal</option>
+              <option value="quarterly">Trimestral</option>
+              <option value="semiannual">Semestral</option>
+              <option value="yearly">Anual</option>
             </select>
           </div>
 
