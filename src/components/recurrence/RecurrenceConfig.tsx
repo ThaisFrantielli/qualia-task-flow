@@ -2,7 +2,7 @@ import React from 'react';
 
 interface RecurrenceConfigProps {
   value: {
-    pattern?: 'daily' | 'weekly' | 'monthly' | null;
+    pattern?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly' | null;
     interval?: number;
     days?: number[];
     endDate?: string | null;
@@ -21,6 +21,9 @@ export default function RecurrenceConfig({ value, onChange }: RecurrenceConfigPr
         <option value="daily">Diária</option>
         <option value="weekly">Semanal</option>
         <option value="monthly">Mensal</option>
+        <option value="quarterly">Trimestral</option>
+        <option value="semiannual">Semestral</option>
+        <option value="yearly">Anual</option>
       </select>
 
       <label className="block text-sm">Intervalo (a cada X)</label>
