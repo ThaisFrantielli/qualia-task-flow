@@ -1,7 +1,7 @@
 import { parseISODateSafe, dateToLocalDateOnlyISO } from '@/lib/dateUtils';
 import type { TaskWithDetails, TaskInsert } from '@/types';
 
-type Pattern = 'daily' | 'weekly' | 'monthly' | null | undefined;
+type Pattern = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly' | null | undefined;
 
 function asNumberArray(csv?: string | null) {
   if (!csv) return [] as number[];
@@ -39,6 +39,30 @@ export function calculateNextDate(from: Date, pattern: Pattern, interval = 1, re
       const day = next.getDate();
       next.setMonth(next.getMonth() + (interval || 1));
       // handle month overflow (e.g., 31 -> last day of month)
+      const overflowDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      if (day > overflowDay) next.setDate(overflowDay);
+      else next.setDate(day);
+      return next;
+    }
+    case 'quarterly': {
+      const day = next.getDate();
+      next.setMonth(next.getMonth() + (3 * (interval || 1)));
+      const overflowDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      if (day > overflowDay) next.setDate(overflowDay);
+      else next.setDate(day);
+      return next;
+    }
+    case 'semiannual': {
+      const day = next.getDate();
+      next.setMonth(next.getMonth() + (6 * (interval || 1)));
+      const overflowDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      if (day > overflowDay) next.setDate(overflowDay);
+      else next.setDate(day);
+      return next;
+    }
+    case 'yearly': {
+      const day = next.getDate();
+      next.setFullYear(next.getFullYear() + (interval || 1));
       const overflowDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
       if (day > overflowDay) next.setDate(overflowDay);
       else next.setDate(day);
