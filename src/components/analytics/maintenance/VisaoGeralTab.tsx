@@ -174,24 +174,26 @@ export default function VisaoGeralTab() {
     if (!manutencoes?.length) return [];
 
     const porFornecedor = manutencoes.reduce((acc, m) => {
-      if (!acc[m.Fornecedor]) {
-        acc[m.Fornecedor] = { 
-          fornecedor: m.Fornecedor, 
+      const fornecedor = m.Fornecedor || 'Não informado';
+      if (!acc[fornecedor]) {
+        acc[fornecedor] = { 
+          fornecedor, 
           totalOS: 0, 
           custoTotal: 0, 
           leadTimeMedia: 0, 
           somLeadTime: 0 
         };
       }
-      acc[m.Fornecedor].totalOS++;
-      acc[m.Fornecedor].custoTotal += m.CustoTotalOS || 0;
+      acc[fornecedor].totalOS++;
+      acc[fornecedor].custoTotal += m.CustoTotalOS || 0;
       if (m.LeadTimeTotalDias > 0) {
-        acc[m.Fornecedor].somLeadTime += m.LeadTimeTotalDias;
+        acc[fornecedor].somLeadTime += m.LeadTimeTotalDias;
       }
       return acc;
     }, {} as Record<string, { fornecedor: string; totalOS: number; custoTotal: number; leadTimeMedia: number; somLeadTime: number }>);
 
     return Object.values(porFornecedor)
+      .filter(f => f.fornecedor) // Garantir que não há undefined
       .map(f => ({
         ...f,
         leadTimeMedia: f.somLeadTime / f.totalOS,
@@ -219,11 +221,12 @@ export default function VisaoGeralTab() {
     if (!manutencoes?.length) return [];
 
     const porModelo = manutencoes.reduce((acc, m) => {
-      if (!acc[m.Modelo]) {
-        acc[m.Modelo] = { modelo: m.Modelo, custoTotal: 0, totalOS: 0 };
+      const modelo = m.Modelo || 'Não informado';
+      if (!acc[modelo]) {
+        acc[modelo] = { modelo, custoTotal: 0, totalOS: 0 };
       }
-      acc[m.Modelo].custoTotal += m.CustoTotalOS || 0;
-      acc[m.Modelo].totalOS++;
+      acc[modelo].custoTotal += m.CustoTotalOS || 0;
+      acc[modelo].totalOS++;
       return acc;
     }, {} as Record<string, { modelo: string; custoTotal: number; totalOS: number }>);
 
@@ -542,8 +545,8 @@ export default function VisaoGeralTab() {
                   onClick={(e) => handleChartElementClick('fornecedores', forn.fornecedor, e)}
                   title="Clique para filtrar • Ctrl+Clique para múltipla seleção"
                 >
-                  <Text className="font-bold text-xs truncate" title={forn.fornecedor}>
-                    {forn.fornecedor.substring(0, 20)}
+                  <Text className="font-bold text-xs truncate" title={forn.fornecedor || ''}>
+                    {(forn.fornecedor || 'N/A').substring(0, 20)}
                   </Text>
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center justify-between">
