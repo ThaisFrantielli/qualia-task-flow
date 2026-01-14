@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Card,
   Title,
@@ -6,111 +6,63 @@ import {
   Metric,
   BarChart,
 } from '@tremor/react';
+import useBIData from '@/hooks/useBIData';
 
-type AnyObject = { [k: string]: any };
+type AnyObject = { [k: string]: unknown };
 
 export default function AnalyticsPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [vehicles, setVehicles] = useState<AnyObject[]>([]);
-  const [categoryKey, setCategoryKey] = useState<string | null>(null);
+  const { data: rawData, loading, error } = useBIData<AnyObject[]>('dim_frota');
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const url = `https://apqrjkobktjcyrxhqwtm.supabase.co/storage/v1/object/public/bi-reports/dashboard_data.json?t=${new Date().getTime()}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-
-        // Log completo para inspeção da estrutura (conforme solicitado)
-        console.log('Dashboard JSON:', json);
-
-        // Tenta localizar o array de veículos em várias posições possíveis
-        let v: AnyObject[] = [];
-        if (json == null) v = [];
-        else if (Array.isArray(json)) v = json;
-        else if (Array.isArray(json.data)) v = json.data;
-        else if (json.data && Array.isArray(json.data.veiculos)) v = json.data.veiculos;
-        else if (Array.isArray(json.veiculos)) v = json.veiculos;
-        else {
-          // procura a primeira propriedade que seja um array e cujo nome contenha 'veicul' ou 'vehicle'
-          const keys = Object.keys(json || {});
-          for (const k of keys) {
-            if (Array.isArray((json as AnyObject)[k])) {
-              const lk = k.toLowerCase();
-              if (lk.includes('veicul') || lk.includes('vehicle') || lk.includes('ve') ) {
-                v = (json as AnyObject)[k];
-                break;
-              }
-            }
-          }
-        }
-
-        if (!cancelled) {
-          setVehicles(v || []);
-          // log primeiro item para inspeção detalhada
-          if (v && v.length > 0) console.log('Dados carregados:', v[0]);
-
-          // detectar chave de categoria preferida
-          const preferred = ['modelo', 'marca', 'status', 'model', 'brand'];
-          let key: string | null = null;
-          if (v && v.length > 0) {
-            key = preferred.find((p) => p in v[0]) || null;
-            if (!key) {
-              // escolher a primeira propriedade string como fallback
-              key = Object.keys(v[0]).find((k) => typeof v[0][k] === 'string') || null;
-            }
-          }
-          setCategoryKey(key);
-        }
-      } catch (err: any) {
-        setError(err?.message ?? String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const vehicles = useMemo(() => {
+    if (!rawData) return [];
+    if (Array.isArray(rawData)) return rawData;
+    return [];
+  }, [rawData]);
 
   const totalVehicles = vehicles.length;
 
+  // Detectar chave de categoria preferida
+  const categoryKey = useMemo(() => {
+    const preferred = ['Modelo', 'Montadora', 'Status', 'modelo', 'marca', 'status'];
+    if (vehicles.length === 0) return null;
+    const firstItem = vehicles[0];
+    return preferred.find((p) => p in firstItem) || 
+           Object.keys(firstItem).find((k) => typeof firstItem[k] === 'string') || 
+           null;
+  }, [vehicles]);
+
   // Agrupa por categoryKey
-  const chartData = React.useMemo(() => {
-    if (!categoryKey) return [] as AnyObject[];
+  const chartData = useMemo(() => {
+    if (!categoryKey) return [];
     const map: Record<string, number> = {};
     vehicles.forEach((row) => {
-      const k = row[categoryKey] ?? 'Unknown';
+      const k = row[categoryKey] ?? 'Desconhecido';
       const label = String(k);
       map[label] = (map[label] || 0) + 1;
     });
-    return Object.entries(map).map(([category, count]) => ({ category, count }));
+    return Object.entries(map)
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15); // Top 15
   }, [vehicles, categoryKey]);
 
   return (
-    <div style={{ padding: 16 }}>
+    <div className="p-4 space-y-4">
       <Title>Analytics / BI - Veículos</Title>
 
-      <Card style={{ marginTop: 12 }}>
+      <Card className="mt-3">
         <Text>Resumo</Text>
-        {loading && <Text>Loading...</Text>}
-        {error && <Text style={{ color: 'red' }}>Erro: {error}</Text>}
+        {loading && <Text>Carregando...</Text>}
+        {error && <Text className="text-red-500">Erro: {error}</Text>}
         {!loading && !error && (
-          <div>
-            <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-              <Card>
+          <div className="flex flex-col gap-6">
+            <div className="flex gap-6 items-start flex-wrap">
+              <Card className="w-fit">
                 <Text>Total de Veículos</Text>
-                <Metric>{totalVehicles}</Metric>
+                <Metric>{totalVehicles.toLocaleString('pt-BR')}</Metric>
               </Card>
 
-              <div style={{ flex: 1 }}>
+              <div className="flex-1 min-w-[300px]">
                 {categoryKey ? (
                   <>
                     <Text>Distribuição por: {categoryKey}</Text>
@@ -119,11 +71,12 @@ export default function AnalyticsPage() {
                       index="category"
                       categories={["count"]}
                       colors={["blue"]}
-                      valueFormatter={(v: number) => String(v)}
+                      valueFormatter={(v: number) => v.toLocaleString('pt-BR')}
+                      className="h-64"
                     />
                   </>
                 ) : (
-                  <Text>Não foi possível detectar uma coluna de categoria automaticamente. Confira o console.log(data) para inspecionar a estrutura.</Text>
+                  <Text>Não foi possível detectar uma coluna de categoria automaticamente.</Text>
                 )}
               </div>
             </div>
