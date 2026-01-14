@@ -1,5 +1,5 @@
 // supabase/functions/query-local-db/index.ts
-// Edge Function que serve como ponte segura para o banco de dados local via Playit.gg
+// Edge Function que serve como ponte segura para o banco de dados Neon
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
@@ -44,8 +44,8 @@ const ALLOWED_TABLES = [
   "fat_vendas",
   "fat_lancamentos",
   "fat_propostas",
-  // Histórico
-  "hist_vida_veiculo_timeline",
+  // Histórico - DESABILITADO (muito grande)
+  // "hist_vida_veiculo_timeline",
   "historico_situacao_veiculos",
   // Outros
   "alienacoes",
@@ -61,6 +61,20 @@ const ALLOWED_TABLES = [
   "vw_dashboard_manutencao",
 ];
 
+// Limites específicos por tabela (registros máximos)
+const TABLE_LIMITS: Record<string, number> = {
+  "fat_manutencao_unificado": 15000,
+  "fat_movimentacao_ocorrencias": 15000,
+  "fat_multas": 15000,
+  "fat_sinistros": 10000,
+  "dim_frota": 10000,
+  "dim_contratos_locacao": 10000,
+};
+
+// Cache em memória simples (por instância)
+const cache = new Map<string, { data: unknown; timestamp: number }>();
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
+
 // Pool de conexões - será inicializado sob demanda
 let pool: Pool | null = null;
 
@@ -70,7 +84,7 @@ function getPool(): Pool {
     if (!connectionString) {
       throw new Error("LOCAL_DB_URL não configurada");
     }
-    pool = new Pool(connectionString, 3, true);
+    pool = new Pool(connectionString, 2, true); // Reduzido para 2 conexões
   }
   return pool;
 }
@@ -91,36 +105,46 @@ serve(async (req) => {
 
     const normalizedTable = tableName.toLowerCase().trim();
     if (!ALLOWED_TABLES.includes(normalizedTable)) {
-      throw new Error(`Tabela '${tableName}' não permitida. Tabelas disponíveis: ${ALLOWED_TABLES.join(", ")}`);
+      throw new Error(`Tabela '${tableName}' não permitida`);
     }
 
-    // Construir query com paginação opcional
+    // Verificar cache
+    const cacheKey = `${normalizedTable}_${JSON.stringify(filters || {})}`;
+    const cached = cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      console.log(`[query-local-db] Cache HIT para '${normalizedTable}'`);
+      return new Response(
+        JSON.stringify(cached.data),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            "X-Cache": "HIT",
+          } 
+        }
+      );
+    }
+
+    // Determinar limite para esta tabela
+    const tableLimit = TABLE_LIMITS[normalizedTable] || 10000;
+    const maxLimit = 15000;
+    const effectiveLimit = Math.min(limit || tableLimit, maxLimit);
+
+    // Construir query com paginação
     let query = `SELECT * FROM ${normalizedTable}`;
     
-    // Adicionar filtros básicos se fornecidos (ex: { "ano": 2024 })
+    // Adicionar filtros básicos se fornecidos
     if (filters && typeof filters === "object" && Object.keys(filters).length > 0) {
       const conditions = Object.entries(filters)
-        .map(([key, value], idx) => {
-          // Sanitizar nome da coluna (apenas letras, números e underscore)
+        .map(([key], idx) => {
           const safeKey = key.replace(/[^a-zA-Z0-9_]/g, "");
           return `${safeKey} = $${idx + 1}`;
         });
       query += ` WHERE ${conditions.join(" AND ")}`;
     }
 
-    // Ordenação padrão se existir coluna de data
-    query += ` ORDER BY 1`;
-
-    // Paginação - aplicar limite padrão para tabelas grandes
-    const defaultLimit = 25000; // Limite padrão para evitar CPU timeout
-    const maxLimit = 50000;
+    query += ` ORDER BY 1 LIMIT ${effectiveLimit}`;
     
-    if (limit && Number.isInteger(limit) && limit > 0) {
-      query += ` LIMIT ${Math.min(limit, maxLimit)}`;
-    } else {
-      // Aplicar limite padrão se não especificado
-      query += ` LIMIT ${defaultLimit}`;
-    }
     if (offset && Number.isInteger(offset) && offset >= 0) {
       query += ` OFFSET ${offset}`;
     }
@@ -132,30 +156,34 @@ serve(async (req) => {
     const connection = await dbPool.connect();
 
     try {
-      // Executar query
       const filterValues = filters ? Object.values(filters) : [];
       const result = await connection.queryObject(query, filterValues);
       
-      console.log(`[query-local-db] ${result.rows.length} registros retornados de '${normalizedTable}'`);
+      console.log(`[query-local-db] ${result.rows.length} registros de '${normalizedTable}'`);
+
+      const responseData = {
+        success: true,
+        data: result.rows,
+        count: result.rows.length,
+        table: normalizedTable,
+        timestamp: new Date().toISOString(),
+        limited: result.rows.length >= effectiveLimit,
+      };
+
+      // Salvar no cache
+      cache.set(cacheKey, { data: responseData, timestamp: Date.now() });
 
       return new Response(
-        JSON.stringify({
-          success: true,
-          data: result.rows,
-          count: result.rows.length,
-          table: normalizedTable,
-          timestamp: new Date().toISOString(),
-        }),
+        JSON.stringify(responseData),
         { 
           headers: { 
             ...corsHeaders, 
             "Content-Type": "application/json",
-            "Cache-Control": "public, max-age=300", // Cache de 5 minutos
+            "X-Cache": "MISS",
           } 
         }
       );
     } finally {
-      // Sempre liberar a conexão de volta para o pool
       connection.release();
     }
 
@@ -172,7 +200,7 @@ serve(async (req) => {
         success: false,
         error: errorMessage,
         hint: isConnectionError 
-          ? "Verifique se o túnel Playit.gg está ativo e o PostgreSQL local está rodando"
+          ? "Verifique se o banco Neon está acessível"
           : undefined,
       }),
       { 
