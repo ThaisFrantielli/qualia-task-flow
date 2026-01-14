@@ -55,6 +55,7 @@ serve(async (req) => {
 
       if (mode === 'aggregated') {
         // Modo agregado: retorna KPIs por veículo
+        // Usa colunas corretas: ValorCompra, KM (não ValorAquisicao, KmAtual)
         const query = `
           WITH timeline_stats AS (
             SELECT 
@@ -77,8 +78,8 @@ serve(async (req) => {
             f."Modelo",
             f."Montadora",
             f."Status",
-            f."ValorAquisicao",
-            f."KmAtual"
+            f."ValorCompra" as "ValorAquisicao",
+            f."KM" as "KmAtual"
           FROM timeline_stats ts
           LEFT JOIN dim_frota f ON ts."Placa" = f."Placa"
           ORDER BY ts."Placa"
@@ -91,8 +92,9 @@ serve(async (req) => {
           
       } else if (mode === 'recent') {
         // Modo recente: últimos 12 meses de eventos
+        // Usa apenas colunas que existem na tabela
         const query = `
-          SELECT "Placa", "TipoEvento", "DataEvento", "Detalhe1", "Detalhe2", "ValorEvento"
+          SELECT "Placa", "TipoEvento", "DataEvento"
           FROM hist_vida_veiculo_timeline
           WHERE "DataEvento" >= CURRENT_DATE - INTERVAL '12 months'
           ${placa ? `AND "Placa" = $1` : ''}
@@ -107,7 +109,7 @@ serve(async (req) => {
       } else if (mode === 'vehicle' && placa) {
         // Modo veículo específico: todos os eventos de uma placa
         const query = `
-          SELECT "Placa", "TipoEvento", "DataEvento", "Detalhe1", "Detalhe2", "ValorEvento"
+          SELECT "Placa", "TipoEvento", "DataEvento"
           FROM hist_vida_veiculo_timeline
           WHERE "Placa" = $1
           ORDER BY "DataEvento" DESC
