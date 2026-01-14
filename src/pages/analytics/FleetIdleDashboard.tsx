@@ -31,11 +31,13 @@ const getCategory = (status: string) => {
 };
 
 export default function FleetIdleDashboard(): JSX.Element {
-  const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota.json');
-  const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
-  const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
-  const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos.json');
-  const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos.json');
+  const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota');
+  // Desabilitado temporariamente - tabela muito grande (106k registros) causa CPU timeout
+  // const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline');
+  const timelineData: AnyObject[] = []; // Placeholder até implementar paginação
+  const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
+  const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
+  const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
   const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);

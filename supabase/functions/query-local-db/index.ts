@@ -109,11 +109,17 @@ serve(async (req) => {
     }
 
     // Ordenação padrão se existir coluna de data
-    query += ` ORDER BY 1`; // Ordena pela primeira coluna
+    query += ` ORDER BY 1`;
 
-    // Paginação
+    // Paginação - aplicar limite padrão para tabelas grandes
+    const defaultLimit = 25000; // Limite padrão para evitar CPU timeout
+    const maxLimit = 50000;
+    
     if (limit && Number.isInteger(limit) && limit > 0) {
-      query += ` LIMIT ${Math.min(limit, 50000)}`; // Max 50k registros por vez
+      query += ` LIMIT ${Math.min(limit, maxLimit)}`;
+    } else {
+      // Aplicar limite padrão se não especificado
+      query += ` LIMIT ${defaultLimit}`;
     }
     if (offset && Number.isInteger(offset) && offset >= 0) {
       query += ` OFFSET ${offset}`;
