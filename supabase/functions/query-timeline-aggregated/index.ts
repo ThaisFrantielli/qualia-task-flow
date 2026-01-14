@@ -27,6 +27,18 @@ function getPool(): Pool {
   return pool;
 }
 
+// Converte BigInt para Number para serialização JSON
+function serializableData(rows: unknown[]): unknown[] {
+  return rows.map(row => {
+    if (typeof row !== 'object' || row === null) return row;
+    const newRow: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+      newRow[key] = typeof value === 'bigint' ? Number(value) : value;
+    }
+    return newRow;
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -123,10 +135,13 @@ serve(async (req) => {
 
       console.log(`[query-timeline-aggregated] ${result.rows.length} registros (mode=${mode})`);
 
+      // Converter BigInt para Number antes de serializar
+      const safeRows = serializableData(result.rows);
+      
       const responseData = {
         success: true,
-        data: result.rows,
-        count: result.rows.length,
+        data: safeRows,
+        count: safeRows.length,
         mode,
         timestamp: new Date().toISOString(),
       };
