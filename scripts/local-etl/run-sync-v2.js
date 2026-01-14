@@ -438,13 +438,13 @@ const CONSOLIDATED = [
                 ISNULL(c.NomeFantasia, 'Sem Cliente Vinculado'), NULL,
                 s.SituacaoOcorrencia,
                 FORMAT(s.DataSinistro, 'yyyy-MM-dd'), NULL, FORMAT(s.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
-                NULL, LEFT(s.Observacoes, 150),
+                NULL, LEFT(COALESCE(s.Descricao, s.Observacoes, ''), 150),
                 NULL, NULL, NULL,
-                ${castM('s.ValorOrcamento')}, -- Corrigido para ValorOrcamento
+                ${castM('s.ValorOrcamento')},
                 s.BoletimOcorrencia, 
                 s.Tipo, NULL, NULL
             FROM Veiculos v WITH (NOLOCK)
-            INNER JOIN OcorrenciasSinistro s WITH (NOLOCK) ON s.Placa = v.Placa
+            INNER JOIN OcorrenciasSinistro s WITH (NOLOCK) ON s.IdVeiculo = v.IdVeiculo
             LEFT JOIN Clientes c WITH (NOLOCK) ON c.IdCliente = s.IdCliente
             WHERE s.DataSinistro IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
@@ -1406,7 +1406,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
 
         // ========== UPLOAD PARA SUPABASE STORAGE (ASSÍNCRONO) ==========
-        queueUpload(tableName, finalData, year, month);
+        // queueUpload(tableName, finalData, year, month);
 
     } catch (err) {
         console.error(`      ❌ ${progressStr} Erro PostgreSQL (${tableName}):`, err.message);
@@ -1489,47 +1489,154 @@ async function runMasterETL() {
             },
             {
                 table: 'fat_ocorrencias_master',
-                queryGen: (year) => `SELECT 'Manutencao' as Classe, Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia as Status, FORMAT(DataCriacao, 'yyyy-MM-dd') as Data, ${castM('0')} as Valor FROM OcorrenciasManutencao WHERE YEAR(DataCriacao) = ${year} UNION ALL SELECT 'Sinistro', Ocorrencia, Placa, Descricao, 'Acidente', SituacaoOcorrencia, FORMAT(DataSinistro, 'yyyy-MM-dd'), ${castM('ValorOrcamento')} FROM OcorrenciasSinistro WHERE YEAR(DataSinistro) = ${year} UNION ALL SELECT 'Multa', Ocorrencia, Placa, DescricaoInfracao, OrgaoAutuador, SituacaoOcorrencia, FORMAT(DataInfracao, 'yyyy-MM-dd'), ${castM('ValorInfracao')} FROM OcorrenciasInfracoes WHERE YEAR(DataInfracao) = ${year} UNION ALL SELECT 'Devolucao', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, FORMAT(DataConclusaoOcorrencia, 'yyyy-MM-dd'), ${castM('ValorTotal')} FROM OcorrenciasDevolucao WHERE YEAR(DataConclusaoOcorrencia) = ${year} UNION ALL SELECT 'Reserva', Ocorrencia, Placa, ModeloVeiculoReserva, Motivo, SituacaoOcorrencia, FORMAT(DataRetiradaEfetiva, 'yyyy-MM-dd'), ${castM('DiariasEfetivas')} FROM OcorrenciasVeiculoTemporario WHERE YEAR(DataRetiradaEfetiva) = ${year}`
+                queryGen: (year) => `
+                    SELECT 'Manutencao' as Classe, Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia as Status, FORMAT(DataCriacao, 'yyyy-MM-dd') as Data, ${castM('0')} as Valor 
+                    FROM OcorrenciasManutencao WITH (NOLOCK)
+                    WHERE YEAR(DataCriacao) = ${year} 
+                    
+                    UNION ALL 
+                    
+                    SELECT 'Sinistro', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, FORMAT(DataSinistro, 'yyyy-MM-dd'), ${castM('ValorOrcamento')} 
+                    FROM OcorrenciasSinistro WITH (NOLOCK)
+                    WHERE YEAR(DataSinistro) = ${year} AND DataSinistro IS NOT NULL
+                    
+                    UNION ALL 
+                    
+                    SELECT 'Multa', Ocorrencia, Placa, DescricaoInfracao, OrgaoAutuador, SituacaoOcorrencia, FORMAT(DataInfracao, 'yyyy-MM-dd'), ${castM('ValorInfracao')} 
+                    FROM OcorrenciasInfracoes WITH (NOLOCK)
+                    WHERE YEAR(DataInfracao) = ${year} 
+                    
+                    UNION ALL 
+                    
+                    SELECT 'Devolucao', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, FORMAT(DataConclusaoOcorrencia, 'yyyy-MM-dd'), ${castM('ValorTotal')} 
+                    FROM OcorrenciasDevolucao WITH (NOLOCK)
+                    WHERE YEAR(DataConclusaoOcorrencia) = ${year} 
+                    
+                    UNION ALL 
+                    
+                    SELECT 'Reserva', Ocorrencia, Placa, ModeloVeiculoReserva, Motivo, SituacaoOcorrencia, FORMAT(DataRetiradaEfetiva, 'yyyy-MM-dd'), ${castM('DiariasEfetivas')} 
+                    FROM OcorrenciasVeiculoTemporario WITH (NOLOCK)
+                    WHERE YEAR(DataRetiradaEfetiva) = ${year}`
             },
             {
                 table: 'fat_sinistros',
                 queryGen: (year) => `SELECT 
                     os.IdOcorrencia,
-                    os.Ocorrencia,
                     os.Ocorrencia as NumeroOcorrencia,
                     os.IdVeiculo,
-                    os.Placa, 
+                    os.Placa,
+                    
+                    -- Datas principais
+                    FORMAT(os.DataCriacao, 'yyyy-MM-dd HH:mm:ss') as DataCriacao,
                     FORMAT(os.DataSinistro, 'yyyy-MM-dd HH:mm:ss') as DataSinistro,
                     FORMAT(os.DataSinistro, 'yyyy-MM-dd HH:mm:ss') as DataOcorrencia,
-                    FORMAT(os.DataAberturaOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataAberturaOcorrencia,
                     FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
-                    FORMAT(os.DataAgendamentoAtendimento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
-                    FORMAT(os.DataLiberacao, 'yyyy-MM-dd HH:mm:ss') as DataLiberacao,
-                    os.Descricao,
+                    FORMAT(os.DataAgendamento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
+                    FORMAT(os.DataRetirada, 'yyyy-MM-dd HH:mm:ss') as DataRetirada,
+                    FORMAT(os.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
+                    FORMAT(os.DataPrevisaoConclusaoServico, 'yyyy-MM-dd HH:mm:ss') as DataPrevisaoConclusao,
+                    FORMAT(os.DataConclusaoServico, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoServico,
+                    FORMAT(os.CanceladoEm, 'yyyy-MM-dd HH:mm:ss') as DataCancelamento,
+                    
+                    -- Status e classificações
+                    os.IdSituacaoOcorrencia,
                     os.SituacaoOcorrencia as Status,
-                    ${castM('os.ValorOrcamento')} as ValorOrcado, 
-                    os.BoletimOcorrencia,
-                    os.ApoliceSeguro,
+                    os.IdEtapa,
+                    os.Etapa,
+                    os.IdTipo,
+                    os.Tipo as TipoSinistro,
+                    os.IdMotivo,
+                    os.Motivo,
+                    os.Origem,
+                    
+                    -- Contrato e Cliente
+                    os.IdContratoLocacao,
+                    os.ContratoLocacao,
+                    os.IdContratoComercial,
+                    os.ContratoComercial,
+                    os.IdClassificacaoContrato,
+                    os.ClassificacaoContrato,
+                    os.IdCliente,
+                    COALESCE(os.NomeCliente, cli.NomeFantasia) as Cliente,
+                    
+                    -- Condutor
+                    os.IdCondutor,
                     os.NomeCondutor as Condutor,
-                    os.EmailRequisitante,
-                    os.TelefoneRequisitante,
-                    os.MotoristaCulpado,
-                    os.ResponsavelCulpado,
+                    
+                    -- Fornecedor
+                    os.IdFornecedor,
+                    os.Fornecedor,
+                    
+                    -- Localização do sinistro
+                    os.Endereco,
+                    os.Numero as NumeroEndereco,
+                    os.Complemento,
+                    os.Bairro,
+                    os.Cidade,
+                    os.Estado,
+                    os.Pais,
+                    os.CEP,
+                    CAST(os.Latitude AS FLOAT) as Latitude,
+                    CAST(os.Longitude AS FLOAT) as Longitude,
+                    
+                    -- Local de atendimento
+                    os.LocalAtendimentoEndereco,
+                    os.LocalAtendimentoNumero,
+                    os.LocalAtendimentoComplemento,
+                    os.LocalAtendimentoBairro,
+                    os.LocalAtendimentoCidade,
+                    os.LocalAtendimentoEstado,
+                    os.LocalAtendimentoPais,
+                    os.LocalAtendimentoCEP,
+                    CAST(os.LocalAtendimentoLatitude AS FLOAT) as LocalAtendimentoLatitude,
+                    CAST(os.LocalAtendimentoLongitude AS FLOAT) as LocalAtendimentoLongitude,
+                    
+                    -- Descrições e detalhes
+                    os.Descricao,
+                    os.ParecerMotorista,
+                    os.ParecerResponsavel,
+                    os.Observacoes,
+                    os.ComentariosEncerramento,
+                    
+                    -- Responsabilidade
+                    CAST(ISNULL(os.MotoristaCulpado, 0) AS BIT) as MotoristaCulpado,
+                    CAST(ISNULL(os.ResponsavelCulpado, 0) AS BIT) as ResponsavelCulpado,
+                    
+                    -- Danos (são campos de texto com descrições, não booleanos)
                     os.DanosLataria,
                     os.DanosMotor,
                     os.DanosAcessorios,
                     os.DanosOutros,
-                    os.ContratoLocacao,
-                    cli.NomeFantasia as Cliente,
-                    os.Latitude,
-                    os.Longitude,
-                    os.Cidade,
-                    os.Estado
-                FROM OcorrenciasSinistro os 
-                LEFT JOIN ContratosLocacao cl ON os.Placa = cl.PlacaPrincipal 
-                LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial 
-                LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente 
-                WHERE YEAR(os.DataSinistro) = ${year}`
+                    
+                    -- Valores monetários
+                    ${castM('os.ValorOrcamento')} as ValorOrcado,
+                    ${castM('os.ReembolsoTerceiro')} as ReembolsoTerceiro,
+                    ${castM('os.IndenizacaoSeguradora')} as IndenizacaoSeguradora,
+                    
+                    -- Documentos e referências
+                    os.BoletimOcorrencia,
+                    os.ApoliceSeguro,
+                    os.ReparoIndenizacao,
+                    CAST(ISNULL(os.OdometroAtual, 0) AS INT) as OdometroAtual,
+                    
+                    -- Requisitante
+                    os.NomeRequisitante,
+                    os.EmailRequisitante,
+                    os.TelefoneRequisitante,
+                    
+                    -- Cancelamento
+                    os.CanceladoPor,
+                    os.MotivoCancelamento,
+                    
+                    -- Outros
+                    os.IdUsuarioCriacao,
+                    os.IdJustificativa,
+                    os.IdFilialOperacional
+                    
+                FROM OcorrenciasSinistro os WITH (NOLOCK)
+                LEFT JOIN Clientes cli WITH (NOLOCK) ON os.IdCliente = cli.IdCliente
+                WHERE os.DataSinistro IS NOT NULL 
+                    AND YEAR(os.DataSinistro) = ${year}`
             },
             {
                 table: 'fat_multas',
@@ -1583,7 +1690,7 @@ async function runMasterETL() {
             processQuery(pgClient, sqlPool, dim.table, dim.query, false, getProgress())
         );
         await Promise.all(dimPromises);
-        await flushUploads(); // Aguardar uploads das dimensões
+        // await flushUploads(); // Aguardar uploads das dimensões
 
         console.log(`\n📅 FASE 2: Processando Fatos Anuais (${factDefs.length * years.length} etapas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
@@ -1606,7 +1713,7 @@ async function runMasterETL() {
                 await Promise.all(yearPromises);
             }
         }
-        await flushUploads(); // Aguardar uploads dos fatos
+        // await flushUploads(); // Aguardar uploads dos fatos
 
         console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
@@ -1635,7 +1742,7 @@ async function runMasterETL() {
                 await Promise.all(monthPromises);
             }
         }
-        await flushUploads(); // Aguardar uploads financeiros
+        // await flushUploads(); // Aguardar uploads financeiros
 
         console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
@@ -1650,7 +1757,7 @@ async function runMasterETL() {
         }
 
         // Aguardar todos os uploads restantes
-        await flushUploads();
+        // await flushUploads();
 
         // ========== FINALIZAÇÃO ==========
         console.log(`\n${'='.repeat(80)}`);
