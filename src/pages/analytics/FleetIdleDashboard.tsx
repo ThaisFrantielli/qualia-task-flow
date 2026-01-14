@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
+import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, Users, MapPin, Clock, DollarSign, HelpCircle } from 'lucide-react';
@@ -32,15 +33,14 @@ const getCategory = (status: string) => {
 
 export default function FleetIdleDashboard(): JSX.Element {
   const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota');
-  // Desabilitado temporariamente - tabela muito grande (106k registros) causa CPU timeout
-  // const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline');
-  const timelineData: AnyObject[] = []; // Placeholder até implementar paginação
+  // Timeline via Edge Function otimizada
+  const { data: timelineRecent } = useTimelineData('recent');
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
   const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
   const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
-  const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
+  const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
   const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
   const historicoSituacao = useMemo(() => Array.isArray(historicoSituacaoRaw) ? historicoSituacaoRaw : [], [historicoSituacaoRaw]);
