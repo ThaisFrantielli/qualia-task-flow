@@ -67,20 +67,19 @@ serve(async (req) => {
 
       if (mode === 'aggregated') {
         // Modo agregado: retorna KPIs por veículo
-        // Usa colunas corretas: ValorCompra, KM (não ValorAquisicao, KmAtual)
-        // IMPORTANTE: Usar campos originais do ETL (Data, Evento) + aliases
+        // Colunas corretas do ETL: TipoEvento, DataEvento (sem aliases)
         const query = `
           WITH timeline_stats AS (
             SELECT 
               "Placa",
-              MIN(CASE WHEN COALESCE("TipoEvento", "Evento") IN ('Compra', 'COMPRA') THEN COALESCE("DataEvento", "Data") END) as data_compra,
-              MAX(CASE WHEN COALESCE("TipoEvento", "Evento") IN ('Venda', 'VENDA') THEN COALESCE("DataEvento", "Data") END) as data_venda,
-              COUNT(CASE WHEN COALESCE("TipoEvento", "Evento") IN ('Início Locação', 'InicioLocacao', 'LOCAÇÃO', 'Locação') THEN 1 END) as qtd_locacoes,
-              COUNT(CASE WHEN COALESCE("TipoEvento", "Evento") IN ('Entrada Manutenção', 'EntradaManutencao', 'Chegada', 'MANUTENÇÃO', 'Manutenção') THEN 1 END) as qtd_manutencoes,
-              COUNT(CASE WHEN COALESCE("TipoEvento", "Evento") IN ('Sinistro', 'Acidente', 'SINISTRO') THEN 1 END) as qtd_sinistros,
+              MIN(CASE WHEN "TipoEvento" IN ('COMPRA', 'Compra') THEN "DataEvento" END) as data_compra,
+              MAX(CASE WHEN "TipoEvento" IN ('VENDA', 'Venda') THEN "DataEvento" END) as data_venda,
+              COUNT(CASE WHEN "TipoEvento" IN ('LOCACAO', 'Locação', 'Início Locação', 'InicioLocacao') THEN 1 END) as qtd_locacoes,
+              COUNT(CASE WHEN "TipoEvento" IN ('MANUTENCAO', 'Manutenção', 'Entrada Manutenção', 'EntradaManutencao') THEN 1 END) as qtd_manutencoes,
+              COUNT(CASE WHEN "TipoEvento" IN ('SINISTRO', 'Sinistro', 'Acidente') THEN 1 END) as qtd_sinistros,
               COUNT(*) as total_eventos,
-              MIN(COALESCE("DataEvento", "Data")) as primeiro_evento,
-              MAX(COALESCE("DataEvento", "Data")) as ultimo_evento
+              MIN("DataEvento") as primeiro_evento,
+              MAX("DataEvento") as ultimo_evento
             FROM hist_vida_veiculo_timeline
             ${placa ? `WHERE "Placa" = $1` : ''}
             GROUP BY "Placa"
@@ -105,24 +104,20 @@ serve(async (req) => {
           
       } else if (mode === 'recent') {
         // Modo recente: últimos 12 meses de eventos
-        // Retornar todos os campos disponíveis para enriquecer a timeline
-        // IMPORTANTE: Usar campos originais do ETL (Data, Evento) + aliases compatíveis
+        // Colunas corretas do ETL: Placa, TipoEvento, DataEvento, Modelo, Cliente, etc.
         const query = `
           SELECT 
             "Placa", 
-            COALESCE("TipoEvento", "Evento") as "TipoEvento",
-            COALESCE("DataEvento", "Data") as "DataEvento",
-            "Data",
-            "Evento",
-            COALESCE("ValorEvento", "Valor") as "ValorEvento",
-            "Valor",
+            "TipoEvento",
+            "DataEvento",
             "Modelo",
-            NULL as "Detalhe1",
-            NULL as "Detalhe2"
+            "Cliente",
+            "Situacao",
+            "Observacao"
           FROM hist_vida_veiculo_timeline
-          WHERE COALESCE("DataEvento", "Data") >= CURRENT_DATE - INTERVAL '12 months'
+          WHERE "DataEvento" >= CURRENT_DATE - INTERVAL '12 months'
           ${placa ? `AND "Placa" = $1` : ''}
-          ORDER BY COALESCE("DataEvento", "Data") DESC
+          ORDER BY "DataEvento" DESC
           LIMIT 15000
         `;
         
@@ -132,22 +127,23 @@ serve(async (req) => {
           
       } else if (mode === 'vehicle' && placa) {
         // Modo veículo específico: todos os eventos de uma placa com todos os detalhes
-        // IMPORTANTE: Usar campos originais do ETL (Data, Evento) + aliases compatíveis
         const query = `
           SELECT 
             "Placa", 
-            COALESCE("TipoEvento", "Evento") as "TipoEvento",
-            COALESCE("DataEvento", "Data") as "DataEvento",
-            "Data",
-            "Evento",
-            COALESCE("ValorEvento", "Valor") as "ValorEvento",
-            "Valor",
+            "TipoEvento",
+            "DataEvento",
             "Modelo",
-            NULL as "Detalhe1",
-            NULL as "Detalhe2"
+            "Marca",
+            "Cliente",
+            "Situacao",
+            "ValorMensal",
+            "CustoTotal",
+            "Observacao",
+            "ContratoLocacao",
+            "Fornecedor"
           FROM hist_vida_veiculo_timeline
           WHERE "Placa" = $1
-          ORDER BY COALESCE("DataEvento", "Data") DESC
+          ORDER BY "DataEvento" DESC
           LIMIT 1000
         `;
         
