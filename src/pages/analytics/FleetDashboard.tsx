@@ -113,48 +113,23 @@ const MultiSelect = ({ options, selected, onChange, label }: { options: string[]
 };
 
 export default function FleetDashboard(): JSX.Element {
-    const { data: frotaData } = useBIData<AnyObject[]>('dim_frota.json');
-    const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado.json');
-    const { data: movimentacoesData } = useBIData<AnyObject[]>('fat_movimentacao_ocorrencias.json'); // Novo: para cálculo de dias manutenção
-    const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline.json');
-    const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva.json');
-    const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios.json');
-    const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos.json');
-    const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
+    const { data: frotaData } = useBIData<AnyObject[]>('dim_frota');
+    const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado');
+    const { data: movimentacoesData } = useBIData<AnyObject[]>('fat_movimentacao_ocorrencias');
+    // Desabilitado temporariamente - tabela muito grande (106k registros) causa CPU timeout
+    // const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline');
+    const timelineData: AnyObject[] = []; // Placeholder até implementar paginação
+    const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva');
+    const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
+    const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
+    const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao');
 
-    // Carregar fat_sinistros anuais (2022-2026) e combinar
-    const { data: sinistros2022 } = useBIData<AnyObject[]>('fat_sinistros_2022.json');
-    const { data: sinistros2023 } = useBIData<AnyObject[]>('fat_sinistros_2023.json');
-    const { data: sinistros2024 } = useBIData<AnyObject[]>('fat_sinistros_2024.json');
-    const { data: sinistros2025 } = useBIData<AnyObject[]>('fat_sinistros_2025.json');
-    const { data: sinistros2026 } = useBIData<AnyObject[]>('fat_sinistros_2026.json');
+    // Carregar fat_sinistros e fat_multas consolidados (tabelas únicas no Neon)
+    const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros');
+    const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas');
 
-    // Carregar fat_multas anuais (2022-2026) e combinar
-    const { data: multas2022 } = useBIData<AnyObject[]>('fat_multas_2022.json');
-    const { data: multas2023 } = useBIData<AnyObject[]>('fat_multas_2023.json');
-    const { data: multas2024 } = useBIData<AnyObject[]>('fat_multas_2024.json');
-    const { data: multas2025 } = useBIData<AnyObject[]>('fat_multas_2025.json');
-    const { data: multas2026 } = useBIData<AnyObject[]>('fat_multas_2026.json');
-
-    const sinistrosData = useMemo(() => {
-        const all: AnyObject[] = [];
-        if (Array.isArray(sinistros2022)) all.push(...sinistros2022);
-        if (Array.isArray(sinistros2023)) all.push(...sinistros2023);
-        if (Array.isArray(sinistros2024)) all.push(...sinistros2024);
-        if (Array.isArray(sinistros2025)) all.push(...sinistros2025);
-        if (Array.isArray(sinistros2026)) all.push(...sinistros2026);
-        return all;
-    }, [sinistros2022, sinistros2023, sinistros2024, sinistros2025, sinistros2026]);
-
-    const multasData = useMemo(() => {
-        const all: AnyObject[] = [];
-        if (Array.isArray(multas2022)) all.push(...multas2022);
-        if (Array.isArray(multas2023)) all.push(...multas2023);
-        if (Array.isArray(multas2024)) all.push(...multas2024);
-        if (Array.isArray(multas2025)) all.push(...multas2025);
-        if (Array.isArray(multas2026)) all.push(...multas2026);
-        return all;
-    }, [multas2022, multas2023, multas2024, multas2025, multas2026]);
+    const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
+    const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);
 
     const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
     const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
