@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
+import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
@@ -116,9 +117,11 @@ export default function FleetDashboard(): JSX.Element {
     const { data: frotaData } = useBIData<AnyObject[]>('dim_frota');
     const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado');
     const { data: movimentacoesData } = useBIData<AnyObject[]>('fat_movimentacao_ocorrencias');
-    // Desabilitado temporariamente - tabela muito grande (106k registros) causa CPU timeout
-    // const { data: timelineData } = useBIData<AnyObject[]>('hist_vida_veiculo_timeline');
-    const timelineData: AnyObject[] = []; // Placeholder até implementar paginação
+    
+    // Timeline agregada via Edge Function otimizada
+    const { data: timelineAggregated } = useTimelineData('aggregated');
+    const { data: timelineRecent } = useTimelineData('recent');
+    
     const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva');
     const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
     const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
@@ -134,7 +137,12 @@ export default function FleetDashboard(): JSX.Element {
     const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
     const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
     const movimentacoes = useMemo(() => (movimentacoesData as any)?.data || movimentacoesData || [], [movimentacoesData]);
-    const timeline = useMemo(() => Array.isArray(timelineData) ? timelineData : [], [timelineData]);
+    // Usar timeline recente para compatibilidade com componentes existentes
+    const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
+    // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
+    const timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
+    // Log para debug - usar timelineStats em cálculos futuros
+    console.log(`[FleetDashboard] Timeline stats: ${timelineStats.length} veículos agregados`);
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
