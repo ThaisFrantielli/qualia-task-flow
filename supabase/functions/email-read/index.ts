@@ -122,32 +122,38 @@ async function fetchEmailViaIMAP(
           markSeen: markAsRead
         });
 
-        fetch.on('message', (msg: { on: (event: string, handler: (data: unknown, info?: unknown) => void) => void }) => {
+        // deno-lint-ignore no-explicit-any
+        fetch.on('message', (msg: any) => {
           let rawEmail = '';
           let flags: string[] = [];
           let uid = messageUid;
 
-          msg.on('body', (stream: { on: (event: string, handler: (chunk: Buffer) => void) => void }) => {
-            stream.on('data', (chunk: Buffer) => {
+          // deno-lint-ignore no-explicit-any
+          msg.on('body', (stream: any) => {
+            // deno-lint-ignore no-explicit-any
+            stream.on('data', (chunk: any) => {
               rawEmail += chunk.toString('utf8');
             });
           });
 
-          msg.on('attributes', (attrs: { flags: string[], uid: number }) => {
+          // deno-lint-ignore no-explicit-any
+          msg.on('attributes', (attrs: any) => {
             flags = attrs.flags || [];
             uid = attrs.uid;
           });
 
           msg.on('end', async () => {
             try {
-              const parsed = await simpleParser(rawEmail);
+              // deno-lint-ignore no-explicit-any
+              const parsed: any = await simpleParser(rawEmail);
 
               const fromAddr = parsed.from?.value?.[0] || { name: '', address: '' };
               const toAddrs = parsed.to?.value || [];
               const ccAddrs = parsed.cc?.value || [];
 
               // Get attachments info
-              const attachments = parsed.attachments?.map(att => ({
+              // deno-lint-ignore no-explicit-any
+              const attachments = parsed.attachments?.map((att: any) => ({
                 filename: att.filename || 'attachment',
                 contentType: att.contentType || 'application/octet-stream',
                 size: att.size || 0
