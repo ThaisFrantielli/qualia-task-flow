@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import type { BIMetadata } from '@/types/analytics';
 
 type BIResult<T = unknown> = {
@@ -8,6 +9,7 @@ type BIResult<T = unknown> = {
   error: string | null;
   refetch: () => void;
   lastUpdated: Date | null;
+  source: 'live' | 'storage' | null;
 };
 
 const PROJECT_REF = 'apqrjkobktjcyrxhqwtm';
@@ -16,7 +18,7 @@ const YEARS_TO_FETCH = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 
 // Cache para evitar refetches desnecessários
-const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; timestamp: number }>();
+const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; timestamp: number; source: 'live' | 'storage' }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
 // Cache para número de partes por arquivo (evita re-detecção)
@@ -25,6 +27,43 @@ const chunkCountCache = new Map<string, number>();
 // Retry config
 const MAX_RETRIES = 3;
 const RETRY_DELAY_BASE = 1000; // 1 segundo, dobra a cada retry
+
+// Mapeamento de arquivos para tabelas do banco local
+const FILE_TO_TABLE_MAP: Record<string, string> = {
+  'dim_clientes.json': 'dim_clientes',
+  'dim_frota.json': 'dim_frota',
+  'dim_veiculos.json': 'dim_veiculos',
+  'fat_faturamento.json': 'fat_faturamento',
+  'fat_faturamentos.json': 'fat_faturamentos',
+  'fat_financeiro.json': 'fat_financeiro',
+  'fat_financeiro_universal.json': 'fat_financeiro_universal',
+  'fat_manutencoes.json': 'fat_manutencoes',
+  'agg_dre_mensal.json': 'agg_dre_mensal',
+};
+
+// Tenta buscar dados via Edge Function (banco local via Playit.gg)
+async function fetchFromLocalDB(tableName: string): Promise<{ data: unknown; success: boolean }> {
+  try {
+    const { data, error } = await supabase.functions.invoke('query-local-db', {
+      body: { tableName },
+    });
+
+    if (error) {
+      console.warn(`[useBIData] Edge Function erro para '${tableName}':`, error);
+      return { data: null, success: false };
+    }
+
+    if (data?.success && data?.data) {
+      console.log(`✅ [useBIData] Dados LIVE de '${tableName}': ${data.count} registros`);
+      return { data: data.data, success: true };
+    }
+
+    return { data: null, success: false };
+  } catch (err) {
+    console.warn(`[useBIData] Falha ao conectar com banco local para '${tableName}':`, err);
+    return { data: null, success: false };
+  }
+}
 
 async function fetchFile(fileName: string, signal?: AbortSignal, retryCount = 0): Promise<unknown | null> {
   const url = `${BASE_URL}/${fileName}?t=${Date.now()}`;
@@ -70,6 +109,7 @@ export default function useBIData<T = unknown>(
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [source, setSource] = useState<'live' | 'storage' | null>(null);
   const fetchIdRef = useRef(0);
 
   const staleTime = options?.staleTime ?? CACHE_TTL;
@@ -89,6 +129,7 @@ export default function useBIData<T = unknown>(
     if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime) {
       setData(cached.data as T);
       setMetadata(cached.metadata);
+      setSource(cached.source);
       setLastUpdated(new Date(cached.timestamp));
       setLoading(false);
       setError(null);
@@ -101,6 +142,33 @@ export default function useBIData<T = unknown>(
     try {
       let finalData: unknown = null;
       let finalMeta: BIMetadata = {};
+      let finalSource: 'live' | 'storage' = 'storage';
+
+      // ESTRATÉGIA 1: Tentar buscar via Edge Function (banco local via Playit.gg)
+      const tableName = FILE_TO_TABLE_MAP[fileName];
+      if (tableName && !fileName.includes('*')) {
+        const liveResult = await fetchFromLocalDB(tableName);
+        if (liveResult.success && liveResult.data) {
+          finalData = liveResult.data;
+          finalMeta.source = 'live';
+          finalMeta.generated_at = new Date().toISOString();
+          finalSource = 'live';
+          
+          // Update state and cache
+          if (fetchId === fetchIdRef.current) {
+            const now = Date.now();
+            dataCache.set(fileName, { data: finalData, metadata: finalMeta, timestamp: now, source: finalSource });
+            setData(finalData as T);
+            setMetadata(finalMeta);
+            setSource(finalSource);
+            setLastUpdated(new Date(now));
+            setLoading(false);
+          }
+          return () => controller.abort();
+        }
+        // Se falhou, continua para fallback do Storage
+        console.warn(`[useBIData] Fallback para Storage: ${fileName}`);
+      }
 
       // MODO SHARDING MENSAL (fat_financeiro_universal_*_*.json)
       if (fileName.includes('*_*')) {
@@ -250,10 +318,11 @@ export default function useBIData<T = unknown>(
         const now = Date.now();
         
         // Update cache
-        dataCache.set(fileName, { data: finalData, metadata: finalMeta, timestamp: now });
+        dataCache.set(fileName, { data: finalData, metadata: finalMeta, timestamp: now, source: finalSource });
         
         setData(finalData as T);
         setMetadata(finalMeta);
+        setSource(finalSource);
         setLastUpdated(new Date(now));
         setLoading(false);
       }
@@ -288,7 +357,7 @@ export default function useBIData<T = unknown>(
     };
   }, [load]);
 
-  return { data, metadata, loading, error, refetch, lastUpdated };
+  return { data, metadata, loading, error, refetch, lastUpdated, source };
 }
 
 // Utility to clear cache
@@ -318,7 +387,7 @@ export async function prefetchBIData(fileName: string): Promise<void> {
       const json = await res.json();
       const data = json?.data ?? json;
       const metadata = json?.metadata ?? (json?.generated_at ? { generated_at: json.generated_at } : {});
-      dataCache.set(fileName, { data, metadata, timestamp: Date.now() });
+      dataCache.set(fileName, { data, metadata, timestamp: Date.now(), source: 'storage' });
     }
   } catch {
     // Silently fail prefetch
