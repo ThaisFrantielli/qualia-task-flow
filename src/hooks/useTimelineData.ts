@@ -73,6 +73,128 @@ export function useTimelineData<T = TimelineAggregated>(
     setLoading(true);
     setError(null);
 
+    // Try static files in public/data first (dev-friendly)
+    try {
+      // Candidates include the timeline_<mode> variants *and* names produced by ETL
+      const baseNames = [] as string[];
+      baseNames.push(`timeline_${mode}_all`);
+      baseNames.push(`timeline_${mode}`);
+      if (placa) baseNames.push(`timeline_${mode}_${placa}`);
+
+      // ETL-produced timeline names
+      baseNames.push('hist_vida_veiculo_timeline');
+      baseNames.push('hist_vida_veiculo_timeline_all');
+      baseNames.push('historico_situacao_veiculos');
+      baseNames.push('historico_situacao_veiculos_all');
+
+      for (const base of baseNames) {
+        // First, if there's a manifest for this base, try manifest+parts (same strategy as useBIData)
+        const manifestUrl = `/data/${base}_manifest.json`;
+        try {
+          const mResp = await fetch(manifestUrl);
+          if (mResp.ok) {
+            const ct = (mResp.headers.get('content-type') || '').toLowerCase();
+            let manifest: any = null;
+            if (ct.includes('json')) {
+              manifest = await mResp.json();
+            } else {
+              const t = await mResp.text();
+              if (t.trim().startsWith('<')) throw new Error('Resposta HTML (provavelmente index.html)');
+              manifest = JSON.parse(t);
+            }
+
+            const total = manifest.total_chunks || manifest.totalParts || manifest.totalParts || 0;
+            if (!total || total <= 0) throw new Error('Manifest inválido ou sem partes');
+
+            const parts: any[] = [];
+            for (let i = 1; i <= total; i++) {
+              const partUrl = `/data/${base}_part${i}of${total}.json`;
+              const pResp = await fetch(partUrl);
+              if (!pResp.ok) throw new Error(`Parte ausente: ${partUrl} (${pResp.status})`);
+              const pct = (pResp.headers.get('content-type') || '').toLowerCase();
+              if (pct.includes('json')) {
+                parts.push(await pResp.json());
+              } else {
+                const t = await pResp.text();
+                if (t.trim().startsWith('<')) throw new Error(`Parte retornou HTML: ${partUrl}`);
+                parts.push(JSON.parse(t));
+              }
+            }
+
+            // merge parts
+            let assembled: any = null;
+            if (Array.isArray(parts[0])) assembled = parts.flat();
+            else if (typeof parts[0] === 'object') assembled = Object.assign({}, ...parts);
+            else assembled = parts;
+
+            if (fetchId !== fetchIdRef.current) return;
+            if (Array.isArray(assembled)) {
+              timelineCache.set(cacheKey, { data: assembled, timestamp: Date.now() });
+              setData(assembled as T[]);
+              setError(null);
+              setLoading(false);
+              console.log(`✅ [useTimelineData] loaded static manifest ${manifestUrl} (${assembled.length} registros) (base=${base})`);
+              return;
+            }
+            if (assembled && typeof assembled === 'object' && Array.isArray((assembled as any).data)) {
+              const arr = (assembled as any).data as T[];
+              timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
+              setData(arr);
+              setError(null);
+              setLoading(false);
+              console.log(`✅ [useTimelineData] loaded static manifest-wrapped ${manifestUrl} (${arr.length} registros) (base=${base})`);
+              return;
+            }
+          }
+        } catch (mErr) {
+          // manifest not present or invalid — fall through to single-file attempt
+          if (String(mErr).includes('HTML')) {
+            console.warn(`[useTimelineData] static ${manifestUrl} returned HTML (likely index.html). Skipping.`);
+          }
+        }
+
+        // Try single-file variants for this base
+        const url = `/data/${base}.json`;
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            console.debug(`[useTimelineData] static ${url} returned status ${resp.status}`);
+            continue;
+          }
+          const ct = (resp.headers.get('content-type') || '').toLowerCase();
+          if (ct.includes('html')) {
+            console.warn(`[useTimelineData] static ${url} returned HTML (likely index.html). Skipping.`);
+            continue;
+          }
+          const parsed = await resp.json();
+          if (fetchId !== fetchIdRef.current) return;
+          if (Array.isArray(parsed)) {
+            timelineCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+            setData(parsed as T[]);
+            setError(null);
+            setLoading(false);
+            console.log(`✅ [useTimelineData] loaded static ${url} (${parsed.length} registros) (base=${base})`);
+            return;
+          }
+          if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).data)) {
+            const arr = (parsed as any).data as T[];
+            timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
+            setData(arr);
+            setError(null);
+            setLoading(false);
+            console.log(`✅ [useTimelineData] loaded static wrapped ${url} (${arr.length} registros) (base=${base})`);
+            return;
+          }
+        } catch (e) {
+          console.debug(`[useTimelineData] fetch static ${url} failed:`, e instanceof Error ? e.message : String(e));
+          continue;
+        }
+      }
+    } catch (staticErr) {
+      console.debug('[useTimelineData] static fetch attempt failed:', staticErr);
+    }
+
+    // Fallback to Edge Function
     try {
       const { data: result, error: fnError } = await supabase.functions.invoke(
         'query-timeline-aggregated',
