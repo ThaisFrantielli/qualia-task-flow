@@ -9,7 +9,7 @@ type BIResult<T = unknown> = {
   error: string | null;
   refetch: () => void;
   lastUpdated: Date | null;
-  source: 'live' | null;
+  source: 'live' | 'static' | null;
 };
 
 // Simple in-memory cache to avoid repeated calls during dev
@@ -65,6 +65,114 @@ async function fetchFromLocalDB(identifier: string): Promise<{ data: unknown | n
   }
 }
 
+// Try to load static JSON files from public/data. Supports single-file and manifest+parts pattern.
+async function fetchFromStatic(identifier: string): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
+  try {
+    // normalize to base name (remove .json and trailing _YYYY or _YYYY_MM)
+    const base = String(identifier).replace(/\.json$/, '').replace(/(_\d{4}(_\d{2})?)$/, '');
+
+    const manifestUrl = `/data/${base}_manifest.json`;
+    // try manifest first
+    let resp = await fetch(manifestUrl);
+    if (resp.ok) {
+      try {
+        const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+        let manifest: any = null;
+        if (contentType.includes('json')) {
+          manifest = await resp.json();
+        } else {
+          const text = await resp.text();
+          if (text.trim().startsWith('<')) {
+            throw new Error('Resposta HTML (provavelmente index.html)');
+          }
+          manifest = JSON.parse(text);
+        }
+
+        const total = manifest.total_chunks || manifest.totalParts || manifest.totalParts || 0;
+        if (!total || total <= 0) throw new Error('Manifest inválido ou sem partes');
+
+        const parts: any[] = [];
+        for (let i = 1; i <= total; i++) {
+          const partUrl = `/data/${base}_part${i}of${total}.json`;
+          const pResp = await fetch(partUrl);
+          if (!pResp.ok) throw new Error(`Parte ausente: ${partUrl} (${pResp.status})`);
+          try {
+            const ct = (pResp.headers.get('content-type') || '').toLowerCase();
+            if (ct.includes('json')) {
+              parts.push(await pResp.json());
+            } else {
+              const t = await pResp.text();
+              if (t.trim().startsWith('<')) throw new Error(`Parte retornou HTML: ${partUrl}`);
+              parts.push(JSON.parse(t));
+            }
+          } catch (e) {
+            throw new Error(`Falha ao parsear parte ${partUrl}: ${e.message}`);
+          }
+        }
+
+        // merge parts: if parts are arrays, concat; if objects, merge by Object.assign
+        let data: any = null;
+        if (Array.isArray(parts[0])) {
+          data = parts.flat();
+        } else if (typeof parts[0] === 'object') {
+          data = Object.assign({}, ...parts);
+        } else {
+          data = parts;
+        }
+        const meta: BIMetadata = { generated_at: new Date().toISOString(), source: 'static' } as any;
+        return { data, metadata: meta, success: true };
+      } catch (err) {
+        console.warn('[useBIData v2] Manifest detectado mas inválido/HTML, ignorando manifest:', err.message || err);
+      }
+    }
+
+    // try single-file variants
+    const candidates = [`/data/${base}.json`, identifier.endsWith('.json') ? `/data/${identifier}` : `/data/${identifier}.json`];
+    for (const url of candidates) {
+      try {
+        const r = await fetch(url);
+        if (!r.ok) {
+          console.debug(`[useBIData v2] static ${url} returned status ${r.status}`);
+          continue;
+        }
+        try {
+          const ct = (r.headers.get('content-type') || '').toLowerCase();
+          let body: any;
+          if (ct.includes('json')) {
+            body = await r.json();
+          } else {
+            const t = await r.text();
+            if (t.trim().startsWith('<')) {
+              // HTML response (index.html), not a JSON file
+              console.warn(`[useBIData v2] static ${url} returned HTML (probably index.html). Skipping.`);
+              continue;
+            }
+            body = JSON.parse(t);
+          }
+          // detect wrapped payload
+          if (body && typeof body === 'object' && ('data' in body || 'metadata' in body)) {
+            const meta = (body.metadata || { generated_at: new Date().toISOString(), source: 'static' }) as BIMetadata;
+            return { data: body.data ?? body, metadata: meta, success: true };
+          }
+          const meta: BIMetadata = { generated_at: new Date().toISOString(), source: 'static' } as any;
+          return { data: body, metadata: meta, success: true };
+        } catch (e) {
+          // parse error or HTML body — try next candidate
+          continue;
+        }
+      } catch (e) {
+        // network error — try next
+        continue;
+      }
+    }
+
+    return { data: null, metadata: null, success: false };
+  } catch (err) {
+    console.error('[useBIData v2] Erro ao buscar static:', err);
+    return { data: null, metadata: null, success: false };
+  }
+}
+
 export default function useBIData<T = unknown>(
   identifier: string,
   options?: { staleTime?: number; enabled?: boolean }
@@ -74,7 +182,7 @@ export default function useBIData<T = unknown>(
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [source, setSource] = useState<'live' | null>(null);
+  const [source, setSource] = useState<'live' | 'static' | null>(null);
   const fetchIdRef = useRef(0);
 
   const staleTime = options?.staleTime ?? CACHE_TTL;
@@ -93,7 +201,8 @@ export default function useBIData<T = unknown>(
     if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime) {
       setData(cached.data as T);
       setMetadata(cached.metadata);
-      setSource('live');
+      const cachedSource = (cached.metadata as any)?.source as 'live' | 'static' | undefined;
+      setSource(cachedSource ?? 'live');
       setLastUpdated(new Date(cached.timestamp));
       setLoading(false);
       setError(null);
@@ -103,10 +212,24 @@ export default function useBIData<T = unknown>(
     setLoading(true);
     setError(null);
 
-    const result = await fetchFromLocalDB(identifier);
-
+    // try static files first
+    const staticResult = await fetchFromStatic(identifier);
     if (fetchId !== fetchIdRef.current) return;
+    if (staticResult.success && staticResult.data != null) {
+      const now = Date.now();
+      dataCache.set(identifier, { data: staticResult.data, metadata: staticResult.metadata, timestamp: now });
+      setData(staticResult.data as T);
+      setMetadata(staticResult.metadata);
+      setSource('static');
+      setLastUpdated(new Date(now));
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
+    // fallback to live Edge Function
+    const result = await fetchFromLocalDB(identifier);
+    if (fetchId !== fetchIdRef.current) return;
     if (result.success && result.data != null) {
       const now = Date.now();
       dataCache.set(identifier, { data: result.data, metadata: result.metadata, timestamp: now });
@@ -119,7 +242,7 @@ export default function useBIData<T = unknown>(
       return;
     }
 
-    setError('Falha ao carregar dados do banco local (Edge Function).');
+    setError('Falha ao carregar dados do banco local (Edge Function) e arquivos estáticos.');
     setLoading(false);
   }, [identifier, staleTime, enabled]);
 

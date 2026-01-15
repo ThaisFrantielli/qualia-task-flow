@@ -57,6 +57,10 @@ if (!SUPABASE_SERVICE_KEY) {
     console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY não configurado. Upload para Storage será desabilitado.');
 }
 
+// Modo apenas JSON local: evita conexões/gravações no PostgreSQL (Neon)
+const JSON_ONLY = process.argv.includes('--json-only') || process.env.JSON_ONLY === '1';
+if (JSON_ONLY) console.log('⚠️  Modo JSON_ONLY ativo: não será feita escrita no PostgreSQL (somente geração/upload de JSON).');
+
 // HELPER (Para campos monetários)
 // Trata dois cenários:
 // 1) Valores em formato BR (ex: '1.234,56') -> remove separador de milhares e troca vírgula por ponto
@@ -1109,7 +1113,13 @@ const uploadQueue = [];
  * Adiciona upload à fila (não-bloqueante) com suporte a chunking para arquivos grandes
  */
 function queueUpload(tableName, data, year = null, month = null) {
-    if (!SUPABASE_SERVICE_KEY) return;
+    const fs = require('fs');
+    const path = require('path');
+
+    const shouldUploadToSupabase = Boolean(SUPABASE_SERVICE_KEY) && !JSON_ONLY;
+    const writeLocal = JSON_ONLY || !SUPABASE_SERVICE_KEY;
+
+    if (!shouldUploadToSupabase && !writeLocal) return;
 
     const MAX_CHUNK_SIZE = 10000; // Reduzido para 10K para evitar HTTP 546 (Edge Function limit)
     const baseFileName = year
@@ -1150,24 +1160,39 @@ function queueUpload(tableName, data, year = null, month = null) {
             chunk_size: MAX_CHUNK_SIZE,
         };
 
-        const manifestPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ fileName: manifestFileName, data: manifestData, metadata: manifestMetadata })
-        })
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json();
+        let manifestPromise = Promise.resolve();
+        if (shouldUploadToSupabase) {
+            manifestPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ fileName: manifestFileName, data: manifestData, metadata: manifestMetadata })
             })
-            .then(() => {
-                console.log(`         📤 Upload: ${manifestFileName} (manifest)`);
-            })
-            .catch(err => {
-                console.error(`         ❌ Erro upload ${manifestFileName}:`, err.message);
-            });
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(() => {
+                    console.log(`         📤 Upload: ${manifestFileName} (manifest)`);
+                })
+                .catch(err => {
+                    console.error(`         ❌ Erro upload ${manifestFileName}:`, err.message);
+                });
+        }
+
+        // also write manifest locally if requested
+        if (writeLocal) {
+            try {
+                const outDir = path.join(process.cwd(), 'public', 'data');
+                if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+                fs.writeFileSync(path.join(outDir, manifestFileName), JSON.stringify(manifestData), 'utf8');
+                console.log(`         💾 Gravado local: ${manifestFileName}`);
+            } catch (err) {
+                console.error(`         ❌ Falha ao gravar manifest local ${manifestFileName}:`, err.message);
+            }
+        }
 
         uploadQueue.push(manifestPromise);
 
@@ -1200,37 +1225,69 @@ function queueUpload(tableName, data, year = null, month = null) {
                     }
                 }
             };
+            let uploadPromise = Promise.resolve();
+            if (shouldUploadToSupabase) {
+                uploadPromise = attemptUploadChunk().catch(err => {
+                    console.error(`         ❌ Upload final falhou para ${chunkFileName}:`, err.message);
+                });
+            }
 
-            const uploadPromise = attemptUploadChunk().catch(err => {
-                console.error(`         ❌ Upload final falhou para ${chunkFileName}:`, err.message);
-            });
+            // write chunk locally if requested
+            if (writeLocal) {
+                try {
+                    const outDir = path.join(process.cwd(), 'public', 'data');
+                    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+                    fs.writeFileSync(path.join(outDir, chunkFileName), JSON.stringify(chunk), 'utf8');
+                    console.log(`         💾 Gravado local: ${chunkFileName}`);
+                } catch (err) {
+                    console.error(`         ❌ Falha ao gravar chunk local ${chunkFileName}:`, err.message);
+                }
+            }
 
             uploadQueue.push(uploadPromise);
         }
     } else {
         // Upload normal para arquivos pequenos
         const fileName = `${baseFileName}.json`;
+        let uploadPromise = Promise.resolve();
+        if (shouldUploadToSupabase) {
+            uploadPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ fileName, data, metadata })
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(result => {
+                    console.log(`         📤 Upload: ${fileName} (${result.recordCount} registros)`);
+                })
+                .catch(err => {
+                    console.error(`         ❌ Erro upload ${fileName}:`, err.message);
+                });
+        }
 
-        const uploadPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ fileName, data, metadata })
-        })
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json();
-            })
-            .then(result => {
-                console.log(`         📤 Upload: ${fileName} (${result.recordCount} registros)`);
-            })
-            .catch(err => {
-                console.error(`         ❌ Erro upload ${fileName}:`, err.message);
-            });
+        if (writeLocal) writeSmallLocal(fileName, data);
 
         uploadQueue.push(uploadPromise);
+    }
+}
+
+// Se escrevemos localmente para arquivos pequenos (não chunked)
+function writeSmallLocal(fileName, dataObj) {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const outDir = path.join(process.cwd(), 'public', 'data');
+        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(path.join(outDir, fileName), JSON.stringify(dataObj), 'utf8');
+        console.log(`         💾 Gravado local: ${fileName}`);
+    } catch (err) {
+        console.error(`         ❌ Falha ao gravar local ${fileName}:`, err.message);
     }
 }
 
@@ -1305,6 +1362,47 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
 
     try {
         // ========== SALVAR NO POSTGRESQL ==========
+        if (JSON_ONLY) {
+            // Em modo somente JSON, apenas enfileira upload/gera arquivos locais e pula escrita no Postgres
+            const columns = Object.keys(recordset[0]);
+            // reutiliza a sanitização feita abaixo para finalData
+            const BATCH_SIZE = 500;
+            const totalRows = recordset.length;
+            // sanitizar dados como no fluxo padrão
+            const sanitizedData = recordset.map(row => {
+                const sanitized = {};
+                Object.keys(row).forEach(col => {
+                    const val = row[col];
+                    if (val === undefined) sanitized[col] = null;
+                    else if (val instanceof Date) sanitized[col] = val.toISOString();
+                    else if (typeof val === 'string' && val.trim() === '') sanitized[col] = null;
+                    else sanitized[col] = val;
+                });
+                return sanitized;
+            });
+
+            // deduplicação semelhante
+            const pkRaw = Object.keys(recordset[0])[0];
+            const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
+            let finalData = sanitizedData;
+            if (hasIdColumn) {
+                const seen = new Map();
+                sanitizedData.forEach(row => seen.set(row[pkRaw], row));
+                finalData = Array.from(seen.values());
+            }
+
+            // enfileira upload/local write
+            try {
+                queueUpload(tableName, finalData, year, month);
+                const duration = ((performance.now() - start) / 1000).toFixed(2);
+                console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s (JSON_ONLY)`);
+            } catch (err) {
+                console.error(`      ❌ Erro ao gerar/upload JSON para ${tableName}:`, err.message || err);
+            }
+
+            return;
+        }
+
         if (!appendMode) {
             await pgClient.query(`DROP TABLE IF EXISTS public.${tableName};`);
         }
@@ -1707,11 +1805,13 @@ async function runMasterETL() {
 
         for (const fact of factDefs) {
             console.log(`   📊 ${fact.table}`);
-            const client = await pgClient.connect();
-            try {
-                await client.query(`DROP TABLE IF EXISTS public.${fact.table};`);
-            } catch (e) { } finally {
-                client.release();
+            if (!JSON_ONLY) {
+                const client = await pgClient.connect();
+                try {
+                    await client.query(`DROP TABLE IF EXISTS public.${fact.table};`);
+                } catch (e) { } finally {
+                    client.release();
+                }
             }
 
             // Processar anos em paralelo para cada fato (máximo 3 por vez para não sobrecarregar)
@@ -1728,11 +1828,13 @@ async function runMasterETL() {
         console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
 
-        const client = await pgClient.connect();
-        try {
-            await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal;`);
-        } catch (e) { } finally {
-            client.release();
+        if (!JSON_ONLY) {
+            const client = await pgClient.connect();
+            try {
+                await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal;`);
+            } catch (e) { } finally {
+                client.release();
+            }
         }
 
         for (const year of years) {

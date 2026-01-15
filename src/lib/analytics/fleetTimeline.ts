@@ -249,7 +249,7 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
 
   function isArrival(etapa: string): boolean {
     if (!etapa) return false;
-    return etapa.includes('AGUARDANDO CHEGADA') || etapa.includes('CHEG') || etapa.includes('ENTR') || etapa.includes('RECEB') || etapa.includes('AGENDAMENTO');
+    return etapa.includes('AGUARDANDO CHEGADA') || etapa.includes('CHEG') || etapa.includes('ENTR') || etapa.includes('RECEB');
   }
 
   function isRetirada(etapa: string): boolean {
