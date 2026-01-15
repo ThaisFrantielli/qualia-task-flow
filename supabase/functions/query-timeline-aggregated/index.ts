@@ -103,7 +103,7 @@ serve(async (req) => {
           : await connection.queryObject(query);
           
       } else if (mode === 'recent') {
-        // Modo recente: últimos 12 meses de eventos
+        // Modo recente: últimos 24 meses + TODOS os eventos críticos (COMPRA, VENDA, LOCACAO)
         // Colunas corretas do ETL: Placa, TipoEvento, DataEvento, Modelo, Cliente, etc.
         const query = `
           SELECT 
@@ -111,14 +111,26 @@ serve(async (req) => {
             "TipoEvento",
             "DataEvento",
             "Modelo",
+            "Marca",
             "Cliente",
             "Situacao",
-            "Observacao"
+            "Observacao",
+            "ContratoLocacao",
+            "ContratoComercial",
+            "Fornecedor",
+            "ValorMensal",
+            "CustoTotal",
+            "DataInicio",
+            "DataFimPrevista",
+            "DataFimReal"
           FROM hist_vida_veiculo_timeline
-          WHERE "DataEvento" >= CURRENT_DATE - INTERVAL '12 months'
+          WHERE (
+            "DataEvento" >= CURRENT_DATE - INTERVAL '24 months'
+            OR "TipoEvento" IN ('COMPRA', 'VENDA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO', 'BAIXA', 'AQUISICAO')
+          )
           ${placa ? `AND "Placa" = $1` : ''}
-          ORDER BY "DataEvento" DESC
-          LIMIT 15000
+          ORDER BY "Placa", "DataEvento" DESC
+          LIMIT 50000
         `;
         
         result = placa 
