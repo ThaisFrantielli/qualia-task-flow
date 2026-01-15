@@ -27,9 +27,25 @@ interface TimelineTabProps {
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
 
 function fmtMoney(v: any) {
-  const num = typeof v === 'string' ? parseFloat(v.replace('R$', '').trim()) : v;
+  // Parse do valor: aceita strings com R$, pontos e vírgulas
+  let num: number;
+  if (typeof v === 'string') {
+    // Remove R$, espaços, e converte vírgula decimal em ponto
+    const cleaned = v.replace(/R\$?\s*/g, '').replace(/\./g, '').replace(',', '.');
+    num = parseFloat(cleaned);
+  } else {
+    num = Number(v);
+  }
+  
   if (!num || isNaN(num)) return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+  
+  // Formata com vírgula para decimal e ponto para milhares
+  return new Intl.NumberFormat('pt-BR', { 
+    style: 'currency', 
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num);
 }
 
 function normalizePlacaKey(raw: unknown): string {
@@ -541,6 +557,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     hasActiveFilters,
     isValueSelected
   } = useChartFilter();
+  const { getFilterValues } = useChartFilter();
 
   // Métricas agregadas usando nova lógica
   // Métricas agregadas usando nova lógica
@@ -707,8 +724,47 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
   // Agrupa eventos por placa
   const timelineGrouped = useMemo(() => {
-    const placasFiltradas = new Set(filteredData.map(f => f.Placa).filter(Boolean));
-    const data = placasFiltradas.size > 0
+    // Se houver filtros aplicados no dashboard, respeitar a fonte de filtros global
+    // Priorizar filtro de `productivity` (Ativa = Produtiva + Improdutiva, Inativa = Inativa)
+    const productivityValues = getFilterValues('productivity') || [];
+
+    const placasFiltradasFromProp = new Set(filteredData.map(f => f.Placa).filter(Boolean));
+
+    const normalizeStatus = (s: any) => String(s || '').toUpperCase();
+    const getCategoryLocal = (statusRaw: any) => {
+      const s = normalizeStatus(statusRaw);
+      if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+      if ([
+        'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
+        'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
+        'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
+        'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+      ].includes(s)) return 'Inativa';
+      return 'Improdutiva';
+    };
+
+    let placasFiltradas = placasFiltradasFromProp;
+
+    if (productivityValues.length > 0) {
+      // Construir set de placas baseado em `frota` e categoria
+      const wanted = new Set<string>();
+      for (const f of frota || []) {
+        const status = f?.Situacao || f?.Status || f?.situacao || f?.situacaoAtual || f?.SituacaoAtual;
+        const cat = getCategoryLocal(status);
+        // Ativa significa Produtiva + Improdutiva
+        if (productivityValues.includes('Ativa')) {
+          if (cat === 'Produtiva' || cat === 'Improdutiva') wanted.add(f.Placa);
+        }
+        if (productivityValues.includes('Produtiva') && cat === 'Produtiva') wanted.add(f.Placa);
+        if (productivityValues.includes('Improdutiva') && cat === 'Improdutiva') wanted.add(f.Placa);
+        if (productivityValues.includes('Inativa') && cat === 'Inativa') wanted.add(f.Placa);
+      }
+      if (wanted.size > 0) placasFiltradas = wanted;
+    }
+
+    // Se houver filtros ativos e um conjunto de placas filtradas, aplicar; caso contrário, mostrar timeline completo
+    const hasFiltrosAtivos = hasActiveFilters || (filteredData && filteredData.length > 0);
+    const data = hasFiltrosAtivos && placasFiltradas.size > 0
       ? timeline.filter(t => placasFiltradas.has(t.Placa))
       : timeline;
 
@@ -1384,16 +1440,175 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         items: g.items
                       }));
 
-                      const rows: TimelineRow[] = [...manutOccurrences, ...eventRows]
+                      // Eventos prioritários que SEMPRE devem aparecer (ciclo de vida do veículo)
+                      const PRIORITY_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO'];
+                      
+                      // Helper para extrair data de qualquer tipo de row
+                      const getRowDate = (r: TimelineRow): Date => {
+                        if (r.kind === 'MANUTENCAO_OCORRENCIA') return r.ocorrenciaDate;
+                        if (r.kind === 'MANUTENCAO_PERIODO') return r.start;
+                        return r.date;
+                      };
+                      
+                      const allRows: TimelineRow[] = [...manutOccurrences, ...eventRows]
                         .sort((a, b) => {
-                          const ad = a.kind === 'MANUTENCAO_OCORRENCIA' ? a.ocorrenciaDate : a.date;
-                          const bd = b.kind === 'MANUTENCAO_OCORRENCIA' ? b.ocorrenciaDate : b.date;
+                          const ad = getRowDate(a);
+                          const bd = getRowDate(b);
                           return bd.getTime() - ad.getTime();
-                        })
-                        .slice(0, 30);
+                        });
+                      
+                      // Separar eventos prioritários dos demais
+                      const priorityRows = allRows.filter(r => 
+                        r.kind === 'EVENTO_DIA_TIPO' && PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt))
+                      );
+                      const otherRows = allRows.filter(r => 
+                        r.kind === 'MANUTENCAO_OCORRENCIA' || 
+                        r.kind === 'MANUTENCAO_PERIODO' ||
+                        (r.kind === 'EVENTO_DIA_TIPO' && !PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt)))
+                      );
+                      
+                      // Combinar: todos os prioritários + até 25 outros
+                      const rows: TimelineRow[] = [
+                        ...priorityRows,
+                        ...otherRows.slice(0, Math.max(25, 40 - priorityRows.length))
+                      ].sort((a, b) => {
+                        const ad = getRowDate(a);
+                        const bd = getRowDate(b);
+                        return bd.getTime() - ad.getTime();
+                      });
+
+                      // Separar eventos de ciclo de vida para destaque
+                      const LIFECYCLE_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA'];
+                      const lifecycleEvents = priorityRows.filter(r => 
+                        r.kind === 'EVENTO_DIA_TIPO' && LIFECYCLE_TYPES.some(lt => (r as EventGroupRow).tipo.includes(lt))
+                      ) as EventGroupRow[];
 
                       return (
                         <>
+                          {/* Seção de Ciclo de Vida do Veículo - Destaque para COMPRA/VENDA */}
+                          {lifecycleEvents.length > 0 && (
+                            <div className="pl-6 mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                              <div className="flex items-center gap-2 text-sm mb-2">
+                                <ShoppingCart className="w-4 h-4 text-purple-600" />
+                                <span className="font-semibold text-purple-800">
+                                  Ciclo de Vida do Veículo
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                {lifecycleEvents.map((ev, idx) => {
+                                  const item = ev.items[0];
+                                  const tipoLabel = EVENT_LABELS[ev.tipo] || ev.tipo;
+                                  const icon = EVENT_ICONS[ev.tipo] || <ShoppingCart size={14} className="text-purple-500" />;
+                                  const valor = item?.ValorCompra ?? item?.ValorVenda ?? item?.CustoTotal ?? item?.ValorAquisicao;
+                                  const fornecedor = item?.Fornecedor || item?.Proprietario || item?.Comprador || '';
+                                  
+                                  return (
+                                    <div key={`lifecycle-${idx}`} className="flex items-center justify-between bg-white rounded p-2 border border-purple-100">
+                                      <div className="flex items-center gap-2">
+                                        {icon}
+                                        <span className="font-medium text-sm text-slate-700">{tipoLabel}</span>
+                                        <span className="text-xs text-slate-500">{fmtDateBR(ev.date)}</span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        {fornecedor && (
+                                          <span className="text-xs text-slate-500">{fornecedor}</span>
+                                        )}
+                                        {valor != null && Number(valor) > 0 && (
+                                          <span className="font-bold text-sm text-purple-700">{fmtMoney(valor)}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Seção de Contratos de Locação */}
+                          {(() => {
+                            const locacaoEvents = priorityRows.filter(r => 
+                              r.kind === 'EVENTO_DIA_TIPO' && 
+                              ((r as EventGroupRow).tipo.includes('LOCACAO') || (r as EventGroupRow).tipo.includes('DEVOLUCAO'))
+                            ) as EventGroupRow[];
+                            
+                            if (locacaoEvents.length === 0) return null;
+                            
+                            // Agrupar por contrato para mostrar início->fim
+                            const locacoes = locacaoEvents.filter(e => e.tipo.includes('LOCACAO'));
+                            const devolucoes = locacaoEvents.filter(e => e.tipo.includes('DEVOLUCAO'));
+                            
+                            return (
+                              <div className="pl-6 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                <div className="flex items-center gap-2 text-sm mb-2">
+                                  <Play className="w-4 h-4 text-emerald-600" />
+                                  <span className="font-semibold text-emerald-800">
+                                    Histórico de Locações ({locacoes.length} locação(ões) • {devolucoes.length} devolução(ões))
+                                  </span>
+                                </div>
+                                <div className="space-y-2">
+                                  {locacaoEvents.slice(0, 8).map((ev, idx) => {
+                                    const item = ev.items[0];
+                                    const isLocacao = ev.tipo.includes('LOCACAO');
+                                    const cliente = item?.Cliente || item?.NomeCliente || item?.NomeFantasia || 'Cliente não informado';
+                                    const contrato = item?.ContratoLocacao || item?.ContratoComercial || item?.NumeroContrato || '';
+                                    const situacao = item?.Situacao || item?.StatusLocacao || item?.SituacaoContrato || '';
+                                    const valorMensal = item?.ValorMensal || item?.ValorMensalAtual;
+                                    
+                                    // Calcular duração da locação
+                                    const dataInicio = parseDateAny(item?.DataInicio || item?.DataInicioContrato);
+                                    const dataFim = parseDateAny(item?.DataFimReal || item?.DataEncerramento) || new Date();
+                                    let duracaoMeses = 0;
+                                    if (dataInicio) {
+                                      const diffMs = dataFim.getTime() - dataInicio.getTime();
+                                      const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                                      duracaoMeses = Math.floor(diffDias / 30);
+                                    }
+                                    
+                                    return (
+                                      <div key={`loc-${idx}`} className="flex items-center justify-between bg-white rounded p-2 border border-emerald-100">
+                                        <div className="flex items-center gap-2">
+                                          {isLocacao ? (
+                                            <Play size={14} className="text-emerald-500" />
+                                          ) : (
+                                            <RotateCcw size={14} className="text-blue-500" />
+                                          )}
+                                          <span className="font-medium text-sm text-slate-700">
+                                            {isLocacao ? 'LOCAÇÃO' : 'DEVOLUÇÃO'}
+                                          </span>
+                                          <span className="text-xs text-slate-500">{fmtDateBR(ev.date)}</span>
+                                          {duracaoMeses > 0 && (
+                                            <Badge color="blue" size="xs">{duracaoMeses} meses</Badge>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-xs text-slate-600 max-w-[200px] truncate" title={cliente}>
+                                            {cliente}
+                                          </span>
+                                          {contrato && (
+                                            <Badge color="emerald" size="xs">{contrato}</Badge>
+                                          )}
+                                          {situacao && (
+                                            <Badge color={situacao.toLowerCase().includes('ativo') || situacao.toLowerCase().includes('andamento') ? 'green' : 'slate'} size="xs">
+                                              {situacao}
+                                            </Badge>
+                                          )}
+                                          {valorMensal != null && Number(valorMensal) > 0 && (
+                                            <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorMensal)}/mês</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {locacaoEvents.length > 8 && (
+                                    <div className="text-xs text-emerald-600 text-center">
+                                      +{locacaoEvents.length - 8} eventos de locação...
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {manutOccurrences.length > 0 && (
                             <div className="pl-6 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                               <div className="flex items-center gap-2 text-sm">
@@ -1537,7 +1752,11 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             // MANUTENCAO_OCORRENCIA - novo agrupamento por ocorrência
                             if (row.kind === 'MANUTENCAO_OCORRENCIA') {
                               const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
-                              const title = `${row.ocorrencia ?? row.ocorrenciaId}`;
+                              const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
+                              // Melhorar exibição: se for só número, adicionar prefixo "OCORRÊNCIA #"
+                              const title = /^\d+$/.test(String(ocorrenciaRaw)) 
+                                ? `OCORRÊNCIA #${ocorrenciaRaw}` 
+                                : String(ocorrenciaRaw);
                               const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                               const firstRec = row.osRecords[0];
                               const motivo = firstRec?.Motivo ?? '';
@@ -1595,6 +1814,16 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             <div className="text-[10px] text-slate-500">
                                               {fornecedor && <><b>Fornecedor:</b> {fornecedor} </>}
                                               {cliente && <><b>Cliente:</b> {cliente}</>}
+                                            </div>
+                                          )}
+                                          {/* Alerta de dados faltantes */}
+                                          {(!motivo || !descricao || !fornecedor) && (
+                                            <div className="text-[10px] text-amber-600 italic mt-1">
+                                              ⚠️ Dados incompletos: {[
+                                                !motivo && 'Motivo',
+                                                !descricao && 'Descrição',
+                                                !fornecedor && 'Fornecedor'
+                                              ].filter(Boolean).join(', ')} não informado(s)
                                             </div>
                                           )}
                                         </div>
@@ -2197,7 +2426,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                   {contrato?.PeriodoEmMeses && (
                                                     <div>
                                                       <span className="text-slate-500">Período:</span>
-                                                      <div className="font-medium">{contrato.PeriodoEmMeses} meses</div>
+                                                      <div className="font-medium">{Math.round(Number(contrato.PeriodoEmMeses))} meses</div>
                                                     </div>
                                                   )}
                                                   {contrato?.ValorMensalAtual && contrato.ValorMensalAtual > 0 && (

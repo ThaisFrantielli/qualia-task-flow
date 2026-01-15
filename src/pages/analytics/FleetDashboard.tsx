@@ -1496,6 +1496,24 @@ export default function FleetDashboard(): JSX.Element {
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                    <div className="md:col-span-6">
+                        <label className="text-xs text-slate-500 block mb-1">Buscar</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Pesquisar por placa ou modelo..."
+                                className="w-full pl-10 pr-4 py-2 border rounded-md text-sm outline-none"
+                                value={(getFilterValues('search') || [])[0] || ''}
+                                onChange={(e) => {
+                                    const v = e.target.value || '';
+                                    clearFilter('search');
+                                    if (v.trim() !== '') handleChartClick('search', v.trim());
+                                    setPage(0);
+                                }}
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        </div>
+                    </div>
                     <MultiSelect label="Status" options={uniqueOptions.status} selected={getFilterValues('status')} onChange={(v) => setFilterValues('status', v)} />
                     <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={getFilterValues('modelo')} onChange={(v) => setFilterValues('modelo', v)} />
                     <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={getFilterValues('filial')} onChange={(v) => setFilterValues('filial', v)} />

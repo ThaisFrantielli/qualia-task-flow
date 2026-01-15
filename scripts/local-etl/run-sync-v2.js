@@ -57,8 +57,18 @@ if (!SUPABASE_SERVICE_KEY) {
     console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY não configurado. Upload para Storage será desabilitado.');
 }
 
-// HELPER (Para campos monetários - converte formato BR para US e usa DECIMAL para precisão)
-const castM = (col) => `TRY_CAST(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(CAST(${col} AS VARCHAR), '0'), 'R$', ''), '.', ''), ',', '.'), ' ', '') AS DECIMAL(15,2))`;
+// HELPER (Para campos monetários)
+// Trata dois cenários:
+// 1) Valores em formato BR (ex: '1.234,56') -> remove separador de milhares e troca vírgula por ponto
+// 2) Valores já numéricos/US (ex: 1234.56) -> faz cast direto para DECIMAL
+// Isso evita remover o ponto decimal quando a string não usa vírgula (causando multiplicação por 100/10000).
+const castM = (col) => `(
+    CASE
+        WHEN CHARINDEX(',', ISNULL(CAST(${col} AS VARCHAR), '')) > 0
+            THEN TRY_CAST(REPLACE(REPLACE(ISNULL(CAST(${col} AS VARCHAR), '0'), '.', ''), ',', '.') AS DECIMAL(15,2))
+        ELSE TRY_CAST(ISNULL(${col}, 0) AS DECIMAL(15,2))
+    END
+)`;
 
 // Variável global para armazenar a data de atualização do DW
 let dwLastUpdate = null;
@@ -421,7 +431,7 @@ const CONSOLIDATED = [
                 NULL, 
                 LEFT(os.Motivo, 150),
                 os.IdOrdemServico, os.Tipo, os.Fornecedor,
-                ${castM('os.ValorTotal')},
+                CAST(${castM("ISNULL(os.ValorTotal, 0)")} AS DECIMAL(15,2)) as CustoTotal,
                 NULL, NULL, NULL, NULL
             FROM Veiculos v WITH (NOLOCK)
             INNER JOIN OrdensServico os WITH (NOLOCK) ON os.Placa = v.Placa
@@ -440,7 +450,7 @@ const CONSOLIDATED = [
                 FORMAT(s.DataSinistro, 'yyyy-MM-dd'), NULL, FORMAT(s.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
                 NULL, LEFT(COALESCE(s.Descricao, s.Observacoes, ''), 150),
                 NULL, NULL, NULL,
-                ${castM('s.ValorOrcamento')},
+                CAST(${castM("ISNULL(s.ValorOrcamento, 0)")} AS DECIMAL(15,2)) as CustoTotal,
                 s.BoletimOcorrencia, 
                 s.Tipo, NULL, NULL
             FROM Veiculos v WITH (NOLOCK)
@@ -468,7 +478,7 @@ const CONSOLIDATED = [
                 NULL, NULL, NULL, NULL,
                 m.AutoInfracao, -- Corrigido para AutoInfracao
                 NULL,
-                ${castM('m.ValorInfracao')},
+                CAST(${castM("ISNULL(m.ValorInfracao, 0)")} AS DECIMAL(15,2)) as CustoTotal,
                 m.DescricaoInfracao
             FROM OcorrenciasInfracoes m WITH (NOLOCK)
             LEFT JOIN Veiculos v WITH (NOLOCK) ON v.Placa = m.Placa
@@ -490,7 +500,7 @@ const CONSOLIDATED = [
                 LEFT(ISNULL(v.InformacoesAdicionais, 'Nota Fiscal não detalhada'), 150), -- Corrigido para InformacoesAdicionais
                 NULL, NULL, 
                 ISNULL(v.Proprietario, 'Fornecedor Padrão'), 
-                ${castM('v.ValorCompra')},
+                CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) as CustoTotal,
                 NULL, NULL, NULL, NULL
             FROM Veiculos v WITH (NOLOCK)
             WHERE v.DataCompra IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
@@ -508,7 +518,7 @@ const CONSOLIDATED = [
                 FORMAT(vv.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
                 NULL, 'Fatura: ' + ISNULL(vv.FaturaVenda, '-'),
                 NULL, NULL, NULL,
-                ${castM('vv.ValorVenda')},
+                CAST(${castM("ISNULL(vv.ValorVenda, 0)")} AS DECIMAL(15,2)) as CustoTotal,
                 NULL, NULL, NULL, NULL
             FROM Veiculos v WITH (NOLOCK)
             LEFT JOIN VeiculosVendidos vv WITH (NOLOCK) ON vv.Placa = v.Placa
