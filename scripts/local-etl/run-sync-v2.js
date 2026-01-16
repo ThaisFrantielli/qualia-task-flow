@@ -24,30 +24,19 @@ const sqlConfig = {
     options: { encrypt: false, trustServerCertificate: true }
 };
 
-// PostgreSQL (DESTINO) - Neon Cloud Database
-// Usa connectionString do Neon se disponível, senão fallback para config tradicional
-const NEON_CONNECTION_STRING = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
-
-const pgConfig = NEON_CONNECTION_STRING 
-    ? { 
-        connectionString: NEON_CONNECTION_STRING,
-        ssl: { rejectUnauthorized: false }, // Necessário para Neon
-        max: 10,
-        min: 2,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 30000, // Aumentado para conexões remotas
-      }
-    : {
-        host: process.env.PG_HOST || '127.0.0.1',
-        port: process.env.PG_PORT || 5432,
-        user: (process.env.PG_USER || '').toLowerCase().trim(),
-        password: (process.env.PG_PASSWORD || '').trim(),
-        database: (process.env.PG_DATABASE || 'bluconecta_dw').toLowerCase().trim(),
-        max: 10,
-        min: 2,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
-      };
+// PostgreSQL (DESTINO - BluConecta_Dw)
+// Forçar uso das variáveis PG_* locais. Neon foi removido do fluxo.
+const pgConfig = {
+    host: process.env.PG_HOST || '127.0.0.1',
+    port: process.env.PG_PORT || 5432,
+    user: (process.env.PG_USER || '').toLowerCase().trim(),
+    password: (process.env.PG_PASSWORD || '').trim(),
+    database: (process.env.PG_DATABASE || 'bluconecta_dw').toLowerCase().trim(),
+    max: 10,
+    min: 2,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+};
 
 // Supabase (para upload de JSON)
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
