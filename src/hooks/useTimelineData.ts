@@ -129,11 +129,46 @@ export function useTimelineData<T = TimelineAggregated>(
 
             if (fetchId !== fetchIdRef.current) return;
             if (Array.isArray(assembled)) {
-              timelineCache.set(cacheKey, { data: assembled, timestamp: Date.now() });
-              setData(assembled as T[]);
+              // attempt to augment with missing vehicles from dim_frota (so UI shows vehicles
+              // that exist in the fleet but may not have timeline events)
+              const augmentWithDim = async (items: any[]) => {
+                try {
+                  const resp = await fetch('/data/dim_frota.json');
+                  if (!resp.ok) return items;
+                  const parsed = await resp.json();
+                  const dimArr = Array.isArray(parsed) ? parsed : (parsed?.data || []);
+                  const present = new Set(items.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
+                  const missing = dimArr
+                    .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
+                    .map((d: any) => ({
+                      Placa: String(d.Placa).trim().toUpperCase(),
+                      data_compra: d.DataCompra || d.data_compra || null,
+                      data_venda: d.DataVenda || d.data_venda || null,
+                      qtd_locacoes: 0,
+                      qtd_manutencoes: 0,
+                      qtd_sinistros: 0,
+                      total_eventos: 0,
+                      primeiro_evento: null,
+                      ultimo_evento: null,
+                      dias_vida: null,
+                      Modelo: d.Modelo || d.modelo,
+                      Montadora: d.Montadora || d.montadora,
+                      Status: d.Status || d.status,
+                      ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
+                    }));
+                  if (missing.length) return items.concat(missing);
+                } catch (e) {
+                  // ignore augmentation errors
+                }
+                return items;
+              };
+
+              const finalArr = await augmentWithDim(assembled);
+              timelineCache.set(cacheKey, { data: finalArr, timestamp: Date.now() });
+              setData(finalArr as T[]);
               setError(null);
               setLoading(false);
-              console.log(`✅ [useTimelineData] loaded static manifest ${manifestUrl} (${assembled.length} registros) (base=${base})`);
+              console.log(`✅ [useTimelineData] loaded static manifest ${manifestUrl} (${finalArr.length} registros) (base=${base})`);
               return;
             }
             if (assembled && typeof assembled === 'object' && Array.isArray((assembled as any).data)) {
@@ -169,6 +204,37 @@ export function useTimelineData<T = TimelineAggregated>(
           const parsed = await resp.json();
           if (fetchId !== fetchIdRef.current) return;
           if (Array.isArray(parsed)) {
+            // augment with dim_frota missing vehicles
+            try {
+              const respDim = await fetch('/data/dim_frota.json');
+              if (respDim.ok) {
+                const parsedDim = await respDim.json();
+                const dimArr = Array.isArray(parsedDim) ? parsedDim : (parsedDim?.data || []);
+                const present = new Set(parsed.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
+                const missing = dimArr
+                  .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
+                  .map((d: any) => ({
+                    Placa: String(d.Placa).trim().toUpperCase(),
+                    data_compra: d.DataCompra || d.data_compra || null,
+                    data_venda: d.DataVenda || d.data_venda || null,
+                    qtd_locacoes: 0,
+                    qtd_manutencoes: 0,
+                    qtd_sinistros: 0,
+                    total_eventos: 0,
+                    primeiro_evento: null,
+                    ultimo_evento: null,
+                    dias_vida: null,
+                    Modelo: d.Modelo || d.modelo,
+                    Montadora: d.Montadora || d.montadora,
+                    Status: d.Status || d.status,
+                    ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
+                  }));
+                if (missing.length) parsed.push(...missing);
+              }
+            } catch (e) {
+              // ignore
+            }
+
             timelineCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
             setData(parsed as T[]);
             setError(null);

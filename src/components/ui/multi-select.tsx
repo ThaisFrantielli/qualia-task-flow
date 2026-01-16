@@ -28,7 +28,7 @@ interface MultiSelectProps {
   label?: string;
 }
 
-export function MultiSelect({
+export const MultiSelect = React.memo(function MultiSelect({
   options,
   selected,
   onSelectedChange,
@@ -39,9 +39,11 @@ export function MultiSelect({
   maxDisplay = 2,
   label,
 }: MultiSelectProps) {
-  
+
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const listRef = React.useRef<HTMLDivElement | null>(null);
 
   const filteredOptions = React.useMemo(() => {
     if (!searchQuery) return options;
@@ -50,24 +52,24 @@ export function MultiSelect({
     );
   }, [options, searchQuery]);
 
-  const handleToggle = (value: string) => {
+  const handleToggle = React.useCallback((value: string) => {
     const newSelected = selected.includes(value)
       ? selected.filter((item) => item !== value)
       : [...selected, value];
     onSelectedChange(newSelected);
-  };
+  }, [selected, onSelectedChange]);
 
-  const handleSelectAll = (_val?: any) => {
+  const handleSelectAll = React.useCallback((_val?: any) => {
     if (selected.length === options.length) {
       onSelectedChange([]);
     } else {
       onSelectedChange(options);
     }
-  };
+  }, [selected.length, options, onSelectedChange]);
 
-  const handleClear = () => {
+  const handleClear = React.useCallback(() => {
     onSelectedChange([]);
-  };
+  }, [onSelectedChange]);
 
   const displayText = React.useMemo(() => {
     if (selected.length === 0) return placeholder;
@@ -76,6 +78,38 @@ export function MultiSelect({
     }
     return `${selected.slice(0, maxDisplay).join(', ')} +${selected.length - maxDisplay}`;
   }, [selected, maxDisplay, placeholder]);
+
+  // Virtualization params
+  const ITEM_HEIGHT = 36; // px
+  const MAX_HEIGHT = 300; // px
+  const total = filteredOptions.length;
+  const containerHeight = Math.min(MAX_HEIGHT, total * ITEM_HEIGHT);
+  const visibleCount = Math.min(total, Math.ceil(containerHeight / ITEM_HEIGHT) + 4);
+  const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 1);
+  const endIndex = Math.min(total, startIndex + visibleCount);
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  };
+
+  const OptionRow = React.useCallback(({ option, isSelected }: { option: string; isSelected: boolean }) => {
+    return (
+      <CommandItem
+        key={option}
+        value={option}
+        onSelect={() => handleToggle(option)}
+        className="cursor-pointer"
+      >
+        <div className="flex items-center space-x-2 flex-1" style={{ height: ITEM_HEIGHT }}>
+          <Checkbox checked={isSelected} />
+          <span className="flex-1 truncate">{option}</span>
+          {isSelected && (
+            <Check className="h-4 w-4 text-emerald-600" />
+          )}
+        </div>
+      </CommandItem>
+    );
+  }, [handleToggle]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -143,29 +177,28 @@ export function MultiSelect({
           <CommandEmpty className="py-6 text-center text-sm">
             {emptyMessage}
           </CommandEmpty>
-          <CommandGroup className="max-h-64 overflow-y-auto">
-            {filteredOptions.map((option) => {
-              const isSelected = selected.includes(option);
-              return (
-                <CommandItem
-                  key={option}
-                  value={option}
-                  onSelect={() => handleToggle(option)}
-                  className="cursor-pointer"
-                >
-                  <div className="flex items-center space-x-2 flex-1">
-                    <Checkbox checked={isSelected} />
-                    <span className="flex-1 truncate">{option}</span>
-                    {isSelected && (
-                      <Check className="h-4 w-4 text-emerald-600" />
-                    )}
-                  </div>
-                </CommandItem>
-              );
-            })}
+          <CommandGroup>
+            <div
+              ref={listRef}
+              onScroll={onScroll}
+              style={{ maxHeight: `${containerHeight}px`, overflowY: 'auto', position: 'relative' }}
+            >
+              <div style={{ height: total * ITEM_HEIGHT, position: 'relative' }}>
+                <div style={{ height: startIndex * ITEM_HEIGHT }} />
+                {filteredOptions.slice(startIndex, endIndex).map((option) => {
+                  const isSelected = selected.includes(option);
+                  return (
+                    <div key={option} style={{ position: 'relative' }}>
+                      <OptionRow option={option} isSelected={isSelected} />
+                    </div>
+                  );
+                })}
+                <div style={{ height: (total - endIndex) * ITEM_HEIGHT }} />
+              </div>
+            </div>
           </CommandGroup>
         </Command>
       </PopoverContent>
     </Popover>
   );
-}
+});
