@@ -528,7 +528,32 @@ const CONSOLIDATED = [
             LEFT JOIN VeiculosVendidos vv WITH (NOLOCK) ON vv.Placa = v.Placa
             WHERE vv.DataVenda IS NOT NULL AND COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
 
-            ORDER BY Placa, DataEvento DESC
+                        UNION ALL
+
+                        /* 8. SEM EVENTOS (placeholder) - garante presença na timeline para veículos sem eventos */
+                        SELECT
+                                v.Placa, v.IdVeiculo, v.Modelo, v.Montadora, v.AnoFabricacao, v.Cor,
+                                'SEM_EVENTOS' as TipoEvento,
+                                CAST(ISNULL(v.DataCompra, GETDATE()) AS DATETIME) as DataEvento,
+                                NULL, NULL,
+                                ISNULL(v.Proprietario, 'Proprietário não informado') as Cliente,
+                                NULL,
+                                v.SituacaoVeiculo as Situacao,
+                                FORMAT(v.DataCompra, 'yyyy-MM-dd') as DataInicio,
+                                NULL as DataFimPrevista,
+                                NULL as DataFimReal,
+                                NULL as ValorMensal,
+                                LEFT(ISNULL(v.ObservacaoLocalizacao, ''), 150) as Observacao,
+                                NULL as IdOrdemServico, NULL as TipoManutencao, NULL as Fornecedor, NULL as CustoTotal, NULL as NumeroBO, NULL as TipoSinistro, NULL as ValorMulta, NULL as TipoInfracao
+                        FROM Veiculos v WITH (NOLOCK)
+                        WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro'
+                            AND NOT EXISTS (SELECT 1 FROM ContratosLocacao cl WHERE cl.PlacaPrincipal = v.Placa)
+                            AND NOT EXISTS (SELECT 1 FROM OrdensServico os WHERE os.Placa = v.Placa AND os.DataInicioServico IS NOT NULL)
+                            AND NOT EXISTS (SELECT 1 FROM OcorrenciasSinistro s WHERE s.IdVeiculo = v.IdVeiculo)
+                            AND NOT EXISTS (SELECT 1 FROM OcorrenciasInfracoes m WHERE m.Placa = v.Placa AND m.DataInfracao IS NOT NULL)
+                            AND NOT EXISTS (SELECT 1 FROM VeiculosVendidos vv2 WHERE vv2.Placa = v.Placa AND vv2.DataVenda IS NOT NULL)
+
+                        ORDER BY Placa, DataEvento DESC
         `
     },
     {

@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Car, Filter, ChevronDown, Check, Square, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Search, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
@@ -59,59 +60,7 @@ interface FleetTableItem {
     TipoLocacao?: string;
 };
 
-// Componente MultiSelect personalizado (reutilizado de outros dashboards)
-const MultiSelect = ({ options, selected, onChange, label }: { options: string[], selected: string[], onChange: (val: string[]) => void, label: string }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false);
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [ref]);
-
-    const handleSelect = (val: string) => {
-        if (selected.includes(val)) onChange(selected.filter(v => v !== val));
-        else onChange([...selected, val]);
-    };
-
-    const toggleAll = () => {
-        if (selected.length === options.length) onChange([]);
-        else onChange([...options]);
-    };
-
-    const allSelected = options.length > 0 && selected.length === options.length;
-
-    return (
-        <div className="relative w-full" ref={ref}>
-            <label className="text-xs text-slate-500 block mb-1">{label}</label>
-            <div onClick={() => setIsOpen(!isOpen)} className="w-full border border-slate-300 rounded-md p-2 text-sm bg-white cursor-pointer flex justify-between items-center h-10 hover:border-blue-400 transition-colors">
-                <span className="truncate text-slate-700">
-                    {selected.length === 0 ? 'Selecione...' : selected.length === options.length ? 'Todos' : `${selected.length} sel.`}
-                </span>
-                <ChevronDown size={16} className="text-slate-400" />
-            </div>
-            {isOpen && (
-                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    <div onClick={toggleAll} className="flex items-center gap-2 p-2 hover:bg-slate-100 cursor-pointer border-b border-slate-100 font-medium text-blue-600 sticky top-0 bg-white">
-                        {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-                        <span className="text-sm">Selecionar Todos</span>
-                    </div>
-                    {options.map(opt => (
-                        <div key={opt} onClick={() => handleSelect(opt)} className="flex items-center gap-2 p-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
-                            <div className={`w-4 h-4 border rounded flex items-center justify-center ${selected.includes(opt) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
-                                {selected.includes(opt) && <Check size={12} className="text-white" />}
-                            </div>
-                            <span className="text-sm text-slate-700 truncate">{opt}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
+// Using shared MultiSelect component with built-in search
 
 export default function FleetDashboard(): JSX.Element {
     const { data: frotaData } = useBIData<AnyObject[]>('dim_frota');
@@ -357,14 +306,34 @@ export default function FleetDashboard(): JSX.Element {
     const [selectedTemporalFilter, setSelectedTemporalFilter] = useState<{ year?: string, month?: string } | null>(null); // Filtro temporal ativo
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
-    // apply default filter: show 'Ativa' productivity on first load
-    const defaultProductivityApplied = useRef(false);
+    // apply default filter: restore persisted `productivity` or show 'Ativa' on first load
     useEffect(() => {
-        if (!defaultProductivityApplied.current && frota.length > 0 && getFilterValues('productivity').length === 0) {
-            handleChartClick('productivity', 'Ativa', { ctrlKey: true } as unknown as React.MouseEvent);
-            defaultProductivityApplied.current = true;
+        if (frota.length === 0) return;
+
+        try {
+            const raw = localStorage.getItem('dashboard_productivity');
+            if (raw) {
+                const stored: string[] = JSON.parse(raw);
+                if (Array.isArray(stored) && stored.length > 0 && getFilterValues('productivity').length === 0) {
+                    setFilterValues('productivity', stored);
+                    return;
+                }
+            }
+        } catch (e) { /* ignore parse errors */ }
+
+        if (getFilterValues('productivity').length === 0) {
+            // default to 'Ativa' if nothing selected
+            setFilterValues('productivity', ['Ativa']);
         }
-    }, [frota, getFilterValues, handleChartClick]);
+    }, [frota]);
+
+    // persist productivity selection to localStorage whenever filters change
+    useEffect(() => {
+        try {
+            const sel = getFilterValues('productivity') || [];
+            localStorage.setItem('dashboard_productivity', JSON.stringify(sel));
+        } catch (e) { /* ignore */ }
+    }, [filters]);
 
     // CLASSIFICAÇÃO DE FROTA
     const getCategory = (status: string) => {
@@ -1450,6 +1419,17 @@ export default function FleetDashboard(): JSX.Element {
     const patioPageItems = patioItems.slice(patioPage * pageSize, (patioPage + 1) * pageSize);
     void patioPageItems;
 
+    // Memoize selected arrays from chart filters to provide stable references to MultiSelect
+    const selectedStatus = useMemo(() => getFilterValues('status'), [filters]);
+    const selectedModelo = useMemo(() => getFilterValues('modelo'), [filters]);
+    const selectedFilial = useMemo(() => getFilterValues('filial'), [filters]);
+    const selectedCliente = useMemo(() => getFilterValues('cliente'), [filters]);
+    const selectedTipoLocacao = useMemo(() => getFilterValues('tipoLocacao'), [filters]);
+
+    const selectedReservaMotivo = useMemo(() => getFilterValues('reserva_motivo'), [filters]);
+    const selectedReservaCliente = useMemo(() => getFilterValues('reserva_cliente'), [filters]);
+    const selectedReservaStatus = useMemo(() => getFilterValues('reserva_status'), [filters]);
+
     const exportToExcel = (data: any[], filename: string) => {
         try {
             const ws = XLSX.utils.json_to_sheet(data);
@@ -1496,29 +1476,12 @@ export default function FleetDashboard(): JSX.Element {
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                    <div className="md:col-span-6">
-                        <label className="text-xs text-slate-500 block mb-1">Buscar</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Pesquisar por placa ou modelo..."
-                                className="w-full pl-10 pr-4 py-2 border rounded-md text-sm outline-none"
-                                value={(getFilterValues('search') || [])[0] || ''}
-                                onChange={(e) => {
-                                    const v = e.target.value || '';
-                                    clearFilter('search');
-                                    if (v.trim() !== '') handleChartClick('search', v.trim());
-                                    setPage(0);
-                                }}
-                            />
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        </div>
-                    </div>
-                    <MultiSelect label="Status" options={uniqueOptions.status} selected={getFilterValues('status')} onChange={(v) => setFilterValues('status', v)} />
-                    <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={getFilterValues('modelo')} onChange={(v) => setFilterValues('modelo', v)} />
-                    <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={getFilterValues('filial')} onChange={(v) => setFilterValues('filial', v)} />
-                    <MultiSelect label="Cliente" options={uniqueOptions.clientes} selected={getFilterValues('cliente')} onChange={(v) => setFilterValues('cliente', v)} />
-                    <MultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={getFilterValues('tipoLocacao')} onChange={(v) => setFilterValues('tipoLocacao', v)} />
+                    {/* Busca global removida: usar pesquisa embutida nos seletores */}
+                    <MultiSelect label="Status" options={uniqueOptions.status} selected={selectedStatus} onSelectedChange={(v) => setFilterValues('status', v)} />
+                    <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={selectedModelo} onSelectedChange={(v) => setFilterValues('modelo', v)} />
+                    <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={selectedFilial} onSelectedChange={(v) => setFilterValues('filial', v)} />
+                    <MultiSelect label="Cliente" options={uniqueOptions.clientes} selected={selectedCliente} onSelectedChange={(v) => setFilterValues('cliente', v)} />
+                    <MultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={selectedTipoLocacao} onSelectedChange={(v) => setFilterValues('tipoLocacao', v)} />
                 </div>
             </Card>
 
@@ -2327,10 +2290,9 @@ export default function FleetDashboard(): JSX.Element {
                                     <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-slate-500" /><Text className="font-medium text-slate-700">Filtros de Carro Reserva</Text></div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <MultiSelect label="Motivo" options={reservaUniqueOptions.motivos} selected={getFilterValues('reserva_motivo')} onChange={(v) => setReservaFilterValues('motivo', v)} />
-                                    <MultiSelect label="Cliente" options={reservaUniqueOptions.clientes} selected={getFilterValues('reserva_cliente')} onChange={(v) => setReservaFilterValues('cliente', v)} />
-                                    <MultiSelect label="Status" options={reservaUniqueOptions.statuses} selected={getFilterValues('reserva_status')} onChange={(v) => setReservaFilterValues('status', v)} />
-                                    <div><Text className="text-xs text-slate-500 mb-1">Busca (Placa/Cliente/ID)</Text><div className="relative"><Search className="absolute left-2 top-2.5 w-4 h-4 text-slate-400" /><input type="text" className="border p-2 pl-8 rounded text-sm w-full h-10" placeholder="Buscar..." value={(getFilterValues('reserva_search') || [])[0] || ''} onChange={e => setReservaFilterValues('search', [e.target.value])} /></div></div>
+                                    <MultiSelect label="Motivo" options={reservaUniqueOptions.motivos} selected={selectedReservaMotivo} onSelectedChange={(v) => setReservaFilterValues('motivo', v)} />
+                                    <MultiSelect label="Cliente" options={reservaUniqueOptions.clientes} selected={selectedReservaCliente} onSelectedChange={(v) => setReservaFilterValues('cliente', v)} />
+                                    <MultiSelect label="Status" options={reservaUniqueOptions.statuses} selected={selectedReservaStatus} onSelectedChange={(v) => setReservaFilterValues('status', v)} />
                                 </div>
                                 <div className="flex gap-2 mt-4 flex-wrap items-center">
                                     {/* reserva badges are handled by ChartFilterBadges (labelMap) */}

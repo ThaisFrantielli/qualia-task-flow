@@ -9,6 +9,7 @@ interface ChartFilterBadgesProps {
 }
 
 const defaultLabels: Record<string, string> = {
+  productivity: 'Produtividade',
   mes: 'Mês',
   modelo: 'Modelo',
   status: 'Status',
