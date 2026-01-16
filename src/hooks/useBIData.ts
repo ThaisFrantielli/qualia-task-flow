@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import type { BIMetadata } from '@/types/analytics';
 
 type BIResult<T = unknown> = {
@@ -16,53 +15,11 @@ type BIResult<T = unknown> = {
 const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Edge Function call (single responsibility): always invoke `query-local-db`
+// NOTE: Edge Function fallback removed — system uses static JSON artifacts only.
+// Keep fetchFromLocalDB implementation here for reference, but it's no longer used.
 async function fetchFromLocalDB(identifier: string): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
-  try {
-    console.log(`[useBIData v2] ⚡ CHAMADA RECEBIDA: identifier='${identifier}'`);
-    
-    // Normalize identifier -> tableName
-    // - remove .json
-    // - remove yearly (_YYYY) or monthly (_YYYY_MM) suffixes used by sharded filenames
-    let tableName = String(identifier).replace(/\.json$/, '');
-    // strip trailing _YYYY or _YYYY_MM
-    tableName = tableName.replace(/(_\d{4}(_\d{2})?)$/, '');
-
-    if (!tableName) {
-      console.warn(`[useBIData v2] ⚠️  Normalized tableName is empty for identifier='${identifier}'`);
-      return { data: null, metadata: null, success: false };
-    }
-
-    console.log(`[useBIData v2] 🔄 NORMALIZANDO: '${identifier}' → '${tableName}'`);
-    console.log(`[useBIData v2] 📡 INVOCANDO Edge Function com payload:`, { tableName });
-
-    const { data, error } = await supabase.functions.invoke('query-local-db', {
-      body: { tableName },
-    });
-
-    if (error) {
-      console.error(`[useBIData v2] ❌ Edge Function ERRO para '${identifier}' (enviado como '${tableName}'):`, error);
-      return { data: null, metadata: null, success: false };
-    }
-
-    console.log(`[useBIData v2] ✅ SUCESSO para '${tableName}'`);
-    
-    if (data?.success && data?.data) {
-      const meta: BIMetadata = { generated_at: data.generated_at ?? new Date().toISOString(), source: 'live' } as any;
-      return { data: data.data, metadata: meta, success: true };
-    }
-
-    // If function responded but without success flag, still try to use returned payload
-    if (data && data.data) {
-      const meta: BIMetadata = { generated_at: data.generated_at ?? new Date().toISOString(), source: 'live' } as any;
-      return { data: data.data, metadata: meta, success: true };
-    }
-
-    return { data: null, metadata: null, success: false };
-  } catch (err) {
-    console.error(`[useBIData v2] 💥 EXCEÇÃO ao invocar Edge Function para '${identifier}':`, err);
-    return { data: null, metadata: null, success: false };
-  }
+  console.warn('[useBIData v2] fetchFromLocalDB called, but Edge Function fallback is disabled.');
+  return { data: null, metadata: null, success: false };
 }
 
 // Try to load static JSON files from public/data. Supports single-file and manifest+parts pattern.
@@ -88,38 +45,40 @@ async function fetchFromStatic(identifier: string): Promise<{ data: unknown | nu
           manifest = JSON.parse(text);
         }
 
-        const total = manifest.total_chunks || manifest.totalParts || manifest.totalParts || 0;
+        const files: string[] = manifest.files || manifest.parts || manifest.total_chunks ? manifest.files : [];
+        const total = manifest.total_chunks || manifest.totalParts || (files.length || 0);
         if (!total || total <= 0) throw new Error('Manifest inválido ou sem partes');
 
-        const parts: any[] = [];
-        for (let i = 1; i <= total; i++) {
-          const partUrl = `/data/${base}_part${i}of${total}.json`;
-          const pResp = await fetch(partUrl);
-          if (!pResp.ok) throw new Error(`Parte ausente: ${partUrl} (${pResp.status})`);
-          try {
-            const ct = (pResp.headers.get('content-type') || '').toLowerCase();
-            if (ct.includes('json')) {
-              parts.push(await pResp.json());
-            } else {
-              const t = await pResp.text();
-              if (t.trim().startsWith('<')) throw new Error(`Parte retornou HTML: ${partUrl}`);
-              parts.push(JSON.parse(t));
-            }
-          } catch (e) {
-            throw new Error(`Falha ao parsear parte ${partUrl}: ${e.message}`);
-          }
+        // Build part URLs from manifest.files when available, else fallback to convention
+        const partUrls: string[] = Array.isArray(manifest.files) && manifest.files.length > 0
+          ? manifest.files.map((f: string) => `/data/${f}`)
+          : Array.from({ length: total }, (_, i) => `/data/${base}_part${i + 1}of${total}.json`);
+
+        // fetch parts in parallel
+        const partResponses = await Promise.all(partUrls.map(u => fetch(u).then(r => ({ ok: r.ok, url: u, resp: r })).catch(e => ({ ok: false, url: u, error: e }))));
+
+        for (const pr of partResponses) {
+          if (!pr.ok) throw new Error(`Parte ausente ou erro: ${pr.url}`);
         }
 
-        // merge parts: if parts are arrays, concat; if objects, merge by Object.assign
+        // parse parts in parallel
+        const parsedParts = await Promise.all(partResponses.map(async (pr) => {
+          const r = pr.resp as Response;
+          const ct = (r.headers.get('content-type') || '').toLowerCase();
+          if (ct.includes('json')) return r.json();
+          const t = await r.text();
+          if (t.trim().startsWith('<')) throw new Error(`Parte retornou HTML: ${pr.url}`);
+          return JSON.parse(t);
+        }));
+
+        // merge parts
         let data: any = null;
-        if (Array.isArray(parts[0])) {
-          data = parts.flat();
-        } else if (typeof parts[0] === 'object') {
-          data = Object.assign({}, ...parts);
-        } else {
-          data = parts;
-        }
-        const meta: BIMetadata = { generated_at: new Date().toISOString(), source: 'static' } as any;
+        if (Array.isArray(parsedParts[0])) data = parsedParts.flat();
+        else if (typeof parsedParts[0] === 'object') data = Object.assign({}, ...parsedParts);
+        else data = parsedParts;
+
+        const meta: BIMetadata = { generated_at: manifest.generated_at || new Date().toISOString(), source: 'static' } as any;
+        console.log(`[useBIData v2] ✅ Loaded ${Array.isArray(data) ? data.length : '1'} rows via manifest (${manifestUrl})`);
         return { data, metadata: meta, success: true };
       } catch (err) {
         console.warn('[useBIData v2] Manifest detectado mas inválido/HTML, ignorando manifest:', err.message || err);
@@ -227,22 +186,9 @@ export default function useBIData<T = unknown>(
       return;
     }
 
-    // fallback to live Edge Function
-    const result = await fetchFromLocalDB(identifier);
-    if (fetchId !== fetchIdRef.current) return;
-    if (result.success && result.data != null) {
-      const now = Date.now();
-      dataCache.set(identifier, { data: result.data, metadata: result.metadata, timestamp: now });
-      setData(result.data as T);
-      setMetadata(result.metadata);
-      setSource('live');
-      setLastUpdated(new Date(now));
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setError('Falha ao carregar dados do banco local (Edge Function) e arquivos estáticos.');
+    // No Edge Function fallback: static-only mode
+    const msg = `Arquivo estático para '${identifier}' não encontrado (manifest ou arquivo único).`;
+    setError(msg);
     setLoading(false);
   }, [identifier, staleTime, enabled]);
 
