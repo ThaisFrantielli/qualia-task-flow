@@ -1836,6 +1836,46 @@ async function runMasterETL() {
                 );
                 await Promise.all(yearPromises);
             }
+
+                // --- AGREGAR MANIFEST VIRTUAL (opção 3): cria um manifest agregador por tabela apontando para arquivos anuais gerados
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    const outDir = path.join(process.cwd(), 'public', 'data');
+                    const generatedFiles = [];
+
+                    if (fs.existsSync(outDir)) {
+                        const allFiles = fs.readdirSync(outDir);
+                        // Procurar arquivos gerados para cada ano do fato (ex.: fat_multas_2024.json ou fat_multas_2024_part1ofN.json)
+                        for (const y of years) {
+                            const prefix = `${fact.table}_${y}`;
+                            const matches = allFiles.filter(f => f.startsWith(prefix));
+                            // preferir manifest anual se existir
+                            const manifestAnnual = `${prefix}_manifest.json`;
+                            if (matches.includes(manifestAnnual)) {
+                                generatedFiles.push(manifestAnnual);
+                            } else if (matches.length > 0) {
+                                // incluir todas as partes/arquivo único
+                                // para evitar adicionar pares desnecessários, incluir nomes únicos
+                                for (const m of matches) if (!generatedFiles.includes(m)) generatedFiles.push(m);
+                            }
+                        }
+                    }
+
+                    if (generatedFiles.length > 0) {
+                        const masterManifestName = `${fact.table}_manifest.json`;
+                        const masterManifest = {
+                            files: generatedFiles,
+                            generated_at: new Date().toISOString(),
+                            table: fact.table
+                        };
+                        // escrever localmente para que o frontend consiga consumir
+                        writeSmallLocal(masterManifestName, masterManifest);
+                        console.log(`         💾 Gravado agregador: ${masterManifestName} -> ${generatedFiles.length} arquivos`);
+                    }
+                } catch (e) {
+                    console.error(`         ❌ Falha ao gerar manifest agregador para ${fact.table}:`, e.message || e);
+                }
         }
         // await flushUploads(); // Aguardar uploads dos fatos
 
