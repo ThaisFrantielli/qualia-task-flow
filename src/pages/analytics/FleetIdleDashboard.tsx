@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, Users, MapPin, Clock, DollarSign, HelpCircle } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 
@@ -19,85 +19,167 @@ function fmtDate(d: string | Date | null): string {
   return date.toLocaleDateString('pt-BR');
 }
 
+function parseDateSafe(v: any): Date {
+  if (!v) return new Date(0);
+  try {
+    const s = String(v).trim();
+    // Normalizar 'YYYY-MM-DD HH:mm:ss' para 'YYYY-MM-DDTHH:mm:ss' para parsing mais consistente
+    const normalized = s.replace(' ', 'T');
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return new Date(0);
+    return d;
+  } catch (e) {
+    return new Date(0);
+  }
+}
+
 const getCategory = (status: string) => {
-  const s = (status || '').toUpperCase();
-  if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+  const s = (status || '').toUpperCase().trim();
+  
+  // REGRA 1: Improdutiva (Específica e Restrita)
+  if (['RESERVA', 'DISPONÍVEL', 'DISPONIVEL', 'BLOQUEADO'].includes(s)) {
+    return 'Improdutiva';
+  }
+  
+  // REGRA 2: Inativa (Fora de operação)
   if ([
-    'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-    'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
-    'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
-    'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
-  ].includes(s)) return 'Inativa';
-  return 'Improdutiva';
+    'VENDIDO', 'BAIXADO', 'SINISTRO PERDA TOTAL', 'ROUBO', 'FURTO', 'DEVOLVIDO'
+  ].includes(s)) {
+    return 'Inativa';
+  }
+  
+  // REGRA 3: Produtiva (Todo o resto)
+  return 'Produtiva';
 };
 
 export default function FleetIdleDashboard(): JSX.Element {
   const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota');
   // Timeline via Edge Function otimizada
-  const { data: timelineRecent } = useTimelineData('recent');
+  useTimelineData('recent');
   const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
   const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
   const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
-  const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
   const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
   const historicoSituacao = useMemo(() => Array.isArray(historicoSituacaoRaw) ? historicoSituacaoRaw : [], [historicoSituacaoRaw]);
 
+  // Construir mapa de histórico e mapa de veículo atual uma vez (reutilizados)
+  const historicoMap = useMemo(() => {
+    const map = new Map<string, any[]>();
+    historicoSituacao.forEach((h: any) => {
+      const placa = h.Placa;
+      if (!placa) return;
+      if (!map.has(placa)) map.set(placa, []);
+      map.get(placa)!.push(h);
+    });
+    map.forEach((arr) => arr.sort((a: any, b: any) => parseDateSafe(a?.UltimaAtualizacao).getTime() - parseDateSafe(b?.UltimaAtualizacao).getTime()));
+    return map;
+  }, [historicoSituacao]);
+
+  const veiculoAtualMap = useMemo(() => {
+    const m = new Map<string, any>();
+    frota.forEach(v => { if (v.Placa) m.set(v.Placa, v); });
+    return m;
+  }, [frota]);
+
+  // Menor timestamp entre todas as fontes (usado para o modo 'all')
+  
+
+  
+
+  // Resolve o status de uma placa em uma data (snapshot). Retorna { status, lastChangeDate, usedHistorico, usedFallback }
+  const resolveStatusForDate = (placa: string, checkDate: Date) => {
+    const events = (historicoMap.get(placa) || []);
+    let status: string | null = null;
+    let usedHistorico = false;
+    let lastChangeDate: string | null = null;
+
+    if (events.length > 0) {
+      for (let j = events.length - 1; j >= 0; j--) {
+        const evDate = parseDateSafe(events[j]?.UltimaAtualizacao);
+        if (evDate.getTime() <= checkDate.getTime()) {
+          status = events[j]?.SituacaoVeiculo || null;
+          usedHistorico = true;
+          lastChangeDate = evDate.toISOString();
+          break;
+        }
+      }
+    }
+
+    if (!status) {
+      const v = veiculoAtualMap.get(placa);
+      if (v) {
+        status = v.Status ?? null;
+      }
+    }
+
+    return { status, usedHistorico, lastChangeDate };
+  };
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d'>('90d');
+  // Debug: log quando periodoSelecionado mudar
+  useEffect(() => {
+    console.log('[FleetIdle] periodoSelecionado:', periodoSelecionado);
+  }, [periodoSelecionado]);
+  
   const pageSize = 10;
 
   // Debug: verificar dados carregados
   const hasPatioData = patioMov.length > 0;
 
-  // Gerar histórico diário de % improdutiva (últimos 90 dias)
+  // Gerar histórico diário de % improdutiva (90 dias ou todo histórico disponível)
   const dailyIdleHistory = useMemo(() => {
     const today = new Date();
-    const data: { date: string; pct: number; improdutiva: number; total: number; displayDate: string }[] = [];
+    const data: { date: string; dateLocal: string; pct: number; improdutiva: number; total: number; displayDate: string }[] = [];
 
-    // Preprocessar historico: mapa placa -> eventos ordenados por DataAtualizacaoDados asc
-    const histMap = new Map<string, any[]>();
-    historicoSituacao.forEach((h: any) => {
-      const placa = h.Placa;
-      if (!placa) return;
-      if (!histMap.has(placa)) histMap.set(placa, []);
-      const arr = histMap.get(placa)!;
-      arr.push(h);
-    });
-    histMap.forEach((arr) => arr.sort((a: any, b: any) => new Date(a?.DataAtualizacaoDados || 0).getTime() - new Date(b?.DataAtualizacaoDados || 0).getTime()));
+    // Debug log
+    console.log('📊 [FleetIdle] Total de placas na frota:', frota.length);
+    console.log('📊 [FleetIdle] Total de eventos no histórico:', historicoSituacao.length);
+    console.log('📊 [FleetIdle] Placas com histórico:', historicoMap.size);
 
     const placas = frota.map(v => v.Placa).filter(Boolean);
 
-    // Gerar últimos 90 dias
-    for (let i = 89; i >= 0; i--) {
+    // (usar `veiculoAtualMap` memoizado acima para fallback de status)
+
+    // Determinar quantidade de dias a gerar com base no filtro de período
+    let daysToGenerate = 90;
+    if (periodoSelecionado === '30d') {
+      daysToGenerate = 30;
+    } else if (periodoSelecionado === '90d') {
+      daysToGenerate = 90;
+    } else if (periodoSelecionado === '180d') {
+      daysToGenerate = 180;
+    }
+
+    // Gerar últimos `daysToGenerate` dias
+    for (let i = daysToGenerate - 1; i >= 0; i--) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() - i);
       checkDate.setHours(23, 59, 59, 999); // considerar até o fim do dia
 
-      const dateStr = checkDate.toISOString().split('T')[0];
-      const displayDate = new Date(checkDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      // Gerar `dateStr` no formato YYYY-MM-DD usando a data local (evita shift UTC)
+      const y = checkDate.getFullYear();
+      const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+      const d = String(checkDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+      const dateISO = checkDate.toISOString();
+      const displayDate = checkDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
       let improdutivaCount = 0;
       let activeCount = 0;
+      let usandoHistoricoCount = 0;
+      let usandoFallbackCount = 0;
 
       placas.forEach((placa: string) => {
-        const events = histMap.get(placa) || [];
-        // buscar último evento com DataAtualizacaoDados <= checkDate
-        let status = null;
-        for (let j = events.length - 1; j >= 0; j--) {
-          const evDate = new Date(events[j]?.DataAtualizacaoDados || 0);
-          if (evDate.getTime() <= checkDate.getTime()) {
-            status = events[j]?.SituacaoVeiculo || events[j]?.Situacao || null;
-            break;
-          }
-        }
-        // se não houver evento, fallback para status atual em frota
-        if (!status) {
-          const v = frota.find(f => f.Placa === placa);
-          status = v ? v.Status : null;
-        }
+        const { status, usedHistorico } = resolveStatusForDate(placa, checkDate);
+        if (usedHistorico) usandoHistoricoCount++;
+        else usandoFallbackCount++;
+
+        if (!status) return;
 
         const cat = getCategory(status || '');
         if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
@@ -105,85 +187,84 @@ export default function FleetIdleDashboard(): JSX.Element {
       });
 
       const pct = activeCount > 0 ? (improdutivaCount / activeCount) * 100 : 0;
-      data.push({ date: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate });
+      data.push({ date: dateISO, dateLocal: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate });
+
+      // Debug para primeiros e últimos dias
+      if (daysToGenerate <= 100) {
+        if (i >= daysToGenerate - 3 || i <= 2) {
+          console.log(`📅 [${dateStr}] Improd: ${improdutivaCount}, Total: ${activeCount}, Pct: ${pct.toFixed(1)}%, Histórico: ${usandoHistoricoCount}, Fallback: ${usandoFallbackCount}`);
+        }
+      } else {
+        // apenas amostra
+        if (i % Math.ceil(daysToGenerate / 6) === 0) {
+          console.log(`📅 [${dateStr}] Improd: ${improdutivaCount}, Total: ${activeCount}, Pct: ${pct.toFixed(1)}%`);
+        }
+      }
     }
 
+    console.log('📊 [FleetIdle] Histórico gerado com', data.length, 'dias');
     return data;
-  }, [frota, timeline, historicoSituacao]);
+  }, [frota, historicoSituacao, periodoSelecionado, patioMov, veiculoMov]);
 
   // Veículos improdutivos na data selecionada
   const vehiclesOnSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
-    const checkDate = new Date(selectedDate + 'T23:59:59');
+    // Construir checkDate a partir da string YYYY-MM-DD como data local
+    const parts = selectedDate.split('-').map((p) => parseInt(p, 10));
+    const checkDate = parts.length === 3
+      ? new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
+      : new Date(selectedDate + 'T23:59:59');
     const placas = frota.map(v => v.Placa).filter(Boolean);
 
-    // Para a lista de veículos improdutivos naquela data, usamos historicoSituacao
-    const improdutivos = placas.filter(placa => {
-      const events = (historicoSituacao || []).filter((h: any) => h.Placa === placa).sort((a: any,b:any)=>new Date(a?.DataAtualizacaoDados || 0).getTime()-new Date(b?.DataAtualizacaoDados || 0).getTime());
-      let status = null;
-      for (let j = events.length -1; j>=0; j--) {
-        if (new Date(events[j]?.DataAtualizacaoDados || 0).getTime() <= checkDate.getTime()) { status = events[j]?.SituacaoVeiculo || events[j]?.Situacao; break; }
-      }
-      if (!status) {
-        const v = frota.find(f=>f.Placa===placa); status = v ? v.Status : null;
-      }
-      return getCategory(status||'') === 'Improdutiva';
-    });
+    // Usar historicoMap centralizado
 
-    return improdutivos.map((placa: string) => {
+    const improdutivos: any[] = [];
+
+    placas.forEach((placa: string) => {
       const v = frota.find(f => f.Placa === placa) || {} as any;
-      // Movimentações de pátio
-      const movPatio = patioMov
-        .filter((m: any) => m.Placa === placa)
-        .sort((a: any, b: any) => {
-          const dateA = new Date(a.DataMovimentacao || 0).getTime();
-          const dateB = new Date(b.DataMovimentacao || 0).getTime();
-          return dateB - dateA;
+
+      // Reconstruir status até checkDate usando a função centralizada
+      const { status: currentStatus, lastChangeDate } = resolveStatusForDate(placa, checkDate);
+      const cat = getCategory(currentStatus || '');
+      if (cat === 'Improdutiva') {
+        // Movimentações de pátio
+          const movPatio = patioMov
+            .filter((m: any) => m.Placa === placa)
+            .sort((a: any, b: any) => parseDateSafe(b.DataMovimentacao).getTime() - parseDateSafe(a.DataMovimentacao).getTime());
+        const ultimoMovPatio = movPatio[0];
+
+        const movVeiculo = veiculoMov
+          .filter((m: any) => m.Placa === placa)
+          .sort((a: any, b: any) => parseDateSafe(b.DataDevolucao || b.DataRetirada).getTime() - parseDateSafe(a.DataDevolucao || a.DataRetirada).getTime());
+        const ultimaLocacao = movVeiculo[0];
+
+        // Data de início do status: preferir a última mudança detectada nos logs
+        let dataInicioStatus = lastChangeDate || (ultimaLocacao?.DataDevolucao ? parseDateSafe(ultimaLocacao.DataDevolucao).toISOString() : null) || (ultimoMovPatio?.DataMovimentacao ? parseDateSafe(ultimoMovPatio.DataMovimentacao).toISOString() : null) || null;
+
+        let diasNoStatus = 0;
+        if (dataInicioStatus) {
+          const dataInicio = new Date(dataInicioStatus);
+          const hoje = new Date();
+          diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
+
+        improdutivos.push({
+          Placa: placa,
+          Modelo: v.Modelo,
+          Status: currentStatus || v.Status,
+          Patio: patio,
+          DiasNoStatus: Math.max(0, diasNoStatus),
+          DataInicioStatus: dataInicioStatus,
+          UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
+          UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
         });
-      const ultimoMovPatio = movPatio[0];
-
-      const movVeiculo = veiculoMov
-        .filter((m: any) => m.Placa === placa)
-        .sort((a: any, b: any) => {
-          const dateA = new Date(a.DataDevolucao || a.DataRetirada || 0).getTime();
-          const dateB = new Date(b.DataDevolucao || b.DataRetirada || 0).getTime();
-          return dateB - dateA;
-        });
-      const ultimaLocacao = movVeiculo[0];
-
-      // Calcular dias no status usando historicoSituacao se disponível
-      let dataInicioStatus = null;
-      const events = (historicoSituacao || []).filter((h:any)=>h.Placa===placa).sort((a:any,b:any)=>new Date(a?.DataAtualizacaoDados || 0).getTime()-new Date(b?.DataAtualizacaoDados || 0).getTime());
-      for (let j = events.length-1; j>=0; j--) {
-        const ev = events[j];
-        if (new Date(ev?.DataAtualizacaoDados || 0).getTime() <= checkDate.getTime()) { dataInicioStatus = ev?.DataAtualizacaoDados ?? null; break; }
       }
-      if (!dataInicioStatus) {
-        const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).toISOString() : null;
-        dataInicioStatus = dataDevolucao || ultimoMovPatio?.DataMovimentacao || null;
-      }
-
-      let diasNoStatus = 0;
-      if (dataInicioStatus) {
-        const dataInicio = new Date(dataInicioStatus);
-        const hoje = new Date();
-        diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
-      }
-
-      const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
-
-      return {
-        Placa: placa,
-        Modelo: v.Modelo,
-        Status: v.Status,
-        Patio: patio,
-        DiasNoStatus: Math.max(0, diasNoStatus),
-        DataInicioStatus: dataInicioStatus,
-        UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
-        UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
-      };
     });
-  }, [frota, patioMov, veiculoMov, selectedDate]);
+
+    return improdutivos;
+  }, [frota, patioMov, veiculoMov, selectedDate, historicoSituacao]);
 
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
@@ -220,151 +301,7 @@ export default function FleetIdleDashboard(): JSX.Element {
     }
   };
 
-  // ANÁLISE 1: Tempo médio de permanência por pátio
-  const patioAnalysis = useMemo(() => {
-    const patioMap = new Map<string, { soma: number; count: number; veiculos: number }>();
-    
-    patioMov.forEach((mov: any) => {
-      const patio = mov.Patio || 'Sem Pátio';
-      if (!patioMap.has(patio)) {
-        patioMap.set(patio, { soma: 0, count: 0, veiculos: 0 });
-      }
-    });
-    
-    // Calcular tempo entre movimentações
-    const placas = new Set(patioMov.map((m: any) => m.Placa));
-    placas.forEach(placa => {
-      const movs = patioMov
-        .filter((m: any) => m.Placa === placa)
-        .sort((a: any, b: any) => new Date(a.DataMovimentacao || 0).getTime() - new Date(b.DataMovimentacao || 0).getTime());
-      
-      for (let i = 0; i < movs.length - 1; i++) {
-        const patio = movs[i].Patio || 'Sem Pátio';
-        const dataAtual = new Date(movs[i].DataMovimentacao);
-        const dataProxima = new Date(movs[i + 1].DataMovimentacao);
-        const dias = Math.max(0, (dataProxima.getTime() - dataAtual.getTime()) / (1000 * 60 * 60 * 24));
-        
-        const stats = patioMap.get(patio)!;
-        stats.soma += dias;
-        stats.count += 1;
-      }
-    });
-    
-    // Contar veículos atuais por pátio
-    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
-    improdutivos.forEach(v => {
-      const patio = v.Localizacao || 'Sem Pátio';
-      if (patioMap.has(patio)) {
-        patioMap.get(patio)!.veiculos += 1;
-      } else {
-        patioMap.set(patio, { soma: 0, count: 0, veiculos: 1 });
-      }
-    });
-    
-    const result = Array.from(patioMap.entries())
-      .map(([patio, stats]) => ({
-        patio,
-        mediaDias: stats.count > 0 ? stats.soma / stats.count : 0,
-        veiculosImprodutivos: stats.veiculos,
-        movimentacoes: stats.count
-      }))
-      .filter(p => p.veiculosImprodutivos > 0 || p.movimentacoes > 0)
-      .sort((a, b) => b.veiculosImprodutivos - a.veiculosImprodutivos)
-      .slice(0, 10);
-    
-    return result;
-  }, [patioMov, frota]);
-
-  // ANÁLISE 2: Taxa de giro de pátio (movimentações por veículo)
-  const giroPatioAnalysis = useMemo(() => {
-    const placaMovCount = new Map<string, number>();
-    
-    patioMov.forEach((mov: any) => {
-      const placa = mov.Placa;
-      placaMovCount.set(placa, (placaMovCount.get(placa) || 0) + 1);
-    });
-    
-    const totalVeiculos = placaMovCount.size;
-    const totalMovimentacoes = patioMov.length;
-    const taxaGiroMes = totalVeiculos > 0 ? (totalMovimentacoes / totalVeiculos) / 3 : 0; // últimos 3 meses
-    
-    return {
-      taxaGiroMes: taxaGiroMes.toFixed(2),
-      totalVeiculos,
-      totalMovimentacoes,
-      veiculosMaisMudancas: Array.from(placaMovCount.entries())
-        .map(([placa, count]) => ({ placa, mudancas: count }))
-        .sort((a, b) => b.mudancas - a.mudancas)
-        .slice(0, 5)
-    };
-  }, [patioMov]);
-
-  // ANÁLISE 3: Análise de usuários
-  const userAnalysis = useMemo(() => {
-    const userMap = new Map<string, { movimentacoes: number; veiculosUnicos: Set<string> }>();
-    
-    patioMov.forEach((mov: any) => {
-      const user = mov.UsuarioMovimentacao || 'Não identificado';
-      if (!userMap.has(user)) {
-        userMap.set(user, { movimentacoes: 0, veiculosUnicos: new Set() });
-      }
-      const stats = userMap.get(user)!;
-      stats.movimentacoes += 1;
-      stats.veiculosUnicos.add(mov.Placa);
-    });
-    
-    return Array.from(userMap.entries())
-      .map(([user, stats]) => ({
-        user,
-        movimentacoes: stats.movimentacoes,
-        veiculosUnicos: stats.veiculosUnicos.size,
-        mediaPorVeiculo: stats.veiculosUnicos.size > 0 ? stats.movimentacoes / stats.veiculosUnicos.size : 0
-      }))
-      .sort((a, b) => b.movimentacoes - a.movimentacoes)
-      .slice(0, 8);
-  }, [patioMov]);
-
-  // ANÁLISE 4: Custo de pátio (estimativa)
-  const custoPatioAnalysis = useMemo(() => {
-    const custoDiario = 15; // R$ 15/dia por veículo (ajustar conforme realidade)
-    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
-    
-    const custoMensal = improdutivos.reduce((sum, v) => {
-      return sum + (parseNum(v.DiasNoStatus) * custoDiario);
-    }, 0);
-    
-    const veiculosTop = improdutivos
-      .map(v => ({
-        placa: v.Placa,
-        modelo: v.Modelo,
-        dias: parseNum(v.DiasNoStatus),
-        custoEstimado: parseNum(v.DiasNoStatus) * custoDiario
-      }))
-      .sort((a, b) => b.custoEstimado - a.custoEstimado)
-      .slice(0, 10);
-    
-    return {
-      custoTotal: custoMensal,
-      custoDiario,
-      veiculosTop
-    };
-  }, [frota]);
-
-  // ANÁLISE 5: Heat map temporal (dia da semana)
-  const temporalHeatmap = useMemo(() => {
-    const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-    const heatmapData = diasSemana.map((dia, idx) => ({ dia, movimentacoes: 0, dayIndex: idx }));
-    
-    patioMov.forEach((mov: any) => {
-      const date = new Date(mov.DataMovimentacao);
-      const dayOfWeek = date.getDay();
-      heatmapData[dayOfWeek].movimentacoes += 1;
-    });
-    
-    return heatmapData;
-  }, [patioMov]);
-
-  const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6'];
+  // Análises de pátio removidas (cálculos anteriormente usados na seção eliminada)
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
@@ -423,7 +360,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         </Card>
         <Card decoration="top" decorationColor="blue">
           <Text>Período Analisado</Text>
-          <Metric className="text-xl">90 dias</Metric>
+          <Metric className="text-xl">{dailyIdleHistory.length} dias</Metric>
           <Text className="text-xs text-slate-500 mt-1">Histórico diário</Text>
         </Card>
       </div>
@@ -431,25 +368,54 @@ export default function FleetIdleDashboard(): JSX.Element {
       {/* Gráfico de Tendência Histórica */}
       <Card>
         <div className="flex justify-between items-center mb-4">
-          <div>
-            <Title>Evolução Diária - % Frota Improdutiva (Últimos 90 dias)</Title>
-            <Text className="text-xs text-slate-500 mt-1">
-              Clique em um ponto do gráfico para ver detalhamento dos veículos naquele dia
-            </Text>
+            <div>
+              <Title>Evolução Diária - % Frota Improdutiva</Title>
+              <Text className="text-xs text-slate-500 mt-1">
+                Clique em um ponto do gráfico para ver detalhamento dos veículos naquele dia
+              </Text>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="inline-flex rounded-md shadow-sm bg-white p-1 border">
+                <button
+                  onClick={() => setPeriodoSelecionado('30d')}
+                  className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '30d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
+                  title="Últimos 30 dias"
+                >
+                  Últimos 30 dias
+                
+                <button
+                  onClick={() => setPeriodoSelecionado('90d')}
+                  className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '90d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
+                  title="Últimos 90 dias"
+                >
+                  Últimos 90 dias
+                </button>
+                <button
+                  onClick={() => setPeriodoSelecionado('180d')}
+                  className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '180d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
+                  title="Últimos 6 meses"
+                >
+                  Últimos 6 meses
+                </button>
+                </button>
+              </div>
+              <Badge color="rose" icon={TrendingDown}>
+                {(dailyIdleHistory[dailyIdleHistory.length - 1]?.pct ?? 0).toFixed(1)}% hoje
+              </Badge>
+            </div>
           </div>
-          <Badge color="rose" icon={TrendingDown}>
-            {dailyIdleHistory[dailyIdleHistory.length - 1]?.pct.toFixed(1)}% hoje
-          </Badge>
-        </div>
         <div className="h-96 mt-4">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart 
               data={dailyIdleHistory}
               onClick={(data) => {
-                if (data && data.activePayload && data.activePayload[0]) {
-                  setSelectedDate(data.activePayload[0].payload.date);
-                }
-              }}
+                  if (data && data.activePayload && data.activePayload[0]) {
+                    const payload = data.activePayload[0].payload;
+                    // preferir dateLocal (YYYY-MM-DD) para evitar shift UTC
+                    const local = payload.dateLocal || (payload.date ? new Date(payload.date).toISOString().split('T')[0] : null);
+                    if (local) setSelectedDate(local);
+                  }
+                }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis 
@@ -602,7 +568,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">1</span>
                   Placa
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Identificação única do veículo no sistema.</p>
+                <p className="text-sm text-slate-600 ml-8">Identificador único do veículo no sistema.</p>
               </div>
               
               <div>
@@ -610,7 +576,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">2</span>
                   Modelo
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Descrição completa do modelo do veículo cadastrado na frota.</p>
+                <p className="text-sm text-slate-600 ml-8">Nome do modelo conforme o cadastro da frota.</p>
               </div>
               
               <div>
@@ -618,7 +584,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">3</span>
                   Status
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Exibe apenas status improdutivos como: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>, etc. Não exibe veículos locados (produtivos) ou inativos (vendidos/baixados).</p>
+                <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Lista apenas status considerados improdutivos (ex.: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>). Veículos locados (produtivos) ou inativos (vendidos/baixados/sinistro total) não são exibidos.</p>
               </div>
               
               <div>
@@ -626,7 +592,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">4</span>
                   Pátio
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Localização física do veículo. Vem da última movimentação de pátio registrada. Se não houver movimentação registrada, busca o campo "Localização" do cadastro da frota.</p>
+                <p className="text-sm text-slate-600 ml-8">Localização física do veículo, baseada na última movimentação de pátio registrada. Se não houver movimentação, utiliza o campo "Localização" do cadastro da frota.</p>
               </div>
               
               <div className="bg-amber-50 p-4 rounded border-l-4 border-amber-400">
@@ -636,10 +602,10 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Cálculo:</strong></p>
                 <ul className="text-sm text-slate-600 ml-8 space-y-1 list-disc list-inside">
-                  <li>Compara a data da <strong>última movimentação de pátio</strong> vs <strong>última devolução de locação</strong></li>
-                  <li>Usa a <strong>data mais recente</strong> entre as duas</li>
+                  <li>Compara a data da <strong>última movimentação de pátio</strong> com a data da <strong>última devolução de locação</strong>.</li>
+                  <li>Seleciona a <strong>data mais recente</strong> entre as duas como <em>Data Início</em>.</li>
                   <li>Calcula: <code className="bg-slate-100 px-1 rounded">Dias = Data Hoje - Data Início</code></li>
-                  <li>Exemplo: Se última movimentação foi 06/10/2025 e hoje é 05/01/2026 → <strong>91 dias</strong></li>
+                  <li>Exemplo: última movimentação em 06/10/2025 → hoje (05/01/2026) = <strong>91 dias</strong></li>
                 </ul>
               </div>
               
@@ -648,12 +614,12 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">6</span>
                   Data Início Status ⭐
                 </h3>
-                <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Lógica de determinação:</strong></p>
+                <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Lógica:</strong></p>
                 <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
-                  <li>Busca última movimentação de pátio da placa</li>
-                  <li>Busca última devolução de locação da placa</li>
-                  <li>Compara as duas datas e <strong>usa a mais recente</strong></li>
-                  <li>Esta é considerada a data que o veículo entrou no status improdutivo atual</li>
+                  <li>Obtém a última movimentação de pátio (se houver).</li>
+                  <li>Obtém a última devolução de locação (se houver).</li>
+                  <li>Compara as datas e utiliza a <strong>mais recente</strong> como Data Início.</li>
+                  <li>Essa data representa o início do status improdutivo atual.</li>
                 </ol>
               </div>
               
@@ -662,7 +628,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">7</span>
                   Última Movimentação
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Data e hora da última vez que o veículo foi movimentado entre pátios ou devolvido de uma locação. Mesma data usada para calcular "Dias Parado".</p>
+                <p className="text-sm text-slate-600 ml-8">Data e hora da última movimentação entre pátios ou devolução de locação. Essa data é utilizada no cálculo de "Dias Parado".</p>
               </div>
               
               <div>
@@ -670,13 +636,13 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">8</span>
                   Usuário
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Nome do usuário que registrou a última movimentação de pátio do veículo. Útil para rastreabilidade e auditoria.</p>
+                <p className="text-sm text-slate-600 ml-8">Nome do usuário que registrou a última movimentação. Importante para rastreabilidade e auditoria.</p>
               </div>
               
               <div className="bg-emerald-50 p-4 rounded border border-emerald-200 mt-6">
                 <h3 className="font-semibold text-emerald-900 mb-2">📊 Cálculo do % Improdutiva (Gráfico)</h3>
                 <p className="text-sm text-emerald-700">
-                  <strong>Fórmula:</strong> (Veículos Improdutivos / Total Veículos Ativos) × 100
+                  <strong>Fórmula:</strong> (Veículos Improdutivos / Veículos Ativos) × 100
                 </p>
                 <p className="text-xs text-emerald-600 mt-2">
                   <strong>Veículos Ativos</strong> = Produtivos (locados) + Improdutivos (parados). Não inclui inativos (vendidos, baixados, sinistro total).
@@ -742,253 +708,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         </Card>
       </div>
 
-      {/* ANÁLISES AVANÇADAS */}
-      {hasPatioData ? (
-        <div className="mt-8">
-          <Title className="text-2xl mb-6">Análises Avançadas de Pátio e Operações</Title>
-        
-          {/* Análise 1: Tempo Médio por Pátio */}
-          {patioAnalysis.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Card>
-            <div className="flex items-center gap-2 mb-4">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <Title>Tempo Médio de Permanência por Pátio</Title>
-            </div>
-            <Text className="text-xs text-slate-500 mb-4">
-              Média de dias até próxima movimentação + veículos improdutivos atuais
-            </Text>
-            {patioAnalysis.length > 0 ? (
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={patioAnalysis} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" fontSize={10} />
-                  <YAxis dataKey="patio" type="category" width={120} fontSize={10} />
-                  <Tooltip 
-                    content={({ active, payload }) => {
-                      if (active && payload && payload[0]) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="bg-white p-3 border rounded shadow-lg">
-                            <p className="font-semibold">{data.patio}</p>
-                            <p className="text-blue-600">Média: {data.mediaDias.toFixed(1)} dias</p>
-                            <p className="text-rose-600">{data.veiculosImprodutivos} improdutivos</p>
-                            <p className="text-xs text-slate-500">{data.movimentacoes} movimentações</p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Bar dataKey="mediaDias" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="veiculosImprodutivos" fill="#ef4444" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            ) : (
-              <div className="text-center py-8 text-slate-500">
-                <p className="text-sm">Aguardando dados de movimentação...</p>
-              </div>
-            )}
-          </Card>
-
-          {/* Análise 2: Taxa de Giro */}
-          <Card>
-            <div className="flex items-center gap-2 mb-4">
-              <MapPin className="w-5 h-5 text-emerald-600" />
-              <Title>Taxa de Giro de Pátio</Title>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-blue-50 p-4 rounded">
-                <Text className="text-xs text-slate-600">Taxa de Giro/Mês</Text>
-                <Metric className="text-blue-600">{giroPatioAnalysis.taxaGiroMes}</Metric>
-                <Text className="text-xs text-slate-500">movimentações por veículo</Text>
-              </div>
-              <div className="bg-emerald-50 p-4 rounded">
-                <Text className="text-xs text-slate-600">Total Movimentações</Text>
-                <Metric className="text-emerald-600">{giroPatioAnalysis.totalMovimentacoes}</Metric>
-                <Text className="text-xs text-slate-500">{giroPatioAnalysis.totalVeiculos} veículos</Text>
-              </div>
-            </div>
-            <div className="border-t pt-4">
-              <Text className="text-xs font-semibold text-slate-600 mb-2">Top 5 Veículos - Mais Mudanças</Text>
-              <div className="space-y-2">
-                {giroPatioAnalysis.veiculosMaisMudancas.map((v, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-sm">
-                    <span className="font-mono font-medium">{v.placa}</span>
-                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">
-                      {v.mudancas} mudanças
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-        </div>
-        ) : null}
-
-        {/* Análise 3: Usuários + Análise 4: Custo */}
-        {(userAnalysis.length > 0 || custoPatioAnalysis.veiculosTop.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {userAnalysis.length > 0 && (
-          <Card>
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="w-5 h-5 text-purple-600" />
-              <Title>Análise de Usuários - Movimentações</Title>
-            </div>
-            <Text className="text-xs text-slate-500 mb-4">
-              Quem mais movimenta veículos entre pátios
-            </Text>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={userAnalysis}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="user" angle={-45} textAnchor="end" height={100} fontSize={9} />
-                  <YAxis fontSize={10} />
-                  <Tooltip 
-                    content={({ active, payload }) => {
-                      if (active && payload && payload[0]) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="bg-white p-3 border rounded shadow-lg">
-                            <p className="font-semibold text-sm">{data.user}</p>
-                            <p className="text-purple-600">{data.movimentacoes} movimentações</p>
-                            <p className="text-blue-600">{data.veiculosUnicos} veículos</p>
-                            <p className="text-xs text-slate-500">
-                              Média: {data.mediaPorVeiculo.toFixed(1)} mov/veículo
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Bar dataKey="movimentacoes" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-          )}
-
-          {custoPatioAnalysis.veiculosTop.length > 0 && (
-          <Card>
-            <div className="flex items-center gap-2 mb-4">
-              <DollarSign className="w-5 h-5 text-rose-600" />
-              <Title>Custo Estimado de Ociosidade</Title>
-            </div>
-            <div className="bg-rose-50 p-4 rounded mb-4">
-              <Text className="text-xs text-slate-600">Custo Total Acumulado</Text>
-              <Metric className="text-rose-600">
-                R$ {custoPatioAnalysis.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </Metric>
-              <Text className="text-xs text-slate-500 mt-1">
-                Baseado em R$ {custoPatioAnalysis.custoDiario}/dia por veículo
-              </Text>
-            </div>
-            <div className="border-t pt-4">
-              <Text className="text-xs font-semibold text-slate-600 mb-3">Top 10 Veículos - Maior Custo</Text>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {custoPatioAnalysis.veiculosTop.map((v, idx) => (
-                  <div key={idx} className="flex justify-between items-start text-xs border-b pb-2">
-                    <div>
-                      <p className="font-mono font-semibold">{v.placa}</p>
-                      <p className="text-slate-500 text-[10px]">{v.modelo}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-rose-600">
-                        R$ {v.custoEstimado.toLocaleString('pt-BR')}
-                      </p>
-                      <p className="text-slate-500">{v.dias} dias</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-          )}
-        </div>
-        )}
-
-        {/* Análise 5: Heat Map Temporal */}
-        {temporalHeatmap.some(d => d.movimentacoes > 0) && (
-        <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-5 h-5 text-amber-600" />
-            <Title>Heat Map Temporal - Movimentações por Dia da Semana</Title>
-          </div>
-          <Text className="text-xs text-slate-500 mb-4">
-            Identificar padrões: quando ocorrem mais movimentações de veículos?
-          </Text>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={temporalHeatmap}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="dia" fontSize={11} />
-                  <YAxis fontSize={10} />
-                  <Tooltip />
-                  <Bar dataKey="movimentacoes" fill="#f59e0b" radius={[4, 4, 0, 0]}>
-                    {temporalHeatmap.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={temporalHeatmap}
-                    dataKey="movimentacoes"
-                    nameKey="dia"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={(entry) => `${entry.dia}: ${entry.movimentacoes}`}
-                    labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
-                  >
-                    {temporalHeatmap.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="mt-4 p-4 bg-amber-50 rounded">
-            <p className="text-xs text-slate-700">
-              <strong>Insight:</strong> {(() => {
-                const maxDay = temporalHeatmap.reduce((max, day) => 
-                  day.movimentacoes > max.movimentacoes ? day : max
-                );
-                const minDay = temporalHeatmap.reduce((min, day) => 
-                  day.movimentacoes < min.movimentacoes ? day : min
-                );
-                return `${maxDay.dia} é o dia com mais movimentações (${maxDay.movimentacoes}), 
-                enquanto ${minDay.dia} tem menos (${minDay.movimentacoes}). 
-                Considere ajustar equipe e recursos conforme demanda.`;
-              })()}
-            </p>
-          </div>
-        </Card>
-        )}
-
-        
-      </div>
-      ) : (
-        <Card className="mt-8">
-          <div className="text-center py-12">
-            <AlertTriangle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <Title className="text-slate-600">Análises Avançadas Indisponíveis</Title>
-            <Text className="text-slate-500 mt-2">
-              Execute o ETL para gerar os dados de movimentação de pátio necessários para as análises avançadas.
-            </Text>
-          </div>
-        </Card>
-      )}
+      {/* Seção 'Análises Avançadas de Pátio e Operações' removida */}
     </div>
   );
 }

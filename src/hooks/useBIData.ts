@@ -16,11 +16,7 @@ const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // NOTE: Edge Function fallback removed — system uses static JSON artifacts only.
-// Keep fetchFromLocalDB implementation here for reference, but it's no longer used.
-async function fetchFromLocalDB(identifier: string): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
-  console.warn('[useBIData v2] fetchFromLocalDB called, but Edge Function fallback is disabled.');
-  return { data: null, metadata: null, success: false };
-}
+// Edge fallback helper removed to avoid unused-symbol compiler errors.
 
 // Try to load static JSON files from public/data. Supports single-file and manifest+parts pattern.
 async function fetchFromStatic(identifier: string): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
@@ -63,6 +59,7 @@ async function fetchFromStatic(identifier: string): Promise<{ data: unknown | nu
 
         // parse parts in parallel
         const parsedParts = await Promise.all(partResponses.map(async (pr) => {
+          if (!('resp' in pr) || !pr.resp) throw new Error(`Parte inválida ou sem resposta: ${pr.url}`);
           const r = pr.resp as Response;
           const ct = (r.headers.get('content-type') || '').toLowerCase();
           if (ct.includes('json')) return r.json();
@@ -81,7 +78,8 @@ async function fetchFromStatic(identifier: string): Promise<{ data: unknown | nu
         console.log(`[useBIData v2] ✅ Loaded ${Array.isArray(data) ? data.length : '1'} rows via manifest (${manifestUrl})`);
         return { data, metadata: meta, success: true };
       } catch (err) {
-        console.warn('[useBIData v2] Manifest detectado mas inválido/HTML, ignorando manifest:', err.message || err);
+        const m = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+        console.warn('[useBIData v2] Manifest detectado mas inválido/HTML, ignorando manifest:', m);
       }
     }
 
@@ -127,7 +125,8 @@ async function fetchFromStatic(identifier: string): Promise<{ data: unknown | nu
 
     return { data: null, metadata: null, success: false };
   } catch (err) {
-    console.error('[useBIData v2] Erro ao buscar static:', err);
+    const m = (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err);
+    console.error('[useBIData v2] Erro ao buscar static:', m);
     return { data: null, metadata: null, success: false };
   }
 }
