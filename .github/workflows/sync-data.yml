@@ -8,57 +8,66 @@ on:
   workflow_dispatch:
 
 jobs:
-  update-data:
-    name: ETL e Atualização de JSONs
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  name: Sincronizar Dados (3x ao Dia)
 
-    steps:
-      - name: 1. Checkout do código
-        uses: actions/checkout@v4
+  on:
+    schedule:
+      - cron: '30 13 * * *'
+      - cron: '30 18 * * *'
+      - cron: '30 3 * * *'
+    workflow_dispatch:
 
-      - name: 2. Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
+  jobs:
+    update-data:
+      name: ETL e Atualização de JSONs
+      runs-on: ubuntu-latest
+      permissions:
+        contents: write
 
-      - name: 3. Instalar dependências
-        run: npm ci
+      steps:
+        - name: 1. Checkout do código
+          uses: actions/checkout@v4
 
-      - name: 4. Rodar ETL (Modo JSON Only)
-        env:
-          SQL_SERVER: ${{ secrets.SQL_SERVER }}
-          SQL_USER: ${{ secrets.SQL_USER }}
-          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
-          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-          JSON_ONLY: "true"
-          # Evitar usar Supabase/Service Key aqui — controlar via secrets se necessário
-        run: node scripts/local-etl/run-sync-v2.js --json-only
+        - name: 2. Configurar Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: '18'
+            cache: 'npm'
 
-      - name: 5. Checar por arquivos grandes (>100MB)
-        id: check_large
-        run: |
-          LARGE=$(find public/data -type f -size +100M -print -quit || true)
-          if [ -n "$LARGE" ]; then
-            echo "has_large=true" >> $GITHUB_OUTPUT
-            echo "Large file detected: $LARGE"
-          else
-            echo "has_large=false" >> $GITHUB_OUTPUT
-          fi
+        - name: 3. Instalar dependências
+          run: npm ci
 
-      - name: 6. Commit e Push (Snapshot) — somente se não houver arquivos grandes
-        if: steps.check_large.outputs.has_large == 'false'
-        run: |
-          git config --global user.name "Bot de Dados"
-          git config --global user.email "bot@actions.github.com"
-          git add public/data/
-          git commit -m "Auto-update: Dados sincronizados às $(date -u)" || echo "Nenhuma mudança nos dados detectada."
-          git push
+        - name: 4. Rodar ETL (Modo JSON Only)
+          env:
+            SQL_SERVER: ${{ secrets.SQL_SERVER }}
+            SQL_USER: ${{ secrets.SQL_USER }}
+            SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+            SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+            JSON_ONLY: "true"
+          run: node scripts/local-etl/run-sync-v2.js --json-only
 
-      - name: 7. Aviso sobre arquivos grandes
-        if: steps.check_large.outputs.has_large == 'true'
-        run: |
-          echo "Há arquivos maiores que 100MB em public/data — o workflow não fará commit desses arquivos."
-          echo "Considere usar Supabase Storage, Git LFS ou reduzir o tamanho dos artefatos." 
+        - name: 5. Checar por arquivos grandes (>100MB)
+          id: check_large
+          run: |
+            LARGE=$(find public/data -type f -size +100M -print -quit || true)
+            if [ -n "$LARGE" ]; then
+              echo "has_large=true" >> $GITHUB_OUTPUT
+              echo "Large file detected: $LARGE"
+            else
+              echo "has_large=false" >> $GITHUB_OUTPUT
+            fi
+
+        - name: 6. Commit e Push (Snapshot) — somente se não houver arquivos grandes
+          if: steps.check_large.outputs.has_large == 'false'
+          run: |
+            git config --global user.name "Bot de Dados"
+            git config --global user.email "bot@actions.github.com"
+            git add public/data/
+            git commit -m "Auto-update: Dados sincronizados às $(date -u)" || echo "Nenhuma mudança nos dados detectada."
+            git push
+
+        - name: 7. Aviso sobre arquivos grandes
+          if: steps.check_large.outputs.has_large == 'true'
+          run: |
+            echo "Há arquivos maiores que 100MB em public/data — o workflow não fará commit desses arquivos."
+            echo "Considere usar Supabase Storage, Git LFS ou reduzir o tamanho dos artefatos."
