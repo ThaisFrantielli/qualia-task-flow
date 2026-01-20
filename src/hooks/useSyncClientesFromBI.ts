@@ -70,7 +70,7 @@ export function useSyncClientesFromBI() {
           continue;
         }
 
-        // Mapear campos do dim_clientes para a tabela clientes
+        // Mapear campos do dim_clientes para a tabela clientes (APENAS campos que existem na tabela)
         const novoCliente = {
           codigo_cliente: (codigo || `bi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`).toLowerCase(),
           razao_social: cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || null,
@@ -89,35 +89,7 @@ export function useSyncClientesFromBI() {
           status: (cliente.situacao || cliente.status || cliente.Status || '').toLowerCase() === 'ativo' ? 'ativo' : 'inativo',
           tipo_cliente: cliente.tipo_cliente || cliente.TipoCliente || cliente.Segmento || null,
           natureza_cliente: cliente.natureza_cliente || cliente.NaturezaCliente || null,
-          data_atualizacao_dados: cliente.DataAtualizacaoDados || cliente.data_atualizacao_dados || null,
-          id_cliente_origem: cliente.IdCliente || cliente.Id || cliente.IdClienteOrigem || null,
-          inscricao_estadual: cliente.InscricaoEstadual || cliente.inscricao_estadual || null,
-          inscricao_municipal: cliente.InscricaoMunicipal || cliente.inscricao_municipal || null,
-          rg: cliente.RG || cliente.rg || null,
-          gestor_frota: cliente.GestorFrota || cliente.Gestor || null,
-          email_gestor_frota: cliente.EmailGestorFrota || cliente.EmailGestor || null,
-          telefone_gestor_frota: cliente.TelefoneGestorFrota || cliente.TelefoneGestor || null,
-          site: cliente.Site || cliente.site || null,
-          classificacao: cliente.Classificacao || cliente.classificacao || null,
-          observacoes: cliente.Observacoes || cliente.observacoes || cliente.Observacao || null,
-          data_criacao: cliente.DataCriacao || cliente.DataCriacao || null,
-          complemento: cliente.Complemento || cliente.complemento || null,
-          numero_carteira_condutor: cliente.NumeroCarteiraCondutor || cliente.NumeroCNH || cliente.NumeroCnh || null,
-          tipo_carteira_condutor: cliente.TipoCarteiraCondutor || cliente.TipoCnh || null,
-          vencimento_carteira_condutor: cliente.VencimentoCarteiraCondutor || cliente.VencCnh || null,
-          informacoes_adicionais_condutor: cliente.InformacoesAdicionaisCondutor || cliente.InformacoesAdicionais || null,
-          estado_carteira_condutor: cliente.EstadoCarteiraCondutor || null,
-          emissor_carteira_condutor: cliente.EmissorCarteiraCondutor || null,
-          documento_estrangeiro: cliente.DocumentoEstrangeiro || null,
-          numero_documento_estrangeiro: cliente.NumeroDocumentoEstrangeiro || null,
-          id_tipo_documento_internacional: cliente.IdTipoDocumentoInternacional || null,
-          tipo_documento_internacional: cliente.TipoDocumentoInternacional || null,
-          criado_por: cliente.CriadoPor || cliente.CriadoPorUsuario || null,
-          participa_revisao_programada: parseBool(cliente.ParticipaRevisaoProgramada || cliente.ParticipaRevisaoProgramada === 1 || cliente.ParticipaRevisaoProgramada === '1'),
-          liberar_aprovacao_itens_reembolsaveis_portal_cliente: parseBool(cliente.LiberarAprovacaoItensReembolsaveisPortalCliente || cliente.LiberarAprovacaoItensReembolsaveisPortalCliente === 1 || cliente.LiberarAprovacaoItensReembolsaveisPortalCliente === '1'),
-          requer_aprovacao_de_itens_no_portal_do_cliente_para_faturar: parseBool(cliente.RequerAprovacaoDeItensNoPortalDoClienteParaFaturar || cliente.RequerAprovacaoDeItensNoPortalDoClienteParaFaturar === 1 || cliente.RequerAprovacaoDeItensNoPortalDoClienteParaFaturar === '1'),
-          id_cliente_grupo_economico: cliente.IdClienteGrupoEconomico || cliente.IdClienteGrupo || null,
-          grupo_economico: cliente.GrupoEconomico || cliente.Grupo || null,
+          nome_contratante: cliente.nome_contratante || cliente.NomeContratante || cliente.GestorFrota || cliente.Gestor || null,
           origem: 'dim_clientes_bi',
         };
 
@@ -378,11 +350,12 @@ function formatWhatsapp(phone: string | null): string | null {
   return null;
 }
 
-function parseBool(val: any): boolean | null {
-  if (val === null || val === undefined) return null;
-  if (typeof val === 'boolean') return val;
-  const s = String(val).trim().toLowerCase();
-  if (s === '1' || s === 'true' || s === 'yes' ) return true;
-  if (s === '0' || s === 'false' || s === 'no') return false;
-  return null;
-}
+// Utility function kept for potential future use
+// function parseBool(val: any): boolean | null {
+//   if (val === null || val === undefined) return null;
+//   if (typeof val === 'boolean') return val;
+//   const s = String(val).trim().toLowerCase();
+//   if (s === '1' || s === 'true' || s === 'yes' ) return true;
+//   if (s === '0' || s === 'false' || s === 'no') return false;
+//   return null;
+// }
