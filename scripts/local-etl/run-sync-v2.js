@@ -737,7 +737,9 @@ const CONSOLIDATED = [
                     av.NumeroContrato as numero_contrato,
                     ISNULL(av.Unidade, '') as unidade,
                     ISNULL(av.Unidade, '') as observacoes
-                FROM Alienacoes av WITH (NOLOCK)`
+                FROM Alienacoes av WITH (NOLOCK)
+                -- Removido filtro WHERE av.DataEntrada IS NOT NULL para incluir todas alienações
+                `
     },
     {
         table: 'fat_carro_reserva',
@@ -825,7 +827,39 @@ const CONSOLIDATED = [
     {
         table: 'fat_manutencao_unificado',
         query: `SELECT 
-                    -- Identificação da Ocorrência (tabela principal)
+                    -- Identificação da Ordem de Serviço (tabela principal - granularidade por OS)
+                    os.IdOrdemServico,
+                    os.OrdemServico,
+                    os.IdSituacaoOrdemServico,
+                    os.SituacaoOrdemServico as StatusOS,
+                    os.Categoria,
+                    os.Despesa,
+                    os.OrdemCompra,
+                    os.IdFornecedor as IdFornecedorOS,
+                    os.Fornecedor as FornecedorOS,
+                    FORMAT(os.OrdemServicoCriadaEm, 'yyyy-MM-dd HH:mm:ss') as DataCriacaoOS,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
+                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
+                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as OdometroOS,
+                    
+                    -- Valores Financeiros (dados principais da OS)
+                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as CustoTotalOS,
+                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as ValorTotal,
+                    (${castM('ISNULL(os.ValorNaoReembolsavel, 0)')} / 100.0) as ValorNaoReembolsavel,
+                    (${castM('ISNULL(os.ValorReembolsavel, 0)')} / 100.0) as ValorReembolsavel,
+                    
+                    -- Tipo de Manutenção (inferido do tipo da OS ou Ocorrência)
+                    CASE 
+                        WHEN COALESCE(os.Tipo, om.Tipo) LIKE '%preventiv%' OR COALESCE(os.Tipo, om.Tipo) LIKE '%Preventiv%' THEN 'Preventiva'
+                        WHEN COALESCE(os.Tipo, om.Tipo) LIKE '%corretiv%' OR COALESCE(os.Tipo, om.Tipo) LIKE '%Corretiv%' THEN 'Corretiva'
+                        WHEN COALESCE(os.Tipo, om.Tipo) LIKE '%preditiv%' OR COALESCE(os.Tipo, om.Tipo) LIKE '%Preditiv%' THEN 'Preditiva'
+                        ELSE 'Outros'
+                    END as TipoManutencao,
+                    
+                    -- Lead Time da OS
+                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, os.OrdemServicoCriadaEm)) as DiasOS,
+                    
+                    -- Identificação da Ocorrência (quando existir - dados do processo)
                     om.IdOcorrencia,
                     om.Ocorrencia,
                     om.Ocorrencia as NumeroOcorrencia,
@@ -849,6 +883,7 @@ const CONSOLIDATED = [
                     FORMAT(om.DataPrevisaoConclusaoServico, 'yyyy-MM-dd') as DataPrevisaoConclusao,
                     FORMAT(om.DataConfirmacaoSaida, 'yyyy-MM-dd') as DataConfirmacaoSaida,
                     FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
+                    
                     -- Data de chegada baseada em movimentações (Etapa 'Aguardando Chegada')
                     (
                         SELECT TOP 1 mo3.DataDeConfirmacao
@@ -856,6 +891,7 @@ const CONSOLIDATED = [
                         WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
                         ORDER BY mo3.DataDeConfirmacao ASC
                     ) as DataChegadaVeiculo,
+                    
                     -- Movimentações detalhadas por ocorrência (etapa + data + tempo desde etapa anterior)
                     (
                         SELECT
@@ -875,6 +911,7 @@ const CONSOLIDATED = [
                     DATEDIFF(MINUTE, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Minutos_Conclusao_Retirada,
                     DATEDIFF(HOUR, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Horas_Conclusao_Retirada,
                     DATEDIFF(DAY, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Dias_Conclusao_Retirada,
+                    
                     -- KPI: diferença entre chegada do veículo (Aguardando Chegada) e retirada do veículo
                     DATEDIFF(MINUTE, (
                         SELECT TOP 1 mo3.DataDeConfirmacao
@@ -895,35 +932,38 @@ const CONSOLIDATED = [
                         ORDER BY mo3.DataDeConfirmacao ASC
                     ), om.DataRetiradaVeiculo) as Dias_Chegada_Retirada,
                     
-                    -- Veículo
-                    om.IdVeiculo,
-                    om.Placa,
-                    v.Modelo,
+                    -- Lead Time Total (da ocorrência quando existir)
+                    DATEDIFF(DAY, om.DataCriacao, ISNULL(om.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
+                    
+                    -- Veículo (prioriza dados da OS, fallback para Ocorrência)
+                    COALESCE(os.IdVeiculo, om.IdVeiculo) as IdVeiculo,
+                    COALESCE(os.Placa, om.Placa) as Placa,
+                    COALESCE(os.ModeloVeiculo, v.Modelo) as Modelo,
                     ISNULL(g.GrupoVeiculo, '') as CategoriaVeiculo,
-                    om.OdometroAtual as Odometro,
+                    COALESCE(os.OdometroConfirmado, om.OdometroAtual) as Odometro,
                     
-                    -- Fornecedor/Oficina (da ocorrência)
-                    om.IdFornecedor as IdFornecedorOcorrencia,
-                    om.Fornecedor as FornecedorOcorrencia,
+                    -- Fornecedor/Oficina (prioriza OS, fallback para ocorrência)
+                    COALESCE(os.IdFornecedor, om.IdFornecedor) as IdFornecedorOcorrencia,
+                    COALESCE(os.Fornecedor, om.Fornecedor) as FornecedorOcorrencia,
                     
-                    -- Cliente e Condutor
-                    om.IdCliente,
-                    om.NomeCliente as Cliente,
+                    -- Cliente e Condutor (prioriza OS, fallback para Ocorrência)
+                    COALESCE(os.IdCliente, om.IdCliente) as IdCliente,
+                    COALESCE(os.Cliente, om.NomeCliente) as Cliente,
                     om.IdCondutor,
                     om.NomeCondutor as Condutor,
                     om.NomeRequisitante,
                     om.EmailRequisitante,
                     om.TelefoneRequisitante,
                     
-                    -- Contratos
-                    om.IdContratoLocacao,
-                    om.ContratoLocacao,
-                    om.IdContratoComercial,
-                    om.ContratoComercial,
-                    om.IdClassificacaoContrato,
-                    om.ClassificacaoContrato,
+                    -- Contratos (prioriza OS, fallback para Ocorrência)
+                    COALESCE(os.IdContratoLocacao, om.IdContratoLocacao) as IdContratoLocacao,
+                    COALESCE(os.ContratoLocacao, om.ContratoLocacao) as ContratoLocacao,
+                    COALESCE(os.IdContratoComercial, om.IdContratoComercial) as IdContratoComercial,
+                    COALESCE(os.ContratoComercial, om.ContratoComercial) as ContratoComercial,
+                    COALESCE(os.IdClassificacaoContrato, om.IdClassificacaoContrato) as IdClassificacaoContrato,
+                    COALESCE(os.ClassificacaoContrato, om.ClassificacaoContrato) as ClassificacaoContrato,
                     
-                    -- Localização
+                    -- Localização (da ocorrência)
                     om.Endereco,
                     om.Numero,
                     om.Bairro,
@@ -936,48 +976,17 @@ const CONSOLIDATED = [
                     om.MotivoCancelamento,
                     
                     -- Origem
-                    om.Origem,
+                    COALESCE(os.Origem, om.Origem) as Origem
                     
-                    -- Dados da OS (quando existir)
-                    os.IdOrdemServico,
-                    os.OrdemServico,
-                    os.IdSituacaoOrdemServico,
-                    os.SituacaoOrdemServico as StatusOS,
-                    os.Categoria,
-                    os.Despesa,
-                    os.OrdemCompra,
-                    os.IdFornecedor as IdFornecedorOS,
-                    os.Fornecedor as FornecedorOS,
-                    FORMAT(os.OrdemServicoCriadaEm, 'yyyy-MM-dd') as DataCriacaoOS,
-                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
-                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
-                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as OdometroOS,
-                    
-                    -- Valores Financeiros (da OS)
-                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as CustoTotalOS,
-                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as ValorTotal,
-                    (${castM('ISNULL(os.ValorNaoReembolsavel, 0)')} / 100.0) as ValorNaoReembolsavel,
-                    (${castM('ISNULL(os.ValorReembolsavel, 0)')} / 100.0) as ValorReembolsavel,
-                    
-                    -- Lead Time
-                    DATEDIFF(DAY, om.DataCriacao, ISNULL(om.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
-                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, os.OrdemServicoCriadaEm)) as DiasOS,
-                    
-                    -- Tipo de Manutenção (inferido)
-                    CASE 
-                        WHEN om.Tipo LIKE '%preventiv%' OR om.Tipo LIKE '%Preventiv%' THEN 'Preventiva'
-                        WHEN om.Tipo LIKE '%corretiv%' OR om.Tipo LIKE '%Corretiv%' THEN 'Corretiva'
-                        WHEN om.Tipo LIKE '%preditiv%' OR om.Tipo LIKE '%Preditiv%' THEN 'Preditiva'
-                        ELSE 'Outros'
-                    END as TipoManutencao
-                    
-                FROM OcorrenciasManutencao om
-                -- JOIN com Ordens de Serviço
-                LEFT JOIN OrdensServico os ON om.IdOcorrencia = os.IdOcorrencia
+                FROM OrdensServico os WITH (NOLOCK)
+                -- JOIN com Ocorrências (quando existir - enriquece com dados do processo)
+                LEFT JOIN OcorrenciasManutencao om WITH (NOLOCK) ON os.IdOcorrencia = om.IdOcorrencia
                 -- JOINs para enriquecer com dados de relacionamento
-                LEFT JOIN Veiculos v ON om.Placa = v.Placa
-                LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
-                WHERE om.SituacaoOcorrencia NOT IN ('Cancelada')`
+                LEFT JOIN Veiculos v WITH (NOLOCK) ON COALESCE(os.Placa, om.Placa) = v.Placa
+                LEFT JOIN GruposVeiculos g WITH (NOLOCK) ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
+                WHERE os.SituacaoOrdemServico NOT IN ('Cancelada')
+                -- Incluindo todo o histórico de ordens de serviço
+                `
     },
     {
         table: 'agg_kpis_manutencao_mensal',
@@ -1188,6 +1197,91 @@ const CONSOLIDATED = [
                   AND mo.DataDeConfirmacao IS NOT NULL
                 GROUP BY mo.Usuario, mo.Etapa, mo.Tipo
                 ORDER BY TotalProcessadas DESC`
+    },
+    {
+        table: 'agg_rentabilidade_contratos_mensal',
+        query: `SELECT 
+                    c.IdCliente,
+                    c.Cliente,
+                    cl.IdContratoComercial,
+                    cl.IdContratoLocacao,
+                    cl.ContratoLocacao,
+                    ISNULL(gv.GrupoVeiculo, 'Sem Grupo') as GrupoVeiculo,
+                    v.Modelo,
+                    cl.PlacaPrincipal as Placa,
+                    FORMAT(f.DataCompetencia, 'yyyy-MM') as Competencia,
+                    FORMAT(f.DataCompetencia, 'yyyy') as Ano,
+                    FORMAT(f.DataCompetencia, 'MM') as Mes,
+                    
+                    -- Receitas
+                    SUM(${castM('ISNULL(f.ValorTotal, 0)')}) as ReceitaFaturamento,
+                    SUM(${castM('ISNULL(f.ValorLocacao, 0)')}) as ReceitaLocacao,
+                    SUM(${castM('ISNULL(f.ValorTaxas, 0)')}) as ReceitaTaxas,
+                    SUM(${castM('ISNULL(f.ValorOutros, 0)')}) as ReceitaOutros,
+                    
+                    -- Custos Diretos (Manutenção)
+                    SUM(${castM('ISNULL(os.ValorTotal, 0)')}) as CustoManutencao,
+                    SUM(${castM('ISNULL(os.ValorReembolsavel, 0)')}) as ReembolsoManutencao,
+                    SUM(${castM('ISNULL(os.ValorNaoReembolsavel, 0)')}) as CustoLiquidoManutencao,
+                    
+                    -- Custos de Multas e Sinistros
+                    SUM(${castM('ISNULL(inf.ValorInfracao, 0)')}) as CustoMultas,
+                    SUM(${castM('ISNULL(sin.ValorOrcamento, 0)')}) as CustoSinistros,
+                    
+                    -- Indicadores de Volume
+                    COUNT(DISTINCT f.IdFaturamento) as QtdFaturas,
+                    COUNT(DISTINCT os.IdOrdemServico) as QtdOrdemServico,
+                    COUNT(DISTINCT inf.IdOcorrencia) as QtdMultas,
+                    COUNT(DISTINCT sin.IdOcorrencia) as QtdSinistros,
+                    
+                    -- Rentabilidade Calculada
+                    (
+                        SUM(${castM('ISNULL(f.ValorTotal, 0)')}) 
+                        - SUM(${castM('ISNULL(os.ValorNaoReembolsavel, 0)')})
+                        - SUM(${castM('ISNULL(inf.ValorInfracao, 0)')})
+                        - SUM(${castM('ISNULL(sin.ValorOrcamento, 0)')})
+                    ) as LucroLiquido,
+                    
+                    -- Margem de Rentabilidade (%)
+                    CASE 
+                        WHEN SUM(${castM('ISNULL(f.ValorTotal, 0)')}) > 0 
+                        THEN (
+                            (SUM(${castM('ISNULL(f.ValorTotal, 0)')}) 
+                             - SUM(${castM('ISNULL(os.ValorNaoReembolsavel, 0)')})
+                             - SUM(${castM('ISNULL(inf.ValorInfracao, 0)')})
+                             - SUM(${castM('ISNULL(sin.ValorOrcamento, 0)')})
+                            ) / SUM(${castM('ISNULL(f.ValorTotal, 0)')})
+                        ) * 100
+                        ELSE 0
+                    END as MargemRentabilidade
+                    
+                FROM ContratosLocacao cl WITH (NOLOCK)
+                JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContratoComercial = cc.IdContratoComercial
+                JOIN Clientes c WITH (NOLOCK) ON cc.IdCliente = c.IdCliente
+                LEFT JOIN Veiculos v WITH (NOLOCK) ON cl.PlacaPrincipal = v.Placa
+                LEFT JOIN GruposVeiculos gv WITH (NOLOCK) ON v.IdGrupoVeiculo = gv.IdGrupoVeiculo
+                LEFT JOIN Faturamentos f WITH (NOLOCK) ON f.IdContratoLocacao = cl.IdContratoLocacao 
+                    AND f.SituacaoNota NOT IN ('Cancelada')
+                    AND f.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
+                LEFT JOIN OrdensServico os WITH (NOLOCK) ON os.Placa = cl.PlacaPrincipal
+                    AND os.SituacaoOrdemServico NOT IN ('Cancelada')
+                    AND FORMAT(os.DataInicioServico, 'yyyy-MM') = FORMAT(f.DataCompetencia, 'yyyy-MM')
+                LEFT JOIN OcorrenciasInfracoes inf WITH (NOLOCK) ON inf.Placa = cl.PlacaPrincipal
+                    AND inf.SituacaoOcorrencia NOT IN ('Cancelada')
+                    AND FORMAT(inf.DataInfracao, 'yyyy-MM') = FORMAT(f.DataCompetencia, 'yyyy-MM')
+                LEFT JOIN OcorrenciasSinistro sin WITH (NOLOCK) ON sin.Placa = cl.PlacaPrincipal
+                    AND sin.SituacaoOcorrencia NOT IN ('Cancelada')
+                    AND FORMAT(sin.DataSinistro, 'yyyy-MM') = FORMAT(f.DataCompetencia, 'yyyy-MM')
+                WHERE f.DataCompetencia IS NOT NULL
+                GROUP BY 
+                    c.IdCliente, c.Cliente, 
+                    cl.IdContratoComercial, cl.IdContratoLocacao, cl.ContratoLocacao,
+                    gv.GrupoVeiculo, v.Modelo, cl.PlacaPrincipal,
+                    FORMAT(f.DataCompetencia, 'yyyy-MM'),
+                    FORMAT(f.DataCompetencia, 'yyyy'),
+                    FORMAT(f.DataCompetencia, 'MM')
+                HAVING SUM(${castM('ISNULL(f.ValorTotal, 0)')}) > 0
+                ORDER BY Competencia DESC, c.Cliente`
     },
     {
         table: 'agg_custos_detalhados',

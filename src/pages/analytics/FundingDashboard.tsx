@@ -56,7 +56,7 @@ interface ContractData {
 
 export default function FundingDashboard(): JSX.Element {
     const navigate = useNavigate();
-    const { data: rawAlienacoes } = useBIData<AnyObject[]>('alienacoes.json');
+    const { data: rawAlienacoes } = useBIData<AnyObject[]>('dim_alienacoes.json');
 
     const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, getFilterValues } = useChartFilter();
     const [expandedContracts, setExpandedContracts] = useState<Set<string>>(new Set());

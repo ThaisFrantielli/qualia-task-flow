@@ -77,8 +77,8 @@ export default function FleetDashboard(): JSX.Element {
     const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao');
 
     // Carregar fat_sinistros e fat_multas consolidados (tabelas únicas no Neon)
-    const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros');
-    const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas');
+const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
+  const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas_*.json');
 
     const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
     const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);
