@@ -139,6 +139,10 @@ const CustomerHubPage: React.FC = () => {
     status: c.situacao || 'Ativo',
     primaryContact: c.cliente_contatos?.[0]?.nome_contato || 'Sem contato',
     initials: getInitials(c.nome_fantasia || c.razao_social),
+    tipoCliente: c.tipo_cliente || undefined,
+    naturezaCliente: c.natureza_cliente || undefined,
+    ultimoAtendimentoAt: (c as any).ultimo_atendimento_at || null,
+    codigoCliente: c.codigo_cliente || undefined,
   }));
 
   return (
