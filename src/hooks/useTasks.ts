@@ -242,18 +242,28 @@ export function useTask(taskId: string) {
 
                 const recurrenceEndDate = parseISODateSafe(typedData.recurrence_end as any);
                 if (nextDate && (!recurrenceEndDate || nextDate <= recurrenceEndDate)) {
+                    // CORREÇÃO: Manter is_recurring: true e copiar todos os campos de recorrência
                     await supabase.from('tasks').insert({
                         title: typedData.title,
                         description: typedData.description,
                         status: 'todo',
                         priority: typedData.priority,
                         due_date: dateToLocalDateOnlyISO(nextDate),
-                        is_recurring: false,
+                        is_recurring: true, // Mantém recorrência ativa
+                        recurrence_pattern: typedData.recurrence_pattern, // Copia padrão
+                        recurrence_interval: typedData.recurrence_interval, // Copia intervalo
+                        recurrence_days: typedData.recurrence_days, // Copia dias
+                        recurrence_end: typedData.recurrence_end, // Copia data fim
                         parent_task_id: typedData.id,
                         project_id: typedData.project_id,
                         assignee_id: typedData.assignee_id,
                         category_id: typedData.category_id,
+                        cliente_id: (typedData as any).cliente_id, // Preserva cliente
                     });
+                    
+                    // Toast informando criação da próxima tarefa
+                    const formattedDate = nextDate.toLocaleDateString('pt-BR');
+                    toast.info(`Nova tarefa recorrente criada para ${formattedDate}`);
                 }
             }
 
