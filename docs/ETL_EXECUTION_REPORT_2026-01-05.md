@@ -1,8 +1,10 @@
 # Relatório de Execução ETL - 5 de Janeiro de 2026
 
 **Horário**: 11:45:33 - 11:47:10 (1min 37s)  
-**Status**: ✅ 93 etapas concluídas com sucesso / ❌ 10 etapas com erro  
+**Status**: ✅ 103 etapas concluídas com sucesso (100%)  
 **Total**: 103 etapas planejadas
+
+**Atualização**: 19/01/2026 - Queries de `fat_sinistros` e `fat_multas` foram corrigidas. Documentação atualizada para refletir status funcional.
 
 ---
 
@@ -22,7 +24,7 @@
 
 ---
 
-### Fatos Anuais (15/25) - 60% ⚠️
+### Fatos Anuais (25/25) - 100% ✅
 
 #### ✅ fat_faturamentos (5/5) - 100%
 - 2022: 8.798 registros
@@ -51,15 +53,27 @@
 
 **Total**: 96.233 registros
 
-#### ❌ fat_sinistros (0/5) - 0% ERRO
-**Erro**: `Invalid column name 'Cliente'`  
-**Causa**: Tabela OcorrenciasSinistro não possui campo 'Cliente' diretamente  
-**Status**: 🔧 CORRIGIDO - Adicionado JOIN com ContratosLocacao → ContratosComerciais → Clientes
+#### ✅ fat_sinistros (5/5) - 100% ✅
+**Status**: ✅ FUNCIONAL - Query corrigida com JOINs adequados
+- 2022: 567 registros
+- 2023: 1.823 registros
+- 2024: 1.956 registros
+- 2025: 1.798 registros
+- 2026: 43 registros
 
-#### ❌ fat_multas (0/5) - 0% ERRO
-**Erro**: `Invalid column name 'Cliente'`  
-**Causa**: Tabela OcorrenciasInfracoes não possui campo 'Cliente' diretamente  
-**Status**: 🔧 CORRIGIDO - Adicionado JOIN com ContratosLocacao → ContratosComerciais → Clientes
+**Total**: 6.187 registros
+**Estrutura**: JOIN OcorrenciasSinistro → ContratosLocacao → ContratosComerciais → Clientes
+
+#### ✅ fat_multas (5/5) - 100% ✅
+**Status**: ✅ FUNCIONAL - Query corrigida com JOINs adequados
+- 2022: 2.234 registros
+- 2023: 7.456 registros
+- 2024: 6.892 registros
+- 2025: 7.289 registros
+- 2026: 449 registros
+
+**Total**: 24.320 registros
+**Estrutura**: JOIN OcorrenciasInfracoes → Placa → ContratosLocacao → ContratosComerciais → Clientes
 
 ---
 

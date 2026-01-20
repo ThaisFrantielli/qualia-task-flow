@@ -102,7 +102,56 @@ async function getDWLastUpdateDate(pool) {
 const DIMENSIONS = [
     { 
         table: 'dim_clientes', 
-        query: `SELECT IdCliente, NomeFantasia as Nome, CNPJ, CPF, Tipo, NaturezaCliente, Cidade, Estado, Segmento, Situacao FROM Clientes WITH (NOLOCK)` 
+        query: `SELECT 
+                    DataAtualizacaoDados,
+                    IdCliente,
+                    Tipo,
+                    Nome,
+                    NomeFantasia,
+                    CNPJ,
+                    InscricaoEstadual,
+                    InscricaoMunicipal,
+                    NaturezaCliente,
+                    CPF,
+                    RG,
+                    GestorFrota,
+                    EmailGestorFrota,
+                    TelefoneGestorFrota,
+                    Site,
+                    Classificacao,
+                    Segmento,
+                    ISNULL(Observacoes, '') as Observacoes,
+                    Situacao,
+                    FORMAT(DataCriacao, 'yyyy-MM-dd') as DataCriacao,
+                    Endereco,
+                    NumeroEndereco,
+                    Complemento,
+                    Bairro,
+                    Cidade,
+                    Estado,
+                    FORMAT(NascimentoCondutor, 'yyyy-MM-dd') as NascimentoCondutor,
+                    EmailCondutor,
+                    Telefone1Condutor,
+                    Telefone2Condutor,
+                    Telefone3Condutor,
+                    NumeroCarteiraCondutor,
+                    TipoCarteiraCondutor,
+                    FORMAT(VencimentoCarteiraCondutor, 'yyyy-MM-dd') as VencimentoCarteiraCondutor,
+                    InformacoesAdicionaisCondutor,
+                    EstadoCarteiraCondutor,
+                    EmissorCarteiraCondutor,
+                    DocumentoEstrangeiro,
+                    NumeroDocumentoEstrangeiro,
+                    IdTipoDocumentoInternacional,
+                    TipoDocumentoInternacional,
+                    CriadoPor,
+                    ParticipaRevisaoProgramada,
+                    LiberarAprovacaoItensReembolsaveisPortalCliente,
+                    RequerAprovacaoDeItensNoPortalDoClienteParaFaturar,
+                    IdClienteGrupoEconomico,
+                    GrupoEconomico,
+                    GestorComercial
+                FROM Clientes WITH (NOLOCK)` 
     },
     {
         table: 'dim_condutores',
@@ -548,39 +597,64 @@ const CONSOLIDATED = [
     {
         table: 'fat_churn',
         query: `SELECT 
-                    cc.IdContratoComercial, 
-                    cc.NumeroDocumento as Contrato, 
-                    cc.NumeroDocumentoPersonalizado as RefCliente, 
-                    cli.NomeFantasia as Cliente, 
-                    cc.SituacaoContrato as Status, 
-                    FORMAT(DataEnc.DataEncerramento, 'yyyy-MM-dd') as DataEncerramento, 
-                    DataEnc.DuracaoMeses, 
-                    CAST(ISNULL(Valores.SomaMensal, 0) AS DECIMAL(15,2)) as ValorMensal 
-                FROM ContratosComerciais cc 
-                LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente 
-                OUTER APPLY (
-                    SELECT TOP 1 
-                        DataEncerramento,
-                        DATEDIFF(MONTH, DataInicial, DataEncerramento) as DuracaoMeses
-                    FROM ContratosLocacao
-                    WHERE IdContrato = cc.IdContratoComercial
-                      AND DataEncerramento IS NOT NULL
-                    ORDER BY DataEncerramento DESC
-                ) DataEnc
-                OUTER APPLY (
-                    SELECT SUM(ISNULL(p.PrecoUnitario, 0)) as SomaMensal
-                    FROM ContratosLocacao cl
-                    OUTER APPLY (
-                        SELECT TOP 1 PrecoUnitario
-                        FROM ContratosLocacaoPrecos clp
-                        WHERE clp.IdContratoLocacao = cl.IdContratoLocacao
-                          AND clp.DataInicial <= GETDATE()
-                        ORDER BY clp.DataInicial DESC
-                    ) p
-                    WHERE cl.IdContrato = cc.IdContratoComercial
-                      AND cl.SituacaoContratoLocacao NOT IN ('Cancelado')
-                ) Valores
-                WHERE cc.SituacaoContrato IN ('Encerrado', 'Cancelado', 'Finalizado')`
+                    cc.IdContratoComercial,
+                    cc.IdContratoComercial as id_contrato_comercial,
+                    cc.NumeroDocumento as Contrato,
+                    cc.NumeroDocumento as contrato,
+                    ISNULL(cc.NumeroDocumentoPersonalizado, '') as RefCliente,
+                    ISNULL(cc.NumeroDocumentoPersonalizado, '') as ref_cliente,
+                    ISNULL(cli.IdCliente, 0) as IdCliente,
+                    ISNULL(cli.IdCliente, 0) as id_cliente,
+                    ISNULL(cli.NomeFantasia, 'Não Identificado') as Cliente,
+                    ISNULL(cli.NomeFantasia, 'Não Identificado') as cliente,
+                    cc.SituacaoContrato as Status,
+                    cc.SituacaoContrato as status,
+                    FORMAT(cl_enc.DataEncerramento, 'yyyy-MM-dd') as DataEncerramento,
+                    FORMAT(cl_enc.DataEncerramento, 'yyyy-MM-dd') as data_encerramento,
+                    ISNULL(DATEDIFF(MONTH, cl_enc.DataInicial, cl_enc.DataEncerramento), 0) as DuracaoMeses,
+                    ISNULL(DATEDIFF(MONTH, cl_enc.DataInicial, cl_enc.DataEncerramento), 0) as duracao_meses,
+                    CAST(ISNULL((
+                        SELECT SUM(ISNULL(preco.PrecoUnitario, 0))
+                        FROM ContratosLocacao cl2
+                        LEFT JOIN (
+                            SELECT IdContratoLocacao, PrecoUnitario,
+                                   ROW_NUMBER() OVER (PARTITION BY IdContratoLocacao ORDER BY DataInicial DESC) as rn
+                            FROM ContratosLocacaoPrecos
+                            WHERE DataInicial <= GETDATE()
+                        ) preco ON preco.IdContratoLocacao = cl2.IdContratoLocacao AND preco.rn = 1
+                        WHERE cl2.IdContrato = cc.IdContratoComercial
+                          AND cl2.SituacaoContratoLocacao NOT IN ('Cancelado')
+                    ), 0) AS DECIMAL(15,2)) as ValorMensal,
+                    CAST(ISNULL((
+                        SELECT SUM(ISNULL(preco.PrecoUnitario, 0))
+                        FROM ContratosLocacao cl2
+                        LEFT JOIN (
+                            SELECT IdContratoLocacao, PrecoUnitario,
+                                   ROW_NUMBER() OVER (PARTITION BY IdContratoLocacao ORDER BY DataInicial DESC) as rn
+                            FROM ContratosLocacaoPrecos
+                            WHERE DataInicial <= GETDATE()
+                        ) preco ON preco.IdContratoLocacao = cl2.IdContratoLocacao AND preco.rn = 1
+                        WHERE cl2.IdContrato = cc.IdContratoComercial
+                          AND cl2.SituacaoContratoLocacao NOT IN ('Cancelado')
+                    ), 0) AS DECIMAL(15,2)) as valor_mensal,
+                    FORMAT(cl_enc.DataInicial, 'yyyy-MM-dd') as data_inicio,
+                    COUNT(cl_all.IdContratoLocacao) as quantidade_veiculos
+                FROM ContratosComerciais cc WITH (NOLOCK)
+                LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente
+                LEFT JOIN ContratosLocacao cl_enc WITH (NOLOCK) ON cl_enc.IdContrato = cc.IdContratoComercial 
+                    AND cl_enc.DataEncerramento IS NOT NULL
+                    AND cl_enc.IdContratoLocacao = (
+                        SELECT TOP 1 IdContratoLocacao 
+                        FROM ContratosLocacao 
+                        WHERE IdContrato = cc.IdContratoComercial 
+                          AND DataEncerramento IS NOT NULL
+                        ORDER BY DataEncerramento DESC
+                    )
+                LEFT JOIN ContratosLocacao cl_all WITH (NOLOCK) ON cl_all.IdContrato = cc.IdContratoComercial
+                WHERE cc.SituacaoContrato IN ('Encerrado', 'Cancelado', 'Finalizado')
+                GROUP BY cc.IdContratoComercial, cc.NumeroDocumento, cc.NumeroDocumentoPersonalizado,
+                         cli.IdCliente, cli.NomeFantasia, cc.SituacaoContrato,
+                         cl_enc.DataEncerramento, cl_enc.DataInicial`
     },
     {
         table: 'fat_inadimplencia',
@@ -593,6 +667,77 @@ const CONSOLIDATED = [
     {
         table: 'auditoria_consolidada',
         query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'`
+    },
+    {
+        table: 'dim_compras',
+        query: `SELECT 
+                    vc.IdVeiculo,
+                    vc.IdVeiculo as id_veiculo,
+                    vc.Placa,
+                    vc.Placa as placa,
+                    vc.Modelo,
+                    vc.Modelo as modelo,
+                    vc.Montadora as marca,
+                    vc.AnoFabricacao as ano_fabricacao,
+                    vc.AnoModelo as ano_modelo,
+                    FORMAT(vc.DataCompra, 'yyyy-MM-dd') as DataCompra,
+                    FORMAT(vc.DataCompra, 'yyyy-MM-dd') as data_compra,
+                    YEAR(vc.DataCompra) as ano_compra,
+                    MONTH(vc.DataCompra) as mes_compra,
+                    ${castM('vc.ValorCompra')} as ValorCompra,
+                    ${castM('vc.ValorCompra')} as valor_compra,
+                    ${castM('vc.ValorAtualFIPE')} as ValorFIPE,
+                    ${castM('vc.ValorAtualFIPE')} as valor_fipe,
+                    CASE 
+                        WHEN ${castM('vc.ValorAtualFIPE')} > 0 
+                        THEN CAST(((${castM('vc.ValorCompra')} / ${castM('vc.ValorAtualFIPE')}) * 100) AS DECIMAL(15,2))
+                        ELSE 0
+                    END as percentual_fipe,
+                    ISNULL(vc.NomeFornecedorNotaFiscal, 'Não Informado') as Fornecedor,
+                    ISNULL(vc.NomeFornecedorNotaFiscal, 'Não Informado') as fornecedor,
+                    vc.NumeroNotaFiscal as nota_fiscal,
+                    vc.Chassi as chassi,
+                    vc.Renavam as renavam,
+                    ISNULL(vc.InformacoesAdicionais, '') as observacoes,
+                    ${castM('vc.ValorAcessorios')} as valor_acessorios,
+                    ${castM("ISNULL(vc.ValorCompra, 0) + ISNULL(vc.ValorAcessorios, 0)")} as valor_total_compra,
+                    vc.SituacaoVeiculo as situacao_atual
+                FROM VeiculosComprados vc WITH (NOLOCK)
+                WHERE vc.DataCompra IS NOT NULL`
+    },
+    {
+        table: 'dim_alienacoes',
+        query: `SELECT 
+                    av.IdAlienacao,
+                    av.IdAlienacao as id_alienacao,
+                    av.IdVeiculo,
+                    av.IdVeiculo as id_veiculo,
+                    av.Placa,
+                    av.Placa as placa,
+                    av.Modelo,
+                    av.Modelo as modelo,
+                    av.Montadora as marca,
+                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as DataAlienacao,
+                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as data_alienacao,
+                    ISNULL(av.Instituicao, 'Não Informado') as Banco,
+                    ISNULL(av.Instituicao, 'Não Informado') as banco,
+                    ${castM('av.ValorAlienado')} as ValorFinanciado,
+                    ${castM('av.ValorAlienado')} as valor_financiado,
+                    CAST(0 AS DECIMAL(15,4)) as TaxaJuros,
+                    CAST(0 AS DECIMAL(15,4)) as taxa_juros,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as QuantidadeParcelas,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as quantidade_parcelas,
+                    ${castM('av.ValorParcela')} as ValorParcela,
+                    ${castM('av.ValorParcela')} as valor_parcela,
+                    FORMAT(av.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as data_primeira_parcela,
+                    FORMAT(av.Termino, 'yyyy-MM-dd') as data_ultima_parcela,
+                    ${castM('av.SaldoRemanescente')} as saldo_devedor,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) - ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS INT) as parcelas_pagas,
+                    av.SituacaoVeiculo as situacao,
+                    av.NumeroContrato as numero_contrato,
+                    ISNULL(av.Unidade, '') as unidade,
+                    ISNULL(av.Unidade, '') as observacoes
+                FROM Alienacoes av WITH (NOLOCK)`
     },
     {
         table: 'fat_carro_reserva',
@@ -832,8 +977,7 @@ const CONSOLIDATED = [
                 -- JOINs para enriquecer com dados de relacionamento
                 LEFT JOIN Veiculos v ON om.Placa = v.Placa
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
-                WHERE om.SituacaoOcorrencia NOT IN ('Cancelada')
-                  AND om.DataCriacao >= DATEADD(YEAR, -3, GETDATE())`
+                WHERE om.SituacaoOcorrencia NOT IN ('Cancelada')`
     },
     {
         table: 'agg_kpis_manutencao_mensal',
@@ -1448,10 +1592,18 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         });
 
         // Remover duplicatas se houver ID column (manter última ocorrência)
-        // EXCETO para dim_contratos_locacao que pode ter múltiplos contratos por placa
+        // EXCETO para tabelas de histórico temporal que legitimamente têm múltiplas entradas
         const pkRaw = columns[0];
         const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
-        const shouldDedup = hasIdColumn && tableName !== 'dim_contratos_locacao';
+        const historicalTables = [
+            'dim_contratos_locacao',
+            'dim_movimentacao_patios',
+            'dim_movimentacao_veiculos', 
+            'dim_veiculos_acessorios',
+            'historico_situacao_veiculos',
+            'fat_movimentacao_ocorrencias'
+        ];
+        const shouldDedup = hasIdColumn && !historicalTables.includes(tableName);
         let finalData = sanitizedData;
 
         if (shouldDedup) {
@@ -1468,7 +1620,46 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
 
         // Identificar primeira coluna como possível PK para UPSERT (nome seguro)
         const firstCol = (pkRaw || '').replace(/[^a-zA-Z0-9_]/g, "");
+
+        // Tabelas com PKs simples no PostgreSQL mas que precisam deduplic JavaScript
+        // (porque na verdade têm estrutura histórica com múltiplos registros por ID)
+        const needsJSDedup = [
+            'dim_veiculos_acessorios',
+            'dim_movimentacao_patios', 
+            'dim_movimentacao_veiculos'
+        ];
+
+        // Para tabelas históricas sem deduplicação automática
+        if (!shouldDedup) {
+            await pgClient.query(`DELETE FROM public.${tableName}`);
+        }
+        
+        // Deduplicação JavaScript apenas para tabelas específicas com PK incorreta
+        if (needsJSDedup.includes(tableName)) {
+            const originalCount = finalData.length;
+            const seen = new Set();
+            finalData = finalData.filter(row => {
+                const pkValue = row[columns[0]];
+                if (seen.has(pkValue)) {
+                    return false;
+                }
+                seen.add(pkValue);
+                return true;
+            });
+            const removedCount = originalCount - finalData.length;
+            if (removedCount > 0) {
+                console.log(`         🔄 Removidas ${removedCount} duplicatas JS de ${tableName}`);
+            }
+        }
+
         const finalRowCount = finalData.length;
+        
+        // Se não houver dados após filtros, pular inserção
+        if (finalRowCount === 0) {
+            const duration = ((performance.now() - start) / 1000).toFixed(2);
+            console.log(`      ⚠️  ${progressStr} ${tableName} (0 linhas após filtros) - ${duration}s`);
+            return;
+        }
 
         // Usar transação única para todos os batches da tabela
         const client = await pgClient.connect();
@@ -1497,8 +1688,9 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
                 }
 
                 // UPSERT se tiver ID column (evita duplicatas)
+                // Para tabelas históricas sem PK única, usar INSERT simples (já truncadas)
                 let insertQuery;
-                if (hasIdColumn) {
+                if (hasIdColumn && shouldDedup) {
                     const updateSet = columns
                         .filter(col => col !== columns[0]) // Excluir PK do UPDATE
                         .map(col => {
@@ -1785,6 +1977,110 @@ async function runMasterETL() {
                 LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial 
                 LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente 
                 WHERE YEAR(oi.DataInfracao) = ${year}`
+            },
+            {
+                table: 'fat_propostas_blufleet',
+                queryGen: (year) => `SELECT 
+                    p.IdProposta,
+                    p.IdProposta as id_proposta,
+                    p.NumeroDocumento as numero_proposta,
+                    p.IdCliente,
+                    p.IdCliente as id_cliente,
+                    ISNULL(cli.NomeFantasia, 'Cliente não identificado') as Cliente,
+                    ISNULL(cli.NomeFantasia, 'Cliente não identificado') as cliente,
+                    FORMAT(p.DataCriacaoContratoComercial, 'yyyy-MM-dd') as DataProposta,
+                    FORMAT(p.DataCriacaoContratoComercial, 'yyyy-MM-dd') as data_proposta,
+                    YEAR(p.DataCriacaoContratoComercial) as ano_proposta,
+                    MONTH(p.DataCriacaoContratoComercial) as mes_proposta,
+                    p.IdSituacaoProposta as id_situacao,
+                    p.SituacaoContrato as Status,
+                    p.SituacaoContrato as status,
+                    CAST(ISNULL(p.PeriodoContratoComercial, 0) AS INT) as periodo_contrato,
+                    p.IdTipoPeriodoContratoComercial as id_tipo_periodo,
+                    p.TipoPeriodoContratoComercial as tipo_periodo,
+                    p.IdTipoContratoComercial as id_tipo_contrato,
+                    p.TipoContratoComercial as tipo_contrato,
+                    p.IdTipoLocacao as id_tipo_locacao,
+                    p.TipoLocacao as tipo_locacao,
+                    ISNULL(p.NomeRequisitante, 'Não informado') as requisitante,
+                    ISNULL(p.NomePromotor, 'Não informado') as promotor,
+                    p.IdPromotor as id_promotor,
+                    CAST(ISNULL(p.PorcentagemComissao, 0) AS DECIMAL(15,2)) as percentual_comissao,
+                    ${castM('p.ValorComissao')} as valor_comissao,
+                    p.IdIndiceReajuste as id_indice_reajuste,
+                    p.SiglaIndiceReajuste as sigla_indice,
+                    p.IndiceReajuste as indice_reajuste,
+                    ISNULL(p.Observacoes, '') as observacoes,
+                    ISNULL(p.MotivoDaPerda, '') as motivo_perda,
+                    p.UnidadeDeFaturamento as unidade_faturamento,
+                    p.CidadeEntrega as cidade_entrega,
+                    p.EstadoEntrega as estado_entrega,
+                    CASE 
+                        WHEN p.SituacaoContrato = 'Aceita' THEN 'Fechada'
+                        WHEN p.SituacaoContrato = 'Recusada' THEN 'Perdida'
+                        ELSE 'Em Análise'
+                    END as status_pipeline
+                FROM Propostas p WITH (NOLOCK)
+                LEFT JOIN Clientes cli WITH (NOLOCK) ON p.IdCliente = cli.IdCliente
+                WHERE p.DataCriacaoContratoComercial IS NOT NULL 
+                    AND YEAR(p.DataCriacaoContratoComercial) = ${year}`
+            },
+            {
+                table: 'fat_vendas',
+                queryGen: (year) => `SELECT 
+                    vv.IdVeiculo,
+                    vv.IdVeiculo as id_veiculo,
+                    vv.Chassi,
+                    vv.Chassi as chassi,
+                    vv.Placa,
+                    vv.Placa as placa,
+                    vv.IdMontadora as id_montadora,
+                    vv.Montadora as marca,
+                    vv.IdModelo as id_modelo,
+                    vv.Modelo as modelo,
+                    vv.CodigoFIPE as codigo_fipe,
+                    vv.Renavam as renavam,
+                    vv.IdCor as id_cor,
+                    vv.Cor as cor,
+                    FORMAT(vv.DataCompra, 'yyyy-MM-dd') as data_compra,
+                    ${castM('vv.ValorCompra')} as valor_compra,
+                    ${castM('vv.ValorAcessorios')} as valor_acessorios,
+                    ${castM('vv.ValorTotal')} as valor_total_compra,
+                    FORMAT(vv.DataVenda, 'yyyy-MM-dd') as DataVenda,
+                    FORMAT(vv.DataVenda, 'yyyy-MM-dd') as data_venda,
+                    YEAR(vv.DataVenda) as ano_venda,
+                    MONTH(vv.DataVenda) as mes_venda,
+                    ${castM('vv.ValorVenda')} as ValorVenda,
+                    ${castM('vv.ValorVenda')} as valor_venda,
+                    vv.IdComprador as id_comprador,
+                    ISNULL(vv.Comprador, 'Não informado') as Comprador,
+                    ISNULL(vv.Comprador, 'Não informado') as comprador,
+                    vv.UnidadeId as id_unidade,
+                    vv.Unidade as unidade,
+                    vv.IdFaturaVenda as id_fatura_venda,
+                    vv.FaturaVenda as fatura_venda,
+                    ${castM('vv.ValorVenda')} - ${castM('vv.ValorTotal')} as margem_lucro,
+                    CASE 
+                        WHEN ${castM('vv.ValorTotal')} > 0 
+                        THEN CAST(((${castM('vv.ValorVenda')} - ${castM('vv.ValorTotal')}) / ${castM('vv.ValorTotal')} * 100) AS DECIMAL(15,2))
+                        ELSE 0
+                    END as percentual_lucro,
+                    CAST(ISNULL(vv.PorcentagemDepreciacaoFiscal, 0) AS DECIMAL(15,2)) as percentual_depreciacao_fiscal,
+                    CAST(ISNULL(vv.DiasDepreciados, 0) AS INT) as dias_depreciados,
+                    CAST(ISNULL(vv.MesesDepreciados, 0) AS INT) as meses_depreciados,
+                    ${castM('vv.DepreciacaoFiscalDiaria')} as depreciacao_fiscal_diaria,
+                    ${castM('vv.DepreciacaoFiscalAcumulada')} as depreciacao_fiscal_acumulada,
+                    ${castM('vv.DepreciacaoFiscalAcessoriosAcumulada')} as depreciacao_acessorios_acumulada,
+                    ${castM('vv.DepreciacaoSocietariaDiaria')} as depreciacao_societaria_diaria,
+                    ${castM('vv.DepreciacaoSocietariaAcumulada')} as depreciacao_societaria_acumulada,
+                    CASE 
+                        WHEN ${castM('vv.ValorVenda')} > ${castM('vv.ValorTotal')} THEN 'Lucro'
+                        WHEN ${castM('vv.ValorVenda')} < ${castM('vv.ValorTotal')} THEN 'Prejuízo'
+                        ELSE 'Neutro'
+                    END as resultado
+                FROM VeiculosVendidos vv WITH (NOLOCK)
+                WHERE vv.DataVenda IS NOT NULL 
+                    AND YEAR(vv.DataVenda) = ${year}`
             }
         ];
 
