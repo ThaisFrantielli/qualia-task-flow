@@ -522,16 +522,7 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
   };
 }
 
-// DEBUG HELPER
-function DebugKPI({ data }: { data: any }) {
-  if (!data) return null;
-  return (
-    <div className="p-4 bg-slate-900 text-green-400 font-mono text-xs overflow-auto max-h-96 my-4 rounded border border-slate-700 shadow-xl">
-      <div className="font-bold text-white mb-2 border-b border-slate-700 pb-1">DEBUG: KPI MANUTENÇÃO (SGW-0E99)</div>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
-    </div>
-  );
-}
+// DEBUG HELPER removed
 
 export default function TimelineTab({ timeline, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas }: TimelineTabProps) { // Adicionado movimentacoes
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
@@ -560,19 +551,8 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   const { getFilterValues } = useChartFilter();
 
   // Métricas agregadas usando nova lógica
-  // Métricas agregadas usando nova lógica
   const aggregatedMetrics = useMemo(() => {
-    // PATCH TEMPORÁRIO PARA SGW-0E99 (Correção de "0d Manutenção") - Dados recriados a partir de print do usuário
-    // Necessário pois fat_movimentacao_ocorrencias.json não foi gerado localmente pelo ETL
-    const mockSGW0E99 = [
-      { Placa: 'SGW-0E99', Ocorrencia: 'QUAL-440752', Etapa: 'Pré-Agendamento', DataConfirmacao: '2025-12-02 16:45:00', DataDeConfirmacao: '2025-12-02 16:45:00' },
-      { Placa: 'SGW-0E99', Ocorrencia: 'QUAL-440752', Etapa: 'Aguardando Chegada', DataConfirmacao: '2025-12-03 10:18:00', DataDeConfirmacao: '2025-12-03 10:18:00' },
-      { Placa: 'SGW-0E99', Ocorrencia: 'QUAL-440752', Etapa: 'Orçamento em Análise', DataConfirmacao: '2025-12-03 12:29:00', DataDeConfirmacao: '2025-12-03 12:29:00' },
-      { Placa: 'SGW-0E99', Ocorrencia: 'QUAL-440752', Etapa: 'Serviço em Execução', DataConfirmacao: '2025-12-03 15:29:00', DataDeConfirmacao: '2025-12-03 15:29:00' },
-      { Placa: 'SGW-0E99', Ocorrencia: 'QUAL-440752', Etapa: 'Aguardando Retirada do Veículo', DataConfirmacao: '2025-12-04 10:33:00', DataDeConfirmacao: '2025-12-04 10:33:00' }
-    ];
-    // Merge mock data with real data (se existir)
-    const safeMovimentacoes = [...(Array.isArray(movimentacoes) ? movimentacoes : []), ...mockSGW0E99];
+    const safeMovimentacoes = Array.isArray(movimentacoes) ? movimentacoes : [];
 
     return aggregateFleetMetrics(frota, contratosLocacao || [], manutencao || [], safeMovimentacoes,
       // @ts-ignore
@@ -1623,26 +1603,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             </div>
                           )}
 
-                          {/* PROBE DE DEBUG PARA O VEÍCULO PROBLEMÁTICO */}
-                          {placa === 'SGW-0E99' && (
-                            <DebugKPI data={{
-                              placa,
-                              manutencaoDays, // O valor que está vindo 0
-                              manutRecordsCount: manutRecords.length,
-                              movimentacoesCount: movimentacoes?.length, // Ver se está chegando
-                              // Filtrar e mostrar apenas um subconjunto seguro para não travar o browser
-                              rawMovimentacoes: (movimentacoes || [])
-                                .filter((m: any) => String(m.Placa) === placa || String(m.placa) === placa)
-                                .slice(0, 10),
-                              rawManutencaoSample: manutRecords.slice(0, 3), // INCLUIR AMOSTRA DE MANUTENCAO
-                              debugCalc: (function () {
-                                // Recalcular inline para ver o que acontece
-                                const movs = (movimentacoes || []).filter((m: any) => String(m.Placa) === placa || String(m.placa) === placa);
-                                if (movs.length > 0) return { source: 'movimentacoes', count: movs.length, stages: movs.map((m: any) => m.Etapa) };
-                                return { source: 'osRecords', count: manutRecords.length, sampleKeys: Object.keys(manutRecords[0] || {}) };
-                              })()
-                            }} />
-                          )}
+                          {/* Debug probe removed */}
 
                           {manutOccurrences.length === 0 && manutencaoDays > 0 && (
                             <div className="pl-6 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
