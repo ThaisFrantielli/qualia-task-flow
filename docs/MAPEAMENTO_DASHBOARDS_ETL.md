@@ -55,11 +55,18 @@ Essas tabelas já estão sendo geradas pelo ETL e os dashboards já as utilizam:
 
 ---
 
+### ✅ Fatos Anuais Gerados pelo ETL (Novos)
+| Arquivo Atual | Tabela ETL | Status | Usado Por | Registros |
+|--------------|-----------|--------|-----------|----------|
+| `fat_sinistros_*.json` | `fat_sinistros` | ✅ **FUNCIONAL** | ClaimsDashboard, CustomerAnalytics, FleetDashboard | 6.187 (2022-2026) |
+| `fat_multas_*.json` | `fat_multas` | ✅ **FUNCIONAL** | InfractionsDashboard, CustomerAnalytics, FleetDashboard | 24.320 (2022-2026) |
+| `fat_ocorrencias_master_*.json` | `fat_ocorrencias_master` | ✅ **FUNCIONAL** | MaintenanceDashboard, ExecutiveDashboard | 97.085 (2022-2026) |
+
+---
+
 ### ❌ Fatos NÃO Gerados pelo ETL (Precisam ser Adicionados)
 | Arquivo Atual | Tabela Necessária | Status | Usado Por | Prioridade |
 |--------------|------------------|--------|-----------|-----------|
-| `fat_sinistros_*.json` | ❌ Não existe | **CRIAR** | MaintenanceDashboard, CustomerAnalytics, ClaimsDashboard | 🔴 Alta |
-| `fat_multas_*.json` | ❌ Não existe | **CRIAR** | InfractionsDashboard, CustomerAnalytics | 🔴 Alta |
 | `fat_vendas_*.json` | ❌ Não existe | **CRIAR** | SalesDashboard | 🟡 Média |
 | `fat_propostas_*.json` | ❌ Não existe | **CRIAR** | CommercialDashboard, ExecutiveDashboard | 🟡 Média |
 | `fat_lancamentos_*.json` | `fat_financeiro_universal` | 🔄 **MAPEAR** | FinancialResult | 🟢 Baixa |
@@ -84,10 +91,12 @@ Essas tabelas já estão sendo geradas pelo ETL e os dashboards já as utilizam:
 7. ✅ `dim_itens_contrato`
 8. ✅ `dim_regras_contrato`
 
-### Fatos Anuais (15 tabelas - ✅ 100% sucesso)
-- ✅ `fat_faturamentos` (anos 2022-2026) - 278K rows
-- ✅ `fat_detalhe_itens_os` (anos 2022-2026)
-- ✅ `fat_ocorrencias_master` (anos 2022-2026)
+### Fatos Anuais (25 tabelas - ✅ 100% sucesso)
+- ✅ `fat_faturamentos` (anos 2022-2026) - 174K rows
+- ✅ `fat_detalhe_itens_os` (anos 2022-2026) - 278K rows
+- ✅ `fat_ocorrencias_master` (anos 2022-2026) - 97K rows
+- ✅ `fat_sinistros` (anos 2022-2026) - 6.2K rows
+- ✅ `fat_multas` (anos 2022-2026) - 24.3K rows
 
 ### Financeiro Universal (60 meses - ✅ 100% sucesso)
 - ✅ `fat_financeiro_universal` (2022-2026, mensalizado) - 426K rows
