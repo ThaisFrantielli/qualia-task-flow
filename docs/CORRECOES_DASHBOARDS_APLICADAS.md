@@ -7,9 +7,10 @@
 
 ## 📊 RESUMO DAS CORREÇÕES
 
-### ✅ Dashboards Corrigidos: 4
+### ✅ Dashboards Corrigidos: 5
 ### ✅ Tabelas ETL Adicionadas: 1
 ### ✅ Referências de Arquivo Ajustadas: 3
+### ✅ Funcionalidades de UX Aprimoradas: 3
 
 ---
 
@@ -114,6 +115,78 @@ const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas_*.json');
 - ✅ **InfractionsDashboard** - fat_multas_*.json existe
 - ✅ **SalesDashboard** - fat_vendas_*.json existe
 - ✅ **PurchasesDashboard** - dim_compras e dim_alienacoes existem
+
+---
+
+### 5. **FleetDashboard - UX e Filtros Globais** ✅ CORRIGIDO
+**Problemas:**
+1. Aba "Eficiência" não usada
+2. Filtros globais não funcionavam em outras abas (Pátio, Telemetria, Timeline)
+3. Ctrl+click para filtrar múltiplos valores não scrollava para detalhamento
+4. Debug de desenvolvimento visível (SGW-0E99) na Timeline
+
+**Soluções Aplicadas:**
+
+#### 5.1. Remoção da Aba Eficiência
+**Arquivo:** `src/pages/analytics/FleetDashboard.tsx`
+- ❌ Removido `TabsTrigger` "Eficiência"
+- ❌ Removido `TabsContent` da aba eficiência
+- ❌ Removido import de `EfficiencyTab` (componente não utilizado)
+
+#### 5.2. Filtros Globais Aplicados em Todas as Abas
+**Arquivo:** `src/pages/analytics/FleetDashboard.tsx`
+- ✅ Modificado `vehiclesDetailed` (aba Pátio) para usar `filteredData` em vez de `frota` bruta
+- ✅ Agora a aba Pátio respeita filtros de Status, Modelo, Cliente, Filial, Tipo Contrato
+- ✅ Todas as abas (Visão Geral, Pátio, Telemetria, Timeline, Carro Reserva) agora compartilham os mesmos filtros
+
+**Mudança:**
+```typescript
+// ANTES: aba pátio usava frota bruta (ignorava filtros globais)
+const vehiclesDetailed = useMemo(() => {
+    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
+    // ...
+}, [frota, patioMov, veiculoMov]);
+
+// DEPOIS: aba pátio usa filteredData (respeita filtros globais)
+const vehiclesDetailed = useMemo(() => {
+    const improdutivos = filteredData.filter(v => getCategory(v.Status) === 'Improdutiva');
+    // ...
+}, [filteredData, patioMov, veiculoMov]);
+```
+
+#### 5.3. Ctrl+Click em Todos os Gráficos
+**Arquivos:** `src/pages/analytics/FleetDashboard.tsx`
+- ✅ Adicionado `onClick` com suporte a Ctrl/Meta+click em **todos** os gráficos
+- ✅ Clique simples: rola automaticamente para a tabela de detalhamento
+- ✅ Ctrl+click: adiciona/remove filtros (seleção múltipla estilo Power BI)
+
+**Gráficos Atualizados:**
+- ✅ Barras de produtividade (Produtiva/Improdutiva)
+- ✅ Gráfico de odômetro/idade
+- ✅ Gráficos da aba Pátio (aging, pátio, status improdutivo)
+- ✅ Gráficos da aba Telemetria (telemetria, seguro, km_diff, cliente, proprietário, finalidade)
+
+**Exemplo de código aplicado:**
+```typescript
+<Bar 
+  dataKey="value" 
+  onClick={(data: any, _index: number, event: any) => { 
+    handleChartClick('status', data.name, event as unknown as React.MouseEvent); 
+    if (!((event?.ctrlKey) || (event?.metaKey))) {
+      document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); 
+    }
+  }} 
+  cursor="pointer"
+/>
+```
+
+#### 5.4. Remoção de Debug da Timeline
+**Arquivo:** `src/components/analytics/fleet/TimelineTab.tsx`
+- ❌ Removido componente `DebugKPI` (exibia debug em produção)
+- ❌ Removido mock de dados SGW-0E99 (patch temporário de desenvolvimento)
+- ❌ Removido probe de debug renderizado no veículo SGW-0E99
+
+**Impacto:** Timeline agora limpa, sem informações de debug visíveis ao usuário final ✅
 
 ---
 

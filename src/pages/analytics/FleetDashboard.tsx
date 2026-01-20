@@ -10,7 +10,6 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
-import EfficiencyTab from '@/components/analytics/fleet/EfficiencyTab';
 import TimelineTab from '@/components/analytics/fleet/TimelineTab';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -116,66 +115,6 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
     const sinistros = useMemo(() => sinistrosData || [], [sinistrosData]);
     const multas = useMemo(() => multasData || [], [multasData]);
-
-    const vehiclesDetailed = useMemo(() => {
-        const getCategory = (status: string) => {
-            const s = (status || '').toUpperCase();
-            if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
-            if ([
-                'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-                'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
-                'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
-                'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
-            ].includes(s)) return 'Inativa';
-            return 'Improdutiva';
-        };
-
-        const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
-        return improdutivos.map(v => {
-            const movPatio = (patioMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
-                const dateA = new Date(a.DataMovimentacao || 0).getTime();
-                const dateB = new Date(b.DataMovimentacao || 0).getTime();
-                return dateB - dateA;
-            });
-            const ultimoMovPatio = movPatio[0];
-
-            const movVeiculo = (veiculoMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
-                const dateA = new Date(a.DataDevolucao || a.DataRetirada || 0).getTime();
-                const dateB = new Date(b.DataDevolucao || b.DataRetirada || 0).getTime();
-                return dateB - dateA;
-            });
-            const ultimaLocacao = movVeiculo[0];
-
-            let dataInicioStatus: string | null = null;
-            const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).getTime() : 0;
-            const dataMovPatio = ultimoMovPatio?.DataMovimentacao ? new Date(ultimoMovPatio.DataMovimentacao).getTime() : 0;
-            if (dataMovPatio > dataDevolucao && dataMovPatio > 0) {
-                dataInicioStatus = ultimoMovPatio.DataMovimentacao;
-            } else if (dataDevolucao > 0) {
-                dataInicioStatus = ultimaLocacao.DataDevolucao;
-            }
-
-            let diasNoStatus = 0;
-            if (dataInicioStatus) {
-                const dataInicio = new Date(dataInicioStatus);
-                const hoje = new Date();
-                diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
-            }
-
-            const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem pátio';
-
-            return {
-                Placa: v.Placa,
-                Modelo: v.Modelo || 'N/A',
-                Status: v.Status || 'N/A',
-                Patio: patio,
-                DiasNoStatus: Math.max(0, diasNoStatus),
-                DataInicioStatus: dataInicioStatus || null,
-                UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
-                UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
-            };
-        });
-    }, [frota, patioMov, veiculoMov]);
 
     // Mapa de Contratos por Placa (para enriquecer dim_frota)
     const contratosMap = useMemo(() => {
@@ -304,6 +243,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const [expandedYears, setExpandedYears] = useState<string[]>([]);
     const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
     const [selectedTemporalFilter, setSelectedTemporalFilter] = useState<{ year?: string, month?: string } | null>(null); // Filtro temporal ativo
+    const [selectedDayForDetail, setSelectedDayForDetail] = useState<string | null>(null); // Dia selecionado para detalhamento de ocupação
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
     // apply default filter: restore persisted `productivity` or show 'Ativa' on first load
@@ -354,7 +294,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         modelos: Array.from(new Set(frotaEnriched.map(r => r.Modelo).filter(Boolean))).sort(),
         filiais: Array.from(new Set(frotaEnriched.map(r => r.Filial).filter(Boolean))).sort(),
         clientes: Array.from(new Set(frotaEnriched.map(r => r.NomeCliente).filter((c: string) => c && c !== 'N/A'))).sort(),
-        tiposLocacao: Array.from(new Set(frotaEnriched.map(r => r.TipoLocacao).filter((t: string) => t && t !== 'N/A'))).sort()
+        tiposLocacao: Array.from(new Set(frotaEnriched.map(r => r.TipoLocacao).filter((t: string) => t && t !== 'N/A'))).sort(),
+        categorias: Array.from(new Set(frotaEnriched.map(r => (r.Categoria || r.GrupoVeiculo)).filter(Boolean))).sort()
     }), [frotaEnriched]);
 
     // note: use `getFilterValues(key)` to read current selections, e.g. getFilterValues('status')
@@ -933,7 +874,68 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         }
     };
 
-    // ANÁLISE DE PÁTIO
+    // ANÁLISE DE PÁTIO - vehiclesDetailed moved here (after filteredData is defined)
+    const vehiclesDetailed = useMemo(() => {
+        const getCategory = (status: string) => {
+            const s = (status || '').toUpperCase();
+            if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+            if ([
+                'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
+                'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
+                'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
+                'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+            ].includes(s)) return 'Inativa';
+            return 'Improdutiva';
+        };
+
+        // Use filteredData (respects global filters) and only show Improdutiva
+        const improdutivos = filteredData.filter(v => getCategory(v.Status) === 'Improdutiva');
+        return improdutivos.map(v => {
+            const movPatio = (patioMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
+                const dateA = new Date(a.DataMovimentacao || 0).getTime();
+                const dateB = new Date(b.DataMovimentacao || 0).getTime();
+                return dateB - dateA;
+            });
+            const ultimoMovPatio = movPatio[0];
+
+            const movVeiculo = (veiculoMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
+                const dateA = new Date(a.DataDevolucao || a.DataRetirada || 0).getTime();
+                const dateB = new Date(b.DataDevolucao || b.DataRetirada || 0).getTime();
+                return dateB - dateA;
+            });
+            const ultimaLocacao = movVeiculo[0];
+
+            let dataInicioStatus: string | null = null;
+            const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).getTime() : 0;
+            const dataMovPatio = ultimoMovPatio?.DataMovimentacao ? new Date(ultimoMovPatio.DataMovimentacao).getTime() : 0;
+            if (dataMovPatio > dataDevolucao && dataMovPatio > 0) {
+                dataInicioStatus = ultimoMovPatio.DataMovimentacao;
+            } else if (dataDevolucao > 0) {
+                dataInicioStatus = ultimaLocacao.DataDevolucao;
+            }
+
+            let diasNoStatus = 0;
+            if (dataInicioStatus) {
+                const dataInicio = new Date(dataInicioStatus);
+                const hoje = new Date();
+                diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+            }
+
+            const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem pátio';
+
+            return {
+                Placa: v.Placa,
+                Modelo: v.Modelo || 'N/A',
+                Status: v.Status || 'N/A',
+                Patio: patio,
+                DiasNoStatus: Math.max(0, diasNoStatus),
+                DataInicioStatus: dataInicioStatus || null,
+                UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
+                UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
+            };
+        });
+    }, [filteredData, patioMov, veiculoMov]);
+
     const agingData = useMemo(() => {
         const ranges = { '0-30 dias': 0, '31-60 dias': 0, '61-90 dias': 0, '90+ dias': 0 };
         vehiclesDetailed.forEach(v => {
@@ -1259,6 +1261,29 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         return ocupacaoPorDia;
     }, [filteredReservas, sliderRange, reservaDateBounds, selectedTemporalFilter]);
 
+    // Detalhamento de veículos para o dia selecionado no gráfico de ocupação
+    const reservasDetailForSelectedDay = useMemo(() => {
+        if (!selectedDayForDetail) return [];
+
+        const diaDate = new Date(selectedDayForDetail);
+        diaDate.setHours(0, 0, 0, 0);
+        const diaTime = diaDate.getTime();
+
+        return filteredReservas.filter(reserva => {
+            if (!reserva.DataInicio) return false;
+
+            const dataInicio = new Date(reserva.DataInicio);
+            dataInicio.setHours(0, 0, 0, 0);
+            const inicioTime = dataInicio.getTime();
+
+            const dataFim = reserva.DataFim ? new Date(reserva.DataFim) : null;
+            if (dataFim) dataFim.setHours(23, 59, 59, 999);
+            const fimTime = dataFim ? dataFim.getTime() : Date.now();
+
+            return inicioTime <= diaTime && fimTime >= diaTime;
+        });
+    }, [selectedDayForDetail, filteredReservas]);
+
     // Novos agregados solicitados:
     // - Diárias por Local (Cidade/UF)
     // - Contagem por TipoVeiculoTemporario
@@ -1425,6 +1450,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const selectedFilial = useMemo(() => getFilterValues('filial'), [filters]);
     const selectedCliente = useMemo(() => getFilterValues('cliente'), [filters]);
     const selectedTipoLocacao = useMemo(() => getFilterValues('tipoLocacao'), [filters]);
+    const selectedCategoria = useMemo(() => getFilterValues('categoria'), [filters]);
 
     const selectedReservaMotivo = useMemo(() => getFilterValues('reserva_motivo'), [filters]);
     const selectedReservaCliente = useMemo(() => getFilterValues('reserva_cliente'), [filters]);
@@ -1479,6 +1505,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     {/* Busca global removida: usar pesquisa embutida nos seletores */}
                     <MultiSelect label="Status" options={uniqueOptions.status} selected={selectedStatus} onSelectedChange={(v) => setFilterValues('status', v)} />
                     <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={selectedModelo} onSelectedChange={(v) => setFilterValues('modelo', v)} />
+                    <MultiSelect label="Categoria" options={uniqueOptions.categorias} selected={selectedCategoria} onSelectedChange={(v) => setFilterValues('categoria', v)} />
                     <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={selectedFilial} onSelectedChange={(v) => setFilterValues('filial', v)} />
                     <MultiSelect label="Cliente" options={uniqueOptions.clientes} selected={selectedCliente} onSelectedChange={(v) => setFilterValues('cliente', v)} />
                     <MultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={selectedTipoLocacao} onSelectedChange={(v) => setFilterValues('tipoLocacao', v)} />
@@ -1490,7 +1517,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
                     <TabsTrigger value="patio">Gestão de Pátio</TabsTrigger>
                     <TabsTrigger value="telemetria">Telemetria & Mapa</TabsTrigger>
-                    <TabsTrigger value="eficiencia">Eficiência</TabsTrigger>
+                    {/* Aba "Eficiência" removida */}
                     <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
                     <TabsTrigger value="carro-reserva">Carro Reserva</TabsTrigger>
                 </TabsList>
@@ -1549,8 +1576,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             <XAxis type="number" domain={[0, 100]} hide />
                                             <YAxis dataKey="label" type="category" width={0} hide />
                                             <Tooltip formatter={(value: any, name: any) => [`${value}%`, name]} />
-                                            <Bar dataKey="Improdutiva" stackId="a" radius={[6, 0, 0, 6]} barSize={32} fill="#94a3b8" />
-                                            <Bar dataKey="Produtiva" stackId="a" radius={[0, 6, 6, 0]} barSize={32} fill="#3b82f6" />
+                                            <Bar dataKey="Improdutiva" stackId="a" radius={[6, 0, 0, 6]} barSize={32} fill="#94a3b8" onClick={(d: any, _i: number, e: any) => { handleChartClick('productivity', 'Improdutiva', e as unknown as React.MouseEvent); if (!((e?.ctrlKey) || (e?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer" />
+                                            <Bar dataKey="Produtiva" stackId="a" radius={[0, 6, 6, 0]} barSize={32} fill="#3b82f6" onClick={(d: any, _i: number, e: any) => { handleChartClick('productivity', 'Produtiva', e as unknown as React.MouseEvent); if (!((e?.ctrlKey) || (e?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer" />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -1674,7 +1701,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={odometroView === 'odometro' ? -45 : 0} textAnchor={odometroView === 'odometro' ? 'end' : 'middle'} height={odometroView === 'odometro' ? 64 : 48} />
                                         <YAxis tick={{ fontSize: 12 }} />
                                         <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
-                                        <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32} fill="#06b6d4">
+                                        <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { const key = odometroView === 'odometro' ? 'odometro' : 'idade'; handleChartClick(key, data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             <LabelList dataKey="value" position="top" formatter={(v: any) => v > 0 ? String(v) : ''} fontSize={11} />
                                         </Bar>
                                     </BarChart>
@@ -1734,7 +1761,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis fontSize={12} />
                                         <Tooltip />
                                         <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('aging', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('aging', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="top" fontSize={12} fill="#666" />
                                         </Bar>
@@ -1752,7 +1779,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis dataKey="name" type="category" width={100} fontSize={10} />
                                         <Tooltip />
                                         <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
                                         </Bar>
@@ -1770,7 +1797,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis dataKey="name" type="category" width={120} fontSize={10} />
                                         <Tooltip />
                                         <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
                                         </Bar>
@@ -1782,7 +1809,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
                     {/* Movimentações recentes removidas conforme solicitado */}
 
-                    <Card className="p-0 overflow-hidden">
+                    <Card className="p-0 overflow-hidden" id="patio-table">
                         <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                             <div className="flex items-center gap-2">
                                 <Title>Veículos no Pátio</Title>
@@ -1873,7 +1900,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 11, fill: '#475569' }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20} fill="#3b82f6"
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('telemetria', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('telemetria', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} fill="#1e293b" />
                                         </Bar>
@@ -1892,7 +1919,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('seguro', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('seguro', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             {seguroData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={
@@ -1917,7 +1944,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis dataKey="name" type="category" width={120} fontSize={10} tick={{ fill: '#475569' }} />
                                         <Tooltip />
                                         <Bar dataKey="value" fill="#0891b2" radius={[0, 4, 4, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('km_diff', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('km_diff', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="right" fontSize={10} fill="#1e293b" />
                                         </Bar>
@@ -1936,7 +1963,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis dataKey="name" type="category" width={150} fontSize={9} tick={{ fill: '#475569' }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="right" fontSize={10} fill="#1e293b" />
                                         </Bar>
@@ -1955,7 +1982,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={32}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('proprietario', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('proprietario', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="top" fontSize={11} fill="#1e293b" />
                                         </Bar>
@@ -1974,7 +2001,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
                                         <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" fill="#06b6d4" radius={[6, 6, 0, 0]} barSize={32}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('finalidade', data.name, event as unknown as React.MouseEvent); }}
+                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('finalidade', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
                                             <LabelList dataKey="value" position="top" fontSize={11} fill="#1e293b" />
                                         </Bar>
@@ -2264,9 +2291,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="eficiencia">
-                    <EfficiencyTab timeline={timeline} filteredData={filteredData} frota={frota} />
-                </TabsContent>
+                {/* Aba 'Eficiência' removida */}
 
                 <TabsContent value="timeline">
                     <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} movimentacoes={movimentacoes} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
@@ -2453,10 +2478,22 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     </div>
                                 )}
 
-                                <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia</Text>
+                                <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia <span className="text-cyan-600 font-medium">(clique em um ponto para ver detalhamento)</span></Text>
                                 <div className="h-80 mt-4">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={ocupacaoSimultaneaData} margin={{ left: 10, right: 30, top: 10, bottom: 20 }}>
+                                        <AreaChart 
+                                            data={ocupacaoSimultaneaData} 
+                                            margin={{ left: 10, right: 30, top: 10, bottom: 20 }}
+                                            onClick={(e: any) => {
+                                                if (e && e.activePayload && e.activePayload[0]) {
+                                                    const clickedDate = e.activePayload[0].payload.date;
+                                                    setSelectedDayForDetail(clickedDate);
+                                                    setTimeout(() => {
+                                                        document.getElementById('reserva-day-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                    }, 100);
+                                                }
+                                            }}
+                                        >
                                             <defs>
                                                 <linearGradient id="colorOcupacao" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8} />
@@ -2480,6 +2517,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                     const date = new Date(label);
                                                     return date.toLocaleDateString('pt-BR');
                                                 }}
+                                                cursor={{ stroke: '#06b6d4', strokeWidth: 2, strokeDasharray: '5 5' }}
                                             />
                                             <Area
                                                 type="monotone"
@@ -2488,11 +2526,79 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 strokeWidth={2}
                                                 fillOpacity={1}
                                                 fill="url(#colorOcupacao)"
-                                                dot={false}
+                                                dot={{ fill: '#06b6d4', r: 3, cursor: 'pointer' }}
+                                                activeDot={{ r: 6, fill: '#0891b2', stroke: '#fff', strokeWidth: 2, cursor: 'pointer' }}
                                             />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
+
+                                {/* Detalhamento do dia clicado */}
+                                {selectedDayForDetail && reservasDetailForSelectedDay.length > 0 && (
+                                    <div id="reserva-day-detail" className="mt-6 pt-6 border-t border-slate-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div>
+                                                <Title className="text-slate-700">Detalhamento - {new Date(selectedDayForDetail).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</Title>
+                                                <Text className="text-slate-500 text-sm mt-1">{reservasDetailForSelectedDay.length} veículo(s) reserva em uso simultâneo neste dia</Text>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedDayForDetail(null)}
+                                                className="px-3 py-1.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors flex items-center gap-1"
+                                            >
+                                                ✕ Fechar
+                                            </button>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full bg-white border border-slate-200 rounded-lg text-xs">
+                                                <thead className="bg-slate-50">
+                                                    <tr>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Placa</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Modelo</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Cliente</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Motivo</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Status</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Início</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Fim</th>
+                                                        <th className="px-3 py-2 text-right font-semibold text-slate-700 border-b">Dias</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Local</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {reservasDetailForSelectedDay.map((r, idx) => {
+                                                        const diasParado = r.DataFim
+                                                            ? Math.ceil((new Date(r.DataFim).getTime() - new Date(r.DataInicio!).getTime()) / (1000 * 60 * 60 * 24))
+                                                            : Math.ceil((Date.now() - new Date(r.DataInicio!).getTime()) / (1000 * 60 * 60 * 24));
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
+                                                                <td className="px-3 py-2 font-mono font-semibold text-slate-800">{r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-700">{r.ModeloVeiculoReserva || r.ModeloReserva || '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-700">{r.Cliente || '—'}</td>
+                                                                <td className="px-3 py-2">
+                                                                    <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                                                                        {r.Motivo || '—'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-3 py-2">
+                                                                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                                        (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
+                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                            : 'bg-slate-100 text-slate-600'
+                                                                    }`}>
+                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || '—'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-slate-600">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-600">{r.DataFim ? new Date(r.DataFim).toLocaleDateString('pt-BR') : <span className="text-rose-600 font-medium">Em andamento</span>}</td>
+                                                                <td className="px-3 py-2 text-right font-medium text-slate-700">{diasParado}</td>
+                                                                <td className="px-3 py-2 text-slate-600 text-xs">{r.Cidade ? `${r.Cidade}${r.Estado ? ` / ${r.Estado}` : ''}` : '—'}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </Card>
 
                             {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
