@@ -379,7 +379,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
         return aDate.getTime() - bDate.getTime();
       }),
       situacao: firstRecord?.SituacaoOcorrencia ?? firstRecord?.StatusOcorrencia ?? firstRecord?.Situacao,
-      tipoOcorrencia: firstRecord?.TipoOcorrencia ?? firstRecord?.TipoManutencao ?? firstRecord?.Tipo,
+      tipoOcorrencia: firstRecord?.Tipo ?? firstRecord?.TipoOcorrencia ?? firstRecord?.TipoManutencao,
       custoTotal
       ,
       dataAberturaOcorrencia,
@@ -1836,7 +1836,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           const osId = r?.OrdemServico ?? getMaintenanceId(r);
                                           const entrada = normalizeDateLocal(r?.DataEntrada ?? r?.DataCriacaoOS ?? r?.DataAgendamento);
                                           const saida = normalizeDateLocal(r?.DataSaida ?? r?.DataConclusaoOcorrencia);
-                                          const statusOS = r?.StatusOS ?? r?.SituacaoOrdemServico;
+                                          const statusOS = r?.SituacaoOcorrencia ?? r?.StatusSimplificado ?? r?.StatusOS ?? r?.SituacaoOrdemServico;
                                           const categoria = r?.Categoria ?? '';
                                           const despesa = r?.Despesa ?? '';
                                           const custo = r?.CustoTotalOS ?? r?.ValorTotal;
@@ -1957,7 +1957,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                               const top = row.records[0];
                               const fornecedor = top?.Fornecedor || top?.Oficina;
-                              const tipoOcorrencia = top?.TipoOcorrencia || top?.TipoManutencao;
+                              const tipoOcorrencia = top?.Tipo || top?.TipoOcorrencia || top?.TipoManutencao;
 
                               return (
                                 <div key={row.key} className="relative pl-6">
@@ -2000,7 +2000,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           const entrada = normalizeDateLocal(r?.DataEntrada ?? r?.DataEntradaOficina ?? r?.DataAgendamento);
                                           const saida = normalizeDateLocal(r?.DataSaida ?? r?.DataSaidaOficina ?? r?.DataConclusao);
                                           const conclusao = normalizeDateLocal(r?.DataConclusao);
-                                          const tipoR = r?.TipoOcorrencia ?? r?.TipoManutencao ?? r?.Tipo;
+                                          const tipoR = r?.Tipo ?? r?.TipoOcorrencia ?? r?.TipoManutencao;
                                           const situacao = r?.Situacao ?? r?.SituacaoOcorrencia ?? r?.Status;
                                           const despesa = r?.Despesa ?? r?.TipoDespesa ?? r?.CategoriaServico;
                                           const custo = r?.CustoTotalOS ?? r?.ValorTotal ?? r?.ValorServico;
@@ -2009,7 +2009,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           const kmEntrada = r?.KmEntrada ?? r?.KM_Entrada ?? r?.Odometro;
                                           const kmSaida = r?.KmSaida ?? r?.KM_Saida;
                                           const descricao = r?.DescricaoOS ?? r?.Descricao ?? r?.DescricaoServico ?? r?.Observacao;
-                                          const status = r?.StatusOS ?? r?.Status ?? r?.StatusOcorrencia;
+                                          const status = r?.SituacaoOcorrencia ?? r?.StatusSimplificado ?? r?.StatusOS ?? r?.Status ?? r?.StatusOcorrencia;
                                           const actor = getEventActor('MANUTENCAO', r);
 
                                           return (
@@ -2592,7 +2592,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             const entrada = normalizeDateLocal(sourceData?.DataEntrada ?? sourceData?.DataEntradaOficina ?? sourceData?.DataAgendamento ?? it?.DataEvento ?? it?.Data);
                                             const saida = normalizeDateLocal(sourceData?.DataSaida ?? sourceData?.DataSaidaOficina ?? sourceData?.DataConclusao);
                                             const conclusao = normalizeDateLocal(sourceData?.DataConclusao);
-                                            const tipoR = sourceData?.TipoOcorrencia ?? sourceData?.TipoManutencao ?? sourceData?.Tipo ?? it?.TipoEvento;
+                                            const tipoR = sourceData?.Tipo ?? sourceData?.TipoOcorrencia ?? sourceData?.TipoManutencao ?? it?.TipoEvento;
                                             const situacao = sourceData?.Situacao ?? sourceData?.SituacaoOcorrencia ?? sourceData?.Status ?? it?.Situacao;
                                             const despesa = sourceData?.Despesa ?? sourceData?.TipoDespesa ?? sourceData?.CategoriaServico;
                                             const custo = sourceData?.CustoTotalOS ?? sourceData?.ValorTotal ?? sourceData?.ValorServico ?? it?.Valor;
@@ -2601,7 +2601,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             const kmEntrada = sourceData?.KmEntrada ?? sourceData?.KM_Entrada ?? sourceData?.Odometro ?? it?.KM ?? it?.Odometro;
                                             const kmSaida = sourceData?.KmSaida ?? sourceData?.KM_Saida;
                                             const descricaoManut = sourceData?.DescricaoOS ?? sourceData?.Descricao ?? sourceData?.DescricaoServico ?? sourceData?.Observacao ?? it?.Descricao ?? it?.Detalhe1;
-                                            const statusManut = sourceData?.StatusOS ?? sourceData?.Status ?? sourceData?.StatusOcorrencia ?? it?.Status;
+                                            const statusManut = sourceData?.SituacaoOcorrencia ?? sourceData?.StatusSimplificado ?? sourceData?.StatusOS ?? sourceData?.Status ?? sourceData?.StatusOcorrencia ?? it?.Status;
                                             const oficina = sourceData?.Oficina ?? sourceData?.Fornecedor ?? sourceData?.NomeFornecedor ?? it?.Oficina ?? it?.Fornecedor;
 
                                             return (

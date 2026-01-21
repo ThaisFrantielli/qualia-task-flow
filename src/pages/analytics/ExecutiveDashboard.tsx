@@ -156,7 +156,6 @@ export default function ExecutiveDashboard(): JSX.Element {
   const quickLinks = [
     { label: 'Frota', path: '/analytics/frota', icon: Car, color: 'emerald' },
     { label: 'Financeiro', path: '/analytics/financeiro', icon: DollarSign, color: 'blue' },
-    { label: 'Manutenção', path: '/analytics/manutencao', icon: Wrench, color: 'amber' },
     { label: 'Clientes', path: '/analytics/clientes', icon: Users, color: 'violet' },
     { label: 'Comercial', path: '/analytics/comercial', icon: Tag, color: 'pink' },
     { label: 'Compras', path: '/analytics/compras', icon: ShoppingCart, color: 'cyan' },

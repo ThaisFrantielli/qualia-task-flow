@@ -150,6 +150,14 @@ export default function OperacionalTab() {
     return alertas.filter(a => a.severidade === 'critico').slice(0, 5);
   }, [alertas]);
 
+  // OS Travadas (sem movimentação > 72h)
+  const osTravadas = useMemo(() => {
+    if (!osComDias.length) return [];
+    
+    const LIMITE_72H = 3; // dias
+    return osComDias.filter(os => os.DiasNaEtapa > LIMITE_72H);
+  }, [osComDias]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -188,6 +196,15 @@ export default function OperacionalTab() {
               </div>
             </div>
           </Card>
+          <Card decoration="left" decorationColor="orange" className="p-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              <div>
+                <Text className="text-xs">OS Travadas</Text>
+                <Metric className="text-lg">{osTravadas.length}</Metric>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
@@ -219,6 +236,63 @@ export default function OperacionalTab() {
                       {dados.criticos} críticas
                     </Badge>
                   )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Seção 2: OS Travadas (>72h sem movimentação) */}
+      {osTravadas.length > 0 && (
+        <Card decoration="left" decorationColor="orange">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-6 h-6 text-orange-500" />
+            <div>
+              <Title>OS Travadas - Sem Movimentação &gt; 72h</Title>
+              <Text className="text-orange-600">{osTravadas.length} OS precisam de atenção urgente</Text>
+            </div>
+          </div>
+          <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-orange-50 sticky top-0">
+                <tr>
+                  <th className="p-2 text-left">OS</th>
+                  <th className="p-2 text-left">Placa</th>
+                  <th className="p-2 text-left">Modelo</th>
+                  <th className="p-2 text-left">Etapa Atual</th>
+                  <th className="p-2 text-right">Dias Parada</th>
+                  <th className="p-2 text-left">Responsável</th>
+                </tr>
+              </thead>
+              <tbody>
+                {osTravadas.slice(0, 10).map(os => (
+                  <tr key={os.Ocorrencia} className="border-t hover:bg-orange-50">
+                    <td className="p-2 font-mono text-orange-600 font-bold">{os.Ocorrencia}</td>
+                    <td className="p-2 font-medium">{os.Placa}</td>
+                    <td className="p-2 text-gray-600">{os.ModeloVeiculo || 'N/D'}</td>
+                    <td className="p-2">
+                      <Badge color="orange" size="sm">{os.Etapa}</Badge>
+                    </td>
+                    <td className="p-2 text-right">
+                      <span className="text-orange-600 font-bold">{os.DiasNaEtapa}d</span>
+                    </td>
+                    <td className="p-2 text-gray-600 text-xs">{os.UsuarioEtapa || 'N/D'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {osTravadas.length > 10 && (
+            <Text className="text-xs text-gray-500 mt-2">
+              Mostrando 10 de {osTravadas.length} OS travadas
+            </Text>
+          )}
+        </Card>
+      )}
+
+      {/* Seção 3:  </Badge>
+                4 )}
                 </div>
               </Card>
             );
