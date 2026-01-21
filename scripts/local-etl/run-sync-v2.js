@@ -827,165 +827,107 @@ const CONSOLIDATED = [
     {
         table: 'fat_manutencao_unificado',
         query: `SELECT 
-                    -- Identificação da Ordem de Serviço (tabela principal - granularidade por OS)
-                    os.IdOrdemServico,
-                    os.OrdemServico,
-                    os.IdSituacaoOrdemServico,
-                    os.SituacaoOrdemServico as StatusOS,
-                    os.Categoria,
-                    os.Despesa,
-                    os.OrdemCompra,
-                    os.IdFornecedor as IdFornecedorOS,
-                    os.Fornecedor as FornecedorOS,
-                    FORMAT(os.OrdemServicoCriadaEm, 'yyyy-MM-dd HH:mm:ss') as DataCriacaoOS,
-                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
-                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataSaida,
-                    CAST(ISNULL(os.OdometroConfirmado, 0) AS INT) as OdometroOS,
-                    
-                    -- Valores Financeiros (dados principais da OS)
-                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as CustoTotalOS,
-                    (${castM('ISNULL(os.ValorTotal, 0)')} / 100.0) as ValorTotal,
-                    (${castM('ISNULL(os.ValorNaoReembolsavel, 0)')} / 100.0) as ValorNaoReembolsavel,
-                    (${castM('ISNULL(os.ValorReembolsavel, 0)')} / 100.0) as ValorReembolsavel,
-                    
-                    -- Tipo de Manutenção (inferido do tipo da OS ou Ocorrência)
-                    CASE 
-                        WHEN COALESCE(os.Tipo, om.Tipo) LIKE '%preventiv%' OR COALESCE(os.Tipo, om.Tipo) LIKE '%Preventiv%' THEN 'Preventiva'
-                        WHEN COALESCE(os.Tipo, om.Tipo) LIKE '%corretiv%' OR COALESCE(os.Tipo, om.Tipo) LIKE '%Corretiv%' THEN 'Corretiva'
-                        WHEN COALESCE(os.Tipo, om.Tipo) LIKE '%preditiv%' OR COALESCE(os.Tipo, om.Tipo) LIKE '%Preditiv%' THEN 'Preditiva'
-                        ELSE 'Outros'
-                    END as TipoManutencao,
-                    
-                    -- Lead Time da OS
-                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, os.OrdemServicoCriadaEm)) as DiasOS,
-                    
-                    -- Identificação da Ocorrência (quando existir - dados do processo)
+                    -- Campos diretos de OcorrenciasManutencao (100% da base, sem filtros)
+                    FORMAT(GETDATE(), 'yyyy-MM-dd HH:mm:ss.fff') as DataAtualizacaoDados,
                     om.IdOcorrencia,
                     om.Ocorrencia,
-                    om.Ocorrencia as NumeroOcorrencia,
-                    
-                    -- Dados da Ocorrência
-                    om.IdSituacaoOcorrencia as IdSituacaoOcorrenciaManut,
+                    om.IdContratoLocacao,
+                    om.ContratoLocacao,
+                    om.IdContratoComercial,
+                    om.ContratoComercial,
+                    om.IdClassificacaoContrato,
+                    om.ClassificacaoContrato,
+                    FORMAT(om.DataCriacao, 'yyyy-MM-dd HH:mm:ss') as DataCriacao,
+                    om.IdSituacaoOcorrencia,
                     om.SituacaoOcorrencia,
                     om.IdEtapa,
                     om.Etapa,
-                    om.IdTipo as IdTipoOcorrencia,
-                    om.Tipo as TipoOcorrencia,
-                    om.IdMotivo as IdMotivoOcorrencia,
-                    om.Motivo,
-                    om.Descricao as DescricaoOcorrencia,
-                    om.Observacoes,
-                    
-                    -- Datas da Ocorrência
-                    FORMAT(om.DataCriacao, 'yyyy-MM-dd HH:mm:ss') as DataAberturaOcorrencia,
-                    FORMAT(om.DataAgendamento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
-                    FORMAT(om.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
-                    FORMAT(om.DataPrevisaoConclusaoServico, 'yyyy-MM-dd') as DataPrevisaoConclusao,
-                    FORMAT(om.DataConfirmacaoSaida, 'yyyy-MM-dd') as DataConfirmacaoSaida,
-                    FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
-                    
-                    -- Data de chegada baseada em movimentações (Etapa 'Aguardando Chegada')
-                    (
-                        SELECT TOP 1 mo3.DataDeConfirmacao
-                        FROM MovimentacaoOcorrencias mo3
-                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
-                        ORDER BY mo3.DataDeConfirmacao ASC
-                    ) as DataChegadaVeiculo,
-                    
-                    -- Movimentações detalhadas por ocorrência (etapa + data + tempo desde etapa anterior)
-                    (
-                        SELECT
-                            mo2.Etapa as Etapa,
-                            FORMAT(mo2.DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataConfirmacao,
-                            mo2.Usuario as Usuario,
-                            DATEDIFF(MINUTE, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as MinutosDesdeAnterior,
-                            DATEDIFF(HOUR, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as HorasDesdeAnterior,
-                            DATEDIFF(DAY, ISNULL(LAG(mo2.DataDeConfirmacao) OVER (ORDER BY mo2.DataDeConfirmacao), mo2.CriadoEm), mo2.DataDeConfirmacao) as DiasDesdeAnterior
-                        FROM MovimentacaoOcorrencias mo2
-                        WHERE mo2.Ocorrencia = om.Ocorrencia AND mo2.DataDeConfirmacao IS NOT NULL
-                        ORDER BY mo2.DataDeConfirmacao
-                        FOR JSON PATH
-                    ) as MovimentacoesJson,
-
-                    -- KPI: diferença entre conclusão da ocorrência e retirada do veículo
-                    DATEDIFF(MINUTE, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Minutos_Conclusao_Retirada,
-                    DATEDIFF(HOUR, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Horas_Conclusao_Retirada,
-                    DATEDIFF(DAY, om.DataConclusaoOcorrencia, om.DataRetiradaVeiculo) as Dias_Conclusao_Retirada,
-                    
-                    -- KPI: diferença entre chegada do veículo (Aguardando Chegada) e retirada do veículo
-                    DATEDIFF(MINUTE, (
-                        SELECT TOP 1 mo3.DataDeConfirmacao
-                        FROM MovimentacaoOcorrencias mo3
-                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
-                        ORDER BY mo3.DataDeConfirmacao ASC
-                    ), om.DataRetiradaVeiculo) as Minutos_Chegada_Retirada,
-                    DATEDIFF(HOUR, (
-                        SELECT TOP 1 mo3.DataDeConfirmacao
-                        FROM MovimentacaoOcorrencias mo3
-                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
-                        ORDER BY mo3.DataDeConfirmacao ASC
-                    ), om.DataRetiradaVeiculo) as Horas_Chegada_Retirada,
-                    DATEDIFF(DAY, (
-                        SELECT TOP 1 mo3.DataDeConfirmacao
-                        FROM MovimentacaoOcorrencias mo3
-                        WHERE mo3.Ocorrencia = om.Ocorrencia AND mo3.Etapa LIKE '%Aguardando Chegada%'
-                        ORDER BY mo3.DataDeConfirmacao ASC
-                    ), om.DataRetiradaVeiculo) as Dias_Chegada_Retirada,
-                    
-                    -- Lead Time Total (da ocorrência quando existir)
-                    DATEDIFF(DAY, om.DataCriacao, ISNULL(om.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias,
-                    
-                    -- Veículo (prioriza dados da OS, fallback para Ocorrência)
-                    COALESCE(os.IdVeiculo, om.IdVeiculo) as IdVeiculo,
-                    COALESCE(os.Placa, om.Placa) as Placa,
-                    COALESCE(os.ModeloVeiculo, v.Modelo) as Modelo,
-                    ISNULL(g.GrupoVeiculo, '') as CategoriaVeiculo,
-                    COALESCE(os.OdometroConfirmado, om.OdometroAtual) as Odometro,
-                    
-                    -- Fornecedor/Oficina (prioriza OS, fallback para ocorrência)
-                    COALESCE(os.IdFornecedor, om.IdFornecedor) as IdFornecedorOcorrencia,
-                    COALESCE(os.Fornecedor, om.Fornecedor) as FornecedorOcorrencia,
-                    
-                    -- Cliente e Condutor (prioriza OS, fallback para Ocorrência)
-                    COALESCE(os.IdCliente, om.IdCliente) as IdCliente,
-                    COALESCE(os.Cliente, om.NomeCliente) as Cliente,
+                    om.IdCliente,
+                    om.NomeCliente,
                     om.IdCondutor,
-                    om.NomeCondutor as Condutor,
-                    om.NomeRequisitante,
-                    om.EmailRequisitante,
-                    om.TelefoneRequisitante,
-                    
-                    -- Contratos (prioriza OS, fallback para Ocorrência)
-                    COALESCE(os.IdContratoLocacao, om.IdContratoLocacao) as IdContratoLocacao,
-                    COALESCE(os.ContratoLocacao, om.ContratoLocacao) as ContratoLocacao,
-                    COALESCE(os.IdContratoComercial, om.IdContratoComercial) as IdContratoComercial,
-                    COALESCE(os.ContratoComercial, om.ContratoComercial) as ContratoComercial,
-                    COALESCE(os.IdClassificacaoContrato, om.IdClassificacaoContrato) as IdClassificacaoContrato,
-                    COALESCE(os.ClassificacaoContrato, om.ClassificacaoContrato) as ClassificacaoContrato,
-                    
-                    -- Localização (da ocorrência)
+                    om.NomeCondutor,
+                    om.IdVeiculo,
+                    om.Placa,
+                    om.IdTipo,
+                    om.Tipo,
+                    om.IdMotivo,
+                    om.Motivo,
+                    om.IdUsuarioCriacao,
+                    om.IdFornecedor,
+                    om.Fornecedor,
+                    om.Origem,
+                    FORMAT(om.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
+                    FORMAT(om.SugestaoAgendamento1, 'yyyy-MM-dd HH:mm:ss') as SugestaoAgendamento1,
+                    FORMAT(om.SugestaoAgendamento2, 'yyyy-MM-dd HH:mm:ss') as SugestaoAgendamento2,
+                    FORMAT(om.SugestaoAgendamento3, 'yyyy-MM-dd HH:mm:ss') as SugestaoAgendamento3,
                     om.Endereco,
                     om.Numero,
+                    om.Complemento,
                     om.Bairro,
                     om.Cidade,
                     om.Estado,
-                    
-                    -- Cancelamento
+                    om.Pais,
+                    om.CEP,
+                    om.Latitude,
+                    om.Longitude,
+                    FORMAT(om.DataAgendamento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
+                    om.Descricao,
+                    om.Observacoes,
+                    CAST(ISNULL(om.OdometroAtual, 0) AS INT) as OdometroAtual,
+                    om.NomeRequisitante,
+                    om.EmailRequisitante,
+                    om.TelefoneRequisitante,
                     om.CanceladoPor,
-                    FORMAT(om.CanceladoEm, 'yyyy-MM-dd') as DataCancelamento,
+                    FORMAT(om.CanceladoEm, 'yyyy-MM-dd HH:mm:ss') as CanceladoEm,
                     om.MotivoCancelamento,
+                    FORMAT(om.DataPrevisaoConclusaoServico, 'yyyy-MM-dd') as DataPrevisaoConclusaoServico,
+                    FORMAT(om.DataConclusaoServico, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoServico,
+                    FORMAT(om.DataConfirmacaoSaida, 'yyyy-MM-dd') as DataConfirmacaoSaida,
+                    FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
+                    om.IdJustificativa,
+                    om.IdFilialOperacional,
                     
-                    -- Origem
-                    COALESCE(os.Origem, om.Origem) as Origem
+                    -- Campos de Veículos (JOIN com Veiculos)
+                    os.ModeloVeiculo as Modelo,
+                    v.Categoria as CategoriaVeiculo,
+                    v.Marca,
+                    v.AnoFabricacao,
+                    v.AnoModelo,
+                    v.Cor,
+                    v.Chassi,
+                    v.Renavam,
                     
-                FROM OrdensServico os WITH (NOLOCK)
-                -- JOIN com Ocorrências (quando existir - enriquece com dados do processo)
-                LEFT JOIN OcorrenciasManutencao om WITH (NOLOCK) ON os.IdOcorrencia = om.IdOcorrencia
-                -- JOINs para enriquecer com dados de relacionamento
-                LEFT JOIN Veiculos v WITH (NOLOCK) ON COALESCE(os.Placa, om.Placa) = v.Placa
-                LEFT JOIN GruposVeiculos g WITH (NOLOCK) ON v.IdGrupoVeiculo = g.IdGrupoVeiculo
-                WHERE os.SituacaoOrdemServico NOT IN ('Cancelada')
-                -- Incluindo todo o histórico de ordens de serviço
+                    -- Campos de Ordem de Serviço (buscar valores)
+                    os.ValorTotal,
+                    os.ValorNaoReembolsavel,
+                    os.ValorReembolsavel,
+                    os.Cliente as ClienteContrato,
+                    os.TipoLocacao,
+                    os.Categoria as TipoManutencao,
+                    os.Fornecedor as FornecedorOcorrencia,
+                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd HH:mm:ss') as DataInicioServico,
+                    os.SituacaoOrdemServico as StatusOS,
+                    os.IdOrdemServico,
+                    os.OrdemServico,
+                    FORMAT(os.OcorrenciaCriadaEm, 'yyyy-MM-dd HH:mm:ss') as OcorrenciaCriadaEm,
+                    os.OdometroConfirmado,
+                    
+                    -- Campos calculados úteis para o dashboard
+                    FORMAT(om.DataCriacao, 'yyyy-MM-dd') as DataEntrada,
+                    DATEDIFF(DAY, om.DataCriacao, ISNULL(om.DataConclusaoOcorrencia, GETDATE())) as DiasAberta,
+                    CASE 
+                        WHEN om.DataConclusaoOcorrencia IS NOT NULL THEN 'Fechada'
+                        WHEN om.SituacaoOcorrencia = 'Cancelada' THEN 'Cancelada'
+                        ELSE 'Aberta'
+                    END as StatusSimplificado,
+                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoServico, GETDATE())) as LeadTimeTotalDias
+                    
+                FROM OcorrenciasManutencao om WITH (NOLOCK)
+                LEFT JOIN Veiculos v WITH (NOLOCK) ON om.IdVeiculo = v.IdVeiculo
+                LEFT JOIN OrdensServico os WITH (NOLOCK) ON om.IdOcorrencia = os.IdOcorrencia
+                WHERE om.DataCriacao >= '2024-01-01'
+                -- SEM FILTROS de tipo - Mantendo 100% da base conforme solicitado
+                ORDER BY om.IdOcorrencia DESC
                 `
     },
     {
@@ -1368,8 +1310,8 @@ function queueUpload(tableName, data, year = null, month = null) {
     const fs = require('fs');
     const path = require('path');
 
-    const shouldUploadToSupabase = Boolean(SUPABASE_SERVICE_KEY) && !JSON_ONLY;
-    const writeLocal = JSON_ONLY || !SUPABASE_SERVICE_KEY;
+    const shouldUploadToSupabase = false; // DESABILITADO: Evita erros HTTP 500 do Supabase
+    const writeLocal = true; // SEMPRE gravar arquivos locais para desenvolvimento
 
     if (!shouldUploadToSupabase && !writeLocal) return;
 
@@ -1687,6 +1629,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
 
         // Remover duplicatas se houver ID column (manter última ocorrência)
         // EXCETO para tabelas de histórico temporal que legitimamente têm múltiplas entradas
+        // E EXCETO para fat_manutencao_unificado que deve manter 100% da base
         const pkRaw = columns[0];
         const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
         const historicalTables = [
@@ -1695,7 +1638,8 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             'dim_movimentacao_veiculos', 
             'dim_veiculos_acessorios',
             'historico_situacao_veiculos',
-            'fat_movimentacao_ocorrencias'
+            'fat_movimentacao_ocorrencias',
+            'fat_manutencao_unificado' // MANTÉM 100% DA BASE SEM DEDUPLICAÇÃO
         ];
         const shouldDedup = hasIdColumn && !historicalTables.includes(tableName);
         let finalData = sanitizedData;
@@ -1813,8 +1757,8 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         const duration = ((performance.now() - start) / 1000).toFixed(2);
         console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
 
-        // ========== UPLOAD PARA SUPABASE STORAGE (ASSÍNCRONO) ==========
-        // queueUpload(tableName, finalData, year, month);
+        // ========== UPLOAD PARA SUPABASE STORAGE E GRAVAÇÃO LOCAL (ASSÍNCRONO) ==========
+        queueUpload(tableName, finalData, year, month);
 
     } catch (err) {
         console.error(`      ❌ ${progressStr} Erro PostgreSQL (${tableName}):`, err.message);

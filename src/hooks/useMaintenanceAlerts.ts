@@ -118,11 +118,38 @@ export default function useMaintenanceAlerts() {
     const alertasGerados: Alerta[] = [];
     const now = new Date();
 
+    // PRÉ-FILTRO: Apenas ocorrências de MANUTENÇÃO (excluir Carro Reserva, Sinistro, Multa, Infração, etc.)
+    const manutencoesFiltradas = manutencoes?.filter((m: any) => {
+      const status = (m.SituacaoOcorrencia || m.StatusSimplificado || '').toLowerCase();
+      
+      // Excluir status canceladas
+      if (status === 'cancelada') {
+        return false;
+      }
+      
+      // Filtro por IdTipo: 1=Preventiva, 2=Corretiva, 3=Preditiva (apenas manutenção)
+      // Excluir: 4=Sinistro, 5=Carro Reserva, 6=Multa, 7=Infração, etc.
+      const idTipo = m.IdTipo;
+      if (idTipo) {
+        return idTipo === 1 || idTipo === 2 || idTipo === 3;
+      }
+      
+      // Fallback: validar por texto se IdTipo não estiver disponível
+      const tipo = (m.Tipo || '').toLowerCase();
+      if (tipo.includes('sinistro') || tipo.includes('reserva') || tipo.includes('multa') || tipo.includes('infra')) {
+        return false;
+      }
+      
+      return tipo.includes('manuten') || tipo.includes('preventiv') || 
+             tipo.includes('corretiv') || tipo.includes('preditiv') || 
+             !m.Tipo; // Manter OS sem tipo definido
+    }) || [];
+
     // ========================================================================
     // ALERTA 1: OS Críticas (>10 dias totais)
     // ========================================================================
-    if (config.alerta_os_critica_ativo && manutencoes) {
-      const osCriticas = manutencoes.filter(m => {
+    if (config.alerta_os_critica_ativo && manutencoesFiltradas.length > 0) {
+      const osCriticas = manutencoesFiltradas.filter(m => {
         const leadTime = m.LeadTimeTotalDias || 0;
         return leadTime > config.alerta_os_critica_dias;
       });
@@ -154,8 +181,8 @@ export default function useMaintenanceAlerts() {
     // ========================================================================
     // ALERTA 2: OS de Atenção (5-10 dias)
     // ========================================================================
-    if (config.alerta_os_atencao_ativo && manutencoes) {
-      const osAtencao = manutencoes.filter(m => {
+    if (config.alerta_os_atencao_ativo && manutencoesFiltradas.length > 0) {
+      const osAtencao = manutencoesFiltradas.filter(m => {
         const leadTime = m.LeadTimeTotalDias || 0;
         return leadTime > config.alerta_os_atencao_dias && leadTime <= config.alerta_os_critica_dias;
       });

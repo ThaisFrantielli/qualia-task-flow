@@ -166,18 +166,7 @@ export default function AnalyticsIndex() {
               </div>
 
               <div className="space-y-3">
-                <Link to="/analytics/manutencao" className="block p-4 rounded-xl bg-slate-50 hover:bg-violet-50 border border-slate-100 hover:border-violet-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="w-5 h-5 text-slate-500 group-hover/item:text-violet-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-violet-900">Manutenção</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-violet-700">OS, CPK, Downtime e Oficinas</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-violet-600 transition-colors" />
-                  </div>
-                </Link>
+                {/* Link removido: Dashboard de Manutenção desativado */}
 
                 <Link to="/analytics/multas" className="block p-4 rounded-xl bg-slate-50 hover:bg-violet-50 border border-slate-100 hover:border-violet-200 transition-all group/item">
                   <div className="flex items-center justify-between">

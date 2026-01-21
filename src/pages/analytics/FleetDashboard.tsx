@@ -1079,7 +1079,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
     const reservaKPIs = useMemo(() => {
         const total = filteredReservas.length;
-        const ativas = filteredReservas.filter(r => !['Finalizado', 'Cancelado', 'Concluída'].includes(r.StatusOcorrencia || '')).length;
+        // Nova regra: ativa = sem data de conclusão (ex: DataDevolucao/DataConclusao) e não cancelada
+        const ativas = filteredReservas.filter(r => {
+            const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
+            if (status.includes('cancel')) return false;
+            const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+            return !concluded;
+        }).length;
 
         const motivoMap: Record<string, number> = {};
         filteredReservas.forEach(r => { const m = r.Motivo || 'Não Definido'; motivoMap[m] = (motivoMap[m] || 0) + 1; });
@@ -1111,10 +1117,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
         // Reservas com atraso (Ativas que passaram da DataFim prevista)
         const hoje = new Date();
-        const atrasadas = filteredReservas.filter(r =>
-            !['Finalizado', 'Cancelado', 'Concluída'].includes(r.StatusOcorrencia || '') &&
-            r.DataFim && new Date(r.DataFim) < hoje
-        ).length;
+        const atrasadas = filteredReservas.filter(r => {
+            const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
+            if (status.includes('cancel')) return false;
+            const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+            // atrasada = ativa (não concluída e não cancelada) com DataFim prevista menor que hoje
+            return !concluded && r.DataFim && new Date(r.DataFim) < hoje;
+        }).length;
 
         // Gráfico hierárquico com comparação YoY
         const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> mês -> dia -> count
@@ -1524,7 +1533,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
                 <TabsContent value="visao-geral" className="space-y-6">
                     {/* KPIs Principais */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         <Card decoration="top" decorationColor="blue"><Text>Total Frota</Text><Metric>{fmtDecimal(kpis.total)}</Metric></Card>
                         <Card decoration="top" decorationColor="emerald"><Text>Produtiva</Text><Metric>{fmtDecimal(kpis.produtivaQtd)}</Metric><Text className="text-xs text-emerald-600">{kpis.taxaProdutividade.toFixed(1)}%</Text></Card>
                         <Card decoration="top" decorationColor="rose"><Text>Improdutiva</Text><Metric>{fmtDecimal(kpis.improdutivaQtd)}</Metric><Text className="text-xs text-rose-600">{kpis.taxaImprodutiva.toFixed(1)}%</Text></Card>
@@ -2336,7 +2345,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </Card>
 
                             {/* KPIs - ATUALIZADO: KPIs de performance e ocupação */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                 <Card decoration="top" decorationColor="blue">
                                     <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Total de Ocorrências</Text>
                                     <Metric className="mt-1">{fmtDecimal(reservaKPIs.total)}</Metric>
@@ -2354,12 +2363,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     </div>
                                     <Text className="text-xs text-slate-400 mt-2">Em andamento</Text>
                                 </Card>
-                                <Card decoration="top" decorationColor="amber">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Principal Motivo</Text>
-                                    <div className="h-10 flex items-center mt-1">
-                                        <Metric className="text-xl truncate" title={reservaKPIs.principalMotivo}>{reservaKPIs.principalMotivo}</Metric>
-                                    </div>
-                                </Card>
+                                
                                 <Card decoration="top" decorationColor="violet">
                                     <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo Médio (Geral)</Text>
                                     <Metric className="mt-1">{reservaKPIs.tempoMedio.toFixed(1)} <span className="text-sm font-normal text-slate-500">dias</span></Metric>
@@ -2604,13 +2608,19 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(clique: filtrar | Ctrl+clique: expandir)</span></Title>
+                                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => {
                                                 const allYears = reservaKPIs.monthlyData.map(y => y.year);
-                                                setExpandedYears(expandedYears.length === allYears.length ? [] : allYears);
-                                                setExpandedMonths([]);
+                                                const expandingAll = expandedYears.length !== allYears.length;
+                                                setExpandedYears(expandingAll ? allYears : []);
+                                                if (expandingAll) {
+                                                    const allMonthKeys = reservaKPIs.monthlyData.flatMap(y => y.months.map(m => `${y.year}-${m.month}`));
+                                                    setExpandedMonths(Array.from(new Set(allMonthKeys)));
+                                                } else {
+                                                    setExpandedMonths([]);
+                                                }
                                             }}
                                             className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600 transition-colors"
                                         >
@@ -2630,14 +2640,16 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <div
                                                     onClick={(e) => {
                                                         if (e.ctrlKey || e.metaKey) {
-                                                            // Ctrl+click: expandir/colapsar meses
-                                                            setExpandedYears(prev =>
-                                                                prev.includes(yearData.year)
-                                                                    ? prev.filter(y => y !== yearData.year)
-                                                                    : [...prev, yearData.year]
-                                                            );
+                                                            // Ctrl+click: expandir/colapsar meses junto com o ano
                                                             if (expandedYears.includes(yearData.year)) {
-                                                                setExpandedMonths([]);
+                                                                // já expandido -> colapsar ano e remover meses desse ano
+                                                                setExpandedYears(prev => prev.filter(y => y !== yearData.year));
+                                                                setExpandedMonths(prev => prev.filter(m => !m.startsWith(`${yearData.year}-`)));
+                                                            } else {
+                                                                // expandir ano e abrir todos os meses desse ano
+                                                                setExpandedYears(prev => [...prev, yearData.year]);
+                                                                const monthKeys = yearData.months.map(m => `${yearData.year}-${m.month}`);
+                                                                setExpandedMonths(prev => Array.from(new Set([...prev, ...monthKeys])));
                                                             }
                                                         } else {
                                                             // Click normal: filtrar por este ano
@@ -2654,9 +2666,24 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                     className={`flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors ${selectedTemporalFilter?.year === yearData.year && !selectedTemporalFilter?.month ? 'ring-2 ring-blue-600 ring-inset' : ''}`}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <span className="text-lg font-bold text-blue-700">
-                                                            {isYearExpanded ? '▼' : '▶'} {yearData.year}
-                                                        </span>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (isYearExpanded) {
+                                                                    setExpandedYears(prev => prev.filter(y => y !== yearData.year));
+                                                                    setExpandedMonths(prev => prev.filter(m => !m.startsWith(`${yearData.year}-`)));
+                                                                } else {
+                                                                    setExpandedYears(prev => [...prev, yearData.year]);
+                                                                    const monthKeys = yearData.months.map(m => `${yearData.year}-${m.month}`);
+                                                                    setExpandedMonths(prev => Array.from(new Set([...prev, ...monthKeys])));
+                                                                }
+                                                            }}
+                                                            className="w-6 h-6 flex items-center justify-center text-sm rounded hover:bg-slate-100"
+                                                            aria-label={isYearExpanded ? 'Colapsar ano' : 'Expandir ano'}
+                                                        >
+                                                            {isYearExpanded ? '▼' : '▶'}
+                                                        </button>
+                                                        <span className="text-lg font-bold text-blue-700">{yearData.year}</span>
                                                         <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorrências</Badge>
                                                         {yearData.prevYearTotal > 0 && (
                                                             <span className={`text-xs font-medium ${yearData.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -2704,12 +2731,25 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                         className={`flex items-center justify-between p-2 pl-8 hover:bg-blue-50 cursor-pointer transition-colors ${selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-100 border-l-4 border-blue-600' : ''}`}
                                                                     >
                                                                         <div className="flex items-center gap-2">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const monthKey = `${yearData.year}-${monthData.month}`;
+                                                                                    if (isMonthExpanded) {
+                                                                                        setExpandedMonths(prev => prev.filter(m => m !== monthKey));
+                                                                                    } else {
+                                                                                        setExpandedMonths(prev => Array.from(new Set([...prev, monthKey])));
+                                                                                    }
+                                                                                }}
+                                                                                className="w-6 h-6 flex items-center justify-center text-xs rounded hover:bg-slate-100 mr-2"
+                                                                                aria-label={isMonthExpanded ? 'Colapsar mês' : 'Expandir mês'}
+                                                                            >
+                                                                                {isMonthExpanded ? '▼' : '▶'}
+                                                                            </button>
                                                                             <span className={`text-sm font-medium ${selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month
                                                                                     ? 'text-blue-700 font-bold'
                                                                                     : 'text-slate-700'
-                                                                                }`}>
-                                                                                {isMonthExpanded ? '▼' : '▶'} {monthNames[parseInt(monthData.month) - 1]}
-                                                                            </span>
+                                                                                }`}>{monthNames[parseInt(monthData.month) - 1]}</span>
                                                                             <Badge size="xs" className={selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-600 text-white' : 'bg-slate-600 text-white'}>{monthData.monthTotal}</Badge>
                                                                             {monthData.prevMonthTotal > 0 && (
                                                                                 <span className={`text-xs ${monthData.monthYoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -2919,12 +2959,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {reservaPageItems
-                                                .filter(r => (r.PlacaReserva || r.ModeloReserva || r.Cliente || r.Motivo) // Filtrar linhas totalmente vazias
-                                                    && !['cancelado', 'cancelada'].includes(String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase())
-                                                )
-                                                .map((r, i) => {
-                                                    const isAtiva = !['Finalizado', 'Cancelado', 'Concluída'].includes(r.StatusOcorrencia || '');
+                                            {reservaPageItems.map((r, i) => {
+                                                    const statusLow = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
+                                                    const isCancelled = statusLow.includes('cancel');
+                                                    const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+                                                    const isAtiva = !isCancelled && !concluded;
                                                     const badgeColor = isAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600';
                                                     return (
                                                         <tr key={i} className="hover:bg-slate-50">
