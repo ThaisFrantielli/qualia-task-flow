@@ -63,8 +63,16 @@ export default function OperacionalTab() {
   const [etapaFiltro, setEtapaFiltro] = useState<string>('Todas');
 
   // Carregar dados
-  const { data: movimentacoes, loading } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
+  const { data: movimentacoesRaw, loading } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
   const { alertas, resumo } = useMaintenanceAlerts();
+
+  // Filtrar apenas ocorrências de manutenção
+  const movimentacoes = useMemo(() => {
+    if (!movimentacoesRaw?.length) return [];
+    return movimentacoesRaw.filter(m => 
+      m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
+    );
+  }, [movimentacoesRaw]);
 
   // Pegar última movimentação de cada ocorrência
   const ultimasMovimentacoes = useMemo(() => {

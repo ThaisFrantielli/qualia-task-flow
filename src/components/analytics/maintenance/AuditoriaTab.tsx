@@ -52,9 +52,17 @@ export default function AuditoriaTab() {
   const [timelineOS, setTimelineOS] = useState<number | null>(null);
 
   // Carregar dados
-  const { data: movimentacoes, loading } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
+  const { data: movimentacoesRaw, loading } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
   const { data: manutencoes } = useBIData<ManutencaoUnificado[]>('fat_manutencao_unificado.json');
   const { data: leadTimes } = useBIData<LeadTimeEtapa[]>('agg_lead_time_etapas.json');
+
+  // Filtrar apenas ocorrências de manutenção
+  const movimentacoes = useMemo(() => {
+    if (!movimentacoesRaw?.length) return [];
+    return movimentacoesRaw.filter(m => 
+      m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
+    );
+  }, [movimentacoesRaw]);
 
   // ========================================================================
   // SEÇÃO 1: ANOMALIAS
