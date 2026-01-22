@@ -100,10 +100,18 @@ export default function WorkflowTab() {
   const [tipoFiltro, setTipoFiltro] = useState<string>('Todos');
 
   // Carregar dados das 4 tabelas
-  const { data: movimentacoes, loading: loadingMov } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
+  const { data: movimentacoesRaw, loading: loadingMov } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
   const { data: leadTimes, loading: loadingLead } = useBIData<LeadTimeEtapa[]>('agg_lead_time_etapas.json');
   const { data: funil, loading: loadingFunil } = useBIData<FunilConversao[]>('agg_funil_conversao.json');
   const { data: usuarios, loading: loadingUsers } = useBIData<PerformanceUsuario[]>('agg_performance_usuarios.json');
+
+  // Filtrar apenas ocorrências de manutenção
+  const movimentacoes = useMemo(() => {
+    if (!movimentacoesRaw?.length) return [];
+    return movimentacoesRaw.filter(m => 
+      m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
+    );
+  }, [movimentacoesRaw]);
 
   const loading = loadingMov || loadingLead || loadingFunil || loadingUsers;
 

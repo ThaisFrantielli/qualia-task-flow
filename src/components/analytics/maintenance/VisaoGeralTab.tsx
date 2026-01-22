@@ -37,9 +37,17 @@ function fmtNum(v: number): string {
 
 export default function VisaoGeralTab() {
   const { data: manutencoes, loading } = useBIData<ManutencaoUnificado[]>('fat_manutencao_unificado.json');
-  const { data: movimentacoes } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
+  const { data: movimentacoesRaw } = useBIData<MovimentacaoOcorrencia[]>('fat_movimentacao_ocorrencias.json');
   const { resumo, temAlertasCriticos } = useMaintenanceAlerts();
   const { filters, updateFilters } = useMaintenanceFilters();
+
+  // Filtrar apenas ocorrências de manutenção
+  const movimentacoes = useMemo(() => {
+    if (!movimentacoesRaw?.length) return [];
+    return movimentacoesRaw.filter(m => 
+      m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
+    );
+  }, [movimentacoesRaw]);
 
   // Handler para click interativo com Ctrl (estilo Power BI)
   const handleChartElementClick = (tipo: 'modelos' | 'fornecedores', valor: string, event?: React.MouseEvent) => {
