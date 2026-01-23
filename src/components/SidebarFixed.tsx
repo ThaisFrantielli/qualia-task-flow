@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Briefcase, Crown, Headphones, DollarSign, Car, FileCheck, AlertTriangle, Mail, Send
+  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Crown, Headphones, DollarSign, Car, FileCheck, AlertTriangle, Mail, Send
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
