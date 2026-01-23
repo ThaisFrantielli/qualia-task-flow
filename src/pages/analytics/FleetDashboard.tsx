@@ -1585,8 +1585,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             <XAxis type="number" domain={[0, 100]} hide />
                                             <YAxis dataKey="label" type="category" width={0} hide />
                                             <Tooltip formatter={(value: any, name: any) => [`${value}%`, name]} />
-                                            <Bar dataKey="Improdutiva" stackId="a" radius={[6, 0, 0, 6]} barSize={32} fill="#94a3b8" onClick={(d: any, _i: number, e: any) => { handleChartClick('productivity', 'Improdutiva', e as unknown as React.MouseEvent); if (!((e?.ctrlKey) || (e?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer" />
-                                            <Bar dataKey="Produtiva" stackId="a" radius={[0, 6, 6, 0]} barSize={32} fill="#3b82f6" onClick={(d: any, _i: number, e: any) => { handleChartClick('productivity', 'Produtiva', e as unknown as React.MouseEvent); if (!((e?.ctrlKey) || (e?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer" />
+                                            <Bar dataKey="Improdutiva" stackId="a" radius={[6, 0, 0, 6]} barSize={32} fill="#94a3b8" onClick={(_d: any, _i: number, e: any) => { handleChartClick('productivity', 'Improdutiva', e as unknown as React.MouseEvent); if (!((e?.ctrlKey) || (e?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer" />
+                                            <Bar dataKey="Produtiva" stackId="a" radius={[0, 6, 6, 0]} barSize={32} fill="#3b82f6" onClick={(_d: any, _i: number, e: any) => { handleChartClick('productivity', 'Produtiva', e as unknown as React.MouseEvent); if (!((e?.ctrlKey) || (e?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer" />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
