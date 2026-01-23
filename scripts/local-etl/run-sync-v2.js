@@ -100,8 +100,49 @@ async function getDWLastUpdateDate(pool) {
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
 const DIMENSIONS = [
-    { 
-        table: 'dim_clientes', 
+    {
+        table: 'dim_alienacoes',
+        query: `SELECT 
+                    av.IdVeiculo,
+                    av.IdVeiculo as id_veiculo,
+                    av.IdAlienacao,
+                    av.IdAlienacao as id_alienacao,
+                    av.Placa,
+                    av.Placa as placa,
+                    av.Modelo,
+                    av.Modelo as modelo,
+                    av.Montadora as marca,
+                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as DataAlienacao,
+                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as data_alienacao,
+                    ISNULL(av.Instituicao, 'Não Informado') as Banco,
+                    ISNULL(av.Instituicao, 'Não Informado') as banco,
+                    ${castM('av.ValorAlienado')} as ValorFinanciado,
+                    ${castM('av.ValorAlienado')} as valor_financiado,
+                    CAST(0 AS DECIMAL(15,4)) as TaxaJuros,
+                    CAST(0 AS DECIMAL(15,4)) as taxa_juros,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as QuantidadeParcelas,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as quantidade_parcelas,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as TotalParcelas,
+                    ${castM('av.ValorParcela')} as ValorParcela,
+                    ${castM('av.ValorParcela')} as valor_parcela,
+                    FORMAT(av.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as data_primeira_parcela,
+                    FORMAT(av.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimeiroVencimento,
+                    FORMAT(av.Termino, 'yyyy-MM-dd') as data_ultima_parcela,
+                    CAST(ISNULL(av.ValorParcela, 0) * ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS DECIMAL(15,2)) as saldo_devedor,
+                    CAST(ISNULL(av.ValorParcela, 0) * ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS DECIMAL(15,2)) as SaldoDevedor,
+                    CAST(ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS INT) as QuantidadeParcelasRemanescentes,
+                    CAST(ISNULL(av.QuantidadeParcelas, 0) - ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS INT) as parcelas_pagas,
+                    av.SituacaoVeiculo as situacao,
+                    av.NumeroContrato as numero_contrato,
+                    av.NumeroContrato as NumeroContrato,
+                    ISNULL(av.Unidade, '') as unidade,
+                    ISNULL(av.Unidade, '') as observacoes
+                FROM Alienacoes av WITH (NOLOCK)
+                -- Removido filtro WHERE av.DataEntrada IS NOT NULL para incluir todas alienações
+                `
+    },
+    {
+        table: 'dim_clientes',
         query: `SELECT 
                     DataAtualizacaoDados,
                     IdCliente,
@@ -151,7 +192,7 @@ const DIMENSIONS = [
                     IdClienteGrupoEconomico,
                     GrupoEconomico,
                     GestorComercial
-                FROM Clientes WITH (NOLOCK)` 
+                FROM Clientes WITH (NOLOCK)`
     },
     {
         table: 'dim_condutores',
@@ -665,6 +706,30 @@ const CONSOLIDATED = [
         query: `SELECT FORMAT(DataCompetencia, 'yyyy-MM') as Competencia, SUM(CASE WHEN Natureza LIKE '%Receita%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Receita, SUM(CASE WHEN Natureza LIKE '%Despesa%' OR Natureza LIKE '%Custo%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Despesa FROM LancamentosComNaturezas WHERE DataCompetencia >= DATEADD(YEAR, -2, GETDATE()) GROUP BY FORMAT(DataCompetencia, 'yyyy-MM')`
     },
     {
+        table: 'fato_financeiro_dre',
+        query: `SELECT 
+                    ln.NumeroLancamento as IdLancamento,
+                    FORMAT(ln.DataCompetencia, 'yyyy-MM-dd') as DataCompetencia,
+                    ln.Natureza,
+                    CASE 
+                        WHEN ln.TipoLancamento = 'Entrada' THEN 'Entrada'
+                        WHEN ln.TipoLancamento = 'Saída' THEN 'Saída'
+                        ELSE 'Outro'
+                    END as TipoLancamento,
+                    ${castM('ln.ValorPagoRecebido')} as Valor,
+                    ln.Descricao as DescricaoLancamento,
+                    ln.Conta,
+                    ln.FormaPagamento,
+                    FORMAT(ln.DataPagamentoRecebimento, 'yyyy-MM-dd') as DataPagamentoRecebimento,
+                    ln.PagarReceberDe,
+                    ln.NumeroDocumento
+                FROM LancamentosComNaturezas ln WITH (NOLOCK)
+                WHERE ln.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
+                  AND ln.ValorPagoRecebido IS NOT NULL
+                  AND ln.ValorPagoRecebido != 0
+                ORDER BY ln.DataCompetencia DESC`
+    },
+    {
         table: 'auditoria_consolidada',
         query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'`
     },
@@ -705,42 +770,7 @@ const CONSOLIDATED = [
                 FROM VeiculosComprados vc WITH (NOLOCK)
                 WHERE vc.DataCompra IS NOT NULL`
     },
-    {
-        table: 'dim_alienacoes',
-        query: `SELECT 
-                    av.IdAlienacao,
-                    av.IdAlienacao as id_alienacao,
-                    av.IdVeiculo,
-                    av.IdVeiculo as id_veiculo,
-                    av.Placa,
-                    av.Placa as placa,
-                    av.Modelo,
-                    av.Modelo as modelo,
-                    av.Montadora as marca,
-                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as DataAlienacao,
-                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as data_alienacao,
-                    ISNULL(av.Instituicao, 'Não Informado') as Banco,
-                    ISNULL(av.Instituicao, 'Não Informado') as banco,
-                    ${castM('av.ValorAlienado')} as ValorFinanciado,
-                    ${castM('av.ValorAlienado')} as valor_financiado,
-                    CAST(0 AS DECIMAL(15,4)) as TaxaJuros,
-                    CAST(0 AS DECIMAL(15,4)) as taxa_juros,
-                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as QuantidadeParcelas,
-                    CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as quantidade_parcelas,
-                    ${castM('av.ValorParcela')} as ValorParcela,
-                    ${castM('av.ValorParcela')} as valor_parcela,
-                    FORMAT(av.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as data_primeira_parcela,
-                    FORMAT(av.Termino, 'yyyy-MM-dd') as data_ultima_parcela,
-                    ${castM('av.SaldoRemanescente')} as saldo_devedor,
-                    CAST(ISNULL(av.QuantidadeParcelas, 0) - ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS INT) as parcelas_pagas,
-                    av.SituacaoVeiculo as situacao,
-                    av.NumeroContrato as numero_contrato,
-                    ISNULL(av.Unidade, '') as unidade,
-                    ISNULL(av.Unidade, '') as observacoes
-                FROM Alienacoes av WITH (NOLOCK)
-                -- Removido filtro WHERE av.DataEntrada IS NOT NULL para incluir todas alienações
-                `
-    },
+
     {
         table: 'fat_carro_reserva',
         query: `SELECT 
@@ -1542,8 +1572,15 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
     let recordset;
 
     try {
+        if (tableName === 'dim_alienacoes') {
+            console.log(`🔍 [DEBUG] Executando query para ${tableName}...`);
+            // console.log(query); 
+        }
         const result = await sqlPool.request().query(query);
         recordset = result.recordset;
+        if (tableName === 'dim_alienacoes') {
+            console.log(`🔍 [DEBUG] ${tableName}: Retornou ${recordset.length} linhas.`);
+        }
     } catch (err) {
         console.error(`      ❌ ${progressStr} Erro SQL Server (${tableName}):`, err.message);
         return;
@@ -1635,7 +1672,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         const historicalTables = [
             'dim_contratos_locacao',
             'dim_movimentacao_patios',
-            'dim_movimentacao_veiculos', 
+            'dim_movimentacao_veiculos',
             'dim_veiculos_acessorios',
             'historico_situacao_veiculos',
             'fat_movimentacao_ocorrencias',
@@ -1663,7 +1700,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         // (porque na verdade têm estrutura histórica com múltiplos registros por ID)
         const needsJSDedup = [
             'dim_veiculos_acessorios',
-            'dim_movimentacao_patios', 
+            'dim_movimentacao_patios',
             'dim_movimentacao_veiculos'
         ];
 
@@ -1671,7 +1708,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         if (!shouldDedup) {
             await pgClient.query(`DELETE FROM public.${tableName}`);
         }
-        
+
         // Deduplicação JavaScript apenas para tabelas específicas com PK incorreta
         if (needsJSDedup.includes(tableName)) {
             const originalCount = finalData.length;
@@ -1691,7 +1728,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         }
 
         const finalRowCount = finalData.length;
-        
+
         // Se não houver dados após filtros, pular inserção
         if (finalRowCount === 0) {
             const duration = ((performance.now() - start) / 1000).toFixed(2);

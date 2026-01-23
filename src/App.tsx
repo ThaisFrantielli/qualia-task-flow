@@ -58,7 +58,6 @@ import SalesDashboard from '@/pages/analytics/SalesDashboard';
 import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
 import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
 import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
-import FundingDashboard from '@/pages/analytics/FundingDashboard';
 import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
 import DREDashboard from '@/pages/analytics/DREDashboard';
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
@@ -142,18 +141,17 @@ function App() {
                 <Route path="clientes" element={<ClientsDashboard />} />
                 <Route path="comercial" element={<CommercialDashboard />} />
                 <Route path="executive" element={<ExecutiveDashboard />} />
-                <Route path="funding" element={<FundingDashboard />} />
                 <Route path="cliente" element={<CustomerAnalytics />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
-              
+
               <Route path="/propostas" element={<PropostasPage />} />
               <Route path="/propostas/nova" element={<PropostasFormPage />} />
               <Route path="/propostas/:id" element={<PropostasFormPage />} />
-              
+
               <Route path="/precificacao/config" element={<PrecificacaoConfigPage />} />
-              
+
               <Route path="/triagem" element={<FilaTriagem />} />
 
               <Route path="/pesquisas" element={<SurveyAdminPage />} />
