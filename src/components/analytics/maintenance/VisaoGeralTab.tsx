@@ -22,6 +22,9 @@ type ManutencaoUnificado = {
 
 type MovimentacaoOcorrencia = {
   Ocorrencia: number;
+  // Algumas versões do dataset incluem o tipo da ocorrência; mantemos opcional
+  // para evitar quebra quando o arquivo não possuir a coluna.
+  Tipo?: string;
   IsAberta: boolean;
   IsConcluida: boolean;
   IsCancelada: boolean;
