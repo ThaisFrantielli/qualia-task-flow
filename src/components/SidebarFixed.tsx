@@ -47,17 +47,17 @@ const baseMenuGroups: MenuGroup[] = [
   {
     title: 'ANALÍTICOS',
     items: [
-      { 
-        label: 'Visão Executiva', 
-        url: '/analytics/executive', 
+      {
+        label: 'Visão Executiva',
+        url: '/analytics/executive',
         icon: Crown,
         children: [
           { label: 'Auditoria de Dados', url: '/analytics/auditoria', icon: ClipboardList }
         ]
       },
-      { 
-        label: 'Operacional', 
-        url: '/analytics/frota', 
+      {
+        label: 'Operacional',
+        url: '/analytics/frota',
         icon: FolderOpen,
         children: [
           { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
@@ -66,14 +66,13 @@ const baseMenuGroups: MenuGroup[] = [
           { label: 'Sinistros', url: '/analytics/sinistros', icon: Ticket },
         ]
       },
-      { 
-        label: 'Financeiro', 
-        url: '/analytics/financeiro', 
+      {
+        label: 'Financeiro',
+        url: '/analytics/financeiro',
         icon: DollarSign,
         children: [
           { label: 'Faturamento', url: '/analytics/financeiro', icon: BarChart3 },
           { label: 'DRE Gerencial', url: '/analytics/resultado', icon: DollarSign },
-          { label: 'Gestão de Passivo', url: '/analytics/funding', icon: Briefcase },
           { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
           { label: 'Vendas', url: '/analytics/vendas', icon: TrendingUp },
         ]
@@ -114,10 +113,10 @@ const baseMenuGroups: MenuGroup[] = [
       { label: 'Precificação', url: '/precificacao/config', icon: DollarSign, permissionKey: 'team' },
       { label: 'Tarefas e Projetos', url: '/settings/tasks', icon: SlidersHorizontal, permissionKey: 'team' },
       { label: 'Motivos de Tickets', url: '/configuracoes/ticket-motivos', icon: Ticket, permissionKey: 'team' },
-      { 
-        label: 'Configuração WhatsApp', 
-        url: '/configuracoes/whatsapp', 
-        icon: MessageSquare, 
+      {
+        label: 'Configuração WhatsApp',
+        url: '/configuracoes/whatsapp',
+        icon: MessageSquare,
         permissionKey: 'team',
         children: [
           { label: 'Lista de Transmissão', url: '/broadcasts', icon: Send },
@@ -127,7 +126,7 @@ const baseMenuGroups: MenuGroup[] = [
   }
 ];
 
-  // getMenuGroups will be computed inside the component where hooks can be used
+// getMenuGroups will be computed inside the component where hooks can be used
 
 const SidebarFixed: React.FC = () => {
   const enabledModules = useEnabledModules();
