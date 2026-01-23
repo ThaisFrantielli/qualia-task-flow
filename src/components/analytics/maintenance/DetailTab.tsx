@@ -4,7 +4,6 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { DollarSign, Clock, TrendingUp, AlertCircle, Filter } from 'lucide-react';
 import useBIData from '@/hooks/useBIData';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
-import { useChartFilter } from '@/hooks/useChartFilter';
 
 type ManutencaoUnificado = {
   Ocorrencia: number;
