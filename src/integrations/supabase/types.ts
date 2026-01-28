@@ -1974,6 +1974,56 @@ export type Database = {
           },
         ]
       }
+      proposta_arquivos_gerados: {
+        Row: {
+          arquivo_nome: string
+          arquivo_url: string
+          created_at: string | null
+          gerado_por: string | null
+          id: string
+          minuta_especifica_nome: string | null
+          minuta_especifica_url: string | null
+          proposta_id: string
+          tamanho_bytes: number | null
+          template_id: string | null
+          versao: number | null
+        }
+        Insert: {
+          arquivo_nome: string
+          arquivo_url: string
+          created_at?: string | null
+          gerado_por?: string | null
+          id?: string
+          minuta_especifica_nome?: string | null
+          minuta_especifica_url?: string | null
+          proposta_id: string
+          tamanho_bytes?: number | null
+          template_id?: string | null
+          versao?: number | null
+        }
+        Update: {
+          arquivo_nome?: string
+          arquivo_url?: string
+          created_at?: string | null
+          gerado_por?: string | null
+          id?: string
+          minuta_especifica_nome?: string | null
+          minuta_especifica_url?: string | null
+          proposta_id?: string
+          tamanho_bytes?: number | null
+          template_id?: string | null
+          versao?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_arquivos_gerados_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "proposta_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       proposta_cenarios: {
         Row: {
           created_at: string | null
@@ -2088,6 +2138,145 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      proposta_template_beneficios: {
+        Row: {
+          created_at: string | null
+          descricao: string | null
+          icone: string | null
+          id: string
+          is_active: boolean | null
+          ordem: number | null
+          template_id: string
+          titulo: string
+        }
+        Insert: {
+          created_at?: string | null
+          descricao?: string | null
+          icone?: string | null
+          id?: string
+          is_active?: boolean | null
+          ordem?: number | null
+          template_id: string
+          titulo: string
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string | null
+          icone?: string | null
+          id?: string
+          is_active?: boolean | null
+          ordem?: number | null
+          template_id?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_template_beneficios_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "proposta_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposta_template_faq: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          ordem: number | null
+          pergunta: string
+          resposta: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          ordem?: number | null
+          pergunta: string
+          resposta: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          ordem?: number | null
+          pergunta?: string
+          resposta?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposta_template_faq_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "proposta_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposta_templates: {
+        Row: {
+          cor_primaria: string | null
+          cor_secundaria: string | null
+          cor_texto: string | null
+          created_at: string | null
+          created_by: string | null
+          descricao: string | null
+          id: string
+          imagem_capa_url: string | null
+          is_active: boolean | null
+          is_padrao: boolean | null
+          logo_url: string | null
+          minuta_padrao_nome: string | null
+          minuta_padrao_url: string | null
+          nome: string
+          secoes_config: Json | null
+          slogan: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          cor_primaria?: string | null
+          cor_secundaria?: string | null
+          cor_texto?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          imagem_capa_url?: string | null
+          is_active?: boolean | null
+          is_padrao?: boolean | null
+          logo_url?: string | null
+          minuta_padrao_nome?: string | null
+          minuta_padrao_url?: string | null
+          nome: string
+          secoes_config?: Json | null
+          slogan?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          cor_primaria?: string | null
+          cor_secundaria?: string | null
+          cor_texto?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          imagem_capa_url?: string | null
+          is_active?: boolean | null
+          is_padrao?: boolean | null
+          logo_url?: string | null
+          minuta_padrao_nome?: string | null
+          minuta_padrao_url?: string | null
+          nome?: string
+          secoes_config?: Json | null
+          slogan?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       proposta_veiculo_itens: {
         Row: {
