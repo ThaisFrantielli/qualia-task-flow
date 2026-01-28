@@ -37,7 +37,12 @@ export const useTickets = (filters?: { status?: string; cliente_id?: string; ate
             const { data, error } = await query;
 
             if (error) throw error;
-            return data;
+            // Garantir compatibilidade: popular `vehicle_plate` a partir de `placa` quando necessário
+            const mapped = (data || []).map((t: any) => ({
+                ...t,
+                vehicle_plate: t.vehicle_plate || t.placa || null,
+            }));
+            return mapped;
         },
     });
 };
@@ -87,7 +92,9 @@ export const useTicketDetail = (ticketId: string) => {
                 console.error("Error fetching ticket details:", error);
                 throw error;
             }
-            return data;
+            // Mapear `placa` -> `vehicle_plate` para o frontend
+            const mapped = data ? { ...data, vehicle_plate: (data as any).vehicle_plate || (data as any).placa || null } : data;
+            return mapped;
         },
         enabled: !!ticketId,
     });
@@ -98,12 +105,14 @@ export const useCreateTicket = () => {
 
     return useMutation({
         mutationFn: async (ticket: Omit<TicketInsert, 'numero_ticket'> & { numero_ticket?: string }) => {
-            // Generate temporary ticket number if not provided (trigger will replace it)
+            // Map vehicle_plate (frontend) -> placa (DB) to avoid schema mismatch
+            const { vehicle_plate, ...rest } = ticket as any;
             const ticketData = {
-                ...ticket,
-                numero_ticket: ticket.numero_ticket || `TKT-${new Date().getFullYear()}-TEMP`
+                ...rest,
+                ...(vehicle_plate ? { placa: vehicle_plate } : {}),
+                numero_ticket: (ticket as any).numero_ticket || `TKT-${new Date().getFullYear()}-TEMP`
             };
-            
+
             const { data, error } = await supabase
                 .from("tickets")
                 .insert(ticketData)
@@ -124,9 +133,16 @@ export const useUpdateTicket = () => {
 
     return useMutation({
         mutationFn: async ({ ticketId, updates }: { ticketId: string; updates: any; userId: string }) => {
+            // Map vehicle_plate (frontend) -> placa (DB) for updates
+            const { vehicle_plate, ...rest } = updates || {};
+            const dbUpdates = {
+                ...rest,
+                ...(vehicle_plate ? { placa: vehicle_plate } : {})
+            };
+
             const { data, error } = await supabase
                 .from("tickets")
-                .update(updates)
+                .update(dbUpdates)
                 .eq("id", ticketId)
                 .select()
                 .single();
