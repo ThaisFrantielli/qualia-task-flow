@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { normalizePhoneForWhatsApp } from '@/utils/phone';
 
 interface SurveysListProps {
   isAdmin?: boolean;
@@ -34,9 +35,18 @@ export const SurveysList = ({ isAdmin }: SurveysListProps) => {
       toast.error("Número de WhatsApp não cadastrado.");
       return;
     }
+
+    const normalizedPhone = normalizePhoneForWhatsApp(survey.client_phone);
+    if (!normalizedPhone) {
+      toast.error('Telefone inválido para WhatsApp.', {
+        description: 'Informe DDD + número (ex: (11) 91234-5678).',
+      });
+      return;
+    }
+
     const link = `${window.location.origin}/pesquisa/${survey.id}`;
     const message = `Olá, ${survey.client_name}! Gostaríamos de ouvir sua opinião: ${link}`;
-    const whatsappUrl = `https://wa.me/${survey.client_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 

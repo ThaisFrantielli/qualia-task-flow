@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
 import { formatDateSafe, parseISODateSafe } from '@/lib/dateUtils';
+import { normalizePhoneForWhatsApp } from '@/utils/phone';
 
 interface WhatsAppChatProps {
   customerId?: string;
@@ -105,7 +106,18 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
   const openWhatsApp = (phoneNumber: string, contactName: string, clientName: string) => {
     const displayName = contactName !== clientName ? `${contactName} (${clientName})` : clientName;
     const message = encodeURIComponent(`Olá ${contactName}! Como posso ajudá-lo hoje?`);
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+
+    const normalizedPhone = normalizePhoneForWhatsApp(phoneNumber);
+    if (!normalizedPhone) {
+      toast({
+        title: 'Telefone inválido',
+        description: 'Não foi possível abrir o WhatsApp com este número.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${message}`;
 
     window.open(whatsappUrl, '_blank');
 

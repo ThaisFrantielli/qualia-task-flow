@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "Lancamentos": 155999,
+    "LancamentosComNaturezas": 186969
+  },
+  "distinct": {
+    "Lancamentos": 155999,
+    "LancamentosComNaturezas": 155999
+  },
+  "missing": {
+    "inB_not_inA": 0,
+    "inA_not_inB": 0
+  },
+  "samples": {
+    "inB_not_inA": [],
+    "inA_not_inB": []
+  },
+  "nature_differences": null,
+  "sample_rows_inB_not_inA": []
+}

@@ -708,7 +708,9 @@ const CONSOLIDATED = [
     {
         table: 'fato_financeiro_dre',
         query: `SELECT 
-                    ln.NumeroLancamento as IdLancamento,
+                    CONVERT(VARCHAR(36), NEWID()) + '|' + CAST(ln.NumeroLancamento AS VARCHAR(50)) + '|' + ISNULL(ln.Natureza, '') as IdLancamentoNatureza,
+                ln.NumeroLancamento as IdLancamento,
+                ln.NumeroLancamento as NumeroLancamento,
                     FORMAT(ln.DataCompetencia, 'yyyy-MM-dd') as DataCompetencia,
                     ln.Natureza,
                     CASE 
@@ -716,18 +718,23 @@ const CONSOLIDATED = [
                         WHEN ln.TipoLancamento = 'Saída' THEN 'Saída'
                         ELSE 'Outro'
                     END as TipoLancamento,
-                    ${castM('ln.ValorPagoRecebido')} as Valor,
+                    (CASE WHEN CHARINDEX(',', ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '')) > 0 THEN TRY_CAST(REPLACE(REPLACE(ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '0'), '.', ''), ',', '.') AS DECIMAL(15,2)) ELSE TRY_CAST(ISNULL(ln.ValorPagoRecebido, 0) AS DECIMAL(15,2)) END) as Valor,
                     ln.Descricao as DescricaoLancamento,
                     ln.Conta,
                     ln.FormaPagamento,
                     FORMAT(ln.DataPagamentoRecebimento, 'yyyy-MM-dd') as DataPagamentoRecebimento,
-                    ln.PagarReceberDe,
-                    ln.NumeroDocumento
-                FROM LancamentosComNaturezas ln WITH (NOLOCK)
-                WHERE ln.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
-                  AND ln.ValorPagoRecebido IS NOT NULL
-                  AND ln.ValorPagoRecebido != 0
-                ORDER BY ln.DataCompetencia DESC`
+                        ln.PagarReceberDe as NomeEntidade,
+                        ln.PagarReceberDe,
+                        ln.NumeroDocumento,
+                        COALESCE(cli.NomeFantasia, os.Cliente, '') as NomeCliente,
+                        os.Placa as Placa,
+                        os.ContratoComercial as ContratoComercial,
+                        os.ContratoLocacao as ContratoLocacao
+                    FROM LancamentosComNaturezas ln WITH (NOLOCK)
+
+                    LEFT JOIN OrdensServico os WITH (NOLOCK) ON ISNULL(ln.OrdemCompra, '') = ISNULL(os.OrdemCompra, '') AND os.SituacaoOrdemServico <> 'Cancelada'
+
+                    LEFT JOIN Clientes cli WITH (NOLOCK) ON os.IdCliente = cli.IdCliente`
     },
     {
         table: 'auditoria_consolidada',
@@ -1616,7 +1623,8 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             const pkRaw = Object.keys(recordset[0])[0];
             const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
             let finalData = sanitizedData;
-            if (hasIdColumn) {
+            // Não deduplicar para o fato do DRE — queremos todas as linhas por natureza
+            if (hasIdColumn && tableName !== 'fato_financeiro_dre') {
                 const seen = new Map();
                 sanitizedData.forEach(row => seen.set(row[pkRaw], row));
                 finalData = Array.from(seen.values());
@@ -1676,7 +1684,8 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             'dim_veiculos_acessorios',
             'historico_situacao_veiculos',
             'fat_movimentacao_ocorrencias',
-            'fat_manutencao_unificado' // MANTÉM 100% DA BASE SEM DEDUPLICAÇÃO
+            'fat_manutencao_unificado', // MANTÉM 100% DA BASE SEM DEDUPLICAÇÃO
+            'fato_financeiro_dre' // MANTÉM 100% DA BASE (não deduplicar por IdLancamento)
         ];
         const shouldDedup = hasIdColumn && !historicalTables.includes(tableName);
         let finalData = sanitizedData;

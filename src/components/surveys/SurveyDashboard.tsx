@@ -1,4 +1,5 @@
 import { useSurveyMetrics } from '@/hooks/useSurveyMetrics';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -9,12 +10,41 @@ import {
 } from 'recharts';
 import { Star, TrendingUp, Users, Clock, AlertTriangle } from 'lucide-react';
 import { getCSATLevel, getCSATLevelColor, getCSATLevelBg, getNPSLevel, getNPSLevelColor, surveyTypeLabels } from '@/types/surveys';
+import { subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 
 
 export const SurveyDashboard = () => {
-  const { metrics, loading } = useSurveyMetrics();
+  const [preset, setPreset] = useState<'7d'|'30d'|'90d'|'today'|'month'|'custom'>('30d');
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
+
+  const computeRange = () => {
+    const today = new Date();
+    switch (preset) {
+      case 'today': return { start: today, end: today };
+      case '7d': return { start: subDays(today, 6), end: today };
+      case '30d': return { start: subDays(today, 29), end: today };
+      case '90d': return { start: subDays(today, 89), end: today };
+      case 'month': return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: new Date(today.getFullYear(), today.getMonth() + 1, 0) };
+      case 'custom':
+        return {
+          start: customStart ? new Date(customStart) : subDays(today, 29),
+          end: customEnd ? new Date(customEnd) : today,
+        };
+      default: return { start: subDays(today, 29), end: today };
+    }
+  };
+
+  const [range, setRange] = useState(() => computeRange());
+
+  useEffect(() => {
+    setRange(computeRange());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, customStart, customEnd]);
+
+  const { metrics, loading } = useSurveyMetrics(range);
 
   if (loading) {
     return (
@@ -33,6 +63,25 @@ export const SurveyDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Period selector */}
+      <div className="flex items-center justify-end gap-3">
+        <label className="text-sm text-muted-foreground">Período:</label>
+        <select value={preset} onChange={(e) => setPreset(e.target.value as any)} className="input">
+          <option value="today">Hoje</option>
+          <option value="7d">Últimos 7 dias</option>
+          <option value="30d">Últimos 30 dias</option>
+          <option value="90d">Últimos 90 dias</option>
+          <option value="month">Mês atual</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        {preset === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="input" />
+            <span className="text-sm">—</span>
+            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="input" />
+          </div>
+        )}
+      </div>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* CSAT Card */}
