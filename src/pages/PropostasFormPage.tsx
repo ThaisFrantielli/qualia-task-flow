@@ -7,12 +7,11 @@ export default function PropostasFormPage() {
   const { id } = useParams<{ id?: string }>();
 
   useEffect(() => {
-    // scroll to top when opening page
     window.scrollTo(0, 0);
   }, []);
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="min-h-screen bg-background">
       <PropostaWizard
         asPage
         open

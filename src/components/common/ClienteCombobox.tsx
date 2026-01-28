@@ -23,6 +23,15 @@ interface Cliente {
   razao_social: string | null;
   nome_fantasia: string | null;
   cpf_cnpj: string | null;
+  email: string | null;
+  telefone: string | null;
+  whatsapp_number: string | null;
+  endereco: string | null;
+  numero: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cep: string | null;
   cliente_contatos?: { telefone_contato?: string | null }[];
 }
 
@@ -53,10 +62,15 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
     setLoading(true);
     const normalized = (search || '').trim();
 
-    // base query returning also contatos so we can show phone
+    // Query com todos os campos necessários
     const nameQuery = supabase
       .from('clientes')
-      .select('id, razao_social, nome_fantasia, cpf_cnpj, cliente_contatos(telefone_contato)')
+      .select(`
+        id, razao_social, nome_fantasia, cpf_cnpj,
+        email, telefone, whatsapp_number,
+        endereco, numero, bairro, cidade, estado, cep,
+        cliente_contatos(telefone_contato)
+      `)
       .order('razao_social', { ascending: true })
       .limit(50);
 
@@ -71,7 +85,7 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
       const { data: byName } = await nameQuery;
       if (byName && byName.length > 0) results.push(...(byName as any));
 
-      // if search includes digits, also search in cliente_contatos by telefone
+      // Buscar também por telefone nos contatos
       const digitsOnly = normalized.replace(/\D/g, '');
       if (digitsOnly.length >= 3) {
         const patterns = new Set<string>();
@@ -89,7 +103,12 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
         if (clienteIds.length > 0) {
           const { data: byContacts } = await supabase
             .from('clientes')
-            .select('id, razao_social, nome_fantasia, cpf_cnpj, cliente_contatos(telefone_contato)')
+            .select(`
+              id, razao_social, nome_fantasia, cpf_cnpj,
+              email, telefone, whatsapp_number,
+              endereco, numero, bairro, cidade, estado, cep,
+              cliente_contatos(telefone_contato)
+            `)
             .in('id', clienteIds)
             .limit(50);
           if (byContacts && byContacts.length > 0) {
@@ -125,7 +144,6 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
     const clean = cliente.cpf_cnpj.replace(/\D/g, '');
     return clean.slice(-4);
   };
-
 
   return (
     <div className="flex items-center gap-2">
@@ -197,16 +215,16 @@ export const ClienteCombobox: React.FC<ClienteComboboxProps> = ({
                         value === cliente.id ? 'opacity-100' : 'opacity-0'
                       )}
                     />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{getDisplayName(cliente)}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {cliente.razao_social !== cliente.nome_fantasia && cliente.razao_social}
-                            {cliente.cpf_cnpj && ` • ${cliente.cpf_cnpj}`}
-                            {!cliente.cpf_cnpj && cliente.cliente_contatos && cliente.cliente_contatos.length > 0 && (
-                              ` • ${cliente.cliente_contatos[0].telefone_contato}`
-                            )}
-                          </span>
-                        </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{getDisplayName(cliente)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {cliente.razao_social !== cliente.nome_fantasia && cliente.razao_social}
+                        {cliente.cpf_cnpj && ` • ${cliente.cpf_cnpj}`}
+                        {!cliente.cpf_cnpj && cliente.cliente_contatos && cliente.cliente_contatos.length > 0 && (
+                          ` • ${cliente.cliente_contatos[0].telefone_contato}`
+                        )}
+                      </span>
+                    </div>
                   </CommandItem>
                 ))}
               </CommandGroup>
