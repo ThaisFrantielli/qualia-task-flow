@@ -3,8 +3,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, MinusCircle } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle, XCircle, HelpCircle, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import { useTicketAnalises } from "@/hooks/useTicketOptions";
 
 interface TicketClassificacaoProps {
     ticketId: string;
@@ -13,27 +14,42 @@ interface TicketClassificacaoProps {
 }
 
 export type ClassificacaoData = {
-    procedencia: 'procedente' | 'improcedente' | 'parcial';
+    procedencia: string;
     solucao_aplicada: string;
     acoes_corretivas: string;
     feedback_cliente?: string;
     nota_cliente?: number;
 };
 
-const PROCEDENCIA_OPTIONS = [
-    { value: 'procedente', label: 'Procedente', icon: CheckCircle, color: 'text-green-600' },
-    { value: 'improcedente', label: 'Improcedente', icon: XCircle, color: 'text-red-600' },
-    { value: 'parcial', label: 'Parcialmente Procedente', icon: MinusCircle, color: 'text-yellow-600' }
-];
+const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+        case "CheckCircle": return CheckCircle;
+        case "XCircle": return XCircle;
+        default: return HelpCircle;
+    }
+};
 
 export function TicketClassificacao({ onSave, initialData }: TicketClassificacaoProps) {
+    const { data: analises, isLoading: loadingAnalises } = useTicketAnalises();
+    
     const [formData, setFormData] = useState<ClassificacaoData>({
-        procedencia: initialData?.procedencia || 'procedente',
+        procedencia: initialData?.procedencia || '',
         solucao_aplicada: initialData?.solucao_aplicada || '',
         acoes_corretivas: initialData?.acoes_corretivas || '',
         feedback_cliente: initialData?.feedback_cliente || ''
     });
     const [isSaving, setIsSaving] = useState(false);
+
+    // Mapear opções do banco para o select
+    const procedenciaOptions = useMemo(() => {
+        if (!analises) return [];
+        return analises.map(a => ({
+            value: a.value,
+            label: a.label,
+            icon: getIconComponent(a.icon),
+            color: a.color
+        }));
+    }, [analises]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,6 +61,16 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
         }
     };
 
+    if (loadingAnalises) {
+        return (
+            <Card>
+                <CardContent className="flex justify-center py-12">
+                    <Loader2 className="animate-spin" />
+                </CardContent>
+            </Card>
+        );
+    }
+
     return (
         <Card>
             <CardHeader>
@@ -52,18 +78,18 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Procedência */}
+                    {/* Procedência (Análise Final) */}
                     <div className="space-y-2">
-                        <Label htmlFor="procedencia">Procedência da Reclamação *</Label>
+                        <Label htmlFor="procedencia">Análise Final *</Label>
                         <Select
                             value={formData.procedencia}
-                            onValueChange={(value: any) => setFormData({ ...formData, procedencia: value })}
+                            onValueChange={(value) => setFormData({ ...formData, procedencia: value })}
                         >
                             <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue placeholder="Selecione a análise final..." />
                             </SelectTrigger>
                             <SelectContent>
-                                {PROCEDENCIA_OPTIONS.map(opt => {
+                                {procedenciaOptions.map(opt => {
                                     const Icon = opt.icon;
                                     return (
                                         <SelectItem key={opt.value} value={opt.value}>
@@ -118,12 +144,10 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
                         />
                     </div>
 
-                    {/* Avaliação removida a pedido: seção de nota do cliente foi omitida */}
-
                     {/* Botão Salvar */}
                     <div className="flex justify-end pt-4">
-                        <Button type="submit" disabled={isSaving || !formData.solucao_aplicada}>
-                            {isSaving ? 'Salvando...' : 'Salvar Classificação'}
+                        <Button type="submit" disabled={isSaving || !formData.solucao_aplicada || !formData.procedencia}>
+                            {isSaving ? 'Salvando...' : 'Salvar Classificação e Concluir'}
                         </Button>
                     </div>
                 </form>
