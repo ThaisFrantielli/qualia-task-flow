@@ -10,8 +10,12 @@ interface UniqueModel {
   montadora: string;
   modelo: string;
   anoModelo: number;
+  anoFabricacao?: number;
   categoria?: string;
   combustivel?: string;
+  motor?: string;
+  potencia?: string;
+  transmissao?: string;
   quantidade: number;
 }
 
@@ -35,11 +39,15 @@ export function useImportModelosFromBI() {
     const map = new Map<string, UniqueModel>();
     
     frotaData.forEach(v => {
-      const montadora = String(v.Montadora ?? v.Marca ?? '').trim() || 'Não Informado';
-      const modelo = String(v.Modelo ?? '').trim();
+      const montadora = String(v.Montadora ?? v.Marca ?? v.NomeMontadora ?? '').trim() || 'Não Informado';
+      const modelo = String(v.Modelo ?? v.NomeModelo ?? v.DescricaoModelo ?? '').trim();
       const anoModelo = parseInt(String(v.AnoModelo ?? v.Ano ?? new Date().getFullYear()), 10);
-      const categoria = String(v.Categoria ?? v.GrupoVeiculo ?? v.Tipo ?? '').trim() || undefined;
-      const combustivel = String(v.Combustivel ?? '').trim() || undefined;
+      const anoFabricacao = parseInt(String(v.AnoFabricacao ?? v.AnoFab ?? ''), 10) || undefined;
+      const categoria = String(v.Categoria ?? v.GrupoVeiculo ?? v.Tipo ?? v.TipoVeiculo ?? v.ClassificacaoVeiculo ?? '').trim() || undefined;
+      const combustivel = String(v.Combustivel ?? v.TipoCombustivel ?? '').trim() || undefined;
+      const motor = String(v.Motor ?? v.Motorizacao ?? v.DescricaoMotor ?? '').trim() || undefined;
+      const potencia = String(v.Potencia ?? v.PotenciaCv ?? v.Cv ?? '').trim() || undefined;
+      const transmissao = String(v.Transmissao ?? v.Cambio ?? v.TipoCambio ?? '').trim() || undefined;
       
       if (!modelo) return;
       
@@ -48,13 +56,22 @@ export function useImportModelosFromBI() {
       if (map.has(key)) {
         const existing = map.get(key)!;
         existing.quantidade++;
+        // Preencher campos vazios com dados de outro veículo do mesmo modelo
+        if (!existing.motor && motor) existing.motor = motor;
+        if (!existing.potencia && potencia) existing.potencia = potencia;
+        if (!existing.transmissao && transmissao) existing.transmissao = transmissao;
+        if (!existing.anoFabricacao && anoFabricacao) existing.anoFabricacao = anoFabricacao;
       } else {
         map.set(key, {
           montadora: normalizeMontadora(montadora),
-          modelo,
+          modelo: normalizeModelo(modelo),
           anoModelo,
+          anoFabricacao,
           categoria: normalizeCategoria(categoria),
-          combustivel,
+          combustivel: normalizeCombustivel(combustivel),
+          motor,
+          potencia,
+          transmissao: normalizeTransmissao(transmissao),
           quantidade: 1
         });
       }
@@ -102,10 +119,30 @@ export function useImportModelosFromBI() {
       'CHERY': 'CAOA Chery',
       'BYD': 'BYD',
       'RAM': 'RAM',
+      'LAND ROVER': 'Land Rover',
+      'PORSCHE': 'Porsche',
+      'SUZUKI': 'Suzuki',
+      'SUBARU': 'Subaru',
+      'IVECO': 'Iveco',
+      'SCANIA': 'Scania',
+      'MAN': 'MAN',
     };
     
     const upper = montadora.toUpperCase().trim();
     return normalize[upper] || montadora.trim();
+  }
+  
+  // Função para normalizar modelo
+  function normalizeModelo(modelo: string): string {
+    // Capitaliza primeira letra de cada palavra
+    return modelo
+      .split(' ')
+      .map(word => {
+        if (word.length <= 2) return word.toUpperCase(); // Siglas como "1.0", "AT"
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ')
+      .trim();
   }
   
   // Função para normalizar categoria
@@ -116,14 +153,46 @@ export function useImportModelosFromBI() {
     
     if (cat.includes('pickup') || cat.includes('pick-up') || cat.includes('pick up')) return 'Pickup';
     if (cat.includes('suv')) return 'SUV';
-    if (cat.includes('van')) return 'Van';
+    if (cat.includes('van') || cat.includes('furgao') || cat.includes('furgão')) return 'Van/Furgão';
     if (cat.includes('utilitário') || cat.includes('utilitario')) return 'Utilitário';
     if (cat.includes('sedan') || cat.includes('sedã')) return 'Sedan';
     if (cat.includes('hatch')) return 'Hatch';
     if (cat.includes('executivo')) return 'Executivo';
     if (cat.includes('compacto')) return 'Compacto';
+    if (cat.includes('caminhão') || cat.includes('caminhao')) return 'Caminhão';
+    if (cat.includes('moto')) return 'Motocicleta';
     
     return categoria;
+  }
+  
+  // Função para normalizar combustível
+  function normalizeCombustivel(combustivel?: string): string | undefined {
+    if (!combustivel) return undefined;
+    
+    const comb = combustivel.toLowerCase();
+    
+    if (comb.includes('flex')) return 'Flex';
+    if (comb.includes('gasolina')) return 'Gasolina';
+    if (comb.includes('diesel')) return 'Diesel';
+    if (comb.includes('etanol') || comb.includes('alcool') || comb.includes('álcool')) return 'Etanol';
+    if (comb.includes('eletrico') || comb.includes('elétrico')) return 'Elétrico';
+    if (comb.includes('hibrido') || comb.includes('híbrido')) return 'Híbrido';
+    if (comb.includes('gnv') || comb.includes('gás')) return 'GNV';
+    
+    return combustivel;
+  }
+  
+  // Função para normalizar transmissão
+  function normalizeTransmissao(transmissao?: string): string | undefined {
+    if (!transmissao) return undefined;
+    
+    const trans = transmissao.toLowerCase();
+    
+    if (trans.includes('manual') || trans.includes('mec')) return 'Manual';
+    if (trans.includes('automat') || trans.includes('at') || trans.includes('cvt')) return 'Automático';
+    if (trans.includes('automatizado') || trans.includes('i-motion') || trans.includes('dualogic')) return 'Automatizado';
+    
+    return transmissao;
   }
   
   // Mutation para importar modelos
@@ -157,9 +226,13 @@ export function useImportModelosFromBI() {
           montadora: model.montadora,
           nome: model.modelo,
           ano_modelo: model.anoModelo,
+          ano_fabricacao: model.anoFabricacao || model.anoModelo,
           categoria: model.categoria,
           combustivel: model.combustivel,
-          preco_publico: 0, // Deve ser preenchido manualmente
+          motor: model.motor,
+          potencia: model.potencia,
+          transmissao: model.transmissao,
+          preco_publico: 0,
           percentual_desconto: 0,
           valor_final: 0,
           ativo: true
