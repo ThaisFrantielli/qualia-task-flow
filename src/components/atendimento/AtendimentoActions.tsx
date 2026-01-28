@@ -95,7 +95,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
         sintese: ticketForm.sintese,
         prioridade: ticketForm.prioridade,
         origem: ticketForm.origem,
-        motivo: ticketForm.motivo as any,
+        motivo_id: ticketForm.motivo || null,
         departamento: ticketForm.departamento as any,
         placa: ticketForm.placa,
         fase: 'Análise do caso',
