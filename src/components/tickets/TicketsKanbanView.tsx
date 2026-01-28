@@ -1,9 +1,9 @@
 import { useDrop } from "react-dnd";
 import { ItemTypes } from "@/constants/ItemTypes";
-import KanbanTaskCard from "@/components/KanbanTaskCard";
+import { TicketKanbanCard } from "./TicketKanbanCard";
 import { Badge } from "@/components/ui/badge";
-import { formatDateSafe } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
+import { AlertTriangle } from "lucide-react";
 
 interface TicketsKanbanViewProps {
   tickets: any[];
@@ -32,13 +32,13 @@ const STATUS_KEY_MAP: Record<string, string[]> = {
   resolvido: ["resolvido", "fechado", "concluida", "concluído", "concluido"],
 };
 
-const COLUMN_COLORS: Record<string, string> = {
-  novo: "bg-blue-500/5 border-blue-500/20",
-  em_analise: "bg-purple-500/5 border-purple-500/20",
-  aguardando_departamento: "bg-orange-500/5 border-orange-500/20",
-  em_tratativa: "bg-yellow-500/5 border-yellow-500/20",
-  aguardando_cliente: "bg-pink-500/5 border-pink-500/20",
-  resolvido: "bg-green-500/5 border-green-500/20",
+const COLUMN_COLORS: Record<string, { bg: string; border: string; header: string }> = {
+  novo: { bg: "bg-blue-50/50 dark:bg-blue-950/20", border: "border-blue-200 dark:border-blue-800", header: "text-blue-700 dark:text-blue-400" },
+  em_analise: { bg: "bg-purple-50/50 dark:bg-purple-950/20", border: "border-purple-200 dark:border-purple-800", header: "text-purple-700 dark:text-purple-400" },
+  aguardando_departamento: { bg: "bg-orange-50/50 dark:bg-orange-950/20", border: "border-orange-200 dark:border-orange-800", header: "text-orange-700 dark:text-orange-400" },
+  em_tratativa: { bg: "bg-yellow-50/50 dark:bg-yellow-950/20", border: "border-yellow-200 dark:border-yellow-800", header: "text-yellow-700 dark:text-yellow-400" },
+  aguardando_cliente: { bg: "bg-pink-50/50 dark:bg-pink-950/20", border: "border-pink-200 dark:border-pink-800", header: "text-pink-700 dark:text-pink-400" },
+  resolvido: { bg: "bg-green-50/50 dark:bg-green-950/20", border: "border-green-200 dark:border-green-800", header: "text-green-700 dark:text-green-400" },
 };
 
 interface KanbanColumnProps {
@@ -62,49 +62,60 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
     return sla > 0 && sla < now;
   }).length;
 
+  const colors = COLUMN_COLORS[status] || COLUMN_COLORS.novo;
+
   return (
     <div
       ref={drop}
       className={cn(
-        "rounded-lg border-2 transition-all duration-200",
+        "rounded-xl border transition-all duration-200 flex flex-col",
         "min-h-[500px] w-full md:w-72 lg:w-80 flex-shrink-0",
-        COLUMN_COLORS[status] || "bg-muted/50",
-        isOver && "border-primary/50 ring-2 ring-primary/20"
+        colors.bg,
+        colors.border,
+        isOver && "ring-2 ring-primary/30 border-primary/50"
       )}
     >
-      <div className="p-3 border-b border-border/50 flex justify-between items-center sticky top-0 bg-inherit rounded-t-lg z-10 backdrop-blur-sm">
-        <h3 className="font-medium text-foreground flex items-center gap-2 text-sm">
+      {/* Column Header */}
+      <div className={cn(
+        "p-3 border-b flex justify-between items-center sticky top-0 rounded-t-xl z-10",
+        colors.border
+      )}>
+        <h3 className={cn("font-semibold text-sm flex items-center gap-2", colors.header)}>
           {STATUS_LABELS[status] || status}
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="secondary" className="text-xs h-5 px-1.5 font-normal">
             {tickets.length}
           </Badge>
         </h3>
         {overdueCount > 0 && (
-          <Badge variant="destructive" className="text-[10px]">
-            {overdueCount} vencidos
+          <Badge 
+            variant="destructive" 
+            className="text-[10px] h-5 px-1.5 gap-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200"
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {overdueCount}
           </Badge>
         )}
       </div>
 
-      <div className="p-2 space-y-2 h-[calc(100%-50px)] overflow-y-auto custom-scrollbar">
+      {/* Column Content */}
+      <div className="p-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
         {tickets.map((ticket) => (
-          <div key={ticket.id} onClick={() => onCardClick(ticket.id)}>
-            <KanbanTaskCard
-              id={ticket.id}
-              cliente={ticket.clientes?.nome_fantasia || "Cliente"}
-              resumo={ticket.titulo}
-              data={formatDateSafe(ticket.created_at, "dd/MM HH:mm")}
-              motivo={ticket.tipo_reclamacao || ticket.prioridade}
-              avatar={
-                ticket.clientes?.nome_fantasia?.substring(0, 2).toUpperCase() || "?"
-              }
-              created_at={ticket.created_at}
-              priority={ticket.prioridade}
-            />
-          </div>
+          <TicketKanbanCard
+            key={ticket.id}
+            id={ticket.id}
+            numero_ticket={ticket.numero_ticket}
+            titulo={ticket.titulo}
+            cliente={ticket.clientes?.nome_fantasia || ticket.clientes?.razao_social || ""}
+            prioridade={ticket.prioridade || "media"}
+            departamento={ticket.departamento}
+            analise_final={ticket.analise_final}
+            created_at={ticket.created_at}
+            status={ticket.status}
+            onClick={() => onCardClick(ticket.id)}
+          />
         ))}
         {tickets.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground opacity-50">
+          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground opacity-60">
             <p className="text-xs">Nenhum ticket</p>
           </div>
         )}
@@ -125,7 +136,7 @@ export function TicketsKanbanView({
   };
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 min-h-[600px]">
+    <div className="flex gap-4 overflow-x-auto pb-4 min-h-[600px]">
       {KANBAN_COLUMNS.map((status) => (
         <KanbanColumn
           key={status}
@@ -152,3 +163,4 @@ export function TicketsKanbanView({
     </div>
   );
 }
+
