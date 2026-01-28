@@ -333,7 +333,7 @@ export default function TicketsReportsDashboard() {
                       <Calendar
                         mode="single"
                         selected={dateFrom}
-                        onSelect={(d: Date | undefined) => handleCalendarSelect(d, 'from')}
+                        onSelect={(d) => handleCalendarSelect(d as Date | undefined, 'from')}
                         locale={ptBR}
                       />
                     </PopoverContent>
@@ -360,7 +360,7 @@ export default function TicketsReportsDashboard() {
                       <Calendar
                         mode="single"
                         selected={dateTo}
-                        onSelect={(d: Date | undefined) => handleCalendarSelect(d, 'to')}
+                        onSelect={(d) => handleCalendarSelect(d as Date | undefined, 'to')}
                         locale={ptBR}
                       />
                     </PopoverContent>
