@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+
 import { AlertTriangle, Merge, X } from 'lucide-react';
 
 interface DuplicateInfo {

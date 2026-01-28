@@ -23,7 +23,7 @@ import { format, subDays, startOfDay, differenceInHours, parseISO, isWithinInter
 import { ptBR } from "date-fns/locale";
 import { AnimatedKPICard } from "@/components/AnimatedKPICard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#14b8a6", "#f97316"];
 
