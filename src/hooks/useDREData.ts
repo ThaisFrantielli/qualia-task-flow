@@ -11,6 +11,7 @@ interface UseDREDataResult {
     uniqueClientes: string[];
     uniqueNaturezas: string[];
     uniqueContratosComerciais: string[];
+    uniqueSituacoesContrato: string[];
 }
 
 /**
@@ -81,6 +82,22 @@ export default function useDREData(): UseDREDataResult {
         );
     }, [transactions]);
 
+    // Extract unique situações de contrato
+    const uniqueSituacoesContrato = useMemo(() => {
+        const situacaoSet = new Set<string>();
+        transactions.forEach(t => {
+            const situacao = (t as any).SituacaoContrato || 
+                            (t as any).StatusContrato ||
+                            (t as any).Situacao;
+            if (situacao) {
+                situacaoSet.add(String(situacao));
+            }
+        });
+        return Array.from(situacaoSet).sort((a, b) => 
+            a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+        );
+    }, [transactions]);
+
     return {
         transactions,
         availableMonths,
@@ -89,5 +106,6 @@ export default function useDREData(): UseDREDataResult {
         uniqueClientes,
         uniqueNaturezas,
         uniqueContratosComerciais,
+        uniqueSituacoesContrato,
     };
 }
