@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Loader2,
   Building,
   User,
   Mail,
@@ -30,10 +29,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { CustomerSummaryCards } from './CustomerSummaryCards';
 import { CustomerQuickActions } from './CustomerQuickActions';
 import { CustomerTimeline } from './CustomerTimeline';
-import { TicketCard } from '@/components/tickets/TicketCard';
 import { CustomerSurveysTab } from '@/components/surveys/CustomerSurveysTab';
 import { CustomerNegociosCollapsible } from './CustomerNegociosCollapsible';
-import { DuplicateCustomerAlert, useDuplicateDetection } from './DuplicateCustomerAlert';
 
 interface CustomerDetailRedesignProps {
   customer: ClienteComContatos;
