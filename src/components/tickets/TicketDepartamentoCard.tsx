@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, Clock, CheckCircle, ExternalLink, MessageSquare, Send } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Building2, Clock, CheckCircle2, MessageSquare, Send, User, ChevronDown, ChevronUp } from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 export type TicketDepartamento = {
     id: string;
@@ -51,28 +52,25 @@ const DEPARTAMENTO_LABELS: Record<string, string> = {
     qualidade: 'Qualidade'
 };
 
-export function TicketDepartamentoCard({ departamento, onViewTask }: TicketDepartamentoCardProps) {
+export function TicketDepartamentoCard({ departamento, onViewTask: _onViewTask }: TicketDepartamentoCardProps) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const [isResponding, setIsResponding] = useState(false);
     const [resposta, setResposta] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(!departamento.respondido_em);
 
-    const status = departamento.respondido_em ? 'respondido' : 'pendente';
+    const isRespondido = !!departamento.respondido_em;
 
-    // Calcular tempo de resposta
+    // Calcular tempo de resposta em minutos
     const tempoResposta = departamento.respondido_em && departamento.solicitado_em
         ? Math.round((new Date(departamento.respondido_em).getTime() - new Date(departamento.solicitado_em).getTime()) / 1000 / 60)
         : null;
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'respondido':
-                return <Badge className="bg-green-500/10 text-green-700 dark:text-green-400">Respondido</Badge>;
-            case 'pendente':
-            default:
-                return <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">Pendente</Badge>;
-        }
+    const formatTempoResposta = (minutos: number) => {
+        if (minutos < 60) return `${minutos}min`;
+        if (minutos < 1440) return `${Math.floor(minutos / 60)}h ${minutos % 60}min`;
+        return `${Math.floor(minutos / 1440)}d ${Math.floor((minutos % 1440) / 60)}h`;
     };
 
     const handleResponder = async () => {
@@ -90,9 +88,12 @@ export function TicketDepartamentoCard({ departamento, onViewTask }: TicketDepar
                 })
                 .eq('id', departamento.id);
 
-            if (error) throw error;
+            if (error) {
+                console.error("Erro ao atualizar departamento:", error);
+                throw error;
+            }
 
-            // Notificar quem solicitou
+            // Notificar quem solicitou (se tiver ID)
             if (departamento.solicitado_por?.id) {
                 await supabase.from('notifications').insert({
                     user_id: departamento.solicitado_por.id,
@@ -111,146 +112,180 @@ export function TicketDepartamentoCard({ departamento, onViewTask }: TicketDepar
             toast.success("Resposta enviada com sucesso!");
             setIsResponding(false);
             setResposta("");
+            setIsExpanded(false);
             
-            // Invalidar cache para atualizar
+            // Invalidar cache para atualizar a UI
             queryClient.invalidateQueries({ queryKey: ['ticket', departamento.ticket_id] });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Erro ao responder:", error);
-            toast.error("Erro ao enviar resposta");
+            toast.error(error.message || "Erro ao enviar resposta");
         } finally {
             setIsSaving(false);
         }
     };
 
     return (
-        <Card>
-            <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-muted-foreground" />
-                        <CardTitle className="text-base">
+        <Card className={cn(
+            "overflow-hidden transition-all duration-200 border-l-4",
+            isRespondido 
+                ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/10" 
+                : "border-l-amber-500 bg-amber-50/30 dark:bg-amber-950/10"
+        )}>
+            {/* Header - sempre visível */}
+            <div 
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <div className="flex items-center gap-3">
+                    <div className={cn(
+                        "p-2 rounded-lg",
+                        isRespondido 
+                            ? "bg-green-100 dark:bg-green-900/30" 
+                            : "bg-amber-100 dark:bg-amber-900/30"
+                    )}>
+                        <Building2 className={cn(
+                            "w-5 h-5",
+                            isRespondido 
+                                ? "text-green-600 dark:text-green-400" 
+                                : "text-amber-600 dark:text-amber-400"
+                        )} />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-foreground">
                             {DEPARTAMENTO_LABELS[departamento.departamento] || departamento.departamento}
-                        </CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {getStatusBadge(status)}
-                        {tempoResposta !== null && (
-                            <Badge variant="outline" className="text-xs">
-                                {tempoResposta < 60 
-                                    ? `${tempoResposta}min` 
-                                    : `${Math.round(tempoResposta / 60)}h`}
-                            </Badge>
-                        )}
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                {/* Informações de Solicitação */}
-                <div className="text-sm space-y-1">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                        <Clock className="w-4 h-4" />
-                        <span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
                             Solicitado {formatDistanceToNow(new Date(departamento.solicitado_em), {
                                 addSuffix: true,
                                 locale: ptBR
                             })}
-                        </span>
-                    </div>
-                    {departamento.solicitado_por && (
-                        <p className="text-xs text-muted-foreground">
-                            por {departamento.solicitado_por.full_name}
                         </p>
-                    )}
+                    </div>
                 </div>
 
-                {/* Resposta */}
-                {departamento.respondido_em && (
-                    <div className="border-t pt-3 space-y-2">
-                        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>
-                                Respondido {formatDistanceToNow(new Date(departamento.respondido_em), {
-                                    addSuffix: true,
-                                    locale: ptBR
-                                })}
+                <div className="flex items-center gap-2">
+                    {isRespondido ? (
+                        <>
+                            <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 hover:bg-green-500/20">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Concluído
+                            </Badge>
+                            {tempoResposta !== null && (
+                                <Badge variant="outline" className="text-xs text-muted-foreground">
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    {formatTempoResposta(tempoResposta)}
+                                </Badge>
+                            )}
+                        </>
+                    ) : (
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Aguardando
+                        </Badge>
+                    )}
+                    {isExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    )}
+                </div>
+            </div>
+
+            {/* Content - expansível */}
+            {isExpanded && (
+                <CardContent className="pt-0 pb-4 px-4 space-y-4 border-t border-border/50">
+                    {/* Info do solicitante */}
+                    {departamento.solicitado_por && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground pt-3">
+                            <User className="w-4 h-4" />
+                            <span>Solicitado por <strong>{departamento.solicitado_por.full_name}</strong></span>
+                            <span className="text-xs">
+                                em {format(new Date(departamento.solicitado_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                             </span>
                         </div>
-                        {departamento.respondido_por && (
-                            <p className="text-xs text-muted-foreground">
-                                por {departamento.respondido_por.full_name}
-                            </p>
-                        )}
-                        {departamento.resposta && (
-                            <p className="text-sm bg-muted p-2 rounded">
-                                {departamento.resposta}
-                            </p>
-                        )}
-                    </div>
-                )}
+                    )}
 
-                {/* Formulário de resposta (se pendente) */}
-                {!departamento.respondido_em && (
-                    <div className="border-t pt-3 space-y-2">
-                        {isResponding ? (
-                            <div className="space-y-2">
-                                <Textarea
-                                    placeholder="Digite sua resposta..."
-                                    value={resposta}
-                                    onChange={(e) => setResposta(e.target.value)}
-                                    className="min-h-[80px]"
-                                />
-                                <div className="flex gap-2 justify-end">
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        onClick={() => {
-                                            setIsResponding(false);
-                                            setResposta("");
-                                        }}
-                                    >
-                                        Cancelar
-                                    </Button>
-                                    <Button 
-                                        size="sm" 
-                                        onClick={handleResponder}
-                                        disabled={!resposta.trim() || isSaving}
-                                    >
-                                        {isSaving ? "Enviando..." : (
-                                            <>
-                                                <Send className="w-4 h-4 mr-2" />
-                                                Enviar Resposta
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
+                    {/* Resposta existente */}
+                    {isRespondido && departamento.resposta && (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span className="font-medium">Resposta do Departamento</span>
+                                {departamento.respondido_por && (
+                                    <span className="text-muted-foreground text-xs">
+                                        por {departamento.respondido_por.full_name}
+                                    </span>
+                                )}
                             </div>
-                        ) : (
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="w-full"
-                                onClick={() => setIsResponding(true)}
-                            >
-                                <MessageSquare className="w-4 h-4 mr-2" />
-                                Responder
-                            </Button>
-                        )}
-                    </div>
-                )}
+                            <div className="bg-background rounded-lg p-3 border border-border/50">
+                                <p className="text-sm text-foreground whitespace-pre-wrap">
+                                    {departamento.resposta}
+                                </p>
+                            </div>
+                            {departamento.respondido_em && (
+                                <p className="text-xs text-muted-foreground">
+                                    Respondido em {format(new Date(departamento.respondido_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
-                {/* Link para Task */}
-                {departamento.task_id && onViewTask && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => onViewTask(departamento.task_id!)}
-                    >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Ver Task Vinculada
-                    </Button>
-                )}
-            </CardContent>
+                    {/* Formulário de resposta (se pendente) */}
+                    {!isRespondido && (
+                        <div className="space-y-3 pt-2">
+                            {isResponding ? (
+                                <div className="space-y-3">
+                                    <Textarea
+                                        placeholder="Digite a resposta do departamento..."
+                                        value={resposta}
+                                        onChange={(e) => setResposta(e.target.value)}
+                                        className="min-h-[100px] resize-none bg-background"
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => {
+                                                setIsResponding(false);
+                                                setResposta("");
+                                            }}
+                                            disabled={isSaving}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button 
+                                            size="sm" 
+                                            onClick={handleResponder}
+                                            disabled={!resposta.trim() || isSaving}
+                                            className="bg-green-600 hover:bg-green-700"
+                                        >
+                                            {isSaving ? (
+                                                "Enviando..."
+                                            ) : (
+                                                <>
+                                                    <Send className="w-4 h-4 mr-2" />
+                                                    Enviar Resposta
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="w-full border-dashed hover:border-primary hover:bg-primary/5"
+                                    onClick={() => setIsResponding(true)}
+                                >
+                                    <MessageSquare className="w-4 h-4 mr-2" />
+                                    Responder como Departamento
+                                </Button>
+                            )}
+                        </div>
+                    )}
+                </CardContent>
+            )}
         </Card>
     );
 }
