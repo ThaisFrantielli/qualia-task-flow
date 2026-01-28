@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePropostas } from '@/hooks/usePropostas';
 import { ClienteStep } from './steps/ClienteStep';
@@ -120,8 +119,6 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
     setCurrentStep(0);
   }, [editingProposta, open]);
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
-
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -211,99 +208,131 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
   };
 
   const inner = (
-    <>
-      <div className={cn("w-full flex flex-col", !asPage && "max-w-5xl")}>
-        <div>
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">{propostaId ? 'Editar Proposta' : 'Nova Proposta Comercial'}</h2>
-          </div>
+    <div className="w-full max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {propostaId ? 'Editar Proposta' : 'Nova Proposta Comercial'}
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Preencha as informações para gerar a proposta comercial
+        </p>
+      </div>
 
-          {/* Progress */}
-          <div className="space-y-4">
-            <Progress value={progress} className="h-2" />
-            <div className="flex justify-between">
-              {STEPS.map((step, index) => (
+      {/* Modern Horizontal Stepper */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          {STEPS.map((step, index) => {
+            const isActive = index === currentStep;
+            const isCompleted = index < currentStep;
+            
+            return (
+              <div key={step.id} className="flex items-center flex-1">
+                {/* Step */}
                 <button
-                  key={step.id}
                   onClick={() => setCurrentStep(index)}
-                  className={`flex flex-col items-center text-center transition-colors ${
-                    index === currentStep
-                      ? 'text-primary'
-                      : index < currentStep
-                      ? 'text-muted-foreground'
-                      : 'text-muted-foreground/50'
-                  }`}
+                  className="flex items-center gap-3 group"
                 >
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border-2 ${
-                      index === currentStep
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : index < currentStep
-                        ? 'border-primary bg-primary/20 text-primary'
-                        : 'border-muted-foreground/30'
-                    }`}
+                    className={cn(
+                      'w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all',
+                      isActive && 'bg-primary text-primary-foreground shadow-lg shadow-primary/25',
+                      isCompleted && 'bg-primary/20 text-primary',
+                      !isActive && !isCompleted && 'bg-muted text-muted-foreground'
+                    )}
                   >
-                    {index + 1}
+                    {isCompleted ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      index + 1
+                    )}
                   </div>
-                  <span className="text-xs mt-1 hidden sm:block">{step.title}</span>
+                  <div className="hidden lg:block text-left">
+                    <p className={cn(
+                      'text-sm font-medium transition-colors',
+                      isActive && 'text-foreground',
+                      !isActive && 'text-muted-foreground group-hover:text-foreground'
+                    )}>
+                      {step.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground hidden xl:block">
+                      {step.description}
+                    </p>
+                  </div>
                 </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Step Content */}
-        <div className="flex-1 overflow-y-auto py-4 min-h-[400px]">
-          {renderStep()}
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-between pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-          >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => handleSave('rascunho')}
-              disabled={isSaving}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Salvar Rascunho
-            </Button>
-
-            {currentStep === STEPS.length - 1 ? (
-              <Button
-                onClick={() => handleSave('enviada')}
-                disabled={isSaving}
-              >
-                Finalizar e Enviar
-              </Button>
-            ) : (
-              <Button onClick={handleNext}>
-                Próximo
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
-            )}
-          </div>
+                
+                {/* Connector Line */}
+                {index < STEPS.length - 1 && (
+                  <div className="flex-1 mx-3 hidden sm:block">
+                    <div className={cn(
+                      'h-0.5 rounded-full transition-colors',
+                      index < currentStep ? 'bg-primary' : 'bg-border'
+                    )} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
-    </>
+
+      {/* Step Content */}
+      <div className="min-h-[450px] mb-6">
+        {renderStep()}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between pt-6 border-t">
+        <Button
+          variant="ghost"
+          onClick={handleBack}
+          disabled={currentStep === 0}
+          className="gap-2"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => handleSave('rascunho')}
+            disabled={isSaving}
+            className="gap-2"
+          >
+            <Save className="h-4 w-4" />
+            <span className="hidden sm:inline">Salvar Rascunho</span>
+            <span className="sm:hidden">Salvar</span>
+          </Button>
+
+          {currentStep === STEPS.length - 1 ? (
+            <Button
+              onClick={() => handleSave('enviada')}
+              disabled={isSaving}
+              className="gap-2"
+            >
+              Finalizar e Enviar
+            </Button>
+          ) : (
+            <Button onClick={handleNext} className="gap-2">
+              Próximo
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 
   if (asPage) {
-    return <div className="p-6">{inner}</div>;
+    return <div className="py-6 px-4 md:px-8">{inner}</div>;
   }
 
   return (
     <Dialog open={!!open} onOpenChange={onClose}>
-      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-hidden flex flex-col">{inner}</DialogContent>
+      <DialogContent className="w-[95vw] md:w-[85vw] max-w-[1100px] max-h-[90vh] overflow-y-auto">
+        <div className="py-2">{inner}</div>
+      </DialogContent>
     </Dialog>
   );
 }
