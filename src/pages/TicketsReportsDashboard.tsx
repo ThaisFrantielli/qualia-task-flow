@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/hooks/useTickets";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,20 +12,18 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend
+  PieChart, Pie, Cell, Legend
 } from "recharts";
 import { 
-  Clock, CheckCircle, AlertTriangle, TrendingUp, Users, 
-  Calendar as CalendarIcon, BarChart3, PieChartIcon, ChevronDown, ChevronUp,
-  Building, ExternalLink, Table, Download, ArrowUpDown
+  Clock, CheckCircle, AlertTriangle, TrendingUp, 
+  Calendar as CalendarIcon, BarChart3, ChevronDown, ChevronUp,
+  Building, ExternalLink, Table, Download, ArrowUpDown, Phone, MessageSquare
 } from "lucide-react";
-import { format, subDays, startOfDay, differenceInHours, parseISO, isWithinInterval } from "date-fns";
+import { format, subDays, startOfDay, differenceInHours, parseISO, isWithinInterval, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AnimatedKPICard } from "@/components/AnimatedKPICard";
 import { Skeleton } from "@/components/ui/skeleton";
 import * as XLSX from "xlsx";
-
-const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#14b8a6", "#f97316"];
 
 const STATUS_LABELS: Record<string, string> = {
   novo: "Solicitação",
@@ -38,21 +36,17 @@ const STATUS_LABELS: Record<string, string> = {
   resolvido: "Resolvido",
   fechado: "Fechado",
   aberto: "Aberto",
+  Encerrada: "Encerrada",
+  Aberta: "Aberta",
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  baixa: "#22c55e",
-  media: "#3b82f6",
-  alta: "#f97316",
-  urgente: "#ef4444",
-};
-
-const MOTIVO_LABELS: Record<string, string> = {
-  "Má qualidade do serviço": "Má qualidade",
-  "Demora no atendimento": "Demora",
-  "Cobrança indevida": "Cobrança",
-  "Problema técnico": "Técnico",
-  "Outros": "Outros",
+const ANALISE_FINAL_LABELS: Record<string, string> = {
+  procedente: "Procedente",
+  improcedente: "Improcedente",
+  duvida: "Dúvida",
+  Procedente: "Procedente",
+  Improcedente: "Improcedente",
+  Dúvida: "Dúvida",
 };
 
 export default function TicketsReportsDashboard() {
@@ -78,26 +72,51 @@ export default function TicketsReportsDashboard() {
     }
   };
 
-  // Export to Excel
+  // Format tempo de atendimento
+  const formatTempoAtendimento = (minutos: number | null) => {
+    if (!minutos || minutos <= 0) return "-";
+    if (minutos < 60) return `${minutos}m`;
+    const horas = Math.floor(minutos / 60);
+    const mins = minutos % 60;
+    if (horas < 24) return `${horas}h ${mins}m`;
+    const dias = Math.floor(horas / 24);
+    const horasRestantes = horas % 24;
+    return `${dias}d ${horasRestantes}h`;
+  };
+
+  // Export to Excel with all BI fields
   const exportToExcel = () => {
     if (!stats?.periodTickets) return;
     
-    const exportData = stats.periodTickets.map((t: any) => ({
-      "Número": t.numero_ticket,
-      "Título": t.titulo,
-      "Cliente": t.clientes?.nome_fantasia || t.clientes?.razao_social || "-",
-      "Departamento": t.departamento || "-",
-      "Status": STATUS_LABELS[t.status] || t.status,
-      "Prioridade": t.prioridade,
-      "Análise Final": t.analise_final || "-",
-      "Criado em": format(new Date(t.created_at), "dd/MM/yyyy HH:mm"),
-      "Atendente": t.profiles?.full_name || "-",
-    }));
+    const exportData = stats.periodTickets.map((t: any) => {
+      const tempoMin = t.data_conclusao && t.created_at 
+        ? differenceInMinutes(new Date(t.data_conclusao), new Date(t.created_at))
+        : null;
+      
+      return {
+        "ID": t.numero_ticket,
+        "Data de Criação": format(new Date(t.created_at), "dd/MM/yyyy HH:mm"),
+        "Status": STATUS_LABELS[t.status] || t.status,
+        "Placa": t.placa || "-",
+        "Cliente": t.clientes?.nome_fantasia || t.clientes?.razao_social || "-",
+        "Departamento": t.departamento || "-",
+        "Análise Final": ANALISE_FINAL_LABELS[t.analise_final] || t.analise_final || "-",
+        "Motivo de Reclamação": t.motivo || "-",
+        "Resumo": t.sintese_caso || t.descricao || "-",
+        "Resolução": t.resolucao || "-",
+        "Ativo/Receptivo": t.ativo_receptivo || "Receptivo",
+        "Canal": t.canal || t.origem || "WhatsApp",
+        "Data de Atualização": t.updated_at ? format(new Date(t.updated_at), "dd/MM/yyyy HH:mm") : "-",
+        "Tempo de Atendimento": formatTempoAtendimento(tempoMin),
+        "Atendente": t.profiles?.full_name || "-",
+        "Prioridade": t.prioridade,
+      };
+    });
     
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Tickets");
-    XLSX.writeFile(wb, `tickets_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    XLSX.writeFile(wb, `relatorio_pos_vendas_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
   // Parse manual date input
@@ -108,7 +127,6 @@ export default function TicketsReportsDashboard() {
       setDateInputTo(value);
     }
     
-    // Try to parse DD/MM/YYYY
     const parts = value.split('/');
     if (parts.length === 3) {
       const day = parseInt(parts[0], 10);
@@ -148,41 +166,47 @@ export default function TicketsReportsDashboard() {
     // KPIs
     const total = periodTickets.length;
     const resolved = periodTickets.filter((t: any) => 
-      t.status === "resolvido" || t.status === "fechado"
+      t.status === "resolvido" || t.status === "fechado" || t.status === "Encerrada"
     ).length;
     const open = total - resolved;
     const now = new Date();
     const overdue = periodTickets.filter((t: any) => {
-      if (t.status === "resolvido" || t.status === "fechado") return false;
+      if (t.status === "resolvido" || t.status === "fechado" || t.status === "Encerrada") return false;
       const sla = t.sla_resolucao ? new Date(t.sla_resolucao).getTime() : 0;
       return sla > 0 && sla < now.getTime();
     }).length;
 
-    // SLA Compliance
-    const ticketsWithSla = periodTickets.filter((t: any) => t.sla_resolucao);
-    const slaCompliant = ticketsWithSla.filter((t: any) => {
-      if (t.status !== "resolvido" && t.status !== "fechado") return true;
-      const resolvedDate = t.data_fechamento ? new Date(t.data_fechamento) : now;
-      const sla = new Date(t.sla_resolucao);
-      return resolvedDate <= sla;
-    }).length;
-    const slaRate = ticketsWithSla.length > 0 
-      ? Math.round((slaCompliant / ticketsWithSla.length) * 100) 
-      : 100;
+    // Count reclamações (tickets with motivo)
+    const reclamacoes = periodTickets.filter((t: any) => t.motivo).length;
+
+    // Count dúvidas (based on analise_final)
+    const duvidas = periodTickets.filter((t: any) => 
+      t.analise_final?.toLowerCase() === 'duvida' || t.analise_final?.toLowerCase() === 'dúvida'
+    ).length;
 
     // Average resolution time (hours)
     const resolvedTickets = periodTickets.filter((t: any) => 
-      t.status === "resolvido" || t.status === "fechado"
+      t.status === "resolvido" || t.status === "fechado" || t.status === "Encerrada"
     );
     const avgResolutionTime = resolvedTickets.length > 0
       ? Math.round(
           resolvedTickets.reduce((sum: number, t: any) => {
             const created = parseISO(t.created_at);
-            const closed = t.data_fechamento ? parseISO(t.data_fechamento) : now;
+            const closed = t.data_conclusao ? parseISO(t.data_conclusao) : now;
             return sum + differenceInHours(closed, created);
           }, 0) / resolvedTickets.length
         )
       : 0;
+
+    // Análise Final distribution
+    const analiseData = Object.entries(
+      periodTickets.reduce((acc: Record<string, number>, t: any) => {
+        const analise = t.analise_final || "Não definido";
+        const label = ANALISE_FINAL_LABELS[analise] || analise;
+        acc[label] = (acc[label] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(([name, value]) => ({ name, value })).filter(d => d.name !== "Não definido" || d.value > 0);
 
     // Status distribution
     const statusData = Object.entries(
@@ -205,19 +229,6 @@ export default function TicketsReportsDashboard() {
       }, {})
     ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
-    // Priority distribution
-    const priorityData = Object.entries(
-      periodTickets.reduce((acc: Record<string, number>, t: any) => {
-        const priority = t.prioridade || "media";
-        acc[priority] = (acc[priority] || 0) + 1;
-        return acc;
-      }, {})
-    ).map(([name, value]) => ({ 
-      name, 
-      value,
-      color: PRIORITY_COLORS[name] || "#888"
-    }));
-
     // Motivo distribution
     const motivoData = Object.entries(
       periodTickets.reduce((acc: Record<string, number>, t: any) => {
@@ -225,52 +236,35 @@ export default function TicketsReportsDashboard() {
         acc[motivo] = (acc[motivo] || 0) + 1;
         return acc;
       }, {})
-    ).map(([name, value]) => ({ 
-      name: MOTIVO_LABELS[name] || name, 
-      value 
-    })).sort((a, b) => b.value - a.value);
+    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 12);
 
-    // Daily volume (last 14 days of the range)
-    const dailyData = [];
-    const daysDiff = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24));
-    const daysToShow = Math.min(daysDiff, 14);
-    
-    for (let i = daysToShow - 1; i >= 0; i--) {
-      const day = startOfDay(subDays(dateTo, i));
-      const dayEnd = startOfDay(subDays(dateTo, i - 1));
-      const dayTickets = periodTickets.filter((t: any) => {
-        const created = new Date(t.created_at);
-        return created >= day && created < dayEnd;
-      });
-      dailyData.push({
-        date: format(day, "dd/MM", { locale: ptBR }),
-        criados: dayTickets.length,
-        resolvidos: dayTickets.filter((t: any) => 
-          t.status === "resolvido" || t.status === "fechado"
-        ).length,
-      });
-    }
+    // Monthly volume
+    const monthlyData: Record<string, number> = {};
+    periodTickets.forEach((t: any) => {
+      const month = format(new Date(t.created_at), 'MMM', { locale: ptBR });
+      monthlyData[month] = (monthlyData[month] || 0) + 1;
+    });
+    const volumeData = Object.entries(monthlyData).map(([month, count]) => ({ month, count }));
 
-    // Top agents
-    const agentData = Object.entries(
-      periodTickets.reduce((acc: Record<string, { total: number; resolved: number; name: string }>, t: any) => {
-        const agentId = t.atendente_id || "sem_atribuicao";
-        const agentName = t.profiles?.full_name || "Sem atribuição";
-        if (!acc[agentId]) {
-          acc[agentId] = { total: 0, resolved: 0, name: agentName };
-        }
-        acc[agentId].total++;
-        if (t.status === "resolvido" || t.status === "fechado") {
-          acc[agentId].resolved++;
-        }
+    // Ativo/Receptivo distribution
+    const ativoReceptivoData = Object.entries(
+      periodTickets.reduce((acc: Record<string, number>, t: any) => {
+        const tipo = t.ativo_receptivo || "Receptivo";
+        acc[tipo] = (acc[tipo] || 0) + 1;
         return acc;
       }, {})
-    )
-      .map(([_, data]) => data)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
+    ).map(([name, value]) => ({ name, value }));
 
-    // NEW: Tickets por cliente
+    // Canal distribution (WhatsApp vs Atendimento)
+    const canalData = Object.entries(
+      periodTickets.reduce((acc: Record<string, number>, t: any) => {
+        const canal = t.canal || t.origem || "WhatsApp";
+        acc[canal] = (acc[canal] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(([name, value]) => ({ name, value }));
+
+    // Tickets por cliente
     const clienteData = Object.entries(
       periodTickets.reduce((acc: Record<string, { total: number; name: string; id: string }>, t: any) => {
         const clienteId = t.cliente_id || "sem_cliente";
@@ -284,32 +278,24 @@ export default function TicketsReportsDashboard() {
     )
       .map(([_, data]) => data)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-
-    // NEW: Tickets por origem
-    const origemData = Object.entries(
-      periodTickets.reduce((acc: Record<string, number>, t: any) => {
-        const origem = t.origem || "Não definida";
-        acc[origem] = (acc[origem] || 0) + 1;
-        return acc;
-      }, {})
-    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+      .slice(0, 15);
 
     return {
       total,
       open,
       resolved,
       overdue,
-      slaRate,
+      reclamacoes,
+      duvidas,
       avgResolutionTime,
       statusData,
       deptData,
-      priorityData,
-      dailyData,
-      agentData,
-      clienteData,
-      origemData,
+      analiseData,
+      volumeData,
       motivoData,
+      ativoReceptivoData,
+      canalData,
+      clienteData,
       periodTickets,
     };
   }, [tickets, dateFrom, dateTo]);
@@ -323,10 +309,6 @@ export default function TicketsReportsDashboard() {
             <Skeleton key={i} className="h-28" />
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-6">
-          <Skeleton className="h-80" />
-          <Skeleton className="h-80" />
-        </div>
       </div>
     );
   }
@@ -338,14 +320,14 @@ export default function TicketsReportsDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Relatórios de Tickets
+              Pós-Vendas - Relatórios
             </h1>
             <p className="text-muted-foreground text-sm">
-              Métricas e análises do sistema de atendimento
+              Dashboard de atendimentos e reclamações
             </p>
           </div>
           
-          {/* Date Range Picker with Manual Input */}
+          {/* Date Range Picker */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <div className="flex flex-col gap-1">
@@ -405,14 +387,35 @@ export default function TicketsReportsDashboard() {
           </div>
         </div>
 
-        {/* KPIs */}
+        {/* KPIs Row */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <AnimatedKPICard
             value={stats.total}
-            label="Total de Tickets"
+            label="Total de Atendimentos"
             color="primary"
             icon={<BarChart3 className="w-5 h-5" />}
             trend="stable"
+          />
+          <AnimatedKPICard
+            value={stats.reclamacoes}
+            label="Reclamações"
+            color="warning"
+            icon={<AlertTriangle className="w-5 h-5" />}
+            trend="stable"
+          />
+          <AnimatedKPICard
+            value={stats.duvidas}
+            label="Dúvidas"
+            color="primary"
+            icon={<MessageSquare className="w-5 h-5" />}
+            trend="stable"
+          />
+          <AnimatedKPICard
+            value={stats.resolved}
+            label="Encerrados"
+            color="success"
+            icon={<CheckCircle className="w-5 h-5" />}
+            trend="up"
           />
           <AnimatedKPICard
             value={stats.open}
@@ -422,153 +425,183 @@ export default function TicketsReportsDashboard() {
             trend="stable"
           />
           <AnimatedKPICard
-            value={stats.resolved}
-            label="Resolvidos"
-            color="success"
-            icon={<CheckCircle className="w-5 h-5" />}
-            trend="up"
-          />
-          <AnimatedKPICard
-            value={stats.overdue}
-            label="SLA Vencido"
-            color="danger"
-            icon={<AlertTriangle className="w-5 h-5" />}
-            trend={stats.overdue > 0 ? "down" : "stable"}
-          />
-          <AnimatedKPICard
-            value={stats.slaRate}
-            label={`Taxa SLA (${stats.slaRate}%)`}
-            color={stats.slaRate >= 90 ? "success" : stats.slaRate >= 70 ? "warning" : "danger"}
-            icon={<TrendingUp className="w-5 h-5" />}
-            trend={stats.slaRate >= 90 ? "up" : "down"}
-          />
-          <AnimatedKPICard
             value={stats.avgResolutionTime}
-            label={`Tempo Médio (${stats.avgResolutionTime}h)`}
+            label="Tempo Médio (h)"
             color="primary"
-            icon={<Clock className="w-5 h-5" />}
+            icon={<TrendingUp className="w-5 h-5" />}
             trend="stable"
           />
         </div>
 
-        {/* Charts Row 1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Daily Volume */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Volume Diário
-              </CardTitle>
-              <CardDescription>Tickets criados vs resolvidos</CardDescription>
+        {/* Charts Row 1 - Volume + Análise Final + Departamentos */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Volume Mensal */}
+          <Card className="lg:col-span-5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Volume Mensal</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[280px]">
+              <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={stats.dailyData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" className="text-xs" />
+                  <BarChart data={stats.volumeData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis dataKey="month" className="text-xs" />
                     <YAxis className="text-xs" />
-                    <Tooltip />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="criados" 
-                      name="Criados"
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="resolvidos" 
-                      name="Resolvidos"
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Status Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <PieChartIcon className="h-4 w-4" />
-                Distribuição por Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={stats.statusData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => 
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
-                      outerRadius={100}
-                      dataKey="value"
-                    >
-                      {stats.statusData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Department Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Por Departamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.deptData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={100} className="text-xs" />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          {/* Priority Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Por Prioridade</CardTitle>
+          {/* Análise Final */}
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Análise Final</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px]">
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.analiseData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis dataKey="name" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Departamentos */}
+          <Card className="lg:col-span-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Reclamações por Departamento</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.deptData.slice(0, 8)} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis type="number" className="text-xs" />
+                    <YAxis dataKey="name" type="category" width={100} className="text-xs" tick={{ fontSize: 10 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Row 2 - Clientes + Ativo/Receptivo + Canal + Status */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Top Clientes */}
+          <Card className="lg:col-span-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[280px]">
+                <div className="space-y-1.5 pr-4">
+                  {stats.clienteData.map((cliente, idx) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50"
+                    >
+                      <span className="text-sm truncate max-w-[180px]">{cliente.name}</span>
+                      <Badge variant="secondary" className="font-mono">{cliente.total}</Badge>
+                    </div>
+                  ))}
+                  {stats.clienteData.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Sem dados</p>
+                  )}
+                  <div className="flex items-center justify-between py-1.5 px-2 border-t mt-2 font-semibold">
+                    <span className="text-sm">Total</span>
+                    <Badge variant="default">{stats.total}</Badge>
+                  </div>
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Ativo vs Receptivo */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Ativo / Receptivo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={stats.priorityData}
+                      data={stats.ativoReceptivoData}
                       cx="50%"
                       cy="50%"
                       innerRadius={40}
-                      outerRadius={80}
+                      outerRadius={70}
                       dataKey="value"
-                      label
+                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={false}
                     >
-                      {stats.priorityData.map((entry: any, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#14b8a6" />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Canal */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Canal
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={stats.canalData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      dataKey="value"
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#f59e0b" />
+                      <Cell fill="#8b5cf6" />
                     </Pie>
                     <Tooltip />
                     <Legend />
@@ -578,136 +611,69 @@ export default function TicketsReportsDashboard() {
             </CardContent>
           </Card>
 
-          {/* Motivo Reclamação */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Por Motivo</CardTitle>
+          {/* Status Encerrada/Aberta */}
+          <Card className="lg:col-span-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Status</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.motivoData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={80} className="text-xs" />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#f59e0b" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-center justify-center gap-6 h-[180px]">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">{stats.resolved}</div>
+                  <div className="text-sm text-muted-foreground">Encerrada</div>
+                </div>
+                <div className="h-16 w-px bg-border" />
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-500">{stats.open}</div>
+                  <div className="text-sm text-muted-foreground">Aberta</div>
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts Row 3 - NEW */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Tickets por Cliente */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building className="h-4 w-4" />
-                Top 10 Clientes (por tickets)
-              </CardTitle>
-              <CardDescription>Clientes com mais tickets no período</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.clienteData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      width={140} 
-                      className="text-xs" 
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Tickets" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Agents + Origem */}
-          <div className="grid grid-rows-2 gap-6">
-            {/* Top Agents */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Top Atendentes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {stats.agentData.map((agent, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="w-6 h-6 rounded-full p-0 flex items-center justify-center text-xs">
-                          {index + 1}
-                        </Badge>
-                        <span className="text-sm font-medium truncate max-w-[120px]">
-                          {agent.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">{agent.total} tickets</span>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {agent.total > 0 
-                            ? Math.round((agent.resolved / agent.total) * 100) 
-                            : 0}% resolvidos
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                  {stats.agentData.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      Nenhum dado disponível
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Por Origem */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Por Origem</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {stats.origemData.slice(0, 5).map((origem, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm">{origem.name}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary rounded-full" 
-                            style={{ width: `${(origem.value / stats.total) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium w-8 text-right">{origem.value}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        {/* Motivos de Reclamação */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Motivos de Reclamações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.motivoData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                  <XAxis 
+                    dataKey="name" 
+                    className="text-xs" 
+                    tick={{ fontSize: 9 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis className="text-xs" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Tabela de Detalhamento */}
         <Collapsible open={tableOpen} onOpenChange={setTableOpen}>
           <Card>
-            <CardHeader>
+            <CardHeader className="py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Table className="h-4 w-4" />
-                  <CardTitle className="text-base">Detalhamento de Tickets</CardTitle>
-                  <Badge variant="secondary">{stats.periodTickets.length} registros</Badge>
+                  <CardTitle className="text-sm font-medium">Detalhamento</CardTitle>
+                  <Badge variant="secondary" className="text-xs">{stats.periodTickets.length}</Badge>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={exportToExcel}>
@@ -723,69 +689,32 @@ export default function TicketsReportsDashboard() {
               </div>
             </CardHeader>
             <CollapsibleContent>
-              <CardContent>
+              <CardContent className="pt-0">
                 <ScrollArea className="h-[400px]">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-background border-b">
-                      <tr className="text-left text-muted-foreground">
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("numero_ticket")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Número <ArrowUpDown className="h-3 w-3" />
-                          </span>
+                    <thead className="sticky top-0 bg-card border-b">
+                      <tr className="text-left text-muted-foreground text-xs">
+                        <th className="py-2 px-2 font-medium cursor-pointer hover:text-foreground" onClick={() => handleSort("numero_ticket")}>
+                          <span className="flex items-center gap-1">ID <ArrowUpDown className="h-3 w-3" /></span>
                         </th>
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("titulo")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Título <ArrowUpDown className="h-3 w-3" />
-                          </span>
+                        <th className="py-2 px-2 font-medium cursor-pointer hover:text-foreground" onClick={() => handleSort("created_at")}>
+                          <span className="flex items-center gap-1">Data <ArrowUpDown className="h-3 w-3" /></span>
                         </th>
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("cliente")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Cliente <ArrowUpDown className="h-3 w-3" />
-                          </span>
+                        <th className="py-2 px-2 font-medium cursor-pointer hover:text-foreground" onClick={() => handleSort("status")}>
+                          <span className="flex items-center gap-1">Status <ArrowUpDown className="h-3 w-3" /></span>
                         </th>
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("departamento")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Departamento <ArrowUpDown className="h-3 w-3" />
-                          </span>
+                        <th className="py-2 px-2 font-medium">Placa</th>
+                        <th className="py-2 px-2 font-medium cursor-pointer hover:text-foreground" onClick={() => handleSort("cliente")}>
+                          <span className="flex items-center gap-1">Cliente <ArrowUpDown className="h-3 w-3" /></span>
                         </th>
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("status")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Status <ArrowUpDown className="h-3 w-3" />
-                          </span>
-                        </th>
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("prioridade")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Prioridade <ArrowUpDown className="h-3 w-3" />
-                          </span>
-                        </th>
-                        <th className="py-2 px-3 font-medium">Análise Final</th>
-                        <th 
-                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
-                          onClick={() => handleSort("created_at")}
-                        >
-                          <span className="flex items-center gap-1">
-                            Criado em <ArrowUpDown className="h-3 w-3" />
-                          </span>
-                        </th>
-                        <th className="py-2 px-3 font-medium w-10"></th>
+                        <th className="py-2 px-2 font-medium">Departamento</th>
+                        <th className="py-2 px-2 font-medium">Análise</th>
+                        <th className="py-2 px-2 font-medium">Motivo</th>
+                        <th className="py-2 px-2 font-medium">Resumo</th>
+                        <th className="py-2 px-2 font-medium">Resolução</th>
+                        <th className="py-2 px-2 font-medium">Canal</th>
+                        <th className="py-2 px-2 font-medium">Tempo</th>
+                        <th className="py-2 px-2 w-8"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -797,27 +726,14 @@ export default function TicketsReportsDashboard() {
                               aVal = a.numero_ticket || "";
                               bVal = b.numero_ticket || "";
                               break;
-                            case "titulo":
-                              aVal = a.titulo || "";
-                              bVal = b.titulo || "";
-                              break;
                             case "cliente":
                               aVal = a.clientes?.nome_fantasia || a.clientes?.razao_social || "";
                               bVal = b.clientes?.nome_fantasia || b.clientes?.razao_social || "";
-                              break;
-                            case "departamento":
-                              aVal = a.departamento || "";
-                              bVal = b.departamento || "";
                               break;
                             case "status":
                               aVal = a.status || "";
                               bVal = b.status || "";
                               break;
-                            case "prioridade":
-                              const prioOrder: Record<string, number> = { urgente: 4, alta: 3, media: 2, baixa: 1 };
-                              return sortDirection === "asc"
-                                ? (prioOrder[a.prioridade] || 0) - (prioOrder[b.prioridade] || 0)
-                                : (prioOrder[b.prioridade] || 0) - (prioOrder[a.prioridade] || 0);
                             case "created_at":
                               return sortDirection === "asc"
                                 ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -829,42 +745,65 @@ export default function TicketsReportsDashboard() {
                             ? aVal.localeCompare(bVal)
                             : bVal.localeCompare(aVal);
                         })
-                        .map((ticket: any) => (
-                        <tr 
-                          key={ticket.id} 
-                          className="border-b hover:bg-muted/50 cursor-pointer"
-                          onClick={() => navigate(`/tickets/${ticket.id}`)}
-                        >
-                          <td className="py-2 px-3 font-mono text-xs">{ticket.numero_ticket}</td>
-                          <td className="py-2 px-3 truncate max-w-[200px]">{ticket.titulo}</td>
-                          <td className="py-2 px-3 truncate max-w-[150px]">
-                            {ticket.clientes?.nome_fantasia || ticket.clientes?.razao_social || '-'}
-                          </td>
-                          <td className="py-2 px-3">{ticket.departamento || '-'}</td>
-                          <td className="py-2 px-3">
-                            <Badge variant="outline" className="text-xs">
-                              {STATUS_LABELS[ticket.status] || ticket.status}
-                            </Badge>
-                          </td>
-                          <td className="py-2 px-3">
-                            <Badge 
-                              className="text-xs text-white"
-                              style={{ backgroundColor: PRIORITY_COLORS[ticket.prioridade] || '#888' }}
+                        .map((ticket: any) => {
+                          const tempoMin = ticket.data_conclusao && ticket.created_at 
+                            ? differenceInMinutes(new Date(ticket.data_conclusao), new Date(ticket.created_at))
+                            : null;
+                          
+                          return (
+                            <tr 
+                              key={ticket.id} 
+                              className="border-b border-border/50 hover:bg-muted/30 cursor-pointer text-xs"
+                              onClick={() => navigate(`/tickets/${ticket.id}`)}
                             >
-                              {ticket.prioridade}
-                            </Badge>
-                          </td>
-                          <td className="py-2 px-3 truncate max-w-[120px] text-xs">
-                            {ticket.analise_final || '-'}
-                          </td>
-                          <td className="py-2 px-3 text-muted-foreground">
-                            {format(new Date(ticket.created_at), 'dd/MM/yy HH:mm')}
-                          </td>
-                          <td className="py-2 px-3">
-                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                          </td>
-                        </tr>
-                      ))}
+                              <td className="py-1.5 px-2 font-mono">{ticket.numero_ticket}</td>
+                              <td className="py-1.5 px-2 whitespace-nowrap">
+                                {format(new Date(ticket.created_at), 'dd/MM/yy HH:mm')}
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-[10px] ${
+                                    ticket.status === 'resolvido' || ticket.status === 'fechado' || ticket.status === 'Encerrada'
+                                      ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400'
+                                      : 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400'
+                                  }`}
+                                >
+                                  {STATUS_LABELS[ticket.status] || ticket.status}
+                                </Badge>
+                              </td>
+                              <td className="py-1.5 px-2">{ticket.placa || '-'}</td>
+                              <td className="py-1.5 px-2 truncate max-w-[120px]">
+                                {ticket.clientes?.nome_fantasia || ticket.clientes?.razao_social || '-'}
+                              </td>
+                              <td className="py-1.5 px-2 truncate max-w-[100px]">{ticket.departamento || '-'}</td>
+                              <td className="py-1.5 px-2">
+                                {ticket.analise_final && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-[10px] ${
+                                      ticket.analise_final.toLowerCase().includes('procedente') && !ticket.analise_final.toLowerCase().includes('improcedente')
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400'
+                                        : ticket.analise_final.toLowerCase().includes('improcedente')
+                                        ? 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400'
+                                        : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400'
+                                    }`}
+                                  >
+                                    {ANALISE_FINAL_LABELS[ticket.analise_final] || ticket.analise_final}
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2 truncate max-w-[120px]">{ticket.motivo || '-'}</td>
+                              <td className="py-1.5 px-2 truncate max-w-[150px]">{ticket.sintese_caso || ticket.descricao || '-'}</td>
+                              <td className="py-1.5 px-2 truncate max-w-[120px]">{ticket.resolucao || '-'}</td>
+                              <td className="py-1.5 px-2">{ticket.canal || ticket.origem || 'WhatsApp'}</td>
+                              <td className="py-1.5 px-2 whitespace-nowrap">{formatTempoAtendimento(tempoMin)}</td>
+                              <td className="py-1.5 px-2">
+                                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </ScrollArea>

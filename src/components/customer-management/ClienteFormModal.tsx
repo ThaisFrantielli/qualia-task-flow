@@ -1,4 +1,4 @@
-// src/components/customer-management/ClienteFormModal.tsx (VERSÃO AVANÇADA)
+// src/components/customer-management/ClienteFormModal.tsx
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,17 +12,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, AlertTriangle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-// --- MELHORIA 3: Schema para contatos múltiplos ---
 const contatoSchema = z.object({
-  id: z.string().optional(), // Para identificar contatos existentes
-  nome_contato: z.string().min(3, "Nome é obrigatório."),
+  id: z.string().optional(),
+  nome_contato: z.string().min(1, "Nome é obrigatório."),
   email_contato: z.string().email("Email inválido.").optional().or(z.literal('')),
   telefone_contato: z.string().optional(),
-  // --- MELHORIA 4: Campo de departamento ---
   departamento: z.string().optional(), 
 });
 
@@ -44,6 +44,17 @@ interface ClienteFormModalProps {
   cliente: ClienteComContatos | null;
 }
 
+// Situações disponíveis para seleção
+
+// Normaliza a situação para exibição consistente
+const normalizeSituacao = (situacao: string | null | undefined): string => {
+  if (!situacao) return 'Ativo';
+  const lower = situacao.toLowerCase();
+  if (lower === 'ativo') return 'Ativo';
+  if (lower === 'inativo') return 'Inativo';
+  return situacao;
+};
+
 const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, onSave, cliente }) => {
   const isEditMode = !!cliente;
 
@@ -59,7 +70,6 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
     },
   });
 
-  // --- MELHORIA 3: Hook para gerenciar o array de contatos ---
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "contatos",
@@ -72,14 +82,14 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
         razao_social: cliente.razao_social || '',
         nome_fantasia: cliente.nome_fantasia || '',
         cpf_cnpj: cliente.cpf_cnpj || '',
-        situacao: cliente.situacao || 'Ativo',
+        situacao: normalizeSituacao(cliente.situacao),
         contatos: cliente.cliente_contatos.length > 0
           ? cliente.cliente_contatos.map(c => ({
               id: c.id,
               nome_contato: c.nome_contato || '',
               email_contato: c.email_contato || '',
               telefone_contato: c.telefone_contato || '',
-              departamento: '', // Adicionar campo no DB futuramente
+              departamento: c.departamento || '',
             }))
           : [{ nome_contato: '', email_contato: '', telefone_contato: '', departamento: '' }],
       });
@@ -95,30 +105,35 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
     }
   }, [cliente, isEditMode, form, isOpen]);
 
-  // --- DETECÇÃO DE DUPLICADOS POR CPF/CNPJ ---
-  const [duplicateCandidates, setDuplicateCandidates] = useState<ClienteComContatos[] | null>(null);
+  // Detecção de duplicados
+  const [duplicateCandidates, setDuplicateCandidates] = useState<any[] | null>(null);
   const checkTimeout = useRef<any>(null);
   const navigate = useNavigate();
 
+  // Detecção por CPF/CNPJ
   useEffect(() => {
     const sub = form.watch((value, { name }) => {
       if (name !== 'cpf_cnpj') return;
       const raw = (value as any).cpf_cnpj || '';
       const cpf = String(raw).replace(/\D/g, '').trim();
       if (checkTimeout.current) clearTimeout(checkTimeout.current);
-      if (!cpf) {
+      if (!cpf || cpf.length < 8) {
         setDuplicateCandidates(null);
         return;
       }
       checkTimeout.current = setTimeout(async () => {
         try {
-          const { data } = await supabase.from('clientes').select('id, razao_social, nome_fantasia, cpf_cnpj').ilike('cpf_cnpj', `%${cpf}%`).limit(10);
-          if (data && data.length > 0) {
-            setDuplicateCandidates(data as any);
+          const { data } = await supabase
+            .from('clientes')
+            .select('id, razao_social, nome_fantasia, cpf_cnpj, telefone')
+            .ilike('cpf_cnpj', `%${cpf}%`)
+            .limit(10);
+          if (data && data.length > 0 && (!isEditMode || !data.every(d => d.id === cliente?.id))) {
+            setDuplicateCandidates(data.filter(d => d.id !== cliente?.id));
           } else {
             setDuplicateCandidates(null);
           }
-        } catch (e) {
+        } catch {
           setDuplicateCandidates(null);
         }
       }, 500);
@@ -127,225 +142,404 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
       try { sub.unsubscribe && sub.unsubscribe(); } catch {};
       if (checkTimeout.current) clearTimeout(checkTimeout.current);
     };
-  }, [form]);
+  }, [form, isEditMode, cliente]);
 
-  // --- DETECÇÃO POR TELEFONE (contatos) ---
+  // Detecção por telefone
   useEffect(() => {
     const sub = form.watch((value, { name }) => {
       if (!name || !String(name).includes('telefone_contato')) return;
       const raw = (value as any);
-      // collect all telefone_contato values
       const phones: string[] = [];
       try {
         const cs = raw.contatos || [];
         for (const c of cs) {
-          if (c && c.telefone_contato) phones.push(String(c.telefone_contato).replace(/\D/g, ''));
+          if (c && c.telefone_contato) {
+            const normalized = String(c.telefone_contato).replace(/\D/g, '');
+            if (normalized.length >= 8) phones.push(normalized.slice(-9));
+          }
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
+      
       if (checkTimeout.current) clearTimeout(checkTimeout.current);
       const unique = Array.from(new Set(phones)).filter(Boolean);
-      if (unique.length === 0) {
-        // do not override cpf-based candidates if present
-        if (!duplicateCandidates) setDuplicateCandidates(null);
-        return;
-      }
+      if (unique.length === 0) return;
+      
       checkTimeout.current = setTimeout(async () => {
         try {
-          // search in cliente_contatos for matching phone fragments (also try last 8 digits)
-          const patterns = new Set<string>();
-          for (const p of unique) {
-            const last8 = p.slice(-8);
-            patterns.add(`telefone_contato.ilike.%${p}%`);
-            if (last8) patterns.add(`telefone_contato.ilike.%${last8}%`);
+          // Buscar por telefone em clientes e cliente_contatos
+          const orConditions = unique.map(p => `telefone_contato.ilike.%${p}%`).join(',');
+          const { data: contatosData } = await supabase
+            .from('cliente_contatos')
+            .select('cliente_id, telefone_contato')
+            .or(orConditions)
+            .limit(40);
+          
+          const clienteIds = Array.from(new Set((contatosData || []).map(r => r.cliente_id))).filter(Boolean);
+          if (clienteIds.length === 0) return;
+          
+          // Filtrar o cliente atual se estiver editando
+          const filteredIds = isEditMode && cliente ? clienteIds.filter(id => id !== cliente.id) : clienteIds;
+          if (filteredIds.length === 0) return;
+          
+          const { data: clientesData } = await supabase
+            .from('clientes')
+            .select('id, razao_social, nome_fantasia, cpf_cnpj, telefone')
+            .in('id', filteredIds)
+            .limit(20);
+          
+          if (clientesData && clientesData.length > 0) {
+            setDuplicateCandidates(prev => {
+              const existing = prev || [];
+              const newItems = clientesData.filter(c => !existing.some(e => e.id === c.id));
+              return [...existing, ...newItems].slice(0, 10);
+            });
           }
-          const q = Array.from(patterns).join(',');
-          const { data: contatosData } = await supabase.from('cliente_contatos').select('cliente_id,telefone_contato').or(q).limit(40);
-          const clienteIds = Array.from(new Set((contatosData || []).map((r: any) => r.cliente_id))).filter(Boolean);
-          if (clienteIds.length === 0) {
-            // no matches
-            // don't clear if cpf duplicates exist
-            if (!duplicateCandidates) setDuplicateCandidates(null);
-            return;
-          }
-          const { data: clientesData } = await supabase.from('clientes').select('id,razao_social,nome_fantasia,cpf_cnpj').in('id', clienteIds).limit(20);
-          if (clientesData && clientesData.length > 0) setDuplicateCandidates(clientesData as any);
-          else if (!duplicateCandidates) setDuplicateCandidates(null);
-        } catch (e) {
-          // ignore
-        }
+        } catch {}
       }, 500);
     });
     return () => {
       try { sub.unsubscribe && sub.unsubscribe(); } catch {};
       if (checkTimeout.current) clearTimeout(checkTimeout.current);
     };
-  }, [form]);
+  }, [form, isEditMode, cliente]);
 
-  // Ações quando usuário escolhe usar cliente existente
   const handleUseCliente = async (id: string) => {
     try {
-      const { data } = await supabase.from('clientes').select('*, cliente_contatos(*)').eq('id', id).single();
+      const { data } = await supabase
+        .from('clientes')
+        .select('*, cliente_contatos(*)')
+        .eq('id', id)
+        .single();
       if (!data) return;
+      
       const displayName = data.nome_fantasia || data.razao_social || 'Cliente selecionado';
-      const confirmMsg = `Deseja substituir os dados do formulário pelos dados do cliente "${displayName}"? Isso substituirá os campos atualmente preenchidos.`;
-      if (!window.confirm(confirmMsg)) return;
-      // preencha o formulário com os dados existentes
+      if (!window.confirm(`Substituir formulário pelos dados de "${displayName}"?`)) return;
+      
       form.reset({
         codigo_cliente: data.codigo_cliente || '',
         razao_social: data.razao_social || '',
         nome_fantasia: data.nome_fantasia || '',
         cpf_cnpj: data.cpf_cnpj || '',
-        situacao: data.situacao || 'Ativo',
-        contatos: (data.cliente_contatos || []).map((c: any) => ({ nome_contato: c.nome_contato || '', email_contato: c.email_contato || '', telefone_contato: c.telefone_contato || '', departamento: '' }))
+        situacao: normalizeSituacao(data.situacao),
+        contatos: (data.cliente_contatos || []).map((c: any) => ({
+          id: c.id,
+          nome_contato: c.nome_contato || '',
+          email_contato: c.email_contato || '',
+          telefone_contato: c.telefone_contato || '',
+          departamento: c.departamento || ''
+        }))
       });
       setDuplicateCandidates(null);
-      toast.success('Formulário preenchido com dados do cliente selecionado');
-    } catch (e) {
-      // ignore
-    }
+      toast.success('Dados carregados do cliente existente');
+    } catch {}
   };
-
 
   const onSubmit: SubmitHandler<FormData> = async (values) => {
     try {
       if (isEditMode && cliente) {
-        // LÓGICA DE ATUALIZAÇÃO
-        // ... (será implementada no futuro, focando na criação primeiro)
-        toast.success("Cliente atualizado com sucesso! (Simulação)");
+        // Atualização
+        const { error: updateError } = await supabase
+          .from('clientes')
+          .update({
+            razao_social: values.razao_social,
+            nome_fantasia: values.nome_fantasia,
+            cpf_cnpj: values.cpf_cnpj,
+            situacao: values.situacao,
+          })
+          .eq('id', cliente.id);
+
+        if (updateError) throw updateError;
+
+        // Atualizar contatos existentes e criar novos
+        for (const contato of values.contatos) {
+          if (contato.id) {
+            await supabase
+              .from('cliente_contatos')
+              .update({
+                nome_contato: contato.nome_contato,
+                email_contato: contato.email_contato,
+                telefone_contato: contato.telefone_contato,
+                departamento: contato.departamento,
+              })
+              .eq('id', contato.id);
+          } else {
+            await supabase
+              .from('cliente_contatos')
+              .insert({
+                cliente_id: cliente.id,
+                nome_contato: contato.nome_contato,
+                email_contato: contato.email_contato,
+                telefone_contato: contato.telefone_contato,
+                departamento: contato.departamento,
+              });
+          }
+        }
+
+        toast.success("Cliente atualizado com sucesso!");
+        if (typeof onSave === 'function') onSave(cliente.id);
       } else {
-          // --- LÓGICA DE CRIAÇÃO ---
-          const { data: newCliente, error: clienteError } = await supabase.from('clientes').insert({
+        // Criação
+        const { data: newCliente, error: clienteError } = await supabase
+          .from('clientes')
+          .insert({
             codigo_cliente: values.codigo_cliente,
             razao_social: values.razao_social,
             nome_fantasia: values.nome_fantasia,
             cpf_cnpj: values.cpf_cnpj,
             situacao: values.situacao,
-          }).select().single();
+          })
+          .select()
+          .single();
 
-          if (clienteError) {
-            console.error('Erro ao inserir cliente:', clienteError);
-            throw clienteError;
-          }
-          if (!newCliente) {
-            console.error('Resposta inesperada ao criar cliente:', newCliente);
-            throw new Error("Falha ao criar cliente.");
-          }
+        if (clienteError) throw clienteError;
+        if (!newCliente) throw new Error("Falha ao criar cliente.");
 
-          // Insere todos os contatos do formulário
-          const contatosToInsert = values.contatos.map(contato => ({
-            cliente_id: newCliente.id,
-            nome_contato: contato.nome_contato,
-            email_contato: contato.email_contato,
-            telefone_contato: contato.telefone_contato,
-            // departamento: contato.departamento, // Adicionar no DB futuramente
-          }));
+        const contatosToInsert = values.contatos.map(contato => ({
+          cliente_id: newCliente.id,
+          nome_contato: contato.nome_contato,
+          email_contato: contato.email_contato,
+          telefone_contato: contato.telefone_contato,
+          departamento: contato.departamento,
+        }));
 
-          const { error: contatoError } = await supabase.from('cliente_contatos').insert(contatosToInsert);
-          if (contatoError) {
-            // rollback: remover cliente criado para evitar dados inconsistentes
-            try {
-              await supabase.from('clientes').delete().eq('id', newCliente.id);
-            } catch (delErr) {
-              console.error('Erro ao tentar rollback (deletar cliente):', delErr);
-            }
-            console.error('Erro ao inserir contatos do cliente:', contatoError);
-            throw contatoError;
-          }
-
-          toast.success("Cliente criado com sucesso!");
-      }
-        if (typeof onSave === 'function') {
-          try { onSave(); } catch { onSave(); }
+        const { error: contatoError } = await supabase
+          .from('cliente_contatos')
+          .insert(contatosToInsert);
+        
+        if (contatoError) {
+          await supabase.from('clientes').delete().eq('id', newCliente.id);
+          throw contatoError;
         }
+
+        toast.success("Cliente criado com sucesso!");
+        if (typeof onSave === 'function') onSave(newCliente.id);
+      }
       onClose();
     } catch (error: any) {
-      toast.error("Ocorreu um erro", { description: error.message });
+      toast.error("Erro ao salvar", { description: error.message });
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
+      <DialogContent className="w-[90vw] md:w-[600px] max-w-[700px]">
         <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
-          <DialogDescription>{isEditMode ? 'Altere as informações.' : 'Preencha os dados para cadastrar.'}</DialogDescription>
+          <DialogTitle className="text-lg">{isEditMode ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+          <DialogDescription className="text-sm">
+            {isEditMode ? 'Altere as informações do cliente.' : 'Preencha os dados para cadastrar.'}
+          </DialogDescription>
         </DialogHeader>
+        
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Alerta de duplicados */}
             {duplicateCandidates && duplicateCandidates.length > 0 && (
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded text-sm space-y-2">
-                <div className="font-medium">Cliente(s) possivelmente já cadastrado(s):</div>
-                <div className="flex flex-col gap-2">
-                  {duplicateCandidates.slice(0,5).map((c: any) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2">
-                      <div className="truncate">
-                        <div className="font-medium">{c.nome_fantasia || c.razao_social}</div>
-                        <div className="text-xs text-muted-foreground">{c.cpf_cnpj ? `CPF/CNPJ: ${c.cpf_cnpj}` : ''}</div>
+              <Alert variant="default" className="border-amber-200 bg-amber-50 dark:bg-amber-900/20">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-sm">
+                  <span className="font-medium">Possíveis duplicados encontrados:</span>
+                  <div className="mt-2 space-y-1.5">
+                    {duplicateCandidates.slice(0, 3).map((c) => (
+                      <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate">{c.nome_fantasia || c.razao_social}</span>
+                        <div className="flex gap-1">
+                          <Button type="button" size="sm" variant="outline" className="h-6 text-xs" onClick={() => handleUseCliente(c.id)}>
+                            Usar este
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => navigate(`/clientes?open=${c.id}`)}>
+                            Abrir
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleUseCliente(c.id)}>Usar este</Button>
-                        <Button size="sm" onClick={() => navigate(`/clientes?open=${c.id}`)}>Abrir</Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                    ))}
+                  </div>
+                </AlertDescription>
+              </Alert>
             )}
-            <ScrollArea className="h-[60vh] p-4">
-              <div className="space-y-6">
-                <FormField control={form.control} name="codigo_cliente" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Código do Cliente</FormLabel>
-                    {/* --- MELHORIA 1: Campo desabilitado --- */}
-                    <FormControl><Input {...field} disabled /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}/>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="razao_social" render={({ field }) => ( <FormItem><FormLabel>Razão Social *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                  <FormField control={form.control} name="nome_fantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="cpf_cnpj" render={({ field }) => (
-                    // --- MELHORIA 2: Label ajustado ---
-                    <FormItem><FormLabel>CPF/CNPJ</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                  )}/>
-                  <FormField control={form.control} name="situacao" render={({ field }) => ( <FormItem><FormLabel>Situação</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+
+            <ScrollArea className="h-[55vh] pr-4">
+              <div className="space-y-4">
+                {/* Código do Cliente */}
+                <FormField 
+                  control={form.control} 
+                  name="codigo_cliente" 
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">Código do Cliente</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled className="bg-muted/50" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Razão Social e Nome Fantasia */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField 
+                    control={form.control} 
+                    name="razao_social" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">Razão Social *</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField 
+                    control={form.control} 
+                    name="nome_fantasia" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">Nome Fantasia</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
                 
-                <hr />
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Contatos</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={() => append({ nome_contato: '', email_contato: '', telefone_contato: '', departamento: '' })}>
-                    <PlusCircle className="h-4 w-4 mr-2" /> Adicionar Contato
-                  </Button>
-                </div>
-
-                {/* --- MELHORIA 3: Renderização dinâmica dos contatos --- */}
-                {fields.map((field, index) => (
-                  <div key={field.id} className="p-4 border rounded-lg space-y-4 relative">
-                    <FormField control={form.control} name={`contatos.${index}.nome_contato`} render={({ field }) => ( <FormItem><FormLabel>Nome do Contato *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name={`contatos.${index}.email_contato`} render={({ field }) => ( <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                      <FormField control={form.control} name={`contatos.${index}.telefone_contato`} render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                    </div>
-                    {/* --- MELHORIA 4: Campo de departamento --- */}
-                    <FormField control={form.control} name={`contatos.${index}.departamento`} render={({ field }) => ( <FormItem><FormLabel>Departamento</FormLabel><FormControl><Input placeholder="Ex: Financeiro, TI" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                    
-                    {fields.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => remove(index)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                {/* CPF/CNPJ e Situação */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField 
+                    control={form.control} 
+                    name="cpf_cnpj" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">CPF/CNPJ</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="00.000.000/0000-00" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
+                  />
+                  <FormField 
+                    control={form.control} 
+                    name="situacao" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm">Situação</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Ativo">Ativo</SelectItem>
+                            <SelectItem value="Inativo">Inativo</SelectItem>
+                            <SelectItem value="Suspenso">Suspenso</SelectItem>
+                            <SelectItem value="Bloqueado">Bloqueado</SelectItem>
+                            <SelectItem value="Prospect">Prospect</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                {/* Contatos */}
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-medium">Contatos</h3>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => append({ nome_contato: '', email_contato: '', telefone_contato: '', departamento: '' })}
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" /> Adicionar
+                    </Button>
                   </div>
-                ))}
 
+                  <div className="space-y-3">
+                    {fields.map((field, index) => (
+                      <div key={field.id} className="p-3 border rounded-lg space-y-3 relative bg-muted/30">
+                        <FormField 
+                          control={form.control} 
+                          name={`contatos.${index}.nome_contato`} 
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Nome *</FormLabel>
+                              <FormControl>
+                                <Input {...field} className="h-8 text-sm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <FormField 
+                            control={form.control} 
+                            name={`contatos.${index}.email_contato`} 
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Email</FormLabel>
+                                <FormControl>
+                                  <Input type="email" {...field} className="h-8 text-sm" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField 
+                            control={form.control} 
+                            name={`contatos.${index}.telefone_contato`} 
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Telefone</FormLabel>
+                                <FormControl>
+                                  <Input {...field} className="h-8 text-sm" placeholder="(00) 00000-0000" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField 
+                          control={form.control} 
+                          name={`contatos.${index}.departamento`} 
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Departamento</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Ex: Financeiro, TI" {...field} className="h-8 text-sm" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        {fields.length > 1 && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            className="absolute top-2 right-2 h-6 w-6" 
+                            onClick={() => remove(index)}
+                          >
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </ScrollArea>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar
