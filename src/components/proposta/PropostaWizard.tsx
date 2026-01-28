@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Save, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Check, FileDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePropostas } from '@/hooks/usePropostas';
 import { ClienteStep } from './steps/ClienteStep';
@@ -10,7 +10,12 @@ import { CondicoesStep } from './steps/CondicoesStep';
 import { ProtecoesStep } from './steps/ProtecoesStep';
 import { SimulacaoStep } from './steps/SimulacaoStep';
 import { RevisaoStep } from './steps/RevisaoStep';
-import type { Proposta, PropostaVeiculo } from '@/types/proposta';
+import { PersonalizarStep } from './steps/PersonalizarStep';
+import { useDefaultTemplate } from '@/hooks/usePropostaTemplates';
+import { generatePropostaPDF, downloadPDF, savePropostaArquivo, getVendedorNome } from '@/lib/proposta-pdf-generator';
+import type { Proposta, PropostaVeiculo, PropostaCenario, PropostaVeiculoWithItems } from '@/types/proposta';
+import type { PropostaTemplateWithDetails } from '@/types/proposta-template';
+import { toast } from 'sonner';
 
 interface PropostaWizardProps {
   open?: boolean;
@@ -25,18 +30,29 @@ const STEPS = [
   { id: 'condicoes', title: 'Condições', description: 'Condições comerciais' },
   { id: 'protecoes', title: 'Proteções', description: 'Proteções e taxas' },
   { id: 'simulacao', title: 'Simulação', description: 'Cenários e cálculos' },
-  { id: 'revisao', title: 'Revisão', description: 'Revisar e enviar' },
+  { id: 'personalizar', title: 'Personalizar', description: 'Template e minuta' },
+  { id: 'revisao', title: 'Revisão', description: 'Revisar e gerar PDF' },
 ];
 
 export function PropostaWizard({ open = true, onClose = () => {}, propostaId, asPage = false }: PropostaWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const { propostas, createProposta, updateProposta } = usePropostas();
+  const { data: defaultTemplate } = useDefaultTemplate();
+  
+  // Template e minuta
+  const [selectedTemplate, setSelectedTemplate] = useState<PropostaTemplateWithDetails | null>(null);
+  const [minutaEspecifica, setMinutaEspecifica] = useState<{ url: string; nome: string } | null>(null);
+  
+  // Cenários para simulação
+  const [cenarios] = useState<PropostaCenario[]>([]);
 
   useEffect(() => {
-    console.debug('PropostaWizard mounted', { asPage, propostaId, open });
-    return () => console.debug('PropostaWizard unmounted', { asPage, propostaId });
-  }, [asPage, propostaId, open]);
+    if (defaultTemplate && !selectedTemplate) {
+      setSelectedTemplate(defaultTemplate);
+    }
+  }, [defaultTemplate, selectedTemplate]);
 
   const editingProposta = propostaId
     ? propostas.find((p) => p.id === propostaId)
@@ -158,6 +174,127 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
     }
   };
 
+  const handleGeneratePDF = async () => {
+    if (!selectedTemplate) {
+      toast.error('Selecione um template antes de gerar o PDF');
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+    try {
+      // Montar proposta completa
+      const proposta: Proposta = {
+        id: propostaId || crypto.randomUUID(),
+        numero_proposta: formData.numero_proposta || Date.now(),
+        cliente_nome: formData.cliente_nome || '',
+        cliente_cnpj: formData.cliente_cnpj,
+        cliente_email: formData.cliente_email,
+        cliente_telefone: formData.cliente_telefone,
+        cliente_endereco: formData.cliente_endereco,
+        vendedor_nome: formData.vendedor_nome,
+        status: 'rascunho',
+        data_criacao: new Date().toISOString(),
+        data_validade: formData.data_validade,
+        prazo_contrato_meses: formData.prazo_contrato_meses || 24,
+        vencimento_mensalidade: formData.vencimento_mensalidade || 10,
+        indice_reajuste: formData.indice_reajuste || 'IPCA',
+        veiculos_provisorios: formData.veiculos_provisorios || 0,
+        limite_substituicao_sinistro: formData.limite_substituicao_sinistro || 7,
+        limite_substituicao_manutencao: formData.limite_substituicao_manutencao || 7,
+        prazo_substituicao_sinistro_horas: formData.prazo_substituicao_sinistro_horas || 48,
+        prazo_substituicao_manutencao_horas: formData.prazo_substituicao_manutencao_horas || 24,
+        protecao_roubo: formData.protecao_roubo ?? true,
+        protecao_furto: formData.protecao_furto ?? true,
+        protecao_colisao: formData.protecao_colisao ?? true,
+        protecao_incendio: formData.protecao_incendio ?? true,
+        limite_danos_materiais: formData.limite_danos_materiais || 100000,
+        limite_danos_morais: formData.limite_danos_morais || 100000,
+        limite_danos_pessoais: formData.limite_danos_pessoais || 100000,
+        limite_app_passageiro: formData.limite_app_passageiro || 10000,
+        taxa_administracao_multas: formData.taxa_administracao_multas || 0.1,
+        taxa_reembolsaveis: formData.taxa_reembolsaveis || 0.1,
+        custo_remocao_forcada: formData.custo_remocao_forcada || 2000,
+        custo_lavagem_simples: formData.custo_lavagem_simples || 50,
+        custo_higienizacao: formData.custo_higienizacao || 300,
+        valor_mensal_total: veiculos.reduce((sum, v) => sum + (v.aluguel_unitario || 0) * (v.quantidade || 1), 0),
+        valor_anual_total: veiculos.reduce((sum, v) => sum + (v.aluguel_unitario || 0) * (v.quantidade || 1), 0) * 12,
+        quantidade_veiculos: veiculos.reduce((sum, v) => sum + (v.quantidade || 1), 0),
+        observacoes: formData.observacoes,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Converter veículos para o formato esperado
+      const veiculosFormatados: PropostaVeiculoWithItems[] = veiculos.map((v, index) => ({
+        id: v.id || `temp-${index}`,
+        proposta_id: proposta.id,
+        modelo_nome: v.modelo_nome || '',
+        montadora: v.montadora,
+        ano_modelo: v.ano_modelo,
+        cor_nome: v.cor_nome,
+        cor_valor_adicional: v.cor_valor_adicional || 0,
+        valor_aquisicao: v.valor_aquisicao || 0,
+        custo_acessorios: v.custo_acessorios || 0,
+        custo_emplacamento: v.custo_emplacamento || 0,
+        custo_licenciamento: v.custo_licenciamento || 0,
+        aluguel_unitario: v.aluguel_unitario || 0,
+        franquia_km: v.franquia_km || 3000,
+        valor_km_excedente: v.valor_km_excedente || 0.35,
+        quantidade: v.quantidade || 1,
+        created_at: new Date().toISOString(),
+        itens: []
+      }));
+
+      // Criar cenário padrão se não houver
+      const cenariosParaPDF: PropostaCenario[] = cenarios.length > 0 ? cenarios : [{
+        id: crypto.randomUUID(),
+        proposta_id: proposta.id,
+        prazo_meses: proposta.prazo_contrato_meses,
+        modalidade: '100%',
+        valor_mensal_por_veiculo: veiculosFormatados[0]?.aluguel_unitario || 0,
+        valor_mensal_total: proposta.valor_mensal_total,
+        valor_anual: proposta.valor_anual_total,
+        is_selecionado: true,
+        created_at: new Date().toISOString()
+      }];
+
+      // Buscar nome do vendedor
+      const vendedorNome = await getVendedorNome(formData.vendedor_id);
+
+      // Gerar PDF
+      const result = await generatePropostaPDF({
+        proposta,
+        veiculos: veiculosFormatados,
+        cenarios: cenariosParaPDF,
+        template: selectedTemplate,
+        vendedorNome,
+        minutaEspecifica,
+        saveToStorage: true
+      });
+
+      // Salvar registro do arquivo
+      if (result.url) {
+        await savePropostaArquivo(
+          proposta.id,
+          selectedTemplate.id,
+          result.url,
+          result.fileName,
+          minutaEspecifica
+        );
+      }
+
+      // Download
+      downloadPDF(result.blob, result.fileName);
+      
+      toast.success('Proposta gerada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF. Tente novamente.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const renderStep = () => {
     switch (STEPS[currentStep].id) {
       case 'cliente':
@@ -193,6 +330,15 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
           <SimulacaoStep
             proposta={formData}
             veiculos={veiculos}
+          />
+        );
+      case 'personalizar':
+        return (
+          <PersonalizarStep
+            template={selectedTemplate}
+            onTemplateChange={setSelectedTemplate}
+            minutaEspecifica={minutaEspecifica}
+            onMinutaChange={setMinutaEspecifica}
           />
         );
       case 'revisao':
@@ -231,18 +377,18 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
                 {/* Step */}
                 <button
                   onClick={() => setCurrentStep(index)}
-                  className="flex items-center gap-3 group"
+                  className="flex items-center gap-2 group"
                 >
                   <div
                     className={cn(
-                      'w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all',
+                      'w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium transition-all',
                       isActive && 'bg-primary text-primary-foreground shadow-lg shadow-primary/25',
                       isCompleted && 'bg-primary/20 text-primary',
                       !isActive && !isCompleted && 'bg-muted text-muted-foreground'
                     )}
                   >
                     {isCompleted ? (
-                      <Check className="h-5 w-5" />
+                      <Check className="h-4 w-4" />
                     ) : (
                       index + 1
                     )}
@@ -255,15 +401,12 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
                     )}>
                       {step.title}
                     </p>
-                    <p className="text-xs text-muted-foreground hidden xl:block">
-                      {step.description}
-                    </p>
                   </div>
                 </button>
                 
                 {/* Connector Line */}
                 {index < STEPS.length - 1 && (
-                  <div className="flex-1 mx-3 hidden sm:block">
+                  <div className="flex-1 mx-2 hidden sm:block">
                     <div className={cn(
                       'h-0.5 rounded-full transition-colors',
                       index < currentStep ? 'bg-primary' : 'bg-border'
@@ -307,11 +450,21 @@ export function PropostaWizard({ open = true, onClose = () => {}, propostaId, as
 
           {currentStep === STEPS.length - 1 ? (
             <Button
-              onClick={() => handleSave('enviada')}
-              disabled={isSaving}
+              onClick={handleGeneratePDF}
+              disabled={isGeneratingPDF || isSaving}
               className="gap-2"
             >
-              Finalizar e Enviar
+              {isGeneratingPDF ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-4 w-4" />
+                  Gerar Proposta PDF
+                </>
+              )}
             </Button>
           ) : (
             <Button onClick={handleNext} className="gap-2">
