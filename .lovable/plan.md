@@ -1,194 +1,346 @@
 
-# Plano: Corrigir Vinculação de Dados do Cliente e Modernizar UI do Wizard de Propostas
+# Plano: Sistema de Personalização e Geração de Propostas PDF
 
-## Problema Identificado
+## Resumo Executivo
 
-Ao selecionar um cliente existente (ex: "COMPEL"), os dados não são populados corretamente nos campos do formulário. A causa raiz é:
+Implementar um sistema completo para personalizar e gerar propostas comerciais em PDF, inspirado no modelo da Unidas Livre. O sistema permitira editar templates visuais, incluir imagens de veiculos, condicoes contratuais e beneficios, gerando um documento profissional para envio ao cliente.
 
-1. **Campos errados no código**: O `ClienteStep.tsx` está tentando ler campos que não existem na tabela `clientes`:
-   - `cliente.cnpj` → deveria ser `cliente.cpf_cnpj`
-   - `cliente.email_principal` → deveria ser `cliente.email`
-   - `cliente.telefone_principal` → deveria ser `cliente.telefone`
-   - `cliente.endereco_completo` → deveria ser construído a partir de: `endereco`, `numero`, `bairro`, `cidade`, `estado`, `cep`
+## Analise do Modelo de Referencia (Unidas Livre)
 
-2. **Layout desatualizado**: O wizard não utiliza bem o espaço disponível na página
+O PDF de referencia possui 7 paginas com a seguinte estrutura:
 
-## Estrutura Atual da Tabela `clientes`
+| Pagina | Conteudo |
+|--------|----------|
+| 1 | Capa institucional com logo e slogan |
+| 2 | Dados do cliente + cards de veiculos com precos e cenarios |
+| 3 | Beneficios e condicoes contratuais (protecao, carro reserva, revisoes) |
+| 4 | FAQ com informacoes detalhadas |
+| 5-6 | Comparativo tecnico dos veiculos |
+| 7 | Rodape/encerramento |
 
-| Campo BD          | Campo Proposta      |
-|-------------------|---------------------|
-| `cpf_cnpj`        | `cliente_cnpj`      |
-| `email`           | `cliente_email`     |
-| `telefone`        | `cliente_telefone`  |
-| `endereco + numero + bairro + cidade/estado + cep` | `cliente_endereco` |
-
----
-
-## Etapas de Implementação
-
-### 1. Corrigir Mapeamento de Campos em `ClienteStep.tsx`
-
-Atualizar o `useEffect` que busca dados do cliente:
+## Arquitetura da Solucao
 
 ```text
-// ANTES (incorreto):
-cliente_cnpj: cliente.cnpj,
-cliente_email: cliente.email_principal,
-cliente_telefone: cliente.telefone_principal,
-cliente_endereco: cliente.endereco_completo
-
-// DEPOIS (correto):
-cliente_cnpj: cliente.cpf_cnpj,
-cliente_email: cliente.email || '',
-cliente_telefone: cliente.telefone || cliente.whatsapp_number || '',
-cliente_endereco: buildEnderecoCompleto(cliente) 
-// Função que monta: endereco, numero - bairro, cidade/estado - cep
++---------------------------+
+|    PropostaWizard         |
+|    (Step: Revisao)        |
++-----------+---------------+
+            |
+            v
++---------------------------+
+|  PropostaPreviewEditor    |
+|  (Visualizacao/Edicao)    |
++-----------+---------------+
+            |
+            v
++---------------------------+
+|  PropostaPDFGenerator     |
+|  (Geracao do PDF)         |
++---------------------------+
 ```
 
-### 2. Criar Função de Montagem do Endereço
+## Componentes e Funcionalidades
 
-```typescript
-const buildEnderecoCompleto = (cliente: any): string => {
-  const parts = [];
-  if (cliente.endereco) {
-    let linha = cliente.endereco;
-    if (cliente.numero) linha += `, ${cliente.numero}`;
-    parts.push(linha);
-  }
-  if (cliente.bairro) parts.push(cliente.bairro);
-  if (cliente.cidade || cliente.estado) {
-    parts.push(`${cliente.cidade || ''}${cliente.estado ? '/' + cliente.estado : ''}`);
-  }
-  if (cliente.cep) parts.push(`CEP: ${cliente.cep}`);
-  return parts.join(' - ');
-};
+### 1. Novo Step no Wizard: "Personalizar Proposta"
+
+Adicionar um passo entre "Revisao" e a finalizacao para permitir personalizacao visual.
+
+### 2. Editor de Template da Proposta
+
+**Secoes editaveis:**
+
+- **Capa**
+  - Logo da empresa (upload ou URL)
+  - Titulo/slogan personalizavel
+  - Imagem de fundo (opcional)
+
+- **Dados do Cliente**
+  - Nome do cliente (destaque)
+  - Contato do vendedor
+  - Numero da proposta
+  - Datas (envio e validade)
+
+- **Cards de Veiculos**
+  - Imagem do veiculo (do cadastro ou upload)
+  - Nome do modelo e versao
+  - Preco mensal em destaque
+  - Franquia de KM
+  - Prazo do contrato
+  - Valor do KM excedente
+  - Opcao "Melhor Escolha" destacada
+
+- **Tabela de Cenarios**
+  - Comparativo de prazos (12, 24, 36, 48 meses)
+  - Valores mensais por prazo
+
+- **Beneficios e Condicoes**
+  - Protecoes incluidas
+  - Carro reserva/substituto
+  - Manutencao e revisoes
+  - IPVA e documentacao
+  - Assistencia 24h
+
+- **Comparativo Tecnico**
+  - Especificacoes dos veiculos lado a lado
+  - Motor, cambio, combustivel, etc.
+
+- **FAQ Personalizavel**
+  - Perguntas e respostas editaveis
+  - Banco de perguntas pre-configuradas
+
+### 3. Banco de Dados - Novas Tabelas
+
+**proposta_templates**
+```text
+- id (uuid)
+- nome (text)
+- descricao (text)
+- is_padrao (boolean)
+- logo_url (text)
+- cor_primaria (text)
+- cor_secundaria (text)
+- slogan (text)
+- imagem_capa_url (text)
+- secoes_config (jsonb)
+- created_by (uuid)
+- created_at, updated_at
 ```
 
-### 3. Modernizar UI do Wizard
-
-**Mudanças na página `/propostas/nova`:**
-
-- Remover padding excessivo e usar largura total
-- Stepper horizontal mais compacto e moderno
-- Cards com bordas mais sutis e sombras suaves
-- Layout responsivo otimizado
-- Melhorar separação visual entre seções
-
-**PropostaWizard.tsx:**
-- Usar `max-w-4xl mx-auto` para centralizar conteúdo
-- Stepper com linha conectora visual entre etapas
-- Badges de status com cores mais modernas
-- Bordas arredondadas maiores nos cards
-
-**ClienteStep.tsx:**
-- Layout em grid mais compacto
-- Usar `grid-cols-1 md:grid-cols-2` para melhor responsividade
-- Separar visualmente a área de busca do formulário
-- Ícones inline nos labels
-
-### 4. Melhorar ClienteCombobox
-
-Garantir que ao buscar o cliente, todos os campos necessários sejam retornados:
-
-```typescript
-// Buscar mais campos além do básico
-.select(`
-  id, razao_social, nome_fantasia, cpf_cnpj,
-  email, telefone, whatsapp_number,
-  endereco, numero, bairro, cidade, estado, cep
-`)
+**proposta_template_faq**
+```text
+- id (uuid)
+- template_id (uuid FK)
+- pergunta (text)
+- resposta (text)
+- ordem (integer)
 ```
 
-### 5. Fallback para Contatos Secundários
+**proposta_template_beneficios**
+```text
+- id (uuid)
+- template_id (uuid FK)
+- titulo (text)
+- descricao (text)
+- icone (text)
+- ordem (integer)
+```
 
-Se `email` ou `telefone` estiverem vazios no cliente, buscar da tabela `cliente_contatos`:
+**proposta_arquivos_gerados**
+```text
+- id (uuid)
+- proposta_id (uuid FK)
+- template_id (uuid FK)
+- arquivo_url (text)
+- versao (integer)
+- created_at
+```
+
+### 4. Componentes React a Criar
+
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/components/proposta/steps/PersonalizarStep.tsx` | Step de personalizacao no wizard |
+| `src/components/proposta/template/PropostaTemplateEditor.tsx` | Editor visual do template |
+| `src/components/proposta/template/CapaSection.tsx` | Edicao da capa |
+| `src/components/proposta/template/VeiculosSection.tsx` | Cards de veiculos |
+| `src/components/proposta/template/BeneficiosSection.tsx` | Beneficios e condicoes |
+| `src/components/proposta/template/ComparativoSection.tsx` | Comparativo tecnico |
+| `src/components/proposta/template/FAQSection.tsx` | Perguntas frequentes |
+| `src/components/proposta/preview/PropostaPreview.tsx` | Preview em tempo real |
+| `src/components/proposta/pdf/PropostaPDFDocument.tsx` | Componente para geracao PDF |
+| `src/hooks/usePropostaTemplates.ts` | Hook para CRUD de templates |
+| `src/lib/proposta-pdf-generator.ts` | Funcoes de geracao de PDF |
+
+### 5. Geracao de PDF
+
+**Biblioteca:** @react-pdf/renderer (ja disponivel no ecossistema React, melhor para documentos complexos)
+
+**Alternativa:** html2canvas + jspdf (mais simples, mas menos flexivel)
+
+**Processo de Geracao:**
+
+1. Usuario clica em "Gerar Proposta PDF"
+2. Sistema monta o documento com os dados da proposta
+3. Aplica o template selecionado
+4. Gera o PDF em memoria
+5. Faz upload para o bucket de storage
+6. Salva referencia na tabela `proposta_arquivos_gerados`
+7. Permite download ou envio por email/WhatsApp
+
+### 6. Storage para Arquivos
+
+Criar novo bucket no Supabase Storage:
+
+```sql
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('propostas-pdf', 'propostas-pdf', false);
+```
+
+**Estrutura de pastas:**
+```text
+propostas-pdf/
+  ├── templates/
+  │   └── logos/
+  │   └── capas/
+  └── gerados/
+      └── {ano}/
+          └── {mes}/
+              └── proposta-{numero}-v{versao}.pdf
+```
+
+## Fluxo de Usuario
+
+```text
+1. Criar/Editar Proposta no Wizard
+          |
+          v
+2. [NOVO] Personalizar Template
+   - Selecionar template base
+   - Ajustar cores e logo
+   - Editar textos de beneficios
+   - Configurar FAQ
+          |
+          v
+3. Preview da Proposta
+   - Visualizar como ficara o PDF
+   - Fazer ajustes finos
+          |
+          v
+4. Gerar PDF
+   - Download imediato
+   - Salvar no sistema
+          |
+          v
+5. Enviar ao Cliente
+   - Email direto
+   - WhatsApp
+   - Link compartilhavel
+```
+
+## Secoes do PDF Gerado
+
+### Pagina 1 - Capa
+- Logo da empresa
+- Slogan/titulo
+- Imagem de fundo
+
+### Pagina 2 - Proposta
+- Header com dados do cliente e vendedor
+- Numero da proposta, data de envio e validade
+- Cards dos veiculos com precos e detalhes
+- Comparativo de prazos
+
+### Pagina 3 - Beneficios
+- Grade visual com beneficios inclusos
+- Icones ilustrativos
+- Descricoes curtas
+
+### Pagina 4 - FAQ
+- Perguntas e respostas
+- Informacoes sobre entrega, pagamento, franquia, etc.
+
+### Pagina 5+ - Comparativo Tecnico
+- Especificacoes lado a lado dos veiculos
+- Imagens dos modelos
+- Detalhes tecnicos
+
+## Detalhes Tecnicos
+
+### Instalacao de Dependencia
+
+```bash
+npm install @react-pdf/renderer
+```
+
+### Estrutura do Componente PDF
 
 ```typescript
-// Se não tiver telefone/email no cliente principal,
-// buscar do primeiro contato (gestor preferencial)
-if (!cliente.email || !cliente.telefone) {
-  const { data: contatos } = await supabase
-    .from('cliente_contatos')
-    .select('*')
-    .eq('cliente_id', cliente.id)
-    .order('is_gestor', { ascending: false })
-    .limit(1);
-    
-  if (contatos?.length) {
-    cliente_email = contatos[0].email_contato;
-    cliente_telefone = contatos[0].telefone_contato;
-  }
+// PropostaPDFDocument.tsx
+import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
+
+const PropostaPDFDocument = ({ proposta, template, veiculos, cenarios }) => (
+  <Document>
+    <Page size="A4" style={styles.page}>
+      {/* Capa */}
+      <CoverPage template={template} />
+    </Page>
+    <Page size="A4" style={styles.page}>
+      {/* Proposta */}
+      <ProposalPage proposta={proposta} veiculos={veiculos} cenarios={cenarios} />
+    </Page>
+    {/* ... outras paginas */}
+  </Document>
+);
+```
+
+### Hook de Templates
+
+```typescript
+// usePropostaTemplates.ts
+export function usePropostaTemplates() {
+  const { data: templates } = useQuery({
+    queryKey: ['proposta-templates'],
+    queryFn: fetchTemplates
+  });
+
+  const createTemplate = useMutation({ ... });
+  const updateTemplate = useMutation({ ... });
+  const deleteTemplate = useMutation({ ... });
+
+  return { templates, createTemplate, updateTemplate, deleteTemplate };
 }
 ```
 
----
+### Integracao com Wizard Existente
 
-## Detalhes Técnicos
+Adicionar novo step no array STEPS:
 
-### Arquivos a Modificar
-
-1. **`src/components/proposta/steps/ClienteStep.tsx`**
-   - Corrigir mapeamento de campos
-   - Adicionar função `buildEnderecoCompleto`
-   - Buscar dados de contatos como fallback
-   - Modernizar layout com grid responsivo
-
-2. **`src/components/common/ClienteCombobox.tsx`**
-   - Expandir campos retornados na query
-   - (Opcional) Passar cliente completo para componente pai
-
-3. **`src/components/proposta/PropostaWizard.tsx`**
-   - Modernizar stepper visual
-   - Ajustar padding e espaçamento
-   - Melhorar uso do espaço da página
-
-4. **`src/pages/PropostasFormPage.tsx`**
-   - Remover container estreito
-   - Usar largura total com padding adequado
-
----
-
-## Resumo Visual das Melhorias
-
-```text
-ANTES:
-┌─────────────────────────────────────────┐
-│  [Container estreito centralizado]       │
-│  ┌─────────────────────────────────┐    │
-│  │ Wizard com muito espaço vazio   │    │
-│  │ Campos não preenchidos          │    │
-│  └─────────────────────────────────┘    │
-└─────────────────────────────────────────┘
-
-DEPOIS:
-┌─────────────────────────────────────────────────────┐
-│ ● Cliente → ○ Veículos → ○ Condições → ○ Proteções  │
-├─────────────────────────────────────────────────────┤
-│ ╔═════════════════════════════════════════════════╗ │
-│ ║  🏢 Dados do Cliente                            ║ │
-│ ╠═════════════════════════════════════════════════╣ │
-│ ║  [Buscar Cliente]  ✓ COMPEL vinculado           ║ │
-│ ╠════════════════════╦════════════════════════════╣ │
-│ ║  Razão Social      ║  CNPJ                      ║ │
-│ ║  COMPEL           ║  01.229.251/0001-05        ║ │
-│ ╠════════════════════╬════════════════════════════╣ │
-│ ║  Email             ║  Telefone                  ║ │
-│ ║  contato@compel... ║  (62) 99999-9999           ║ │
-│ ╠════════════════════╩════════════════════════════╣ │
-│ ║  Endereço Completo                              ║ │
-│ ║  Rua X, 123 - Centro - Goiânia/GO - 74000-000  ║ │
-│ ╚═════════════════════════════════════════════════╝ │
-│                                                     │
-│ [← Voltar]              [Salvar Rascunho] [Próximo→]│
-└─────────────────────────────────────────────────────┘
+```typescript
+const STEPS = [
+  { id: 'cliente', title: 'Cliente' },
+  { id: 'veiculos', title: 'Veiculos' },
+  { id: 'condicoes', title: 'Condicoes' },
+  { id: 'protecoes', title: 'Protecoes' },
+  { id: 'simulacao', title: 'Simulacao' },
+  { id: 'personalizar', title: 'Personalizar' },  // NOVO
+  { id: 'revisao', title: 'Revisao' },
+];
 ```
 
----
+## Ordem de Implementacao
+
+1. **Fase 1: Infraestrutura** (Prioridade Alta)
+   - Criar tabelas no banco de dados
+   - Criar bucket de storage
+   - Instalar @react-pdf/renderer
+   - Criar hook usePropostaTemplates
+
+2. **Fase 2: Templates** (Prioridade Alta)
+   - Criar template padrao baseado no modelo Unidas
+   - Implementar editor basico de templates
+   - Permitir customizacao de cores e logo
+
+3. **Fase 3: Personalizacao** (Prioridade Media)
+   - Criar step PersonalizarStep
+   - Implementar editor de secoes
+   - Criar gerenciador de FAQ e beneficios
+
+4. **Fase 4: Geracao PDF** (Prioridade Alta)
+   - Implementar PropostaPDFDocument
+   - Criar todas as paginas do PDF
+   - Upload automatico para storage
+
+5. **Fase 5: Integracao** (Prioridade Media)
+   - Historico de versoes de propostas
+   - Envio por email/WhatsApp
+   - Link compartilhavel
 
 ## Resultado Esperado
 
-- Ao selecionar um cliente, todos os campos serão automaticamente preenchidos com os dados corretos
-- O CNPJ aparecerá formatado (01.229.251/0001-05)
-- Email e telefone serão buscados do cliente ou dos contatos secundários
-- Endereço será montado corretamente a partir dos campos separados
-- Interface mais moderna, limpa e com melhor aproveitamento do espaço
+O usuario podera:
+
+1. Criar propostas comerciais completas
+2. Personalizar o visual do documento
+3. Gerar PDF profissional similar ao da Unidas Livre
+4. Enviar diretamente ao cliente
+5. Manter historico de todas as versoes geradas
