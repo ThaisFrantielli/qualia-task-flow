@@ -78,14 +78,14 @@ export function TicketDepartamentoCard({ departamento, onViewTask: _onViewTask }
 
         setIsSaving(true);
         try {
-            // Atualizar o departamento com a resposta
+            // Atualizar o departamento com a resposta (sem updated_at que não existe na tabela)
             const { error } = await supabase
                 .from('ticket_departamentos')
                 .update({
                     resposta: resposta.trim(),
                     respondido_em: new Date().toISOString(),
                     respondido_por: user.id
-                })
+                } as any) // Cast para evitar erros de tipos
                 .eq('id', departamento.id);
 
             if (error) {
