@@ -192,8 +192,11 @@ const Notifications = () => {
       case 'ticket_awaiting_department':
       case 'sla_first_response_warning':
       case 'sla_resolution_warning':
-        if (data?.ticket_id) navigate(`/tickets?id=${data.ticket_id}`);
-        else if (data?.atendimento_id) navigate(`/tickets?id=${data.atendimento_id}`);
+      case 'department_support_request':
+      case 'department_response':
+      case 'ticket_mention':
+        if (data?.ticket_id) navigate(`/tickets/${data.ticket_id}`);
+        else if (data?.atendimento_id) navigate(`/tickets/${data.atendimento_id}`);
         break;
       case 'conversation_transfer':
         if (data?.conversation_id) navigate(`/whatsapp?id=${data.conversation_id}`);
@@ -206,7 +209,7 @@ const Notifications = () => {
         break;
       case 'mention':
         if (data?.context_type === 'pos_venda' && data?.context_id) {
-          navigate(`/tickets?id=${data.context_id}`);
+          navigate(`/tickets/${data.context_id}`);
         } else if (data?.task_id) {
           navigate(`/tasks/${data.task_id}`);
         }
