@@ -3447,6 +3447,39 @@ export type Database = {
           },
         ]
       }
+      ticket_analises_finais: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          label: string
+          sort_order: number | null
+          value: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          label: string
+          sort_order?: number | null
+          value: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          label?: string
+          sort_order?: number | null
+          value?: string
+        }
+        Relationships: []
+      }
       ticket_anexos: {
         Row: {
           created_at: string | null
@@ -3671,14 +3704,94 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_origens: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          label: string
+          sort_order: number | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          label: string
+          sort_order?: number | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          label?: string
+          sort_order?: number | null
+          value?: string
+        }
+        Relationships: []
+      }
+      ticket_vinculos: {
+        Row: {
+          created_at: string | null
+          data_documento: string | null
+          descricao: string | null
+          id: string
+          numero: string
+          ticket_id: string
+          tipo: string
+          valor: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_documento?: string | null
+          descricao?: string | null
+          id?: string
+          numero: string
+          ticket_id: string
+          tipo: string
+          valor?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data_documento?: string | null
+          descricao?: string | null
+          id?: string
+          numero?: string
+          ticket_id?: string
+          tipo?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_vinculos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_vinculos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_sla"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           acoes_corretivas: string | null
+          analise_final_id: string | null
           atendente_id: string | null
           cliente_id: string | null
+          contrato_comercial: string | null
+          contrato_locacao: string | null
           created_at: string | null
           data_abertura: string | null
+          data_conclusao: string | null
           data_fechamento: string | null
+          data_primeira_interacao: string | null
           departamento:
             | Database["public"]["Enums"]["ticket_departamento_enum"]
             | null
@@ -3687,9 +3800,11 @@ export type Database = {
           feedback_cliente: string | null
           id: string
           motivo: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id: string | null
           nota_cliente: number | null
           numero_ticket: string
           origem: string | null
+          origem_id: string | null
           placa: string | null
           prioridade: string | null
           procedencia: string | null
@@ -3706,14 +3821,23 @@ export type Database = {
           tipo_reclamacao: string | null
           titulo: string
           updated_at: string | null
+          veiculo_ano: string | null
+          veiculo_cliente: string | null
+          veiculo_km: number | null
+          veiculo_modelo: string | null
         }
         Insert: {
           acoes_corretivas?: string | null
+          analise_final_id?: string | null
           atendente_id?: string | null
           cliente_id?: string | null
+          contrato_comercial?: string | null
+          contrato_locacao?: string | null
           created_at?: string | null
           data_abertura?: string | null
+          data_conclusao?: string | null
           data_fechamento?: string | null
+          data_primeira_interacao?: string | null
           departamento?:
             | Database["public"]["Enums"]["ticket_departamento_enum"]
             | null
@@ -3722,9 +3846,11 @@ export type Database = {
           feedback_cliente?: string | null
           id?: string
           motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id?: string | null
           nota_cliente?: number | null
           numero_ticket: string
           origem?: string | null
+          origem_id?: string | null
           placa?: string | null
           prioridade?: string | null
           procedencia?: string | null
@@ -3741,14 +3867,23 @@ export type Database = {
           tipo_reclamacao?: string | null
           titulo: string
           updated_at?: string | null
+          veiculo_ano?: string | null
+          veiculo_cliente?: string | null
+          veiculo_km?: number | null
+          veiculo_modelo?: string | null
         }
         Update: {
           acoes_corretivas?: string | null
+          analise_final_id?: string | null
           atendente_id?: string | null
           cliente_id?: string | null
+          contrato_comercial?: string | null
+          contrato_locacao?: string | null
           created_at?: string | null
           data_abertura?: string | null
+          data_conclusao?: string | null
           data_fechamento?: string | null
+          data_primeira_interacao?: string | null
           departamento?:
             | Database["public"]["Enums"]["ticket_departamento_enum"]
             | null
@@ -3757,9 +3892,11 @@ export type Database = {
           feedback_cliente?: string | null
           id?: string
           motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id?: string | null
           nota_cliente?: number | null
           numero_ticket?: string
           origem?: string | null
+          origem_id?: string | null
           placa?: string | null
           prioridade?: string | null
           procedencia?: string | null
@@ -3776,8 +3913,19 @@ export type Database = {
           tipo_reclamacao?: string | null
           titulo?: string
           updated_at?: string | null
+          veiculo_ano?: string | null
+          veiculo_cliente?: string | null
+          veiculo_km?: number | null
+          veiculo_modelo?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tickets_analise_final_id_fkey"
+            columns: ["analise_final_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_analises_finais"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tickets_atendente_id_fkey"
             columns: ["atendente_id"]
@@ -3790,6 +3938,20 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_motivo_id_fkey"
+            columns: ["motivo_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_motivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_origem_id_fkey"
+            columns: ["origem_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_origens"
             referencedColumns: ["id"]
           },
         ]
@@ -4734,6 +4896,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: string
       }
+      calcular_tempo_ticket: { Args: { ticket_id: string }; Returns: unknown }
       check_whatsapp_status: { Args: never; Returns: string }
       create_user_admin: {
         Args: {
