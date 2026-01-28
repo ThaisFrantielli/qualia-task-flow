@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Send, User, Plus, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil } from "lucide-react";
+import { Loader2, Send, User, Plus, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,6 +48,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
     const [editingSintese, setEditingSintese] = useState(false);
     const [sinteseText, setSinteseText] = useState<string>("");
+    const [sinteseExpanded, setSinteseExpanded] = useState(true);
     const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
     const [selectedDept, setSelectedDept] = useState("");
     const [selectedResponsavel, setSelectedResponsavel] = useState("");
@@ -300,38 +301,30 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                         )}
                     </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-3">
                     <div className="flex gap-2 items-center">
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setIsEditDialogOpen(true)}
-                            className="gap-1"
-                        >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Editar
-                        </Button>
                         <Badge className={ticket.status === 'resolvido' ? 'bg-green-600' : 'bg-blue-600'}>
                             {ticket.status?.replace("_", " ")}
                         </Badge>
                         <Badge variant="outline" className="border-orange-200 text-orange-700 bg-orange-50">
                             {ticket.prioridade}
                         </Badge>
+                        <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => setIsEditDialogOpen(true)}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            title="Editar ticket"
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </Button>
                     </div>
-                    <div className="flex gap-2">
-                        <TicketSLAIndicator
-                            label="1ª Resposta"
-                            slaTimestamp={ticket.sla_primeira_resposta}
-                            isCumprido={!!ticket.tempo_primeira_resposta}
-                            compact
-                        />
-                        <TicketSLAIndicator
-                            label="Resolução"
-                            slaTimestamp={ticket.sla_resolucao}
-                            isCumprido={ticket.status === 'resolvido' || ticket.status === 'fechado'}
-                            compact
-                        />
-                    </div>
+                    <TicketSLAIndicator
+                        label="Resolução"
+                        slaTimestamp={ticket.sla_resolucao}
+                        isCumprido={ticket.status === 'resolvido' || ticket.status === 'fechado'}
+                        compact
+                    />
                 </div>
             </div>
 
@@ -574,22 +567,34 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                             {/* Vínculos */}
                             <TicketVinculosManager ticketId={ticketId} />
 
-                            {/* Síntese do Caso */}
+                            {/* Síntese do Caso - Colapsável */}
                             <Card className="border-slate-200">
-                                <CardHeader className="pb-2 flex items-center justify-between">
-                                    <CardTitle className="text-base">Síntese do Caso</CardTitle>
+                                <CardHeader 
+                                    className="pb-2 flex flex-row items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                                    onClick={() => !editingSintese && setSinteseExpanded(!sinteseExpanded)}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <CardTitle className="text-base">Síntese do Caso</CardTitle>
+                                        {!editingSintese && (
+                                            sinteseExpanded ? (
+                                                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                                            ) : (
+                                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                            )
+                                        )}
+                                    </div>
                                     {!editingSintese ? (
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                            onClick={() => setEditingSintese(true)}
+                                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                            onClick={(e) => { e.stopPropagation(); setEditingSintese(true); setSinteseExpanded(true); }}
                                             title="Editar síntese"
                                         >
-                                            <Pencil className="w-4 h-4" />
+                                            <Pencil className="w-3.5 h-3.5" />
                                         </Button>
                                     ) : (
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                                             <Button
                                                 size="sm"
                                                 onClick={async () => {
@@ -611,20 +616,22 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                         </div>
                                     )}
                                 </CardHeader>
-                                <CardContent>
-                                    {!editingSintese ? (
-                                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 bg-slate-50 p-3 rounded-md">
-                                            {sinteseText || "Nenhuma descrição fornecida."}
-                                        </p>
-                                    ) : (
-                                        <Textarea
-                                            value={sinteseText}
-                                            onChange={(e) => setSinteseText(e.target.value)}
-                                            className="min-h-[140px]"
-                                            placeholder="Descreva a síntese do caso..."
-                                        />
-                                    )}
-                                </CardContent>
+                                {sinteseExpanded && (
+                                    <CardContent>
+                                        {!editingSintese ? (
+                                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground bg-muted/50 p-3 rounded-md">
+                                                {sinteseText || "Nenhuma descrição fornecida."}
+                                            </p>
+                                        ) : (
+                                            <Textarea
+                                                value={sinteseText}
+                                                onChange={(e) => setSinteseText(e.target.value)}
+                                                className="min-h-[140px]"
+                                                placeholder="Descreva a síntese do caso..."
+                                            />
+                                        )}
+                                    </CardContent>
+                                )}
                             </Card>
 
                             <div className="flex justify-between items-center mt-6">
