@@ -32,6 +32,8 @@ import { CustomerQuickActions } from './CustomerQuickActions';
 import { CustomerTimeline } from './CustomerTimeline';
 import { TicketCard } from '@/components/tickets/TicketCard';
 import { CustomerSurveysTab } from '@/components/surveys/CustomerSurveysTab';
+import { CustomerNegociosCollapsible } from './CustomerNegociosCollapsible';
+import { DuplicateCustomerAlert, useDuplicateDetection } from './DuplicateCustomerAlert';
 
 interface CustomerDetailRedesignProps {
   customer: ClienteComContatos;
@@ -294,83 +296,14 @@ export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
             )}
           </TabsContent>
 
-          {/* Business Tab */}
-          <TabsContent value="negocios" className="mt-0 space-y-4">
-            {/* Opportunities */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Oportunidades</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {oportunidadesLoading ? (
-                  <div className="flex justify-center p-4">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  </div>
-                ) : oportunidades.length > 0 ? (
-                  <div className="space-y-2">
-                    {oportunidades.map((opp: any) => (
-                      <div
-                        key={opp.id}
-                        className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-sm">{opp.titulo}</span>
-                          <Badge
-                            variant={opp.status === 'aberta' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {opp.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(Number(opp.valor_total) || 0)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhuma oportunidade.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Tickets */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Tickets</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {ticketsLoading ? (
-                  <div className="flex justify-center p-4">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  </div>
-                ) : tickets && tickets.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-2">
-                    {tickets.slice(0, 5).map((ticket) => (
-                      <TicketCard
-                        key={ticket.id}
-                        ticket={ticket}
-                        onClick={() => window.open(`/tickets/${ticket.id}`, '_blank')}
-                      />
-                    ))}
-                    {tickets.length > 5 && (
-                      <p className="text-xs text-muted-foreground text-center pt-2">
-                        +{tickets.length - 5} tickets
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum ticket.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+          {/* Business Tab - Using Collapsible Items */}
+          <TabsContent value="negocios" className="mt-0">
+            <CustomerNegociosCollapsible
+              tickets={tickets || []}
+              oportunidades={oportunidades}
+              ticketsLoading={ticketsLoading}
+              oportunidadesLoading={oportunidadesLoading}
+            />
           </TabsContent>
 
           {/* Surveys Tab */}
