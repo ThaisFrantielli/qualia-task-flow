@@ -385,6 +385,18 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
         const clienteFilters = getFilterValues('cliente');
         const tipoLocacaoFilters = getFilterValues('tipoLocacao');
+        const categoriaFilters = getFilterValues('categoria');
+        
+        // Filtros para gráficos da aba Visão Geral
+        const odometroFilters = getFilterValues('odometro');
+        const idadeFilters = getFilterValues('idade');
+        
+        // Filtros para gráficos da aba Telemetria
+        const telemetriaFilters = getFilterValues('telemetria');
+        const seguroFilters = getFilterValues('seguro');
+        const proprietarioFilters = getFilterValues('proprietario');
+        const finalidadeFilters = getFilterValues('finalidade');
+        const kmDiffFilters = getFilterValues('km_diff');
 
         return frotaEnriched.filter(r => {
             const cat = getCategory(r.Status);
@@ -402,6 +414,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             if (filialFilters.length > 0 && !filialFilters.includes(r.Filial)) return false;
             if (clienteFilters.length > 0 && !clienteFilters.includes(r.NomeCliente)) return false;
             if (tipoLocacaoFilters.length > 0 && !tipoLocacaoFilters.includes(r.TipoLocacao)) return false;
+            
+            // Filtro de categoria
+            if (categoriaFilters.length > 0) {
+                const categoria = r.Categoria || r.GrupoVeiculo || 'Outros';
+                if (!categoriaFilters.includes(categoria)) return false;
+            }
 
             if (patioFilters.length > 0 && !patioFilters.includes(r.Patio)) return false;
 
@@ -418,6 +436,84 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     if (af === '31-60 dias') return dias > 30 && dias <= 60;
                     if (af === '61-90 dias') return dias > 60 && dias <= 90;
                     if (af === '90+ dias') return dias > 90;
+                    return false;
+                });
+                if (!ok) return false;
+            }
+            
+            // Filtro de odômetro (clique no gráfico de classificação por odômetro)
+            if (odometroFilters.length > 0) {
+                const km = parseNum(r.KmInformado);
+                const ok = odometroFilters.some((of: string) => {
+                    if (of === '0-10k') return km < 10000;
+                    if (of === '10k-20k') return km >= 10000 && km < 20000;
+                    if (of === '20k-30k') return km >= 20000 && km < 30000;
+                    if (of === '30k-40k') return km >= 30000 && km < 40000;
+                    if (of === '40k-50k') return km >= 40000 && km < 50000;
+                    if (of === '50k-60k') return km >= 50000 && km < 60000;
+                    if (of === '60k-70k') return km >= 60000 && km < 70000;
+                    if (of === '70k-80k') return km >= 70000 && km < 80000;
+                    if (of === '80k-90k') return km >= 80000 && km < 90000;
+                    if (of === '90k-100k') return km >= 90000 && km < 100000;
+                    if (of === '100k-110k') return km >= 100000 && km < 110000;
+                    if (of === '110k-120k') return km >= 110000 && km < 120000;
+                    if (of === '120k+') return km >= 120000;
+                    return false;
+                });
+                if (!ok) return false;
+            }
+            
+            // Filtro de idade (clique no gráfico de classificação por idade)
+            if (idadeFilters.length > 0) {
+                const idade = parseNum(r.IdadeVeiculo);
+                const ok = idadeFilters.some((idf: string) => {
+                    if (idf === '0-12m') return idade < 12;
+                    if (idf === '12-24m') return idade >= 12 && idade < 24;
+                    if (idf === '24-36m') return idade >= 24 && idade < 36;
+                    if (idf === '36-48m') return idade >= 36 && idade < 48;
+                    if (idf === '48-60m') return idade >= 48 && idade < 60;
+                    if (idf === '60m+') return idade >= 60;
+                    return false;
+                });
+                if (!ok) return false;
+            }
+            
+            // Filtro de provedor de telemetria
+            if (telemetriaFilters.length > 0) {
+                const provedor = r.ProvedorTelemetria || 'Não Definido';
+                if (!telemetriaFilters.includes(provedor)) return false;
+            }
+            
+            // Filtro de seguro
+            if (seguroFilters.length > 0) {
+                const seguro = r.ComSeguroVigente === true || r.ComSeguroVigente === 'true' || r.ComSeguroVigente === 1
+                    ? 'Com Seguro'
+                    : r.ComSeguroVigente === false || r.ComSeguroVigente === 'false' || r.ComSeguroVigente === 0
+                        ? 'Sem Seguro'
+                        : 'Não Informado';
+                if (!seguroFilters.includes(seguro)) return false;
+            }
+            
+            // Filtro de proprietário
+            if (proprietarioFilters.length > 0) {
+                const prop = r.Proprietario || 'Não Definido';
+                if (!proprietarioFilters.includes(prop)) return false;
+            }
+            
+            // Filtro de finalidade de uso
+            if (finalidadeFilters.length > 0) {
+                const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
+                if (!finalidadeFilters.includes(finalidade)) return false;
+            }
+            
+            // Filtro de diferença de KM
+            if (kmDiffFilters.length > 0) {
+                const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
+                const ok = kmDiffFilters.some((kf: string) => {
+                    if (kf === 'Sem Divergência') return diff === 0;
+                    if (kf === 'Baixa (<1k)') return diff > 0 && diff <= 1000;
+                    if (kf === 'Média (1k-5k)') return diff > 1000 && diff <= 5000;
+                    if (kf === 'Alta (>5k)') return diff > 5000;
                     return false;
                 });
                 if (!ok) return false;
@@ -1035,6 +1131,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const clientes = getFilterValues('reserva_cliente');
         const modelosSel = getFilterValues('reserva_modelo');
         const statuses = getFilterValues('reserva_status');
+        const tiposVeiculo = getFilterValues('reserva_tipo');
+        const locais = getFilterValues('reserva_local');
         const search = (getFilterValues('reserva_search') || [])[0] || '';
 
         // Filtrar pelo período do slider
@@ -1069,6 +1167,21 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             if (motivos.length > 0 && !motivos.includes(r.Motivo)) return false;
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
+            
+            // Filtro de tipo de veículo (clique no gráfico Tipo Veículo)
+            if (tiposVeiculo.length > 0) {
+                const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
+                if (!tiposVeiculo.includes(tipo)) return false;
+            }
+            
+            // Filtro de localização (clique no gráfico Diárias por Local)
+            if (locais.length > 0) {
+                const city = (r.Cidade || 'Não Identificado').trim();
+                const uf = (r.Estado || '').trim();
+                const key = uf ? `${city} / ${uf}` : city;
+                if (!locais.includes(key)) return false;
+            }
+            
             if (search) {
                 const term = search.toLowerCase();
                 if (!r.PlacaReserva?.toLowerCase().includes(term) && !r.Cliente?.toLowerCase().includes(term) && !r.IdOcorrencia?.toLowerCase().includes(term)) return false;
