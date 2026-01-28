@@ -13,12 +13,14 @@ interface DREFiltersBarProps {
   clientesList: string[];
   contratosComerciais: string[];
   naturezasList: string[];
+  situacoesContratoList: string[];
 }
 
 export default function DREFiltersBar({
   clientesList,
   contratosComerciais,
   naturezasList,
+  situacoesContratoList,
 }: DREFiltersBarProps) {
   const {
     filters,
@@ -26,6 +28,7 @@ export default function DREFiltersBar({
     setClientes,
     setContratosComerciais,
     setNaturezas,
+    setSituacoesContrato,
     clearAllFilters,
     hasActiveFilters,
   } = useDREFilters();
@@ -37,6 +40,7 @@ export default function DREFiltersBar({
     if (filters.clientes.length > 0) count++;
     if (filters.contratosComerciais.length > 0) count++;
     if (filters.naturezas.length > 0) count++;
+    if (filters.situacoesContrato.length > 0) count++;
     return count;
   }, [filters]);
 
@@ -64,7 +68,7 @@ export default function DREFiltersBar({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Date Range Picker */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -118,6 +122,20 @@ export default function DREFiltersBar({
               maxDisplay={1}
             />
           </div>
+
+          {/* Situação Contrato MultiSelect */}
+          <div>
+            <MultiSelect
+              label="Situação Contrato"
+              options={situacoesContratoList}
+              selected={filters.situacoesContrato}
+              onSelectedChange={setSituacoesContrato}
+              placeholder="Todas as situações"
+              searchPlaceholder="Buscar situação..."
+              emptyMessage="Nenhuma situação encontrada"
+              maxDisplay={1}
+            />
+          </div>
         </div>
 
         {/* Active Filters Badges */}
@@ -166,6 +184,18 @@ export default function DREFiltersBar({
                 Naturezas: {filters.naturezas.length}
                 <button
                   onClick={() => setNaturezas([])}
+                  className="ml-1 hover:bg-slate-200 rounded p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+
+            {filters.situacoesContrato.length > 0 && (
+              <Badge variant="outline" className="text-xs gap-1 pr-1">
+                Situações: {filters.situacoesContrato.length}
+                <button
+                  onClick={() => setSituacoesContrato([])}
                   className="ml-1 hover:bg-slate-200 rounded p-0.5"
                 >
                   <X className="w-3 h-3" />
