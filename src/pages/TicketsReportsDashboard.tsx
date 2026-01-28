@@ -17,13 +17,13 @@ import {
 import { 
   Clock, CheckCircle, AlertTriangle, TrendingUp, Users, 
   Calendar as CalendarIcon, BarChart3, PieChartIcon, ChevronDown, ChevronUp,
-  Building, ExternalLink, Table
+  Building, ExternalLink, Table, Download, ArrowUpDown
 } from "lucide-react";
 import { format, subDays, startOfDay, differenceInHours, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AnimatedKPICard } from "@/components/AnimatedKPICard";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import * as XLSX from "xlsx";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#14b8a6", "#f97316"];
 
@@ -65,6 +65,40 @@ export default function TicketsReportsDashboard() {
   const [dateInputFrom, setDateInputFrom] = useState(format(subDays(new Date(), 30), 'dd/MM/yyyy'));
   const [dateInputTo, setDateInputTo] = useState(format(new Date(), 'dd/MM/yyyy'));
   const [tableOpen, setTableOpen] = useState(true);
+  const [sortField, setSortField] = useState<string>("created_at");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  // Toggle sort
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    if (!stats?.periodTickets) return;
+    
+    const exportData = stats.periodTickets.map((t: any) => ({
+      "Número": t.numero_ticket,
+      "Título": t.titulo,
+      "Cliente": t.clientes?.nome_fantasia || t.clientes?.razao_social || "-",
+      "Departamento": t.departamento || "-",
+      "Status": STATUS_LABELS[t.status] || t.status,
+      "Prioridade": t.prioridade,
+      "Análise Final": t.analise_final || "-",
+      "Criado em": format(new Date(t.created_at), "dd/MM/yyyy HH:mm"),
+      "Atendente": t.profiles?.full_name || "-",
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tickets");
+    XLSX.writeFile(wb, `tickets_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
 
   // Parse manual date input
   const handleDateInputChange = (value: string, type: 'from' | 'to') => {
@@ -675,11 +709,17 @@ export default function TicketsReportsDashboard() {
                   <CardTitle className="text-base">Detalhamento de Tickets</CardTitle>
                   <Badge variant="secondary">{stats.periodTickets.length} registros</Badge>
                 </div>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    {tableOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={exportToExcel}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Exportar Excel
                   </Button>
-                </CollapsibleTrigger>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      {tableOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
               </div>
             </CardHeader>
             <CollapsibleContent>
@@ -688,18 +728,108 @@ export default function TicketsReportsDashboard() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-background border-b">
                       <tr className="text-left text-muted-foreground">
-                        <th className="py-2 px-3 font-medium">Número</th>
-                        <th className="py-2 px-3 font-medium">Título</th>
-                        <th className="py-2 px-3 font-medium">Cliente</th>
-                        <th className="py-2 px-3 font-medium">Departamento</th>
-                        <th className="py-2 px-3 font-medium">Status</th>
-                        <th className="py-2 px-3 font-medium">Prioridade</th>
-                        <th className="py-2 px-3 font-medium">Criado em</th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("numero_ticket")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Número <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("titulo")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Título <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("cliente")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Cliente <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("departamento")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Departamento <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("status")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Status <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("prioridade")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Prioridade <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
+                        <th className="py-2 px-3 font-medium">Análise Final</th>
+                        <th 
+                          className="py-2 px-3 font-medium cursor-pointer hover:text-foreground"
+                          onClick={() => handleSort("created_at")}
+                        >
+                          <span className="flex items-center gap-1">
+                            Criado em <ArrowUpDown className="h-3 w-3" />
+                          </span>
+                        </th>
                         <th className="py-2 px-3 font-medium w-10"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.periodTickets.map((ticket: any) => (
+                      {[...stats.periodTickets]
+                        .sort((a: any, b: any) => {
+                          let aVal = "", bVal = "";
+                          switch (sortField) {
+                            case "numero_ticket":
+                              aVal = a.numero_ticket || "";
+                              bVal = b.numero_ticket || "";
+                              break;
+                            case "titulo":
+                              aVal = a.titulo || "";
+                              bVal = b.titulo || "";
+                              break;
+                            case "cliente":
+                              aVal = a.clientes?.nome_fantasia || a.clientes?.razao_social || "";
+                              bVal = b.clientes?.nome_fantasia || b.clientes?.razao_social || "";
+                              break;
+                            case "departamento":
+                              aVal = a.departamento || "";
+                              bVal = b.departamento || "";
+                              break;
+                            case "status":
+                              aVal = a.status || "";
+                              bVal = b.status || "";
+                              break;
+                            case "prioridade":
+                              const prioOrder: Record<string, number> = { urgente: 4, alta: 3, media: 2, baixa: 1 };
+                              return sortDirection === "asc"
+                                ? (prioOrder[a.prioridade] || 0) - (prioOrder[b.prioridade] || 0)
+                                : (prioOrder[b.prioridade] || 0) - (prioOrder[a.prioridade] || 0);
+                            case "created_at":
+                              return sortDirection === "asc"
+                                ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                                : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                            default:
+                              return 0;
+                          }
+                          return sortDirection === "asc"
+                            ? aVal.localeCompare(bVal)
+                            : bVal.localeCompare(aVal);
+                        })
+                        .map((ticket: any) => (
                         <tr 
                           key={ticket.id} 
                           className="border-b hover:bg-muted/50 cursor-pointer"
@@ -723,6 +853,9 @@ export default function TicketsReportsDashboard() {
                             >
                               {ticket.prioridade}
                             </Badge>
+                          </td>
+                          <td className="py-2 px-3 truncate max-w-[120px] text-xs">
+                            {ticket.analise_final || '-'}
                           </td>
                           <td className="py-2 px-3 text-muted-foreground">
                             {format(new Date(ticket.created_at), 'dd/MM/yy HH:mm')}
