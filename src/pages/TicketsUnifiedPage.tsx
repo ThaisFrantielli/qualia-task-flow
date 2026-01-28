@@ -101,13 +101,33 @@ export default function TicketsUnifiedPage() {
     };
   }, [tickets]);
 
+  const computeFaseUpdateForStatusChange = (ticketId: string, newStatus: string) => {
+    const normalize = (v: string) => (v || "").toString().toLowerCase().replace(/[-\s]/g, "_");
+    const nextStatus = normalize(newStatus);
+    const current = (tickets || []).find((t: any) => t.id === ticketId);
+    const currentFase = (current as any)?.fase as string | null | undefined;
+    const currentStatus = normalize((current as any)?.status);
+
+    // Se está indo para resolvido/fechado, garantir fase concluída
+    if (nextStatus === "resolvido" || nextStatus === "fechado") {
+      return { fase: "Concluída", data_conclusao: new Date().toISOString() };
+    }
+
+    // Se está saindo de um ticket que estava marcado como concluído na fase, voltar para uma fase ativa
+    if (currentFase === "Concluída" || currentStatus === "resolvido" || currentStatus === "fechado") {
+      return { fase: "Análise do caso", data_conclusao: null };
+    }
+
+    return {};
+  };
+
   // Handle drag-drop status change
   const handleStatusChange = async (ticketId: string, newStatus: string) => {
     if (!user?.id) return;
     try {
       await updateTicket.mutateAsync({
         ticketId,
-        updates: { status: newStatus },
+        updates: { status: newStatus, ...computeFaseUpdateForStatusChange(ticketId, newStatus) },
         userId: user.id,
       });
       toast.success("Status atualizado com sucesso!");
@@ -140,7 +160,11 @@ export default function TicketsUnifiedPage() {
     try {
       await Promise.all(
         selectedTickets.map((id) =>
-          updateTicket.mutateAsync({ ticketId: id, updates: { status: newStatus }, userId: user.id })
+          updateTicket.mutateAsync({
+            ticketId: id,
+            updates: { status: newStatus, ...computeFaseUpdateForStatusChange(id, newStatus) },
+            userId: user.id,
+          })
         )
       );
       toast.success(`${selectedTickets.length} tickets atualizados!`);

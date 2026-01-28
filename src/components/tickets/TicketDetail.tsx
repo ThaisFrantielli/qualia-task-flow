@@ -60,9 +60,20 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const handleFaseChange = async (newFase: string) => {
         if (!user?.id) return;
         try {
+            const updates: any = { fase: newFase };
+
+            // Coerência fase <-> status (evita divergência entre quadro/lista e detalhe)
+            if (newFase === "Concluída") {
+                updates.status = "resolvido";
+                updates.data_conclusao = new Date().toISOString();
+            } else if (ticket?.fase === "Concluída") {
+                updates.status = "em_analise";
+                updates.data_conclusao = null;
+            }
+
             await updateTicket.mutateAsync({
                 ticketId,
-                updates: { fase: newFase },
+                updates,
                 userId: user.id
             });
 
@@ -119,7 +130,8 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 ticket_id: ticketId,
                 departamento: selectedDept,
                 solicitado_por: user.id,
-                solicitado_em: new Date().toISOString()
+                solicitado_em: new Date().toISOString(),
+                responsavel_id: selectedResponsavel,
             });
             // Create notification
             await supabase.from('notifications').insert({
@@ -155,7 +167,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                     ...data,
                     status: 'resolvido',
                     fase: 'Concluída',
-                    tempo_total_resolucao: new Date().toISOString()
+                    data_conclusao: new Date().toISOString(),
                 },
                 userId: user.id
             });
