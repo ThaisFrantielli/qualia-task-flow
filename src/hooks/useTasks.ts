@@ -243,7 +243,7 @@ export function useTask(taskId: string) {
                 const recurrenceEndDate = parseISODateSafe(typedData.recurrence_end as any);
                 if (nextDate && (!recurrenceEndDate || nextDate <= recurrenceEndDate)) {
                     // CORREÇÃO: Manter is_recurring: true e copiar todos os campos de recorrência
-                    await supabase.from('tasks').insert({
+                    const insertPayload: any = {
                         title: typedData.title,
                         description: typedData.description,
                         status: 'todo',
@@ -254,16 +254,23 @@ export function useTask(taskId: string) {
                         recurrence_interval: typedData.recurrence_interval, // Copia intervalo
                         recurrence_days: typedData.recurrence_days, // Copia dias
                         recurrence_end: typedData.recurrence_end, // Copia data fim
-                        parent_task_id: typedData.id,
+                        parent_task_id: typedData.parent_task_id || typedData.id, // Mantém referência ao parent original
                         project_id: typedData.project_id,
                         assignee_id: typedData.assignee_id,
                         category_id: typedData.category_id,
                         cliente_id: (typedData as any).cliente_id, // Preserva cliente
-                    });
+                        coresponsibles: (typedData as any).coresponsibles, // Preserva coresponsáveis
+                    };
                     
-                    // Toast informando criação da próxima tarefa
-                    const formattedDate = nextDate.toLocaleDateString('pt-BR');
-                    toast.info(`Nova tarefa recorrente criada para ${formattedDate}`);
+                    const { error: insertError } = await supabase.from('tasks').insert(insertPayload);
+                    
+                    if (insertError) {
+                        console.error('Erro ao criar próxima tarefa recorrente:', insertError);
+                    } else {
+                        // Toast informando criação da próxima tarefa
+                        const formattedDate = nextDate.toLocaleDateString('pt-BR');
+                        toast.info(`Nova tarefa recorrente criada para ${formattedDate}`);
+                    }
                 }
             }
 
