@@ -22,6 +22,7 @@ import { TicketWhatsAppViewer } from "./TicketWhatsAppViewer";
 import { TicketTasks } from "./TicketTasks";
 import { TicketTempoCounter } from "./TicketTempoCounter";
 import { TicketVinculosManager } from "./TicketVinculosManager";
+import { EditTicketDialog } from "./EditTicketDialog";
 import { TICKET_FASES, TICKET_DEPARTAMENTO_OPTIONS } from "@/constants/ticketOptions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -53,6 +54,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const [deptUsers, setDeptUsers] = useState<Array<{id: string, full_name: string}>>([]);
     const [mentionedUsers, setMentionedUsers] = useState<string[]>([]);
     const [createdByName, setCreatedByName] = useState<string | null>(null);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
     const handleFaseChange = async (newFase: string) => {
         if (!user?.id) return;
@@ -299,7 +301,16 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                     </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setIsEditDialogOpen(true)}
+                            className="gap-1"
+                        >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar
+                        </Button>
                         <Badge className={ticket.status === 'resolvido' ? 'bg-green-600' : 'bg-blue-600'}>
                             {ticket.status?.replace("_", " ")}
                         </Badge>
@@ -690,6 +701,14 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                     </div>
                 </div>
             </Tabs>
+
+            {/* Edit Dialog */}
+            <EditTicketDialog
+                ticket={ticket}
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+                onSuccess={refetch}
+            />
         </div>
     );
 }
