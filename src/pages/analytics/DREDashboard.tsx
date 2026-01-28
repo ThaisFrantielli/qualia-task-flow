@@ -20,6 +20,7 @@ function DREDashboardContent() {
         uniqueClientes,
         uniqueNaturezas,
         uniqueContratosComerciais,
+        uniqueSituacoesContrato,
     } = useDREData();
 
     const { filters } = useDREFilters();
@@ -66,6 +67,16 @@ function DREDashboardContent() {
             // Natureza filter
             if (filters.naturezas.length > 0) {
                 if (!t.Natureza || !filters.naturezas.includes(t.Natureza)) {
+                    return false;
+                }
+            }
+
+            // Situação Contrato filter
+            if (filters.situacoesContrato.length > 0) {
+                const situacao = (t as any).SituacaoContrato || 
+                                (t as any).StatusContrato ||
+                                (t as any).Situacao;
+                if (!situacao || !filters.situacoesContrato.includes(String(situacao))) {
                     return false;
                 }
             }
@@ -147,6 +158,7 @@ function DREDashboardContent() {
                 clientesList={uniqueClientes}
                 contratosComerciais={uniqueContratosComerciais}
                 naturezasList={uniqueNaturezas}
+                situacoesContratoList={uniqueSituacoesContrato}
             />
 
             {/* Analysis Toggles */}
