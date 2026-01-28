@@ -53,6 +53,7 @@ const formSchema = z.object({
 export function CreateTicketDialog() {
     const [open, setOpen] = useState(false);
     const [placa, setPlaca] = useState("");
+    const [vinculos, setVinculos] = useState<Array<{ tipo: string; numero: string }>>([]);
     const createTicket = useCreateTicket();
 
     const { data: origens } = useTicketOrigens();
