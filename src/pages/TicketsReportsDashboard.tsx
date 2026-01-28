@@ -1,22 +1,31 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTickets } from "@/hooks/useTickets";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
 } from "recharts";
 import { 
   Clock, CheckCircle, AlertTriangle, TrendingUp, Users, 
-  Calendar, BarChart3, PieChartIcon
+  Calendar as CalendarIcon, BarChart3, PieChartIcon, ChevronDown, ChevronUp,
+  Building, ExternalLink, Table
 } from "lucide-react";
-import { format, subDays, startOfDay, differenceInHours, parseISO } from "date-fns";
+import { format, subDays, startOfDay, differenceInHours, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AnimatedKPICard } from "@/components/AnimatedKPICard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899"];
+const COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899", "#14b8a6", "#f97316"];
 
 const STATUS_LABELS: Record<string, string> = {
   novo: "Solicitação",
@@ -24,22 +33,83 @@ const STATUS_LABELS: Record<string, string> = {
   aguardando_departamento: "Aguard. Depto.",
   em_tratativa: "Em Tratativa",
   aguardando_cliente: "Aguard. Cliente",
+  aguardando_triagem: "Aguard. Triagem",
+  em_atendimento: "Em Atendimento",
   resolvido: "Resolvido",
   fechado: "Fechado",
+  aberto: "Aberto",
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  baixa: "#22c55e",
+  media: "#3b82f6",
+  alta: "#f97316",
+  urgente: "#ef4444",
+};
+
+const MOTIVO_LABELS: Record<string, string> = {
+  "Má qualidade do serviço": "Má qualidade",
+  "Demora no atendimento": "Demora",
+  "Cobrança indevida": "Cobrança",
+  "Problema técnico": "Técnico",
+  "Outros": "Outros",
 };
 
 export default function TicketsReportsDashboard() {
   const { data: tickets, isLoading } = useTickets();
-  const [period, setPeriod] = useState("30");
+  const navigate = useNavigate();
+  
+  // Date range state with manual input
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
+  const [dateInputFrom, setDateInputFrom] = useState(format(subDays(new Date(), 30), 'dd/MM/yyyy'));
+  const [dateInputTo, setDateInputTo] = useState(format(new Date(), 'dd/MM/yyyy'));
+  const [tableOpen, setTableOpen] = useState(true);
+
+  // Parse manual date input
+  const handleDateInputChange = (value: string, type: 'from' | 'to') => {
+    if (type === 'from') {
+      setDateInputFrom(value);
+    } else {
+      setDateInputTo(value);
+    }
+    
+    // Try to parse DD/MM/YYYY
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) {
+        if (type === 'from') {
+          setDateFrom(date);
+        } else {
+          setDateTo(date);
+        }
+      }
+    }
+  };
+
+  const handleCalendarSelect = (date: Date | undefined, type: 'from' | 'to') => {
+    if (date) {
+      if (type === 'from') {
+        setDateFrom(date);
+        setDateInputFrom(format(date, 'dd/MM/yyyy'));
+      } else {
+        setDateTo(date);
+        setDateInputTo(format(date, 'dd/MM/yyyy'));
+      }
+    }
+  };
 
   const stats = useMemo(() => {
-    if (!tickets) return null;
+    if (!tickets || !dateFrom || !dateTo) return null;
 
-    const now = new Date();
-    const periodStart = subDays(now, parseInt(period));
-    const periodTickets = tickets.filter((t: any) => 
-      new Date(t.created_at) >= periodStart
-    );
+    const periodTickets = tickets.filter((t: any) => {
+      const created = new Date(t.created_at);
+      return isWithinInterval(created, { start: startOfDay(dateFrom), end: dateTo });
+    });
 
     // KPIs
     const total = periodTickets.length;
@@ -47,6 +117,7 @@ export default function TicketsReportsDashboard() {
       t.status === "resolvido" || t.status === "fechado"
     ).length;
     const open = total - resolved;
+    const now = new Date();
     const overdue = periodTickets.filter((t: any) => {
       if (t.status === "resolvido" || t.status === "fechado") return false;
       const sla = t.sla_resolucao ? new Date(t.sla_resolucao).getTime() : 0;
@@ -57,9 +128,9 @@ export default function TicketsReportsDashboard() {
     const ticketsWithSla = periodTickets.filter((t: any) => t.sla_resolucao);
     const slaCompliant = ticketsWithSla.filter((t: any) => {
       if (t.status !== "resolvido" && t.status !== "fechado") return true;
-      const resolved = t.data_fechamento ? new Date(t.data_fechamento) : now;
+      const resolvedDate = t.data_fechamento ? new Date(t.data_fechamento) : now;
       const sla = new Date(t.sla_resolucao);
-      return resolved <= sla;
+      return resolvedDate <= sla;
     }).length;
     const slaRate = ticketsWithSla.length > 0 
       ? Math.round((slaCompliant / ticketsWithSla.length) * 100) 
@@ -98,7 +169,7 @@ export default function TicketsReportsDashboard() {
         acc[dept] = (acc[dept] || 0) + 1;
         return acc;
       }, {})
-    ).map(([name, value]) => ({ name, value }));
+    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
     // Priority distribution
     const priorityData = Object.entries(
@@ -107,13 +178,32 @@ export default function TicketsReportsDashboard() {
         acc[priority] = (acc[priority] || 0) + 1;
         return acc;
       }, {})
-    ).map(([name, value]) => ({ name, value }));
+    ).map(([name, value]) => ({ 
+      name, 
+      value,
+      color: PRIORITY_COLORS[name] || "#888"
+    }));
 
-    // Daily volume (last 14 days)
+    // Motivo distribution
+    const motivoData = Object.entries(
+      periodTickets.reduce((acc: Record<string, number>, t: any) => {
+        const motivo = t.motivo || "Não especificado";
+        acc[motivo] = (acc[motivo] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(([name, value]) => ({ 
+      name: MOTIVO_LABELS[name] || name, 
+      value 
+    })).sort((a, b) => b.value - a.value);
+
+    // Daily volume (last 14 days of the range)
     const dailyData = [];
-    for (let i = 13; i >= 0; i--) {
-      const day = startOfDay(subDays(now, i));
-      const dayEnd = startOfDay(subDays(now, i - 1));
+    const daysDiff = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24));
+    const daysToShow = Math.min(daysDiff, 14);
+    
+    for (let i = daysToShow - 1; i >= 0; i--) {
+      const day = startOfDay(subDays(dateTo, i));
+      const dayEnd = startOfDay(subDays(dateTo, i - 1));
       const dayTickets = periodTickets.filter((t: any) => {
         const created = new Date(t.created_at);
         return created >= day && created < dayEnd;
@@ -146,6 +236,31 @@ export default function TicketsReportsDashboard() {
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
 
+    // NEW: Tickets por cliente
+    const clienteData = Object.entries(
+      periodTickets.reduce((acc: Record<string, { total: number; name: string; id: string }>, t: any) => {
+        const clienteId = t.cliente_id || "sem_cliente";
+        const clienteName = t.clientes?.nome_fantasia || t.clientes?.razao_social || "Sem cliente";
+        if (!acc[clienteId]) {
+          acc[clienteId] = { total: 0, name: clienteName, id: clienteId };
+        }
+        acc[clienteId].total++;
+        return acc;
+      }, {})
+    )
+      .map(([_, data]) => data)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    // NEW: Tickets por origem
+    const origemData = Object.entries(
+      periodTickets.reduce((acc: Record<string, number>, t: any) => {
+        const origem = t.origem || "Não definida";
+        acc[origem] = (acc[origem] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
     return {
       total,
       open,
@@ -158,8 +273,12 @@ export default function TicketsReportsDashboard() {
       priorityData,
       dailyData,
       agentData,
+      clienteData,
+      origemData,
+      motivoData,
+      periodTickets,
     };
-  }, [tickets, period]);
+  }, [tickets, dateFrom, dateTo]);
 
   if (isLoading || !stats) {
     return (
@@ -191,18 +310,65 @@ export default function TicketsReportsDashboard() {
               Métricas e análises do sistema de atendimento
             </p>
           </div>
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[180px]">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Últimos 7 dias</SelectItem>
-              <SelectItem value="30">Últimos 30 dias</SelectItem>
-              <SelectItem value="90">Últimos 90 dias</SelectItem>
-              <SelectItem value="365">Último ano</SelectItem>
-            </SelectContent>
-          </Select>
+          
+          {/* Date Range Picker with Manual Input */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">De</Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={dateInputFrom}
+                    onChange={(e) => handleDateInputChange(e.target.value, 'from')}
+                    placeholder="DD/MM/YYYY"
+                    className="w-28 h-9 text-sm"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-9 w-9">
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={(d) => handleCalendarSelect(d, 'from')}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs text-muted-foreground">Até</Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={dateInputTo}
+                    onChange={(e) => handleDateInputChange(e.target.value, 'to')}
+                    placeholder="DD/MM/YYYY"
+                    className="w-28 h-9 text-sm"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-9 w-9">
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={(d) => handleCalendarSelect(d, 'to')}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* KPIs */}
@@ -366,8 +532,8 @@ export default function TicketsReportsDashboard() {
                       dataKey="value"
                       label
                     >
-                      {stats.priorityData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      {stats.priorityData.map((entry: any, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -378,45 +544,201 @@ export default function TicketsReportsDashboard() {
             </CardContent>
           </Card>
 
-          {/* Top Agents */}
+          {/* Motivo Reclamação */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Top Atendentes
-              </CardTitle>
+              <CardTitle className="text-base">Por Motivo</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {stats.agentData.map((agent, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="w-6 h-6 rounded-full p-0 flex items-center justify-center text-xs">
-                        {index + 1}
-                      </Badge>
-                      <span className="text-sm font-medium truncate max-w-[120px]">
-                        {agent.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">{agent.total} tickets</span>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {agent.total > 0 
-                          ? Math.round((agent.resolved / agent.total) * 100) 
-                          : 0}% resolvidos
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-                {stats.agentData.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum dado disponível
-                  </p>
-                )}
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.motivoData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={80} className="text-xs" />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Charts Row 3 - NEW */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Tickets por Cliente */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Top 10 Clientes (por tickets)
+              </CardTitle>
+              <CardDescription>Clientes com mais tickets no período</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.clienteData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis type="number" />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      width={140} 
+                      className="text-xs" 
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip />
+                    <Bar dataKey="total" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Tickets" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Agents + Origem */}
+          <div className="grid grid-rows-2 gap-6">
+            {/* Top Agents */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Top Atendentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {stats.agentData.map((agent, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="w-6 h-6 rounded-full p-0 flex items-center justify-center text-xs">
+                          {index + 1}
+                        </Badge>
+                        <span className="text-sm font-medium truncate max-w-[120px]">
+                          {agent.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">{agent.total} tickets</span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {agent.total > 0 
+                            ? Math.round((agent.resolved / agent.total) * 100) 
+                            : 0}% resolvidos
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {stats.agentData.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Nenhum dado disponível
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Por Origem */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Por Origem</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {stats.origemData.slice(0, 5).map((origem, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm">{origem.name}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary rounded-full" 
+                            style={{ width: `${(origem.value / stats.total) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium w-8 text-right">{origem.value}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Tabela de Detalhamento */}
+        <Collapsible open={tableOpen} onOpenChange={setTableOpen}>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Table className="h-4 w-4" />
+                  <CardTitle className="text-base">Detalhamento de Tickets</CardTitle>
+                  <Badge variant="secondary">{stats.periodTickets.length} registros</Badge>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    {tableOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent>
+                <ScrollArea className="h-[400px]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-background border-b">
+                      <tr className="text-left text-muted-foreground">
+                        <th className="py-2 px-3 font-medium">Número</th>
+                        <th className="py-2 px-3 font-medium">Título</th>
+                        <th className="py-2 px-3 font-medium">Cliente</th>
+                        <th className="py-2 px-3 font-medium">Departamento</th>
+                        <th className="py-2 px-3 font-medium">Status</th>
+                        <th className="py-2 px-3 font-medium">Prioridade</th>
+                        <th className="py-2 px-3 font-medium">Criado em</th>
+                        <th className="py-2 px-3 font-medium w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.periodTickets.map((ticket: any) => (
+                        <tr 
+                          key={ticket.id} 
+                          className="border-b hover:bg-muted/50 cursor-pointer"
+                          onClick={() => navigate(`/tickets/${ticket.id}`)}
+                        >
+                          <td className="py-2 px-3 font-mono text-xs">{ticket.numero_ticket}</td>
+                          <td className="py-2 px-3 truncate max-w-[200px]">{ticket.titulo}</td>
+                          <td className="py-2 px-3 truncate max-w-[150px]">
+                            {ticket.clientes?.nome_fantasia || ticket.clientes?.razao_social || '-'}
+                          </td>
+                          <td className="py-2 px-3">{ticket.departamento || '-'}</td>
+                          <td className="py-2 px-3">
+                            <Badge variant="outline" className="text-xs">
+                              {STATUS_LABELS[ticket.status] || ticket.status}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-3">
+                            <Badge 
+                              className="text-xs text-white"
+                              style={{ backgroundColor: PRIORITY_COLORS[ticket.prioridade] || '#888' }}
+                            >
+                              {ticket.prioridade}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-3 text-muted-foreground">
+                            {format(new Date(ticket.created_at), 'dd/MM/yy HH:mm')}
+                          </td>
+                          <td className="py-2 px-3">
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
     </div>
   );
