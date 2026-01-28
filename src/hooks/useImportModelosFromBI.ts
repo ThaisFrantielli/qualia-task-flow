@@ -60,13 +60,16 @@ export function useImportModelosFromBI() {
       }
     });
     
-    return Array.from(map.values()).sort((a, b) => {
-      const montCmp = a.montadora.localeCompare(b.montadora);
-      if (montCmp !== 0) return montCmp;
-      const modCmp = a.modelo.localeCompare(b.modelo);
-      if (modCmp !== 0) return modCmp;
-      return b.anoModelo - a.anoModelo;
-    });
+    // Filtrar apenas modelos de 2024 em diante
+    return Array.from(map.values())
+      .filter(m => m.anoModelo >= 2024)
+      .sort((a, b) => {
+        const montCmp = a.montadora.localeCompare(b.montadora);
+        if (montCmp !== 0) return montCmp;
+        const modCmp = a.modelo.localeCompare(b.modelo);
+        if (modCmp !== 0) return modCmp;
+        return b.anoModelo - a.anoModelo;
+      });
   })();
   
   // Função para normalizar nome de montadora
