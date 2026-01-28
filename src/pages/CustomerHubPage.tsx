@@ -13,10 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Users, X, Filter } from 'lucide-react';
+import { Plus, Search, Users, X, Filter, Merge } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ClienteComContatos } from '@/types';
 import { Badge } from '@/components/ui/badge';
+import { useAutoMergeClients } from '@/hooks/useAutoMergeClients';
 
 function getInitials(name: string | null) {
   if (!name) return '?';
@@ -30,11 +31,36 @@ function getInitials(name: string | null) {
 
 const CustomerHubPage: React.FC = () => {
   const { clientes, loading, error, refetch } = useClientes();
+  const { autoMergeAllDuplicates, findAllDuplicates } = useAutoMergeClients();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clienteToEdit, setClienteToEdit] = useState<ClienteComContatos | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [duplicateCount, setDuplicateCount] = useState(0);
+
+  // Check for duplicates on load
+  useEffect(() => {
+    findAllDuplicates().then(groups => {
+      const total = groups.reduce((acc, g) => acc + g.clients.length - 1, 0);
+      setDuplicateCount(total);
+    });
+  }, [clientes, findAllDuplicates]);
+
+  const handleMergeDuplicates = async () => {
+    if (!window.confirm(`Deseja unificar automaticamente ${duplicateCount} clientes duplicados? Os dados serão migrados para o cadastro principal.`)) {
+      return;
+    }
+    setMerging(true);
+    try {
+      await autoMergeAllDuplicates();
+      refetch();
+      setDuplicateCount(0);
+    } finally {
+      setMerging(false);
+    }
+  };
 
   // Advanced search - searches across multiple fields
   const filteredClientes = clientes.filter((c) => {
@@ -158,6 +184,17 @@ const CustomerHubPage: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {duplicateCount > 0 && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleMergeDuplicates}
+                  disabled={merging}
+                  className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                >
+                  <Merge className="h-4 w-4 mr-2" />
+                  {merging ? 'Unificando...' : `Unificar ${duplicateCount} Duplicados`}
+                </Button>
+              )}
               <SyncClientesButton onSyncComplete={refetch} />
               <Button onClick={handleOpenNewModal}>
                 <Plus className="h-4 w-4 mr-2" />
