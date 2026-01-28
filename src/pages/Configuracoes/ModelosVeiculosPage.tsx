@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, Car, Filter } from 'lucide-react';
+import { Plus, Search, Car, Filter, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,10 +12,12 @@ import {
 import { useModelosVeiculos } from '@/hooks/useModelosVeiculos';
 import { ModeloVeiculoTable } from '@/components/modelos/ModeloVeiculoTable';
 import { ModeloVeiculoForm } from '@/components/modelos/ModeloVeiculoForm';
+import { ImportModelosDialog } from '@/components/modelos/ImportModelosDialog';
 import { CATEGORIAS_VEICULO } from '@/types/modelos';
 
 export default function ModelosVeiculosPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingModeloId, setEditingModeloId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMontadora, setFilterMontadora] = useState<string>('all');
@@ -65,10 +67,16 @@ export default function ModelosVeiculosPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setIsFormOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Modelo
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+            <Database className="h-4 w-4 mr-2" />
+            Importar do BI
+          </Button>
+          <Button onClick={() => setIsFormOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Modelo
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -148,6 +156,12 @@ export default function ModelosVeiculosPage() {
         open={isFormOpen}
         onClose={handleCloseForm}
         modeloId={editingModeloId}
+      />
+
+      {/* Import Dialog */}
+      <ImportModelosDialog
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
       />
     </div>
   );
