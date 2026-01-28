@@ -13,16 +13,29 @@ const sqlConfig = {
   options: { encrypt: false, trustServerCertificate: true }
 };
 
-const outPath = 'c:/Users/frant/Documents/public/data/fato_financeiro_dre_stream.ndjson';
+const outPath = 'public/data/fato_financeiro_dre_stream.ndjson';
 
-const query = `SELECT 
-    CONVERT(VARCHAR(36), NEWID()) + '|' + CAST(ln.NumeroLancamento AS VARCHAR(50)) + '|' + ISNULL(ln.Natureza, '') as IdLancamentoNatureza,
+// IMPORTANT: OrdensServico pode ter múltiplas linhas por OrdemCompra.
+// Para manter 1:1 com LancamentosComNaturezas (100% da base), escolhemos 1 OS por OrdemCompra via OUTER APPLY.
+const query = `SELECT
+    -- ID determinístico (o DW não possui IdLancamentoNatureza nativo)
+    CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
+      CAST(ln.NumeroLancamento AS VARCHAR(50)), '|',
+      ISNULL(ln.Natureza, ''), '|',
+      FORMAT(ln.DataCompetencia, 'yyyy-MM-dd'), '|',
+      ISNULL(CAST(ln.ValorNatureza AS VARCHAR(50)), ''), '|',
+      ISNULL(CAST(ln.PercentualNatureza AS VARCHAR(50)), '')
+    )), 2) as IdLancamentoNatureza,
     ln.NumeroLancamento as IdLancamento,
     ln.NumeroLancamento as NumeroLancamento,
     FORMAT(ln.DataCompetencia, 'yyyy-MM-dd') as DataCompetencia,
     ln.Natureza,
     CASE WHEN ln.TipoLancamento = 'Entrada' THEN 'Entrada' WHEN ln.TipoLancamento = 'Saída' THEN 'Saída' ELSE 'Outro' END as TipoLancamento,
-    (CASE WHEN CHARINDEX(',', ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '')) > 0 THEN TRY_CAST(REPLACE(REPLACE(ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '0'), '.', ''), ',', '.') AS DECIMAL(15,2)) ELSE TRY_CAST(ISNULL(ln.ValorPagoRecebido, 0) AS DECIMAL(15,2)) END) as Valor,
+    (CASE
+      WHEN CHARINDEX(',', ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '')) > 0
+        THEN TRY_CAST(REPLACE(REPLACE(ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '0'), '.', ''), ',', '.') AS DECIMAL(20,2))
+      ELSE TRY_CAST(ISNULL(ln.ValorPagoRecebido, 0) AS DECIMAL(20,2))
+     END) as Valor,
     ln.Descricao as DescricaoLancamento,
     ln.Conta,
     ln.FormaPagamento,
@@ -30,13 +43,24 @@ const query = `SELECT
     ln.PagarReceberDe as NomeEntidade,
     ln.PagarReceberDe,
     ln.NumeroDocumento,
-    COALESCE(cli.NomeFantasia, os.Cliente, '') as NomeCliente,
-    os.Placa as Placa,
-    os.ContratoComercial as ContratoComercial,
-    os.ContratoLocacao as ContratoLocacao
+    COALESCE(cli.NomeFantasia, os1.Cliente, '') as NomeCliente,
+    os1.Placa as Placa,
+    os1.ContratoComercial as ContratoComercial,
+    os1.ContratoLocacao as ContratoLocacao
 FROM LancamentosComNaturezas ln WITH (NOLOCK, INDEX(0))
-LEFT JOIN OrdensServico os WITH (NOLOCK) ON ISNULL(ln.OrdemCompra, '') = ISNULL(os.OrdemCompra, '') AND os.SituacaoOrdemServico <> 'Cancelada'
-LEFT JOIN Clientes cli WITH (NOLOCK) ON os.IdCliente = cli.IdCliente
+OUTER APPLY (
+  SELECT TOP 1
+    os.Placa,
+    os.Cliente,
+    os.ContratoComercial,
+    os.ContratoLocacao,
+    os.IdCliente
+  FROM OrdensServico os WITH (NOLOCK)
+  WHERE ISNULL(ln.OrdemCompra, '') = ISNULL(os.OrdemCompra, '')
+    AND os.SituacaoOrdemServico <> 'Cancelada'
+  ORDER BY os.OrdemServicoCriadaEm DESC
+) os1
+LEFT JOIN Clientes cli WITH (NOLOCK) ON os1.IdCliente = cli.IdCliente
 ORDER BY ln.DataCompetencia DESC
 OPTION (MAXDOP 2, FAST 500, RECOMPILE)`;
 
@@ -47,6 +71,7 @@ async function run() {
 
   const ws = fs.createWriteStream(outPath, { encoding: 'utf8' });
   let count = 0;
+  let hadError = false;
 
   req.on('row', row => {
     ws.write(JSON.stringify(row) + '\n');
@@ -54,6 +79,7 @@ async function run() {
   });
 
   req.on('error', err => {
+    hadError = true;
     console.error('Query stream error:', err.message);
     ws.end();
     pool.close();
@@ -63,6 +89,11 @@ async function run() {
     console.log('Query stream done. registros:', count);
     ws.end();
     await pool.close();
+
+    if (hadError) {
+      console.error('Export finalizado com erro de conexão. Arquivo pode estar incompleto:', outPath);
+      process.exitCode = 2;
+    }
   });
 
   console.log('Iniciando exportação streaming para', outPath);

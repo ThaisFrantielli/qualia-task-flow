@@ -63,6 +63,11 @@ export const useTicketDetail = (ticketId: string) => {
             whatsapp_number,
             email
           ),
+                    ticket_motivos (
+                        id,
+                        label,
+                        value
+                    ),
           profiles:profiles!tickets_atendente_id_fkey (
             id,
             full_name,
@@ -92,8 +97,15 @@ export const useTicketDetail = (ticketId: string) => {
                 console.error("Error fetching ticket details:", error);
                 throw error;
             }
-            // Mapear `placa` -> `vehicle_plate` para o frontend
-            const mapped = data ? { ...data, vehicle_plate: (data as any).vehicle_plate || (data as any).placa || null } : data;
+                        // Mapear `placa` -> `vehicle_plate` e preencher motivo via FK quando necessário
+                        const motivoLabel = (data as any)?.ticket_motivos?.label || (data as any)?.ticket_motivos?.value || null;
+                        const mapped = data
+                            ? {
+                                    ...data,
+                                    vehicle_plate: (data as any).vehicle_plate || (data as any).placa || null,
+                                    motivo: (data as any).motivo || motivoLabel,
+                                }
+                            : data;
             return mapped;
         },
         enabled: !!ticketId,

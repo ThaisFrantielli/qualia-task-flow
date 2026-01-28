@@ -95,7 +95,7 @@ export function CreateTicketDialog() {
                 cliente_id: values.cliente_id,
                 prioridade: values.prioridade,
                 origem: values.origem,
-                motivo: values.motivo as any,
+                motivo_id: values.motivo,
                 departamento: values.departamento as any,
                 placa: values.placa || null,
                 contrato_comercial: values.contrato_comercial || null,
@@ -297,7 +297,7 @@ export function CreateTicketDialog() {
                                             </FormControl>
                                             <SelectContent>
                                                 {motivos?.map((option) => (
-                                                    <SelectItem key={option.id} value={option.value}>
+                                                    <SelectItem key={option.id} value={option.id}>
                                                         {option.label}
                                                     </SelectItem>
                                                 ))}
