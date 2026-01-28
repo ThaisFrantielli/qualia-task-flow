@@ -132,32 +132,49 @@ export function ImportModelosDialog({ open, onClose }: ImportModelosDialogProps)
                           {modelsByMontadora[montadora].length}
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1 pl-4">
+                      <div className="grid grid-cols-1 gap-1 pl-4">
                         {modelsByMontadora[montadora].map(model => {
                           const key = `${model.montadora}-${model.modelo}-${model.anoModelo}`;
                           return (
                             <div
                               key={key}
-                              className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-muted/50"
+                              className="flex items-center justify-between text-sm py-2 px-2 rounded hover:bg-muted/50 border-b border-dashed last:border-0"
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <Checkbox
                                   checked={selectAll || selectedModels.has(key)}
                                   onCheckedChange={() => toggleModel(key)}
                                   id={key}
                                 />
-                                <label htmlFor={key} className="cursor-pointer">
-                                  <span className="font-medium">{model.modelo}</span>
-                                  <span className="text-muted-foreground ml-1">{model.anoModelo}</span>
+                                <label htmlFor={key} className="cursor-pointer flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{model.modelo}</span>
+                                    <span className="text-muted-foreground">{model.anoModelo}</span>
+                                    {model.motor && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {model.motor}
+                                      </Badge>
+                                    )}
+                                    {model.transmissao && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {model.transmissao}
+                                      </Badge>
+                                    )}
+                                    {model.combustivel && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {model.combustivel}
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </label>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-shrink-0">
                                 {model.categoria && (
                                   <Badge variant="secondary" className="text-xs">
                                     {model.categoria}
                                   </Badge>
                                 )}
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
                                   {model.quantidade} veíc.
                                 </span>
                               </div>
