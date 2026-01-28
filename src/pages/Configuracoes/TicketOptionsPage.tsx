@@ -143,10 +143,10 @@ export default function TicketOptionsPage() {
               </div>
               <div>
                 <Label>Parent (opcional)</Label>
-                <Select onValueChange={(v) => setParentValue(v || null)}>
+              <Select onValueChange={(v) => setParentValue(v === "__none__" ? null : v)}>
                   <SelectTrigger><SelectValue placeholder="Nenhum - raiz" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum (raiz)</SelectItem>
+                    <SelectItem value="__none__">Nenhum (raiz)</SelectItem>
                     {roots.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -204,10 +204,10 @@ export default function TicketOptionsPage() {
             </div>
             <div>
               <Label>Parent (opcional)</Label>
-              <Select onValueChange={(v) => setParentValue(v || null)}>
+              <Select onValueChange={(v) => setParentValue(v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Nenhum - raiz" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum (raiz)</SelectItem>
+                  <SelectItem value="__none__">Nenhum (raiz)</SelectItem>
                   {roots.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                 </SelectContent>
               </Select>
