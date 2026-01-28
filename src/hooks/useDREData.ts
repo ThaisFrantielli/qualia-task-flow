@@ -7,6 +7,10 @@ interface UseDREDataResult {
     availableMonths: string[];
     loading: boolean;
     error: string | null;
+    // Filter lists
+    uniqueClientes: string[];
+    uniqueNaturezas: string[];
+    uniqueContratosComerciais: string[];
 }
 
 /**
@@ -32,10 +36,58 @@ export default function useDREData(): UseDREDataResult {
         return getAvailableMonths(transactions);
     }, [transactions]);
 
+    // Extract unique clients
+    const uniqueClientes = useMemo(() => {
+        const clientSet = new Set<string>();
+        transactions.forEach(t => {
+            if (t.Cliente) {
+                clientSet.add(t.Cliente);
+            } else if (t.NomeEntidade) {
+                clientSet.add(t.NomeEntidade);
+            }
+        });
+        return Array.from(clientSet).sort((a, b) => 
+            a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+        );
+    }, [transactions]);
+
+    // Extract unique naturezas (accounting codes)
+    const uniqueNaturezas = useMemo(() => {
+        const naturezaSet = new Set<string>();
+        transactions.forEach(t => {
+            if (t.Natureza) {
+                naturezaSet.add(t.Natureza);
+            }
+        });
+        return Array.from(naturezaSet).sort((a, b) => 
+            a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+        );
+    }, [transactions]);
+
+    // Extract unique contratos comerciais (if available in data)
+    const uniqueContratosComerciais = useMemo(() => {
+        const contratoSet = new Set<string>();
+        transactions.forEach(t => {
+            // Check various possible field names for commercial contract
+            const contrato = (t as any).ContratoComercial || 
+                            (t as any).NumeroContrato ||
+                            (t as any).Contrato;
+            if (contrato) {
+                contratoSet.add(String(contrato));
+            }
+        });
+        return Array.from(contratoSet).sort((a, b) => 
+            a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+        );
+    }, [transactions]);
+
     return {
         transactions,
         availableMonths,
         loading,
-        error
+        error,
+        uniqueClientes,
+        uniqueNaturezas,
+        uniqueContratosComerciais,
     };
 }
