@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Title, Text, Card } from '@tremor/react';
 import { DollarSign, BarChart3 } from 'lucide-react';
 import useDREData from '@/hooks/useDREData';
@@ -13,17 +13,18 @@ import {
 } from '@/utils/dreUtils';
 
 function DREDashboardContent() {
-    const { 
-        transactions, 
-        loading, 
+    const {
+        transactions,
+        loading,
         error,
         uniqueClientes,
         uniqueNaturezas,
         uniqueContratosComerciais,
         uniqueSituacoesContrato,
+        availableMonths,
     } = useDREData();
 
-    const { filters } = useDREFilters();
+    const { filters, setDateRange } = useDREFilters();
 
     const [showHorizontalAnalysis, setShowHorizontalAnalysis] = useState(false);
     const [showVerticalAnalysis, setShowVerticalAnalysis] = useState(false);
@@ -96,20 +97,41 @@ function DREDashboardContent() {
         return Array.from(monthSet).sort();
     }, [filteredTransactions]);
 
+    // Trim trailing months that have zero total across all transactions (remove months at the end with only zeros)
+    const trimmedMonths = useMemo(() => {
+        if (!selectedMonths || selectedMonths.length === 0) return selectedMonths;
+        // compute totals per month
+        const totals = selectedMonths.map(month => {
+            return filteredTransactions
+                .filter(t => t.DataCompetencia?.substring(0, 7) === month)
+                .reduce((s, t) => s + (t.Valor || 0), 0);
+        });
+        // trim trailing zeros
+        let lastNonZeroIdx = totals.length - 1;
+        while (lastNonZeroIdx >= 0 && totals[lastNonZeroIdx] === 0) lastNonZeroIdx--;
+        if (lastNonZeroIdx < 0) {
+            // all zero: keep original months (avoid empty)
+            return selectedMonths;
+        }
+        return selectedMonths.slice(0, lastNonZeroIdx + 1);
+    }, [selectedMonths, filteredTransactions]);
+
+    const monthsToUse = trimmedMonths;
+
     // Build account hierarchy
     const accountHierarchy = useMemo(() => {
-        return buildAccountHierarchyByType(filteredTransactions, selectedMonths);
-    }, [filteredTransactions, selectedMonths]);
+        return buildAccountHierarchyByType(filteredTransactions, monthsToUse);
+    }, [filteredTransactions, monthsToUse]);
 
     // Calculate KPIs
     const kpis = useMemo(() => {
-        return calculateKPIs(filteredTransactions, selectedMonths);
-    }, [filteredTransactions, selectedMonths]);
+        return calculateKPIs(filteredTransactions, monthsToUse);
+    }, [filteredTransactions, monthsToUse]);
 
     // Calculate revenue by month for vertical analysis
     const revenueByMonth = useMemo(() => {
         const revenue: Record<string, number> = {};
-        selectedMonths.forEach(month => {
+        monthsToUse.forEach(month => {
             const monthRevenue = filteredTransactions
                 .filter(t => {
                     const tMonth = t.DataCompetencia?.substring(0, 7);
@@ -121,7 +143,20 @@ function DREDashboardContent() {
             revenue[month] = monthRevenue;
         });
         return revenue;
-    }, [filteredTransactions, selectedMonths]);
+    }, [filteredTransactions, monthsToUse]);
+
+    // Set default date range when none selected: prefer Jan/2022 if available, else use first->last available month
+    useEffect(() => {
+        if (filters.dateRange?.from || !availableMonths || availableMonths.length === 0) return;
+        const preferred = '2022-01';
+        const startMonth = availableMonths.includes(preferred) ? preferred : availableMonths[0];
+        const endMonth = availableMonths[availableMonths.length - 1];
+        const from = new Date(startMonth + '-01T00:00:00');
+        const to = new Date(endMonth + '-01T00:00:00');
+        // set to end of month
+        const eom = new Date(to.getFullYear(), to.getMonth() + 1, 0, 23, 59, 59, 999);
+        setDateRange({ from, to: eom });
+    }, [availableMonths, filters.dateRange, setDateRange]);
 
     if (loading) {
         return (
@@ -166,7 +201,7 @@ function DREDashboardContent() {
                 <div className="flex flex-wrap items-center gap-4">
                     <div className="flex-1">
                         <Text className="text-slate-600 text-sm">
-                            {filteredTransactions.length.toLocaleString('pt-BR')} lançamentos • {selectedMonths.length} {selectedMonths.length === 1 ? 'mês' : 'meses'}
+                            {filteredTransactions.length.toLocaleString('pt-BR')} lançamentos • {monthsToUse.length} {monthsToUse.length === 1 ? 'mês' : 'meses'}
                         </Text>
                     </div>
 
@@ -275,7 +310,7 @@ function DREDashboardContent() {
                     </Text>
                 </div>
 
-                {selectedMonths.length === 0 ? (
+                {monthsToUse.length === 0 ? (
                     <div className="text-center py-12 text-slate-500">
                         Selecione um período ou ajuste os filtros para visualizar o DRE
                     </div>
@@ -286,7 +321,7 @@ function DREDashboardContent() {
                 ) : (
                     <DREPivotTable
                         nodes={accountHierarchy}
-                        selectedMonths={selectedMonths}
+                        selectedMonths={monthsToUse}
                         showHorizontalAnalysis={showHorizontalAnalysis}
                         showVerticalAnalysis={showVerticalAnalysis}
                         revenueByMonth={revenueByMonth}
