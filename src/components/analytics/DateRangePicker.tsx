@@ -1,4 +1,5 @@
 import { Calendar as CalendarIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
@@ -14,6 +15,28 @@ interface DateRangePickerProps {
 }
 
 export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
+  const [fromInput, setFromInput] = useState('');
+  const [toInput, setToInput] = useState('');
+
+  useEffect(() => {
+    if (value?.from) setFromInput(format(value.from, 'yyyy-MM-dd'));
+    else setFromInput('');
+    if (value?.to) setToInput(format(value.to, 'yyyy-MM-dd'));
+    else setToInput('');
+  }, [value]);
+
+  function applyTyped() {
+    let from: Date | undefined = fromInput ? new Date(fromInput + 'T00:00:00') : undefined;
+    let to: Date | undefined = toInput ? new Date(toInput + 'T23:59:59') : undefined;
+    if (from && to && from > to) {
+      // swap
+      const tmp = from;
+      from = to;
+      to = tmp;
+    }
+    if (!from && !to) return onChange(undefined);
+    onChange({ from, to });
+  }
   const presets = [
     { label: 'Hoje', getValue: () => {
       const today = new Date();
@@ -92,6 +115,30 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
                 Limpar filtro
               </Button>
             )}
+            {/* Digitar datas manualmente */}
+            <div className="mt-3">
+              <div className="text-sm font-medium text-slate-700 mb-2">Digitar datas</div>
+              <div className="space-y-2">
+                <input
+                  type="date"
+                  className="border p-2 rounded text-sm w-full"
+                  value={fromInput}
+                  onChange={(e) => setFromInput(e.target.value)}
+                  aria-label="Data início"
+                />
+                <input
+                  type="date"
+                  className="border p-2 rounded text-sm w-full"
+                  value={toInput}
+                  onChange={(e) => setToInput(e.target.value)}
+                  aria-label="Data fim"
+                />
+                <div className="flex gap-2 mt-1">
+                  <Button size="sm" className="flex-1" onClick={() => applyTyped()}>Aplicar</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setFromInput(''); setToInput(''); onChange(undefined); }}>Limpar</Button>
+                </div>
+              </div>
+            </div>
           </div>
           <div className="p-3">
             <Calendar
