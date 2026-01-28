@@ -18,12 +18,15 @@ export function TicketSLAIndicator({ slaTimestamp, isCumprido, label, compact = 
     const isVencido = !isCumprido && slaDate < now;
     const isProximo = !isCumprido && !isVencido && (slaDate.getTime() - now.getTime()) < 2 * 60 * 60 * 1000; // Próximo de vencer (< 2h)
 
+    // getVariant kept for non-compact mode compatibility if needed in future
     const getVariant = () => {
-        if (isCumprido) return "default";
-        if (isVencido) return "destructive";
-        if (isProximo) return "secondary";
-        return "outline";
+        if (isCumprido) return "default" as const;
+        if (isVencido) return "destructive" as const;
+        if (isProximo) return "secondary" as const;
+        return "outline" as const;
     };
+    // Keeping getVariant for potential future use
+    void getVariant;
 
     const getIcon = () => {
         if (isCumprido) return <CheckCircle className="w-3 h-3" />;
@@ -45,10 +48,18 @@ export function TicketSLAIndicator({ slaTimestamp, isCumprido, label, compact = 
             : `Vence ${formatDistanceToNow(slaDate, { addSuffix: true, locale: ptBR })}`;
 
     if (compact) {
+        // Use proper background colors with contrasting text for visibility
+        const getBgClass = () => {
+            if (isCumprido) return "bg-green-100 border-green-300 text-green-800 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300";
+            if (isVencido) return "bg-red-100 border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300";
+            if (isProximo) return "bg-yellow-100 border-yellow-300 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300";
+            return "bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300";
+        };
+
         return (
-            <Badge variant={getVariant()} className={`flex items-center gap-1 ${getColor()}`}>
+            <Badge variant="outline" className={`flex items-center gap-1 ${getBgClass()}`}>
                 {getIcon()}
-                <span className="text-xs">{timeRemaining}</span>
+                <span className="text-xs font-medium">{timeRemaining}</span>
             </Badge>
         );
     }
