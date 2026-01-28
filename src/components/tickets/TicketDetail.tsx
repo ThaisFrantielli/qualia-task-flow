@@ -20,8 +20,11 @@ import { TicketAnexos } from "./TicketAnexos";
 import { TicketClassificacao, ClassificacaoData } from "./TicketClassificacao";
 import { TicketWhatsAppViewer } from "./TicketWhatsAppViewer";
 import { TicketTasks } from "./TicketTasks";
+import { TicketTempoCounter } from "./TicketTempoCounter";
+import { TicketVinculosManager } from "./TicketVinculosManager";
 import { TICKET_FASES, TICKET_DEPARTAMENTO_OPTIONS } from "@/constants/ticketOptions";
 import { supabase } from "@/integrations/supabase/client";
+
 
 interface TicketDetailProps {
     ticketId: string;
@@ -513,6 +516,54 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
                         {/* Detalhes Tab */}
                         <TabsContent value="detalhes" className="mt-0 space-y-4">
+                            {/* Tempo Counter */}
+                            <TicketTempoCounter
+                                createdAt={ticket.created_at}
+                                dataPrimeiraInteracao={ticket.data_primeira_interacao}
+                                dataConlusao={ticket.data_conclusao}
+                            />
+
+                            {/* Dados do Veículo */}
+                            {(ticket.veiculo_modelo || ticket.veiculo_placa) && (
+                                <Card className="border-blue-200 bg-blue-50/50">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <span className="text-blue-600">🚗</span> Dados do Veículo
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                        {ticket.veiculo_placa && (
+                                            <div>
+                                                <span className="text-muted-foreground block text-xs">Placa</span>
+                                                <span className="font-semibold">{ticket.veiculo_placa}</span>
+                                            </div>
+                                        )}
+                                        {ticket.veiculo_modelo && (
+                                            <div>
+                                                <span className="text-muted-foreground block text-xs">Modelo</span>
+                                                <span className="font-medium">{ticket.veiculo_modelo}</span>
+                                            </div>
+                                        )}
+                                        {ticket.veiculo_ano && (
+                                            <div>
+                                                <span className="text-muted-foreground block text-xs">Ano</span>
+                                                <span className="font-medium">{ticket.veiculo_ano}</span>
+                                            </div>
+                                        )}
+                                        {ticket.veiculo_km && (
+                                            <div>
+                                                <span className="text-muted-foreground block text-xs">KM Atual</span>
+                                                <span className="font-medium">{Number(ticket.veiculo_km).toLocaleString('pt-BR')} km</span>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Vínculos */}
+                            <TicketVinculosManager ticketId={ticketId} />
+
+                            {/* Síntese do Caso */}
                             <Card className="border-slate-200">
                                 <CardHeader className="pb-2 flex items-center justify-between">
                                     <CardTitle className="text-base">Síntese do Caso</CardTitle>
