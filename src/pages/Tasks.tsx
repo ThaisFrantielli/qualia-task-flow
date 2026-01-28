@@ -67,6 +67,12 @@ const TasksPage = () => {
     endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
 
     switch (focusMode) {
+      case 'my_tasks':
+        // Filtra tarefas onde o usuário é responsável ou corresponsável
+        return tasks.filter(t => 
+          t.assignee_id === user?.id || 
+          (t as any).coresponsibles?.some((c: any) => c.id === user?.id)
+        );
       case 'high_priority':
         return tasks.filter(t => t.priority === 'high' && t.status !== 'done');
       case 'due_today':
@@ -163,6 +169,7 @@ const TasksPage = () => {
 
   const focusModeLabels: Record<FocusModeType, string> = {
     none: 'Modo Foco',
+    my_tasks: 'Somente as Minhas',
     high_priority: 'Prioridade Alta',
     due_today: 'Vence Hoje',
     due_week: 'Esta Semana',

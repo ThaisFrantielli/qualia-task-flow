@@ -6,6 +6,7 @@ export interface DREFilters {
   clientes: string[];
   contratosComerciais: string[];
   naturezas: string[];
+  situacoesContrato: string[];
 }
 
 interface DREFiltersContextType {
@@ -14,6 +15,7 @@ interface DREFiltersContextType {
   setClientes: (clientes: string[]) => void;
   setContratosComerciais: (contratos: string[]) => void;
   setNaturezas: (naturezas: string[]) => void;
+  setSituacoesContrato: (situacoes: string[]) => void;
   clearAllFilters: () => void;
   hasActiveFilters: boolean;
 }
@@ -23,6 +25,7 @@ const defaultFilters: DREFilters = {
   clientes: [],
   contratosComerciais: [],
   naturezas: [],
+  situacoesContrato: [],
 };
 
 const DREFiltersContext = createContext<DREFiltersContextType | undefined>(undefined);
@@ -46,6 +49,10 @@ export function DREFiltersProvider({ children }: { children: React.ReactNode }) 
     setFilters(prev => ({ ...prev, naturezas }));
   }, []);
 
+  const setSituacoesContrato = useCallback((situacoes: string[]) => {
+    setFilters(prev => ({ ...prev, situacoesContrato: situacoes }));
+  }, []);
+
   const clearAllFilters = useCallback(() => {
     setFilters(defaultFilters);
   }, []);
@@ -56,7 +63,8 @@ export function DREFiltersProvider({ children }: { children: React.ReactNode }) 
       filters.dateRange?.to ||
       filters.clientes.length > 0 ||
       filters.contratosComerciais.length > 0 ||
-      filters.naturezas.length > 0
+      filters.naturezas.length > 0 ||
+      filters.situacoesContrato.length > 0
     );
   }, [filters]);
 
@@ -66,9 +74,10 @@ export function DREFiltersProvider({ children }: { children: React.ReactNode }) 
     setClientes,
     setContratosComerciais,
     setNaturezas,
+    setSituacoesContrato,
     clearAllFilters,
     hasActiveFilters,
-  }), [filters, setDateRange, setClientes, setContratosComerciais, setNaturezas, clearAllFilters, hasActiveFilters]);
+  }), [filters, setDateRange, setClientes, setContratosComerciais, setNaturezas, setSituacoesContrato, clearAllFilters, hasActiveFilters]);
 
   return (
     <DREFiltersContext.Provider value={value}>

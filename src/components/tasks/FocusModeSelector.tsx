@@ -18,7 +18,8 @@ export type FocusModeType =
   | 'due_today' 
   | 'due_week' 
   | 'overdue' 
-  | 'my_in_progress';
+  | 'my_in_progress'
+  | 'my_tasks';
 
 interface FocusModeSelectorProps {
   value: FocusModeType;
@@ -27,6 +28,7 @@ interface FocusModeSelectorProps {
 }
 
 const focusModes: { key: FocusModeType; label: string; icon: React.ReactNode; description: string }[] = [
+  { key: 'my_tasks', label: 'Somente as Minhas', icon: <Target className="h-4 w-4 text-blue-600" />, description: 'Tarefas onde sou responsável ou corresponsável' },
   { key: 'high_priority', label: 'Prioridade Alta', icon: <Flame className="h-4 w-4 text-destructive" />, description: 'Tarefas com prioridade alta' },
   { key: 'due_today', label: 'Vence Hoje', icon: <CalendarCheck className="h-4 w-4 text-warning" />, description: 'Tarefas com vencimento hoje' },
   { key: 'due_week', label: 'Esta Semana', icon: <Clock className="h-4 w-4 text-primary" />, description: 'Tarefas com vencimento nesta semana' },
