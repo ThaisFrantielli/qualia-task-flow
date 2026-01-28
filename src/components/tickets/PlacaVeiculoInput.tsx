@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Car, CheckCircle, AlertCircle } from 'lucide-react';
 import { useVeiculoByPlaca } from '@/hooks/useVeiculoByPlaca';
@@ -62,33 +61,27 @@ export function PlacaVeiculoInput({
   
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="space-y-2">
-        <Label htmlFor="placa" className="flex items-center gap-2">
-          <Car className="h-4 w-4" />
-          Placa do Veículo
-        </Label>
-        <div className="relative">
-          <Input
-            id="placa"
-            value={inputValue}
-            onChange={handleChange}
-            placeholder="ABC-1234"
-            maxLength={8}
-            className={cn(
-              "uppercase font-mono text-lg tracking-wider",
-              veiculo.found && "border-green-500 focus-visible:ring-green-500"
-            )}
-          />
-          {showVeiculoInfo && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {veiculo.found ? (
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-yellow-500" />
-              )}
-            </div>
+      <div className="relative">
+        <Input
+          id="placa"
+          value={inputValue}
+          onChange={handleChange}
+          placeholder="ABC-1234"
+          maxLength={8}
+          className={cn(
+            "uppercase font-mono tracking-wider h-11",
+            veiculo.found && "border-green-500 focus-visible:ring-green-500"
           )}
-        </div>
+        />
+        {showVeiculoInfo && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            {veiculo.found ? (
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-yellow-500" />
+            )}
+          </div>
+        )}
       </div>
       
       {/* Card com dados do veículo */}
