@@ -9,6 +9,8 @@ import { formatDateSafe } from '@/lib/dateUtils';
 import { surveyTypeLabels } from '@/types/surveys';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { normalizePhoneForWhatsApp } from '@/utils/phone';
 
 export const DetractorAlerts = () => {
   const { surveys, markAsFollowUp, loading } = useSurveys({ status: 'responded' });
@@ -86,7 +88,16 @@ export const DetractorAlerts = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`https://wa.me/${survey.client_phone?.replace(/\D/g, '')}`, '_blank')}
+                  onClick={() => {
+                    const normalizedPhone = normalizePhoneForWhatsApp(survey.client_phone);
+                    if (!normalizedPhone) {
+                      toast.error('Telefone inválido para WhatsApp.', {
+                        description: 'Informe DDD + número (ex: (11) 91234-5678).',
+                      });
+                      return;
+                    }
+                    window.open(`https://wa.me/${normalizedPhone}`, '_blank');
+                  }}
                 >
                   <Phone className="h-4 w-4 mr-1" />
                   WhatsApp

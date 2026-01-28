@@ -13,6 +13,7 @@ import { Plus, Users, BarChart2, Copy, Check, Send, Trash2 } from 'lucide-react'
 import { formatDateSafe } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import SurveyGeneratorForm from '@/components/surveys/SurveyGeneratorForm';
+import { normalizePhoneForWhatsApp } from '@/utils/phone';
 
 interface AppUserWithPermissions {
   permissoes?: {
@@ -102,9 +103,18 @@ const SurveyGeneratorPage = () => {
       toast.error("Número de WhatsApp não cadastrado.");
       return;
     }
+
+    const normalizedPhone = normalizePhoneForWhatsApp(survey.client_phone);
+    if (!normalizedPhone) {
+      toast.error('Telefone inválido para WhatsApp.', {
+        description: 'Informe DDD + número (ex: (11) 91234-5678).',
+      });
+      return;
+    }
+
     const link = `${window.location.origin}/pesquisa/${survey.id}`;
     const message = `Olá, ${survey.client_name}! Gostaríamos de ouvir sua opinião: ${link}`;
-    const whatsappUrl = `https://wa.me/${survey.client_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 

@@ -1,0 +1,97 @@
+{
+  "total": 1000,
+  "nonNull": {
+    "Placa": 996,
+    "ContratoComercial": 722,
+    "ContratoLocacao": 719,
+    "Cliente": 720
+  },
+  "samples": [
+    {
+      "NumeroLancamento": "256266",
+      "Natureza": "01.01.01.001 - LOCAÇÃO MENSAL",
+      "Placa": "SGN-2I48",
+      "ContratoLocacao": "LOC-2379-1/36",
+      "ContratoComercial": "CTO-2379",
+      "Cliente": "LEI DA SELVA"
+    },
+    {
+      "NumeroLancamento": "264756",
+      "Natureza": "02.01.04.002 - MANUTENÇÕES CORRETIVAS",
+      "Placa": "SGV-9C17",
+      "ContratoLocacao": "LOC-2313-71/48",
+      "ContratoComercial": "CTO-2313",
+      "Cliente": "KONECRANES "
+    },
+    {
+      "NumeroLancamento": "281736",
+      "Natureza": "01.01.01.001 - LOCAÇÃO MENSAL",
+      "Placa": "REM-9I43",
+      "ContratoLocacao": "LOC-2341-1/24",
+      "ContratoComercial": "CTO-2341",
+      "Cliente": "RENATO PAZ DE ALMEIDA"
+    },
+    {
+      "NumeroLancamento": "273246",
+      "Natureza": "01.01.01.001 - LOCAÇÃO MENSAL",
+      "Placa": "SGO-4D18",
+      "ContratoLocacao": "LOC-2334-1/6",
+      "ContratoComercial": "CTO-2334",
+      "Cliente": "ALAN KARDECK FERREIRA DOS SANTOS "
+    },
+    {
+      "NumeroLancamento": "338510",
+      "Natureza": "02.01.04.001 - REVISÕES PREVENTIVAS",
+      "Placa": "RER-1J63",
+      "ContratoLocacao": "LOC-1460-15/12",
+      "ContratoComercial": "CTO-2070",
+      "Cliente": "ABILITY"
+    },
+    {
+      "NumeroLancamento": "347000",
+      "Natureza": "02.01.04.001 - REVISÕES PREVENTIVAS",
+      "Placa": "FWN-0C53",
+      "ContratoLocacao": "LOC-2070-753/48",
+      "ContratoComercial": "CTO-2070",
+      "Cliente": "ABILITY"
+    },
+    {
+      "NumeroLancamento": "355490",
+      "Natureza": "02.01.04.002 - MANUTENÇÕES CORRETIVAS",
+      "Placa": "SSL-4G45",
+      "ContratoLocacao": "LOC-2579-6/30",
+      "ContratoComercial": "CTO-2579",
+      "Cliente": "MGI"
+    },
+    {
+      "NumeroLancamento": "314391",
+      "Natureza": "01.01.03.003 - DESGATE PREMATURO",
+      "Placa": "GAC-1E91",
+      "ContratoLocacao": "LOC-2070-175/48",
+      "ContratoComercial": "CTO-2070",
+      "Cliente": "ABILITY"
+    },
+    {
+      "NumeroLancamento": "331371",
+      "Natureza": "02.02.03.001 - MULTAS DE TRÂNSITO",
+      "Placa": "SGY-1D48",
+      "ContratoLocacao": null,
+      "ContratoComercial": null,
+      "Cliente": "1D48 (01366696562)"
+    },
+    {
+      "NumeroLancamento": "322881",
+      "Natureza": "01.02.01.002 - TAXA MANUTENÇÃO FORA DO PRAZO",
+      "Placa": "SGO-4G99",
+      "ContratoLocacao": "LOC-1434-2/36",
+      "ContratoComercial": "CTO-1434",
+      "Cliente": "CORREIO BRAZILIENSE"
+    }
+  ],
+  "percent": {
+    "Placa": 99.6,
+    "ContratoComercial": 72.2,
+    "ContratoLocacao": 71.89999999999999,
+    "Cliente": 72
+  }
+}

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Upload, Copy, Check, Send } from 'lucide-react';
+import { normalizePhoneForWhatsApp } from '@/utils/phone';
 
 interface PrefillData {
   clienteId?: string;
@@ -65,9 +66,16 @@ const SurveyGeneratorForm: React.FC<SurveyGeneratorFormProps> = ({ onSuccess, pr
       return;
     }
     const message = `Olá, ${formData.client_name}! Agradecemos por ter escolhido a Quality Frotas. Gostaríamos de ouvir sua opinião sobre sua experiência. Por favor, acesse o link: ${generatedLink}`;
-    // Remove caracteres não numéricos do telefone
-    const phone = formData.client_phone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+
+    const normalizedPhone = normalizePhoneForWhatsApp(formData.client_phone);
+    if (!normalizedPhone) {
+      toast.error('Telefone inválido para WhatsApp.', {
+        description: 'Informe DDD + número (ex: (11) 91234-5678).',
+      });
+      return;
+    }
+
+    const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
   // --- FIM DAS ATUALIZAÇÕES ---
