@@ -1092,6 +1092,41 @@ export type Database = {
         }
         Relationships: []
       }
+      modelo_campos_customizados: {
+        Row: {
+          created_at: string
+          id: string
+          modelo_id: string
+          nome_campo: string
+          ordem: number | null
+          valor_campo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modelo_id: string
+          nome_campo: string
+          ordem?: number | null
+          valor_campo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modelo_id?: string
+          nome_campo?: string
+          ordem?: number | null
+          valor_campo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modelo_campos_customizados_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       modelo_cores: {
         Row: {
           codigo_cor: string | null
@@ -1129,6 +1164,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "modelo_cores_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modelo_historico_descontos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data_lancamento: string
+          data_vigencia_fim: string | null
+          fornecedor: string | null
+          id: string
+          modelo_id: string
+          observacoes: string | null
+          percentual_desconto: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data_lancamento?: string
+          data_vigencia_fim?: string | null
+          fornecedor?: string | null
+          id?: string
+          modelo_id: string
+          observacoes?: string | null
+          percentual_desconto?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data_lancamento?: string
+          data_vigencia_fim?: string | null
+          fornecedor?: string | null
+          id?: string
+          modelo_id?: string
+          observacoes?: string | null
+          percentual_desconto?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modelo_historico_descontos_modelo_id_fkey"
             columns: ["modelo_id"]
             isOneToOne: false
             referencedRelation: "modelos_veiculos"
@@ -1194,6 +1273,7 @@ export type Database = {
           created_by: string | null
           id: string
           imagem_url: string | null
+          informacoes_adicionais: string | null
           montadora: string
           motor: string | null
           nome: string
@@ -1218,6 +1298,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           imagem_url?: string | null
+          informacoes_adicionais?: string | null
           montadora: string
           motor?: string | null
           nome: string
@@ -1242,6 +1323,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           imagem_url?: string | null
+          informacoes_adicionais?: string | null
           montadora?: string
           motor?: string | null
           nome?: string
