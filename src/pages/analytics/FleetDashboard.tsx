@@ -57,6 +57,7 @@ interface FleetTableItem {
     TelefoneCondutor?: string;
     NomeCliente?: string;
     TipoLocacao?: string;
+    ValorLocacao?: number;
 };
 
 // Using shared MultiSelect component with built-in search
@@ -125,6 +126,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             SituacaoLocacao?: string;
             DataPrevistaTerminoLocacao?: string;
             DataEncerramentoLocacao?: string;
+            ValorLocacao?: number;
             __inicio?: string;
         }> = {};
 
@@ -163,6 +165,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 SituacaoLocacao: status || undefined,
                 DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'DataFimPrevista', 'DataFimPrevisto', 'DataFim', 'DataTerminoPrevisto', 'DataFimLocacao']) || undefined,
                 DataEncerramentoLocacao: pickDate(c, ['DataEncerramento', 'DataEncerrado', 'DataFimEfetiva', 'DataFim', 'DataTermino', 'DataFimLocacao']) || undefined,
+                ValorLocacao: parseCurrency(c.ValorMensal ?? c.ValorLocacao ?? c.ValorContrato ?? 0) || undefined,
                 __inicio: inicio || undefined,
             };
 
@@ -202,6 +205,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 SituacaoLocacao: contrato?.SituacaoLocacao || 'N/A',
                 DataPrevistaTerminoLocacao: contrato?.DataPrevistaTerminoLocacao || v.DataFimLocacao || null,
                 DataEncerramentoLocacao: contrato?.DataEncerramentoLocacao || v.DataFimLocacao || null,
+                ValorLocacao: contrato?.ValorLocacao || parseCurrency(v.ValorLocacao ?? v.ValorMensal ?? v.ValorLocacaoMensal) || 0,
             } as typeof v & {
                 NomeCliente: string;
                 TipoLocacao: string;
@@ -209,6 +213,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 SituacaoLocacao: string;
                 DataPrevistaTerminoLocacao: string | null;
                 DataEncerramentoLocacao: string | null;
+                ValorLocacao: number;
             };
         });
     }, [frota, contratosMap]);
@@ -1542,7 +1547,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 FinalidadeUso: r.FinalidadeUso,
                 NomeCondutor: r.NomeCondutor,
                 CPFCondutor: r.CPFCondutor,
-                TelefoneCondutor: r.TelefoneCondutor
+                TelefoneCondutor: r.TelefoneCondutor,
+                ValorLocacao: r.ValorLocacao || 0
             };
         });
         if (sortConfig !== null) {
@@ -1841,10 +1847,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('TipoLocacao')}>Contrato <SortIcon column="TipoLocacao" /></th>
                             <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status" /></th>
                             <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo" /></th>
+                            <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Locação <SortIcon column="ValorLocacao" /></th>
                             <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra" /></th>
                             <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe" /></th>
                             <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info) <SortIcon column="KmInformado" /></th>
-                            <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmConfirmado')}>Odômetro (Conf) <SortIcon column="KmConfirmado" /></th>
                             <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe" /></th>
                             <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo" /></th>
                         </tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (
@@ -1855,10 +1861,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 <td className="px-6 py-3 text-xs">{r.TipoLocacao}</td>
                                 <td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td>
                                 <td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td>
+                                <td className="px-6 py-3 text-right font-medium text-blue-600">{r.ValorLocacao ? fmtBRL(r.ValorLocacao) : '-'}</td>
                                 <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
                                 <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
                                 <td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td>
-                                <td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
                                 <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
                                 <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
                             </tr>))}</tbody></table></div>
