@@ -28,10 +28,11 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
 import { useModelosVeiculos } from '@/hooks/useModelosVeiculos';
 import { ModeloCoresManager } from './ModeloCoresManager';
 import { ModeloItensManager } from './ModeloItensManager';
+import { ModeloHistoricoDescontosManager } from './ModeloHistoricoDescontosManager';
+import { ModeloCamposCustomizadosManager } from './ModeloCamposCustomizadosManager';
 import {
   CATEGORIAS_VEICULO,
   TIPOS_COMBUSTIVEL,
@@ -57,6 +58,7 @@ const formSchema = z.object({
   consumo_rodoviario: z.coerce.number().optional(),
   imagem_url: z.string().optional(),
   observacoes: z.string().optional(),
+  informacoes_adicionais: z.string().optional(),
   ativo: z.boolean().default(true),
 });
 
@@ -101,6 +103,7 @@ export function ModeloVeiculoForm({
       consumo_rodoviario: undefined,
       imagem_url: '',
       observacoes: '',
+      informacoes_adicionais: '',
       ativo: true,
     },
   });
@@ -125,6 +128,7 @@ export function ModeloVeiculoForm({
         consumo_rodoviario: editingModelo.consumo_rodoviario || undefined,
         imagem_url: editingModelo.imagem_url || '',
         observacoes: editingModelo.observacoes || '',
+        informacoes_adicionais: (editingModelo as any).informacoes_adicionais || '',
         ativo: editingModelo.ativo,
       });
     } else {
@@ -162,9 +166,13 @@ export function ModeloVeiculoForm({
     }).format(value);
   };
 
+  const handleDescontoChange = (newDesconto: number) => {
+    form.setValue('percentual_desconto', newDesconto);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[90vw] md:w-[60vw] max-w-[1000px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {modeloId ? 'Editar Modelo' : 'Novo Modelo de Veículo'}
@@ -193,9 +201,9 @@ export function ModeloVeiculoForm({
               <Package className="h-4 w-4" />
               Itens
             </TabsTrigger>
-            <TabsTrigger value="specs" className="flex items-center gap-2">
+            <TabsTrigger value="detalhes" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
-              Specs
+              Detalhes Técnicos
             </TabsTrigger>
           </TabsList>
 
@@ -290,38 +298,40 @@ export function ModeloVeiculoForm({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="ano_fabricacao"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ano Fabricação</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="ano_modelo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ano Modelo *</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Preços */}
+                {/* Preços com Anos Editáveis */}
                 <div className="bg-muted/50 rounded-lg p-4 space-y-4">
                   <h3 className="font-semibold">Precificação</h3>
+                  
+                  {/* Anos Editáveis */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="ano_fabricacao"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ano Fabricação</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="2025" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="ano_modelo"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ano Modelo *</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="2026" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -346,18 +356,16 @@ export function ModeloVeiculoForm({
                       name="percentual_desconto"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            Desconto: {(field.value * 100).toFixed(1)}%
-                          </FormLabel>
+                          <FormLabel>Desconto (%)</FormLabel>
                           <FormControl>
-                            <Slider
-                              value={[field.value * 100]}
-                              onValueChange={(v) =>
-                                field.onChange(v[0] / 100)
-                              }
-                              max={50}
-                              step={0.5}
-                              className="py-4"
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              placeholder="10"
+                              value={(field.value * 100).toFixed(1)}
+                              onChange={(e) => field.onChange(parseFloat(e.target.value) / 100 || 0)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -371,6 +379,15 @@ export function ModeloVeiculoForm({
                       {formatCurrency(valorFinal)}
                     </span>
                   </div>
+                  
+                  {/* Histórico de Descontos - apenas para edição */}
+                  {modeloId && (
+                    <ModeloHistoricoDescontosManager
+                      modeloId={modeloId}
+                      currentDesconto={percentualDesconto}
+                      onDescontoChange={handleDescontoChange}
+                    />
+                  )}
                   
                   <FormField
                     control={form.control}
@@ -433,7 +450,7 @@ export function ModeloVeiculoForm({
                 )}
               </TabsContent>
 
-              <TabsContent value="specs" className="space-y-6 mt-6">
+              <TabsContent value="detalhes" className="space-y-6 mt-6">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -507,9 +524,9 @@ export function ModeloVeiculoForm({
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {TIPOS_COMBUSTIVEL.map((t) => (
-                              <SelectItem key={t} value={t}>
-                                {t}
+                            {TIPOS_COMBUSTIVEL.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -558,18 +575,63 @@ export function ModeloVeiculoForm({
                     )}
                   />
                 </div>
+
+                {/* Campos Customizados */}
+                {modeloId && (
+                  <div className="border-t pt-4">
+                    <ModeloCamposCustomizadosManager modeloId={modeloId} />
+                  </div>
+                )}
+
+                {/* Informações Adicionais */}
+                <FormField
+                  control={form.control}
+                  name="informacoes_adicionais"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Informações Adicionais</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Informações técnicas adicionais, notas, observações..."
+                          rows={4}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="imagem_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>URL da Imagem</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="https://..."
+                          type="url"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </TabsContent>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isSaving}
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSaving}>
-                  {isSaving
-                    ? 'Salvando...'
-                    : modeloId
-                    ? 'Salvar Alterações'
-                    : 'Criar Modelo'}
+                  {isSaving ? 'Salvando...' : modeloId ? 'Atualizar' : 'Criar'}
                 </Button>
               </div>
             </form>

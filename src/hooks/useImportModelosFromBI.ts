@@ -195,34 +195,16 @@ export function useImportModelosFromBI() {
     return transmissao;
   }
   
-  // Mutation para importar modelos
+  // Mutation para importar modelos (com UPSERT)
   const importMutation = useMutation({
     mutationFn: async (models: UniqueModel[]): Promise<ImportResult> => {
       setIsProcessing(true);
       
-      // Buscar modelos já existentes
-      const { data: existingModels } = await supabase
-        .from('modelos_veiculos')
-        .select('montadora, nome, ano_modelo');
-      
-      const existingKeys = new Set(
-        (existingModels || []).map(m => 
-          `${m.montadora.toLowerCase()}-${m.nome.toLowerCase()}-${m.ano_modelo}`
-        )
-      );
-      
       const result: ImportResult = { imported: 0, skipped: 0, errors: [] };
-      const toInsert: any[] = [];
+      const toUpsert: any[] = [];
       
       for (const model of models) {
-        const key = `${model.montadora.toLowerCase()}-${model.modelo.toLowerCase()}-${model.anoModelo}`;
-        
-        if (existingKeys.has(key)) {
-          result.skipped++;
-          continue;
-        }
-        
-        toInsert.push({
+        toUpsert.push({
           montadora: model.montadora,
           nome: model.modelo,
           ano_modelo: model.anoModelo,
@@ -239,17 +221,31 @@ export function useImportModelosFromBI() {
         });
       }
       
-      if (toInsert.length > 0) {
-        // Inserir em lotes de 50
+      if (toUpsert.length > 0) {
+        // Upsert em lotes de 50
         const batchSize = 50;
-        for (let i = 0; i < toInsert.length; i += batchSize) {
-          const batch = toInsert.slice(i, i + batchSize);
+        for (let i = 0; i < toUpsert.length; i += batchSize) {
+          const batch = toUpsert.slice(i, i + batchSize);
           const { error } = await supabase
             .from('modelos_veiculos')
-            .insert(batch);
+            .upsert(batch, {
+              onConflict: 'montadora,nome,ano_modelo',
+              ignoreDuplicates: false
+            });
           
           if (error) {
-            result.errors.push(`Erro no lote ${Math.floor(i/batchSize) + 1}: ${error.message}`);
+            // Se erro de conflito, tentar inserir um a um para identificar novos
+            for (const item of batch) {
+              const { error: singleError } = await supabase
+                .from('modelos_veiculos')
+                .upsert(item, { onConflict: 'montadora,nome,ano_modelo' });
+              
+              if (!singleError) {
+                result.imported++;
+              } else {
+                result.errors.push(`${item.montadora} ${item.nome}: ${singleError.message}`);
+              }
+            }
           } else {
             result.imported += batch.length;
           }
