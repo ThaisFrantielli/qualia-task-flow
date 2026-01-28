@@ -3,40 +3,87 @@ import { Title, Text, Card } from '@tremor/react';
 import { DollarSign, BarChart3 } from 'lucide-react';
 import useDREData from '@/hooks/useDREData';
 import DREKPICard from '@/components/analytics/DREKPICard';
-import MonthFilter from '@/components/analytics/MonthFilter';
+import DREFiltersBar from '@/components/analytics/dre/DREFiltersBar';
 import DREPivotTable from '@/components/analytics/DREPivotTable';
+import { DREFiltersProvider, useDREFilters } from '@/contexts/DREFiltersContext';
 import {
     buildAccountHierarchyByType,
     calculateKPIs,
-    getAccountCode
+    getAccountCode,
 } from '@/utils/dreUtils';
 
-export default function DREDashboard() {
-    const { transactions, availableMonths, loading, error } = useDREData();
+function DREDashboardContent() {
+    const { 
+        transactions, 
+        loading, 
+        error,
+        uniqueClientes,
+        uniqueNaturezas,
+        uniqueContratosComerciais,
+    } = useDREData();
 
-    // Default to last 6 months
-    const [selectedMonths, setSelectedMonths] = useState<string[]>(() => {
-        return availableMonths.slice(-6);
-    });
+    const { filters } = useDREFilters();
 
     const [showHorizontalAnalysis, setShowHorizontalAnalysis] = useState(false);
     const [showVerticalAnalysis, setShowVerticalAnalysis] = useState(false);
 
-    // Update selected months when available months change
-    useMemo(() => {
-        if (availableMonths.length > 0 && selectedMonths.length === 0) {
-            setSelectedMonths(availableMonths.slice(-6));
-        }
-    }, [availableMonths, selectedMonths.length]);
-
-    // Filter transactions by selected months
+    // Filter transactions based on all filters
     const filteredTransactions = useMemo(() => {
-        if (selectedMonths.length === 0) return transactions;
         return transactions.filter(t => {
-            const month = t.DataCompetencia?.substring(0, 7);
-            return month && selectedMonths.includes(month);
+            // Date range filter
+            if (filters.dateRange?.from || filters.dateRange?.to) {
+                const transactionDate = new Date(t.DataCompetencia);
+                if (filters.dateRange.from) {
+                    const fromDate = new Date(filters.dateRange.from);
+                    fromDate.setHours(0, 0, 0, 0);
+                    if (transactionDate < fromDate) return false;
+                }
+                if (filters.dateRange.to) {
+                    const toDate = new Date(filters.dateRange.to);
+                    toDate.setHours(23, 59, 59, 999);
+                    if (transactionDate > toDate) return false;
+                }
+            }
+
+            // Cliente filter
+            if (filters.clientes.length > 0) {
+                const clienteValue = t.Cliente || t.NomeEntidade;
+                if (!clienteValue || !filters.clientes.includes(clienteValue)) {
+                    return false;
+                }
+            }
+
+            // Contrato Comercial filter
+            if (filters.contratosComerciais.length > 0) {
+                const contrato = (t as any).ContratoComercial || 
+                                (t as any).NumeroContrato ||
+                                (t as any).Contrato;
+                if (!contrato || !filters.contratosComerciais.includes(String(contrato))) {
+                    return false;
+                }
+            }
+
+            // Natureza filter
+            if (filters.naturezas.length > 0) {
+                if (!t.Natureza || !filters.naturezas.includes(t.Natureza)) {
+                    return false;
+                }
+            }
+
+            return true;
         });
-    }, [transactions, selectedMonths]);
+    }, [transactions, filters]);
+
+    // Get selected months from filtered transactions
+    const selectedMonths = useMemo(() => {
+        const monthSet = new Set<string>();
+        filteredTransactions.forEach(t => {
+            if (t.DataCompetencia) {
+                monthSet.add(t.DataCompetencia.substring(0, 7));
+            }
+        });
+        return Array.from(monthSet).sort();
+    }, [filteredTransactions]);
 
     // Build account hierarchy
     const accountHierarchy = useMemo(() => {
@@ -95,18 +142,20 @@ export default function DREDashboard() {
                 </div>
             </div>
 
-            {/* Filters and Analysis Toggles */}
+            {/* New Filters Bar */}
+            <DREFiltersBar
+                clientesList={uniqueClientes}
+                contratosComerciais={uniqueContratosComerciais}
+                naturezasList={uniqueNaturezas}
+            />
+
+            {/* Analysis Toggles */}
             <Card>
                 <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex-1 min-w-[250px]">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Período de Análise
-                        </label>
-                        <MonthFilter
-                            availableMonths={availableMonths}
-                            selectedMonths={selectedMonths}
-                            onChange={setSelectedMonths}
-                        />
+                    <div className="flex-1">
+                        <Text className="text-slate-600 text-sm">
+                            {filteredTransactions.length.toLocaleString('pt-BR')} lançamentos • {selectedMonths.length} {selectedMonths.length === 1 ? 'mês' : 'meses'}
+                        </Text>
                     </div>
 
                     <div className="flex gap-2">
@@ -216,11 +265,11 @@ export default function DREDashboard() {
 
                 {selectedMonths.length === 0 ? (
                     <div className="text-center py-12 text-slate-500">
-                        Selecione pelo menos um mês para visualizar o DRE
+                        Selecione um período ou ajuste os filtros para visualizar o DRE
                     </div>
                 ) : accountHierarchy.length === 0 ? (
                     <div className="text-center py-12 text-slate-500">
-                        Nenhum dado disponível para o período selecionado
+                        Nenhum dado disponível para os filtros selecionados
                     </div>
                 ) : (
                     <DREPivotTable
@@ -232,11 +281,14 @@ export default function DREDashboard() {
                     />
                 )}
             </Card>
-
-            {/* Footer Info */}
-            <div className="text-center text-sm text-slate-500">
-                {filteredTransactions.length} lançamentos • {selectedMonths.length} {selectedMonths.length === 1 ? 'mês' : 'meses'} selecionados
-            </div>
         </div>
+    );
+}
+
+export default function DREDashboard() {
+    return (
+        <DREFiltersProvider>
+            <DREDashboardContent />
+        </DREFiltersProvider>
     );
 }
