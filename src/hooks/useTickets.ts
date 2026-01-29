@@ -48,9 +48,17 @@ export const useTickets = (filters?: { status?: string; cliente_id?: string; ate
 };
 
 export const useTicketDetail = (ticketId: string) => {
+    // Validar se o ticketId é um UUID válido
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketId);
+    
     return useQuery({
         queryKey: ["ticket", ticketId],
         queryFn: async () => {
+            if (!isValidUUID) {
+                console.error(`[useTicketDetail] Invalid UUID format: ${ticketId}`);
+                throw new Error(`ID de ticket inválido: ${ticketId}`);
+            }
+            
             const { data, error } = await supabase
                 .from("tickets")
                 .select(`
@@ -108,7 +116,7 @@ export const useTicketDetail = (ticketId: string) => {
                             : data;
             return mapped;
         },
-        enabled: !!ticketId,
+        enabled: !!ticketId && isValidUUID,
     });
 };
 
@@ -119,11 +127,18 @@ export const useCreateTicket = () => {
         mutationFn: async (ticket: Omit<TicketInsert, 'numero_ticket'> & { numero_ticket?: string }) => {
             // Map vehicle_plate (frontend) -> placa (DB) to avoid schema mismatch
             const { vehicle_plate, numero_ticket, ...rest } = ticket as any;
+            
+            // Validate required fields
+            if (!rest.titulo || !rest.cliente_id) {
+                throw new Error('Título e Cliente são obrigatórios');
+            }
+            
             // Do NOT send a temporary numero_ticket; let the DB/triggers generate it when possible.
             const ticketData: any = {
                 ...rest,
                 ...(vehicle_plate ? { placa: vehicle_plate } : {}),
             };
+            
             // Only include `numero_ticket` if the caller provided a numeric value (avoid sending strings like 'TEMP')
             if (typeof numero_ticket === 'number') {
                 ticketData.numero_ticket = numero_ticket;
@@ -131,13 +146,18 @@ export const useCreateTicket = () => {
                 ticketData.numero_ticket = Number(numero_ticket);
             }
 
+            console.log('[useCreateTicket] Sending to Supabase:', ticketData);
+
             const { data, error } = await supabase
                 .from("tickets")
                 .insert(ticketData)
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error('[useCreateTicket] Supabase error:', error);
+                throw error;
+            }
             return data;
         },
         onSuccess: () => {

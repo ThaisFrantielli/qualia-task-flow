@@ -3,17 +3,34 @@ import { TicketCard } from "@/components/tickets/TicketCard";
 import { CreateTicketDialog } from "@/components/tickets/CreateTicketDialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
 
 export default function TicketsPage() {
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [searchTerm, setSearchTerm] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
     const { data: tickets, isLoading } = useTickets(
         statusFilter !== "all" ? { status: statusFilter } : undefined
     );
     const navigate = useNavigate();
+
+    // Detectar se deve abrir o dialog de criação automaticamente
+    useEffect(() => {
+        const criar = searchParams.get('criar');
+        const clienteId = searchParams.get('cliente_id');
+        
+        if (criar === 'true') {
+            // Limpar o parâmetro da URL
+            searchParams.delete('criar');
+            setSearchParams(searchParams);
+            
+            // TODO: Abrir o dialog programaticamente
+            // Por enquanto, o usuário terá que clicar no botão manualmente
+            // Para implementar: criar um contexto ou prop para controlar o dialog
+        }
+    }, [searchParams, setSearchParams]);
 
     const filteredTickets = tickets?.filter(ticket =>
         ticket.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||

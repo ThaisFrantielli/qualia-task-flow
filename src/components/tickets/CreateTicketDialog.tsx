@@ -112,12 +112,12 @@ export function CreateTicketDialog() {
         createTicket.mutate(
             {
                 titulo: values.titulo,
-                sintese: values.sintese || null,
+                descricao: values.sintese || null,
                 cliente_id: values.cliente_id,
                 prioridade: values.prioridade,
-                origem: values.origem,
-                motivo_id: values.motivo,
-                departamento: values.departamento as any,
+                origem_id: values.origem, // UUID da tabela ticket_origens
+                motivo_id: values.motivo, // UUID da tabela ticket_motivos
+                setor_responsavel: values.departamento,
                 placa: values.placa || null,
                 contrato_comercial: values.contrato_comercial || null,
                 contrato_locacao: values.contrato_locacao || null,
@@ -126,8 +126,7 @@ export function CreateTicketDialog() {
                 veiculo_cliente: veiculoData.cliente || null,
                 veiculo_km: veiculoData.km || null,
                 status: "aguardando_triagem",
-                fase: "Análise do caso",
-                tipo: "pos_venda"
+                tipo_reclamacao: "pos_venda"
             } as any,
             {
                 onSuccess: (data) => {

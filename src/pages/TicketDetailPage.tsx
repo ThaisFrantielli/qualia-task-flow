@@ -1,12 +1,37 @@
 import { TicketDetail } from "@/components/tickets/TicketDetail";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CreateTicketDialog } from "@/components/tickets/CreateTicketDialog";
 
 export default function TicketDetailPage() {
     const { ticketId } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    
+    // Se o ticketId for "novo", exibir dialog de criação
+    if (ticketId === "novo") {
+        const clienteId = searchParams.get("cliente_id");
+        // Redirecionar para a página de tickets e abrir o dialog de criação
+        // (pode ser melhor implementação, mas por agora vamos evitar o erro)
+        return (
+            <div className="p-4 md:p-6">
+                <div className="mb-4">
+                    <Button variant="ghost" onClick={() => navigate("/tickets")}>
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Voltar para Tickets
+                    </Button>
+                </div>
+                <div className="text-center text-muted-foreground">
+                    <p>Clique no botão "Novo Ticket" na página de tickets para criar um novo ticket.</p>
+                    <Button className="mt-4" onClick={() => navigate("/tickets")}>
+                        Ir para Tickets
+                    </Button>
+                </div>
+            </div>
+        );
+    }
 
     if (!ticketId) return null;
 

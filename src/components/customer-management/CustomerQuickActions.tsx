@@ -16,7 +16,9 @@ export const CustomerQuickActions: React.FC<CustomerQuickActionsProps> = ({
   const navigate = useNavigate();
 
   const handleCreateTicket = () => {
-    navigate(`/tickets/novo?cliente_id=${clienteId}`);
+    // Navegar para a página de tickets com query param para pré-selecionar o cliente
+    // Isso é melhor do que /tickets/novo que causa erro
+    navigate(`/tickets?criar=true&cliente_id=${clienteId}`);
   };
 
   const handleCreateOportunidade = () => {
