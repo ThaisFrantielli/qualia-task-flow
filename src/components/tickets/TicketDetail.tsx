@@ -1,16 +1,13 @@
-import { useTicketDetail, useUpdateTicket, useAddTicketInteracao, useAddTicketDepartamento } from "@/hooks/useTickets";
+import { useTicketDetail, useUpdateTicket, useAddTicketInteracao } from "@/hooks/useTickets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Send, User, Plus, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Send, User, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +20,7 @@ import { TicketTasks } from "./TicketTasks";
 import { TicketTempoCounter } from "./TicketTempoCounter";
 import { TicketVinculosManager } from "./TicketVinculosManager";
 import { EditTicketDialog } from "./EditTicketDialog";
-import { TICKET_FASES, TICKET_DEPARTAMENTO_OPTIONS } from "@/constants/ticketOptions";
+import { TICKET_FASES } from "@/constants/ticketOptions";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -37,7 +34,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const ticket = ticketData as any; // Cast to any to support new fields
     const updateTicket = useUpdateTicket();
     const addInteracao = useAddTicketInteracao();
-    const addDepartamento = useAddTicketDepartamento();
 
     const [comment, setComment] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -49,10 +45,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const [editingSintese, setEditingSintese] = useState(false);
     const [sinteseText, setSinteseText] = useState<string>("");
     const [sinteseExpanded, setSinteseExpanded] = useState(true);
-    const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
-    const [selectedDept, setSelectedDept] = useState("");
-    const [selectedResponsavel, setSelectedResponsavel] = useState("");
-    const [deptUsers, setDeptUsers] = useState<Array<{id: string, full_name: string}>>([]);
     const [mentionedUsers, setMentionedUsers] = useState<string[]>([]);
     const [createdByName, setCreatedByName] = useState<string | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -133,53 +125,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
             toast.success("Comentário adicionado!");
         } catch (error) {
             toast.error("Erro ao adicionar comentário");
-        }
-    };
-
-    const handleAddDepartamento = async () => {
-        if (!selectedDept || !selectedResponsavel || !user?.id) return;
-        try {
-                const person = deptUsers.find(u => u.id === selectedResponsavel);
-                // Insert ticket_departamento
-                const dept = await addDepartamento.mutateAsync({
-                    ticket_id: ticketId,
-                    departamento: selectedDept,
-                    solicitado_por: user.id,
-                    solicitado_em: new Date().toISOString(),
-                    responsavel_id: selectedResponsavel,
-                });
-                // Atualizar fase do ticket para ficar consistente com o Kanban
-                try {
-                    await updateTicket.mutateAsync({
-                        ticketId,
-                        updates: { fase: 'Aguardando departamento' },
-                        userId: user.id
-                    });
-                } catch (err) {
-                    console.error('Erro ao atualizar fase do ticket após solicitar apoio:', err);
-                }
-            // Create notification
-            await supabase.from('notifications').insert({
-                user_id: selectedResponsavel,
-                type: 'department_support_request',
-                title: 'Solicitação de apoio',
-                message: `Apoio solicitado para o ticket #${ticket.numero_ticket} no departamento ${TICKET_DEPARTAMENTO_OPTIONS.find(d => d.value === selectedDept)?.label}`,
-                data: { ticket_id: ticketId, department: selectedDept },
-                read: false
-            });
-            // Add interacao
-            await addInteracao.mutateAsync({
-                ticket_id: ticketId,
-                tipo: 'comentario',
-                mensagem: `Solicitado apoio de ${person?.full_name} para o departamento ${TICKET_DEPARTAMENTO_OPTIONS.find(d => d.value === selectedDept)?.label}`,
-                user_id: user.id
-            });
-            setIsAddDeptOpen(false);
-            setSelectedDept("");
-            setSelectedResponsavel("");
-            toast.success("Apoio solicitado!");
-        } catch (error) {
-            toast.error("Erro ao solicitar apoio");
         }
     };
 
@@ -269,29 +214,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
             }
         })();
     }, [ticket?.created_by, ticket?.created_by_id]);
-
-    // Fetch users for selected department
-    useEffect(() => {
-        // Find team by name, then load its members from team_members -> profiles
-        (async () => {
-            if (!selectedDept) { setDeptUsers([]); return; }
-            try {
-                const { data: teamsData } = await supabase.from('teams').select('id').ilike('name', selectedDept).limit(1);
-                const teamId = teamsData && teamsData[0] ? teamsData[0].id : null;
-                if (!teamId) { setDeptUsers([]); return; }
-                const { data: membersData, error: membersError } = await supabase
-                    .from('team_members')
-                    .select('user_id, profiles(id, full_name)')
-                    .eq('team_id', teamId);
-                if (membersError) throw membersError;
-                const mapped = (membersData || []).map((m: any) => ({ id: m.user_id, full_name: m.profiles?.full_name || '' }));
-                setDeptUsers(mapped);
-            } catch (err) {
-                console.error('Erro ao carregar membros do departamento:', err);
-                setDeptUsers([]);
-            }
-        })();
-    }, [selectedDept]);
 
     // Mentions: fetch users when query after '@' has 2+ chars
     useEffect(() => {
