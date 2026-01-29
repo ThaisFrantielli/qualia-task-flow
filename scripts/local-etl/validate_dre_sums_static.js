@@ -21,6 +21,10 @@ function normalizeNumber(v) {
   return isNaN(n) ? 0 : n;
 }
 
+function toCents(n) {
+  return Math.round((n || 0) * 100);
+}
+
 function monthCompare(a, b) { return a.localeCompare(b); }
 
 async function queryDW(fromDate, toDate) {
@@ -45,7 +49,7 @@ async function queryDW(fromDate, toDate) {
   res.recordset.forEach(r => {
     const m = r.mes;
     if (!map[m]) map[m] = { Entrada: 0, Saída: 0, Outro: 0 };
-    map[m][r.tipo] = Number(r.soma || 0);
+    map[m][r.tipo] = toCents(Number(r.soma || 0));
   });
   return map;
 }
@@ -72,7 +76,7 @@ function aggregateLocalFromParts(base = 'fato_financeiro_dre') {
       const tipo = obj.TipoLancamento === 'Entrada' ? 'Entrada' : (obj.TipoLancamento === 'Saída' ? 'Saída' : 'Outro');
       const valor = normalizeNumber(obj.Valor ?? obj.ValorPagoRecebido ?? 0);
       if (!map[mes]) map[mes] = { Entrada: 0, Saída: 0, Outro: 0 };
-      map[mes][tipo] = (map[mes][tipo] || 0) + valor;
+      map[mes][tipo] = (map[mes][tipo] || 0) + toCents(valor);
     }
   }
 
@@ -102,9 +106,14 @@ function aggregateLocalFromParts(base = 'fato_financeiro_dre') {
     for (const m of allMonths) {
       const dw = dwMap[m] || { Entrada: 0, Saída: 0, Outro: 0 };
       const lo = localMap[m] || { Entrada: 0, Saída: 0, Outro: 0 };
-      const eDiff = Number(dw.Entrada || 0) - Number(lo.Entrada || 0);
-      const sDiff = Number(dw['Saída'] || 0) - Number(lo['Saída'] || 0);
-      console.log(`${m}, ${dw.Entrada || 0}, ${lo.Entrada || 0}, ${eDiff}, ${dw['Saída'] || 0}, ${lo['Saída'] || 0}, ${sDiff}`);
+      const dwE = Number(dw.Entrada || 0);
+      const loE = Number(lo.Entrada || 0);
+      const dwS = Number(dw['Saída'] || 0);
+      const loS = Number(lo['Saída'] || 0);
+      const eDiff = dwE - loE;
+      const sDiff = dwS - loS;
+      const fmt = v => (v/100).toFixed(2);
+      console.log(`${m}, ${fmt(dwE)}, ${fmt(loE)}, ${fmt(eDiff)}, ${fmt(dwS)}, ${fmt(loS)}, ${fmt(sDiff)}`);
     }
 
     process.exit(0);
