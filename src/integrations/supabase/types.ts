@@ -568,6 +568,99 @@ export type Database = {
           },
         ]
       }
+      clientes_backup: {
+        Row: {
+          backup_at: string | null
+          bairro: string | null
+          cadastro_cliente: string | null
+          cep: string | null
+          cidade: string | null
+          codigo_cliente: string | null
+          cpf_cnpj: string | null
+          descartado_em: string | null
+          descartado_motivo: string | null
+          email: string | null
+          endereco: string | null
+          estado: string | null
+          id: string | null
+          natureza_cliente: string | null
+          nome_contratante: string | null
+          nome_fantasia: string | null
+          numero: string | null
+          origem: string | null
+          razao_social: string | null
+          situacao: string | null
+          stage_id: string | null
+          status: string | null
+          status_triagem: string | null
+          telefone: string | null
+          tipo_cliente: string | null
+          ultimo_atendente_id: string | null
+          ultimo_atendimento_at: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          backup_at?: string | null
+          bairro?: string | null
+          cadastro_cliente?: string | null
+          cep?: string | null
+          cidade?: string | null
+          codigo_cliente?: string | null
+          cpf_cnpj?: string | null
+          descartado_em?: string | null
+          descartado_motivo?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string | null
+          natureza_cliente?: string | null
+          nome_contratante?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          origem?: string | null
+          razao_social?: string | null
+          situacao?: string | null
+          stage_id?: string | null
+          status?: string | null
+          status_triagem?: string | null
+          telefone?: string | null
+          tipo_cliente?: string | null
+          ultimo_atendente_id?: string | null
+          ultimo_atendimento_at?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          backup_at?: string | null
+          bairro?: string | null
+          cadastro_cliente?: string | null
+          cep?: string | null
+          cidade?: string | null
+          codigo_cliente?: string | null
+          cpf_cnpj?: string | null
+          descartado_em?: string | null
+          descartado_motivo?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string | null
+          natureza_cliente?: string | null
+          nome_contratante?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          origem?: string | null
+          razao_social?: string | null
+          situacao?: string | null
+          stage_id?: string | null
+          status?: string | null
+          status_triagem?: string | null
+          telefone?: string | null
+          tipo_cliente?: string | null
+          ultimo_atendente_id?: string | null
+          ultimo_atendimento_at?: string | null
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
       comment_mentions: {
         Row: {
           comment_id: string
@@ -3542,11 +3635,13 @@ export type Database = {
           id: string
           respondido_em: string | null
           respondido_por: string | null
+          responsavel_id: string | null
           resposta: string | null
           solicitado_em: string | null
           solicitado_por: string | null
           task_id: string | null
           ticket_id: string | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -3554,11 +3649,13 @@ export type Database = {
           id?: string
           respondido_em?: string | null
           respondido_por?: string | null
+          responsavel_id?: string | null
           resposta?: string | null
           solicitado_em?: string | null
           solicitado_por?: string | null
           task_id?: string | null
           ticket_id?: string | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -3566,16 +3663,25 @@ export type Database = {
           id?: string
           respondido_em?: string | null
           respondido_por?: string | null
+          responsavel_id?: string | null
           resposta?: string | null
           solicitado_em?: string | null
           solicitado_por?: string | null
           task_id?: string | null
           ticket_id?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "ticket_departamentos_respondido_por_fkey"
             columns: ["respondido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_departamentos_responsavel_id_fkey"
+            columns: ["responsavel_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -4897,6 +5003,10 @@ export type Database = {
         Returns: string
       }
       calcular_tempo_ticket: { Args: { ticket_id: string }; Returns: unknown }
+      can_view_team_members: {
+        Args: { _team_id: string; _user_id?: string }
+        Returns: boolean
+      }
       check_whatsapp_status: { Args: never; Returns: string }
       create_user_admin: {
         Args: {

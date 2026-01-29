@@ -20,17 +20,11 @@ import { AtendimentoQueue, WhatsAppConversation } from '@/components/atendimento
 import { AtendimentoActions } from '@/components/atendimento/AtendimentoActions';
 import { AtendimentoFilters } from '@/components/atendimento/AtendimentoFilters';
 import {
-  MessageSquare,
-  Users,
-  Clock,
-  Inbox,
   Search,
   Smartphone,
-  Bell,
   Settings,
   RefreshCw,
-  Headphones,
-  UserCheck
+  Headphones
 } from 'lucide-react';
 
 interface WhatsAppInstance {
@@ -64,7 +58,7 @@ export default function AtendimentoCentralPage() {
   // Hooks - use first selected instance or null for all
   const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
-  const { stats, loading: statsLoading, refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
+  const { stats, refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
 
   // Calculate "my conversations" count
@@ -235,7 +229,6 @@ export default function AtendimentoCentralPage() {
   };
 
   const selectedInstance = instances.find(i => i.id === selectedInstanceId);
-  const onlineAgentsCount = agents.filter(a => a.status === 'online').length;
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">

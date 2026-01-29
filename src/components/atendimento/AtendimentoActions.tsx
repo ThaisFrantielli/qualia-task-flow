@@ -79,16 +79,6 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
     
     setIsLoading(true);
     try {
-      // Generate ticket number
-      const year = new Date().getFullYear();
-      const { count } = await supabase
-        .from('tickets')
-        .select('*', { count: 'exact', head: true })
-        .like('numero_ticket', `TKT-${year}-%`);
-      
-      const nextNum = (count || 0) + 1;
-      const numeroTicket = `TKT-${year}-${String(nextNum).padStart(4, '0')}`;
-
       const { data: insertedTicket, error } = await supabase
         .from('tickets')
         .insert({
