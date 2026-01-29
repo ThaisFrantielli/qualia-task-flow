@@ -1,344 +1,258 @@
 
-# Plano: Melhorias no Sistema de Tickets (Campos, Vinculações e SLA)
 
-## Visão Geral
+# Plano de Acao - Revisao Completa do CRM
 
-Este plano aborda múltiplas melhorias no sistema de tickets para torná-lo mais completo e alinhado com o fluxo real de pós-venda. As mudanças incluem gerenciamento dinâmico de opções, vinculação com cliente e veículo, campos adicionais para contratos/OS/faturas, e controle de tempo para SLA.
+## Resumo Executivo
 
----
-
-## 1. Tabelas de Configuração Dinâmica
-
-Criar tabelas para permitir adicionar/excluir opções sem alterar código.
-
-### 1.1 Tabela `ticket_origens` (Nova)
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | UUID | PK |
-| value | TEXT | Valor técnico (ex: "whatsapp") |
-| label | TEXT | Exibição (ex: "WhatsApp") |
-| is_active | BOOLEAN | Se está ativo |
-| sort_order | INTEGER | Ordem de exibição |
-
-### 1.2 Tabela `ticket_analises_finais` (Nova)
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | UUID | PK |
-| value | TEXT | procedente, improcedente, duvida |
-| label | TEXT | Procedente, Improcedente, Dúvida |
-| icon | TEXT | Nome do ícone Lucide |
-| color | TEXT | Classe de cor CSS |
-| is_active | BOOLEAN | Se está ativo |
-| sort_order | INTEGER | Ordem |
-
-### 1.3 Expandir Tabela `ticket_motivos` (Existente)
-
-Adicionar campo `is_active` se não existir para permitir desativar sem excluir.
+Apos investigacao detalhada do codigo-fonte e estrutura do banco de dados, identifiquei **12 inconsistencias criticas** que afetam a Central de Tickets, Central de Atendimento, WhatsApp, Hub de Clientes e Sistema de Pesquisas. Este plano apresenta as correcoes necessarias e melhorias propostas.
 
 ---
 
-## 2. Novos Campos na Tabela `tickets`
+## 1. Problemas Identificados
 
-### Colunas a Adicionar
+### 1.1 ERRO CRITICO: Criacao de Ticket Falhando
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| contrato_comercial | VARCHAR(50) | Número do contrato comercial |
-| contrato_locacao | VARCHAR(50) | Número do contrato de locação |
-| veiculo_modelo | VARCHAR(100) | Modelo do veículo (auto-preenchido) |
-| veiculo_ano | VARCHAR(10) | Ano do veículo |
-| veiculo_cliente | VARCHAR(100) | Cliente vinculado ao veículo |
-| veiculo_km | INTEGER | KM atual do veículo |
-| analise_final | VARCHAR(50) | Procedente/Improcedente/Dúvida |
-| tempo_total_segundos | BIGINT | Contador de tempo em segundos |
-| data_primeira_interacao | TIMESTAMP | Para SLA de primeira resposta |
-| data_conclusao | TIMESTAMP | Para calcular tempo total |
+**Causa Raiz Identificada:**
+O formulario de criacao de ticket (`CreateTicketDialog.tsx`) envia o campo `origem` como string livre (ex: "Whatsapp"), mas a tabela `tickets` no banco de dados possui um campo `origem` do tipo VARCHAR que aceita qualquer valor, enquanto o sistema tambem possui uma tabela separada `ticket_origens` com UUIDs.
 
----
+**Problema Especifico:**
+- Linha 97-98: `origem: values.origem` esta enviando o UUID do motivo para `motivo_id`, correto.
+- Porem, `values.origem` vem do select que busca de `ticket_origens.value`, que e uma string (ex: "whatsapp", "telefone").
+- O banco aceita essa string, mas a inconsistencia esta na **ausencia de tratamento de erros robustos** - quando o banco rejeita dados invalidos, o erro nao e capturado corretamente.
 
-## 3. Tabela de Vínculos Múltiplos (OS/Faturas/Ocorrências)
+**Problema de Build Atual:**
+Existem **17 erros de TypeScript** de variaveis nao utilizadas em:
+- `AtendimentoActions.tsx` (linha 90)
+- `TicketDetail.tsx` (linhas 8, 9, 10, 13, 52, 139, 144)
+- `WhatsAppQuickActions.tsx` (linha 68)
+- `AtendimentoCentralPage.tsx` (linhas 23-33, 67, 238)
 
-### 3.1 Tabela `ticket_vinculos` (Nova)
+### 1.2 Incompatibilidade de Enums - TICKET_MOTIVO_OPTIONS
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| id | UUID | PK |
-| ticket_id | UUID | FK para tickets |
-| tipo | VARCHAR(50) | 'ordem_servico', 'fatura', 'ocorrencia' |
-| numero | VARCHAR(50) | Número do documento |
-| descricao | TEXT | Descrição opcional |
-| valor | DECIMAL | Valor (se aplicável) |
-| data_documento | DATE | Data do documento |
-| created_at | TIMESTAMP | |
+**Problema Critico:**
+O arquivo `src/constants/ticketOptions.ts` define valores de motivo que **NAO correspondem** aos enums do banco de dados:
 
-Isso permite vincular múltiplas OS, faturas ou ocorrências ao mesmo ticket.
+| Arquivo ticketOptions.ts | Enum ticket_motivo_enum (Banco) |
+|--------------------------|----------------------------------|
+| "Contestacao de Cobranca" | "Contestacao cobranca" |
+| "Demora na Aprovacao do Orcamento" | "Demora na aprovacao do orcamento" |
+| "Ma Qualidade de Servico" | "Ma qualidade do servico" |
+| "Problemas Com Fornecedor" | "Problema com fornecedor" |
 
----
+Esta incompatibilidade pode causar erros ao inserir tickets com esses motivos.
 
-## 4. Vinculação de Cliente
+**Solucao:** O sistema agora usa a tabela `ticket_motivos` (criada recentemente) em vez do enum. O hook `useTicketMotivos()` ja busca os valores corretos. O arquivo `ticketOptions.ts` esta desatualizado e deve ser removido ou sincronizado.
 
-### Alterações
+### 1.3 Duplicidade de Clientes
 
-1. **CreateTicketDialog**: Substituir o Select simples pelo `ClienteCombobox` existente
-2. **TicketDetail**: Exibir dados completos do cliente vinculado (nome, CNPJ, telefone, email)
-3. Manter a relação existente `cliente_id` FK para tabela `clientes`
+**Situacao Atual:**
+- O hook `useAutoMergeClients.ts` foi criado para detectar duplicatas baseado nos ultimos 9 digitos do telefone.
+- A funcao `findAllDuplicates()` busca corretamente os clientes e agrupa por telefone normalizado.
+- O botao "Unificar Duplicados" foi adicionado ao `CustomerHubPage.tsx`.
 
----
+**Problema Identificado:**
+A query de teste retornou array vazio, indicando que os dados atuais podem nao ter duplicatas reais no momento, OU a logica de normalizacao precisa ser ajustada para casos como:
+- Telefones com DDI (55)
+- Telefones com e sem DDD
+- Campos `telefone` vs `whatsapp_number` inconsistentes
 
-## 5. Busca de Veículo por Placa
+### 1.4 Erros de Build (TypeScript)
 
-### Fluxo
-
-1. Usuário digita a placa no campo
-2. Sistema busca no JSON `dim_frota.json` (dados BI)
-3. Auto-preenche: Modelo, Ano, Cliente, KM, Contrato
-
-### Campos do dim_frota disponíveis
-
-- `Placa`
-- `Modelo`
-- `AnoModelo` / `AnoFabricacao`
-- `Cliente`
-- `KmAtual`
-- `ContratoLocacao`
-- `ContratoComercial`
-
-### Componente a Criar
-
-`PlacaVeiculoInput.tsx` - Campo de input que ao digitar/blur busca dados do veículo.
-
----
-
-## 6. Fluxo de Solicitar Apoio
-
-### Status Atual
-
-O fluxo atual está correto:
-1. Atendente clica "Solicitar Apoio"
-2. Seleciona departamento e responsável
-3. Registro fica "Pendente" em `ticket_departamentos`
-4. Responsável é notificado
-5. Quando responde, status muda para "Respondido"
-
-### Melhorias a Implementar
-
-1. **Botão de Responder**: Adicionar ao `TicketDepartamentoCard` para o responsável poder responder diretamente
-2. **Notificação de Retorno**: Quando respondido, notificar quem solicitou
-3. **Tempo de Resposta**: Registrar tempo entre solicitação e resposta para métricas
-
----
-
-## 7. Contador de Tempo / SLA
-
-### Implementação
-
-1. **Trigger no Banco**: Calcular `tempo_total_segundos` baseado em `created_at` e `data_conclusao`
-2. **Exibição Visual**: Mostrar contador no header do ticket
-3. **Histórico de Pausas**: Considerar criar tabela `ticket_tempo_pausas` para pausar SLA em certas situações
-
-### Componente a Criar
-
-`TicketTempoCounter.tsx` - Exibe tempo decorrido desde abertura com formatação amigável.
-
----
-
-## 8. Página de Configuração Expandida
-
-Expandir `TicketOptionsPage.tsx` para gerenciar:
-
-- **Aba Motivos**: Já existe
-- **Aba Origens**: Nova - CRUD de origens de lead
-- **Aba Análise Final**: Nova - CRUD de opções de análise
-- **Aba Departamentos**: Nova - Gerenciar lista de departamentos
-
----
-
-## 9. Atualização do Formulário de Ticket
-
-### CreateTicketDialog - Novos Campos
+Existem **17 variaveis declaradas mas nao utilizadas** que quebram o build:
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ NOVO TICKET DE PÓS-VENDA                                │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  Assunto: ___________________________________________   │
-│                                                         │
-│  ┌─────────────────────┐ ┌─────────────────────┐       │
-│  │ Cliente [Combobox]  │ │ Placa [Auto-busca]  │       │
-│  └─────────────────────┘ └─────────────────────┘       │
-│                                                         │
-│  ┌ Dados do Veículo (auto-preenchidos) ─────────────┐  │
-│  │ Modelo: FIAT ARGO          Ano: 2024             │  │
-│  │ Cliente Frota: COMPEL      KM: 45.000            │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  ┌─────────────────────┐ ┌─────────────────────┐       │
-│  │ Origem [Dinâmico]   │ │ Motivo [Dinâmico]   │       │
-│  └─────────────────────┘ └─────────────────────┘       │
-│                                                         │
-│  ┌─────────────────────┐ ┌─────────────────────┐       │
-│  │ Contrato Comercial  │ │ Contrato Locação    │       │
-│  └─────────────────────┘ └─────────────────────┘       │
-│                                                         │
-│  ┌ Vínculos ────────────────────────────────────────┐  │
-│  │ Ordem de Serviço: [____] [+ Adicionar]           │  │
-│  │ Fatura:           [____] [+ Adicionar]           │  │
-│  │ Ocorrência:       [____] [+ Adicionar]           │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                         │
-│  Síntese: ______________________________________________│
-│                                                         │
-│                                    [Criar Ticket]       │
-└─────────────────────────────────────────────────────────┘
+AtendimentoActions.tsx:90 - numeroTicket
+AtendimentoCentralPage.tsx:23-33 - MessageSquare, Users, Clock, Inbox, Bell, UserCheck
+AtendimentoCentralPage.tsx:67 - statsLoading
+AtendimentoCentralPage.tsx:238 - onlineAgentsCount
+TicketDetail.tsx:8-10 - Dialog, Select, Label
+TicketDetail.tsx:13 - Plus
+TicketDetail.tsx:52 - isAddDeptOpen
+TicketDetail.tsx:139 - handleAddDepartamento
+TicketDetail.tsx:144 - dept
+WhatsAppQuickActions.tsx:68 - numeroTicket
+```
+
+### 1.5 Seguranca - Linter do Supabase
+
+O linter identificou **76 problemas**:
+- 5 ERRORS: Views com SECURITY DEFINER
+- 71 WARNINGS: Funcoes sem `search_path` definido
+
+---
+
+## 2. Arquitetura Atual vs Esperada
+
+### 2.1 Fluxo de Criacao de Ticket
+
+```text
+ATUAL:
+Usuario -> CreateTicketDialog -> useCreateTicket -> Supabase INSERT
+                                     |
+                                     v
+                              [FALHA] Se valores nao correspondem aos enums
+
+CORRIGIDO:
+Usuario -> CreateTicketDialog -> Validacao Frontend -> useCreateTicket -> Supabase INSERT
+                                     |                       |
+                                     v                       v
+                              [OK] Valores validados    [Fallback] try/catch robusto
+```
+
+### 2.2 Relacionamento de Entidades
+
+```text
+clientes (1) ---> (*) tickets
+    |                   |
+    v                   v
+cliente_contatos   ticket_interacoes
+                        |
+                        v
+                   ticket_departamentos
 ```
 
 ---
 
-## 10. Atualização da Classificação
+## 3. Plano de Correcoes
 
-### TicketClassificacao.tsx - Mudanças
+### Fase 1: Correcoes Criticas (Build e Erros)
 
-1. Trocar "Parcialmente Procedente" por "Dúvida"
-2. Buscar opções da tabela `ticket_analises_finais` em vez de hardcoded
-3. Manter ícones dinâmicos baseados no campo `icon` da tabela
+| Prioridade | Arquivo | Acao |
+|------------|---------|------|
+| ALTA | TicketDetail.tsx | Remover imports e variaveis nao utilizados (linhas 8-10, 13, 52, 139, 144) |
+| ALTA | AtendimentoCentralPage.tsx | Remover imports nao utilizados (linhas 23-33, 67, 238) |
+| ALTA | AtendimentoActions.tsx | Remover `numeroTicket` (linha 90) |
+| ALTA | WhatsAppQuickActions.tsx | Remover `numeroTicket` (linha 68) |
 
----
+### Fase 2: Sincronizacao de Dados
 
-## Ordem de Implementação
+| Prioridade | Componente | Acao |
+|------------|------------|------|
+| ALTA | ticketOptions.ts | Atualizar TICKET_MOTIVO_OPTIONS para corresponder aos valores da tabela `ticket_motivos` ou remover em favor do hook |
+| MEDIA | CreateTicketDialog.tsx | Adicionar try/catch mais robusto e validacao pre-submit |
+| MEDIA | useAutoMergeClients.ts | Melhorar normalizacao de telefone para considerar DDI brasileiro |
 
-### Fase 1: Banco de Dados
-1. Criar tabela `ticket_origens`
-2. Criar tabela `ticket_analises_finais`
-3. Criar tabela `ticket_vinculos`
-4. Adicionar colunas em `tickets`
-5. Inserir dados iniciais nas novas tabelas
+### Fase 3: Melhorias de UX
 
-### Fase 2: Hooks e Serviços
-1. `useTicketOrigens()` - CRUD de origens
-2. `useTicketAnalises()` - CRUD de análises
-3. `useTicketVinculos()` - Gerenciar vínculos
-4. `useVeiculoByPlaca()` - Buscar veículo no BI
-
-### Fase 3: Componentes
-1. `PlacaVeiculoInput.tsx` - Campo de placa com auto-busca
-2. `TicketVinculosManager.tsx` - Gerenciar OS/Faturas/Ocorrências
-3. `TicketTempoCounter.tsx` - Contador de tempo
-4. Atualizar `TicketClassificacao.tsx`
-
-### Fase 4: Páginas
-1. Expandir `TicketOptionsPage.tsx` com novas abas
-2. Atualizar `CreateTicketDialog.tsx`
-3. Atualizar `TicketDetail.tsx` com novos campos
-
-### Fase 5: Melhorias de Fluxo
-1. Botão de responder em `TicketDepartamentoCard`
-2. Notificações de retorno
-3. Métricas de tempo por departamento
+| Prioridade | Componente | Acao |
+|------------|------------|------|
+| MEDIA | SurveyDashboard.tsx | Adicionar grafico de timeline por data de criacao |
+| MEDIA | SurveyReportsPage.tsx | Adicionar tabela de detalhamento com filtros |
+| BAIXA | DetractorAlerts.tsx | Adicionar workflow de follow-up com SLA |
 
 ---
 
-## Detalhes Técnicos
+## 4. Detalhes Tecnicos das Correcoes
 
-### Migração SQL
+### 4.1 Correcao do TicketDetail.tsx
 
-```sql
--- Tabela de origens
-CREATE TABLE public.ticket_origens (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  value TEXT UNIQUE NOT NULL,
-  label TEXT NOT NULL,
-  is_active BOOLEAN DEFAULT true,
-  sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Tabela de análises finais
-CREATE TABLE public.ticket_analises_finais (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  value TEXT UNIQUE NOT NULL,
-  label TEXT NOT NULL,
-  icon TEXT DEFAULT 'HelpCircle',
-  color TEXT DEFAULT 'text-gray-600',
-  is_active BOOLEAN DEFAULT true,
-  sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Tabela de vínculos
-CREATE TABLE public.ticket_vinculos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-  tipo VARCHAR(50) NOT NULL, -- ordem_servico, fatura, ocorrencia
-  numero VARCHAR(100) NOT NULL,
-  descricao TEXT,
-  valor DECIMAL(15,2),
-  data_documento DATE,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Novas colunas em tickets
-ALTER TABLE tickets
-ADD COLUMN IF NOT EXISTS contrato_comercial VARCHAR(100),
-ADD COLUMN IF NOT EXISTS contrato_locacao VARCHAR(100),
-ADD COLUMN IF NOT EXISTS veiculo_modelo VARCHAR(100),
-ADD COLUMN IF NOT EXISTS veiculo_ano VARCHAR(10),
-ADD COLUMN IF NOT EXISTS veiculo_cliente VARCHAR(100),
-ADD COLUMN IF NOT EXISTS veiculo_km INTEGER,
-ADD COLUMN IF NOT EXISTS analise_final VARCHAR(50),
-ADD COLUMN IF NOT EXISTS data_primeira_interacao TIMESTAMP,
-ADD COLUMN IF NOT EXISTS data_conclusao TIMESTAMP;
-
--- Dados iniciais
-INSERT INTO ticket_origens (value, label, sort_order) VALUES
-('whatsapp', 'WhatsApp', 1),
-('site', 'Site', 2),
-('ligacao', 'Ligação', 3),
-('redes_sociais', 'Redes Sociais', 4),
-('email', 'E-mail', 5);
-
-INSERT INTO ticket_analises_finais (value, label, icon, color, sort_order) VALUES
-('procedente', 'Procedente', 'CheckCircle', 'text-green-600', 1),
-('improcedente', 'Improcedente', 'XCircle', 'text-red-600', 2),
-('duvida', 'Dúvida', 'HelpCircle', 'text-yellow-600', 3);
-```
-
-### Hook de Busca de Veículo
-
+**Remover ou comentar:**
 ```typescript
-// useVeiculoByPlaca.ts
-export function useVeiculoByPlaca(placa: string) {
-  const { data: frota } = useBIData<any[]>('dim_frota');
-  
-  const veiculo = useMemo(() => {
-    if (!placa || !frota) return null;
-    const normalized = placa.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return frota.find(v => 
-      v.Placa?.toUpperCase().replace(/[^A-Z0-9]/g, '') === normalized
-    );
-  }, [placa, frota]);
-  
-  return {
-    modelo: veiculo?.Modelo,
-    ano: veiculo?.AnoModelo,
-    cliente: veiculo?.Cliente,
-    km: veiculo?.KmAtual,
-    contratoLocacao: veiculo?.ContratoLocacao,
-    contratoComercial: veiculo?.ContratoComercial
-  };
+// Linha 8-9: Remover imports Dialog e Select (ja existem no componente EditTicketDialog)
+// Linha 10: Remover Label
+// Linha 13: Remover Plus
+// Linha 52: Remover isAddDeptOpen ou implementar funcionalidade
+// Linha 139-144: Remover handleAddDepartamento e dept
+```
+
+### 4.2 Correcao do AtendimentoCentralPage.tsx
+
+**Remover imports nao utilizados:**
+```typescript
+// Linha 23-26, 29, 33: Remover MessageSquare, Users, Clock, Inbox, Bell, UserCheck
+// Linha 67: Remover statsLoading da desestruturacao
+// Linha 238: Remover onlineAgentsCount
+```
+
+### 4.3 Atualizacao do ticketOptions.ts
+
+**Sincronizar com enums do banco:**
+```typescript
+export const TICKET_MOTIVO_OPTIONS = [
+    { value: 'Contestação cobrança', label: 'Contestação de Cobrança' },
+    { value: 'Demora na aprovação do orçamento', label: 'Demora na Aprovação do Orçamento' },
+    { value: 'Agendamento errôneo', label: 'Agendamento Errôneo' },
+    { value: 'Má qualidade do serviço', label: 'Má Qualidade do Serviço' },
+    // ... demais valores conforme enum
+] as const;
+```
+
+OU remover o uso do arquivo estatico e usar exclusivamente `useTicketMotivos()`.
+
+### 4.4 Tratamento de Erros no CreateTicketDialog
+
+**Adicionar validacao pre-submit:**
+```typescript
+const actionInProgressRef = useRef(false);
+
+async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (actionInProgressRef.current) return;
+    actionInProgressRef.current = true;
+
+    try {
+        // Validacao adicional
+        if (!values.cliente_id || !values.motivo) {
+            toast.error("Preencha todos os campos obrigatórios");
+            return;
+        }
+
+        await createTicket.mutateAsync({ ... });
+        toast.success("Ticket criado com sucesso!");
+        setOpen(false);
+        form.reset();
+    } catch (error: any) {
+        console.error("Create ticket error:", error);
+        const message = error?.message || "Erro desconhecido ao criar ticket";
+        toast.error(message);
+    } finally {
+        actionInProgressRef.current = false;
+    }
 }
 ```
 
 ---
 
-## Resultado Esperado
+## 5. Inconsistencias Adicionais Encontradas
 
-1. Opções de origem, motivo e análise gerenciáveis via interface
-2. Cliente vinculado usando componente existente `ClienteCombobox`
-3. Placa busca automaticamente dados do veículo do BI
-4. Múltiplas OS, faturas e ocorrências podem ser vinculadas
-5. Tempo do ticket é rastreado da abertura até conclusão
-6. Análise final inclui "Dúvida" em vez de "Parcialmente Procedente"
-7. Fluxo de apoio a departamento com resposta integrada
+### 5.1 Central de Atendimento (WhatsApp)
+
+- O componente `WhatsAppCentralPage.tsx` e `AtendimentoCentralPage.tsx` sao muito similares e podem ser unificados
+- Ambos usam os mesmos hooks: `useWhatsAppConversations`, `useWhatsAppStats`, `useWhatsAppAgents`
+- Recomendacao: Remover uma das paginas e redirecionar
+
+### 5.2 Sistema de Pesquisas
+
+- Hook `useSurveyMetrics.ts` calcula tendencia corretamente (linha 99)
+- Detratores pendentes filtrados corretamente (linhas 140-148)
+- Nao foram encontrados bugs criticos no modulo de pesquisas
+
+### 5.3 Hub de Clientes
+
+- A sincronizacao com BI funciona via `limpar_clientes_bi()` + reimport
+- Clientes manuais podem coexistir com clientes BI
+- A unificacao de duplicatas esta implementada mas requer teste manual
+
+---
+
+## 6. Sequencia de Implementacao Recomendada
+
+| Ordem | Tarefa | Estimativa |
+|-------|--------|------------|
+| 1 | Corrigir erros de build (variaveis nao utilizadas) | 15 min |
+| 2 | Atualizar ticketOptions.ts ou remover uso estatico | 30 min |
+| 3 | Adicionar try/catch robusto no CreateTicketDialog | 20 min |
+| 4 | Testar criacao de ticket end-to-end | 15 min |
+| 5 | Revisar e testar unificacao de clientes duplicados | 30 min |
+| 6 | Implementar melhorias no dashboard de pesquisas | 2 horas |
+
+---
+
+## 7. Resultado Esperado
+
+Apos implementacao:
+1. Build sem erros de TypeScript
+2. Criacao de tickets funcionando sem erros de enum
+3. Clientes duplicados detectados e unificados automaticamente
+4. Dashboard de pesquisas com analise temporal
+5. Central de Atendimento sem codigo legado duplicado
+
