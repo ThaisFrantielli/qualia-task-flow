@@ -50,16 +50,28 @@ export function TicketTempoCounter({
   const isConcluido = !!dataConlusao;
   
   useEffect(() => {
+    const toDate = (val?: string | null) => {
+      if (!val) return null;
+      if (/^\d{4}-\d{2}-\d{2}T/.test(val)) return new Date(val);
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(val)) return new Date(val.replace(' ', 'T') + 'Z');
+      return new Date(val);
+    };
+
     const calcularTempo = () => {
-      const inicio = new Date(createdAt).getTime();
-      const fim = dataConlusao ? new Date(dataConlusao).getTime() : Date.now();
+      const inicioDate = toDate(createdAt) || new Date();
+      const inicio = inicioDate.getTime();
+      const fimDate = dataConlusao ? (toDate(dataConlusao) || new Date()) : new Date();
+      const fim = fimDate.getTime();
       const diffSeconds = Math.floor((fim - inicio) / 1000);
       setTempoTotal(Math.max(0, diffSeconds));
-      
+
       if (dataPrimeiraInteracao) {
-        const primeiraResposta = new Date(dataPrimeiraInteracao).getTime();
-        const diffResposta = Math.floor((primeiraResposta - inicio) / 1000);
-        setTempoPrimeiraResposta(Math.max(0, diffResposta));
+        const primeiraDate = toDate(dataPrimeiraInteracao);
+        if (primeiraDate) {
+          const primeiraResposta = primeiraDate.getTime();
+          const diffResposta = Math.floor((primeiraResposta - inicio) / 1000);
+          setTempoPrimeiraResposta(Math.max(0, diffResposta));
+        }
       }
     };
     

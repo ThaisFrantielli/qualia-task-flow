@@ -37,6 +37,7 @@ interface TicketDepartamentoCardProps {
 const DEPARTAMENTO_LABELS: Record<string, string> = {
     'Manutenção': 'Manutenção',
     'Central de Atendimento': 'Central de Atendimento',
+    'Central de atendimento': 'Central de Atendimento',
     'Documentação': 'Documentação',
     'Operação': 'Operação',
     'Comercial': 'Comercial',
@@ -45,6 +46,7 @@ const DEPARTAMENTO_LABELS: Record<string, string> = {
     'Aberto Erroneamente': 'Aberto Erroneamente',
     'Dúvida': 'Dúvida',
     'Operação - Filial SP': 'Operação - Filial SP',
+    'Operação SP': 'Operação - Filial SP',
     comercial: 'Comercial',
     tecnico: 'Técnico',
     logistica: 'Logística',
@@ -93,20 +95,34 @@ export function TicketDepartamentoCard({ departamento, onViewTask: _onViewTask }
                 throw error;
             }
 
-            // Notificar quem solicitou (se tiver ID)
-            if (departamento.solicitado_por?.id) {
-                await supabase.from('notifications').insert({
-                    user_id: departamento.solicitado_por.id,
-                    type: 'department_response',
-                    title: 'Resposta do Departamento',
-                    message: `O departamento ${DEPARTAMENTO_LABELS[departamento.departamento] || departamento.departamento} respondeu à sua solicitação`,
-                    data: { 
-                        ticket_id: departamento.ticket_id, 
-                        department: departamento.departamento,
-                        resposta: resposta.trim()
-                    },
-                    read: false
-                });
+            // Notificar quem solicitou (se tiver ID). Se não existir no objeto, tentar buscar direto no banco.
+            try {
+                let requesterId: string | null | undefined = departamento.solicitado_por?.id;
+                if (!requesterId) {
+                    const { data: fresh, error: freshError } = await supabase
+                        .from('ticket_departamentos')
+                        .select('solicitado_por')
+                        .eq('id', departamento.id)
+                        .single();
+                    if (!freshError) requesterId = (fresh as any)?.solicitado_por || null;
+                }
+
+                if (requesterId) {
+                    await supabase.from('notifications').insert({
+                        user_id: requesterId,
+                        type: 'department_response',
+                        title: 'Resposta do Departamento',
+                        message: `O departamento ${DEPARTAMENTO_LABELS[departamento.departamento] || departamento.departamento} respondeu à sua solicitação`,
+                        data: {
+                            ticket_id: departamento.ticket_id,
+                            department: departamento.departamento,
+                            resposta: resposta.trim()
+                        },
+                        read: false
+                    });
+                }
+            } catch (err) {
+                console.error('Erro ao inserir notificação de resposta do departamento:', err);
             }
 
             toast.success("Resposta enviada com sucesso!");

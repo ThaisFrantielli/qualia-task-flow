@@ -89,20 +89,24 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
       const nextNum = (count || 0) + 1;
       const numeroTicket = `TKT-${year}-${String(nextNum).padStart(4, '0')}`;
 
-      const { error } = await supabase.from('tickets').insert({
-        numero_ticket: numeroTicket,
-        titulo: ticketForm.titulo || `Atendimento - ${conversation.customer_name || conversation.customer_phone}`,
-        sintese: ticketForm.sintese,
-        prioridade: ticketForm.prioridade,
-        origem: ticketForm.origem,
-        motivo_id: ticketForm.motivo || null,
-        departamento: ticketForm.departamento as any,
-        placa: ticketForm.placa,
-        fase: 'Análise do caso',
-        status: 'aguardando_triagem',
-        cliente_id: conversation.cliente_id,
-        atendente_id: user?.id
-      });
+      const { data: insertedTicket, error } = await supabase
+        .from('tickets')
+        .insert({
+          // Do not send a formatted string for `numero_ticket` (DB expects numeric or is auto-generated).
+          titulo: ticketForm.titulo || `Atendimento - ${conversation.customer_name || conversation.customer_phone}`,
+          sintese: ticketForm.sintese,
+          prioridade: ticketForm.prioridade,
+          origem: ticketForm.origem,
+          motivo_id: ticketForm.motivo || null,
+          departamento: ticketForm.departamento as any,
+          placa: ticketForm.placa,
+          fase: 'Análise do caso',
+          status: 'aguardando_triagem',
+          cliente_id: conversation.cliente_id,
+          atendente_id: user?.id
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -114,7 +118,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
 
       toast({
         title: 'Ticket criado',
-        description: `Ticket ${numeroTicket} criado com sucesso`
+        description: insertedTicket?.numero_ticket ? `Ticket ${insertedTicket.numero_ticket} criado com sucesso` : `Ticket criado com sucesso`
       });
 
       setTicketDialogOpen(false);

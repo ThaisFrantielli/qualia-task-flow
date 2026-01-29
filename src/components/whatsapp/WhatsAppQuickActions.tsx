@@ -70,7 +70,7 @@ export const WhatsAppQuickActions: React.FC<WhatsAppQuickActionsProps> = ({
       const { data: ticket, error } = await supabase
         .from('tickets')
         .insert({
-          numero_ticket: numeroTicket,
+          // Avoid sending formatted string into `numero_ticket` (DB expects numeric or auto-generation).
           titulo: ticketForm.titulo,
           descricao: ticketForm.descricao,
           prioridade: ticketForm.prioridade,
@@ -95,7 +95,7 @@ export const WhatsAppQuickActions: React.FC<WhatsAppQuickActionsProps> = ({
 
       toast({
         title: 'Ticket criado',
-        description: `Ticket ${numeroTicket} criado com sucesso`
+        description: ticket?.numero_ticket ? `Ticket ${ticket.numero_ticket} criado com sucesso` : `Ticket criado com sucesso`
       });
 
       setShowTicketDialog(false);

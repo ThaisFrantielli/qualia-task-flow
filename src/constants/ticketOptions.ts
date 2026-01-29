@@ -32,16 +32,15 @@ export const TICKET_MOTIVO_OPTIONS = [
 
 // Departamento options matching ticket_departamento_enum
 export const TICKET_DEPARTAMENTO_OPTIONS = [
+    // Values must match the Postgres enum `ticket_departamento_enum`
     { value: 'Manutenção', label: 'Manutenção' },
-    { value: 'Central de Atendimento', label: 'Central de Atendimento' },
+    { value: 'Central de atendimento', label: 'Central de Atendimento' },
     { value: 'Documentação', label: 'Documentação' },
     { value: 'Operação', label: 'Operação' },
     { value: 'Comercial', label: 'Comercial' },
     { value: 'Financeiro', label: 'Financeiro' },
-    { value: 'Departamento Pessoal', label: 'Departamento Pessoal' },
-    { value: 'Aberto Erroneamente', label: 'Aberto Erroneamente' },
-    { value: 'Dúvida', label: 'Dúvida' },
-    { value: 'Operação - Filial SP', label: 'Operação - Filial SP' },
+    { value: 'Operação SP', label: 'Operação - Filial SP' },
+    { value: 'Não se aplica', label: 'Não se aplica' },
 ] as const;
 
 export const TICKET_FASES = {

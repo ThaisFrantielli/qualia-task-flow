@@ -196,6 +196,55 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 },
                 userId: user.id
             });
+            // Log interaction so it appears in the Interações history
+            try {
+                const inter = await addInteracao.mutateAsync({
+                    ticket_id: ticketId,
+                    tipo: 'mudanca_status',
+                    mensagem: `Ticket concluído via classificação`,
+                    status_anterior: ticket.fase || 'N/A',
+                    status_novo: 'Concluída',
+                    user_id: user.id
+                });
+
+                // Notify requester and attendant that ticket was concluded
+                try {
+                    const requesterId = (ticket as any)?.created_by || (ticket as any)?.created_by_id || null;
+                    const attendantId = (ticket as any)?.atendente_id || (ticket as any)?.profiles?.id || null;
+                    const baseData = {
+                        ticket_id: ticketId,
+                        interacao_id: (inter as any)?.id || null
+                    };
+
+                    if (requesterId) {
+                        await supabase.from('notifications').insert({
+                            user_id: requesterId,
+                            type: 'ticket_resolved',
+                            title: 'Ticket concluído',
+                            message: `O ticket #${ticket.numero_ticket} foi concluído.`,
+                            data: baseData,
+                            read: false
+                        });
+                    }
+
+                    if (attendantId && attendantId !== requesterId) {
+                        await supabase.from('notifications').insert({
+                            user_id: attendantId,
+                            type: 'ticket_resolved',
+                            title: 'Ticket concluído',
+                            message: `O ticket #${ticket.numero_ticket} foi concluído.`,
+                            data: baseData,
+                            read: false
+                        });
+                    }
+                } catch (err) {
+                    console.error('Erro ao inserir notificações de ticket concluído:', err);
+                }
+
+            } catch (err) {
+                console.error('Erro ao registrar interação de conclusão:', err);
+            }
+
             toast.success("Classificação salva e ticket resolvido!");
         } catch (error) {
             toast.error("Erro ao salvar classificação");
@@ -490,44 +539,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                             <Send className="w-4 h-4" />
                                         </Button>
                                     </div>
-                                    {/* Mover 'Solicitar Apoio' para Interações - botão no rodapé */}
-                                    <div className="mt-3 flex justify-end">
-                                        <Dialog open={isAddDeptOpen} onOpenChange={setIsAddDeptOpen}>
-                                            <DialogTrigger asChild>
-                                                <Button size="sm"><Plus className="w-4 h-4 mr-2" />Solicitar Apoio</Button>
-                                            </DialogTrigger>
-                                            <DialogContent>
-                                                <DialogHeader><DialogTitle>Solicitar Apoio de Departamento</DialogTitle></DialogHeader>
-                                                <div className="space-y-4 py-4">
-                                                    <div className="space-y-2">
-                                                        <Label>Departamento</Label>
-                                                        <Select value={selectedDept} onValueChange={(val) => { setSelectedDept(val); setSelectedResponsavel(""); }}>
-                                                            <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                                            <SelectContent>
-                                                                {TICKET_DEPARTAMENTO_OPTIONS.map(dept => (
-                                                                    <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    {selectedDept && (
-                                                        <div className="space-y-2">
-                                                            <Label>Responsável</Label>
-                                                            <Select value={selectedResponsavel} onValueChange={setSelectedResponsavel}>
-                                                                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                                                <SelectContent>
-                                                                    {deptUsers.map(user => (
-                                                                        <SelectItem key={user.id} value={user.id}>{user.full_name}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                    )}
-                                                    <Button onClick={handleAddDepartamento} disabled={!selectedDept || !selectedResponsavel} className="w-full">Solicitar</Button>
-                                                </div>
-                                            </DialogContent>
-                                        </Dialog>
-                                    </div>
+                                    {/* Botão 'Solicitar Apoio' removido conforme solicitado */}
                                 </CardContent>
                             </Card>
                         </TabsContent>

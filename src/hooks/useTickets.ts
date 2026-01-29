@@ -82,8 +82,8 @@ export const useTicketDetail = (ticketId: string) => {
           ),
           ticket_departamentos (
             *,
-            solicitado_por:profiles!ticket_departamentos_solicitado_por_fkey (full_name),
-            respondido_por:profiles!ticket_departamentos_respondido_por_fkey (full_name)
+                        solicitado_por:profiles!ticket_departamentos_solicitado_por_fkey (id, full_name),
+                        respondido_por:profiles!ticket_departamentos_respondido_por_fkey (id, full_name)
           ),
           ticket_anexos (
             *,
@@ -118,12 +118,18 @@ export const useCreateTicket = () => {
     return useMutation({
         mutationFn: async (ticket: Omit<TicketInsert, 'numero_ticket'> & { numero_ticket?: string }) => {
             // Map vehicle_plate (frontend) -> placa (DB) to avoid schema mismatch
-            const { vehicle_plate, ...rest } = ticket as any;
-            const ticketData = {
+            const { vehicle_plate, numero_ticket, ...rest } = ticket as any;
+            // Do NOT send a temporary numero_ticket; let the DB/triggers generate it when possible.
+            const ticketData: any = {
                 ...rest,
                 ...(vehicle_plate ? { placa: vehicle_plate } : {}),
-                numero_ticket: (ticket as any).numero_ticket || `TKT-${new Date().getFullYear()}-TEMP`
             };
+            // Only include `numero_ticket` if the caller provided a numeric value (avoid sending strings like 'TEMP')
+            if (typeof numero_ticket === 'number') {
+                ticketData.numero_ticket = numero_ticket;
+            } else if (typeof numero_ticket === 'string' && /^\d+$/.test(numero_ticket)) {
+                ticketData.numero_ticket = Number(numero_ticket);
+            }
 
             const { data, error } = await supabase
                 .from("tickets")
