@@ -28,7 +28,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useCreateTicket } from "@/hooks/useTickets";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Plus, Car, Building2, FileText } from "lucide-react";
 import { useTicketOrigens, useTicketMotivos } from "@/hooks/useTicketOptions";
@@ -55,6 +55,7 @@ export function CreateTicketDialog() {
     const [placa, setPlaca] = useState("");
     const [vinculos, setVinculos] = useState<Array<{ tipo: string; numero: string }>>([]);
     const createTicket = useCreateTicket();
+    const isSubmittingRef = useRef(false);
 
     const { data: origens } = useTicketOrigens();
     const { data: motivos } = useTicketMotivos();
@@ -88,6 +89,26 @@ export function CreateTicketDialog() {
     }, [veiculoData.found, veiculoData.contratoComercial, veiculoData.contratoLocacao, form]);
 
     function onSubmit(values: z.infer<typeof formSchema>) {
+        // Prevent double submission
+        if (isSubmittingRef.current || createTicket.isPending) {
+            console.log("[CreateTicketDialog] Submission blocked - already in progress");
+            return;
+        }
+
+        // Validate required fields
+        if (!values.cliente_id || !values.motivo || !values.departamento) {
+            toast.error("Preencha todos os campos obrigatórios");
+            return;
+        }
+
+        isSubmittingRef.current = true;
+        console.log("[CreateTicketDialog] Submitting ticket:", { 
+            titulo: values.titulo, 
+            cliente_id: values.cliente_id,
+            motivo_id: values.motivo,
+            departamento: values.departamento 
+        });
+
         createTicket.mutate(
             {
                 titulo: values.titulo,
@@ -110,20 +131,23 @@ export function CreateTicketDialog() {
             } as any,
             {
                 onSuccess: (data) => {
+                    console.log("[CreateTicketDialog] Ticket created successfully:", data?.id);
                     // Criar vínculos se houver
                     if (vinculos.length > 0 && data?.id) {
-                        // Os vínculos serão criados via hook separado após criação do ticket
-                        console.log("Vínculos a criar:", vinculos);
+                        console.log("[CreateTicketDialog] Vínculos a criar:", vinculos);
                     }
                     toast.success("Ticket criado com sucesso!");
                     setOpen(false);
                     form.reset();
                     setPlaca("");
                     setVinculos([]);
+                    isSubmittingRef.current = false;
                 },
-                onError: (error) => {
-                    console.error("Create ticket error:", error);
-                    toast.error("Erro ao criar ticket: " + (error?.message || String(error)));
+                onError: (error: any) => {
+                    console.error("[CreateTicketDialog] Error creating ticket:", error);
+                    const errorMessage = error?.message || error?.details || String(error);
+                    toast.error("Erro ao criar ticket: " + errorMessage);
+                    isSubmittingRef.current = false;
                 },
             }
         );
