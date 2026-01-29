@@ -13,10 +13,11 @@ function listExistingParts(outDir, base) {
 
 async function run() {
   const inPath = process.argv[2];
-  const base = process.argv[3] || 'fato_financeiro_dre';
-  const chunkSize = parseInt(process.argv[4] || '10000', 10);
+   const base = process.argv[3] || 'fato_financeiro_dre';
+  const outDir = process.argv[4] || path.join(process.cwd(), 'public', 'data');
+  const chunkSize = parseInt(process.argv[5] || '10000', 10);
   if (!inPath) {
-    console.error('Usage: node ndjson_to_json_parts.js <in.ndjson> [baseName] [chunkSize]');
+    console.error('Usage: node ndjson_to_json_parts.js <in.ndjson> [baseName] [outDir] [chunkSize]');
     process.exit(2);
   }
   if (!Number.isFinite(chunkSize) || chunkSize <= 0) {
@@ -24,7 +25,8 @@ async function run() {
     process.exit(2);
   }
 
-  const outDir = path.join(process.cwd(), 'public', 'data');
+  // outDir is configurable by argv[4]. Default remains public/data.
+    // outDir is configurable by argv[4]. Default remains public/data.
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   // Clean old parts + manifest

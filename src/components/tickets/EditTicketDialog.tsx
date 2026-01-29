@@ -92,7 +92,6 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
           titulo,
           cliente_id: clienteId,
           placa,
-          veiculo_placa: placa,
           veiculo_modelo: veiculoModelo,
           veiculo_ano: veiculoAno,
           veiculo_km: veiculoKm ? parseInt(veiculoKm) : null,

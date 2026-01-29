@@ -124,15 +124,25 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const handleAddDepartamento = async () => {
         if (!selectedDept || !selectedResponsavel || !user?.id) return;
         try {
-            const person = deptUsers.find(u => u.id === selectedResponsavel);
-            // Insert ticket_departamento
-            await addDepartamento.mutateAsync({
-                ticket_id: ticketId,
-                departamento: selectedDept,
-                solicitado_por: user.id,
-                solicitado_em: new Date().toISOString(),
-                responsavel_id: selectedResponsavel,
-            });
+                const person = deptUsers.find(u => u.id === selectedResponsavel);
+                // Insert ticket_departamento
+                const dept = await addDepartamento.mutateAsync({
+                    ticket_id: ticketId,
+                    departamento: selectedDept,
+                    solicitado_por: user.id,
+                    solicitado_em: new Date().toISOString(),
+                    responsavel_id: selectedResponsavel,
+                });
+                // Atualizar fase do ticket para ficar consistente com o Kanban
+                try {
+                    await updateTicket.mutateAsync({
+                        ticketId,
+                        updates: { fase: 'Aguardando departamento' },
+                        userId: user.id
+                    });
+                } catch (err) {
+                    console.error('Erro ao atualizar fase do ticket após solicitar apoio:', err);
+                }
             // Create notification
             await supabase.from('notifications').insert({
                 user_id: selectedResponsavel,

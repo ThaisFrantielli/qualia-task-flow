@@ -54,10 +54,10 @@ BEGIN
     RETURN;
   END IF;
 
-  -- 1) Escolher registro principal por codigo_cliente (mais campos preenchidos ganha; desempate por id)
+  -- 1) Escolher registro principal por nome_fantasia normalizado (mais campos preenchidos ganha; desempate por id)
   CREATE TEMP TABLE tmp_cliente_keep AS
   SELECT
-    codigo_cliente,
+    lower(trim(coalesce(nome_fantasia, ''))) AS key,
     (
       ARRAY_AGG(
         id
@@ -74,13 +74,13 @@ BEGIN
       )
     )[1] AS keep_id
   FROM public.clientes
-  GROUP BY codigo_cliente
+  GROUP BY lower(trim(coalesce(nome_fantasia, '')))
   HAVING COUNT(*) > 1;
 
   CREATE TEMP TABLE tmp_cliente_merge AS
-  SELECT c.id AS drop_id, k.keep_id, c.codigo_cliente
+  SELECT c.id AS drop_id, k.keep_id, c.codigo_cliente, k.key
   FROM public.clientes c
-  JOIN tmp_cliente_keep k USING (codigo_cliente)
+  JOIN tmp_cliente_keep k ON lower(trim(coalesce(c.nome_fantasia, ''))) = k.key
   WHERE c.id <> k.keep_id;
 
   -- 2) Reapontar FKs (só executa se a tabela/coluna existir)
@@ -127,8 +127,8 @@ BEGIN
   -- 3) Remover duplicados
   EXECUTE 'DELETE FROM public.clientes c USING tmp_cliente_merge m WHERE c.id = m.drop_id';
 
-  -- 4) Trava para evitar novas duplicidades
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clientes_codigo_cliente_key') THEN
-    ALTER TABLE public.clientes ADD CONSTRAINT clientes_codigo_cliente_key UNIQUE (codigo_cliente);
+  -- 4) Trava para evitar novas duplicidades por nome_fantasia normalizado
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'clientes_nome_fantasia_key') THEN
+    EXECUTE 'CREATE UNIQUE INDEX clientes_nome_fantasia_key ON public.clientes (lower(trim(coalesce(nome_fantasia, ''''))))';
   END IF;
 END $$;
