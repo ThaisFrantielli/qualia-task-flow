@@ -1,38 +1,35 @@
 // Values must match database enums exactly
 export const TICKET_ORIGEM_OPTIONS = [
-    { value: 'Whatsapp', label: 'Whatsapp' },
+    { value: 'Whatsapp', label: 'WhatsApp' },
     { value: 'Site', label: 'Site' },
     { value: 'Ligação', label: 'Ligação' },
     { value: 'Redes Sociais', label: 'Redes Sociais' },
     { value: 'E-mail', label: 'E-mail' },
 ] as const;
 
-// Motivo options matching ticket_motivo_enum
+// NOTA: Motivos foram migrados para tabela `ticket_motivos`
+// Use o hook useTicketMotivos() em vez desta constante
+// Esta lista é mantida apenas para referência/fallback
 export const TICKET_MOTIVO_OPTIONS = [
-    { value: 'Contestação de Cobrança', label: 'Contestação de Cobrança' },
-    { value: 'Demora na Aprovação do Orçamento', label: 'Demora na Aprovação do Orçamento' },
-    { value: 'Agendamento Errôneo', label: 'Agendamento Errôneo' },
-    { value: 'Má Qualidade de Serviço', label: 'Má Qualidade de Serviço' },
-    { value: 'Problemas Com Fornecedor', label: 'Problemas Com Fornecedor' },
-    { value: 'Demora em atendimento', label: 'Demora em atendimento' },
-    { value: 'Atendimento Ineficaz', label: 'Atendimento Ineficaz' },
-    { value: 'Multas e Notificações', label: 'Multas e Notificações' },
-    { value: 'Problemas na Entrega', label: 'Problemas na Entrega' },
-    { value: 'Problemas Com Veículo Reserva', label: 'Problemas Com Veículo Reserva' },
-    { value: 'Atendimento Comercial', label: 'Atendimento Comercial' },
-    { value: 'Oportunidade Aberta Erroneamente', label: 'Oportunidade Aberta Erroneamente' },
-    { value: 'Cobrança Indevida', label: 'Cobrança Indevida' },
-    { value: 'Dúvida', label: 'Dúvida' },
-    { value: 'Erro de processo interno', label: 'Erro de processo interno' },
-    { value: 'Troca definitiva de veículo', label: 'Troca definitiva de veículo' },
-    { value: 'Problema recorrente', label: 'Problema recorrente' },
-    { value: 'Solicitação de Reembolso', label: 'Solicitação de Reembolso' },
-    { value: 'Problemas com Terceiro', label: 'Problemas com Terceiro' },
+    { value: 'contestacao_cobranca', label: 'Contestação de Cobrança' },
+    { value: 'demora_aprovacao_orcamento', label: 'Demora na Aprovação do Orçamento' },
+    { value: 'agendamento_erroneo', label: 'Agendamento Errôneo' },
+    { value: 'ma_qualidade_servico', label: 'Má Qualidade do Serviço' },
+    { value: 'problema_fornecedor', label: 'Problema com Fornecedor' },
+    { value: 'demora_atendimento', label: 'Demora no Atendimento' },
+    { value: 'multas_notificacoes', label: 'Multas e Notificações' },
+    { value: 'problemas_entrega_veiculo', label: 'Problemas na Entrega do Veículo' },
+    { value: 'problemas_veiculo', label: 'Problemas com o Veículo' },
+    { value: 'atendimento_comercial', label: 'Atendimento Comercial' },
+    { value: 'oportunidade_erronea', label: 'Oportunidade Aberta Erroneamente' },
+    { value: 'problemas_acesso', label: 'Problemas de Acesso' },
+    { value: 'problemas_terceiro', label: 'Problemas com Terceiro' },
+    { value: 'duvida', label: 'Dúvida' },
+    { value: 'outros', label: 'Outros' },
 ] as const;
 
-// Departamento options matching ticket_departamento_enum
+// Departamento options - MUST match ticket_departamento_enum exactly
 export const TICKET_DEPARTAMENTO_OPTIONS = [
-    // Values must match the Postgres enum `ticket_departamento_enum`
     { value: 'Manutenção', label: 'Manutenção' },
     { value: 'Central de atendimento', label: 'Central de Atendimento' },
     { value: 'Documentação', label: 'Documentação' },
