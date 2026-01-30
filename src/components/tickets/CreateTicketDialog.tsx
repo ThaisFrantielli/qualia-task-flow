@@ -267,7 +267,7 @@ export function CreateTicketDialog() {
                                             </FormControl>
                                             <SelectContent>
                                                 {origens?.map((option) => (
-                                                    <SelectItem key={option.id} value={option.value}>
+                                                    <SelectItem key={option.id} value={option.id}>
                                                         {option.label}
                                                     </SelectItem>
                                                 ))}
