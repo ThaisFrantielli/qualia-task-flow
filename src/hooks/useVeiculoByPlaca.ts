@@ -16,6 +16,20 @@ interface VeiculoResult {
 
 export function useVeiculoByPlaca(placa: string): VeiculoResult {
   const { data: frota, loading } = useBIData<any[]>('dim_frota');
+
+  const coerceKm = (value: unknown): number | undefined => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value === 'string') {
+      const cleaned = value.trim().replace(/[^0-9.,-]/g, '');
+      if (!cleaned) return undefined;
+      // pt-BR sometimes uses dot as thousands separator and comma as decimal separator
+      const normalized = cleaned.replace(/\./g, '').replace(',', '.');
+      const n = Number(normalized);
+      return Number.isFinite(n) ? n : undefined;
+    }
+    return undefined;
+  };
   
   const result = useMemo((): VeiculoResult => {
     if (!placa || placa.length < 7 || !frota || loading) {
@@ -34,12 +48,15 @@ export function useVeiculoByPlaca(placa: string): VeiculoResult {
     if (!veiculo) {
       return { found: false };
     }
+
+    const kmRaw = veiculo.KmAtual ?? veiculo.km_atual ?? veiculo.Km;
+    const km = coerceKm(kmRaw);
     
     return {
       modelo: veiculo.Modelo || veiculo.modelo,
       ano: veiculo.AnoModelo || veiculo.ano_modelo || veiculo.AnoFabricacao,
       cliente: veiculo.Cliente || veiculo.cliente || veiculo.NomeCliente,
-      km: veiculo.KmAtual || veiculo.km_atual || veiculo.Km,
+      km,
       contratoLocacao: veiculo.ContratoLocacao || veiculo.contrato_locacao || veiculo.NumeroContrato,
       contratoComercial: veiculo.ContratoComercial || veiculo.contrato_comercial,
       cor: veiculo.Cor || veiculo.cor,
