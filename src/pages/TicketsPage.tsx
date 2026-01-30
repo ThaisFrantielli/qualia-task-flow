@@ -19,7 +19,6 @@ export default function TicketsPage() {
     // Detectar se deve abrir o dialog de criação automaticamente
     useEffect(() => {
         const criar = searchParams.get('criar');
-        const clienteId = searchParams.get('cliente_id');
         
         if (criar === 'true') {
             // Limpar o parâmetro da URL
