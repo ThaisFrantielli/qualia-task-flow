@@ -1468,8 +1468,15 @@ function queueUpload(tableName, data, year = null, month = null) {
                 try {
                     const outDir = path.join(process.cwd(), 'public', 'data');
                     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-                    fs.writeFileSync(path.join(outDir, chunkFileName), JSON.stringify(chunk), 'utf8');
-                    console.log(`         💾 Gravado local: ${chunkFileName}`);
+                    
+                    // Envolver chunk em um objeto com metadata
+                    const wrappedChunk = {
+                        metadata: chunkMetadata,
+                        data: chunk
+                    };
+                    
+                    fs.writeFileSync(path.join(outDir, chunkFileName), JSON.stringify(wrappedChunk), 'utf8');
+                    console.log(`         💾 Gravado local: ${chunkFileName} (com metadata)`);
                 } catch (err) {
                     console.error(`         ❌ Falha ao gravar chunk local ${chunkFileName}:`, err.message);
                 }
@@ -1502,21 +1509,31 @@ function queueUpload(tableName, data, year = null, month = null) {
                 });
         }
 
-        if (writeLocal) writeSmallLocal(fileName, data);
+        if (writeLocal) writeSmallLocal(fileName, data, metadata);
 
         uploadQueue.push(uploadPromise);
     }
 }
 
 // Se escrevemos localmente para arquivos pequenos (não chunked)
-function writeSmallLocal(fileName, dataObj) {
+function writeSmallLocal(fileName, dataObj, metadata) {
     try {
         const fs = require('fs');
         const path = require('path');
         const outDir = path.join(process.cwd(), 'public', 'data');
         if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-        fs.writeFileSync(path.join(outDir, fileName), JSON.stringify(dataObj), 'utf8');
-        console.log(`         💾 Gravado local: ${fileName}`);
+        
+        // Envolver dados em um objeto com metadata
+        const wrappedData = {
+            metadata: metadata || { 
+                generated_at: new Date().toISOString(),
+                record_count: Array.isArray(dataObj) ? dataObj.length : 0 
+            },
+            data: dataObj
+        };
+        
+        fs.writeFileSync(path.join(outDir, fileName), JSON.stringify(wrappedData), 'utf8');
+        console.log(`         💾 Gravado local: ${fileName} (com metadata)`);
     } catch (err) {
         console.error(`         ❌ Falha ao gravar local ${fileName}:`, err.message);
     }
