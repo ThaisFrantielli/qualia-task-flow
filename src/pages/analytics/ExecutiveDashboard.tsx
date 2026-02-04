@@ -7,6 +7,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 import { LayoutDashboard, Car, DollarSign, Wrench, Users, AlertTriangle, ArrowRight, TrendingUp, TrendingDown, ShoppingCart, Tag } from 'lucide-react';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
+import DataUpdateBadge from '@/components/DataUpdateBadge';
 
 type AnyObject = { [k: string]: any };
 
@@ -17,7 +18,7 @@ function monthLabel(ym: string): string { if (!ym || ym.length < 7) return ym; c
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export default function ExecutiveDashboard(): JSX.Element {
-  const { data: rawFrota, loading: l1 } = useBIData<AnyObject[]>('dim_frota.json');
+  const { data: rawFrota, loading: l1, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota.json');
   const { data: rawContratos } = useBIData<AnyObject[]>('dim_contratos_locacao.json');
   const { data: rawClientes } = useBIData<AnyObject[]>('dim_clientes.json');
   const { data: rawFaturamento } = useBIData<AnyObject[]>('fat_faturamentos_*.json');
@@ -167,7 +168,10 @@ export default function ExecutiveDashboard(): JSX.Element {
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div><Title className="text-slate-900">Visão Geral Executiva</Title><Text className="mt-1 text-slate-500">Scorecard consolidado da operação</Text></div>
-        <div className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><LayoutDashboard className="w-4 h-4" /> Board</div>
+        <div className="flex items-center gap-3">
+          <DataUpdateBadge metadata={frotaMetadata} compact />
+          <div className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"><LayoutDashboard className="w-4 h-4" /> Board</div>
+        </div>
       </div>
       {/* Chart filters (Power BI style) */}
       <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />

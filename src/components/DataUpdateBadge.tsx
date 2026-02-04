@@ -41,14 +41,18 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
   };
 
   if (compact) {
+    const displayDate = dwDate || etlDate;
+    const dateStr = displayDate ? `${displayDate.toLocaleDateString('pt-BR')} ${displayDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '';
+    
     return (
       <button
         onClick={() => setShowDetails(!showDetails)}
-        className={`relative flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border transition-all hover:shadow-sm ${getStatusColor()}`}
-        title="Clique para ver detalhes da atualização"
+        className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:shadow-sm ${getStatusColor()}`}
+        title={`Última atualização do DW: ${dateStr}\nClique para ver mais detalhes`}
       >
         <Clock size={12} />
-        {getTimeAgo(diffHours, diffDays)}
+        <span className="hidden sm:inline">Atualizado: </span>
+        <span className="font-semibold">{dateStr}</span>
         
         {showDetails && (
           <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-xl p-4 min-w-[280px] z-50">

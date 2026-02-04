@@ -11,6 +11,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 import TimelineTab from '@/components/analytics/fleet/TimelineTab';
+import DataUpdateBadge from '@/components/DataUpdateBadge';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -63,7 +64,7 @@ interface FleetTableItem {
 // Using shared MultiSelect component with built-in search
 
 export default function FleetDashboard(): JSX.Element {
-    const { data: frotaData } = useBIData<AnyObject[]>('dim_frota');
+    const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota');
     const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado');
     const { data: movimentacoesData } = useBIData<AnyObject[]>('fat_movimentacao_ocorrencias');
     
@@ -1612,7 +1613,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div><Title className="text-slate-900">Gestão de Frota</Title><Text className="text-slate-500">Análise de ativos, produtividade e localização.</Text></div>
-                <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Car className="w-4 h-4" /> Hub Ativos</div>
+                <div className="flex items-center gap-3">
+                    <DataUpdateBadge metadata={frotaMetadata} compact />
+                    <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Car className="w-4 h-4" /> Hub Ativos</div>
+                </div>
             </div>
 
             <FloatingClearButton onClick={clearAllFilters} show={hasActiveFilters} />
