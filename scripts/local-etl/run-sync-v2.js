@@ -332,7 +332,7 @@ const DIMENSIONS = [
                     WHERE cl2.PlacaPrincipal = v.Placa
                       AND cl2.SituacaoContratoLocacao NOT IN ('Encerrado', 'Cancelado')
                     ORDER BY cl2.DataInicial DESC
-                ) ContratoAtivo
+                ) ContratoAtivo`
     },
     {
         table: 'dim_veiculos_acessorios',
@@ -858,7 +858,7 @@ const CONSOLIDATED = [
                 -- Cliente via contrato comercial vinculado
                 LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente
                 -- Cliente informado diretamente na ocorrência (fallback)
-                LEFT JOIN Clientes cli_t WITH (NOLOCK) ON ovt.IdCliente = cli_t.IdCliente
+                LEFT JOIN Clientes cli_t WITH (NOLOCK) ON ovt.IdCliente = cli_t.IdCliente`
     },
     {
         table: 'fat_manutencao_unificado',
