@@ -34,6 +34,7 @@ jobs:
           SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
           SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
           JSON_ONLY: "true"
+          NODE_OPTIONS: "--max-old-space-size=6144"
           # Evitar usar Supabase/Service Key aqui — controlar via secrets se necessário
         run: node scripts/local-etl/run-sync-v2.js --json-only
 
