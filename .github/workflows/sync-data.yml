@@ -10,7 +10,7 @@ on:
 jobs:
   update-data:
     name: ETL e Atualização de JSONs
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
 
@@ -18,14 +18,13 @@ jobs:
       - name: 1. Checkout do código
         uses: actions/checkout@v4
 
-      - name: 2. Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
+      - name: 2. Verificar Node.js
+        run: |
+          node --version
+          npm --version
 
       - name: 3. Instalar dependências
-        run: npm ci
+        run: npm install
 
       - name: 4. Rodar ETL (Modo JSON Only)
         env:
