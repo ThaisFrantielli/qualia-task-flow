@@ -333,7 +333,6 @@ const DIMENSIONS = [
                       AND cl2.SituacaoContratoLocacao NOT IN ('Encerrado', 'Cancelado')
                     ORDER BY cl2.DataInicial DESC
                 ) ContratoAtivo
-                WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro'`
     },
     {
         table: 'dim_veiculos_acessorios',
@@ -444,7 +443,7 @@ const CONSOLIDATED = [
     },
     {
         table: 'rentabilidade_360_geral',
-        query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo WHERE COALESCE(v.FinalidadeUso, '') <> 'Terceiro' ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi JOIN Faturamentos f ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo`
+        query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v WITH (NOLOCK) LEFT JOIN GruposVeiculos g WITH (NOLOCK) ON v.IdGrupoVeiculo = g.IdGrupoVeiculo ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WITH (NOLOCK) WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi WITH (NOLOCK) JOIN Faturamentos f WITH (NOLOCK) ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo`
     },
     {
         table: 'hist_vida_veiculo_timeline',
@@ -849,17 +848,17 @@ const CONSOLIDATED = [
                     ovt.TipoVeiculoTemporario,
                     ovt.IdFornecedorReserva,
                     ovt.FornecedorReserva as FornecedorReservaOriginal
-                FROM OcorrenciasVeiculoTemporario ovt
+                FROM OcorrenciasVeiculoTemporario ovt WITH (NOLOCK)
                 -- Tentar casar pelo IdContratoLocacao quando disponível, senão por placa principal ativa
-                LEFT JOIN ContratosLocacao cl ON (ovt.IdContratoLocacao IS NOT NULL AND ovt.IdContratoLocacao = cl.IdContratoLocacao) OR (ovt.Placa = cl.PlacaPrincipal AND cl.SituacaoContratoLocacao = 'Ativo')
+                LEFT JOIN ContratosLocacao cl WITH (NOLOCK) ON (ovt.IdContratoLocacao IS NOT NULL AND ovt.IdContratoLocacao = cl.IdContratoLocacao) OR (ovt.Placa = cl.PlacaPrincipal AND cl.SituacaoContratoLocacao = 'Ativo')
                 -- Contrato comercial vinculado ao contrato de locação
-                LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
+                LEFT JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContrato = cc.IdContratoComercial
                 -- Contrato comercial declarado diretamente na ocorrência (fallback)
-                LEFT JOIN ContratosComerciais cc_t ON ovt.IdContratoComercial = cc_t.IdContratoComercial
+                LEFT JOIN ContratosComerciais cc_t WITH (NOLOCK) ON ovt.IdContratoComercial = cc_t.IdContratoComercial
                 -- Cliente via contrato comercial vinculado
-                LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente
+                LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente
                 -- Cliente informado diretamente na ocorrência (fallback)
-                LEFT JOIN Clientes cli_t ON ovt.IdCliente = cli_t.IdCliente`
+                LEFT JOIN Clientes cli_t WITH (NOLOCK) ON ovt.IdCliente = cli_t.IdCliente
     },
     {
         table: 'fat_manutencao_unificado',
