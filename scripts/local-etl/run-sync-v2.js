@@ -112,8 +112,8 @@ const DIMENSIONS = [
                     av.Modelo,
                     av.Modelo as modelo,
                     av.Montadora as marca,
-                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as DataAlienacao,
-                    FORMAT(av.DataEntrada, 'yyyy-MM-dd') as data_alienacao,
+                    av.DataEntrada as DataAlienacao,
+                    av.DataEntrada as data_alienacao,
                     ISNULL(av.Instituicao, 'Não Informado') as Banco,
                     ISNULL(av.Instituicao, 'Não Informado') as banco,
                     ${castM('av.ValorAlienado')} as ValorFinanciado,
@@ -125,9 +125,9 @@ const DIMENSIONS = [
                     CAST(ISNULL(av.QuantidadeParcelas, 0) AS INT) as TotalParcelas,
                     ${castM('av.ValorParcela')} as ValorParcela,
                     ${castM('av.ValorParcela')} as valor_parcela,
-                    FORMAT(av.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as data_primeira_parcela,
-                    FORMAT(av.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimeiroVencimento,
-                    FORMAT(av.Termino, 'yyyy-MM-dd') as data_ultima_parcela,
+                    av.VencimentoPrimeiraParcela as data_primeira_parcela,
+                    av.VencimentoPrimeiraParcela as DataPrimeiroVencimento,
+                    av.Termino as data_ultima_parcela,
                     CAST(ISNULL(av.ValorParcela, 0) * ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS DECIMAL(15,2)) as saldo_devedor,
                     CAST(ISNULL(av.ValorParcela, 0) * ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS DECIMAL(15,2)) as SaldoDevedor,
                     CAST(ISNULL(av.QuantidadeParcelasRemanescentes, 0) AS INT) as QuantidadeParcelasRemanescentes,
@@ -163,21 +163,21 @@ const DIMENSIONS = [
                     Segmento,
                     ISNULL(Observacoes, '') as Observacoes,
                     Situacao,
-                    FORMAT(DataCriacao, 'yyyy-MM-dd') as DataCriacao,
+                    DataCriacao as DataCriacao,
                     Endereco,
                     NumeroEndereco,
                     Complemento,
                     Bairro,
                     Cidade,
                     Estado,
-                    FORMAT(NascimentoCondutor, 'yyyy-MM-dd') as NascimentoCondutor,
+                    NascimentoCondutor as NascimentoCondutor,
                     EmailCondutor,
                     Telefone1Condutor,
                     Telefone2Condutor,
                     Telefone3Condutor,
                     NumeroCarteiraCondutor,
                     TipoCarteiraCondutor,
-                    FORMAT(VencimentoCarteiraCondutor, 'yyyy-MM-dd') as VencimentoCarteiraCondutor,
+                    VencimentoCarteiraCondutor as VencimentoCarteiraCondutor,
                     InformacoesAdicionaisCondutor,
                     EstadoCarteiraCondutor,
                     EmissorCarteiraCondutor,
@@ -196,11 +196,11 @@ const DIMENSIONS = [
     },
     {
         table: 'dim_condutores',
-        query: `SELECT IdCondutor, Nome, CPF, NúmeroCnh as NumeroCnh, TipoCnh, FORMAT(VencimentoCnh, 'yyyy-MM-dd') as VencCnh, Email, Telefone1, Telefone2, Telefone3 FROM Condutores WITH (NOLOCK)`
+        query: `SELECT IdCondutor, Nome, CPF, NúmeroCnh as NumeroCnh, TipoCnh, VencimentoCnh as VencCnh, Email, Telefone1, Telefone2, Telefone3 FROM Condutores WITH (NOLOCK)`
     },
     {
         table: 'dim_fornecedores',
-        query: `SELECT IdFornecedor, NomeFantasia, CNPJ, CPF, Classificacao, Marca, Endereco, NumeroEndereco, Complemento, Bairro, Cidade, Estado, FORMAT(CriadoEm, 'yyyy-MM-dd') as CriadoEm FROM Fornecedores WITH (NOLOCK)`
+        query: `SELECT IdFornecedor, NomeFantasia, CNPJ, CPF, Classificacao, Marca, Endereco, NumeroEndereco, Complemento, Bairro, Cidade, Estado, CriadoEm as CriadoEm FROM Fornecedores WITH (NOLOCK)`
     },
     {
         table: 'dim_frota',
@@ -238,18 +238,18 @@ const DIMENSIONS = [
                     -- FIPE Zero KM (Esta é a linha que faltava no seu SELECT)
                     CAST(ISNULL(FipeZeroKm.PrecoFIPE, 0) AS FLOAT) as ValorFipeZeroKmAtual,
 
-                    FORMAT(v.DataCompra, 'yyyy-MM-dd') as DataCompra,
+                    v.DataCompra as DataCompra,
                     DATEDIFF(MONTH, v.DataCompra, GETDATE()) as IdadeVeiculo,
                     v.Proprietario,
                     v.EstadoLicenciamento as UF_Lic,
                     v.CidadeLicenciamento,
                     v.NumeroMotor,
                     CAST(ISNULL(v.TanqueLitros, 0) AS INT) as Tanque,
-                    FORMAT(v.UltimaManutencao, 'yyyy-MM-dd') as UltimaManutencao,
-                    FORMAT(v.UltimaManutencaoPreventiva, 'yyyy-MM-dd') as UltimaManutencaoPreventiva,
+                    v.UltimaManutencao as UltimaManutencao,
+                    v.UltimaManutencaoPreventiva as UltimaManutencaoPreventiva,
                     CAST(ISNULL(v.KmUltimaManutencaoPreventiva, 0) AS INT) as KmUltimaManutencaoPreventiva,
                     v.ProvedorTelemetria,
-                    FORMAT(v.UltimaAtualizacaoTelemetria, 'yyyy-MM-dd HH:mm:ss') as UltimaAtualizacaoTelemetria,
+                    v.UltimaAtualizacaoTelemetria as UltimaAtualizacaoTelemetria,
                     CAST(v.Latitude AS FLOAT) as Latitude,
                     CAST(v.Longitude AS FLOAT) as Longitude,
                     v.UltimoEnderecoTelemetria,
@@ -262,14 +262,14 @@ const DIMENSIONS = [
                     c.Telefone1 as TelefoneCondutor,
                     v.SituacaoFinanceiraContratoLocacao,
                     al.Instituicao as BancoFinanciador, 
-                    FORMAT(al.Termino, 'yyyy-MM-dd') as Quitacao, 
-                    FORMAT(al.VencimentoPrimeiraParcela, 'yyyy-MM-dd') as DataPrimParcela,
+                    al.Termino as Quitacao, 
+                    al.VencimentoPrimeiraParcela as DataPrimParcela,
                     ContratoAtivo.NomeCliente,
                     ContratoAtivo.TipoLocacao,
                     CAST(ISNULL(ContratoAtivo.ValorLocacao, 0) AS DECIMAL(15,2)) as ValorLocacao,
                     ContratoAtivo.IdContratoLocacao,
                     ContratoAtivo.ContratoLocacao as NumeroContratoLocacao,
-                    FORMAT(vv.DataVenda, 'yyyy-MM-dd') as DataVenda
+                    vv.DataVenda as DataVenda
                 FROM Veiculos v 
                 LEFT JOIN GruposVeiculos g ON v.IdGrupoVeiculo = g.IdGrupoVeiculo 
                 LEFT JOIN Patios p ON v.IdPatio = p.IdPatio 
@@ -341,10 +341,10 @@ const DIMENSIONS = [
     {
         table: 'historico_situacao_veiculos',
         query: `SELECT
-                    FORMAT(DataAtualizacaoDados, 'yyyy-MM-dd HH:mm:ss') as DataAtualizacaoDados,
+                    DataAtualizacaoDados as DataAtualizacaoDados,
                     IdVeiculo,
                     Placa,
-                    FORMAT(UltimaAtualizacao, 'yyyy-MM-dd HH:mm:ss') as UltimaAtualizacao,
+                    UltimaAtualizacao as UltimaAtualizacao,
                     AtualizadoPor,
                     SituacaoAnteriorVeiculo,
                     SituacaoVeiculo,
@@ -382,9 +382,9 @@ const DIMENSIONS = [
                                         cl.SituacaoDoFaturamento,
                                         cl.NomeCondutor,
                                         CAST(ISNULL(preco.PrecoUnitario, 0) AS FLOAT) as ValorMensalAtual,
-                                        FORMAT(cl.DataInicial, 'yyyy-MM-dd') as Inicio, 
-                                        FORMAT(cl.DataFinal, 'yyyy-MM-dd') as Fim, 
-                                        FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataEncerramento,
+                                        cl.DataInicial as Inicio, 
+                                        cl.DataFinal as Fim, 
+                                        cl.DataEncerramento as DataEncerramento,
                                         cl.PeriodoEmMeses 
                                 FROM ContratosLocacao cl 
                                 JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
@@ -409,7 +409,7 @@ const DIMENSIONS = [
         table: 'dim_movimentacao_patios',
         query: `SELECT 
                     IdVeiculo, Placa, IdPatio, Patio, 
-                    FORMAT(DataMovimentacao, 'yyyy-MM-dd HH:mm:ss') as DataMovimentacao, 
+                    DataMovimentacao as DataMovimentacao, 
                     Comentarios, IdUsuarioMovimentacao, UsuarioMovimentacao 
                 FROM MovimentacaoPatios 
                 WHERE DataMovimentacao IS NOT NULL
@@ -420,12 +420,12 @@ const DIMENSIONS = [
         query: `SELECT 
                     IdContratoLocacao, ContratoLocacao, IdContratoComercial, ContratoComercial, 
                     IdClassificacaoContrato, ClassificacaoContrato, 
-                    FORMAT(DataEncerramento, 'yyyy-MM-dd HH:mm:ss') as DataEncerramento, 
+                    DataEncerramento as DataEncerramento, 
                     IdSituacaoContratoLocacao, SituacaoContratoLocacao, 
                     NomeFantasia as Cliente, IdVeiculo, Placa, IdModelo, Modelo, 
-                    FORMAT(DataRetirada, 'yyyy-MM-dd HH:mm:ss') as DataRetirada, 
+                    DataRetirada as DataRetirada, 
                     OdometroRetirada, 
-                    FORMAT(DataDevolucao, 'yyyy-MM-dd HH:mm:ss') as DataDevolucao, 
+                    DataDevolucao as DataDevolucao, 
                     OdometroDevolucao, 
                     IdTipoLocacao, TipoLocacao, EnderecoEntrega, EnderecoDevolucao 
                 FROM MovimentacaoVeiculos 
@@ -463,9 +463,9 @@ const CONSOLIDATED = [
                 ISNULL(c.NomeFantasia, 'Consumidor Final / Não Identificado') as Cliente,
                 ISNULL(c.CNPJ, c.CPF) as ClienteDocumento,
                 ISNULL(cl.SituacaoContratoLocacao, 'Ativo') as Situacao,
-                FORMAT(cl.DataInicial, 'yyyy-MM-dd') as DataInicio,
-                FORMAT(cl.DataFinal, 'yyyy-MM-dd') as DataFimPrevista,
-                FORMAT(cl.DataEncerramento, 'yyyy-MM-dd') as DataFimReal,
+                cl.DataInicial as DataInicio,
+                cl.DataFinal as DataFimPrevista,
+                cl.DataEncerramento as DataFimReal,
                 CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)) as ValorMensal,
                 LEFT(cl.PeriodoEmMeses, 150) as Observacao,
                 NULL as IdOrdemServico, NULL as TipoManutencao, NULL as Fornecedor, NULL as CustoTotal, NULL as NumeroBO, NULL as TipoSinistro, NULL as ValorMulta, NULL as TipoInfracao
@@ -486,7 +486,7 @@ const CONSOLIDATED = [
                 ISNULL(cc.NumeroDocumento, 'S/N'), ISNULL(cl.ContratoLocacao, 'S/N'),
                 ISNULL(c.NomeFantasia, 'Consumidor Final'), ISNULL(c.CNPJ, c.CPF),
                 'DEVOLVIDO' as Situacao,
-                FORMAT(cl.DataInicial, 'yyyy-MM-dd'), FORMAT(cl.DataFinal, 'yyyy-MM-dd'), FORMAT(cl.DataEncerramento, 'yyyy-MM-dd'),
+                cl.DataInicial, cl.DataFinal, cl.DataEncerramento,
                 CAST(ISNULL(preco.PrecoUnitario, 0) AS DECIMAL(15,2)), 
                 'Encerrado em: ' + FORMAT(cl.DataEncerramento, 'dd/MM/yyyy'),
                 NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -507,9 +507,9 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 ISNULL(os.Fornecedor, 'Oficina não informada'), NULL,
                 os.SituacaoOrdemServico,
-                FORMAT(os.DataInicioServico, 'yyyy-MM-dd'), 
+                os.DataInicioServico, 
                 NULL, -- DataPrevista removida
-                FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
+                os.DataConclusaoOcorrencia,
                 NULL, 
                 LEFT(os.Motivo, 150),
                 os.IdOrdemServico, os.Tipo, os.Fornecedor,
@@ -529,7 +529,7 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 ISNULL(c.NomeFantasia, 'Sem Cliente Vinculado'), NULL,
                 s.SituacaoOcorrencia,
-                FORMAT(s.DataSinistro, 'yyyy-MM-dd'), NULL, FORMAT(s.DataConclusaoOcorrencia, 'yyyy-MM-dd'),
+                s.DataSinistro, NULL, s.DataConclusaoOcorrencia,
                 NULL, LEFT(COALESCE(s.Descricao, s.Observacoes, ''), 150),
                 NULL, NULL, NULL,
                 CAST(${castM("ISNULL(s.ValorOrcamento, 0)")} AS DECIMAL(15,2)) as CustoTotal,
@@ -555,7 +555,7 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 ISNULL(con.Nome, 'Condutor não identificado'), con.CPF,
                 m.SituacaoOcorrencia,
-                FORMAT(m.DataInfracao, 'yyyy-MM-dd'), NULL, NULL, -- DataPagamento removida
+                m.DataInfracao, NULL, NULL, -- DataPagamento removida
                 NULL, LEFT(m.Observacoes, 150),
                 NULL, NULL, NULL, NULL,
                 m.AutoInfracao, -- Corrigido para AutoInfracao
@@ -577,7 +577,7 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 ISNULL(v.Proprietario, 'Aquisição Frota'), NULL,
                 'ADQUIRIDO',
-                FORMAT(v.DataCompra, 'yyyy-MM-dd'), NULL, NULL,
+                v.DataCompra, NULL, NULL,
                 NULL, 
                 LEFT(ISNULL(v.InformacoesAdicionais, 'Nota Fiscal não detalhada'), 150), -- Corrigido para InformacoesAdicionais
                 NULL, NULL, 
@@ -597,7 +597,7 @@ const CONSOLIDATED = [
                 NULL, NULL,
                 ISNULL(vv.Comprador, 'Comprador não inf.'), NULL,
                 'BAIXADO',
-                FORMAT(vv.DataVenda, 'yyyy-MM-dd'), NULL, NULL,
+                vv.DataVenda, NULL, NULL,
                 NULL, 'Fatura: ' + ISNULL(vv.FaturaVenda, '-'),
                 NULL, NULL, NULL,
                 CAST(${castM("ISNULL(vv.ValorVenda, 0)")} AS DECIMAL(15,2)) as CustoTotal,
@@ -617,7 +617,7 @@ const CONSOLIDATED = [
                                 ISNULL(v.Proprietario, 'Proprietário não informado') as Cliente,
                                 NULL,
                                 v.SituacaoVeiculo as Situacao,
-                                FORMAT(v.DataCompra, 'yyyy-MM-dd') as DataInicio,
+                                v.DataCompra as DataInicio,
                                 NULL as DataFimPrevista,
                                 NULL as DataFimReal,
                                 NULL as ValorMensal,
@@ -649,8 +649,8 @@ const CONSOLIDATED = [
                     ISNULL(cli.NomeFantasia, 'Não Identificado') as cliente,
                     cc.SituacaoContrato as Status,
                     cc.SituacaoContrato as status,
-                    FORMAT(cl_enc.DataEncerramento, 'yyyy-MM-dd') as DataEncerramento,
-                    FORMAT(cl_enc.DataEncerramento, 'yyyy-MM-dd') as data_encerramento,
+                    cl_enc.DataEncerramento as DataEncerramento,
+                    cl_enc.DataEncerramento as data_encerramento,
                     ISNULL(DATEDIFF(MONTH, cl_enc.DataInicial, cl_enc.DataEncerramento), 0) as DuracaoMeses,
                     ISNULL(DATEDIFF(MONTH, cl_enc.DataInicial, cl_enc.DataEncerramento), 0) as duracao_meses,
                     CAST(ISNULL((
@@ -677,7 +677,7 @@ const CONSOLIDATED = [
                         WHERE cl2.IdContrato = cc.IdContratoComercial
                           AND cl2.SituacaoContratoLocacao NOT IN ('Cancelado')
                     ), 0) AS DECIMAL(15,2)) as valor_mensal,
-                    FORMAT(cl_enc.DataInicial, 'yyyy-MM-dd') as data_inicio,
+                    cl_enc.DataInicial as data_inicio,
                     COUNT(cl_all.IdContratoLocacao) as quantidade_veiculos
                 FROM ContratosComerciais cc WITH (NOLOCK)
                 LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente
@@ -698,7 +698,7 @@ const CONSOLIDATED = [
     },
     {
         table: 'fat_inadimplencia',
-        query: `SELECT f.IdNota, f.Cliente, f.Nota, ${castM('f.ValorTotal')} as SaldoDevedor, FORMAT(f.Vencimento, 'yyyy-MM-dd') as Vencimento, DATEDIFF(DAY, f.Vencimento, GETDATE()) as DiasAtraso, CASE WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 0 THEN 'A Vencer' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 30 THEN '1-30 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 60 THEN '31-60 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 90 THEN '61-90 dias' ELSE '90+ dias' END as FaixaAging FROM Faturamentos f WHERE f.SituacaoNota = 'Pendente'`
+        query: `SELECT f.IdNota, f.Cliente, f.Nota, ${castM('f.ValorTotal')} as SaldoDevedor, f.Vencimento as Vencimento, DATEDIFF(DAY, f.Vencimento, GETDATE()) as DiasAtraso, CASE WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 0 THEN 'A Vencer' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 30 THEN '1-30 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 60 THEN '31-60 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 90 THEN '61-90 dias' ELSE '90+ dias' END as FaixaAging FROM Faturamentos f WHERE f.SituacaoNota = 'Pendente'`
     },
     {
         table: 'agg_dre_mensal',
@@ -710,7 +710,7 @@ const CONSOLIDATED = [
                     CONVERT(VARCHAR(36), NEWID()) + '|' + CAST(ln.NumeroLancamento AS VARCHAR(50)) + '|' + ISNULL(ln.Natureza, '') as IdLancamentoNatureza,
                 ln.NumeroLancamento as IdLancamento,
                 ln.NumeroLancamento as NumeroLancamento,
-                    FORMAT(ln.DataCompetencia, 'yyyy-MM-dd') as DataCompetencia,
+                    ln.DataCompetencia as DataCompetencia,
                     ln.Natureza,
                     CASE 
                         WHEN ln.TipoLancamento = 'Entrada' THEN 'Entrada'
@@ -721,7 +721,7 @@ const CONSOLIDATED = [
                     ln.Descricao as DescricaoLancamento,
                     ln.Conta,
                     ln.FormaPagamento,
-                    FORMAT(ln.DataPagamentoRecebimento, 'yyyy-MM-dd') as DataPagamentoRecebimento,
+                    ln.DataPagamentoRecebimento as DataPagamentoRecebimento,
                         ln.PagarReceberDe as NomeEntidade,
                         ln.PagarReceberDe,
                         ln.NumeroDocumento,
@@ -751,8 +751,8 @@ const CONSOLIDATED = [
                     vc.Montadora as marca,
                     vc.AnoFabricacao as ano_fabricacao,
                     vc.AnoModelo as ano_modelo,
-                    FORMAT(vc.DataCompra, 'yyyy-MM-dd') as DataCompra,
-                    FORMAT(vc.DataCompra, 'yyyy-MM-dd') as data_compra,
+                    vc.DataCompra as DataCompra,
+                    vc.DataCompra as data_compra,
                     YEAR(vc.DataCompra) as ano_compra,
                     MONTH(vc.DataCompra) as mes_compra,
                     ${castM('vc.ValorCompra')} as ValorCompra,
@@ -789,11 +789,11 @@ const CONSOLIDATED = [
                     ovt.ModeloVeiculoReserva as ModeloReserva,
                     ovt.GrupoVeiculoReserva,
                     ovt.FornecedorReserva,
-                    FORMAT(ovt.DataCriacao, 'yyyy-MM-dd') as DataCriacao,
-                    FORMAT(ovt.DataRetiradaEfetiva, 'yyyy-MM-dd') as DataRetirada,
-                    FORMAT(ovt.DataRetiradaEfetiva, 'yyyy-MM-dd') as DataInicio,
-                    FORMAT(ovt.DataDevolucaoEfetiva, 'yyyy-MM-dd') as DataDevolucao,
-                    FORMAT(ovt.DataDevolucaoEfetiva, 'yyyy-MM-dd') as DataFim,
+                    ovt.DataCriacao as DataCriacao,
+                    ovt.DataRetiradaEfetiva as DataRetirada,
+                    ovt.DataRetiradaEfetiva as DataInicio,
+                    ovt.DataDevolucaoEfetiva as DataDevolucao,
+                    ovt.DataDevolucaoEfetiva as DataFim,
                     CAST(ISNULL(ovt.DiariasEfetivas, 0) AS INT) as Diarias,
                     ovt.Motivo,
                     ovt.SituacaoOcorrencia,
@@ -807,15 +807,15 @@ const CONSOLIDATED = [
                     COALESCE(ovt.IdCliente, cli_t.IdCliente, cli.IdCliente) as IdCliente,
 
                     -- Campos adicionais para detalhamento
-                    FORMAT(ovt.DataAtualizacaoDados, 'yyyy-MM-dd HH:mm:ss') as DataAtualizacaoDados,
+                    ovt.DataAtualizacaoDados as DataAtualizacaoDados,
                     ovt.IdOcorrenciaOrigem,
                     ovt.IdClassificacaoContrato,
                     ovt.ClassificacaoContrato,
-                    FORMAT(ovt.DataRetiradaEfetiva, 'yyyy-MM-dd') as DataRetiradaEfetiva,
-                    FORMAT(ovt.DataDevolucaoEfetiva, 'yyyy-MM-dd') as DataDevolucaoEfetiva,
+                    ovt.DataRetiradaEfetiva as DataRetiradaEfetiva,
+                    ovt.DataDevolucaoEfetiva as DataDevolucaoEfetiva,
                     CAST(ISNULL(ovt.DiariasEfetivas, 0) AS INT) as DiariasEfetivas,
                     ovt.CanceladoPor,
-                    FORMAT(ovt.CanceladoEm, 'yyyy-MM-dd') as CanceladoEm,
+                    ovt.CanceladoEm as CanceladoEm,
                     ovt.MotivoCancelamento,
                     ovt.IdTipo as IdTipoOcorrencia,
                     ovt.Tipo as TipoOcorrencia,
@@ -841,7 +841,7 @@ const CONSOLIDATED = [
                     CAST(ISNULL(ovt.OdometroInicial, 0) AS INT) as OdometroInicial,
                     CAST(ISNULL(ovt.OdometroFinal, 0) AS INT) as OdometroFinal,
                     ovt.Observacoes,
-                    FORMAT(ovt.DataConclusaoOcorrencia, 'yyyy-MM-dd') as DataConclusaoOcorrencia,
+                    ovt.DataConclusaoOcorrencia as DataConclusaoOcorrencia,
                     ovt.Etapa,
                     ovt.IdCondutor,
                     ovt.NomeCondutor,
@@ -873,7 +873,7 @@ const CONSOLIDATED = [
                     om.ContratoComercial,
                     om.IdClassificacaoContrato,
                     om.ClassificacaoContrato,
-                    FORMAT(om.DataCriacao, 'yyyy-MM-dd HH:mm:ss') as DataCriacao,
+                    om.DataCriacao as DataCriacao,
                     om.IdSituacaoOcorrencia,
                     om.SituacaoOcorrencia,
                     om.IdEtapa,
@@ -892,10 +892,10 @@ const CONSOLIDATED = [
                     om.IdFornecedor,
                     om.Fornecedor,
                     om.Origem,
-                    FORMAT(om.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
-                    FORMAT(om.SugestaoAgendamento1, 'yyyy-MM-dd HH:mm:ss') as SugestaoAgendamento1,
-                    FORMAT(om.SugestaoAgendamento2, 'yyyy-MM-dd HH:mm:ss') as SugestaoAgendamento2,
-                    FORMAT(om.SugestaoAgendamento3, 'yyyy-MM-dd HH:mm:ss') as SugestaoAgendamento3,
+                    om.DataConclusaoOcorrencia as DataConclusaoOcorrencia,
+                    om.SugestaoAgendamento1 as SugestaoAgendamento1,
+                    om.SugestaoAgendamento2 as SugestaoAgendamento2,
+                    om.SugestaoAgendamento3 as SugestaoAgendamento3,
                     om.Endereco,
                     om.Numero,
                     om.Complemento,
@@ -906,7 +906,7 @@ const CONSOLIDATED = [
                     om.CEP,
                     om.Latitude,
                     om.Longitude,
-                    FORMAT(om.DataAgendamento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
+                    om.DataAgendamento as DataAgendamento,
                     om.Descricao,
                     om.Observacoes,
                     CAST(ISNULL(om.OdometroAtual, 0) AS INT) as OdometroAtual,
@@ -914,12 +914,12 @@ const CONSOLIDATED = [
                     om.EmailRequisitante,
                     om.TelefoneRequisitante,
                     om.CanceladoPor,
-                    FORMAT(om.CanceladoEm, 'yyyy-MM-dd HH:mm:ss') as CanceladoEm,
+                    om.CanceladoEm as CanceladoEm,
                     om.MotivoCancelamento,
-                    FORMAT(om.DataPrevisaoConclusaoServico, 'yyyy-MM-dd') as DataPrevisaoConclusaoServico,
-                    FORMAT(om.DataConclusaoServico, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoServico,
-                    FORMAT(om.DataConfirmacaoSaida, 'yyyy-MM-dd') as DataConfirmacaoSaida,
-                    FORMAT(om.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
+                    om.DataPrevisaoConclusaoServico as DataPrevisaoConclusaoServico,
+                    om.DataConclusaoServico as DataConclusaoServico,
+                    om.DataConfirmacaoSaida as DataConfirmacaoSaida,
+                    om.DataRetiradaVeiculo as DataRetiradaVeiculo,
                     om.IdJustificativa,
                     om.IdFilialOperacional,
                     
@@ -941,15 +941,15 @@ const CONSOLIDATED = [
                     os.TipoLocacao,
                     os.Categoria as TipoManutencao,
                     os.Fornecedor as FornecedorOcorrencia,
-                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd HH:mm:ss') as DataInicioServico,
+                    os.DataInicioServico as DataInicioServico,
                     os.SituacaoOrdemServico as StatusOS,
                     os.IdOrdemServico,
                     os.OrdemServico,
-                    FORMAT(os.OcorrenciaCriadaEm, 'yyyy-MM-dd HH:mm:ss') as OcorrenciaCriadaEm,
+                    os.OcorrenciaCriadaEm as OcorrenciaCriadaEm,
                     os.OdometroConfirmado,
                     
                     -- Campos calculados úteis para o dashboard
-                    FORMAT(om.DataCriacao, 'yyyy-MM-dd') as DataEntrada,
+                    om.DataCriacao as DataEntrada,
                     DATEDIFF(DAY, om.DataCriacao, ISNULL(om.DataConclusaoOcorrencia, GETDATE())) as DiasAberta,
                     CASE 
                         WHEN om.DataConclusaoOcorrencia IS NOT NULL THEN 'Fechada'
@@ -981,7 +981,7 @@ const CONSOLIDATED = [
                         END as TipoManutencao,
                         CAST(ISNULL(os.ValorTotal, 0) AS DECIMAL(15,2)) as ValorTotal,
                         DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as DiasParado,
-                        FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataEntrada,
+                        os.DataInicioServico as DataEntrada,
                         CASE WHEN os.DataConclusaoOcorrencia IS NOT NULL THEN 1 ELSE 0 END as OSConcluida
                     FROM OrdensServico os
                     WHERE os.SituacaoOrdemServico <> 'Cancelada'
@@ -1042,20 +1042,20 @@ const CONSOLIDATED = [
                     
                     -- Dados de Cancelamento
                     mo.CanceladoPor,
-                    FORMAT(mo.CanceladoEm, 'yyyy-MM-dd HH:mm:ss') as DataCancelamento,
+                    mo.CanceladoEm as DataCancelamento,
                     mo.MotivoCancelamento,
                     
                     -- Dados de Criação
                     mo.CriadoPor,
-                    FORMAT(mo.CriadoEm, 'yyyy-MM-dd HH:mm:ss') as DataCriacao,
+                    mo.CriadoEm as DataCriacao,
                     
                     -- Dados da Etapa (histórico de movimentação)
                     mo.Etapa,
-                    FORMAT(mo.DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataEtapa,
+                    mo.DataDeConfirmacao as DataEtapa,
                     mo.Usuario as UsuarioEtapa,
                     
                     -- Metadata
-                    FORMAT(mo.DataAtualizacaoDados, 'yyyy-MM-dd') as DataAtualizacao,
+                    mo.DataAtualizacaoDados as DataAtualizacao,
                     
                     -- Campos calculados para análise
                     DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao) as HorasAteConclusaoEtapa,
@@ -1099,8 +1099,8 @@ const CONSOLIDATED = [
                     Situacao,
                     EtapaAnterior,
                     Etapa as EtapaAtual,
-                    FORMAT(DataEtapaAnterior, 'yyyy-MM-dd HH:mm:ss') as DataEtapaAnterior,
-                    FORMAT(DataDeConfirmacao, 'yyyy-MM-dd HH:mm:ss') as DataEtapaAtual,
+                    DataEtapaAnterior as DataEtapaAnterior,
+                    DataDeConfirmacao as DataEtapaAtual,
                     UsuarioAnterior,
                     Usuario as UsuarioAtual,
                     OrdemEtapa,
@@ -1155,8 +1155,8 @@ const CONSOLIDATED = [
                     SUM(CASE WHEN mo.Situacao = 'Concluída' THEN 1 ELSE 0 END) as TotalConcluidas,
                     SUM(CASE WHEN mo.Situacao = 'Cancelada' THEN 1 ELSE 0 END) as TotalCanceladas,
                     AVG(DATEDIFF(HOUR, mo.CriadoEm, mo.DataDeConfirmacao)) as TempoMedio_Horas,
-                    MIN(FORMAT(mo.DataDeConfirmacao, 'yyyy-MM-dd')) as PrimeiraAtividade,
-                    MAX(FORMAT(mo.DataDeConfirmacao, 'yyyy-MM-dd')) as UltimaAtividade,
+                    MIN(mo.DataDeConfirmacao) as PrimeiraAtividade,
+                    MAX(mo.DataDeConfirmacao) as UltimaAtividade,
                     -- Taxa de conclusão
                     CASE 
                         WHEN COUNT(*) > 0 
@@ -1273,7 +1273,7 @@ const CONSOLIDATED = [
                     os.Tipo,
                     os.Motivo,
                     os.Cliente,
-                    FORMAT(os.DataInicioServico, 'yyyy-MM-dd') as DataServico,
+                    os.DataInicioServico as DataServico,
                     -- Agregação de custos por grupo de despesa
                     ISNULL(
                         (SELECT SUM(ios.ValorTotal) 
@@ -1337,19 +1337,13 @@ const CONSOLIDATED = [
 // ==============================================================================
 
 // Fila de uploads assíncronos para não bloquear PostgreSQL
-const uploadQueue = [];
+// OTIMIZAÇÃO: Função queueUpload removida - não geramos mais JSONs locais ou Supabase
+// Todo processamento agora vai direto para PostgreSQL
 
-/**
- * Adiciona upload à fila (não-bloqueante) com suporte a chunking para arquivos grandes
- */
-function queueUpload(tableName, data, year = null, month = null) {
-    const fs = require('fs');
-    const path = require('path');
-
-    const shouldUploadToSupabase = false; // DESABILITADO: Evita erros HTTP 500 do Supabase
-    const writeLocal = true; // SEMPRE gravar arquivos locais para desenvolvimento
-
-    if (!shouldUploadToSupabase && !writeLocal) return;
+// Placeholder vazio - JSON desabilitado (otimização focada em PostgreSQL)
+function queueUpload_DEPRECATED(tableName, data, year = null, month = null) {
+    // REMOVIDO: Toda lógica de JSON/Supabase foi eliminada
+    return;
 
     const MAX_CHUNK_SIZE = 10000; // Reduzido para 10K para evitar HTTP 546 (Edge Function limit)
     const baseFileName = year
@@ -1639,21 +1633,12 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             const pkRaw = Object.keys(recordset[0])[0];
             const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
             let finalData = sanitizedData;
-            // Não deduplicar para o fato do DRE — queremos todas as linhas por natureza
-            if (hasIdColumn && tableName !== 'fato_financeiro_dre') {
-                const seen = new Map();
-                sanitizedData.forEach(row => seen.set(row[pkRaw], row));
-                finalData = Array.from(seen.values());
-            }
+            // OTIMIZAÇÃO: Deduplicação removida - PostgreSQL ON CONFLICT cuida disso
+            // (Modo JSON_ONLY simplificado)
 
-            // enfileira upload/local write
-            try {
-                queueUpload(tableName, finalData, year, month);
-                const duration = ((performance.now() - start) / 1000).toFixed(2);
-                console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s (JSON_ONLY)`);
-            } catch (err) {
-                console.error(`      ❌ Erro ao gerar/upload JSON para ${tableName}:`, err.message || err);
-            }
+            // Upload/JSON desabilitado (Otimização #1)
+            const duration = ((performance.now() - start) / 1000).toFixed(2);
+            console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s (JSON_ONLY)`);
 
             return;
         }
@@ -1706,15 +1691,26 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         const shouldDedup = hasIdColumn && !historicalTables.includes(tableName);
         let finalData = sanitizedData;
 
-        if (shouldDedup) {
+        // OTIMIZA├ç├âO AJUSTADA: Deduplica├º├úo seletiva para tabelas com duplicatas reais
+        // Estas tabelas T├èM duplicatas nos dados de origem que causam erro "ON CONFLICT cannot affect row a second time"
+        // IMPORTANTE: Deduplica INDEPENDENTE de estarem em historicalTables
+        const tablesWithRealDuplicates = [
+            'dim_movimentacao_veiculos',
+            'dim_veiculos_acessorios',
+            'dim_movimentacao_patios',
+            'fat_faturamentos',
+            'fat_detalhe_itens_os'
+        ];
+
+        if (hasIdColumn && tablesWithRealDuplicates.includes(tableName)) {
             const seen = new Map();
             sanitizedData.forEach(row => {
-                seen.set(row[pkRaw], row); // Última ocorrência sobrescreve
+                seen.set(row[pkRaw], row); // ├Ültima ocorr├¬ncia sobrescreve
             });
             finalData = Array.from(seen.values());
 
             if (finalData.length < sanitizedData.length) {
-                console.log(`         ⚠️  Removidas ${sanitizedData.length - finalData.length} duplicatas de ${tableName}`);
+                console.log(`         ÔÜá´ŞĆ  Removidas ${sanitizedData.length - finalData.length} duplicatas de ${tableName}`);
             }
         }
 
@@ -1729,28 +1725,10 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             'dim_movimentacao_veiculos'
         ];
 
-        // Para tabelas históricas sem deduplicação automática
-        if (!shouldDedup) {
-            await pgClient.query(`DELETE FROM public.${tableName}`);
-        }
+        // DELETE movido para dentro da transação (Otimização #3)
 
-        // Deduplicação JavaScript apenas para tabelas específicas com PK incorreta
-        if (needsJSDedup.includes(tableName)) {
-            const originalCount = finalData.length;
-            const seen = new Set();
-            finalData = finalData.filter(row => {
-                const pkValue = row[columns[0]];
-                if (seen.has(pkValue)) {
-                    return false;
-                }
-                seen.add(pkValue);
-                return true;
-            });
-            const removedCount = originalCount - finalData.length;
-            if (removedCount > 0) {
-                console.log(`         🔄 Removidas ${removedCount} duplicatas JS de ${tableName}`);
-            }
-        }
+        // OTIMIZAÇÃO: Deduplicação JS removida - needsJSDedup não necessário
+        // PostgreSQL ON CONFLICT gerencia duplicatas automaticamente
 
         const finalRowCount = finalData.length;
 
@@ -1765,6 +1743,11 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         const client = await pgClient.connect();
         try {
             await client.query('BEGIN');
+
+            // TRUNCATE para tabelas históricas (dentro da transação - Zero Downtime)
+            if (!shouldDedup) {
+                await client.query(`TRUNCATE TABLE public.${tableName}`);
+            }
 
             for (let i = 0; i < finalRowCount; i += BATCH_SIZE) {
                 const chunk = finalData.slice(i, i + BATCH_SIZE);
@@ -1819,8 +1802,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         const duration = ((performance.now() - start) / 1000).toFixed(2);
         console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
 
-        // ========== UPLOAD PARA SUPABASE STORAGE E GRAVAÇÃO LOCAL (ASSÍNCRONO) ==========
-        queueUpload(tableName, finalData, year, month);
+        // OTIMIZAÇÃO: Upload JSON/Supabase removido (#1)
 
     } catch (err) {
         console.error(`      ❌ ${progressStr} Erro PostgreSQL (${tableName}):`, err.message);
@@ -1849,7 +1831,7 @@ const buildFinanceUniversalQuery = (year, month) => {
                 END
             ) AS Placa, 
             ${castM('L.ValorPagoRecebido')} as Valor, 
-            FORMAT(L.DataCompetencia, 'yyyy-MM-dd') as Data, 
+            L.DataCompetencia as Data, 
             L.PagarReceberDe as Entidade
         FROM dbo.LancamentosComNaturezas L WITH (NOLOCK, INDEX(0))
         LEFT JOIN dbo.OrdensServico OS WITH (NOLOCK) 
@@ -1895,7 +1877,7 @@ async function runMasterETL() {
         const factDefs = [
             {
                 table: 'fat_faturamentos',
-                queryGen: (year) => `SELECT f.IdNota, f.Nota as NumeroNota, f.TipoNota, f.SituacaoNota, f.IdCliente, f.Cliente as NomeCliente, FORMAT(f.DataCompetencia, 'yyyy-MM-dd') as Competencia, FORMAT(f.Vencimento, 'yyyy-MM-dd') as Vencimento, ${castM('f.ValorLocacao')} as VlrLocacao, ${castM('f.ValorReembolsaveis')} as VlrReembolso, ${castM('f.ValorMultas')} as VlrMultas, ${castM('f.ValorTotal')} as VlrTotal, fi.IdVeiculo, fi.Descricao as DetalheItem, ${castM('fi.ValorTotal')} as VlrItem FROM Faturamentos f LEFT JOIN FaturamentoItems fi ON f.IdNota = fi.IdNota WHERE YEAR(f.DataCompetencia) = ${year}`
+                queryGen: (year) => `SELECT f.IdNota, f.Nota as NumeroNota, f.TipoNota, f.SituacaoNota, f.IdCliente, f.Cliente as NomeCliente, f.DataCompetencia as Competencia, f.Vencimento as Vencimento, ${castM('f.ValorLocacao')} as VlrLocacao, ${castM('f.ValorReembolsaveis')} as VlrReembolso, ${castM('f.ValorMultas')} as VlrMultas, ${castM('f.ValorTotal')} as VlrTotal, fi.IdVeiculo, fi.Descricao as DetalheItem, ${castM('fi.ValorTotal')} as VlrItem FROM Faturamentos f LEFT JOIN FaturamentoItems fi ON f.IdNota = fi.IdNota WHERE YEAR(f.DataCompetencia) = ${year}`
             },
             {
                 table: 'fat_detalhe_itens_os',
@@ -1904,31 +1886,31 @@ async function runMasterETL() {
             {
                 table: 'fat_ocorrencias_master',
                 queryGen: (year) => `
-                    SELECT 'Manutencao' as Classe, Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia as Status, FORMAT(DataCriacao, 'yyyy-MM-dd') as Data, ${castM('0')} as Valor 
+                    SELECT 'Manutencao' as Classe, Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia as Status, DataCriacao as Data, ${castM('0')} as Valor 
                     FROM OcorrenciasManutencao WITH (NOLOCK)
                     WHERE YEAR(DataCriacao) = ${year} 
                     
                     UNION ALL 
                     
-                    SELECT 'Sinistro', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, FORMAT(DataSinistro, 'yyyy-MM-dd'), ${castM('ValorOrcamento')} 
+                    SELECT 'Sinistro', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, DataSinistro, ${castM('ValorOrcamento')} 
                     FROM OcorrenciasSinistro WITH (NOLOCK)
                     WHERE YEAR(DataSinistro) = ${year} AND DataSinistro IS NOT NULL
                     
                     UNION ALL 
                     
-                    SELECT 'Multa', Ocorrencia, Placa, DescricaoInfracao, OrgaoAutuador, SituacaoOcorrencia, FORMAT(DataInfracao, 'yyyy-MM-dd'), ${castM('ValorInfracao')} 
+                    SELECT 'Multa', Ocorrencia, Placa, DescricaoInfracao, OrgaoAutuador, SituacaoOcorrencia, DataInfracao, ${castM('ValorInfracao')} 
                     FROM OcorrenciasInfracoes WITH (NOLOCK)
                     WHERE YEAR(DataInfracao) = ${year} 
                     
                     UNION ALL 
                     
-                    SELECT 'Devolucao', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, FORMAT(DataConclusaoOcorrencia, 'yyyy-MM-dd'), ${castM('ValorTotal')} 
+                    SELECT 'Devolucao', Ocorrencia, Placa, Tipo, Motivo, SituacaoOcorrencia, DataConclusaoOcorrencia, ${castM('ValorTotal')} 
                     FROM OcorrenciasDevolucao WITH (NOLOCK)
                     WHERE YEAR(DataConclusaoOcorrencia) = ${year} 
                     
                     UNION ALL 
                     
-                    SELECT 'Reserva', Ocorrencia, Placa, ModeloVeiculoReserva, Motivo, SituacaoOcorrencia, FORMAT(DataRetiradaEfetiva, 'yyyy-MM-dd'), ${castM('DiariasEfetivas')} 
+                    SELECT 'Reserva', Ocorrencia, Placa, ModeloVeiculoReserva, Motivo, SituacaoOcorrencia, DataRetiradaEfetiva, ${castM('DiariasEfetivas')} 
                     FROM OcorrenciasVeiculoTemporario WITH (NOLOCK)
                     WHERE YEAR(DataRetiradaEfetiva) = ${year}`
             },
@@ -1941,16 +1923,16 @@ async function runMasterETL() {
                     os.Placa,
                     
                     -- Datas principais
-                    FORMAT(os.DataCriacao, 'yyyy-MM-dd HH:mm:ss') as DataCriacao,
-                    FORMAT(os.DataSinistro, 'yyyy-MM-dd HH:mm:ss') as DataSinistro,
-                    FORMAT(os.DataSinistro, 'yyyy-MM-dd HH:mm:ss') as DataOcorrencia,
-                    FORMAT(os.DataConclusaoOcorrencia, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoOcorrencia,
-                    FORMAT(os.DataAgendamento, 'yyyy-MM-dd HH:mm:ss') as DataAgendamento,
-                    FORMAT(os.DataRetirada, 'yyyy-MM-dd HH:mm:ss') as DataRetirada,
-                    FORMAT(os.DataRetiradaVeiculo, 'yyyy-MM-dd HH:mm:ss') as DataRetiradaVeiculo,
-                    FORMAT(os.DataPrevisaoConclusaoServico, 'yyyy-MM-dd HH:mm:ss') as DataPrevisaoConclusao,
-                    FORMAT(os.DataConclusaoServico, 'yyyy-MM-dd HH:mm:ss') as DataConclusaoServico,
-                    FORMAT(os.CanceladoEm, 'yyyy-MM-dd HH:mm:ss') as DataCancelamento,
+                    os.DataCriacao as DataCriacao,
+                    os.DataSinistro as DataSinistro,
+                    os.DataSinistro as DataOcorrencia,
+                    os.DataConclusaoOcorrencia as DataConclusaoOcorrencia,
+                    os.DataAgendamento as DataAgendamento,
+                    os.DataRetirada as DataRetirada,
+                    os.DataRetiradaVeiculo as DataRetiradaVeiculo,
+                    os.DataPrevisaoConclusaoServico as DataPrevisaoConclusao,
+                    os.DataConclusaoServico as DataConclusaoServico,
+                    os.CanceladoEm as DataCancelamento,
                     
                     -- Status e classificações
                     os.IdSituacaoOcorrencia,
@@ -2056,15 +2038,15 @@ async function runMasterETL() {
                 table: 'fat_multas',
                 queryGen: (year) => `SELECT 
                     oi.IdOcorrencia, oi.Ocorrencia, oi.IdVeiculo, oi.Placa,
-                    FORMAT(oi.DataInfracao, 'yyyy-MM-dd') as DataInfracao,
+                    oi.DataInfracao as DataInfracao,
                     oi.DescricaoInfracao, oi.CodigoInfracao, oi.AutoInfracao,
                     oi.OrgaoAutuador, oi.EstadoOrgaoAutuador,
                     ${castM('oi.ValorInfracao')} as ValorMulta, 
                     ${castM('oi.ValorInfracaoDesconto')} as ValorDesconto,
                     oi.SituacaoOcorrencia as Status,
                     oi.NomeCondutor as Condutor, oi.ContratoLocacao, cli.NomeFantasia as Cliente,
-                    FORMAT(oi.DataLimiteRecurso, 'yyyy-MM-dd') as DataLimiteRecurso,
-                    FORMAT(oi.DataLimitePagamento, 'yyyy-MM-dd') as DataLimitePagamento,
+                    oi.DataLimiteRecurso as DataLimiteRecurso,
+                    oi.DataLimitePagamento as DataLimitePagamento,
                     oi.EmRecurso, oi.MotivoRecurso,
                     oi.Latitude, oi.Longitude, oi.Cidade, oi.Estado
                 FROM OcorrenciasInfracoes oi 
@@ -2088,8 +2070,8 @@ async function runMasterETL() {
                     p.IdCliente as id_cliente,
                     ISNULL(cli.NomeFantasia, 'Cliente não identificado') as Cliente,
                     ISNULL(cli.NomeFantasia, 'Cliente não identificado') as cliente,
-                    FORMAT(p.DataCriacaoContratoComercial, 'yyyy-MM-dd') as DataProposta,
-                    FORMAT(p.DataCriacaoContratoComercial, 'yyyy-MM-dd') as data_proposta,
+                    p.DataCriacaoContratoComercial as DataProposta,
+                    p.DataCriacaoContratoComercial as data_proposta,
                     YEAR(p.DataCriacaoContratoComercial) as ano_proposta,
                     MONTH(p.DataCriacaoContratoComercial) as mes_proposta,
                     p.IdSituacaoProposta as id_situacao,
@@ -2142,12 +2124,12 @@ async function runMasterETL() {
                     vv.Renavam as renavam,
                     vv.IdCor as id_cor,
                     vv.Cor as cor,
-                    FORMAT(vv.DataCompra, 'yyyy-MM-dd') as data_compra,
+                    vv.DataCompra as data_compra,
                     ${castM('vv.ValorCompra')} as valor_compra,
                     ${castM('vv.ValorAcessorios')} as valor_acessorios,
                     ${castM('vv.ValorTotal')} as valor_total_compra,
-                    FORMAT(vv.DataVenda, 'yyyy-MM-dd') as DataVenda,
-                    FORMAT(vv.DataVenda, 'yyyy-MM-dd') as data_venda,
+                    vv.DataVenda as DataVenda,
+                    vv.DataVenda as data_venda,
                     YEAR(vv.DataVenda) as ano_venda,
                     MONTH(vv.DataVenda) as mes_venda,
                     ${castM('vv.ValorVenda')} as ValorVenda,
