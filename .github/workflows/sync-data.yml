@@ -26,38 +26,24 @@ jobs:
       - name: 3. Instalar dependências
         run: npm install
 
-      - name: 4. Rodar ETL (Modo JSON Only)
+      - name: 4. Rodar ETL (PostgreSQL Sync)
         env:
           SQL_SERVER: ${{ secrets.SQL_SERVER }}
           SQL_USER: ${{ secrets.SQL_USER }}
           SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
           SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-          JSON_ONLY: "true"
-          NODE_OPTIONS: "--max-old-space-size=6144"
-          # Evitar usar Supabase/Service Key aqui — controlar via secrets se necessário
-        run: node scripts/local-etl/run-sync-v2.js --json-only
+          PG_HOST: ${{ secrets.PG_HOST }}
+          PG_PORT: ${{ secrets.PG_PORT }}
+          PG_USER: ${{ secrets.PG_USER }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          PG_DATABASE: ${{ secrets.PG_DATABASE }}
+          NODE_OPTIONS: "--max-old-space-size=7168"
+        run: node scripts/local-etl/run-sync-v2.js
 
-      - name: 5. Checar por arquivos grandes (>100MB)
-        id: check_large
+      - name: 5. Finalização
         run: |
-          LARGE=$(find public/data -type f -size +100M -print -quit 2>/dev/null || echo "")
-          if [ -n "$LARGE" ]; then
-            echo "has_large=true" >> $GITHUB_OUTPUT
-            echo "Large file detected: $LARGE"
-          else
-            echo "has_large=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 6. Commit e Push (Snapshot) — somente se não houver arquivos grandes
-        if: steps.check_large.outputs.has_large == 'false'
-        run: |
-          git config --global user.name "Bot de Dados"
-          git config --global user.email "bot@actions.github.com"
-          git add public/data/
-          git commit -m "Auto-update: Dados sincronizados às $(date -u)" || echo "Nenhuma mudança nos dados detectada."
-          git push
-
-      - name: 7. Aviso sobre arquivos grandes
+          echo "✅ ETL concluído com sucesso!"
+          echo "📊 Dados sincronizados no PostgreSQL (localhost:5432/bluconecta_dw)"
         if: steps.check_large.outputs.has_large == 'true'
         run: |
           echo "Há arquivos maiores que 100MB em public/data — o workflow não fará commit desses arquivos."

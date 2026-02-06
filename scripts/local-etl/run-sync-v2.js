@@ -2217,7 +2217,7 @@ async function runMasterETL() {
         }
         // await flushUploads(); // Aguardar uploads dos fatos
 
-        console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - PARALELO`);
+        console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - OTIMIZADO`);
         console.log(`${'─'.repeat(80)}`);
 
         if (!JSON_ONLY) {
@@ -2231,10 +2231,10 @@ async function runMasterETL() {
 
         for (const year of years) {
             console.log(`   📆 Ano ${year}`);
-            // Processar 6 meses por vez em paralelo
-            for (let monthStart = 1; monthStart <= 12; monthStart += 6) {
+            // OTIMIZAÇÃO: Processar 3 meses por vez (antes: 6) para evitar heap overflow
+            for (let monthStart = 1; monthStart <= 12; monthStart += 3) {
                 const months = [];
-                for (let m = monthStart; m < monthStart + 6 && m <= 12; m++) {
+                for (let m = monthStart; m < monthStart + 3 && m <= 12; m++) {
                     months.push(m);
                 }
 
@@ -2248,12 +2248,12 @@ async function runMasterETL() {
         }
         // await flushUploads(); // Aguardar uploads financeiros
 
-        console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - PARALELO`);
+        console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - OTIMIZADO`);
         console.log(`${'─'.repeat(80)}`);
 
-        // Processar consolidados em paralelo (máximo 5 por vez)
-        for (let i = 0; i < CONSOLIDATED.length; i += 5) {
-            const batch = CONSOLIDATED.slice(i, i + 5);
+        // OTIMIZAÇÃO: Processar 3 consolidados por vez (antes: 5) para evitar heap overflow
+        for (let i = 0; i < CONSOLIDATED.length; i += 3) {
+            const batch = CONSOLIDATED.slice(i, i + 3);
             const consPromises = batch.map(cons =>
                 processQuery(pgClient, sqlPool, cons.table, cons.query, false, getProgress())
             );
