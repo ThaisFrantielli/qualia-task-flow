@@ -10,7 +10,7 @@ on:
 jobs:
   update-data:
     name: ETL e Atualização de JSONs
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
 
@@ -40,7 +40,7 @@ jobs:
       - name: 5. Checar por arquivos grandes (>100MB)
         id: check_large
         run: |
-          LARGE=$(find public/data -type f -size +100M -print -quit || true)
+          LARGE=$(find public/data -type f -size +100M -print -quit 2>/dev/null || echo "")
           if [ -n "$LARGE" ]; then
             echo "has_large=true" >> $GITHUB_OUTPUT
             echo "Large file detected: $LARGE"
