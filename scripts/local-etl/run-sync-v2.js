@@ -2231,10 +2231,10 @@ async function runMasterETL() {
 
         for (const year of years) {
             console.log(`   📆 Ano ${year}`);
-            // OTIMIZAÇÃO: Processar 3 meses por vez (antes: 6) para evitar heap overflow
-            for (let monthStart = 1; monthStart <= 12; monthStart += 3) {
+            // OTIMIZAÇÃO: Processar 2 meses por vez (antes: 3→6) para evitar heap overflow
+            for (let monthStart = 1; monthStart <= 12; monthStart += 2) {
                 const months = [];
-                for (let m = monthStart; m < monthStart + 3 && m <= 12; m++) {
+                for (let m = monthStart; m < monthStart + 2 && m <= 12; m++) {
                     months.push(m);
                 }
 
@@ -2248,16 +2248,14 @@ async function runMasterETL() {
         }
         // await flushUploads(); // Aguardar uploads financeiros
 
-        console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - OTIMIZADO`);
+        console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - SEQUENCIAL`);
         console.log(`${'─'.repeat(80)}`);
 
-        // OTIMIZAÇÃO: Processar 3 consolidados por vez (antes: 5) para evitar heap overflow
-        for (let i = 0; i < CONSOLIDATED.length; i += 3) {
-            const batch = CONSOLIDATED.slice(i, i + 3);
-            const consPromises = batch.map(cons =>
-                processQuery(pgClient, sqlPool, cons.table, cons.query, false, getProgress())
-            );
-            await Promise.all(consPromises);
+        // OTIMIZAÇÃO CRÍTICA: Processar 1 consolidado por vez (SEQUENCIAL)
+        // Tabelas como hist_vida_veiculo_timeline (108K linhas, 7 UNIONs) estouram heap em paralelo
+        for (let i = 0; i < CONSOLIDATED.length; i++) {
+            const cons = CONSOLIDATED[i];
+            await processQuery(pgClient, sqlPool, cons.table, cons.query, false, getProgress());
         }
 
         // Aguardar todos os uploads restantes
