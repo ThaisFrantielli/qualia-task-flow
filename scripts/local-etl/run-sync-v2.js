@@ -729,11 +729,14 @@ const CONSOLIDATED = [
                         os.Placa as Placa,
                         os.ContratoComercial as ContratoComercial,
                         os.ContratoLocacao as ContratoLocacao
-                    FROM LancamentosComNaturezas ln WITH (NOLOCK)
+                    FROM LancamentosComNaturezas ln WITH (NOLOCK, INDEX(0))
 
-                    LEFT JOIN OrdensServico os WITH (NOLOCK) ON ISNULL(ln.OrdemCompra, '') = ISNULL(os.OrdemCompra, '') AND os.SituacaoOrdemServico <> 'Cancelada'
+                    LEFT JOIN OrdensServico os WITH (NOLOCK, INDEX(0)) ON ISNULL(ln.OrdemCompra, '') = ISNULL(os.OrdemCompra, '') AND os.SituacaoOrdemServico <> 'Cancelada'
 
-                    LEFT JOIN Clientes cli WITH (NOLOCK) ON os.IdCliente = cli.IdCliente`
+                    LEFT JOIN Clientes cli WITH (NOLOCK, INDEX(0)) ON os.IdCliente = cli.IdCliente
+                    
+                    WHERE ln.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
+                    OPTION (MAXDOP 1, FAST 5000)`
     },
     {
         table: 'auditoria_consolidada',
