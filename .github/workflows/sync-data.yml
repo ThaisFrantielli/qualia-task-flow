@@ -43,8 +43,5 @@ jobs:
       - name: 5. Finalização
         run: |
           echo "✅ ETL concluído com sucesso!"
-          echo "📊 Dados sincronizados no PostgreSQL (localhost:5432/bluconecta_dw)"
-        if: steps.check_large.outputs.has_large == 'true'
-        run: |
-          echo "Há arquivos maiores que 100MB em public/data — o workflow não fará commit desses arquivos."
-          echo "Considere usar Supabase Storage, Git LFS ou reduzir o tamanho dos artefatos." 
+          echo "📊 Dados sincronizados no PostgreSQL"
+ 
