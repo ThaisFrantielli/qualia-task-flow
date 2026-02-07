@@ -181,6 +181,12 @@ export default function FleetIdleDashboard(): JSX.Element {
 
         if (!status) return;
 
+        const vCurrent = veiculoAtualMap.get(placa) as any;
+        const isTerceiro = (vCurrent?.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO';
+
+        // Excluir veículos de 'Terceiro' do monitoramento de improdutiva
+        if (isTerceiro) return;
+
         const cat = getCategory(status || '');
         if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
         if (cat === 'Improdutiva') improdutivaCount += 1;
@@ -250,7 +256,10 @@ export default function FleetIdleDashboard(): JSX.Element {
 
         const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
 
-        improdutivos.push({
+        // Excluir veículos de 'Terceiro' do monitoramento
+        const isTerceiro = (v?.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO';
+        if (!isTerceiro) {
+          improdutivos.push({
           Placa: placa,
           Modelo: v.Modelo,
           Status: currentStatus || v.Status,
@@ -259,7 +268,8 @@ export default function FleetIdleDashboard(): JSX.Element {
           DataInicioStatus: dataInicioStatus,
           UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
           UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
-        });
+          });
+        }
       }
     });
 
@@ -269,9 +279,12 @@ export default function FleetIdleDashboard(): JSX.Element {
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
   const currentIdleKPIs = useMemo(() => {
-    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva');
+    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva' && ((v.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
     const ativos = frota.filter(v => {
       const cat = getCategory(v.Status);
+      // Excluir 'Terceiro' do monitoramento de ativos/improdutiva
+      const isTerceiro = ((v.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO');
+      if (isTerceiro) return false;
       return cat === 'Produtiva' || cat === 'Improdutiva';
     });
     

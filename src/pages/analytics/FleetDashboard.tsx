@@ -550,7 +550,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const kpis = useMemo(() => {
         const total = filteredData.length;
         const produtiva = filteredData.filter(r => getCategory(r.Status) === 'Produtiva');
-        const improdutiva = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva');
+        const improdutiva = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva' && ((r.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
         const inativa = filteredData.filter(r => getCategory(r.Status) === 'Inativa');
 
         const kmTotal = filteredData.reduce((s, r) => s + parseNum(r.KmInformado), 0);
@@ -626,7 +626,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     // Breakdown of 'Improdutiva' sub-statuses (counts and percentage of the improdutiva group)
     const improdutivaBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
-        const impro = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva');
+        const impro = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva' && ((r.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
         impro.forEach(r => { const s = r.Status || 'Não Definido'; map[s] = (map[s] || 0) + 1; });
         const total = impro.length || 1;
         return Object.entries(map).map(([name, value]) => ({ name, value, pct: (value / total) * 100 })).sort((a, b) => b.value - a.value);
@@ -1004,8 +1004,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             return 'Improdutiva';
         };
 
-        // Use filteredData (respects global filters) and only show Improdutiva
-        const improdutivos = filteredData.filter(v => getCategory(v.Status) === 'Improdutiva');
+        // Use filteredData (respects global filters) and only show Improdutiva (exclude 'Terceiro')
+        const improdutivos = filteredData.filter(v => getCategory(v.Status) === 'Improdutiva' && ((v.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
         return improdutivos.map(v => {
             const movPatio = (patioMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
                 const dateA = new Date(a.DataMovimentacao || 0).getTime();
