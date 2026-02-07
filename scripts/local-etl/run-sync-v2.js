@@ -32,10 +32,10 @@ const pgConfig = {
     user: (process.env.PG_USER || '').toLowerCase().trim(),
     password: (process.env.PG_PASSWORD || '').trim(),
     database: (process.env.PG_DATABASE || 'bluconecta_dw').toLowerCase().trim(),
-    max: 10,
+    max: 15,
     min: 2,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 30000,
 };
 
 // Supabase (para upload de JSON)
@@ -707,9 +707,7 @@ const CONSOLIDATED = [
     {
         table: 'fato_financeiro_dre',
         query: `SELECT 
-                    CONVERT(VARCHAR(36), NEWID()) + '|' + CAST(ln.NumeroLancamento AS VARCHAR(50)) + '|' + ISNULL(ln.Natureza, '') as IdLancamentoNatureza,
-                ln.NumeroLancamento as IdLancamento,
-                ln.NumeroLancamento as NumeroLancamento,
+                    ln.NumeroLancamento as NumeroLancamento,
                     ln.DataCompetencia as DataCompetencia,
                     ln.Natureza,
                     CASE 
@@ -717,26 +715,17 @@ const CONSOLIDATED = [
                         WHEN ln.TipoLancamento = 'Saída' THEN 'Saída'
                         ELSE 'Outro'
                     END as TipoLancamento,
-                    (CASE WHEN CHARINDEX(',', ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '')) > 0 THEN TRY_CAST(REPLACE(REPLACE(ISNULL(CAST(ISNULL(ln.ValorPagoRecebido, 0) AS VARCHAR), '0'), '.', ''), ',', '.') AS DECIMAL(15,2)) ELSE TRY_CAST(ISNULL(ln.ValorPagoRecebido, 0) AS DECIMAL(15,2)) END) as Valor,
-                    ln.Descricao as DescricaoLancamento,
+                    ${castM('ln.ValorPagoRecebido')} as Valor,
+                    LEFT(ln.Descricao, 200) as DescricaoLancamento,
                     ln.Conta,
                     ln.FormaPagamento,
                     ln.DataPagamentoRecebimento as DataPagamentoRecebimento,
-                        ln.PagarReceberDe as NomeEntidade,
-                        ln.PagarReceberDe,
-                        ln.NumeroDocumento,
-                        COALESCE(cli.NomeFantasia, os.Cliente, '') as NomeCliente,
-                        os.Placa as Placa,
-                        os.ContratoComercial as ContratoComercial,
-                        os.ContratoLocacao as ContratoLocacao
-                    FROM LancamentosComNaturezas ln WITH (NOLOCK, INDEX(0))
-
-                    LEFT JOIN OrdensServico os WITH (NOLOCK, INDEX(0)) ON ISNULL(ln.OrdemCompra, '') = ISNULL(os.OrdemCompra, '') AND os.SituacaoOrdemServico <> 'Cancelada'
-
-                    LEFT JOIN Clientes cli WITH (NOLOCK, INDEX(0)) ON os.IdCliente = cli.IdCliente
-                    
-                    WHERE ln.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
-                    OPTION (MAXDOP 1, FAST 5000)`
+                    ln.PagarReceberDe as NomeEntidade,
+                    ln.NumeroDocumento,
+                    ln.OrdemCompra
+                FROM LancamentosComNaturezas ln WITH (NOLOCK)
+                WHERE ln.DataCompetencia >= DATEADD(YEAR, -2, GETDATE())
+                OPTION (MAXDOP 1)`
     },
     {
         table: 'auditoria_consolidada',
@@ -920,7 +909,6 @@ const CONSOLIDATED = [
                     om.CanceladoEm as CanceladoEm,
                     om.MotivoCancelamento,
                     om.DataPrevisaoConclusaoServico as DataPrevisaoConclusaoServico,
-                    om.DataConclusaoServico as DataConclusaoServico,
                     om.DataConfirmacaoSaida as DataConfirmacaoSaida,
                     om.DataRetiradaVeiculo as DataRetiradaVeiculo,
                     om.IdJustificativa,
@@ -928,8 +916,8 @@ const CONSOLIDATED = [
                     
                     -- Campos de Veículos (JOIN com Veiculos)
                     os.ModeloVeiculo as Modelo,
-                    v.Categoria as CategoriaVeiculo,
-                    v.Marca,
+                    ISNULL((SELECT TOP 1 gv2.GrupoVeiculo FROM GruposVeiculos gv2 WHERE gv2.IdGrupoVeiculo = v.IdGrupoVeiculo), 'Sem Categoria') as CategoriaVeiculo,
+                    v.Montadora as Marca,
                     v.AnoFabricacao,
                     v.AnoModelo,
                     v.Cor,
@@ -959,14 +947,13 @@ const CONSOLIDATED = [
                         WHEN om.SituacaoOcorrencia = 'Cancelada' THEN 'Cancelada'
                         ELSE 'Aberta'
                     END as StatusSimplificado,
-                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoServico, GETDATE())) as LeadTimeTotalDias
+                    DATEDIFF(DAY, os.DataInicioServico, ISNULL(os.DataConclusaoOcorrencia, GETDATE())) as LeadTimeTotalDias
                     
                 FROM OcorrenciasManutencao om WITH (NOLOCK)
                 LEFT JOIN Veiculos v WITH (NOLOCK) ON om.IdVeiculo = v.IdVeiculo
                 LEFT JOIN OrdensServico os WITH (NOLOCK) ON om.IdOcorrencia = os.IdOcorrencia
                 WHERE om.DataCriacao >= '2024-01-01'
                 -- SEM FILTROS de tipo - Mantendo 100% da base conforme solicitado
-                ORDER BY om.IdOcorrencia DESC
                 `
     },
     {
@@ -1181,24 +1168,40 @@ const CONSOLIDATED = [
     },
     {
         table: 'agg_rentabilidade_contratos_mensal',
-        query: `SELECT 
+        query: `WITH FatPorPlaca AS (
+                    SELECT 
+                        v2.Placa,
+                        FORMAT(f2.DataCompetencia, 'yyyy-MM') as Competencia,
+                        FORMAT(f2.DataCompetencia, 'yyyy') as Ano,
+                        FORMAT(f2.DataCompetencia, 'MM') as Mes,
+                        SUM(${castM('ISNULL(fi2.ValorTotal, 0)')}) as ReceitaFaturamento,
+                        COUNT(DISTINCT f2.IdNota) as QtdFaturas
+                    FROM Faturamentos f2 WITH (NOLOCK)
+                    INNER JOIN FaturamentoItems fi2 WITH (NOLOCK) ON f2.IdNota = fi2.IdNota
+                    INNER JOIN Veiculos v2 WITH (NOLOCK) ON fi2.IdVeiculo = v2.IdVeiculo
+                    WHERE f2.SituacaoNota NOT IN ('Cancelada')
+                      AND f2.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
+                    GROUP BY v2.Placa, FORMAT(f2.DataCompetencia, 'yyyy-MM'), FORMAT(f2.DataCompetencia, 'yyyy'), FORMAT(f2.DataCompetencia, 'MM')
+                    HAVING SUM(${castM('ISNULL(fi2.ValorTotal, 0)')}) > 0
+                )
+                SELECT 
+                    ISNULL(c.NomeFantasia, 'Não Identificado') as Cliente,
                     c.IdCliente,
-                    c.Cliente,
-                    cl.IdContratoComercial,
+                    cl.IdContrato as IdContratoComercial,
                     cl.IdContratoLocacao,
                     cl.ContratoLocacao,
                     ISNULL(gv.GrupoVeiculo, 'Sem Grupo') as GrupoVeiculo,
                     v.Modelo,
                     cl.PlacaPrincipal as Placa,
-                    FORMAT(f.DataCompetencia, 'yyyy-MM') as Competencia,
-                    FORMAT(f.DataCompetencia, 'yyyy') as Ano,
-                    FORMAT(f.DataCompetencia, 'MM') as Mes,
+                    fp.Competencia,
+                    fp.Ano,
+                    fp.Mes,
                     
-                    -- Receitas
-                    SUM(${castM('ISNULL(f.ValorTotal, 0)')}) as ReceitaFaturamento,
-                    SUM(${castM('ISNULL(f.ValorLocacao, 0)')}) as ReceitaLocacao,
-                    SUM(${castM('ISNULL(f.ValorTaxas, 0)')}) as ReceitaTaxas,
-                    SUM(${castM('ISNULL(f.ValorOutros, 0)')}) as ReceitaOutros,
+                    -- Receitas (pre-aggregated via FaturamentoItems por placa)
+                    fp.ReceitaFaturamento,
+                    fp.ReceitaFaturamento as ReceitaLocacao,
+                    0 as ReceitaTaxas,
+                    0 as ReceitaOutros,
                     
                     -- Custos Diretos (Manutenção)
                     SUM(${castM('ISNULL(os.ValorTotal, 0)')}) as CustoManutencao,
@@ -1210,14 +1213,14 @@ const CONSOLIDATED = [
                     SUM(${castM('ISNULL(sin.ValorOrcamento, 0)')}) as CustoSinistros,
                     
                     -- Indicadores de Volume
-                    COUNT(DISTINCT f.IdFaturamento) as QtdFaturas,
+                    fp.QtdFaturas,
                     COUNT(DISTINCT os.IdOrdemServico) as QtdOrdemServico,
                     COUNT(DISTINCT inf.IdOcorrencia) as QtdMultas,
                     COUNT(DISTINCT sin.IdOcorrencia) as QtdSinistros,
                     
                     -- Rentabilidade Calculada
                     (
-                        SUM(${castM('ISNULL(f.ValorTotal, 0)')}) 
+                        fp.ReceitaFaturamento
                         - SUM(${castM('ISNULL(os.ValorNaoReembolsavel, 0)')})
                         - SUM(${castM('ISNULL(inf.ValorInfracao, 0)')})
                         - SUM(${castM('ISNULL(sin.ValorOrcamento, 0)')})
@@ -1225,44 +1228,39 @@ const CONSOLIDATED = [
                     
                     -- Margem de Rentabilidade (%)
                     CASE 
-                        WHEN SUM(${castM('ISNULL(f.ValorTotal, 0)')}) > 0 
+                        WHEN fp.ReceitaFaturamento > 0 
                         THEN (
-                            (SUM(${castM('ISNULL(f.ValorTotal, 0)')}) 
+                            (fp.ReceitaFaturamento
                              - SUM(${castM('ISNULL(os.ValorNaoReembolsavel, 0)')})
                              - SUM(${castM('ISNULL(inf.ValorInfracao, 0)')})
                              - SUM(${castM('ISNULL(sin.ValorOrcamento, 0)')})
-                            ) / SUM(${castM('ISNULL(f.ValorTotal, 0)')})
+                            ) / fp.ReceitaFaturamento
                         ) * 100
                         ELSE 0
                     END as MargemRentabilidade
                     
                 FROM ContratosLocacao cl WITH (NOLOCK)
-                JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContratoComercial = cc.IdContratoComercial
+                JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContrato = cc.IdContratoComercial
                 JOIN Clientes c WITH (NOLOCK) ON cc.IdCliente = c.IdCliente
                 LEFT JOIN Veiculos v WITH (NOLOCK) ON cl.PlacaPrincipal = v.Placa
                 LEFT JOIN GruposVeiculos gv WITH (NOLOCK) ON v.IdGrupoVeiculo = gv.IdGrupoVeiculo
-                LEFT JOIN Faturamentos f WITH (NOLOCK) ON f.IdContratoLocacao = cl.IdContratoLocacao 
-                    AND f.SituacaoNota NOT IN ('Cancelada')
-                    AND f.DataCompetencia >= DATEADD(YEAR, -3, GETDATE())
+                INNER JOIN FatPorPlaca fp ON fp.Placa = cl.PlacaPrincipal
                 LEFT JOIN OrdensServico os WITH (NOLOCK) ON os.Placa = cl.PlacaPrincipal
                     AND os.SituacaoOrdemServico NOT IN ('Cancelada')
-                    AND FORMAT(os.DataInicioServico, 'yyyy-MM') = FORMAT(f.DataCompetencia, 'yyyy-MM')
+                    AND FORMAT(os.DataInicioServico, 'yyyy-MM') = fp.Competencia
                 LEFT JOIN OcorrenciasInfracoes inf WITH (NOLOCK) ON inf.Placa = cl.PlacaPrincipal
                     AND inf.SituacaoOcorrencia NOT IN ('Cancelada')
-                    AND FORMAT(inf.DataInfracao, 'yyyy-MM') = FORMAT(f.DataCompetencia, 'yyyy-MM')
+                    AND FORMAT(inf.DataInfracao, 'yyyy-MM') = fp.Competencia
                 LEFT JOIN OcorrenciasSinistro sin WITH (NOLOCK) ON sin.Placa = cl.PlacaPrincipal
                     AND sin.SituacaoOcorrencia NOT IN ('Cancelada')
-                    AND FORMAT(sin.DataSinistro, 'yyyy-MM') = FORMAT(f.DataCompetencia, 'yyyy-MM')
-                WHERE f.DataCompetencia IS NOT NULL
+                    AND FORMAT(sin.DataSinistro, 'yyyy-MM') = fp.Competencia
                 GROUP BY 
-                    c.IdCliente, c.Cliente, 
-                    cl.IdContratoComercial, cl.IdContratoLocacao, cl.ContratoLocacao,
+                    c.IdCliente, c.NomeFantasia, 
+                    cl.IdContrato, cl.IdContratoLocacao, cl.ContratoLocacao,
                     gv.GrupoVeiculo, v.Modelo, cl.PlacaPrincipal,
-                    FORMAT(f.DataCompetencia, 'yyyy-MM'),
-                    FORMAT(f.DataCompetencia, 'yyyy'),
-                    FORMAT(f.DataCompetencia, 'MM')
-                HAVING SUM(${castM('ISNULL(f.ValorTotal, 0)')}) > 0
-                ORDER BY Competencia DESC, c.Cliente`
+                    fp.Competencia, fp.Ano, fp.Mes,
+                    fp.ReceitaFaturamento, fp.QtdFaturas
+                ORDER BY fp.Competencia DESC, c.NomeFantasia`
     },
     {
         table: 'agg_custos_detalhados',
@@ -1338,219 +1336,22 @@ const CONSOLIDATED = [
 // ==============================================================================
 // FUNÇÕES AUXILIARES
 // ==============================================================================
+// ==============================================================================
+// FUNÇÕES AUXILIARES (código morto Supabase/JSON removido - ~200 linhas eliminadas)
+// ==============================================================================
 
-// Fila de uploads assíncronos para não bloquear PostgreSQL
-// OTIMIZAÇÃO: Função queueUpload removida - não geramos mais JSONs locais ou Supabase
-// Todo processamento agora vai direto para PostgreSQL
-
-// Placeholder vazio - JSON desabilitado (otimização focada em PostgreSQL)
-function queueUpload_DEPRECATED(tableName, data, year = null, month = null) {
-    // REMOVIDO: Toda lógica de JSON/Supabase foi eliminada
-    return;
-
-    const MAX_CHUNK_SIZE = 10000; // Reduzido para 10K para evitar HTTP 546 (Edge Function limit)
-    const baseFileName = year
-        ? (month ? `${tableName}_${year}_${month.toString().padStart(2, '0')}`
-            : `${tableName}_${year}`)
-        : `${tableName}`;
-
-    // Adicionar metadata de atualização
-    const metadata = {
-        generated_at: new Date().toISOString(),
-        dw_last_update: dwLastUpdate ? dwLastUpdate.toISOString() : null,
-        table: tableName,
-        record_count: data.length,
-        etl_version: '2.0'
-    };
-
-    // Se dados são muito grandes, dividir em chunks
-    if (data.length > MAX_CHUNK_SIZE) {
-        const totalChunks = Math.ceil(data.length / MAX_CHUNK_SIZE);
-        console.log(`         📦 ${tableName}: Dividindo ${data.length} registros em ${totalChunks} partes`);
-
-        // Upload de manifest para evitar detecção por tentativa no frontend
-        const manifestFileName = `${baseFileName}_manifest.json`;
-        const manifestData = {
-            totalParts: totalChunks,
-            total_chunks: totalChunks,
-            totalRecords: data.length,
-            chunkSize: MAX_CHUNK_SIZE,
-            baseFileName,
-            year,
-            month,
-        };
-        const manifestMetadata = {
-            ...metadata,
-            kind: 'manifest',
-            total_chunks: totalChunks,
-            record_count: data.length,
-            chunk_size: MAX_CHUNK_SIZE,
-        };
-
-        let manifestPromise = Promise.resolve();
-        if (shouldUploadToSupabase) {
-            manifestPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ fileName: manifestFileName, data: manifestData, metadata: manifestMetadata })
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(() => {
-                    console.log(`         📤 Upload: ${manifestFileName} (manifest)`);
-                })
-                .catch(err => {
-                    console.error(`         ❌ Erro upload ${manifestFileName}:`, err.message);
-                });
-        }
-
-        // also write manifest locally if requested
-        if (writeLocal) {
-            try {
-                const outDir = path.join(process.cwd(), 'public', 'data');
-                if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-                fs.writeFileSync(path.join(outDir, manifestFileName), JSON.stringify(manifestData), 'utf8');
-                console.log(`         💾 Gravado local: ${manifestFileName}`);
-            } catch (err) {
-                console.error(`         ❌ Falha ao gravar manifest local ${manifestFileName}:`, err.message);
-            }
-        }
-
-        uploadQueue.push(manifestPromise);
-
-        for (let i = 0; i < totalChunks; i++) {
-            const chunk = data.slice(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
-            const chunkFileName = `${baseFileName}_part${i + 1}of${totalChunks}.json`;
-
-            const chunkMetadata = { ...metadata, chunk: i + 1, total_chunks: totalChunks, record_count: chunk.length };
-
-            // tentativa com retries para uploads de chunk (corrige falhas intermitentes HTTP 546)
-            const attemptUploadChunk = async (tries = 3, delayMs = 1500) => {
-                for (let attempt = 1; attempt <= tries; attempt++) {
-                    try {
-                        const resp = await fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ fileName: chunkFileName, data: chunk, metadata: chunkMetadata })
-                        });
-                        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                        const result = await resp.json();
-                        console.log(`         📤 Upload: ${chunkFileName} (${result.recordCount} registros)`);
-                        return result;
-                    } catch (err) {
-                        console.error(`         ❌ Erro upload ${chunkFileName} (attempt ${attempt}):`, err.message);
-                        if (attempt < tries) await new Promise(r => setTimeout(r, delayMs));
-                        else throw err;
-                    }
-                }
-            };
-            let uploadPromise = Promise.resolve();
-            if (shouldUploadToSupabase) {
-                uploadPromise = attemptUploadChunk().catch(err => {
-                    console.error(`         ❌ Upload final falhou para ${chunkFileName}:`, err.message);
-                });
-            }
-
-            // write chunk locally if requested
-            if (writeLocal) {
-                try {
-                    const outDir = path.join(process.cwd(), 'public', 'data');
-                    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-                    
-                    // Envolver chunk em um objeto com metadata
-                    const wrappedChunk = {
-                        metadata: chunkMetadata,
-                        data: chunk
-                    };
-                    
-                    fs.writeFileSync(path.join(outDir, chunkFileName), JSON.stringify(wrappedChunk), 'utf8');
-                    console.log(`         💾 Gravado local: ${chunkFileName} (com metadata)`);
-                } catch (err) {
-                    console.error(`         ❌ Falha ao gravar chunk local ${chunkFileName}:`, err.message);
-                }
-            }
-
-            uploadQueue.push(uploadPromise);
-        }
-    } else {
-        // Upload normal para arquivos pequenos
-        const fileName = `${baseFileName}.json`;
-        let uploadPromise = Promise.resolve();
-        if (shouldUploadToSupabase) {
-            uploadPromise = fetch(`${SUPABASE_URL}/functions/v1/sync-dw-to-storage`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ fileName, data, metadata })
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(result => {
-                    console.log(`         📤 Upload: ${fileName} (${result.recordCount} registros)`);
-                })
-                .catch(err => {
-                    console.error(`         ❌ Erro upload ${fileName}:`, err.message);
-                });
-        }
-
-        if (writeLocal) writeSmallLocal(fileName, data, metadata);
-
-        uploadQueue.push(uploadPromise);
-    }
-}
-
-// Se escrevemos localmente para arquivos pequenos (não chunked)
-function writeSmallLocal(fileName, dataObj, metadata) {
-    try {
-        const fs = require('fs');
-        const path = require('path');
-        const outDir = path.join(process.cwd(), 'public', 'data');
-        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-        
-        // Envolver dados em um objeto com metadata
-        const wrappedData = {
-            metadata: metadata || { 
-                generated_at: new Date().toISOString(),
-                record_count: Array.isArray(dataObj) ? dataObj.length : 0 
-            },
-            data: dataObj
-        };
-        
-        fs.writeFileSync(path.join(outDir, fileName), JSON.stringify(wrappedData), 'utf8');
-        console.log(`         💾 Gravado local: ${fileName} (com metadata)`);
-    } catch (err) {
-        console.error(`         ❌ Falha ao gravar local ${fileName}:`, err.message);
-    }
-}
+// Cache de tabelas já criadas nessa execução (evita race condition pg_type)
+const _createdTables = new Set();
 
 /**
- * Aguarda todos os uploads pendentes
- */
-async function flushUploads() {
-    if (uploadQueue.length === 0) return;
-    console.log(`\n⏳ Aguardando ${uploadQueue.length} uploads para Supabase...`);
-    await Promise.allSettled(uploadQueue);
-    uploadQueue.length = 0;
-    console.log(`✅ Uploads concluídos\n`);
-}
-
-/**
- * Cria tabela no PostgreSQL baseado na estrutura do primeiro registro
+ * Cria tabela no PostgreSQL baseado na estrutura do primeiro registro.
+ * Usa cache _createdTables para evitar CREATE concorrente que causa
+ * "duplicar valor da chave viola restrição pg_type_typname_nsp_index".
  */
 async function ensureTableExists(pgClient, tableName, sampleRow) {
     if (!sampleRow) return;
+    // Se já criou nesta execução, pular (evita race condition em paralelo)
+    if (_createdTables.has(tableName)) return;
 
     const getPgType = (val) => {
         const type = typeof val;
@@ -1565,7 +1366,6 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
         return `"${safeKey}" ${getPgType(sampleRow[key])}`;
     }).join(',\n');
 
-    // Identificar possível chave primária (IdOcorrencia, IdNota, IdOrdemServico, etc)
     const firstKey = Object.keys(sampleRow)[0];
     const pkColumn = firstKey.replace(/[^a-zA-Z0-9_]/g, "");
     const hasPK = firstKey.toLowerCase().startsWith('id');
@@ -1576,11 +1376,13 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
 
     try {
         await pgClient.query(createSql);
+        _createdTables.add(tableName);
     } catch (err) {
-        // Ignorar erro se PRIMARY KEY já existe
-        if (!err.message.includes('já existe')) {
+        if (!err.message.includes('já existe') && !err.message.includes('pg_type')) {
             console.error(`         ⚠️  Erro ao criar tabela ${tableName}:`, err.message);
         }
+        // Mesmo com erro, marcar como criada (tabela já existe)
+        _createdTables.add(tableName);
     }
 }
 
@@ -1589,207 +1391,124 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
  */
 async function processQuery(pgClient, sqlPool, tableName, query, appendMode = false, progressStr = '', year = null, month = null) {
     const start = performance.now();
-    let recordset;
 
+    // 1. Buscar dados do SQL Server
+    let recordset;
     try {
-        if (tableName === 'dim_alienacoes') {
-            console.log(`🔍 [DEBUG] Executando query para ${tableName}...`);
-            // console.log(query); 
-        }
         const result = await sqlPool.request().query(query);
         recordset = result.recordset;
-        if (tableName === 'dim_alienacoes') {
-            console.log(`🔍 [DEBUG] ${tableName}: Retornou ${recordset.length} linhas.`);
-        }
     } catch (err) {
-        console.error(`      ❌ ${progressStr} Erro SQL Server (${tableName}):`, err.message);
+        console.error(`      \u274c ${progressStr} Erro SQL Server (${tableName}):`, err.message);
         return;
     }
 
     if (!recordset || recordset.length === 0) {
-        console.log(`      ⚠️  ${progressStr} ${tableName} (0 registros)`);
+        console.log(`      \u26a0\ufe0f  ${progressStr} ${tableName} (0 registros)`);
         return;
     }
 
     try {
-        // ========== SALVAR NO POSTGRESQL ==========
-        if (JSON_ONLY) {
-            // Em modo somente JSON, apenas enfileira upload/gera arquivos locais e pula escrita no Postgres
-            const columns = Object.keys(recordset[0]);
-            // reutiliza a sanitização feita abaixo para finalData
-            const BATCH_SIZE = 500;
-            const totalRows = recordset.length;
-            // sanitizar dados como no fluxo padrão
-            const sanitizedData = recordset.map(row => {
-                const sanitized = {};
-                Object.keys(row).forEach(col => {
-                    const val = row[col];
-                    if (val === undefined) sanitized[col] = null;
-                    else if (val instanceof Date) sanitized[col] = val.toISOString();
-                    else if (typeof val === 'string' && val.trim() === '') sanitized[col] = null;
-                    else sanitized[col] = val;
-                });
-                return sanitized;
-            });
-
-            // deduplicação semelhante
-            const pkRaw = Object.keys(recordset[0])[0];
-            const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
-            let finalData = sanitizedData;
-            // OTIMIZAÇÃO: Deduplicação removida - PostgreSQL ON CONFLICT cuida disso
-            // (Modo JSON_ONLY simplificado)
-
-            // Upload/JSON desabilitado (Otimização #1)
-            const duration = ((performance.now() - start) / 1000).toFixed(2);
-            console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s (JSON_ONLY)`);
-
-            return;
-        }
-
+        // 2. Preparar estrutura da tabela
         if (!appendMode) {
-            await pgClient.query(`DROP TABLE IF EXISTS public.${tableName};`);
+            await pgClient.query(`DROP TABLE IF EXISTS public.${tableName} CASCADE;`);
+            _createdTables.delete(tableName);
         }
-
         await ensureTableExists(pgClient, tableName, recordset[0]);
 
-        const BATCH_SIZE = 500; // Reduzido para evitar overflow de placeholders
-        const totalRows = recordset.length;
+        const BATCH_SIZE = 500;
         const columns = Object.keys(recordset[0]);
         const columnNames = columns.map(col => `"${col.replace(/[^a-zA-Z0-9_]/g, "")}"`).join(', ');
         const rowLength = columns.length;
 
-        // Validar e sanitizar dados (tratar NULL/undefined)
-        const sanitizedData = recordset.map(row => {
-            const sanitized = {};
-            columns.forEach(col => {
+        // 3. Sanitizar dados IN-PLACE (sem duplicar array)
+        for (let r = 0; r < recordset.length; r++) {
+            const row = recordset[r];
+            for (const col of columns) {
                 const val = row[col];
-                if (val === undefined) {
-                    sanitized[col] = null;
-                } else if (val instanceof Date) {
-                    sanitized[col] = val.toISOString();
-                } else if (typeof val === 'string' && val.trim() === '') {
-                    sanitized[col] = null;
-                } else {
-                    sanitized[col] = val;
-                }
-            });
-            return sanitized;
-        });
-
-        // Remover duplicatas se houver ID column (manter última ocorrência)
-        // EXCETO para tabelas de histórico temporal que legitimamente têm múltiplas entradas
-        // E EXCETO para fat_manutencao_unificado que deve manter 100% da base
-        const pkRaw = columns[0];
-        const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
-        const historicalTables = [
-            'dim_contratos_locacao',
-            'dim_movimentacao_patios',
-            'dim_movimentacao_veiculos',
-            'dim_veiculos_acessorios',
-            'historico_situacao_veiculos',
-            'fat_movimentacao_ocorrencias',
-            'fat_manutencao_unificado', // MANTÉM 100% DA BASE SEM DEDUPLICAÇÃO
-            'fato_financeiro_dre' // MANTÉM 100% DA BASE (não deduplicar por IdLancamento)
-        ];
-        const shouldDedup = hasIdColumn && !historicalTables.includes(tableName);
-        let finalData = sanitizedData;
-
-        // OTIMIZA├ç├âO AJUSTADA: Deduplica├º├úo seletiva para tabelas com duplicatas reais
-        // Estas tabelas T├èM duplicatas nos dados de origem que causam erro "ON CONFLICT cannot affect row a second time"
-        // IMPORTANTE: Deduplica INDEPENDENTE de estarem em historicalTables
-        const tablesWithRealDuplicates = [
-            'dim_movimentacao_veiculos',
-            'dim_veiculos_acessorios',
-            'dim_movimentacao_patios',
-            'fat_faturamentos',
-            'fat_detalhe_itens_os'
-        ];
-
-        if (hasIdColumn && tablesWithRealDuplicates.includes(tableName)) {
-            const seen = new Map();
-            sanitizedData.forEach(row => {
-                seen.set(row[pkRaw], row); // ├Ültima ocorr├¬ncia sobrescreve
-            });
-            finalData = Array.from(seen.values());
-
-            if (finalData.length < sanitizedData.length) {
-                console.log(`         ÔÜá´ŞĆ  Removidas ${sanitizedData.length - finalData.length} duplicatas de ${tableName}`);
+                if (val === undefined) row[col] = null;
+                else if (val instanceof Date) row[col] = val.toISOString();
+                else if (typeof val === 'string' && val.trim() === '') row[col] = null;
             }
         }
 
-        // Identificar primeira coluna como possível PK para UPSERT (nome seguro)
-        const firstCol = (pkRaw || '').replace(/[^a-zA-Z0-9_]/g, "");
-
-        // Tabelas com PKs simples no PostgreSQL mas que precisam deduplic JavaScript
-        // (porque na verdade têm estrutura histórica com múltiplos registros por ID)
-        const needsJSDedup = [
-            'dim_veiculos_acessorios',
-            'dim_movimentacao_patios',
-            'dim_movimentacao_veiculos'
+        // 4. Determinar modo de inserção
+        const pkRaw = columns[0];
+        const hasIdColumn = pkRaw && pkRaw.toLowerCase().startsWith('id');
+        const historicalTables = [
+            'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos',
+            'dim_veiculos_acessorios', 'historico_situacao_veiculos',
+            'fat_movimentacao_ocorrencias', 'fat_manutencao_unificado', 'fato_financeiro_dre'
         ];
+        const shouldDedup = hasIdColumn && !historicalTables.includes(tableName);
 
-        // DELETE movido para dentro da transação (Otimização #3)
+        // 5. Deduplicação seletiva (apenas tabelas com duplicatas reais)
+        const tablesWithRealDuplicates = [
+            'dim_movimentacao_veiculos', 'dim_veiculos_acessorios',
+            'dim_movimentacao_patios', 'fat_faturamentos', 'fat_detalhe_itens_os',
+            'agg_custos_detalhados'
+        ];
+        let finalData = recordset;
+        if (hasIdColumn && tablesWithRealDuplicates.includes(tableName)) {
+            const seen = new Map();
+            for (const row of recordset) seen.set(row[pkRaw], row);
+            finalData = Array.from(seen.values());
+            seen.clear(); // liberar Map imediatamente
+            if (finalData.length < recordset.length) {
+                console.log(`         \u26a0\ufe0f  Removidas ${recordset.length - finalData.length} duplicatas de ${tableName}`);
+            }
+        }
+        // Liberar referência original do recordset se finalData é diferente
+        recordset = null;
 
-        // OTIMIZAÇÃO: Deduplicação JS removida - needsJSDedup não necessário
-        // PostgreSQL ON CONFLICT gerencia duplicatas automaticamente
-
+        const firstCol = (pkRaw || '').replace(/[^a-zA-Z0-9_]/g, "");
         const finalRowCount = finalData.length;
 
-        // Se não houver dados após filtros, pular inserção
         if (finalRowCount === 0) {
             const duration = ((performance.now() - start) / 1000).toFixed(2);
-            console.log(`      ⚠️  ${progressStr} ${tableName} (0 linhas após filtros) - ${duration}s`);
+            console.log(`      \u26a0\ufe0f  ${progressStr} ${tableName} (0 linhas ap\u00f3s filtros) - ${duration}s`);
             return;
         }
 
-        // Usar transação única para todos os batches da tabela
+        // 6. Inserir no PostgreSQL com transação
         const client = await pgClient.connect();
         try {
             await client.query('BEGIN');
 
-            // TRUNCATE para tabelas históricas (dentro da transação - Zero Downtime)
             if (!shouldDedup) {
                 await client.query(`TRUNCATE TABLE public.${tableName}`);
             }
 
-            for (let i = 0; i < finalRowCount; i += BATCH_SIZE) {
-                const chunk = finalData.slice(i, i + BATCH_SIZE);
-                const chunkSize = chunk.length;
+            // Pré-calcular updateSet uma vez (fora do loop de batches)
+            let updateSet = '';
+            if (hasIdColumn && shouldDedup) {
+                updateSet = columns
+                    .filter(col => col !== columns[0])
+                    .map(col => {
+                        const safeName = col.replace(/[^a-zA-Z0-9_]/g, "");
+                        return `"${safeName}" = EXCLUDED."${safeName}"`;
+                    })
+                    .join(', ');
+            }
 
-                // Construir placeholders dinamicamente
+            for (let i = 0; i < finalRowCount; i += BATCH_SIZE) {
+                const end = Math.min(i + BATCH_SIZE, finalRowCount);
+                const chunkSize = end - i;
                 const placeholders = [];
                 const flatValues = [];
 
                 for (let rowIdx = 0; rowIdx < chunkSize; rowIdx++) {
                     const rowPlaceholders = [];
-                    const row = chunk[rowIdx];
-
-                    columns.forEach((col, colIdx) => {
-                        const paramIndex = rowIdx * rowLength + colIdx + 1;
-                        rowPlaceholders.push(`$${paramIndex}`);
-                        flatValues.push(row[col]);
-                    });
-
+                    const row = finalData[i + rowIdx];
+                    for (let colIdx = 0; colIdx < rowLength; colIdx++) {
+                        rowPlaceholders.push(`$${rowIdx * rowLength + colIdx + 1}`);
+                        flatValues.push(row[columns[colIdx]]);
+                    }
                     placeholders.push(`(${rowPlaceholders.join(', ')})`);
                 }
 
-                // UPSERT se tiver ID column (evita duplicatas)
-                // Para tabelas históricas sem PK única, usar INSERT simples (já truncadas)
-                let insertQuery;
-                if (hasIdColumn && shouldDedup) {
-                    const updateSet = columns
-                        .filter(col => col !== columns[0]) // Excluir PK do UPDATE
-                        .map(col => {
-                            const safeName = col.replace(/[^a-zA-Z0-9_]/g, "");
-                            return `"${safeName}" = EXCLUDED."${safeName}"`;
-                        })
-                        .join(', ');
-
-                    insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')} 
-                                  ON CONFLICT ("${firstCol}") DO UPDATE SET ${updateSet};`;
-                } else {
-                    insertQuery = `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')};`;
-                }
+                const insertQuery = (hasIdColumn && shouldDedup)
+                    ? `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')} ON CONFLICT ("${firstCol}") DO UPDATE SET ${updateSet};`
+                    : `INSERT INTO public.${tableName} (${columnNames}) VALUES ${placeholders.join(', ')};`;
 
                 await client.query(insertQuery, flatValues);
             }
@@ -1803,12 +1522,13 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         }
 
         const duration = ((performance.now() - start) / 1000).toFixed(2);
-        console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
+        console.log(`      \u2705 ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
 
-        // OTIMIZAÇÃO: Upload JSON/Supabase removido (#1)
+        // 7. Liberar memória explicitamente
+        finalData = null;
 
     } catch (err) {
-        console.error(`      ❌ ${progressStr} Erro PostgreSQL (${tableName}):`, err.message);
+        console.error(`      \u274c ${progressStr} Erro PostgreSQL (${tableName}):`, err.message);
     }
 }
 
@@ -2193,23 +1913,27 @@ async function runMasterETL() {
             processQuery(pgClient, sqlPool, dim.table, dim.query, false, getProgress())
         );
         await Promise.all(dimPromises);
-        // await flushUploads(); // Aguardar uploads das dimensões
+
+        // Forçar garbage collection após Fase 1
+        if (global.gc) {
+            global.gc();
+            console.log(`🗑️  Garbage collection executado após Fase 1`);
+        }
 
         console.log(`\n📅 FASE 2: Processando Fatos Anuais (${factDefs.length * years.length} etapas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
 
         for (const fact of factDefs) {
             console.log(`   📊 ${fact.table}`);
-            if (!JSON_ONLY) {
-                const client = await pgClient.connect();
-                try {
-                    await client.query(`DROP TABLE IF EXISTS public.${fact.table};`);
-                } catch (e) { } finally {
-                    client.release();
-                }
+            const client = await pgClient.connect();
+            try {
+                await client.query(`DROP TABLE IF EXISTS public.${fact.table} CASCADE;`);
+                _createdTables.delete(fact.table);
+            } catch (e) { } finally {
+                client.release();
             }
 
-            // Processar anos em paralelo para cada fato (máximo 3 por vez para não sobrecarregar)
+            // Processar anos em paralelo para cada fato (máximo 3 por vez)
             for (let i = 0; i < years.length; i += 3) {
                 const yearBatch = years.slice(i, i + 3);
                 const yearPromises = yearBatch.map(year =>
@@ -2217,8 +1941,16 @@ async function runMasterETL() {
                 );
                 await Promise.all(yearPromises);
             }
+
+            // GC entre tabelas fato (evita acumulação)
+            if (global.gc) global.gc();
         }
-        // await flushUploads(); // Aguardar uploads dos fatos
+
+        // Forçar garbage collection após Fase 2
+        if (global.gc) {
+            global.gc();
+            console.log(`🗑️  Garbage collection executado após Fase 2`);
+        }
 
         console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - OTIMIZADO`);
         console.log(`${'─'.repeat(80)}`);
@@ -2226,8 +1958,17 @@ async function runMasterETL() {
         if (!JSON_ONLY) {
             const client = await pgClient.connect();
             try {
-                await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal;`);
-            } catch (e) { } finally {
+                await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal CASCADE;`);
+                _createdTables.delete('fat_financeiro_universal');
+                // Criar tabela vazia com estrutura do primeiro mês para evitar race condition
+                const firstMonthQuery = buildFinanceUniversalQuery(years[0], 1);
+                const firstMonthResult = await sqlPool.request().query(firstMonthQuery);
+                if (firstMonthResult.recordset && firstMonthResult.recordset.length > 0) {
+                    await ensureTableExists(client, 'fat_financeiro_universal', firstMonthResult.recordset[0]);
+                }
+            } catch (e) { 
+                console.error('⚠️  Erro ao preparar tabela fat_financeiro_universal:', e.message);
+            } finally {
                 client.release();
             }
         }
@@ -2249,20 +1990,23 @@ async function runMasterETL() {
                 await Promise.all(monthPromises);
             }
         }
-        // await flushUploads(); // Aguardar uploads financeiros
+
+        // Forçar garbage collection após Fase 3 (reduzir acumulação de memória)
+        if (global.gc) {
+            global.gc();
+            console.log(`🗑️  Garbage collection executado após Fase 3`);
+        }
 
         console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - SEQUENCIAL`);
         console.log(`${'─'.repeat(80)}`);
 
-        // OTIMIZAÇÃO CRÍTICA: Processar 1 consolidado por vez (SEQUENCIAL)
-        // Tabelas como hist_vida_veiculo_timeline (108K linhas, 7 UNIONs) estouram heap em paralelo
+        // OTIMIZAÇÃO CRÍTICA: Processar 1 consolidado por vez + GC a CADA tabela
         for (let i = 0; i < CONSOLIDATED.length; i++) {
             const cons = CONSOLIDATED[i];
             await processQuery(pgClient, sqlPool, cons.table, cons.query, false, getProgress());
+            // Forçar garbage collection APÓS CADA consolidado (evita acumulação fatal)
+            if (global.gc) global.gc();
         }
-
-        // Aguardar todos os uploads restantes
-        // await flushUploads();
 
         // ========== FINALIZAÇÃO ==========
         console.log(`\n${'='.repeat(80)}`);
