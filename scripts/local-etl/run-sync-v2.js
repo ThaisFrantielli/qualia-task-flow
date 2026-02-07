@@ -2,6 +2,9 @@ require('dotenv').config();
 const sql = require('mssql');
 const { Pool } = require('pg');
 const { performance } = require('perf_hooks');
+const fs = require('fs');
+const path = require('path');
+const { saveJSONToPublicData } = require('./save-json-helper.js');
 
 // ******************************************************************************
 // CONFIGURAÇÃO DE CONEXÃO
@@ -354,7 +357,6 @@ const DIMENSIONS = [
                     SituacaoFinanceiraVeiculo,
                     Informacoes
                 FROM HistoricoSituacaoVeiculos WITH (NOLOCK)
-                WHERE Placa IS NOT NULL
                 ORDER BY DataAtualizacaoDados DESC`
     },
     {
@@ -1369,8 +1371,14 @@ async function ensureTableExists(pgClient, tableName, sampleRow) {
     const firstKey = Object.keys(sampleRow)[0];
     const pkColumn = firstKey.replace(/[^a-zA-Z0-9_]/g, "");
     const hasPK = firstKey.toLowerCase().startsWith('id');
+    // Tabelas em que a primeira coluna começa com 'Id' mas NÃO deve virar PK
+    const skipPrimaryKey = [
+        'dim_movimentacao_veiculos',
+        'dim_movimentacao_patios',
+        'dim_veiculos_acessorios'
+    ];
 
-    const createSql = hasPK
+    const createSql = (hasPK && !skipPrimaryKey.includes(tableName))
         ? `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns}, PRIMARY KEY ("${pkColumn}"));`
         : `CREATE TABLE IF NOT EXISTS public.${tableName} (${columns});`;
 
@@ -1443,9 +1451,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
 
         // 5. Deduplicação seletiva (apenas tabelas com duplicatas reais)
         const tablesWithRealDuplicates = [
-            'dim_movimentacao_veiculos', 'dim_veiculos_acessorios',
-            'dim_movimentacao_patios', 'fat_faturamentos', 'fat_detalhe_itens_os',
-            'agg_custos_detalhados'
+            'fat_faturamentos', 'fat_detalhe_itens_os', 'agg_custos_detalhados'
         ];
         let finalData = recordset;
         if (hasIdColumn && tablesWithRealDuplicates.includes(tableName)) {
@@ -1466,6 +1472,15 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
         if (finalRowCount === 0) {
             const duration = ((performance.now() - start) / 1000).toFixed(2);
             console.log(`      \u26a0\ufe0f  ${progressStr} ${tableName} (0 linhas ap\u00f3s filtros) - ${duration}s`);
+            return;
+        }
+
+        // 5.5. Se modo JSON_ONLY: salvar JSON e retornar (pular inserção no Postgres)
+        if (JSON_ONLY) {
+            saveJSONToPublicData(tableName, finalData, dwLastUpdate);
+            const duration = ((performance.now() - start) / 1000).toFixed(2);
+            console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
+            finalData = null;
             return;
         }
 
@@ -1889,11 +1904,32 @@ async function runMasterETL() {
             }
         ];
 
+        // Suporte a execução parcial via `--only table1,table2`
+        const onlyArg = process.argv.find(a => a === '--only' || a.startsWith('--only='));
+        let onlySet = null;
+        if (onlyArg) {
+            let list = null;
+            if (onlyArg.includes('=')) list = onlyArg.split('=')[1];
+            else {
+                const idx = process.argv.indexOf('--only');
+                if (idx !== -1 && process.argv.length > idx + 1) list = process.argv[idx + 1];
+            }
+            if (list) {
+                onlySet = new Set(list.split(',').map(s => s.trim()).filter(Boolean));
+                console.log(`⚙️  Modo --only ativo. Executando apenas: ${Array.from(onlySet).join(', ')}`);
+            }
+        }
+
+        const dimsToRun = onlySet ? DIMENSIONS.filter(d => onlySet.has(d.table)) : DIMENSIONS;
+        const factsToRun = onlySet ? factDefs.filter(f => onlySet.has(f.table)) : factDefs;
+        const consToRun = onlySet ? CONSOLIDATED.filter(c => onlySet.has(c.table)) : CONSOLIDATED;
+        const runFinance = !onlySet || onlySet.has('fat_financeiro_universal');
+
         const totalSteps =
-            DIMENSIONS.length +
-            (factDefs.length * years.length) +
-            (years.length * 12) +
-            CONSOLIDATED.length;
+            dimsToRun.length +
+            (factsToRun.length * years.length) +
+            (runFinance ? (years.length * 12) : 0) +
+            consToRun.length;
 
         let currentStep = 0;
 
@@ -1905,11 +1941,11 @@ async function runMasterETL() {
 
         // ========== PROCESSAMENTO ==========
 
-        console.log(`📦 FASE 1: Processando Dimensões (${DIMENSIONS.length} tabelas) - PARALELO`);
+        console.log(`📦 FASE 1: Processando Dimensões (${dimsToRun.length} tabelas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
 
         // Processar dimensões em paralelo (são independentes)
-        const dimPromises = DIMENSIONS.map(dim =>
+        const dimPromises = dimsToRun.map(dim =>
             processQuery(pgClient, sqlPool, dim.table, dim.query, false, getProgress())
         );
         await Promise.all(dimPromises);
@@ -1920,10 +1956,10 @@ async function runMasterETL() {
             console.log(`🗑️  Garbage collection executado após Fase 1`);
         }
 
-        console.log(`\n📅 FASE 2: Processando Fatos Anuais (${factDefs.length * years.length} etapas) - PARALELO`);
+        console.log(`\n📅 FASE 2: Processando Fatos Anuais (${factsToRun.length * years.length} etapas) - PARALELO`);
         console.log(`${'─'.repeat(80)}`);
 
-        for (const fact of factDefs) {
+        for (const fact of factsToRun) {
             console.log(`   📊 ${fact.table}`);
             const client = await pgClient.connect();
             try {
@@ -1952,10 +1988,11 @@ async function runMasterETL() {
             console.log(`🗑️  Garbage collection executado após Fase 2`);
         }
 
-        console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - OTIMIZADO`);
+        if (runFinance) console.log(`\n💰 FASE 3: Processando Financeiro Universal (${years.length * 12} meses) - OTIMIZADO`);
         console.log(`${'─'.repeat(80)}`);
 
-        if (!JSON_ONLY) {
+        if (runFinance) {
+            if (!JSON_ONLY) {
             const client = await pgClient.connect();
             try {
                 await client.query(`DROP TABLE IF EXISTS public.fat_financeiro_universal CASCADE;`);
@@ -1973,7 +2010,7 @@ async function runMasterETL() {
             }
         }
 
-        for (const year of years) {
+            for (const year of years) {
             console.log(`   📆 Ano ${year}`);
             // OTIMIZAÇÃO: Processar 2 meses por vez (antes: 3→6) para evitar heap overflow
             for (let monthStart = 1; monthStart <= 12; monthStart += 2) {
@@ -1991,18 +2028,20 @@ async function runMasterETL() {
             }
         }
 
+        }
+
         // Forçar garbage collection após Fase 3 (reduzir acumulação de memória)
         if (global.gc) {
             global.gc();
             console.log(`🗑️  Garbage collection executado após Fase 3`);
         }
 
-        console.log(`\n📊 FASE 4: Processando Consolidados (${CONSOLIDATED.length} tabelas) - SEQUENCIAL`);
+        console.log(`\n📊 FASE 4: Processando Consolidados (${consToRun.length} tabelas) - SEQUENCIAL`);
         console.log(`${'─'.repeat(80)}`);
 
         // OTIMIZAÇÃO CRÍTICA: Processar 1 consolidado por vez + GC a CADA tabela
-        for (let i = 0; i < CONSOLIDATED.length; i++) {
-            const cons = CONSOLIDATED[i];
+        for (let i = 0; i < consToRun.length; i++) {
+            const cons = consToRun[i];
             await processQuery(pgClient, sqlPool, cons.table, cons.query, false, getProgress());
             // Forçar garbage collection APÓS CADA consolidado (evita acumulação fatal)
             if (global.gc) global.gc();

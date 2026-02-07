@@ -412,7 +412,21 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 if (prodFilters.includes('Produtiva')) allowed.add('Produtiva');
                 if (prodFilters.includes('Improdutiva')) allowed.add('Improdutiva');
                 if (prodFilters.includes('Inativa')) allowed.add('Inativa');
-                if (!allowed.has(cat)) return false;
+
+                const wantsTerceiro = prodFilters.includes('Terceiro');
+                const isTerceiro = (r.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO';
+
+                if (wantsTerceiro) {
+                    // If user selected only 'Terceiro', require FinalidadeUso==='Terceiro'
+                    if (allowed.size === 0) {
+                        if (!isTerceiro) return false;
+                    } else {
+                        // If 'Terceiro' plus other categories selected, allow when either matches category OR is Terceiro
+                        if (!isTerceiro && !allowed.has(cat)) return false;
+                    }
+                } else {
+                    if (!allowed.has(cat)) return false;
+                }
             }
 
             if (statusFilters.length > 0 && !statusFilters.includes(r.Status)) return false;
@@ -1038,6 +1052,42 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         });
     }, [filteredData, patioMov, veiculoMov]);
 
+    // Tabela: estado de ordenação e lista ordenada
+    const [sortState, setSortState] = useState<{ col: string | null; dir: 'asc' | 'desc' }>({ col: 'Placa', dir: 'asc' });
+
+    const toggleSort = (col: string) => {
+        setSortState(s => {
+            if (s.col === col) return { col, dir: s.dir === 'asc' ? 'desc' : 'asc' };
+            return { col, dir: 'asc' };
+        });
+    };
+
+    const sortedVehicles = useMemo(() => {
+        const arr = [...vehiclesDetailed];
+        if (!sortState.col) return arr;
+        const col = sortState.col;
+        arr.sort((a: any, b: any) => {
+            const va = a[col];
+            const vb = b[col];
+
+            // Datas
+            if (col === 'DataInicioStatus' || col === 'UltimaMovimentacao') {
+                const da = a[col] ? new Date(a[col]).getTime() : 0;
+                const db = b[col] ? new Date(b[col]).getTime() : 0;
+                return (da - db) * (sortState.dir === 'asc' ? 1 : -1);
+            }
+
+            // Números
+            if (typeof va === 'number' || typeof vb === 'number') {
+                return ((va || 0) - (vb || 0)) * (sortState.dir === 'asc' ? 1 : -1);
+            }
+
+            // Strings (comparação localizada, com números embutidos)
+            return String(va || '').localeCompare(String(vb || ''), 'pt-BR', { numeric: true }) * (sortState.dir === 'asc' ? 1 : -1);
+        });
+        return arr;
+    }, [vehiclesDetailed, sortState]);
+
     const agingData = useMemo(() => {
         const ranges = { '0-30 dias': 0, '31-60 dias': 0, '61-90 dias': 0, '90+ dias': 0 };
         vehiclesDetailed.forEach(v => {
@@ -1628,6 +1678,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     <div className="flex bg-slate-100 p-1 rounded-lg">
                         <button onClick={() => toggleProductivity('Todos')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').length === 0 ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Todos</button>
                         <button onClick={() => toggleProductivity('Ativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Ativa') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Ativa</button>
+                        <button onClick={() => toggleProductivity('Terceiro')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Terceiro') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Terceiro</button>
                         <button onClick={() => toggleProductivity('Produtiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Produtiva') ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><CheckCircle2 size={12} /> Produtiva</button>
                         <button onClick={() => toggleProductivity('Improdutiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Improdutiva') ? 'bg-white shadow text-rose-600' : 'text-slate-500'}`}><XCircle size={12} /> Improdutiva</button>
                         <button onClick={() => toggleProductivity('Inativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Inativa') ? 'bg-white shadow text-slate-600' : 'text-slate-500'}`}><Archive size={12} /> Inativa</button>
@@ -1962,18 +2013,58 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
                                         <tr>
-                                            <th className="px-6 py-3">Placa</th>
-                                            <th className="px-6 py-3">Modelo</th>
-                                            <th className="px-6 py-3">Status</th>
-                                            <th className="px-6 py-3">Pátio</th>
-                                            <th className="px-6 py-3 text-right">Dias Parado</th>
-                                            <th className="px-6 py-3">Data Início Status</th>
-                                            <th className="px-6 py-3">Última Movimentação</th>
-                                            <th className="px-6 py-3">Usuário</th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('Placa')} className="flex items-center gap-2">
+                                                    <span>Placa</span>
+                                                    {sortState.col === 'Placa' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('Modelo')} className="flex items-center gap-2">
+                                                    <span>Modelo</span>
+                                                    {sortState.col === 'Modelo' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('Status')} className="flex items-center gap-2">
+                                                    <span>Status</span>
+                                                    {sortState.col === 'Status' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('Patio')} className="flex items-center gap-2">
+                                                    <span>Pátio</span>
+                                                    {sortState.col === 'Patio' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3 text-right">
+                                                <button onClick={() => toggleSort('DiasNoStatus')} className="flex items-center gap-2 ml-auto">
+                                                    <span>Dias Parado</span>
+                                                    {sortState.col === 'DiasNoStatus' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('DataInicioStatus')} className="flex items-center gap-2">
+                                                    <span>Data Início Status</span>
+                                                    {sortState.col === 'DataInicioStatus' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('UltimaMovimentacao')} className="flex items-center gap-2">
+                                                    <span>Última Movimentação</span>
+                                                    {sortState.col === 'UltimaMovimentacao' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
+                                            <th className="px-6 py-3">
+                                                <button onClick={() => toggleSort('UsuarioMovimentacao')} className="flex items-center gap-2">
+                                                    <span>Usuário</span>
+                                                    {sortState.col === 'UsuarioMovimentacao' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                </button>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {vehiclesDetailed.map((v, idx) => (
+                                        {sortedVehicles.map((v, idx) => (
                                             <tr key={v.Placa + idx} className="hover:bg-slate-50">
                                                 <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
                                                 <td className="px-6 py-3">{v.Modelo}</td>
