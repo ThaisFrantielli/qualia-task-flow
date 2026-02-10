@@ -40,7 +40,11 @@ export function TicketWhatsAppViewer({ clienteId, whatsappNumber }: TicketWhatsA
         return (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
                 <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
-                <p>Nenhuma conversa de WhatsApp encontrada.</p>
+                <p className="mb-2">Nenhuma conversa de WhatsApp encontrada.</p>
+                {whatsappNumber && (
+                    <p className="text-xs">Número: {whatsappNumber}</p>
+                )}
+                <p className="text-xs mt-2 text-orange-600">Verifique se o número está cadastrado corretamente</p>
             </div>
         );
     }

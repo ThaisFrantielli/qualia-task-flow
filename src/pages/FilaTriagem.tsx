@@ -177,8 +177,8 @@ export default function FilaTriagem() {
       motivo: ticketForm.motivo,
       departamento: ticketForm.departamento,
       placa: ticketForm.placa,
-      fase: "Análise do caso",
-      status: "aguardando_triagem"
+      fase: "Aguardando departamento",
+      status: "aguardando_departamento"
     } as any);
 
     setTicketDialogOpen(false);

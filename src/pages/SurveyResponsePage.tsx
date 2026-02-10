@@ -144,6 +144,8 @@ const SurveyResponsePage = () => {
         return;
       }
 
+      console.log('[SurveyResponsePage] Buscando pesquisa com ID:', surveyId);
+
       const { data, error: fetchError } = await supabase
         .from('surveys')
         .select('*, campaign:survey_campaigns(*)')
@@ -151,8 +153,10 @@ const SurveyResponsePage = () => {
         .single();
 
       if (fetchError || !data) {
-        setError("Pesquisa não encontrada ou link inválido.");
+        console.error('[SurveyResponsePage] Erro ao buscar pesquisa:', fetchError);
+        setError(`Pesquisa não encontrada ou link inválido. (ID: ${surveyId})`);
       } else {
+        console.log('[SurveyResponsePage] Pesquisa encontrada:', data);
         setSurvey(data);
         if ((data as any).campaign) {
           setCampaign((data as any).campaign);

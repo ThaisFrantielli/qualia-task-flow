@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Send, User, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Send, User, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -461,7 +461,33 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                             <Send className="w-4 h-4" />
                                         </Button>
                                     </div>
-                                    {/* Botão 'Solicitar Apoio' removido conforme solicitado */}
+                                    
+                                    {/* Botão para Solicitar Apoio de Outros Departamentos */}
+                                    <div className="mt-4 pt-4 border-t">
+                                        <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Pedir Apoio</h4>
+                                        <Button 
+                                            variant="outline" 
+                                            className="w-full justify-start text-sm"
+                                            onClick={() => {
+                                                // Navigate to detalhes tab where department cards are shown
+                                                const detalhesTab = document.querySelector('[data-value="detalhes"]');
+                                                if (detalhesTab) {
+                                                    (detalhesTab as HTMLElement).click();
+                                                    // Scroll to department section
+                                                    setTimeout(() => {
+                                                        const deptSection = document.querySelector('[data-section="departamentos"]');
+                                                        if (deptSection) {
+                                                            deptSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                        }
+                                                    }, 100);
+                                                }
+                                                toast.info('Vá até a seção "Departamentos Envolvidos" para vincular ou solicitar apoio');
+                                            }}
+                                        >
+                                            <Users className="w-4 h-4 mr-2" />
+                                            Vincular Departamento
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         </TabsContent>
@@ -605,11 +631,48 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                 )}
                             </Card>
 
-                            <div className="flex justify-between items-center mt-6">
+                            <div className="flex justify-between items-center mt-6" data-section="departamentos">
                                 <h3 className="text-lg font-semibold">Departamentos Envolvidos</h3>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => {
+                                        // Implementar dialog para adicionar departamento
+                                        const departamento = prompt('Selecione o departamento:\n1 - Manutenção\n2 - Central de Atendimento\n3 - Documentação\n4 - Operação\n5 - Comercial\n6 - Financeiro\n7 - Operação SP');
+                                        if (departamento) {
+                                            const deptNames = ['Manutenção', 'Central de atendimento', 'Documentação', 'Operação', 'Comercial', 'Financeiro', 'Operação SP'];
+                                            const deptIndex = parseInt(departamento) - 1;
+                                            if (deptIndex >= 0 && deptIndex < deptNames.length) {
+                                                const mensagem = prompt('Mensagem para o departamento:');
+                                                if (mensagem && user?.id) {
+                                                    supabase.from('ticket_departamentos').insert({
+                                                        ticket_id: ticketId,
+                                                        departamento: deptNames[deptIndex],
+                                                        mensagem: mensagem,
+                                                        solicitado_por: user.id,
+                                                        created_at: new Date().toISOString()
+                                                    }).then(() => {
+                                                        toast.success('Departamento vinculado!');
+                                                        refetch();
+                                                    }).catch(() => {
+                                                        toast.error('Erro ao vincular departamento');
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }}
+                                >
+                                    + Adicionar Departamento
+                                </Button>
                             </div>
                             <div className="grid gap-4">
-                                {ticket.ticket_departamentos?.length === 0 && <p className="text-muted-foreground text-center py-8">Nenhum departamento envolvido.</p>}
+                                {ticket.ticket_departamentos?.length === 0 && (
+                                    <div className="text-center py-8 bg-muted/30 rounded-lg border border-dashed">
+                                        <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                                        <p className="text-muted-foreground mb-2">Nenhum departamento envolvido</p>
+                                        <p className="text-xs text-muted-foreground">Clique em "Adicionar Departamento" para solicitar apoio</p>
+                                    </div>
+                                )}
                                 {ticket.ticket_departamentos?.map((dept: any) => (
                                     <TicketDepartamentoCard key={dept.id} departamento={dept} />
                                 ))}

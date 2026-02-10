@@ -83,9 +83,30 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
   };
 
   const handleSubmit = async () => {
-    if (!user?.id || !ticket?.id) return;
+    if (!user?.id || !ticket?.id) {
+      console.error('[EditTicketDialog] Missing user or ticket:', { user, ticket });
+      toast.error('Erro: usuário ou ticket não identificado');
+      return;
+    }
 
     try {
+      console.log('[EditTicketDialog] Atualizando ticket:', ticket.id, 'com dados:', {
+        titulo,
+        cliente_id: clienteId,
+        placa,
+        veiculo_modelo: veiculoModelo,
+        veiculo_ano: veiculoAno,
+        veiculo_km: veiculoKm ? parseInt(veiculoKm) : null,
+        origem,
+        departamento,
+        motivo,
+        prioridade,
+        contrato_comercial: contratoComercial,
+        contrato_locacao: contratoLocacao,
+        sintese,
+        descricao: sintese,
+      });
+
       await updateTicket.mutateAsync({
         ticketId: ticket.id,
         updates: {
@@ -111,6 +132,7 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
+      console.error('[EditTicketDialog] Erro ao atualizar:', error);
       toast.error("Erro ao atualizar ticket: " + error.message);
     }
   };
