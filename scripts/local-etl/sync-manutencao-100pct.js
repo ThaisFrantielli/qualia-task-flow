@@ -16,11 +16,14 @@ const sqlConfig = {
 };
 
 const pgConfig = {
-    host: process.env.PG_HOST || 'localhost',
-    port: process.env.PG_PORT || 5432,
-    user: (process.env.PG_USER || '').toLowerCase().trim(),
-    password: (process.env.PG_PASSWORD || '').trim(),
-    database: (process.env.PG_DATABASE || 'bluconecta_dw').toLowerCase().trim()
+    host: process.env.PG_HOST || '137.131.163.167',
+    port: parseInt(process.env.PG_PORT || '5432'),
+    user: process.env.PG_USER || 'postgres',
+    password: process.env.PG_PASSWORD || 'F4tu5xy3',
+    database: process.env.PG_DATABASE || 'bluconecta_dw',
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
 };
 
 const query = `

@@ -92,7 +92,7 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
                 )}
               </div>
               <div className="pt-2 border-t text-[10px] text-slate-400">
-                Os dados são atualizados periodicamente via ETL
+                ETL automático: 00:30, 10:30 e 15:30 (horário local)
               </div>
             </div>
           </div>

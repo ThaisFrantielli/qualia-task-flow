@@ -5,7 +5,7 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, Wrench, FileText, TrendingUp, Crown, Headphones, DollarSign, Car, FileCheck, AlertTriangle, Mail, Send
+  PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Mail, Send, DollarSign, Headphones
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -48,33 +48,12 @@ const baseMenuGroups: MenuGroup[] = [
     title: 'ANALÍTICOS',
     items: [
       {
-        label: 'Visão Executiva',
-        url: '/analytics/executive',
-        icon: Crown,
-        children: [
-          { label: 'Auditoria de Dados', url: '/analytics/auditoria', icon: ClipboardList }
-        ]
-      },
-      {
-        label: 'Operacional',
+        label: 'Frota',
         url: '/analytics/frota',
-        icon: FolderOpen,
+        icon: Car,
         children: [
-          { label: 'Frota', url: '/analytics/frota', icon: FolderOpen },
-          { label: 'Manutenção', url: '/analytics/manutencao', icon: Wrench },
-          { label: 'Multas', url: '/analytics/multas', icon: FileText },
-          { label: 'Sinistros', url: '/analytics/sinistros', icon: Ticket },
-        ]
-      },
-      {
-        label: 'Financeiro',
-        url: '/analytics/financeiro',
-        icon: DollarSign,
-        children: [
-          { label: 'Faturamento', url: '/analytics/financeiro', icon: BarChart3 },
-          { label: 'DRE Gerencial', url: '/analytics/resultado', icon: DollarSign },
-          { label: 'Compras', url: '/analytics/compras', icon: BarChart3 },
-          { label: 'Vendas', url: '/analytics/vendas', icon: TrendingUp },
+          { label: 'Frota Ativa', url: '/analytics/frota', icon: Car },
+          { label: 'Frota Improdutiva', url: '/analytics/frota-idle', icon: AlertTriangle },
         ]
       },
     ]
@@ -82,13 +61,7 @@ const baseMenuGroups: MenuGroup[] = [
   {
     title: 'COMERCIAL',
     items: [
-      { label: 'Pipeline', url: '/analytics/comercial', icon: Target, permissionKey: 'crm' },
-      { label: 'Propostas', url: '/propostas', icon: FileCheck, permissionKey: 'crm' },
-      { label: 'Precificação', url: '/precificacao/config', icon: DollarSign, permissionKey: 'crm' },
       { label: 'Contratos', url: '/analytics/contratos', icon: FileText, permissionKey: 'crm' },
-      { label: 'Análise de Contrato', url: '/analytics/analise-contratos', icon: BarChart3, permissionKey: 'crm' },
-      { label: 'Clientes', url: '/analytics/clientes', icon: Users, permissionKey: 'crm' },
-      { label: 'Cancelamentos', url: '/analytics/churn', icon: AlertTriangle, permissionKey: 'crm' },
     ]
   },
   {

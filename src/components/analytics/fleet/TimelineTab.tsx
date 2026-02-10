@@ -252,6 +252,21 @@ type MaintenanceOccurrence = {
   diasConclusaoRetirada?: number | null;
 };
 
+type SinistroOccurrence = {
+  kind: 'SINISTRO_OCORRENCIA';
+  key: string;
+  sinistroId: string;
+  ocorrencia?: string;
+  sinistroDate: Date;
+  items: AnyObject[];
+  numeroBO?: string | null;
+  tipoSinistro?: string | null;
+  valorOrcamento?: number | null;
+  situacao?: string | null;
+  cliente?: string | null;
+  fornecedor?: string | null;
+};
+
 type EventGroupRow = {
   kind: 'EVENTO_DIA_TIPO';
   key: string;
@@ -261,7 +276,7 @@ type EventGroupRow = {
   items: AnyObject[];
 };
 
-type TimelineRow = MaintenanceInterval | MaintenanceOccurrence | EventGroupRow;
+type TimelineRow = MaintenanceInterval | MaintenanceOccurrence | SinistroOccurrence | EventGroupRow;
 
 function getMaintenanceId(r: AnyObject): string {
   return String(
@@ -395,6 +410,61 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
 
   // Ordenar por data da ocorrência (mais recente primeiro)
   return occurrences.sort((a, b) => b.ocorrenciaDate.getTime() - a.ocorrenciaDate.getTime());
+}
+
+// Agrupa eventos do tipo SINISTRO presentes no stream de eventos (timeline)
+function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
+  const map = new Map<string, AnyObject[]>();
+
+  for (const e of events) {
+    const tipo = normalizeEventName(e?.TipoEvento || e?.Evento || '') || '';
+    if (!tipo.includes('SINIST')) continue;
+
+    // chave preferencial: NumeroBO / BoletimOcorrencia / Ocorrencia / IdSinistro
+    const keyRaw = e?.NumeroBO ?? e?.BoletimOcorrencia ?? e?.Ocorrencia ?? e?.IdSinistro ?? e?.IdOcorrencia ?? '';
+    const key = String(keyRaw ?? '').trim() || `solo-sin-${Math.random().toString(36).slice(2, 9)}`;
+
+    const prev = map.get(key);
+    if (prev) prev.push(e);
+    else map.set(key, [e]);
+  }
+
+  const out: SinistroOccurrence[] = [];
+  for (const [k, items] of map.entries()) {
+    const dates = items
+      .map(i => parseDateAny(i?.DataEvento ?? i?.DataSinistro ?? i?.Data ?? i?.DataAbertura))
+      .filter((d): d is Date => d != null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (dates.length === 0) continue;
+
+    const first = dates[0];
+    const sample = items[0] || {};
+    const numeroBO = sample?.NumeroBO ?? sample?.BoletimOcorrencia ?? null;
+    const tipoSinistro = sample?.TipoSinistro ?? null;
+    const valorOrcamento = sample?.ValorOrcamento ?? sample?.ValorOrcamentoEstimado ?? sample?.Valor ?? null;
+    const situacao = sample?.Situacao ?? sample?.SituacaoOcorrencia ?? null;
+
+    out.push({
+      kind: 'SINISTRO_OCORRENCIA',
+      key: `sin:${k}`,
+      sinistroId: String(k),
+      ocorrencia: sample?.Ocorrencia ?? sample?.NumeroOcorrencia ?? undefined,
+      sinistroDate: first,
+      items: items.sort((a, b) => {
+        const da = parseDateAny(a?.DataEvento ?? a?.Data ?? a?.DataSinistro) || new Date(0);
+        const db = parseDateAny(b?.DataEvento ?? b?.Data ?? b?.DataSinistro) || new Date(0);
+        return da.getTime() - db.getTime();
+      }),
+      numeroBO,
+      tipoSinistro,
+      valorOrcamento: Number(valorOrcamento) || null,
+      situacao,
+      cliente: sample?.Cliente ?? sample?.NomeCliente ?? null,
+      fornecedor: sample?.Fornecedor ?? null,
+    });
+  }
+
+  return out.sort((a, b) => b.sinistroDate.getTime() - a.sinistroDate.getTime());
 }
 
 function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): MaintenanceInterval[] {
@@ -1399,7 +1469,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
                         // Se há ocorrências consolidadas, pular eventos de manutenção individuais
                         if (tipo.includes('MANUT') && manutOccurrences.length > 0) continue;
-                        if (tipo.includes('MULTA')) continue; // Multas vêm de fat_multas
+                        // Multas vêm de fat_multas; sinistros serão agrupados separadamente
+                        if (tipo.includes('MULTA')) continue;
+                        if (tipo.includes('SINIST')) continue;
                         const d = new Date(ev.DataEvento || ev.Data);
                         if (Number.isNaN(d.getTime())) continue;
                         const key = `${tipo}:${toISODateKey(d)}`;
@@ -1420,6 +1492,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         items: g.items
                       }));
 
+                      // Agrupar sinistros a partir do stream de eventos
+                      const sinistroOccurrences = groupSinistrosFromEvents(eventos);
+
                       // Eventos prioritários que SEMPRE devem aparecer (ciclo de vida do veículo)
                       const PRIORITY_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO'];
                       
@@ -1427,10 +1502,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                       const getRowDate = (r: TimelineRow): Date => {
                         if (r.kind === 'MANUTENCAO_OCORRENCIA') return r.ocorrenciaDate;
                         if (r.kind === 'MANUTENCAO_PERIODO') return r.start;
-                        return r.date;
+                        if ((r as any).kind === 'SINISTRO_OCORRENCIA') return (r as any).sinistroDate;
+                        if ((r as any).date instanceof Date) return (r as any).date;
+                        // fallback seguro
+                        return new Date(0);
                       };
                       
-                      const allRows: TimelineRow[] = [...manutOccurrences, ...eventRows]
+                      const allRows: TimelineRow[] = [...manutOccurrences, ...sinistroOccurrences, ...eventRows]
                         .sort((a, b) => {
                           const ad = getRowDate(a);
                           const bd = getRowDate(b);
@@ -1710,6 +1788,76 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                           })()}
 
                           {rows.map((row) => {
+                            if (row.kind === 'SINISTRO_OCORRENCIA') {
+                              const sin = row as SinistroOccurrence;
+                              const icon = EVENT_ICONS['SINISTRO'] || <AlertTriangle size={14} className="text-rose-500" />;
+                              const title = sin.numeroBO ? `Sinistro ${sin.numeroBO}` : (/^\d+$/.test(String(sin.sinistroId)) ? `Sinistro #${sin.sinistroId}` : String(sin.ocorrencia ?? sin.sinistroId));
+                              const dataSinistro = fmtDateTimeBR(sin.sinistroDate);
+                              const isSinExpanded = expandedRows.has(sin.key);
+                              const valor = sin.valorOrcamento;
+                              const tipoSin = sin.tipoSinistro;
+                              const situacao = sin.situacao;
+                              const fornecedor = sin.fornecedor;
+                              const cliente = sin.cliente;
+
+                              return (
+                                <div key={sin.key} className="relative pl-6">
+                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-rose-300 flex items-center justify-center">
+                                    {icon}
+                                  </div>
+                                  <div
+                                    className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all"
+                                    onClick={() => toggleRow(sin.key)}
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-bold text-sm text-rose-800">{title}</span>
+                                          {tipoSin && (
+                                            <Badge color="rose" className="shrink-0 text-[10px]">{tipoSin}</Badge>
+                                          )}
+                                          {situacao && (
+                                            <Badge color={situacao.toLowerCase().includes('conclu') ? 'emerald' : 'rose'} className="shrink-0 text-[10px]">{situacao}</Badge>
+                                          )}
+                                          {valor != null && Number(valor) > 0 && (
+                                            <span className="text-rose-700 font-bold text-xs ml-auto">{fmtMoney(valor)}</span>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-slate-600 mt-1.5">
+                                          <div><b>Data:</b> {dataSinistro}</div>
+                                          {sin.items?.[0] && (
+                                            <div className={`italic text-slate-500 ${isSinExpanded ? '' : 'line-clamp-2'}`}>{sin.items[0]?.Observacao ?? sin.items[0]?.Descricao ?? ''}</div>
+                                          )}
+                                          {(fornecedor || cliente) && (
+                                            <div className="text-[10px] text-slate-500">
+                                              {fornecedor && <><b>Fornecedor:</b> {fornecedor} </>}
+                                              {cliente && <><b>Cliente:</b> {cliente}</>}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-rose-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                    </div>
+
+                                    {isSinExpanded && (
+                                      <div className="mt-3 space-y-2">
+                                        {sin.items.map((it: any, idx: number) => (
+                                          <div key={idx} className="p-3 bg-white rounded border border-rose-50 text-xs">
+                                            <div className="flex justify-between">
+                                              <div className="flex-1">
+                                                <div className="font-medium text-slate-700">{it?.Observacao ?? it?.Descricao ?? it?.Motivo ?? 'Sinistro'}</div>
+                                                <div className="text-[11px] text-slate-500">{it?.Fornecedor ?? it?.FornecedorOcorrencia ?? ''}</div>
+                                              </div>
+                                              <div className="text-rose-700 font-bold">{fmtMoney(it?.ValorOrcamento ?? it?.Valor ?? it?.ValorEstimado)}</div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
                             // MANUTENCAO_OCORRENCIA - novo agrupamento por ocorrência
                             if (row.kind === 'MANUTENCAO_OCORRENCIA') {
                               const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
@@ -1728,6 +1876,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                               return (
                                 <div key={row.key} className="relative pl-6">
+                                  {/* Renderização para Sinistros (mesmo molde de ocorrências) - placeholder removido */}
                                   <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
                                     {icon}
                                   </div>
@@ -1948,6 +2097,8 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                 </div>
                               );
                             }
+
+                            
 
                             if (row.kind === 'MANUTENCAO_PERIODO') {
                               const endLabel = row.end ? fmtDateBR(row.end) : 'Em aberto';

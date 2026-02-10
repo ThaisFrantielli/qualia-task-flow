@@ -9,21 +9,24 @@ Adicione no arquivo `.env` na raiz do projeto:
 ```env
 # SQL Server (ORIGEM - blufleet-dw)
 SQL_SERVER=200.219.192.34
+SQL_PORT=3494
 SQL_USER=qualidade
 SQL_PASSWORD=AWJ5A95cD5fW
 SQL_DATABASE=blufleet-dw
 
-# PostgreSQL (DESTINO - BluConecta_Dw)
-PG_HOST=localhost
+# PostgreSQL (DESTINO - Oracle Cloud - BluConecta_Dw)
+PG_HOST=137.131.163.167
 PG_PORT=5432
-PG_USER=Quality_etl_user
+PG_USER=postgres
 PG_PASSWORD=F4tu5xy3
-PG_DATABASE=BluConecta_Dw
+PG_DATABASE=bluconecta_dw
 
 # Supabase (para upload de JSON)
 VITE_SUPABASE_URL=https://apqrjkobktjcyrxhqwtm.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<obter_no_supabase_dashboard>
 ```
+
+⚠️ **IMPORTANTE:** O PostgreSQL agora está hospedado na Oracle Cloud (IP: 137.131.163.167)
 
 ### 2. Dependências Node.js
 
@@ -77,7 +80,59 @@ $env:NODE_ENV="production"
 node run-sync-v2.js
 ```
 
-### Opção 3: Script Automatizado (Criar)
+### Opção 3: Agendamento Automático ⏰ (RECOMENDADO)
+
+Você tem **duas opções** para agendar o ETL:
+
+#### **Opção A: Executar no SEU COMPUTADOR Windows** 💻
+
+```powershell
+cd scripts/local-etl
+
+# Instalar tarefas agendadas
+.\schedule-etl.ps1 -Install
+
+# Verificar status
+.\schedule-etl.ps1 -Status
+
+# Remover agendamento
+.\schedule-etl.ps1 -Uninstall
+```
+
+⚠️ **Limitação:** Seu computador precisa estar ligado nos horários agendados.
+
+#### **Opção B: Executar no SERVIDOR Oracle Cloud Linux** ☁️ (RECOMENDADO)
+
+O ETL roda direto no servidor, sem depender do seu computador!
+
+**Documentação completa:** 📖 [INSTALL_ORACLE_CLOUD.md](INSTALL_ORACLE_CLOUD.md)
+
+**Resumo rápido:**
+```bash
+# 1. Conectar ao servidor
+ssh opc@137.131.163.167
+
+# 2. Navegar até o diretório do ETL
+cd ~/qualia-task-flow/scripts/local-etl
+
+# 3. Dar permissão ao script
+chmod +x schedule-etl-linux.sh
+
+# 4. Instalar agendamento
+./schedule-etl-linux.sh install
+
+# 5. Verificar status
+./schedule-etl-linux.sh status
+```
+
+**Horários automáticos (ambas opções):**
+- 🌙 **00:30** - Execução noturna
+- ☀️ **10:30** - Execução matinal  
+- 🌆 **15:30** - Execução vespertina
+
+> **Recomendação:** Use a Opção B (Servidor) para garantir que o ETL execute mesmo quando seu computador estiver desligado.
+
+---
 
 Crie `run-etl.bat`:
 

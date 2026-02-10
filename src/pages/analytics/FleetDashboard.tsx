@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
@@ -7,11 +7,13 @@ import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YA
 import { Car, Filter, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MultiSelect } from '@/components/ui/multi-select';
+import CompactMultiSelect from '@/components/ui/compact-multi-select';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 import TimelineTab from '@/components/analytics/fleet/TimelineTab';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
+import { Input } from '@/components/ui/input';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -226,12 +228,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     }, [manutencao]);
 
     // use unified chart filter hook (Power BI style)
-    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues } = useChartFilter();
+    const { filters, handleChartClick, clearFilter, clearAllFilters, hasActiveFilters, isValueSelected, getFilterValues, setFilterValues: setFilterValuesBulk, setFiltersBulk } = useChartFilter();
 
-    // helper to set array values coming from MultiSelect components
-    const setFilterValues = (key: string, values: string[]) => {
-        clearFilter(key);
-        values.forEach(v => handleChartClick(key, v, { ctrlKey: true } as unknown as React.MouseEvent));
+    const applyFilterValues = (key: string, values: string[]) => {
+        setFilterValuesBulk(key, values);
         setPage(0);
     };
     const [page, setPage] = useState(0);
@@ -243,6 +243,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const [reservaPage, setReservaPage] = useState(0);
     const [patioPage, setPatioPage] = useState(0);
     void setPatioPage;
+    // Plate search state and marker limit (declare early to avoid TDZ in effects)
+    const [plateSearch, setPlateSearch] = useState<string>('');
+    const plateDebounceRef = useRef<number | null>(null);
+    const [markerLimit, setMarkerLimit] = useState<number>(500);
+    // (removed main header input; plates are shown as MultiSelect in the filters grid)
     // Slider de período para gráfico de ocupação
     const [sliderRange, setSliderRange] = useState<{ startPercent: number, endPercent: number }>({ startPercent: 0, endPercent: 100 });
     const [selectedResumoChart, setSelectedResumoChart] = useState<'motivo' | 'status' | 'tipo' | 'modelo' | 'cliente' | 'local'>('motivo');
@@ -261,7 +266,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             if (raw) {
                 const stored: string[] = JSON.parse(raw);
                 if (Array.isArray(stored) && stored.length > 0 && getFilterValues('productivity').length === 0) {
-                    setFilterValues('productivity', stored);
+                    applyFilterValues('productivity', stored);
                     return;
                 }
             }
@@ -269,7 +274,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
         if (getFilterValues('productivity').length === 0) {
             // default to 'Ativa' if nothing selected
-            setFilterValues('productivity', ['Ativa']);
+            applyFilterValues('productivity', ['Ativa']);
         }
     }, [frota]);
 
@@ -280,6 +285,29 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             localStorage.setItem('dashboard_productivity', JSON.stringify(sel));
         } catch (e) { /* ignore */ }
     }, [filters]);
+
+    // Debounce applying plate search locally to the telemetria table
+    const [appliedPlateSearch, setAppliedPlateSearch] = useState<string>('');
+    useEffect(() => {
+        if (plateDebounceRef.current) {
+            window.clearTimeout(plateDebounceRef.current);
+            plateDebounceRef.current = null;
+        }
+        plateDebounceRef.current = window.setTimeout(() => {
+            const v = (plateSearch || '').trim();
+            setAppliedPlateSearch(v);
+            plateDebounceRef.current = null;
+        }, 300);
+
+        return () => {
+            if (plateDebounceRef.current) {
+                window.clearTimeout(plateDebounceRef.current);
+                plateDebounceRef.current = null;
+            }
+        };
+    }, [plateSearch]);
+
+    // main header search removed: plates are a MultiSelect in the filters grid
 
     // CLASSIFICAÇÃO DE FROTA
     const getCategory = (status: string) => {
@@ -301,12 +329,28 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         filiais: Array.from(new Set(frotaEnriched.map(r => r.Filial).filter(Boolean))).sort(),
         clientes: Array.from(new Set(frotaEnriched.map(r => r.NomeCliente).filter((c: string) => c && c !== 'N/A'))).sort(),
         tiposLocacao: Array.from(new Set(frotaEnriched.map(r => r.TipoLocacao).filter((t: string) => t && t !== 'N/A'))).sort(),
-        categorias: Array.from(new Set(frotaEnriched.map(r => (r.Categoria || r.GrupoVeiculo)).filter(Boolean))).sort()
+        categorias: Array.from(new Set(frotaEnriched.map(r => (r.Categoria || r.GrupoVeiculo)).filter(Boolean))).sort(),
+        plates: Array.from(new Set(frotaEnriched.map(r => r.Placa).filter(Boolean))).sort()
     }), [frotaEnriched]);
+
+    const selectAllFilters = () => {
+        try {
+            setFiltersBulk({
+                status: uniqueOptions.status,
+                modelo: uniqueOptions.modelos,
+                categoria: uniqueOptions.categorias,
+                filial: uniqueOptions.filiais,
+                cliente: uniqueOptions.clientes,
+                tipoLocacao: uniqueOptions.tiposLocacao,
+            });
+            setPage(0);
+        } catch (e) { console.warn('selectAllFilters', e); }
+    };
 
     // note: use `getFilterValues(key)` to read current selections, e.g. getFilterValues('status')
 
     const [selectedLocation, setSelectedLocation] = useState<{ city: string, uf: string } | null>(null);
+    const [activeTab, setActiveTab] = useState<string>('visao-geral');
 
     // Helper centralizado para extração de localização
     const extractLocation = (address: string): { uf: string, city: string } => {
@@ -360,7 +404,41 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             'Itaquera': 'São Paulo', 'Jabaquara': 'São Paulo', 'Moema': 'São Paulo', 'Perdizes': 'São Paulo',
             'Pinheiros': 'São Paulo', 'Limão': 'São Paulo', 'Cachoeirinha': 'São Paulo', 'Brasilândia': 'São Paulo',
             'Jardim Goiás': 'Goiânia', 'Setor Leste': 'Goiânia', 'Setor Norte': 'Brasília',
-            'Sol Nascente/pôr Do Sol': 'Brasília'
+            'Sol Nascente/pôr Do Sol': 'Brasília',
+
+            // Mapeamentos adicionais solicitados — forçar para Brasília
+            'Brasília': 'Brasília',
+            'Riacho Fundo Ii': 'Brasília',
+            'Riacho Fundo II': 'Brasília',
+            'Riacho Fundo Iii': 'Brasília',
+            'Arniqueira': 'Brasília',
+            'Arniqueiras': 'Brasília',
+            'Sobradinho Ii': 'Brasília',
+            'Itapoã': 'Brasília',
+            'Itapoa': 'Brasília',
+            'Brazlândia': 'Brasília',
+            'Rua Dos Ipês': 'Brasília',
+            'Valparaíso De Goiás': 'Brasília',
+            'Valparaíso de Goiás': 'Brasília',
+            'Setor Tradicional': 'Brasília',
+            'Cidade De Lucia Costa': 'Brasília',
+            'Quadra 35 Conjunto D': 'Brasília',
+            'Ville De Montagne - Q 17': 'Brasília',
+            'Sudoeste/Octogonal': 'Brasília',
+            'Sudoeste/octogonal': 'Brasília',
+            'Sudoeste / octogonal': 'Brasília',
+            'Condomínio Chácaras Itaipu Chácara 83': 'Brasília',
+            'Condominio Chacaras Itaipu Chacara 83': 'Brasília',
+            'Varjão': 'Brasília',
+            'Edf Smdb Shis Km 274': 'Brasília',
+            'Avenida São Sebastião': 'Brasília',
+            'Avenida Sao Sebastiao': 'Brasília',
+            'Novo Gama': 'Brasília',
+            'Avenida Dom Bosco': 'Brasília',
+            'Avenida Rio Tocantins': 'Brasília',
+            'Federal District': 'Brasília',
+            'Parque E Jardim Paineiras Conjunto 7': 'Brasília',
+            'Cristalina': 'Brasília'
         };
 
         if (city.toUpperCase() === 'SÃO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
@@ -379,6 +457,18 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
         return { uf, city };
     };
+
+    // Pré-calcular cidade/UF por veículo (evita regex/string parsing em cada alteração de filtro)
+    const frotaWithLocation = useMemo(() => {
+        return frotaEnriched.map(r => {
+            const loc = extractLocation(r.UltimoEnderecoTelemetria);
+            return {
+                ...r,
+                _city: loc.city,
+                _uf: loc.uf,
+            } as typeof r & { _city: string; _uf: string };
+        });
+    }, [frotaEnriched]);
 
     const filteredData = useMemo(() => {
         const prodFilters = getFilterValues('productivity');
@@ -404,7 +494,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const finalidadeFilters = getFilterValues('finalidade');
         const kmDiffFilters = getFilterValues('km_diff');
 
-        return frotaEnriched.filter(r => {
+        return frotaWithLocation.filter(r => {
             const cat = getCategory(r.Status);
             if (prodFilters.length > 0) {
                 const allowed = new Set<string>();
@@ -445,8 +535,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
             // Filtra por seleção de localização (quando usuário clica no mapa/accordion)
             if (selectedLocation) {
-                const loc = extractLocation(r.UltimoEnderecoTelemetria);
-                if (loc.uf !== selectedLocation.uf || loc.city !== selectedLocation.city) return false;
+                if ((r as any)._uf !== selectedLocation.uf || (r as any)._city !== selectedLocation.city) return false;
             }
 
             if (agingFilters.length > 0) {
@@ -545,7 +634,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             }
             return true;
         });
-    }, [frotaEnriched, filters, getFilterValues, selectedLocation]);
+    }, [frotaWithLocation, filters, getFilterValues, selectedLocation]);
 
     const kpis = useMemo(() => {
         const total = filteredData.length;
@@ -691,34 +780,54 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         'Boa Vista': [2.8235, -60.6758]
     };
 
+    const stableJitter = (seed: string, scale: number) => {
+        // hash simples e determinístico para gerar jitter estável por placa
+        let h = 0;
+        for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+        const x = Math.sin(h) * 10000;
+        return ((x - Math.floor(x)) - 0.5) * scale;
+    };
+
     const mapData = useMemo(() => {
-        return filteredData
-            .map(r => {
-                const loc = extractLocation(r.UltimoEnderecoTelemetria);
-                let lat = parseNum(r.Latitude);
-                let lng = parseNum(r.Longitude);
+        const mapped = filteredData.map(r => {
+            let lat = parseNum(r.Latitude);
+            let lng = parseNum(r.Longitude);
 
-                // Fallback para cidades conhecidas se GPS zerado/ausente
-                if ((!lat || !lng || (lat === 0 && lng === 0)) && cityCoordinates[loc.city]) {
-                    const [cLat, cLng] = cityCoordinates[loc.city];
-                    // Adiciona pequeno jitter para não empilhar exatamente no mesmo ponto
-                    lat = cLat + (Math.random() - 0.5) * 0.02;
-                    lng = cLng + (Math.random() - 0.5) * 0.02;
-                }
+            const city = (r as any)._city as string | undefined;
+            const uf = (r as any)._uf as string | undefined;
 
-                return {
-                    ...r,
-                    _lat: lat,
-                    _lng: lng,
-                    _city: loc.city,
-                    _uf: loc.uf
-                } as typeof r & { _lat: number; _lng: number; _city: string; _uf: string };
-            })
-            .filter(r => isFinite(r._lat) && isFinite(r._lng) && r._lat !== 0 && r._lng !== 0)
-            .filter(r => {
-                if (!selectedLocation) return true;
-                return r._city === selectedLocation.city && r._uf === selectedLocation.uf;
-            });
+            // Fallback para cidades conhecidas se GPS zerado/ausente
+            if ((!lat || !lng || (lat === 0 && lng === 0)) && city && cityCoordinates[city]) {
+                const [cLat, cLng] = cityCoordinates[city];
+                const seed = String((r as any).Placa ?? '') || `${city}-${uf ?? ''}`;
+                lat = cLat + stableJitter(seed + ':lat', 0.02);
+                lng = cLng + stableJitter(seed + ':lng', 0.02);
+            }
+
+            return {
+                ...r,
+                _lat: lat,
+                _lng: lng,
+                _city: city ?? 'Não Identificado',
+                _uf: uf ?? 'ND'
+            } as typeof r & { _lat: number; _lng: number; _city: string; _uf: string };
+        });
+
+        const coordsValid = mapped.filter(r => isFinite(r._lat) && isFinite(r._lng) && r._lat !== 0 && r._lng !== 0);
+
+        if (!selectedLocation) return coordsValid;
+
+        // Caso especial: seleção "Não classificados" deve mostrar veículos com telemetria
+        // que não tiveram uf/cidade extraídos (uf === 'ND' ou endereço ausente).
+        if (selectedLocation.uf === 'ND' && selectedLocation.city === 'Não classificados') {
+            return mapped.filter(r => (
+                r.ProvedorTelemetria && r.ProvedorTelemetria !== 'NÃO DEFINIDO' && r.ProvedorTelemetria !== 'Não Definido'
+            ) && (
+                !r.UltimoEnderecoTelemetria || (r._uf && r._uf === 'ND')
+            ));
+        }
+
+        return coordsValid.filter(r => r._city === selectedLocation.city && r._uf === selectedLocation.uf);
     }, [filteredData, selectedLocation]);
 
     const kmDifferenceData = useMemo(() => {
@@ -952,14 +1061,31 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const localizacaoHierarquica = useMemo(() => {
         const hierarquia: Record<string, Record<string, number>> = {};
         const totalByUF: Record<string, number> = {};
+        let unclassifiedTotal = 0;
+        const hasTracker = (r: any) => {
+            const prov = (r.ProvedorTelemetria || '').toString().trim();
+            const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
+            const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
+            const hasCoords = isFinite(parseNum(r.Latitude)) && isFinite(parseNum(r.Longitude)) && parseNum(r.Latitude) !== 0 && parseNum(r.Longitude) !== 0;
+            return hasTelemetria && (hasLastUpdate || hasCoords);
+        };
 
-        filteredData.filter(r => r.UltimoEnderecoTelemetria).forEach(r => {
-            const { uf, city } = extractLocation(r.UltimoEnderecoTelemetria);
+        filteredData.forEach(r => {
+            if (!hasTracker(r)) return;
+
+            const raw = r.UltimoEnderecoTelemetria;
+            if (!raw) {
+                unclassifiedTotal++;
+                return;
+            }
+            const { uf, city } = extractLocation(raw);
 
             if (uf !== 'ND') {
                 if (!hierarquia[uf]) hierarquia[uf] = {};
                 hierarquia[uf][city] = (hierarquia[uf][city] || 0) + 1;
                 totalByUF[uf] = (totalByUF[uf] || 0) + 1;
+            } else {
+                unclassifiedTotal++;
             }
         });
 
@@ -973,7 +1099,38 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     .sort((a, b) => b.value - a.value)
             }));
 
+        // Se houver veículos não classificados, adicionar ao final como grupo separado
+        if (unclassifiedTotal > 0) {
+            sortedUFs.push({
+                uf: 'ND',
+                total: unclassifiedTotal,
+                cities: [{ name: 'Não classificados', value: unclassifiedTotal }]
+            });
+        }
+
         return sortedUFs;
+    }, [filteredData]);
+
+    const naoClassificadosPlacas = useMemo(() => {
+        const placas: string[] = [];
+        filteredData.forEach(r => {
+            const prov = (r.ProvedorTelemetria || '').toString().trim();
+            const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
+            // Considerar rastreador instalado somente quando há provedor válido E
+            // há alguma telemetria recente ou coordenadas conhecidas.
+            const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
+            const hasCoords = isFinite(parseNum(r.Latitude)) && isFinite(parseNum(r.Longitude)) && parseNum(r.Latitude) !== 0 && parseNum(r.Longitude) !== 0;
+            if (!hasTelemetria || (!hasLastUpdate && !hasCoords)) return; // sem rastreador/telemetria, ignorar
+
+            const raw = r.UltimoEnderecoTelemetria;
+            if (!raw) {
+                if (r.Placa) placas.push(r.Placa);
+                return;
+            }
+            const { uf } = extractLocation(raw);
+            if (uf === 'ND' && r.Placa) placas.push(r.Placa);
+        });
+        return Array.from(new Set(placas)).sort();
     }, [filteredData]);
 
     const handleLocationClick = (uf: string, city: string | null) => {
@@ -1136,7 +1293,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const setReservaFilterValues = (key: string, values: string[]) => {
         // translate key names to use chart filter storage
         const mapKey = key === 'motivo' ? 'reserva_motivo' : key === 'cliente' ? 'reserva_cliente' : key === 'status' ? 'reserva_status' : 'reserva_search';
-        setFilterValues(mapKey, values);
+        applyFilterValues(mapKey, values);
         setReservaPage(0);
     };
 
@@ -1573,7 +1730,15 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     };
 
     const tableData = useMemo((): FleetTableItem[] => {
-        const data = filteredData.map(r => {
+        const norm = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const term = (appliedPlateSearch || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const base = term ? filteredData.filter(r => {
+            const p = norm(r.Placa);
+            const m = norm(r.Modelo);
+            return p.includes(term) || m.includes(term);
+        }) : filteredData;
+
+        const data = base.map(r => {
             const compra = parseCurrency(r.ValorCompra);
             const fipe = parseCurrency(r.ValorFipeAtual);
             const manut = manutencaoMap[r.Placa] || 0;
@@ -1612,7 +1777,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             });
         }
         return data;
-    }, [filteredData, manutencaoMap, sortConfig]);
+    }, [filteredData, manutencaoMap, sortConfig, appliedPlateSearch]);
+
+    // Reset page when local plate search changes to show results from first page
+    useEffect(() => {
+        setPage(0);
+    }, [appliedPlateSearch]);
 
     const pageItems = tableData.slice(page * pageSize, (page + 1) * pageSize);
 
@@ -1635,6 +1805,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const selectedReservaCliente = useMemo(() => getFilterValues('reserva_cliente'), [filters]);
     const selectedReservaStatus = useMemo(() => getFilterValues('reserva_status'), [filters]);
 
+    const selectedPlates = useMemo(() => getFilterValues('search'), [filters]);
     const exportToExcel = (data: any[], filename: string) => {
         try {
             const ws = XLSX.utils.json_to_sheet(data);
@@ -1676,26 +1847,32 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-slate-500" /><Text className="font-medium text-slate-700">Filtros</Text></div>
                     <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button onClick={() => toggleProductivity('Todos')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').length === 0 ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Todos</button>
-                        <button onClick={() => toggleProductivity('Ativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Ativa') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Ativa</button>
-                        <button onClick={() => toggleProductivity('Terceiro')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Terceiro') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Terceiro</button>
-                        <button onClick={() => toggleProductivity('Produtiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Produtiva') ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><CheckCircle2 size={12} /> Produtiva</button>
-                        <button onClick={() => toggleProductivity('Improdutiva')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Improdutiva') ? 'bg-white shadow text-rose-600' : 'text-slate-500'}`}><XCircle size={12} /> Improdutiva</button>
-                        <button onClick={() => toggleProductivity('Inativa')} className={`px-4 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Inativa') ? 'bg-white shadow text-slate-600' : 'text-slate-500'}`}><Archive size={12} /> Inativa</button>
+                        <button onClick={() => toggleProductivity('Todos')} className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').length === 0 ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Todos</button>
+                        <button onClick={() => toggleProductivity('Ativa')} className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Ativa') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Ativa</button>
+                        <button onClick={() => toggleProductivity('Terceiro')} className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${getFilterValues('productivity').includes('Terceiro') ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Terceiro</button>
+                        <button onClick={() => toggleProductivity('Produtiva')} className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Produtiva') ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><CheckCircle2 size={12} /> Produtiva</button>
+                        <button onClick={() => toggleProductivity('Improdutiva')} className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Improdutiva') ? 'bg-white shadow text-rose-600' : 'text-slate-500'}`}><XCircle size={12} /> Improdutiva</button>
+                        <button onClick={() => toggleProductivity('Inativa')} className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${getFilterValues('productivity').includes('Inativa') ? 'bg-white shadow text-slate-600' : 'text-slate-500'}`}><Archive size={12} /> Inativa</button>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                    {/* Busca global removida: usar pesquisa embutida nos seletores */}
-                    <MultiSelect label="Status" options={uniqueOptions.status} selected={selectedStatus} onSelectedChange={(v) => setFilterValues('status', v)} />
-                    <MultiSelect label="Modelo" options={uniqueOptions.modelos} selected={selectedModelo} onSelectedChange={(v) => setFilterValues('modelo', v)} />
-                    <MultiSelect label="Categoria" options={uniqueOptions.categorias} selected={selectedCategoria} onSelectedChange={(v) => setFilterValues('categoria', v)} />
-                    <MultiSelect label="Filial" options={uniqueOptions.filiais} selected={selectedFilial} onSelectedChange={(v) => setFilterValues('filial', v)} />
-                    <MultiSelect label="Cliente" options={uniqueOptions.clientes} selected={selectedCliente} onSelectedChange={(v) => setFilterValues('cliente', v)} />
-                    <MultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={selectedTipoLocacao} onSelectedChange={(v) => setFilterValues('tipoLocacao', v)} />
+                <div className="">
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <CompactMultiSelect label="Status" options={uniqueOptions.status} selected={selectedStatus} onSelectedChange={(v) => applyFilterValues('status', v)} />
+                        <CompactMultiSelect label="Modelo" options={uniqueOptions.modelos} selected={selectedModelo} onSelectedChange={(v) => applyFilterValues('modelo', v)} />
+                        <CompactMultiSelect label="Categoria" options={uniqueOptions.categorias} selected={selectedCategoria} onSelectedChange={(v) => applyFilterValues('categoria', v)} />
+                        <CompactMultiSelect label="Filial" options={uniqueOptions.filiais} selected={selectedFilial} onSelectedChange={(v) => applyFilterValues('filial', v)} />
+                        <CompactMultiSelect label="Cliente" options={uniqueOptions.clientes} selected={selectedCliente} onSelectedChange={(v) => applyFilterValues('cliente', v)} />
+                        <CompactMultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={selectedTipoLocacao} onSelectedChange={(v) => applyFilterValues('tipoLocacao', v)} />
+                            <div className="flex items-center gap-2">
+                                <CompactMultiSelect label="Placas" options={uniqueOptions.plates} selected={selectedPlates} onSelectedChange={(v) => applyFilterValues('search', v)} />
+                                <button onClick={() => { clearFilter('search'); }} className="px-3 py-1 text-sm bg-rose-50 text-rose-600 rounded">Limpar</button>
+                                <button onClick={selectAllFilters} className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded">Selecionar tudo</button>
+                            </div>
+                    </div>
                 </div>
             </Card>
 
-            <Tabs defaultValue="visao-geral" className="space-y-6">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)} className="space-y-6">
                 <TabsList className="bg-white border">
                     <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
                     <TabsTrigger value="patio">Gestão de Pátio</TabsTrigger>
@@ -1896,20 +2073,144 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     <Card id="detail-table" className="p-0 overflow-hidden mt-4">
                         <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16} /> Exportar</button></div>
                         <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr>
-                            <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Placa')}>Placa <SortIcon column="Placa" /></th>
-                            <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo <SortIcon column="Modelo" /></th>
-                            <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('NomeCliente')}>Cliente <SortIcon column="NomeCliente" /></th>
-                            <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('TipoLocacao')}>Contrato <SortIcon column="TipoLocacao" /></th>
-                            <th className="px-6 py-3 cursor-pointer" onClick={() => handleSort('Status')}>Status <SortIcon column="Status" /></th>
-                            <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('tipo')}>Tipo <SortIcon column="tipo" /></th>
-                            <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Locação <SortIcon column="ValorLocacao" /></th>
-                            <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('compra')}>Compra <SortIcon column="compra" /></th>
-                            <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('fipe')}>FIPE <SortIcon column="fipe" /></th>
-                            <th className="px-6 py-3 text-right cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info) <SortIcon column="KmInformado" /></th>
-                            <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE <SortIcon column="pctFipe" /></th>
-                            <th className="px-6 py-3 text-center cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade <SortIcon column="IdadeVeiculo" /></th>
-                        </tr></thead><tbody className="divide-y divide-slate-100">{pageItems.map((r, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
+                            <th className="px-6 py-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('Placa')}>Placa</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Placa', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Placa', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column="Placa" />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Modelo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Modelo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column="Modelo" />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('NomeCliente')}>Cliente</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'NomeCliente', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'NomeCliente', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column="NomeCliente" />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('TipoLocacao')}>Contrato</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'TipoLocacao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'TipoLocacao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column="TipoLocacao" />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('Status')}>Status</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Status', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Status', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column="Status" />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-center">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('tipo')}>Tipo</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'tipo' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'tipo' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"tipo" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-right">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Locação</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"ValorLocacao" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-right">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('compra')}>Compra</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'compra' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'compra' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"compra" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-right">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('fipe')}>FIPE</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'fipe' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'fipe' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"fipe" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-right">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info)</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"KmInformado" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-center">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'pctFipe' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'pctFipe' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"pctFipe" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-center">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade</span>
+                                    <span className="flex items-center gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'IdadeVeiculo' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'IdadeVeiculo' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                                        <SortIcon column={"IdadeVeiculo" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                        </tr></thead><tbody className="divide-y divide-slate-100">
+                            {pageItems.length === 0 ? (
+                                <tr className="bg-transparent">
+                                    <td colSpan={12} className="px-6 py-8 text-center text-sm text-slate-600">
+                                        {appliedPlateSearch ? (
+                                            <div>
+                                                Nenhum resultado para <strong>{appliedPlateSearch}</strong>.
+                                                <div className="mt-2">
+                                                    <button onClick={() => { setPlateSearch(''); setAppliedPlateSearch(''); }} className="px-3 py-1 bg-blue-50 text-blue-700 rounded text-sm">Limpar pesquisa</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>Nenhum registro.</div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ) : pageItems.map((r, i) => (
+                                <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-6 py-3 font-medium font-mono">{r.Placa}</td>
                                 <td className="px-6 py-3">{r.Modelo}</td>
                                 <td className="px-6 py-3 text-xs max-w-[150px] truncate" title={r.NomeCliente}>{r.NomeCliente}</td>
@@ -2195,9 +2496,9 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </div>
                         </Card>
 
-                        <Card className="lg:col-start-2 lg:col-span-1">
+                        <Card className="lg:col-start-2 lg:col-span-1 lg:row-span-2">
                             <Title>Proprietário do Veículo</Title>
-                            <div className="h-80 mt-4">
+                            <div className="h-[520px] mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={proprietarioData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2214,9 +2515,9 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </div>
                         </Card>
 
-                        <Card className="lg:col-start-3 lg:col-span-1">
+                        <Card className="lg:col-start-3 lg:col-span-1 lg:row-span-2">
                             <Title>Finalidade de Uso</Title>
-                            <div className="h-80 mt-4">
+                            <div className="h-[520px] mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={finalidadeData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2237,9 +2538,14 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     {/* Gráficos de Localização (Telemetria) - Hierárquico */}
                     <div className="grid grid-cols-1 gap-6">
                         <Card className="p-0 overflow-hidden">
-                            <div className="p-4 border-b border-slate-200">
-                                <Title>Distribuição Geográfica de Veículos (Por Estado)</Title>
-                                <Text className="text-xs text-slate-500">Expanda o estado para visualizar as cidades</Text>
+                            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <Title>Distribuição Geográfica de Veículos (Por Estado)</Title>
+                                    <Text className="text-xs text-slate-500">Expanda o estado para visualizar as cidades</Text>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Badge className="ml-2">{mapData.length} veículos</Badge>
+                                </div>
                             </div>
                             <div className="p-4">
                                 <Accordion type="single" collapsible className="w-full">
@@ -2248,7 +2554,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
                                                 <div className="flex w-full items-center justify-between pr-4">
                                                     <div className="flex items-center gap-3">
-                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf}</Badge>
+                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'Não classificados' : item.uf}</Badge>
                                                         <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
@@ -2276,7 +2582,39 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                     <div className={`h-2 w-2 rounded-full ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-600' : 'bg-blue-400'}`} />
                                                                     <span className="truncate text-slate-700 font-medium">{city.name}</span>
                                                                 </div>
-                                                                <span className="text-slate-600 font-medium">{city.value} veículos</span>
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="text-slate-600 font-medium">{city.value} veículos</span>
+                                                                    {item.uf === 'ND' && city.name === 'Não classificados' && naoClassificadosPlacas.length > 0 && (
+                                                                        <div className="mt-2 flex gap-2 flex-wrap max-w-[360px] justify-end">
+                                                                            {naoClassificadosPlacas.slice(0, 30).map(p => (
+                                                                                <button
+                                                                                    key={p}
+                                                                                    onClick={() => {
+                                                                                        applyFilterValues('search', [p]);
+                                                                                        // garantir que a tabela local de telemetria também aplique a pesquisa
+                                                                                        setAppliedPlateSearch(p);
+                                                                                        setPlateSearch(p);
+                                                                                        setActiveTab('telemetria');
+                                                                                        // rolar até a tabela de telemetria para foco do usuário
+                                                                                        setTimeout(() => {
+                                                                                            const el = document.getElementById('telemetria-table');
+                                                                                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                                            // tentar focar o input de pesquisa local se existir
+                                                                                            const input = el?.querySelector('input[placeholder="Pesquisar placa"]') as HTMLElement | null;
+                                                                                            if (input) input.focus();
+                                                                                        }, 120);
+                                                                                    }}
+                                                                                    className="px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-700 hover:bg-blue-50"
+                                                                                >
+                                                                                    {p}
+                                                                                </button>
+                                                                            ))}
+                                                                            {naoClassificadosPlacas.length > 30 && (
+                                                                                <span className="px-2 py-0.5 bg-slate-50 rounded text-xs text-slate-500">+{naoClassificadosPlacas.length - 30} mais</span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -2304,7 +2642,34 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     {selectedLocation && <Badge color="indigo">{selectedLocation.city}/{selectedLocation.uf}</Badge>}
                                 </div>
                             </div>
-                            <Badge className="ml-2">{mapData.length} veículos</Badge>
+                            <div className="flex items-center gap-3">
+                                <Badge className="ml-2">{mapData.length} veículos</Badge>
+                                <div className="text-sm text-slate-600">Mostrando {Math.min(markerLimit, mapData.length)} / {fmtDecimal(mapData.length)}</div>
+                                {markerLimit < mapData.length && (
+                                    <button
+                                        onClick={() => setMarkerLimit(prev => Math.min(mapData.length, prev + 500))}
+                                        className="ml-2 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded border border-blue-100 hover:bg-blue-100"
+                                    >
+                                        Carregar mais
+                                    </button>
+                                )}
+                                {markerLimit < mapData.length && (
+                                    <button
+                                        onClick={() => setMarkerLimit(mapData.length)}
+                                        className="ml-2 px-2 py-1 text-xs bg-slate-50 text-slate-700 rounded border border-slate-100 hover:bg-slate-100"
+                                    >
+                                        Mostrar todos
+                                    </button>
+                                )}
+                                {markerLimit > 500 && (
+                                    <button
+                                        onClick={() => setMarkerLimit(500)}
+                                        className="ml-2 px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100"
+                                    >
+                                        Reduzir
+                                    </button>
+                                )}
+                            </div>
                             {selectedLocation && (
                                 <button
                                     onClick={() => setSelectedLocation(null)}
@@ -2320,7 +2685,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                     attribution='&copy; OpenStreetMap'
                                 />
-                                {mapData.slice(0, 500).map((v, idx) => (
+                                {mapData.slice(0, markerLimit).map((v, idx) => (
                                     <Marker key={idx} position={[v._lat, v._lng]}>
                                         <Popup>
                                             <div className="text-sm">
@@ -2346,7 +2711,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
                     {/* Tabela Detalhada de Telemetria */}
                     <Card className="p-0 overflow-hidden" id="telemetria-table">
-                        <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                             <div className="flex items-center gap-2">
                                 <Info className="w-5 h-5 text-blue-600" />
                                 <Title>Detalhamento: Telemetria e Rastreamento</Title>
@@ -2354,32 +2719,58 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     {fmtDecimal(filteredData.length)} veículos
                                 </span>
                             </div>
-                            <button
-                                onClick={() => {
-                                    const detailData = filteredData.map(r => ({
-                                        Placa: r.Placa,
-                                        Modelo: r.Modelo,
-                                        Status: r.Status,
-                                        'Provedor Telemetria': r.ProvedorTelemetria || 'N/A',
-                                        'Última Atualização': r.UltimaAtualizacaoTelemetria || 'N/A',
-                                        Latitude: r.Latitude || 0,
-                                        Longitude: r.Longitude || 0,
-                                        'Último Endereço': r.UltimoEnderecoTelemetria || 'N/A',
-                                        'Com Seguro': r.ComSeguroVigente ? 'Sim' : 'Não',
-                                        Proprietário: r.Proprietario || 'N/A',
-                                        'Finalidade': r.FinalidadeUso || 'N/A',
-                                        'KM Informado': r.KmInformado || 0,
-                                        'KM Confirmado': r.KmConfirmado || 0,
-                                        'Condutor': r.NomeCondutor || 'N/A',
-                                        'CPF Condutor': r.CPFCondutor || 'N/A',
-                                        'Telefone Condutor': r.TelefoneCondutor || 'N/A'
-                                    }));
-                                    exportToExcel(detailData, 'frota_telemetria_detalhado');
-                                }}
-                                className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"
-                            >
-                                <FileSpreadsheet size={16} /> Exportar
-                            </button>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        placeholder="Pesquisar placa"
+                                        value={plateSearch}
+                                        onChange={(e) => {
+                                            const v = (e.target.value || '');
+                                            setPlateSearch(v);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const v = (plateSearch || '').trim();
+                                                if (plateDebounceRef.current) { window.clearTimeout(plateDebounceRef.current); plateDebounceRef.current = null; }
+                                                setAppliedPlateSearch(v);
+                                            }
+                                        }}
+                                        className="w-44 md:w-56 mr-2"
+                                    />
+                                    {plateSearch && (
+                                        <button
+                                            className="px-2 py-1 bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100 text-xs"
+                                            onClick={() => { setPlateSearch(''); setAppliedPlateSearch(''); }}
+                                        >
+                                            Limpar
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            const detailData = filteredData.map(r => ({
+                                                Placa: r.Placa,
+                                                Modelo: r.Modelo,
+                                                Status: r.Status,
+                                                'Provedor Telemetria': r.ProvedorTelemetria || 'N/A',
+                                                'Última Atualização': r.UltimaAtualizacaoTelemetria || 'N/A',
+                                                Latitude: r.Latitude || 0,
+                                                Longitude: r.Longitude || 0,
+                                                'Último Endereço': r.UltimoEnderecoTelemetria || 'N/A',
+                                                'Com Seguro': r.ComSeguroVigente ? 'Sim' : 'Não',
+                                                Proprietário: r.Proprietario || 'N/A',
+                                                'Finalidade': r.FinalidadeUso || 'N/A',
+                                                'KM Informado': r.KmInformado || 0,
+                                                'KM Confirmado': r.KmConfirmado || 0,
+                                                'Condutor': r.NomeCondutor || 'N/A',
+                                                'CPF Condutor': r.CPFCondutor || 'N/A',
+                                                'Telefone Condutor': r.TelefoneCondutor || 'N/A'
+                                            }));
+                                            exportToExcel(detailData, 'frota_telemetria_detalhado');
+                                        }}
+                                        className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"
+                                    >
+                                        <FileSpreadsheet size={16} /> Exportar
+                                    </button>
+                                </div>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">

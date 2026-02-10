@@ -70,9 +70,18 @@ async function fetchFromStatic(identifier: string): Promise<{ data: unknown | nu
 
         // merge parts
         let data: any = null;
-        if (Array.isArray(parsedParts[0])) data = parsedParts.flat();
-        else if (typeof parsedParts[0] === 'object') data = Object.assign({}, ...parsedParts);
-        else data = parsedParts;
+        if (Array.isArray(parsedParts[0])) {
+          data = parsedParts.flat();
+        } else if (typeof parsedParts[0] === 'object') {
+          // If the part is an object, it may be a wrapped payload { metadata, data }
+          if ('data' in parsedParts[0]) {
+            data = parsedParts[0].data;
+          } else {
+            data = Object.assign({}, ...parsedParts);
+          }
+        } else {
+          data = parsedParts;
+        }
 
         const meta: BIMetadata = { generated_at: manifest.generated_at || new Date().toISOString(), source: 'static' } as any;
         console.log(`[useBIData v2] ✅ Loaded ${Array.isArray(data) ? data.length : '1'} rows via manifest (${manifestUrl})`);

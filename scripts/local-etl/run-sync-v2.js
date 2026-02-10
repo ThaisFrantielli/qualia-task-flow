@@ -28,17 +28,16 @@ const sqlConfig = {
 };
 
 // PostgreSQL (DESTINO - BluConecta_Dw)
-// Forçar uso das variáveis PG_* locais. Neon foi removido do fluxo.
+// Configuração do servidor PostgreSQL na Oracle Cloud
 const pgConfig = {
-    host: process.env.PG_HOST || '127.0.0.1',
-    port: process.env.PG_PORT || 5432,
-    user: (process.env.PG_USER || '').toLowerCase().trim(),
-    password: (process.env.PG_PASSWORD || '').trim(),
-    database: (process.env.PG_DATABASE || 'bluconecta_dw').toLowerCase().trim(),
-    max: 15,
-    min: 2,
+    host: process.env.PG_HOST || '137.131.163.167',
+    port: parseInt(process.env.PG_PORT || '5432'),
+    user: process.env.PG_USER || 'postgres',
+    password: process.env.PG_PASSWORD || 'F4tu5xy3',
+    database: process.env.PG_DATABASE || 'bluconecta_dw',
+    max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
 };
 
 // Supabase (para upload de JSON)
@@ -49,7 +48,7 @@ if (!SUPABASE_SERVICE_KEY) {
     console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY não configurado. Upload para Storage será desabilitado.');
 }
 
-// Modo apenas JSON local: evita conexões/gravações no PostgreSQL (Neon)
+// Modo apenas JSON local: evita conexões/gravações no PostgreSQL
 const JSON_ONLY = process.argv.includes('--json-only') || process.env.JSON_ONLY === '1';
 if (JSON_ONLY) console.log('⚠️  Modo JSON_ONLY ativo: não será feita escrita no PostgreSQL (somente geração/upload de JSON).');
 
@@ -103,6 +102,7 @@ async function getDWLastUpdateDate(pool) {
 // 1. DIMENSÕES GLOBAIS
 // ==============================================================================
 const DIMENSIONS = [
+    /* REMOVIDO: dim_alienacoes - Não utilizada no Dashboard de Frota
     {
         table: 'dim_alienacoes',
         query: `SELECT 
@@ -143,7 +143,8 @@ const DIMENSIONS = [
                 FROM Alienacoes av WITH (NOLOCK)
                 -- Removido filtro WHERE av.DataEntrada IS NOT NULL para incluir todas alienações
                 `
-    },
+    }, */
+    /* REMOVIDO: dim_clientes - Não utilizada no Dashboard de Frota
     {
         table: 'dim_clientes',
         query: `SELECT 
@@ -196,15 +197,17 @@ const DIMENSIONS = [
                     GrupoEconomico,
                     GestorComercial
                 FROM Clientes WITH (NOLOCK)`
-    },
+    }, */
+    /* REMOVIDO: dim_condutores - Não utilizada no Dashboard de Frota
     {
         table: 'dim_condutores',
         query: `SELECT IdCondutor, Nome, CPF, NúmeroCnh as NumeroCnh, TipoCnh, VencimentoCnh as VencCnh, Email, Telefone1, Telefone2, Telefone3 FROM Condutores WITH (NOLOCK)`
-    },
+    }, */
+    /* REMOVIDO: dim_fornecedores - Não utilizada no Dashboard de Frota
     {
         table: 'dim_fornecedores',
         query: `SELECT IdFornecedor, NomeFantasia, CNPJ, CPF, Classificacao, Marca, Endereco, NumeroEndereco, Complemento, Bairro, Cidade, Estado, CriadoEm as CriadoEm FROM Fornecedores WITH (NOLOCK)`
-    },
+    }, */
     {
         table: 'dim_frota',
         query: `SELECT 
@@ -337,10 +340,11 @@ const DIMENSIONS = [
                     ORDER BY cl2.DataInicial DESC
                 ) ContratoAtivo`
     },
+    /* REMOVIDO: dim_veiculos_acessorios - Não utilizada no Dashboard de Frota
     {
         table: 'dim_veiculos_acessorios',
         query: `SELECT IdVeiculo, NomeAcessorio as Acessorio, TipoInstalacao as Origem FROM VeiculosAcessorios`
-    },
+    }, */
     {
         table: 'historico_situacao_veiculos',
         query: `SELECT
@@ -362,10 +366,8 @@ const DIMENSIONS = [
     {
         table: 'dim_contratos_locacao',
         query: `SELECT 
-                                        cl.IdContratoLocacao, 
+                                        cl.*, 
                                         cc.IdContratoComercial, 
-                                        cl.ContratoComercial,           
-                                        cl.ContratoLocacao,             
                                         cc.NumeroDocumentoPersonalizado as RefContratoCliente,
                                         cli.NomeFantasia as NomeCliente, 
                                         cc.SituacaoContrato, 
@@ -378,16 +380,8 @@ const DIMENSIONS = [
                                                 CASE WHEN UPPER(ISNULL(cli.NaturezaCliente, '')) = UPPER('Público') THEN 'Público' ELSE 'Terceirização de Frotas' END
                                             ELSE cc.TipoLocacao
                                         END as TipoLocacao,
-                                        cc.NomePromotor, 
-                                        cl.PlacaPrincipal, 
-                                        cl.SituacaoContratoLocacao as StatusLocacao, 
-                                        cl.SituacaoDoFaturamento,
-                                        cl.NomeCondutor,
-                                        CAST(ISNULL(preco.PrecoUnitario, 0) AS FLOAT) as ValorMensalAtual,
-                                        cl.DataInicial as Inicio, 
-                                        cl.DataFinal as Fim, 
-                                        cl.DataEncerramento as DataEncerramento,
-                                        cl.PeriodoEmMeses 
+                                        cc.NomePromotor,
+                                        CAST(ISNULL(preco.PrecoUnitario, 0) AS FLOAT) as ValorMensalAtual
                                 FROM ContratosLocacao cl 
                                 JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial
                                 LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente
@@ -399,14 +393,16 @@ const DIMENSIONS = [
                                         ORDER BY clp.DataInicial DESC, clp.IdPrecoContratoLocacao DESC
                                 ) preco`
     },
+    /* REMOVIDO: dim_itens_contrato - Não utilizada no Dashboard de Frota
     {
         table: 'dim_itens_contrato',
         query: `SELECT IdItemContrato, IdContrato, NomeModelo, Quantidade, ${castM('ValorUnitario')} as Valor, PeriodoLocacao FROM ItensContratos`
-    },
+    }, */
+    /* REMOVIDO: dim_regras_contrato - Não utilizada no Dashboard de Frota
     {
         table: 'dim_regras_contrato',
         query: `SELECT cc.NumeroDocumento as Contrato, pc.TipoPerfilContrato as NomeRegra, COALESCE(CAST(pc.ValorPerfil AS VARCHAR(MAX)), pc.TextoPerfil) as ConteudoRegra, pol.NomeTipoPoliticaContrato as NomePolitica, pol.TextoPolitica as ConteudoPolitica FROM ContratosComerciais cc LEFT JOIN PerfisContrato pc ON cc.IdContratoComercial = pc.IdContratoComercial LEFT JOIN PoliticasContrato pol ON cc.IdContratoComercial = pol.IdContrato`
-    },
+    }, */
     {
         table: 'dim_movimentacao_patios',
         query: `SELECT 
@@ -439,14 +435,16 @@ const DIMENSIONS = [
 // 2. CONSOLIDADOS
 // ==============================================================================
 const CONSOLIDATED = [
+    /* REMOVIDO: fat_historico_mobilizacao - Não utilizado no Dashboard de Frota
     {
         table: 'fat_historico_mobilizacao',
         query: `SELECT Contrato, Fila, Situacao, Pedido, Placa, Modelo, TempoEmDias, UltimoComentarioMobilizacao FROM HistoricoMobilizacao`
-    },
+    }, */
+    /* REMOVIDO: rentabilidade_360_geral - Não utilizado no Dashboard de Frota
     {
         table: 'rentabilidade_360_geral',
         query: `WITH Base AS ( SELECT v.IdVeiculo, v.Placa, v.Modelo, g.GrupoVeiculo as Grupo, v.DataCompra FROM Veiculos v WITH (NOLOCK) LEFT JOIN GruposVeiculos g WITH (NOLOCK) ON v.IdGrupoVeiculo = g.IdGrupoVeiculo ), Ops AS ( SELECT Placa, SUM(${castM('ValorTotal')}) as CustoTotal, COUNT(IdOrdemServico) as Passagens FROM OrdensServico WITH (NOLOCK) WHERE SituacaoOrdemServico <> 'Cancelada' GROUP BY Placa ), Fin AS ( SELECT fi.IdVeiculo, SUM(${castM('fi.ValorTotal')}) as FatTotal FROM FaturamentoItems fi WITH (NOLOCK) JOIN Faturamentos f WITH (NOLOCK) ON fi.IdNota = f.IdNota WHERE f.SituacaoNota <> 'Cancelada' GROUP BY fi.IdVeiculo ) SELECT B.*, CAST(O.CustoTotal AS DECIMAL(15,2)) as CustoOp, CAST(F.FatTotal AS DECIMAL(15,2)) as ReceitaLoc, O.Passagens FROM Base B LEFT JOIN Ops O ON B.Placa = O.Placa LEFT JOIN Fin F ON B.IdVeiculo = F.IdVeiculo`
-    },
+    }, */
     {
         table: 'hist_vida_veiculo_timeline',
         query: `
@@ -636,6 +634,7 @@ const CONSOLIDATED = [
                         ORDER BY Placa, DataEvento DESC
         `
     },
+    /* REMOVIDO: fat_churn - Não utilizado no Dashboard de Frota
     {
         table: 'fat_churn',
         query: `SELECT 
@@ -697,15 +696,18 @@ const CONSOLIDATED = [
                 GROUP BY cc.IdContratoComercial, cc.NumeroDocumento, cc.NumeroDocumentoPersonalizado,
                          cli.IdCliente, cli.NomeFantasia, cc.SituacaoContrato,
                          cl_enc.DataEncerramento, cl_enc.DataInicial`
-    },
+    }, */
+    /* REMOVIDO: fat_inadimplencia - Não utilizado no Dashboard de Frota
     {
         table: 'fat_inadimplencia',
         query: `SELECT f.IdNota, f.Cliente, f.Nota, ${castM('f.ValorTotal')} as SaldoDevedor, f.Vencimento as Vencimento, DATEDIFF(DAY, f.Vencimento, GETDATE()) as DiasAtraso, CASE WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 0 THEN 'A Vencer' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 30 THEN '1-30 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 60 THEN '31-60 dias' WHEN DATEDIFF(DAY, f.Vencimento, GETDATE()) <= 90 THEN '61-90 dias' ELSE '90+ dias' END as FaixaAging FROM Faturamentos f WHERE f.SituacaoNota = 'Pendente'`
-    },
+    }, */
+    /* REMOVIDO: agg_dre_mensal - Não utilizado no Dashboard de Frota
     {
         table: 'agg_dre_mensal',
         query: `SELECT FORMAT(DataCompetencia, 'yyyy-MM') as Competencia, SUM(CASE WHEN Natureza LIKE '%Receita%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Receita, SUM(CASE WHEN Natureza LIKE '%Despesa%' OR Natureza LIKE '%Custo%' THEN ${castM('ValorPagoRecebido')} ELSE 0 END) as Despesa FROM LancamentosComNaturezas WHERE DataCompetencia >= DATEADD(YEAR, -2, GETDATE()) GROUP BY FORMAT(DataCompetencia, 'yyyy-MM')`
-    },
+    }, */
+    /* REMOVIDO: fato_financeiro_dre - Não utilizado no Dashboard de Frota
     {
         table: 'fato_financeiro_dre',
         query: `SELECT 
@@ -728,11 +730,13 @@ const CONSOLIDATED = [
                 FROM LancamentosComNaturezas ln WITH (NOLOCK)
                 WHERE ln.DataCompetencia >= DATEADD(YEAR, -2, GETDATE())
                 OPTION (MAXDOP 1)`
-    },
+    }, */
+    /* REMOVIDO: auditoria_consolidada - Não utilizado no Dashboard de Frota
     {
         table: 'auditoria_consolidada',
         query: `SELECT 'Frota' as Area, v.Placa, v.Modelo, CASE WHEN CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 THEN 'Valor de compra não informado' WHEN v.OdometroConfirmado IS NULL THEN 'Odômetro não confirmado' WHEN v.DataCompra IS NULL THEN 'Data de compra não informada' END as Erro, 'Alta' as Gravidade, 'Atualizar cadastro do veículo' as AcaoRecomendada FROM Veiculos v WHERE CAST(ISNULL(v.ValorCompra, 0) AS DECIMAL(15,2)) = 0 OR v.OdometroConfirmado IS NULL OR v.DataCompra IS NULL UNION ALL SELECT 'Comercial', cc.NumeroDocumento, cli.NomeFantasia, 'Contrato sem itens vinculados' as Erro, 'Média' as Gravidade, 'Verificar itens do contrato' as AcaoRecomendada FROM ContratosComerciais cc LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente LEFT JOIN ItensContratos ic ON cc.IdContratoComercial = ic.IdContrato WHERE ic.IdItemContrato IS NULL AND cc.SituacaoContrato = 'Ativo'`
-    },
+    }, */
+    /* REMOVIDO: dim_compras - Não utilizado no Dashboard de Frota
     {
         table: 'dim_compras',
         query: `SELECT 
@@ -769,7 +773,7 @@ const CONSOLIDATED = [
                     vc.SituacaoVeiculo as situacao_atual
                 FROM VeiculosComprados vc WITH (NOLOCK)
                 WHERE vc.DataCompra IS NOT NULL`
-    },
+    }, */
 
     {
         table: 'fat_carro_reserva',
@@ -958,6 +962,7 @@ const CONSOLIDATED = [
                 -- SEM FILTROS de tipo - Mantendo 100% da base conforme solicitado
                 `
     },
+    /* REMOVIDO: agg_kpis_manutencao_mensal - Não utilizado no Dashboard de Frota
     {
         table: 'agg_kpis_manutencao_mensal',
         query: `WITH ManutencaoBase AS (
@@ -1016,7 +1021,7 @@ const CONSOLIDATED = [
                     CASE WHEN TotalOS > 0 THEN (CAST(OSCorretiva AS FLOAT) / TotalOS) * 100 ELSE 0 END as PctCorretiva
                 FROM KPIsPorMes
                 ORDER BY MesAno DESC`
-    },
+    }, */
     {
         table: 'fat_movimentacao_ocorrencias',
         query: `SELECT 
@@ -1063,6 +1068,7 @@ const CONSOLIDATED = [
                   AND mo.DataDeConfirmacao IS NOT NULL
                 ORDER BY mo.Ocorrencia, mo.DataDeConfirmacao`
     },
+    /* REMOVIDO: agg_lead_time_etapas - Não utilizado no Dashboard de Frota
     {
         table: 'agg_lead_time_etapas',
         query: `WITH EtapasOrdenadas AS (
@@ -1112,7 +1118,8 @@ const CONSOLIDATED = [
                 WHERE EtapaAnterior IS NOT NULL
                 ORDER BY Ocorrencia, OrdemEtapa
                 OPTION (MAXDOP 2, FAST 1000)`
-    },
+    }, */
+    /* REMOVIDO: agg_funil_conversao - Não utilizado no Dashboard de Frota
     {
         table: 'agg_funil_conversao',
         query: `SELECT 
@@ -1135,7 +1142,8 @@ const CONSOLIDATED = [
                   AND mo.DataDeConfirmacao IS NOT NULL
                 GROUP BY mo.Etapa, mo.Tipo
                 ORDER BY mo.Tipo, TotalOcorrencias DESC`
-    },
+    }, */
+    /* REMOVIDO: agg_performance_usuarios - Não utilizado no Dashboard de Frota
     {
         table: 'agg_performance_usuarios',
         query: `SELECT 
@@ -1167,7 +1175,8 @@ const CONSOLIDATED = [
                   AND mo.DataDeConfirmacao IS NOT NULL
                 GROUP BY mo.Usuario, mo.Etapa, mo.Tipo
                 ORDER BY TotalProcessadas DESC`
-    },
+    }, */
+    /* REMOVIDO: agg_rentabilidade_contratos_mensal - Não utilizado no Dashboard de Frota
     {
         table: 'agg_rentabilidade_contratos_mensal',
         query: `WITH FatPorPlaca AS (
@@ -1263,7 +1272,8 @@ const CONSOLIDATED = [
                     fp.Competencia, fp.Ano, fp.Mes,
                     fp.ReceitaFaturamento, fp.QtdFaturas
                 ORDER BY fp.Competencia DESC, c.NomeFantasia`
-    },
+    }, */
+    /* REMOVIDO: agg_custos_detalhados - Não utilizado no Dashboard de Frota
     {
         table: 'agg_custos_detalhados',
         query: `SELECT 
@@ -1332,7 +1342,7 @@ const CONSOLIDATED = [
                   AND os.ValorTotal > 0
                 ORDER BY os.DataInicioServico DESC
                 OPTION (MAXDOP 2, FAST 1000)`
-    }
+    } */
 ];
 
 // ==============================================================================
@@ -1613,14 +1623,17 @@ async function runMasterETL() {
         // ========== CONFIGURAÇÃO DE DADOS ==========
         const years = [2022, 2023, 2024, 2025, 2026];
         const factDefs = [
+            /* REMOVIDO: fat_faturamentos - Não utilizado no Dashboard de Frota
             {
                 table: 'fat_faturamentos',
                 queryGen: (year) => `SELECT f.IdNota, f.Nota as NumeroNota, f.TipoNota, f.SituacaoNota, f.IdCliente, f.Cliente as NomeCliente, f.DataCompetencia as Competencia, f.Vencimento as Vencimento, ${castM('f.ValorLocacao')} as VlrLocacao, ${castM('f.ValorReembolsaveis')} as VlrReembolso, ${castM('f.ValorMultas')} as VlrMultas, ${castM('f.ValorTotal')} as VlrTotal, fi.IdVeiculo, fi.Descricao as DetalheItem, ${castM('fi.ValorTotal')} as VlrItem FROM Faturamentos f LEFT JOIN FaturamentoItems fi ON f.IdNota = fi.IdNota WHERE YEAR(f.DataCompetencia) = ${year}`
-            },
+            }, */
+            /* REMOVIDO: fat_detalhe_itens_os - Não utilizado no Dashboard de Frota
             {
                 table: 'fat_detalhe_itens_os',
                 queryGen: (year) => `SELECT ios.IdItemOrdemServico, os.OrdemServico as OS, os.Placa, ios.GrupoDespesa, ios.DescricaoItem, ios.Quantidade, ${castM('ios.ValorTotal')} as Valor FROM ItensOrdemServico ios JOIN OrdensServico os ON ios.IdOrdemServico = os.IdOrdemServico WHERE YEAR(os.DataInicioServico) = ${year} AND os.SituacaoOrdemServico <> 'Cancelada'`
-            },
+            }, */
+            /* REMOVIDO: fat_ocorrencias_master - Não utilizado no Dashboard de Frota
             {
                 table: 'fat_ocorrencias_master',
                 queryGen: (year) => `
@@ -1651,7 +1664,7 @@ async function runMasterETL() {
                     SELECT 'Reserva', Ocorrencia, Placa, ModeloVeiculoReserva, Motivo, SituacaoOcorrencia, DataRetiradaEfetiva, ${castM('DiariasEfetivas')} 
                     FROM OcorrenciasVeiculoTemporario WITH (NOLOCK)
                     WHERE YEAR(DataRetiradaEfetiva) = ${year}`
-            },
+            }, */
             {
                 table: 'fat_sinistros',
                 queryGen: (year) => `SELECT 
@@ -1797,8 +1810,9 @@ async function runMasterETL() {
                 LEFT JOIN ContratosComerciais cc ON cl.IdContrato = cc.IdContratoComercial 
                 LEFT JOIN Clientes cli ON cc.IdCliente = cli.IdCliente 
                 WHERE YEAR(oi.DataInfracao) = ${year}`
-            },
-            {
+            }
+            /* REMOVIDO: fat_propostas_blufleet - Não utilizado no Dashboard de Frota
+            ,{
                 table: 'fat_propostas_blufleet',
                 queryGen: (year) => `SELECT 
                     p.IdProposta,
@@ -1844,7 +1858,8 @@ async function runMasterETL() {
                 LEFT JOIN Clientes cli WITH (NOLOCK) ON p.IdCliente = cli.IdCliente
                 WHERE p.DataCriacaoContratoComercial IS NOT NULL 
                     AND YEAR(p.DataCriacaoContratoComercial) = ${year}`
-            },
+            }, */
+            /* REMOVIDO: fat_vendas - Não utilizado no Dashboard de Frota
             {
                 table: 'fat_vendas',
                 queryGen: (year) => `SELECT 
@@ -1901,7 +1916,7 @@ async function runMasterETL() {
                 FROM VeiculosVendidos vv WITH (NOLOCK)
                 WHERE vv.DataVenda IS NOT NULL 
                     AND YEAR(vv.DataVenda) = ${year}`
-            }
+            } */
         ];
 
         // Suporte a execução parcial via `--only table1,table2`

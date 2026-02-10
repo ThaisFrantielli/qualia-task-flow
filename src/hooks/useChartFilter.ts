@@ -5,6 +5,8 @@ export type ChartFilterState = Record<string, string[]>;
 interface UseChartFilterReturn {
   filters: ChartFilterState;
   handleChartClick: (key: string, value: string, event?: React.MouseEvent) => void;
+  setFilterValues: (key: string, values: string[]) => void;
+  setFiltersBulk: (next: ChartFilterState) => void;
   clearFilter: (key: string, value?: string) => void;
   clearAllFilters: () => void;
   hasActiveFilters: boolean;
@@ -19,6 +21,14 @@ interface UseChartFilterReturn {
  */
 export function useChartFilter(initialFilters: ChartFilterState = {}): UseChartFilterReturn {
   const [filters, setFilters] = useState<ChartFilterState>(initialFilters);
+
+  const setFilterValues = useCallback((key: string, values: string[]) => {
+    setFilters(prev => ({ ...prev, [key]: values }));
+  }, []);
+
+  const setFiltersBulk = useCallback((next: ChartFilterState) => {
+    setFilters(prev => ({ ...prev, ...next }));
+  }, []);
 
   const handleChartClick = useCallback((key: string, value: string, event?: React.MouseEvent) => {
     const isCtrlPressed = event?.ctrlKey || event?.metaKey;
@@ -71,6 +81,8 @@ export function useChartFilter(initialFilters: ChartFilterState = {}): UseChartF
   return {
     filters,
     handleChartClick,
+    setFilterValues,
+    setFiltersBulk,
     clearFilter,
     clearAllFilters,
     hasActiveFilters,

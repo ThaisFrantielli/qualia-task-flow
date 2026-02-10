@@ -23,12 +23,8 @@ import Notifications from '@/pages/Notifications';
 import AnalyticsIndex from '@/pages/analytics';
 import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import FleetIdleDashboard from '@/pages/analytics/FleetIdleDashboard';
+import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
-import ContractAnalysisDashboard from '@/pages/analytics/ContractAnalysisDashboard';
-import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
-import DataAudit from '@/pages/analytics/DataAudit';
-import ChurnDashboard from '@/pages/analytics/ChurnDashboard';
-import FinancialAnalytics from '@/pages/analytics/FinancialAnalytics';
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -51,15 +47,7 @@ import FilaTriagem from '@/pages/FilaTriagem';
 import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
-import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
-import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
-import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
-import SalesDashboard from '@/pages/analytics/SalesDashboard';
-import ClientsDashboard from '@/pages/analytics/ClientsDashboard';
-import CommercialDashboard from '@/pages/analytics/CommercialDashboard';
-import ExecutiveDashboard from '@/pages/analytics/ExecutiveDashboard';
-import CustomerAnalytics from '@/pages/analytics/CustomerAnalytics';
-import DREDashboard from '@/pages/analytics/DREDashboard';
+
 import ModelosVeiculosPage from '@/pages/Configuracoes/ModelosVeiculosPage';
 import PropostasPage from '@/pages/PropostasPage';
 import PropostasFormPage from '@/pages/PropostasFormPage';
@@ -123,25 +111,9 @@ function App() {
               <Route path="/analytics">
                 <Route index element={<AnalyticsIndex />} />
                 <Route path="frota" element={<FleetDashboard />} />
-                <Route path="frota-improdutiva" element={<FleetIdleDashboard />} />
-                <Route path="compras" element={<PurchasesDashboard />} />
-                <Route path="vendas" element={<SalesDashboard />} />
-                <Route path="churn" element={<ChurnDashboard />} />
-                <Route path="financeiro" element={<FinancialAnalytics />} />
-                <Route path="resultado" element={<DREDashboard />} />
+                <Route path="frota-idle" element={<FleetIdleDashboard />} />
+                <Route path="frota-metodologia" element={<FleetMethodologyPage />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
-                <Route path="analise-contratos" element={<ContractAnalysisDashboard />} />
-                {/* Performance de Contratos agora integrado em /analytics/contratos */}
-                <Route path="auditoria" element={<DataAudit />} />
-                <Route path="manutencao" element={<MaintenanceDashboard />} />
-                <Route path="multas" element={<InfractionsDashboard />} />
-                <Route path="sinistros" element={<ClaimsDashboard />} />
-                {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
-                {/* Performance de Vendas consolidada em /analytics/vendas (SalesDashboard) */}
-                <Route path="clientes" element={<ClientsDashboard />} />
-                <Route path="comercial" element={<CommercialDashboard />} />
-                <Route path="executive" element={<ExecutiveDashboard />} />
-                <Route path="cliente" element={<CustomerAnalytics />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
