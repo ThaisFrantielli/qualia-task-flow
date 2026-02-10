@@ -4,7 +4,9 @@ import { Clock, RefreshCw } from 'lucide-react';
 interface DataUpdateBadgeProps {
   metadata?: {
     generated_at?: string;
+    generated_at_local?: string;
     dw_last_update?: string;
+    dw_last_update_local?: string;
     table?: string;
     record_count?: number;
     etl_version?: string;
@@ -20,8 +22,8 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
   // Datas explicitamente separadas
   const dwDate = metadata.dw_last_update ? new Date(metadata.dw_last_update) : null;
   const etlDate = metadata.generated_at ? new Date(metadata.generated_at) : null;
-  // Usar dwDate como prioridade para cálculo do 'time ago', cair para etlDate se não houver
-  const referenceDate = dwDate || etlDate!;
+  // Usar etlDate como prioridade (quando os JSONs foram gerados), cair para dwDate se não houver
+  const referenceDate = etlDate || dwDate!;
   const updateDate = new Date(referenceDate);
   const now = new Date();
   const diffMs = now.getTime() - updateDate.getTime();
@@ -41,18 +43,18 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
   };
 
   if (compact) {
-    const displayDate = dwDate || etlDate;
-    const dateStr = displayDate ? `${displayDate.toLocaleDateString('pt-BR')} ${displayDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '';
+    // Preferir campos locais já formatados quando presentes no metadata
+    const displayDateStr = metadata?.generated_at_local || metadata?.dw_last_update_local || (etlDate || dwDate ? `${(etlDate || dwDate)!.toLocaleDateString('pt-BR')} ${(etlDate || dwDate)!.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '');
     
     return (
       <button
         onClick={() => setShowDetails(!showDetails)}
         className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:shadow-sm ${getStatusColor()}`}
-        title={`Última atualização do DW: ${dateStr}\nClique para ver mais detalhes`}
+        title={`Última atualização do DW: ${displayDateStr}\nClique para ver mais detalhes`}
       >
         <Clock size={12} />
         <span className="hidden sm:inline">Atualizado: </span>
-        <span className="font-semibold">{dateStr}</span>
+        <span className="font-semibold">{displayDateStr}</span>
         
         {showDetails && (
           <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-xl p-4 min-w-[280px] z-50">
@@ -65,20 +67,20 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
                       <div className="flex justify-between">
                         <span className="text-slate-500">Última atualização (DW):</span>
                         <span className="font-medium text-slate-900">
-                          {dwDate ? `${dwDate.toLocaleDateString('pt-BR')} às ${dwDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '-'}
+                          {metadata?.dw_last_update_local || (dwDate ? `${dwDate.toLocaleDateString('pt-BR')} às ${dwDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '-')}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500">Dados atualizados há:</span>
-                        <span className="font-medium text-slate-900">{getTimeAgo(diffHours, diffDays)}</span>
+                          <span className="font-medium text-slate-900">{getTimeAgo(diffHours, diffDays)}</span>
                       </div>
                       {etlDate && (
                         <div className="flex justify-between">
                           <span className="text-slate-500">ETL executado em:</span>
-                          <span className="font-medium text-slate-900">{etlDate.toLocaleDateString('pt-BR')} às {etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="font-medium text-slate-900">{metadata?.generated_at_local || `${etlDate.toLocaleDateString('pt-BR')} às ${etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>
                         </div>
                       )}
-                {metadata.record_count && (
+                {metadata?.record_count && (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Registros:</span>
                     <span className="font-medium text-slate-900">{metadata.record_count.toLocaleString('pt-BR')}</span>

@@ -265,6 +265,11 @@ type SinistroOccurrence = {
   situacao?: string | null;
   cliente?: string | null;
   fornecedor?: string | null;
+  // Datas derivadas para exibição (opcionais)
+  dataAberturaOcorrencia?: Date | null;
+  dataConclusaoOcorrencia?: Date | null;
+  dataChegadaVeiculo?: Date | null;
+  dataRetiradaVeiculo?: Date | null;
 };
 
 type EventGroupRow = {
@@ -439,16 +444,49 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
 
     const first = dates[0];
     const sample = items[0] || {};
+    // Datas derivadas (abertura / conclusão / chegada / retirada)
+    const aberturaDates = items
+      .map(i => parseDateAny(i?.DataAberturaOcorrencia ?? i?.DataAbertura ?? i?.DataEvento ?? i?.DataSinistro ?? i?.DataInicio ?? i?.Data))
+      .filter((d): d is Date => d != null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    const conclusaoDates = items
+      .map(i => parseDateAny(i?.DataConclusaoOcorrencia ?? i?.DataFimReal ?? i?.DataConclusao ?? i?.DataEvento ?? i?.Data))
+      .filter((d): d is Date => d != null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    const dataAbertura = aberturaDates.length > 0 ? aberturaDates[0] : null;
+    const dataConclusao = conclusaoDates.length > 0 ? conclusaoDates[conclusaoDates.length - 1] : null;
+    const dataChegada = items.map(i => parseDateAny(i?.DataChegadaVeiculo ?? i?.DataChegada)).find(d => d != null) ?? null;
+    const dataRetirada = items.map(i => parseDateAny(i?.DataRetiradaVeiculo ?? i?.DataRetirada)).find(d => d != null) ?? null;
     const numeroBO = sample?.NumeroBO ?? sample?.BoletimOcorrencia ?? null;
     const tipoSinistro = sample?.TipoSinistro ?? null;
     const valorOrcamento = sample?.ValorOrcamento ?? sample?.ValorOrcamentoEstimado ?? sample?.Valor ?? null;
     const situacao = sample?.Situacao ?? sample?.SituacaoOcorrencia ?? null;
 
+    // Tentar inferir `Ocorrencia` (QUAL-xxx) a partir de um evento de manutenção próximo
+    let inferredOcorrencia = sample?.Ocorrencia ?? sample?.NumeroOcorrencia ?? undefined;
+    if (!inferredOcorrencia) {
+      let best: AnyObject | null = null;
+      let bestDiff = Infinity;
+      for (const ev of events) {
+        const tipoEv = normalizeEventName(ev?.TipoEvento || ev?.Evento || '') || '';
+        if (!tipoEv.includes('MANUT')) continue;
+        const evDate = parseDateAny(ev?.DataEvento ?? ev?.Data) || null;
+        if (!evDate) continue;
+        const diff = Math.abs(evDate.getTime() - first.getTime());
+        // considerar candidatos até 30 dias de distância
+        if (diff < bestDiff && diff <= 1000 * 60 * 60 * 24 * 30) {
+          best = ev;
+          bestDiff = diff;
+        }
+      }
+      if (best) inferredOcorrencia = best?.Ocorrencia ?? best?.NumeroOcorrencia ?? inferredOcorrencia;
+    }
+
     out.push({
       kind: 'SINISTRO_OCORRENCIA',
       key: `sin:${k}`,
       sinistroId: String(k),
-      ocorrencia: sample?.Ocorrencia ?? sample?.NumeroOcorrencia ?? undefined,
+      ocorrencia: inferredOcorrencia,
       sinistroDate: first,
       items: items.sort((a, b) => {
         const da = parseDateAny(a?.DataEvento ?? a?.Data ?? a?.DataSinistro) || new Date(0);
@@ -461,6 +499,10 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
       situacao,
       cliente: sample?.Cliente ?? sample?.NomeCliente ?? null,
       fornecedor: sample?.Fornecedor ?? null,
+      dataAberturaOcorrencia: dataAbertura,
+      dataConclusaoOcorrencia: dataConclusao,
+      dataChegadaVeiculo: dataChegada,
+      dataRetiradaVeiculo: dataRetirada,
     });
   }
 
@@ -1522,6 +1564,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                       const otherRows = allRows.filter(r => 
                         r.kind === 'MANUTENCAO_OCORRENCIA' || 
                         r.kind === 'MANUTENCAO_PERIODO' ||
+                        r.kind === 'SINISTRO_OCORRENCIA' ||
                         (r.kind === 'EVENTO_DIA_TIPO' && !PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt)))
                       );
                       
@@ -1836,20 +1879,25 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           )}
                                         </div>
                                       </div>
-                                      <div className="text-xs text-rose-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                      <div className="flex flex-col items-end gap-2 shrink-0">
+                                        <div className="text-right text-[11px] text-rose-600">
+                                          <div><b>Abertura:</b> {fmtDateTimeBR(sin.dataAberturaOcorrencia ?? sin.sinistroDate)}</div>
+                                          <div><b>Conclusão:</b> {fmtDateTimeBR(sin.dataConclusaoOcorrencia)}</div>
+                                          {sin.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(sin.dataChegadaVeiculo)}</div>}
+                                          {sin.dataRetiradaVeiculo && <div><b>Retirada:</b> {fmtDateTimeBR(sin.dataRetiradaVeiculo)}</div>}
+                                        </div>
+                                        <div className="text-xs text-rose-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                      </div>
                                     </div>
 
                                     {isSinExpanded && (
                                       <div className="mt-3 space-y-2">
                                         {sin.items.map((it: any, idx: number) => (
-                                          <div key={idx} className="p-3 bg-white rounded border border-rose-50 text-xs">
-                                            <div className="flex justify-between">
-                                              <div className="flex-1">
-                                                <div className="font-medium text-slate-700">{it?.Observacao ?? it?.Descricao ?? it?.Motivo ?? 'Sinistro'}</div>
-                                                <div className="text-[11px] text-slate-500">{it?.Fornecedor ?? it?.FornecedorOcorrencia ?? ''}</div>
-                                              </div>
-                                              <div className="text-rose-700 font-bold">{fmtMoney(it?.ValorOrcamento ?? it?.Valor ?? it?.ValorEstimado)}</div>
-                                            </div>
+                                          <div key={`sin-item-${idx}`} className="bg-white p-3 rounded border-l-4 border-rose-400">
+                                            <div className="text-sm font-medium">{it?.Observacao || it?.Descricao || it?.Motivo || `Item ${idx + 1}`}</div>
+                                            <div className="text-xs text-slate-500">{fmtDateTimeBR(parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro))}</div>
+                                            {it?.ValorOrcamento != null && <div className="text-rose-700 font-bold">{fmtMoney(it.ValorOrcamento)}</div>}
+                                            {it?.Fornecedor && <div className="text-[11px] text-slate-500 mt-1">{it.Fornecedor}</div>}
                                           </div>
                                         ))}
                                       </div>

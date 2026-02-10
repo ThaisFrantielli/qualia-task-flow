@@ -636,7 +636,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                 <Button 
                                     variant="outline" 
                                     size="sm"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         // Implementar dialog para adicionar departamento
                                         const departamento = prompt('Selecione o departamento:\n1 - Manutenção\n2 - Central de Atendimento\n3 - Documentação\n4 - Operação\n5 - Comercial\n6 - Financeiro\n7 - Operação SP');
                                         if (departamento) {
@@ -645,18 +645,19 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                             if (deptIndex >= 0 && deptIndex < deptNames.length) {
                                                 const mensagem = prompt('Mensagem para o departamento:');
                                                 if (mensagem && user?.id) {
-                                                    supabase.from('ticket_departamentos').insert({
-                                                        ticket_id: ticketId,
-                                                        departamento: deptNames[deptIndex],
-                                                        mensagem: mensagem,
-                                                        solicitado_por: user.id,
-                                                        created_at: new Date().toISOString()
-                                                    }).then(() => {
-                                                        toast.success('Departamento vinculado!');
-                                                        refetch();
-                                                    }).catch(() => {
-                                                        toast.error('Erro ao vincular departamento');
-                                                    });
+                                                        try {
+                                                            await supabase.from('ticket_departamentos').insert({
+                                                                ticket_id: ticketId,
+                                                                departamento: deptNames[deptIndex],
+                                                                mensagem: mensagem,
+                                                                solicitado_por: user.id,
+                                                                created_at: new Date().toISOString()
+                                                            });
+                                                            toast.success('Departamento vinculado!');
+                                                            refetch();
+                                                        } catch (err) {
+                                                            toast.error('Erro ao vincular departamento');
+                                                        }
                                                 }
                                             }
                                         }

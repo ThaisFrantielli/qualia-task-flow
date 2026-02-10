@@ -18,10 +18,25 @@ function saveJSONToPublicData(tableName, data, dwLastUpdate = null) {
     const fileName = `${tableName}.json`;
     const filePath = path.join(jsonDir, fileName);
     
+    const now = new Date();
+    const generatedAtIso = now.toISOString();
+
+    let dwIso = null;
+    let dwLocal = null;
+    if (dwLastUpdate) {
+        const dwDate = (dwLastUpdate instanceof Date) ? dwLastUpdate : new Date(dwLastUpdate);
+        if (!isNaN(dwDate.getTime())) {
+            dwIso = dwDate.toISOString();
+            dwLocal = dwDate.toLocaleString('pt-BR');
+        }
+    }
+
     const payload = {
         metadata: {
-            generated_at: new Date().toISOString(),
-            dw_last_update: dwLastUpdate ? dwLastUpdate.toISOString() : null,
+            generated_at: generatedAtIso,
+            generated_at_local: now.toLocaleString('pt-BR'),
+            dw_last_update: dwIso,
+            dw_last_update_local: dwLocal,
             table: tableName,
             record_count: data.length,
             etl_version: '2.0'
