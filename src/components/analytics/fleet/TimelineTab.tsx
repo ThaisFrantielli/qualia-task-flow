@@ -169,6 +169,22 @@ function parseDateAny(raw?: string | null): Date | null {
   const s = String(raw).trim();
   if (!s) return null;
 
+  // Aceitar timestamps numéricos (ms) ou strings numéricas longas
+  if (typeof raw === 'number') {
+    const dt = new Date(raw);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  if (/^\d{10,}$/.test(s)) {
+    // 10+ dígitos: presumir segundos (10) ou milissegundos (13+)
+    const n = Number(s);
+    if (!Number.isNaN(n)) {
+      // se tem 13+ dígitos, já está em ms
+      const ms = s.length >= 13 ? n : n * 1000;
+      const dt = new Date(ms);
+      if (!Number.isNaN(dt.getTime())) return dt;
+    }
+  }
+
   // pt-BR: dd/MM/yyyy (opcionalmente com hora)
   const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   if (br) {
@@ -295,6 +311,14 @@ function getOccurrenceId(r: AnyObject): string {
   ).trim();
 }
 
+function normalizeOcorrenciaKey(raw?: unknown): string {
+  if (!raw && raw !== 0) return '';
+  const s = String(raw).trim();
+  if (!s) return '';
+  // manter prefixo QUAL- se já existir, caso contrário manter como está
+  return s;
+}
+
 // Nova função: agrupa manutenções por Ocorrência
 function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurrence[] {
   // Agrupar por IdOcorrencia/Ocorrencia
@@ -305,7 +329,8 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
     if (!occId || occId === '' || occId === 'undefined' || occId === 'null') {
       // Se não tem ID de ocorrência, criar uma ocorrência única para esta OS
       const osId = getMaintenanceId(r);
-      const uniqueKey = `solo-${osId || Math.random()}`;
+      const fallbackDateKey = String(parseDateAny(r?.DataEntrada ?? r?.Data)?.getTime() ?? 'noDate');
+      const uniqueKey = `solo-os:${osId || fallbackDateKey}`;
       occurrenceMap.set(uniqueKey, [r]);
     } else {
       const existing = occurrenceMap.get(occId);
@@ -425,9 +450,19 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
     const tipo = normalizeEventName(e?.TipoEvento || e?.Evento || '') || '';
     if (!tipo.includes('SINIST')) continue;
 
-    // chave preferencial: NumeroBO / BoletimOcorrencia / Ocorrencia / IdSinistro
-    const keyRaw = e?.NumeroBO ?? e?.BoletimOcorrencia ?? e?.Ocorrencia ?? e?.IdSinistro ?? e?.IdOcorrencia ?? '';
-    const key = String(keyRaw ?? '').trim() || `solo-sin-${Math.random().toString(36).slice(2, 9)}`;
+    // prioridade de chave: Ocorrencia / IdSinistro / NumeroBO ; fallback determinístico: placa+data
+    const occVal = e?.Ocorrencia ?? e?.NumeroOcorrencia ?? null;
+    const idVal = e?.IdSinistro ?? e?.IdOcorrencia ?? null;
+    const numBO = e?.NumeroBO ?? e?.BoletimOcorrencia ?? null;
+    const placaKeyForFallback = normalizePlacaKey(e?.Placa ?? e?.PlacaVeiculo ?? e?.PlacaVeiculoCorrida ?? '');
+    const dateMs = parseDateAny(e?.DataEvento ?? e?.DataSinistro ?? e?.Data ?? e?.DataAbertura)?.getTime() ?? null;
+    const fallbackKey = `${placaKeyForFallback || 'unknown'}:${dateMs ?? 'noDate'}`;
+    let keyCore = '';
+    if (occVal) keyCore = String(occVal).trim();
+    else if (idVal) keyCore = String(idVal).trim();
+    else if (numBO) keyCore = String(numBO).trim();
+    else keyCore = fallbackKey;
+    const key = keyCore;
 
     const prev = map.get(key);
     if (prev) prev.push(e);
@@ -499,6 +534,55 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
       situacao,
       cliente: sample?.Cliente ?? sample?.NomeCliente ?? null,
       fornecedor: sample?.Fornecedor ?? null,
+      dataAberturaOcorrencia: dataAbertura,
+      dataConclusaoOcorrencia: dataConclusao,
+      dataChegadaVeiculo: dataChegada,
+      dataRetiradaVeiculo: dataRetirada,
+    });
+  }
+
+  return out.sort((a, b) => b.sinistroDate.getTime() - a.sinistroDate.getTime());
+}
+
+// Agrupa sinistros a partir do dataset `fat_sinistros` (mais estruturado)
+function groupSinistrosFromFat(records: AnyObject[] | undefined): SinistroOccurrence[] {
+  if (!Array.isArray(records)) return [];
+  const out: SinistroOccurrence[] = [];
+  for (const r of records) {
+    const occVal = r?.Ocorrencia ?? r?.NumeroOcorrencia ?? r?.OcorrenciaSinistro ?? null;
+    const idVal = r?.IdSinistro ?? r?.IdOcorrencia ?? null;
+    const numBO = r?.NumeroBO ?? r?.BoletimOcorrencia ?? null;
+    const date = parseDateAny(r?.DataSinistro ?? r?.DataOcorrencia ?? r?.Data ?? r?.DataEvento) || null;
+    if (!date) continue;
+    const numeroBO = r?.NumeroBO ?? r?.BoletimOcorrencia ?? null;
+    const tipoSinistro = r?.TipoSinistro ?? r?.Tipo ?? null;
+    const valorOrcamento = Number(r?.ValorOrcamento ?? r?.ValorEstimado ?? r?.Valor ?? 0) || null;
+    const situacao = r?.Situacao ?? r?.Status ?? null;
+    const cliente = r?.Cliente ?? r?.NomeCliente ?? null;
+    const fornecedor = r?.Fornecedor ?? null;
+
+    const dataAbertura = parseDateAny(r?.DataAberturaOcorrencia ?? r?.DataAbertura ?? r?.DataCriacao ?? r?.DataInicio) || null;
+    const dataConclusao = parseDateAny(r?.DataConclusaoOcorrencia ?? r?.DataConclusao ?? r?.DataFimReal ?? r?.DataConclusaoServico) || null;
+    const dataChegada = parseDateAny(r?.DataChegadaVeiculo ?? r?.DataChegada ?? r?.DataConfirmacao) || null;
+    const dataRetirada = parseDateAny(r?.DataRetiradaVeiculo ?? r?.DataRetirada ?? r?.DataSaida) || null;
+
+    // items: manter o registro original dentro de um array para exibição
+    const primary = occVal ?? idVal ?? numBO ?? null;
+    const keyCore = occVal ? String(occVal).trim() : (primary ? String(primary).trim() : `${normalizePlacaKey(r?.Placa ?? '')}:${date.getTime()}`);
+
+    out.push({
+      kind: 'SINISTRO_OCORRENCIA',
+      key: `sin:${keyCore}`,
+      sinistroId: String(primary ?? keyCore),
+      ocorrencia: occVal ?? undefined,
+      sinistroDate: date,
+      items: [r],
+      numeroBO,
+      tipoSinistro,
+      valorOrcamento,
+      situacao,
+      cliente,
+      fornecedor,
       dataAberturaOcorrencia: dataAbertura,
       dataConclusaoOcorrencia: dataConclusao,
       dataChegadaVeiculo: dataChegada,
@@ -1534,8 +1618,35 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         items: g.items
                       }));
 
-                      // Agrupar sinistros a partir do stream de eventos
-                      const sinistroOccurrences = groupSinistrosFromEvents(eventos);
+                      // Preferir sinistros estruturados de `fat_sinistros` (quando presentes)
+                      const placaKey = normalizePlacaKey(placa);
+                      const sinistrosFromFat = groupSinistrosFromFat(sinistrosByPlaca[placaKey]);
+                      // Também coletar sinistros detectados no stream (fallback)
+                      const sinistrosFromEvents = groupSinistrosFromEvents(eventos);
+
+                      // Combinar: usar entradas de fat_sinistros quando houver mesma ocorrência/numeroBO,
+                      // caso contrário, incluir sinistros detectados no stream.
+                      const sinistroMap = new Map<string, SinistroOccurrence>();
+                      const keyFor = (s: SinistroOccurrence) => {
+                        const occ = normalizeOcorrenciaKey(s.ocorrencia);
+                        if (occ) return occ;
+                        if (s.numeroBO) return String(s.numeroBO).trim();
+                        if (s.sinistroId) return String(s.sinistroId).trim();
+                        return '';
+                      };
+
+                      for (const s of sinistrosFromFat) {
+                        const k = keyFor(s) || s.key;
+                        sinistroMap.set(k, s);
+                      }
+                      for (const s of sinistrosFromEvents) {
+                        const k = keyFor(s) || s.key;
+                        if (!sinistroMap.has(k)) {
+                          sinistroMap.set(k, s);
+                        }
+                      }
+
+                      const sinistroOccurrences = Array.from(sinistroMap.values()).sort((a, b) => b.sinistroDate.getTime() - a.sinistroDate.getTime());
 
                       // Eventos prioritários que SEMPRE devem aparecer (ciclo de vida do veículo)
                       const PRIORITY_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO'];
@@ -1834,39 +1945,245 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             if (row.kind === 'SINISTRO_OCORRENCIA') {
                               const sin = row as SinistroOccurrence;
                               const icon = EVENT_ICONS['SINISTRO'] || <AlertTriangle size={14} className="text-rose-500" />;
-                              const title = sin.numeroBO ? `Sinistro ${sin.numeroBO}` : (/^\d+$/.test(String(sin.sinistroId)) ? `Sinistro #${sin.sinistroId}` : String(sin.ocorrencia ?? sin.sinistroId));
+                              // Preferir `ocorrencia` (ex: QUAL-440121). Se for numérico, prefixar com QUAL-
+                              let title = '';
+                              if (sin.ocorrencia) {
+                                title = String(sin.ocorrencia);
+                                if (/^\d+$/.test(title)) title = `QUAL-${title}`;
+                              } else if (sin.items?.[0]?.NumeroOcorrencia) {
+                                // fallback para usar NumeroOcorrencia presente no registro
+                                const n = String(sin.items[0].NumeroOcorrencia).trim();
+                                title = n && /^\d+$/.test(n) ? `QUAL-${n}` : n;
+                              } else if (sin.numeroBO) {
+                                title = `Sinistro ${sin.numeroBO}`;
+                              } else if (/^\d+$/.test(String(sin.sinistroId))) {
+                                title = `Sinistro #${sin.sinistroId}`;
+                              } else {
+                                title = String(sin.sinistroId ?? 'Sinistro');
+                              }
                               const dataSinistro = fmtDateTimeBR(sin.sinistroDate);
                               const isSinExpanded = expandedRows.has(sin.key);
                               const valor = sin.valorOrcamento;
                               const tipoSin = sin.tipoSinistro;
                               const situacao = sin.situacao;
-                              const fornecedor = sin.fornecedor;
-                              const cliente = sin.cliente;
+                              const fornecedor = sin.fornecedor ?? sin.items?.[0]?.Fornecedor ?? null;
+                              const cliente = sin.cliente ?? sin.items?.[0]?.Cliente ?? null;
+
+                              // Se inferimos uma ocorrência QUAL-xxx, tentar reaproveitar a renderização
+                              // de `MANUTENCAO_OCORRENCIA` para mostrar as OSs detalhadas.
+                              // Preferir `NumeroOcorrencia` presente no primeiro item quando disponível.
+                              if (!sin.ocorrencia && sin.items?.[0]) {
+                                sin.ocorrencia = sin.items[0]?.NumeroOcorrencia ?? sin.items[0]?.Ocorrencia ?? sin.ocorrencia;
+                              }
+                              let matchedManut = manutOccurrences.find(m => (m.ocorrencia ?? m.ocorrenciaId) === sin.ocorrencia);
+                              // Fallback: tentar encontrar por proximidade de data (7 dias)
+                              if (!matchedManut) {
+                                const sinDate = sin.sinistroDate?.getTime?.() ?? 0;
+                                if (sinDate) {
+                                  let best: any = null;
+                                  let bestDiff = Infinity;
+                                  for (const m of manutOccurrences) {
+                                    const md = m.ocorrenciaDate?.getTime?.() ?? 0;
+                                    if (!md) continue;
+                                    const diff = Math.abs(md - sinDate);
+                                    if (diff < bestDiff) {
+                                      best = m; bestDiff = diff;
+                                    }
+                                  }
+                                  // aceitar correspondência se dentro de 7 dias
+                                  if (best && bestDiff <= 1000 * 60 * 60 * 24 * 7) matchedManut = best;
+                                }
+                              }
+
+                              // Se não encontramos uma manutenção correspondente mas o sinistro tem `ocorrencia`,
+                              // criar uma ocorrência sintética a partir do sinistro para reaproveitar o mesmo layout.
+                              let syntheticManut: MaintenanceOccurrence | undefined;
+                              if (!matchedManut && sin.ocorrencia) {
+                                syntheticManut = {
+                                  kind: 'MANUTENCAO_OCORRENCIA',
+                                  key: `occ:sin:${sin.key}`,
+                                  ocorrenciaId: String(sin.ocorrencia),
+                                  ocorrencia: String(sin.ocorrencia),
+                                  ocorrenciaDate: sin.sinistroDate,
+                                  osRecords: sin.items?.map((it: any) => it) || [],
+                                  situacao: sin.situacao ?? undefined,
+                                  tipoOcorrencia: sin.tipoSinistro ?? undefined,
+                                  custoTotal: sin.valorOrcamento ?? undefined,
+                                  dataAberturaOcorrencia: sin.dataAberturaOcorrencia ?? null,
+                                  dataConclusaoOcorrencia: sin.dataConclusaoOcorrencia ?? null,
+                                  dataRetiradaVeiculo: sin.dataRetiradaVeiculo ?? null,
+                                  dataChegadaVeiculo: sin.dataChegadaVeiculo ?? null,
+                                  movimentacoes: [],
+                                  horasConclusaoRetirada: null,
+                                  diasConclusaoRetirada: null
+                                };
+                                matchedManut = syntheticManut;
+                              }
+
+                              if (matchedManut) {
+                                const row = matchedManut;
+                                const iconMan = EVENT_ICONS['MANUTENCAO'] || <Wrench size={14} className="text-amber-500" />;
+                                const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
+                                const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0,10)}`);
+                                const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
+                                const firstRec = row.osRecords[0];
+                                const motivo = firstRec?.Motivo ?? '';
+                                const descricao = firstRec?.DescricaoOcorrencia ?? firstRec?.Descricao ?? '';
+                                const isRowExpanded = expandedRows.has(row.key);
+                                const fornecedor = firstRec?.FornecedorOcorrencia ?? firstRec?.FornecedorOS ?? firstRec?.Fornecedor ?? '';
+                                const cliente = firstRec?.Cliente ?? firstRec?.NomeCliente ?? '';
+
+                                return (
+                                  <div key={sin.key} className="relative pl-6">
+                                    <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
+                                      {iconMan}
+                                    </div>
+                                    <div
+                                      className="bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all"
+                                      onClick={() => toggleRow(row.key)}
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-bold text-sm text-amber-800">{titleMan}</span>
+                                            <Badge color="amber" className="shrink-0">{row.osRecords.length} OS</Badge>
+                                            {row.tipoOcorrencia && (
+                                              <Badge color="slate" className="shrink-0 text-[10px]">{row.tipoOcorrencia}</Badge>
+                                            )}
+                                            {row.situacao && (
+                                              <Badge
+                                                color={row.situacao.toLowerCase().includes('conclu') ? 'emerald' : row.situacao.toLowerCase().includes('cancel') ? 'rose' : 'blue'}
+                                                className="shrink-0 text-[10px]"
+                                              >
+                                                {row.situacao}
+                                              </Badge>
+                                            )}
+                                            {row.custoTotal != null && row.custoTotal > 0 && (
+                                              <span className="text-amber-700 font-bold text-xs ml-auto">{fmtMoney(row.custoTotal)}</span>
+                                            )}
+                                          </div>
+                                          <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
+                                            <div><b>Data:</b> {dataOcorrencia} {motivo && <>• <b>Motivo:</b> {motivo}</>}</div>
+                                            {descricao && (
+                                              <div className="flex items-start gap-2">
+                                                <div className={`italic text-slate-500 ${isRowExpanded ? '' : 'line-clamp-2'}`}>{descricao}</div>
+                                                {!isRowExpanded && descricao.length > 140 && (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleRow(row.key); }}
+                                                    className="text-amber-600 text-xs hover:underline"
+                                                  >
+                                                    Expandir
+                                                  </button>
+                                                )}
+                                              </div>
+                                            )}
+                                            {(fornecedor || cliente) && (
+                                              <div className="text-[10px] text-slate-500">
+                                                {fornecedor && <><b>Fornecedor:</b> {fornecedor} </>}
+                                                {cliente && <><b>Cliente:</b> {cliente}</>}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2 shrink-0">
+                                          <div className="text-right text-[11px] text-slate-600">
+                                            <div><b>Abertura:</b> {fmtDateTimeBR(row.dataAberturaOcorrencia ?? row.ocorrenciaDate)}</div>
+                                            <div><b>Conclusão:</b> {fmtDateTimeBR(row.dataConclusaoOcorrencia)}</div>
+                                            {row.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(row.dataChegadaVeiculo)}</div>}
+                                            <div><b>Retirada:</b> {fmtDateTimeBR(row.dataRetiradaVeiculo)}</div>
+                                            {(() => {
+                                              const minsConclRet = getMinutesConclusaoRetirada(row);
+                                              return minsConclRet != null ? (
+                                                <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                              ) : null;
+                                            })()}
+                                            {/* Se há um registro de sinistro associado, mostrar campos vindos do registro bruto */}
+                                            {sin.items?.[0] && (
+                                              (() => {
+                                                const itm = sin.items[0];
+                                                const dataCriacao = fmtDateTimeBR(parseDateAny(itm?.DataCriacao ?? itm?.DataCriacaoSinistro ?? itm?.DataCriacaoOcorrencia ?? itm?.Data))
+                                                const dataSin = fmtDateTimeBR(parseDateAny(itm?.DataSinistro ?? itm?.DataOcorrencia ?? itm?.Data))
+                                                const dataConclusaoOc = fmtDateTimeBR(parseDateAny(itm?.DataConclusaoOcorrer ?? itm?.DataConclusaoOcorrencia ?? itm?.DataConclusao ?? itm?.DataFimReal))
+                                                const dataAgendamento = fmtDateTimeBR(parseDateAny(itm?.DataAgendamento ?? itm?.DataAgendamentoOcorrencia ?? itm?.DataAgendado))
+                                                const dataRetirada = fmtDateTimeBR(parseDateAny(itm?.DataRetirada ?? itm?.DataRetiradaVeiculo ?? itm?.DataSaida))
+                                                const dataRetiradaVeic = fmtDateTimeBR(parseDateAny(itm?.DataRetiradaVeiculo ?? itm?.DataSaida ?? itm?.DataRetirada))
+                                                const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? row.situacao ?? '')
+                                                const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '')
+                                                const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '')
+                                                const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '')
+                                                const placaIt = String(itm?.Placa ?? itm?.PlacaVeiculo ?? itm?.PlacaVeiculoCorrida ?? '')
+                                                return (
+                                                  <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
+                                                    {dataCriacao && <div><b>DataCriação:</b> {dataCriacao}</div>}
+                                                    {dataSin && <div><b>DataSinistro:</b> {dataSin}</div>}
+                                                    {dataConclusaoOc && <div><b>DataConclusão:</b> {dataConclusaoOc}</div>}
+                                                    {dataAgendamento && <div><b>DataAgendamento:</b> {dataAgendamento}</div>}
+                                                    {dataRetirada && <div><b>DataRetirada:</b> {dataRetirada}</div>}
+                                                    {dataRetiradaVeic && <div><b>DataRetiradaVeículo:</b> {dataRetiradaVeic}</div>}
+                                                    {situ && <div><b>Situação:</b> {situ}</div>}
+                                                    {etapa && <div><b>Etapa:</b> {etapa}</div>}
+                                                    {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
+                                                    {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
+                                                    {placaIt && <div><b>Placa:</b> {placaIt}</div>}
+                                                  </div>
+                                                )
+                                              })()
+                                            )}
+                                            </div>
+                                            <div className="text-xs text-amber-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                        </div>
+                                      </div>
+
+                                      {isRowExpanded && (
+                                        <div className="mt-3 space-y-2">
+                                          {row.osRecords.map((it: any, idx: number) => (
+                                            <div key={`os-${idx}`} className="p-3 bg-white rounded border border-amber-50 text-xs">
+                                              <div className="flex justify-between">
+                                                <div className="flex-1">
+                                                  <div className="font-medium text-slate-700">{it?.IdOrdemServico ?? it?.OrdemServico ?? it?.OS ?? `OS ${idx + 1}`}</div>
+                                                  <div className="text-[11px] text-slate-500">{it?.Fornecedor ?? it?.FornecedorOcorrencia ?? ''}</div>
+                                                </div>
+                                                <div className="text-amber-700 font-bold">{fmtMoney(it?.CustoTotalOS ?? it?.CustoTotal ?? it?.Valor ?? 0)}</div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              }
 
                               return (
                                 <div key={sin.key} className="relative pl-6">
-                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-rose-300 flex items-center justify-center">
+                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
                                     {icon}
                                   </div>
                                   <div
-                                    className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all"
+                                    className="bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all"
                                     onClick={() => toggleRow(sin.key)}
                                   >
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="font-bold text-sm text-rose-800">{title}</span>
+                                          <span className="font-bold text-sm text-amber-800">{title}</span>
+                                          <Badge color="amber" className="shrink-0">{sin.items?.length ?? 1} item(s)</Badge>
                                           {tipoSin && (
-                                            <Badge color="rose" className="shrink-0 text-[10px]">{tipoSin}</Badge>
+                                            <Badge color="slate" className="shrink-0 text-[10px]">{tipoSin}</Badge>
                                           )}
                                           {situacao && (
-                                            <Badge color={situacao.toLowerCase().includes('conclu') ? 'emerald' : 'rose'} className="shrink-0 text-[10px]">{situacao}</Badge>
+                                            <Badge
+                                              color={situacao.toLowerCase().includes('conclu') ? 'emerald' : situacao.toLowerCase().includes('cancel') ? 'rose' : 'blue'}
+                                              className="shrink-0 text-[10px]"
+                                            >
+                                              {situacao}
+                                            </Badge>
                                           )}
                                           {valor != null && Number(valor) > 0 && (
-                                            <span className="text-rose-700 font-bold text-xs ml-auto">{fmtMoney(valor)}</span>
+                                            <span className="text-amber-700 font-bold text-xs ml-auto">{fmtMoney(valor)}</span>
                                           )}
                                         </div>
-                                        <div className="text-xs text-slate-600 mt-1.5">
+                                        <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
                                           <div><b>Data:</b> {dataSinistro}</div>
                                           {sin.items?.[0] && (
                                             <div className={`italic text-slate-500 ${isSinExpanded ? '' : 'line-clamp-2'}`}>{sin.items[0]?.Observacao ?? sin.items[0]?.Descricao ?? ''}</div>
@@ -1880,24 +2197,70 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         </div>
                                       </div>
                                       <div className="flex flex-col items-end gap-2 shrink-0">
-                                        <div className="text-right text-[11px] text-rose-600">
+                                        <div className="text-right text-[11px] text-slate-600">
                                           <div><b>Abertura:</b> {fmtDateTimeBR(sin.dataAberturaOcorrencia ?? sin.sinistroDate)}</div>
                                           <div><b>Conclusão:</b> {fmtDateTimeBR(sin.dataConclusaoOcorrencia)}</div>
                                           {sin.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(sin.dataChegadaVeiculo)}</div>}
-                                          {sin.dataRetiradaVeiculo && <div><b>Retirada:</b> {fmtDateTimeBR(sin.dataRetiradaVeiculo)}</div>}
+                                          <div><b>Retirada:</b> {fmtDateTimeBR(sin.dataRetiradaVeiculo)}</div>
+                                          {(() => {
+                                            const minsConclRet = getMinutesConclusaoRetirada(sin);
+                                            return minsConclRet != null ? (
+                                              <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                            ) : null;
+                                          })()}
+                                          {sin.items?.[0] && (
+                                            (() => {
+                                              const itm = sin.items[0];
+                                              const dataCriacao = fmtDateTimeBR(parseDateAny(itm?.DataCriacao ?? itm?.DataCriacaoSinistro ?? itm?.DataCriacaoOcorrencia ?? itm?.Data))
+                                              const dataSin = fmtDateTimeBR(parseDateAny(itm?.DataSinistro ?? itm?.DataOcorrencia ?? itm?.Data))
+                                              const dataConclusaoOc = fmtDateTimeBR(parseDateAny(itm?.DataConclusaoOcorrer ?? itm?.DataConclusaoOcorrencia ?? itm?.DataConclusao ?? itm?.DataFimReal))
+                                              const dataAgendamento = fmtDateTimeBR(parseDateAny(itm?.DataAgendamento ?? itm?.DataAgendamentoOcorrencia ?? itm?.DataAgendado))
+                                              const dataRetirada = fmtDateTimeBR(parseDateAny(itm?.DataRetirada ?? itm?.DataRetiradaVeiculo ?? itm?.DataSaida))
+                                              const dataRetiradaVeic = fmtDateTimeBR(parseDateAny(itm?.DataRetiradaVeiculo ?? itm?.DataSaida ?? itm?.DataRetirada))
+                                              const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? sin.situacao ?? '')
+                                              const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '')
+                                              const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '')
+                                              const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '')
+                                              const placaIt = String(itm?.Placa ?? itm?.PlacaVeiculo ?? itm?.PlacaVeiculoCorrida ?? '')
+                                              return (
+                                                <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
+                                                  {dataCriacao && <div><b>DataCriação:</b> {dataCriacao}</div>}
+                                                  {dataSin && <div><b>DataSinistro:</b> {dataSin}</div>}
+                                                  {dataConclusaoOc && <div><b>DataConclusão:</b> {dataConclusaoOc}</div>}
+                                                  {dataAgendamento && <div><b>DataAgendamento:</b> {dataAgendamento}</div>}
+                                                  {dataRetirada && <div><b>DataRetirada:</b> {dataRetirada}</div>}
+                                                  {dataRetiradaVeic && <div><b>DataRetiradaVeículo:</b> {dataRetiradaVeic}</div>}
+                                                  {situ && <div><b>Situação:</b> {situ}</div>}
+                                                  {etapa && <div><b>Etapa:</b> {etapa}</div>}
+                                                  {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
+                                                  {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
+                                                  {placaIt && <div><b>Placa:</b> {placaIt}</div>}
+                                                </div>
+                                              )
+                                            })()
+                                          )}
                                         </div>
-                                        <div className="text-xs text-rose-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                        <div className="text-xs text-amber-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                       </div>
                                     </div>
 
                                     {isSinExpanded && (
                                       <div className="mt-3 space-y-2">
                                         {sin.items.map((it: any, idx: number) => (
-                                          <div key={`sin-item-${idx}`} className="bg-white p-3 rounded border-l-4 border-rose-400">
-                                            <div className="text-sm font-medium">{it?.Observacao || it?.Descricao || it?.Motivo || `Item ${idx + 1}`}</div>
-                                            <div className="text-xs text-slate-500">{fmtDateTimeBR(parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro))}</div>
-                                            {it?.ValorOrcamento != null && <div className="text-rose-700 font-bold">{fmtMoney(it.ValorOrcamento)}</div>}
-                                            {it?.Fornecedor && <div className="text-[11px] text-slate-500 mt-1">{it.Fornecedor}</div>}
+                                          <div key={`sin-item-${idx}`} className="text-xs bg-white p-3 border-l-4 border-amber-400 rounded shadow-sm">
+                                            <div className="flex justify-between">
+                                              <div className="flex-1">
+                                                <div className="font-medium text-slate-700">{it?.Observacao || it?.Descricao || it?.Motivo || `Item ${idx + 1}`}</div>
+                                                <div className="text-[11px] text-slate-500">{fmtDateTimeBR(parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro))}</div>
+                                              </div>
+                                              {it?.ValorOrcamento != null && <div className="text-amber-700 font-bold">{fmtMoney(it.ValorOrcamento)}</div>}
+                                            </div>
+                                            {it?.Fornecedor && (
+                                              <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit mt-2">
+                                                <Store size={12} className="text-amber-600" />
+                                                <span className="text-[10px]">Fornecedor: <b>{it.Fornecedor}</b></span>
+                                              </div>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
