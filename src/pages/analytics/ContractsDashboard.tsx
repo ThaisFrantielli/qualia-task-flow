@@ -8,19 +8,34 @@ type AnyObject = { [k: string]: any };
 
 export default function ContractsDashboard(): JSX.Element {
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
+  const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
   
   // Transform raw data to Contract types
   const contracts = useMemo(() => {
     if (!contractsData || !Array.isArray(contractsData)) return [];
     
     const contractsArray = contractsData as AnyObject[];
-    
-    // Create a map for quick frota lookup by normalized plate
+    // Build a lookup map from frota (dim_frota) by normalized plate
     const normalizeForLookup = (p: unknown) => {
       if (!p) return '';
       return String(p).toUpperCase().replace(/[^A-Z0-9]/g, '');
     };
-    
+
+    const frotaMap: Record<string, { grupo?: string; idadeMeses?: number; odometro?: number; fipeAtual?: number }> = {};
+    if (Array.isArray(frotaData)) {
+      for (const row of frotaData) {
+        const placa = row.Placa || row.placa || row.placaprincipal || row.plate;
+        const grupo = row.GrupoVeiculo || row.grupoveiculo || row.Grupo || row.grupo;
+        const rawIdade = row.IdadeEmMeses || row.idadeEmMeses || row.idade_em_meses || row.Idade || row.idade;
+        const idadeMeses = rawIdade !== undefined && rawIdade !== null ? parseInt(String(rawIdade).replace(/[^0-9]/g, '')) || undefined : undefined;
+        const rawOdometro = row.OdometroInformado || row.odometroInformado || row.Odometro || row.odometro || row.Odometro_Informado;
+        const odometroVal = rawOdometro !== undefined && rawOdometro !== null ? parseFloat(String(rawOdometro).replace(/[^0-9.]/g, '')) || undefined : undefined;
+        const rawFipe = row.ValorAtualFipe || row.valorAtualFipe || row.ValorFipeAtual || row.valorFipeAtual || row.ValorFipe || row.valorfipe;
+        const fipeVal = rawFipe !== undefined && rawFipe !== null ? parseFloat(String(rawFipe).replace(/[^0-9.]/g, '')) || undefined : undefined;
+        const key = normalizeForLookup(placa);
+        if (key) frotaMap[key] = { grupo: grupo || frotaMap[key]?.grupo || '', idadeMeses: idadeMeses ?? frotaMap[key]?.idadeMeses, odometro: odometroVal ?? frotaMap[key]?.odometro, fipeAtual: fipeVal ?? frotaMap[key]?.fipeAtual };
+      }
+    }
     
 
     return contractsArray.map((c, idx) => {
@@ -41,7 +56,9 @@ export default function ContractsDashboard(): JSX.Element {
       };
 
       // 1. Resolve plate and joined vehicle fields from API
-      let lookupKey = normalizeForLookup(c.plate || c.PlacaPrincipal || c.placaprincipal);
+      // keep a rawPlate (without suffix) for lookup, and finalPlate for display
+      const rawPlateCandidate = getStr(c.plate, c.PlacaPrincipal, c.placaprincipal, getStr(c.PlacaReserva, c.placa_reserva));
+      let lookupKey = normalizeForLookup(rawPlateCandidate);
       let displaySuffix = '';
 
       // Fallback: If no primary vehicle, try PlacaReserva
@@ -57,7 +74,7 @@ export default function ContractsDashboard(): JSX.Element {
         }
       }
 
-      let finalPlate = getStr(c.plate, c.PlacaPrincipal, c.placaprincipal, getStr(c.PlacaReserva, c.placa_reserva));
+      let finalPlate = rawPlateCandidate;
       if (finalPlate && displaySuffix) {
         finalPlate += displaySuffix;
       }
@@ -65,14 +82,39 @@ export default function ContractsDashboard(): JSX.Element {
       // Dados vindos do LEFT JOIN de dim_contratos_locacao + dim_frota
       const finalMontadora = getStr(c.Montadora, c.montadora);
       const finalModelo = getStr(c.Modelo, c.modelo_veiculo, c.modelo, c.model);
-      const finalCategoria = getStr(c.GrupoVeiculo, c.grupoveiculo, c.Categoria, c.categoria);
+      // Prefer GrupoVeiculo from dim_contratos (if present), otherwise try frota lookup
+      let finalCategoria = getStr(c.GrupoVeiculo, c.grupoveiculo, c.Categoria, c.categoria);
+      if ((!finalCategoria || finalCategoria === '') && lookupKey) {
+        const fromFrota = frotaMap[lookupKey]?.grupo;
+        if (fromFrota) finalCategoria = fromFrota;
+      }
 
       // KM / Idade / FIPE / Compra via JOIN (com fallback de nomes)
-      const rawKm = c.currentKm || c.KmInformado || c.kminformado || c.km;
-      const finalKm = rawKm ? parseNum(rawKm) : 0;
+      const rawKm = (c.currentKm ?? c.KmInformado ?? c.kminformado ?? c.km);
+      let finalKm = (rawKm !== undefined && rawKm !== null && String(rawKm).trim() !== '') ? parseNum(rawKm) : 0;
+      // fallback to dim_frota OdometroInformado when contract km is missing
+      if ((finalKm === 0 || finalKm === undefined) && lookupKey) {
+        const frotaOd = frotaMap[lookupKey]?.odometro;
+        if (frotaOd !== undefined && frotaOd !== null) {
+          finalKm = Math.round(frotaOd);
+        }
+      }
+
+      // FIPE: prefer contract field, otherwise use dim_frota.ValorAtualFipe
+      const rawFipeFromContract = c.valorFipeAtual || c.ValorFipeAtual || c.ValorFipe || c.valorfipe;
+      const parsedContractFipe = rawFipeFromContract ? parseNum(rawFipeFromContract) : 0;
+      const frotaFipe = lookupKey ? frotaMap[lookupKey]?.fipeAtual : undefined;
+      const finalFipe = (parsedContractFipe && parsedContractFipe > 0) ? parsedContractFipe : (frotaFipe ?? 0);
 
       const rawAge = c.ageMonths || c.IdadeVeiculo || c.idadeveiculo;
-      const finalAge = (rawAge !== undefined && rawAge !== null) ? Math.round(parseNum(rawAge)) : undefined;
+      let finalAge = (rawAge !== undefined && rawAge !== null) ? Math.round(parseNum(rawAge)) : undefined;
+      // If no age from contrato, fallback to dim_frota lookup by plate
+      if ((finalAge === undefined || finalAge === 0) && lookupKey) {
+        const frotaEntry = frotaMap[lookupKey];
+        if (frotaEntry && frotaEntry.idadeMeses !== undefined) {
+          finalAge = frotaEntry.idadeMeses;
+        }
+      }
 
       // Ensure unique ID (using index to prevent duplicates)
       const uniqueId = `${c.IdContratoLocacao || 'gen'}-${idx}`;
@@ -83,7 +125,7 @@ export default function ContractsDashboard(): JSX.Element {
         clientName: String(c.NomeCliente || c.nome_cliente || 'N/A'),
         
         plate: finalPlate,
-        plateNormalized: normalizeForLookup(finalPlate),
+        plateNormalized: normalizeForLookup(rawPlateCandidate || finalPlate),
         
         model: finalModelo,
         montadora: finalMontadora,
@@ -100,7 +142,7 @@ export default function ContractsDashboard(): JSX.Element {
         ageMonths: finalAge,
         
         // FIPE e Compra via JOIN
-        valorFipeAtual: parseNum(c.valorFipeAtual || c.ValorFipeAtual || c.ValorFipe || c.valorfipe),
+        valorFipeAtual: finalFipe,
         ValorCompra: parseNum(c.ValorCompra || c.valorcompra),
         
         // Original fields logic preserved but simplified
@@ -130,14 +172,14 @@ export default function ContractsDashboard(): JSX.Element {
         })()
       } as Contract;
     });
-  }, [contractsData]);
+  }, [contractsData, frotaData]);
 
   const handleUpdateContract = useCallback((updatedContract: Contract) => {
     // Handle updates if needed in the future
     console.log('Contract update requested:', updatedContract.id);
   }, []);
 
-  if (loadingContracts) {
+  if (loadingContracts || loadingFrota) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">

@@ -42,23 +42,24 @@ const normalizeStatus = (value: string) =>
 
 const getCategory = (status: string) => {
   const s = normalizeStatus(status);
-
-  if (['LOCADO', 'LOCADO VEICULO RESERVA', 'USO INTERNO', 'EM MOBILIZACAO'].includes(s)) {
+  // Produtiva: includes rented / in mobilization / internal use
+  if (s.includes('LOCAD') || s.includes('USO INTERNO') || s.includes('EM MOBILIZ') || s.includes('LOCADO VEICULO RESERVA')) {
     return 'Produtiva';
   }
 
-  if ([
-    'VENDIDO',
-    'BAIXADO',
-    'SINISTRO PERDA TOTAL',
-    'ROUBO',
-    'FURTO',
-    'DEVOLVIDO',
-    'DISPONIVEL PRA VENDA',
-    'DISPONIVEL PARA VENDA',
-    'NAO DISPONIVEL',
-    'EM DESMOBILIZACAO'
-  ].includes(s)) {
+  // Inativa: sold, written-off, theft/loss, returned, unavailable for use or explicitly marked for sale
+  if (
+    s.includes('VEND') ||
+    s.includes('BAIXAD') ||
+    s.includes('SINISTR') ||
+    s.includes('ROUB') ||
+    s.includes('FURT') ||
+    s.includes('DEVOLV') ||
+    s.includes('NAO DISPONIV') ||
+    s.includes('DESMOBILIZ') ||
+    // only treat as 'Inativa' when it's explicitly 'Disponivel para venda' (contains both tokens)
+    (s.includes('DISPONIVEL') && s.includes('VENDA'))
+  ) {
     return 'Inativa';
   }
 
@@ -210,6 +211,9 @@ export default function FleetIdleDashboard(): JSX.Element {
       let usandoHistoricoCount = 0;
       let usandoFallbackCount = 0;
 
+      // Collect breakdown by normalized status (samples kept for inspection)
+      const statusCounts: Record<string, { count: number; placas: string[] }> = {};
+
       for (let idx = 0; idx < placas.length; idx++) {
         const placa = placas[idx];
         const { status, usedHistorico } = resolveStatusForDate(placa, checkDate);
@@ -219,12 +223,39 @@ export default function FleetIdleDashboard(): JSX.Element {
 
         // Terceiros já foram filtrados antes do loop
         const cat = getCategory(status || '');
-        // DEBUG: Log primeiro dia para verificar classificação
-        if (i === daysToGenerate - 1 && idx < 5) {
-          console.log(`📊 Placa ${placa}: status="${status}" → categoria="${cat}"`);
-        }
+
+        // Explicitly ignore 'Inativa' statuses so they don't affect counts
+        if (cat === 'Inativa') continue;
+
+        // breakdown by normalized status
+        const sNorm = normalizeStatus(status || '') || 'N/A';
+        if (!statusCounts[sNorm]) statusCounts[sNorm] = { count: 0, placas: [] };
+        statusCounts[sNorm].count += 1;
+        if (statusCounts[sNorm].placas.length < 10) statusCounts[sNorm].placas.push(placa);
+
         if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
         if (cat === 'Improdutiva') improdutivaCount += 1;
+      }
+
+      // If this is the target date, emit detailed debug info to help diagnose discrepancies
+      if (dateStr === '2026-02-12') {
+        const improdutivaStatuses: Record<string, number> = {};
+        const produtivaStatuses: Record<string, number> = {};
+        Object.entries(statusCounts).forEach(([s, info]) => {
+          const cat = getCategory(s);
+          if (cat === 'Improdutiva') improdutivaStatuses[s] = info.count;
+          if (cat === 'Produtiva') produtivaStatuses[s] = info.count;
+        });
+
+        console.debug('🔍 [FleetIdleDebug] Date:', dateStr);
+        console.debug('🔍 totals -> improdutivaCount:', improdutivaCount, 'activeCount:', activeCount, 'pct:', (activeCount>0?((improdutivaCount/activeCount)*100).toFixed(2):'0'));
+        console.debug('🔍 usingHistoric:', usandoHistoricoCount, 'usingFallback:', usandoFallbackCount, 'totalPlacasConsidered:', placas.length);
+        console.debug('🔍 improdutiva breakdown (status -> count):', improdutivaStatuses);
+        console.debug('🔍 produtiva breakdown (status -> count):', produtivaStatuses);
+        // Print sample placas per status for quick inspection (max 10 per status)
+        Object.entries(statusCounts).forEach(([s, info]) => {
+          console.debug(`🔍 status sample: ${s} -> count=${info.count} placas=${info.placas.join(', ')}`);
+        });
       }
 
       const pct = activeCount > 0 ? (improdutivaCount / activeCount) * 100 : 0;
