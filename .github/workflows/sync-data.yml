@@ -1,16 +1,21 @@
-name: Sincronizar Dados (3x ao Dia)
+name: Sincronizar Dados (DESATIVADO - ETL roda no servidor Oracle Cloud)
+
+# DESATIVADO: O ETL agora é executado por cron no servidor Oracle Cloud (137.131.163.167).
+# Este workflow foi mantido como referência/backup.
+# Para reativar, descomente as linhas abaixo.
 
 on:
-  schedule:
-    - cron: '30 13 * * *'
-    - cron: '30 18 * * *'
-    - cron: '30 3 * * *'
+  # schedule:
+  #   - cron: '30 13 * * *'
+  #   - cron: '30 18 * * *'
+  #   - cron: '30 3 * * *'
   workflow_dispatch:
 
 jobs:
   update-data:
-    name: ETL e Atualização de JSONs
+    name: ETL e Atualização de JSONs (DESATIVADO)
     runs-on: ubuntu-latest
+    if: false  # Workflow desativado - ETL roda no servidor Oracle Cloud
     permissions:
       contents: write
 
@@ -44,4 +49,3 @@ jobs:
         run: |
           echo "✅ ETL concluído com sucesso!"
           echo "📊 Dados sincronizados no PostgreSQL"
- 
