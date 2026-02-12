@@ -27,7 +27,14 @@ const TABLES = [
     { table: 'dim_frota', query: `SELECT * FROM Veiculos WITH (NOLOCK)` },
     {
         table: 'dim_contratos_locacao',
-        query: `SELECT cl.*, cli.NomeFantasia as NomeCliente FROM ContratosLocacao cl WITH (NOLOCK) LEFT JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContrato = cc.IdContratoComercial LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente`
+        query: `SELECT cl.*, cli.NomeFantasia as NomeCliente, v.ValorAtualFipe as ValorAtualFipe FROM ContratosLocacao cl WITH (NOLOCK)
+            LEFT JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContrato = cc.IdContratoComercial
+            LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente
+            LEFT JOIN Veiculos v WITH (NOLOCK) ON (
+                (cl.Placa IS NOT NULL AND v.Placa IS NOT NULL AND cl.Placa = v.Placa) OR
+                (cl.PlacaPrincipal IS NOT NULL AND v.Placa IS NOT NULL AND cl.PlacaPrincipal = v.Placa) OR
+                (cl.PlacaReserva IS NOT NULL AND v.Placa IS NOT NULL AND cl.PlacaReserva = v.Placa)
+            )`
     },
     { table: 'fat_precos_locacao', query: `SELECT * FROM ContratosLocacaoPrecos WITH (NOLOCK)` },
     { table: 'dim_movimentacao_patios', query: `SELECT * FROM MovimentacaoPatios WITH (NOLOCK)` },
