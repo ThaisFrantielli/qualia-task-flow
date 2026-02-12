@@ -1,8 +1,20 @@
 import pg from 'pg';
 
-const p = new pg.Pool({ 
-  connectionString: 'postgresql://neondb_owner:npg_y7XEQfUwOVW2@ep-restless-dream-acblgckm-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require' 
-});
+// Use ORACLE_PG_* environment variables (fallback to DATABASE_URL)
+const buildConn = () => {
+  if (process.env.ORACLE_PG_CONNECTION_STRING) return process.env.ORACLE_PG_CONNECTION_STRING;
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  const host = process.env.ORACLE_PG_HOST || process.env.PG_HOST || '127.0.0.1';
+  const port = process.env.ORACLE_PG_PORT || process.env.PG_PORT || '5432';
+  const user = process.env.ORACLE_PG_USER || process.env.PG_USER || 'postgres';
+  const pass = process.env.ORACLE_PG_PASSWORD || process.env.PG_PASSWORD || '';
+  const db = process.env.ORACLE_PG_DATABASE || process.env.PG_DATABASE || 'bluconecta_dw';
+  // No SSL by default; respect ORACLE_PG_SSL if set to 'true'
+  const sslParam = process.env.ORACLE_PG_SSL === 'true' ? '?sslmode=require' : '';
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}/${db}${sslParam}`;
+};
+
+const p = new pg.Pool({ connectionString: buildConn() });
 
 async function main() {
   try {

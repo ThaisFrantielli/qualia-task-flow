@@ -46,3 +46,5 @@ session-whatsapp-client-default/
 # Error and service logs
 *.err
 
+.vercel
+.env*.local

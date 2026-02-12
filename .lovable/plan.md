@@ -56,7 +56,7 @@ Mudancas-chave:
 ### Como Funciona Hoje
 
 ```text
-SQL Server (DW) --> GitHub Actions (ETL 3x/dia) --> PostgreSQL (Neon)
+SQL Server (DW) --> GitHub Actions (ETL 3x/dia) --> PostgreSQL (destino)
                                                        |
                                                        v
                                                   JSONs em public/data/
@@ -68,7 +68,7 @@ SQL Server (DW) --> GitHub Actions (ETL 3x/dia) --> PostgreSQL (Neon)
 **Schedule**: GitHub Actions roda nos horarios UTC `03:30`, `13:30`, `18:30` (equivalente a ~00:30, 10:30, 15:30 horario de Brasilia)
 
 **Fluxo**:
-1. O script `run-sync-v2.js` conecta ao SQL Server, extrai dados, e grava no PostgreSQL (Neon)
+1. O script `run-sync-v2.js` conecta ao SQL Server, extrai dados, e grava no PostgreSQL (destino)
 2. Gera arquivos JSON particionados em `public/data/` (ex: `dim_frota.json`, `agg_custos_detalhados_part1of26.json`)
 3. Faz commit automatico via GitHub Actions (permissions: contents: write)
 4. O Vercel detecta o push e faz redeploy automatico
@@ -79,7 +79,7 @@ SQL Server (DW) --> GitHub Actions (ETL 3x/dia) --> PostgreSQL (Neon)
 - Cache de 5 minutos em memoria
 - O `DataUpdateBadge` exibe metadados de atualizacao (DW timestamp, ETL timestamp, versao)
 
-### Problemas Identificados
+ ###Problemas Identificados
 
 1. **JSONs servidos como HTML**: Sem Content-Type adequado no Vercel, quando o browser pede `/data/dim_frota.json` e o arquivo nao existe, o fallback retorna `index.html` -- o `useBIData` ja tem protecao contra isso (verifica se o body comeca com `<`), mas o Content-Type correto evita o problema na raiz.
 

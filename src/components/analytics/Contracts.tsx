@@ -53,9 +53,56 @@ const getAgeRangeLabelFromMonths = (ageMonths: number): string => {
 const KM_ORDER = ['0-10k', '10k-20k', '20k-30k', '30k-40k', '40k-50k', '50k-60k', '60k-70k', '70k-80k', '80k-100k', '100k-120k', '+120k'];
 const AGE_ORDER = ['0-12m', '13-24m', '25-36m', '37-48m', '49-60m', '+60m'];
 
+// Component: collapsible section per montadora showing top models as a small bar chart
+function MontadoraSection({ montadora, models, defaultExpanded = false }: { montadora: string; models: { name: string; value: number; fullKey: string }[]; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(!!defaultExpanded);
+  const totalCount = models.reduce((s, m) => s + m.value, 0);
+
+  return (
+    <div className="border rounded p-2 bg-white">
+      <div className="flex justify-between items-center">
+        <button onClick={() => setExpanded(e => !e)} className="text-left font-bold text-sm text-slate-800">
+          {montadora} <span className="text-xs text-slate-500">({totalCount})</span>
+        </button>
+        <button onClick={() => setExpanded(e => !e)} className="text-xs text-slate-500">{expanded ? 'Ocultar' : 'Mostrar'}</button>
+      </div>
+      {expanded && (
+        <div className="mt-2" style={{ height: 120 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={models.slice(0, 10)} layout="vertical" margin={{ left: 0, right: 10 }}>
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 10 }} />
+              <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
+              <Bar dataKey="value" fill="#10B981" barSize={12}>
+                {models.slice(0, 10).map((entry, i) => (
+                  <Cell key={i} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContract }) => {
   const [viewMode, setViewMode] = useState<'analysis' | 'list'>('analysis');
+  const [expandAllModels, setExpandAllModels] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Pagination for list view
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  // For dropdown-style filter panels in List view
+  const [openFilterPanel, setOpenFilterPanel] = useState<string | null>(null);
+  // per-panel search text to filter long lists inside dropdowns
+  const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
+
+  // Modal to collect purchasePrice when required by strategy
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [pendingStrategyChange, setPendingStrategyChange] = useState<{ id: string; newStrategy: RenewalStrategy } | null>(null);
+  const [purchaseModalContractId, setPurchaseModalContractId] = useState<string | null>(null);
+  const [tempPurchasePrice, setTempPurchasePrice] = useState<string>('');
   
   // Observation Modal
   const [observationModalOpen, setObservationModalOpen] = useState(false);
@@ -70,14 +117,38 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
     group: string[];
     kmRange: string[];
     ageRange: string[];
+    situation: string[];
+    client: string[];
+    commercialContract: string[];
+    contractNumber: string[];
+    plate: string[];
+    model: string[];
   }>({
     strategy: [],
     type: [],
     year: [],
     group: [],
     kmRange: [],
-    ageRange: []
+    ageRange: [],
+    situation: [],
+    client: [],
+    commercialContract: [],
+    contractNumber: [],
+    plate: [],
+    model: []
   });
+
+  // Close open filter panel when clicking outside (prevents panel sticking and blocking UI)
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest('.filter-panel') && !t.closest('.filter-button')) {
+        setOpenFilterPanel(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const toggleFilter = (key: keyof typeof filters, value: string) => {
     setFilters(prev => {
@@ -91,26 +162,44 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
   };
 
   const clearFilters = () => {
-    setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [] });
+    setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [] });
   };
   
   // --- DATA PREPARATION ---
   const enrichedContracts = useMemo(() => {
     return contracts.map(c => ({
       ...c,
-      kmRangeLabel: getKmRangeLabel(c.currentKm || 0),
-      ageRangeLabel: c.ageMonths !== undefined ? getAgeRangeLabelFromMonths(c.ageMonths) : getAgeRangeLabel(c.manufacturingYear),
+      kmRangeLabel: getKmRangeLabel(Number(c.currentKm || c.km || 0)),
+      ageRangeLabel: Number.isFinite(Number(c.ageMonths)) ? getAgeRangeLabelFromMonths(Number(c.ageMonths)) : getAgeRangeLabel(c.manufacturingYear),
       expiryYear: new Date(c.endDate).getFullYear().toString(),
-      groupLabel: c.model
+      groupLabel: String(c.modelo_veiculo || c.model || c.modelo || '')
     }));
   }, [contracts]);
 
+  // Derived lists for filter dropdowns (unique values)
+  const clientsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.clientName || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const commercialContractsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.commercialContract || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const contractNumbersList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.contractNumber || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const platesList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.plate || c.mainPlate || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const modelsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.modelo_veiculo || c.model || c.modelo || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const situationsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.contractStatus || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const yearsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.expiryYear || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+
   const filteredContracts = useMemo(() => {
     return enrichedContracts.filter(c => {
-      const searchMatch = 
-        c.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.contractNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.plate.toLowerCase().includes(searchTerm.toLowerCase());
+      // Apply multi-select filters (client, contracts, plates, model, situation)
+      if (filters.client.length > 0 && !filters.client.includes(String(c.clientName || '').trim())) return false;
+      if (filters.commercialContract.length > 0 && !filters.commercialContract.includes(String(c.commercialContract || '').trim())) return false;
+      if (filters.contractNumber.length > 0 && !filters.contractNumber.includes(String(c.contractNumber || '').trim())) return false;
+      if (filters.plate.length > 0 && !filters.plate.includes(String(c.plate || c.mainPlate || '').trim())) return false;
+      if (filters.model.length > 0 && !filters.model.includes(String(c.modelo_veiculo || c.model || c.modelo || '').trim())) return false;
+      if (filters.situation.length > 0 && !filters.situation.includes(String(c.contractStatus || '').trim())) return false;
+
+      const lowerSearch = searchTerm.toLowerCase();
+      const searchMatch =
+        String(c.clientName || '').toLowerCase().includes(lowerSearch) ||
+        String(c.contractNumber || '').toLowerCase().includes(lowerSearch) ||
+        String(c.plate || c.mainPlate || '').toLowerCase().includes(lowerSearch);
       
       if (!searchMatch) return false;
       if (filters.strategy.length > 0 && !filters.strategy.includes(c.renewalStrategy)) return false;
@@ -123,6 +212,17 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
       return true;
     });
   }, [enrichedContracts, searchTerm, filters]);
+
+  // Reset to first page when filters/search change
+  React.useEffect(() => {
+    setPage(1);
+  }, [filteredContracts.length, searchTerm, filters]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredContracts.length / pageSize));
+  const currentPageContracts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredContracts.slice(start, start + pageSize);
+  }, [filteredContracts, page, pageSize]);
 
   // --- CHART AGGREGATIONS ---
   const analysisData = useMemo(() => {
@@ -175,15 +275,16 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
         groups[key] = { count: 0, fipe: 0, acquisition: 0, rental: 0, label: RenewalStrategyLabel[key as RenewalStrategy] };
     });
 
-    filteredContracts.forEach(c => {
+     filteredContracts.forEach(c => {
        const key = c.renewalStrategy || 'UNDEFINED';
        if (!groups[key]) groups[key] = { count: 0, fipe: 0, acquisition: 0, rental: 0, label: key };
-       
+
        groups[key].count += 1;
-       groups[key].fipe += c.currentFipe || 0;
+       // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe` if present
+       groups[key].fipe += (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
        groups[key].acquisition += c.purchasePrice || 0;
        groups[key].rental += c.monthlyValue || 0;
-    });
+     });
 
     // Filter out rows with 0 count to keep table clean, or keep all if desired. 
     // Keeping all gives a complete view as per spreadsheet usually.
@@ -193,7 +294,8 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
   const totals = {
     count: filteredContracts.length,
     revenue: filteredContracts.reduce((acc, c) => acc + c.monthlyValue, 0),
-    fipe: filteredContracts.reduce((acc, c) => acc + c.currentFipe, 0),
+    // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe`
+    fipe: filteredContracts.reduce((acc, c) => acc + ((c.valorFipeAtual as number) || (c.currentFipe as number) || 0), 0),
     acquisition: filteredContracts.reduce((acc, c) => acc + c.purchasePrice, 0),
   };
 
@@ -204,7 +306,45 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
   // Handlers
   const handleStrategyChange = (id: string, newStrategy: RenewalStrategy) => {
     const contract = contracts.find(c => c.id === id);
-    if (contract) onUpdateContract({ ...contract, renewalStrategy: newStrategy });
+    if (!contract) return;
+    // If the selected strategy requires purchasePrice and it's missing, open modal to collect it
+    if (newStrategy === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
+      setPendingStrategyChange({ id, newStrategy });
+      setPurchaseModalContractId(id);
+      setTempPurchasePrice('');
+      setPurchaseModalOpen(true);
+      return;
+    }
+    onUpdateContract({ ...contract, renewalStrategy: newStrategy });
+  };
+
+  const openPurchaseModalFor = (id: string) => {
+    const contract = contracts.find(c => c.id === id);
+    setPurchaseModalContractId(id);
+    setTempPurchasePrice(contract && contract.purchasePrice ? String(contract.purchasePrice) : '');
+    setPendingStrategyChange(null);
+    setPurchaseModalOpen(true);
+  };
+
+  const handleSavePurchasePrice = () => {
+    if (!purchaseModalContractId) return;
+    const value = Number(String(tempPurchasePrice).replace(/[^0-9.,-]/g, '').replace(',', '.'));
+    if (!Number.isFinite(value) || value <= 0) {
+      // minimal validation
+      alert('Informe um valor de aquisição válido maior que zero.');
+      return;
+    }
+    const contract = contracts.find(c => c.id === purchaseModalContractId);
+    if (!contract) return;
+    const updates: any = { ...contract, purchasePrice: value };
+    if (pendingStrategyChange && pendingStrategyChange.id === purchaseModalContractId) {
+      updates.renewalStrategy = pendingStrategyChange.newStrategy;
+    }
+    onUpdateContract(updates);
+    setPurchaseModalOpen(false);
+    setPendingStrategyChange(null);
+    setPurchaseModalContractId(null);
+    setTempPurchasePrice('');
   };
   
   const handleOpenObservation = (contract: Contract) => {
@@ -315,6 +455,71 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                   </div>
               </div>
           </div>
+          {/* Compact filters (buttons) - Analysis view */}
+          <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-center">
+            {[
+              { key: 'client', label: 'Cliente', list: clientsList },
+              { key: 'commercialContract', label: 'Contrato Comercial', list: commercialContractsList },
+              { key: 'contractNumber', label: 'Contrato Locação', list: contractNumbersList },
+              { key: 'plate', label: 'Placa', list: platesList },
+              { key: 'model', label: 'Modelo', list: modelsList },
+              { key: 'situation', label: 'Situação', list: situationsList },
+              { key: 'year', label: 'Vencimentos', list: yearsList }
+            ].map(f => (
+              <div key={f.key} className="relative">
+                <button onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
+                  <span>{f.label}</span>
+                  {filters[f.key as keyof typeof filters].length > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{filters[f.key as keyof typeof filters].length}</span>}
+                </button>
+                {openFilterPanel === f.key && (
+                  <div className="filter-panel absolute z-50 top-10 left-0 w-64 bg-white border rounded shadow-lg p-2 max-h-72 overflow-y-auto">
+                    <div className="mb-2">
+                      <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <button className="text-xs text-slate-500" onClick={() => {
+                        const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
+                        setFilters(prev => ({ ...prev, [f.key]: visible }));
+                      }}>Selecionar tudo</button>
+                      <button className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
+                    </div>
+                    <div className="space-y-1">
+                      { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
+                        <label key={opt} className="flex items-center gap-2 text-xs">
+                          <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
+                          <span className="truncate">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-xs">KM:</label>
+              <select value={filters.kmRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, kmRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todos</option>
+                {KM_ORDER.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs">Idade:</label>
+              <select value={filters.ageRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, ageRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todos</option>
+                {AGE_ORDER.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs">Estratégia:</label>
+              <select value={filters.strategy[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, strategy: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todas</option>
+                {Object.keys(RenewalStrategyLabel).map(k => <option key={k} value={k}>{RenewalStrategyLabel[k as RenewalStrategy]}</option>)}
+              </select>
+            </div>
+            <div className="ml-auto">
+              <button onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
+            </div>
+          </div>
 
           {/* 2. CHARTS GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -376,21 +581,38 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                </div>
             </div>
 
-             {/* Group */}
-             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Truck size={14}/> Grupo de Veículo</h4>
-               <div className="h-56">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                     <Pie data={analysisData.group} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2}>
-                        {analysisData.group.map((entry, index) => (
-                           <Cell key={index} fill={COLORS[index % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('group', entry.fullKey)} opacity={filters.group.length && !filters.group.includes(entry.fullKey) ? 0.3 : 1} />
-                        ))}
-                     </Pie>
-                     <Tooltip contentStyle={{fontSize: '12px'}} />
-                     <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{fontSize: '10px'}} />
-                   </PieChart>
-                 </ResponsiveContainer>
+            {/* Modelo por Montadora (scrollable, colapsável) */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+               <div className="flex items-center justify-between mb-2">
+                 <h4 className="text-xs font-bold text-slate-500 flex items-center gap-2 uppercase tracking-wide"><Truck size={14}/> Modelos (por Montadora)</h4>
+                 <div className="flex gap-2">
+                   <button onClick={() => setExpandAllModels(true)} className="text-xs text-slate-500 hover:text-slate-700">Expandir tudo</button>
+                   <button onClick={() => setExpandAllModels(false)} className="text-xs text-slate-500 hover:text-slate-700">Colapsar tudo</button>
+                 </div>
+               </div>
+               <div className="max-h-56 overflow-y-auto pr-2 space-y-2">
+                 {/** Build models grouped by montadora and render collapsible sections with small bar charts */}
+                 {Object.entries(
+                   ((): Record<string, { name: string; value: number; fullKey: string }[]> => {
+                     const map: Record<string, Record<string, number>> = {};
+                     filteredContracts.forEach((c: any) => {
+                       const mont = (c.montadora && c.montadora !== 'N/A') ? String(c.montadora) : 'Sem Montadora';
+                       const mod = (c.modelo && c.modelo !== 'N/A') ? String(c.modelo) : (c.model && c.model !== 'N/A' ? String(c.model) : 'Sem Modelo');
+                       map[mont] = map[mont] || {};
+                       map[mont][mod] = (map[mont][mod] || 0) + 1;
+                     });
+                     const out: Record<string, { name: string; value: number; fullKey: string }[]> = {};
+                     Object.entries(map).forEach(([mont, models]) => {
+                       out[mont] = Object.entries(models).map(([name, value]) => ({ name, value, fullKey: `${mont}__${name}` }));
+                       out[mont].sort((a, b) => b.value - a.value);
+                     });
+                     return out;
+                   })()
+                 ).map(([montadora, models]) => {
+                   return (
+                     <MontadoraSection key={montadora} montadora={montadora} models={models} defaultExpanded={expandAllModels} />
+                   );
+                 })}
                </div>
             </div>
 
@@ -491,10 +713,92 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                 <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
                 <input type="text" placeholder="Buscar contrato..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
-              <div className="flex-1 flex justify-end items-center text-xs text-slate-500">
-                 <span>{filteredContracts.length} contratos encontrados.</span>
+              <div className="flex-1 flex justify-end items-center gap-4 text-xs text-slate-500">
+                 <div className="whitespace-nowrap">{filteredContracts.length} contratos encontrados.</div>
+                 <div className="flex items-center gap-2">
+                   <label className="text-xs">Linhas:</label>
+                   <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
+                     <option value={25}>25</option>
+                     <option value={50}>50</option>
+                     <option value={100}>100</option>
+                     <option value={250}>250</option>
+                     <option value={999999}>Todos</option>
+                   </select>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-2 py-1 rounded border bg-white text-xs">Anterior</button>
+                   <div className="text-xs">{page} / {pageCount}</div>
+                   <button onClick={() => setPage(p => Math.min(pageCount, p + 1))} className="px-2 py-1 rounded border bg-white text-xs">Próx.</button>
+                 </div>
               </div>
            </div>
+          {/* Filters (List view) - dropdown style panels */}
+          <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-start">
+            {/** small helper to render a dropdown button + panel */}
+            {[
+              { key: 'client', label: 'Cliente', list: clientsList },
+              { key: 'commercialContract', label: 'Contrato Comercial', list: commercialContractsList },
+              { key: 'contractNumber', label: 'Contrato Locação', list: contractNumbersList },
+              { key: 'plate', label: 'Placa', list: platesList },
+              { key: 'model', label: 'Modelo', list: modelsList },
+              { key: 'situation', label: 'Situação', list: situationsList },
+              { key: 'year', label: 'Vencimentos', list: yearsList }
+            ].map(f => (
+              <div key={f.key} className="relative">
+                <button onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-2 border rounded bg-white text-xs flex items-center gap-2">
+                  <span>{f.label}</span>
+                  {filters[f.key as keyof typeof filters].length > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{filters[f.key as keyof typeof filters].length}</span>}
+                </button>
+                {openFilterPanel === f.key && (
+                  <div className="filter-panel absolute z-50 top-10 left-0 w-64 bg-white border rounded shadow-lg p-2 max-h-72 overflow-y-auto">
+                    <div className="mb-2">
+                      <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <button className="text-xs text-slate-500" onClick={() => {
+                        const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
+                        setFilters(prev => ({ ...prev, [f.key]: visible }));
+                      }}>Selecionar tudo</button>
+                      <button className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
+                    </div>
+                    <div className="space-y-1">
+                      { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
+                        <label key={opt} className="flex items-center gap-2 text-xs">
+                          <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
+                          <span className="truncate">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs">KM:</label>
+              <select value={filters.kmRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, kmRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todos</option>
+                {KM_ORDER.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs">Idade:</label>
+              <select value={filters.ageRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, ageRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todos</option>
+                {AGE_ORDER.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs">Estratégia:</label>
+              <select value={filters.strategy[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, strategy: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todas</option>
+                {Object.keys(RenewalStrategyLabel).map(k => <option key={k} value={k}>{RenewalStrategyLabel[k as RenewalStrategy]}</option>)}
+              </select>
+            </div>
+            <div className="ml-auto">
+              <button onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
+            </div>
+          </div>
            <div className="overflow-x-auto min-h-[400px]">
               <table className="w-full text-sm text-left">
                  <thead className="bg-white text-slate-500 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
@@ -505,9 +809,11 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                        <th className="px-4 py-4">Modelo</th>
                        <th className="px-4 py-4">Categoria</th>
                        <th className="px-4 py-4 text-center">Período</th>
-                       <th className="px-4 py-4 text-center">Status</th>
-                       <th className="px-4 py-4 text-center">Idade/Km</th>
+                       <th className="px-4 py-4 text-center">Situação Contrato</th>
+                       <th className="px-4 py-4 text-center">Idade Veículo</th>
+                       <th className="px-4 py-4 text-center">KM Informado</th>
                        <th className="px-4 py-4 text-right">FIPE</th>
+                       <th className="px-4 py-4 text-right">Valor Aquisição</th>
                        <th className="px-4 py-4 text-right">Valores</th>
                        <th className="px-4 py-4 text-center">Estratégia</th>
                        {hasObservations && <th className="px-4 py-4">Obs.</th>}
@@ -515,7 +821,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
-                    {filteredContracts.map((contract: any) => {
+                    {currentPageContracts.map((contract: any) => {
                        const formatDate = (dateStr?: string) => {
                          if (!dateStr) return '-';
                          try {
@@ -539,18 +845,17 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                             <div className="text-xs text-slate-500 mt-0.5">{contract.clientName && contract.clientName !== 'N/A' ? contract.clientName : ''}</div>
                           </td>
                           <td className="px-4 py-4">
-                             {/* Mostrar somente a placa: prioriza plate, se vazio utiliza mainPlate, caso contrário '-' */}
+                             {/* Display plate directly from API */}
                              {(() => {
-                               const p = (contract.plate && contract.plate !== 'N/A') ? contract.plate : (contract.mainPlate && contract.mainPlate !== 'N/A' ? contract.mainPlate : '-');
-                               return <div className="font-bold text-slate-800 text-xs">{p}</div>;
+                               const p = contract.plate || contract.mainPlate || '';
+                               return <div className="font-bold text-slate-800 text-xs">{p || '-'}</div>;
                              })()}
-                             <div className="text-xs text-slate-500">{contract.model && contract.model !== 'N/A' ? contract.model : ''}</div>
                           </td>
                           <td className="px-4 py-4">
                             <div className="text-xs text-slate-700">{contract.montadora && contract.montadora !== 'N/A' ? contract.montadora : '-'}</div>
                           </td>
                           <td className="px-4 py-4">
-                            <div className="text-xs text-slate-700">{contract.modelo && contract.modelo !== 'N/A' ? contract.modelo : (contract.model && contract.model !== 'N/A' ? contract.model : '-')}</div>
+                            <div className="text-xs text-slate-700">{contract.modelo_veiculo && contract.modelo_veiculo !== 'N/A' ? contract.modelo_veiculo : (contract.modelo && contract.modelo !== 'N/A' ? contract.modelo : (contract.model && contract.model !== 'N/A' ? contract.model : '-'))}</div>
                           </td>
                           <td className="px-4 py-4">
                             <div className="text-xs text-slate-700">{contract.categoria && contract.categoria !== 'N/A' ? contract.categoria : '-'}</div>
@@ -561,18 +866,52 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                             {contract.periodMonths && <div className="text-xs font-bold text-blue-600 mt-0.5">{contract.periodMonths} meses</div>}
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <div className="text-xs font-semibold text-slate-700">{contract.contractStatus || '-'}</div>
-                            {contract.closingDate && <div className="text-[10px] text-slate-400 mt-0.5">Encerr: {formatDate(contract.closingDate)}</div>}
+                            {(() => {
+                              const s = (contract.contractStatus || '').toString();
+                              const lower = s.toLowerCase();
+                              if (!s) return <div className="text-xs font-semibold text-slate-700">-</div>;
+                              if (lower.includes('encerr')) {
+                                return <div className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-red-600 bg-red-50">{s}</div>;
+                              }
+                              if (lower.includes('andament') || lower.includes('andamento')) {
+                                return <div className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-emerald-600 bg-emerald-50">{s}</div>;
+                              }
+                              return <div className="text-xs font-semibold text-slate-700">{s}</div>;
+                            })()}
+                            {contract.closingDate && <div className="text-[10px] text-slate-400 mt-0.5">{formatDate(contract.closingDate)}</div>}
+                            {contract.localizacaoVeiculo && <div className="text-[10px] text-slate-400 mt-0.5">{contract.localizacaoVeiculo}</div>}
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <div className="text-xs font-bold text-slate-700">{contract.ageRangeLabel}</div>
-                            <div className="text-[10px] text-slate-500">{contract.kmRangeLabel}</div>
+                            <div className="text-xs font-bold text-slate-700">{typeof contract.ageMonths !== 'undefined' && contract.ageMonths !== null ? `${Number(contract.ageMonths)}m` : '-'}</div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {(() => {
+                              const km = contract.currentKm || contract.KmInformado;
+                              if (typeof km === 'number' && km >= 0) {
+                                return <div className="text-[10px] text-slate-500">{km.toLocaleString('pt-BR')} km</div>;
+                              }
+                              return <div className="text-[10px] text-slate-500">-</div>;
+                            })()}
                           </td>
                           <td className="px-4 py-4 text-right">
                             <div className="text-xs font-mono text-slate-600">{contract.valorFipeAtual ? `R$ ${contract.valorFipeAtual.toLocaleString('pt-BR')}` : '-'}</div>
                           </td>
+                            <td className="px-4 py-4 text-right">
+                              {typeof contract.purchasePrice === 'number' && contract.purchasePrice > 0 ? (
+                                <div className="text-xs font-mono text-slate-600">R$ {contract.purchasePrice.toLocaleString('pt-BR')}</div>
+                              ) : (
+                                contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <span className="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded">Obrigatório</span>
+                                    <button onClick={() => openPurchaseModalFor(contract.id)} className="text-xs text-blue-600 underline">Adicionar</button>
+                                  </div>
+                                ) : (
+                                  <div className="text-xs font-mono text-slate-600">-</div>
+                                )
+                              )}
+                            </td>
                           <td className="px-4 py-4 text-right">
-                            <div className="font-bold text-blue-700 text-xs">R$ {contract.monthlyValue.toLocaleString('pt-BR')}</div>
+                            <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
                           </td>
                           <td className="px-4 py-4">
                              <select 
@@ -623,6 +962,30 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                  </div>
               </div>
            </div>
+        </div>
+      )}
+
+      {/* Purchase Price Modal (required for some strategies) */}
+      {purchaseModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Briefcase className="text-blue-600" size={20}/> Valor Aquisição
+              </h3>
+              <button onClick={() => setPurchaseModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="text-xs text-slate-600">Informe o Valor de Aquisição (R$)</label>
+              <input type="text" value={tempPurchasePrice} onChange={(e) => setTempPurchasePrice(e.target.value)} className="w-full mt-2 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: 12500.00" />
+              <div className="mt-6 flex justify-end gap-3">
+                <button onClick={() => { setPurchaseModalOpen(false); setPendingStrategyChange(null); setPurchaseModalContractId(null); setTempPurchasePrice(''); }} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
+                <button onClick={handleSavePurchasePrice} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

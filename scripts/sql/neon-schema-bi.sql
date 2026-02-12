@@ -1,7 +1,7 @@
 -- =============================================================================
--- SCHEMA SQL PARA NEON DATABASE - BluFleet BI Analytics
+-- SCHEMA SQL PARA BANCO DE DESTINO - BluFleet BI Analytics
 -- =============================================================================
--- Execute este script no SQL Editor do Neon para criar as tabelas antes do ETL
+-- Execute este script no SQL Editor do banco de destino para criar as tabelas antes do ETL
 -- Versão: 1.0
 -- Data: 2026-01-14
 -- =============================================================================
@@ -306,6 +306,22 @@ CREATE TABLE IF NOT EXISTS fat_abastecimentos (
     tipocombustivel VARCHAR(50),
     posto VARCHAR(200),
     cidade VARCHAR(200),
+
+-- fat_precos_locacao: histórico de preços de contratos (origem: ContratosLocacaoPrecos)
+CREATE TABLE IF NOT EXISTS fat_precos_locacao (
+    id SERIAL PRIMARY KEY,
+    idprecocontratolocacao INTEGER,
+    idcontratolocacao INTEGER,
+    precounitario DECIMAL(15,2),
+    datainicial DATE,
+    datafinal DATE,
+    observacoes TEXT,
+    -- armazenamento flexível para quaisquer colunas adicionais da origem
+    raw JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_fat_precos_locacao_idcontrato ON fat_precos_locacao(idcontratolocacao);
+CREATE INDEX IF NOT EXISTS idx_fat_precos_locacao_datainicial ON fat_precos_locacao(datainicial);
     estado VARCHAR(5)
 );
 
@@ -502,7 +518,7 @@ CREATE INDEX IF NOT EXISTS idx_agg_dre_ano_mes ON agg_dre_mensal(ano, mes);
 -- Mensagem de confirmação (executar no psql para ver)
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Schema BluFleet BI criado com sucesso no Neon!';
+    RAISE NOTICE '✅ Schema BluFleet BI criado com sucesso no banco de destino!';
     RAISE NOTICE '📊 Total de tabelas: 23 (Dimensões + Fatos + Agregações)';
     RAISE NOTICE '🚀 Pronto para receber dados do ETL.';
 END $$;

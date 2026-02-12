@@ -1,12 +1,30 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
+// Validate required environment variables
+const requiredEnvVars = {
+  ORACLE_PG_HOST: process.env.ORACLE_PG_HOST,
+  ORACLE_PG_PORT: process.env.ORACLE_PG_PORT,
+  ORACLE_PG_USER: process.env.ORACLE_PG_USER,
+  ORACLE_PG_PASSWORD: process.env.ORACLE_PG_PASSWORD,
+  ORACLE_PG_DATABASE: process.env.ORACLE_PG_DATABASE,
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error('[bi-data] Missing environment variables:', missingVars.join(', '));
+  console.error('[bi-data] Available env keys:', Object.keys(process.env).filter(k => k.includes('PG')).join(', '));
+}
+
 // PostgreSQL connection to Oracle Cloud server
 const pool = new Pool({
   host: process.env.ORACLE_PG_HOST || '137.131.163.167',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
-  password: process.env.ORACLE_PG_PASSWORD,
+  password: process.env.ORACLE_PG_PASSWORD || '',
   database: process.env.ORACLE_PG_DATABASE || 'bluconecta_dw',
   max: 5,
   idleTimeoutMillis: 30000,
@@ -26,6 +44,7 @@ const ALLOWED_TABLES = new Set([
   'fat_manutencao_unificado',
   'agg_custos_detalhados',
   'fat_movimentacao_ocorrencias',
+  'fat_precos_locacao',
   'agg_lead_time_etapas',
   'agg_funil_conversao',
   'agg_performance_usuarios',
@@ -86,7 +105,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let client;
   try {
     client = await pool.connect();
-    const result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
+    let result;
+    if (table === 'dim_contratos_locacao') {
+      // Enriquecer contratos com dados de frota (Montadora, Modelo, Categoria)
+      // Faz LEFT JOIN usando PlacaPrincipal (contratos) = Placa (frota)
+      result = await client.query(
+        `SELECT c.*,
+                f."Placa" AS "plate",
+                f."Montadora" AS "montadora",
+                f."Modelo" AS "modelo_veiculo",
+                f."Categoria" AS "categoria",
+                f."KmInformado" AS "currentKm",
+                f."IdadeVeiculo" AS "ageMonths",
+                f."ValorFipe" AS "valorFipeAtual"
+         FROM public."dim_contratos_locacao" c
+         LEFT JOIN public."dim_frota" f
+           ON UPPER(COALESCE(c."PlacaPrincipal", '')) = UPPER(COALESCE(f."Placa", ''))
+         LIMIT $1`,
+        [limit]
+      );
+    } else {
+      result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
+    }
 
     // Convert BigInt to Number if needed
     const rows = result.rows.map((row: Record<string, unknown>) => {

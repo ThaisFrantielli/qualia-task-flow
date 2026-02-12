@@ -1,9 +1,19 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
-const conn = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+// Build connection from ORACLE_PG_* env vars or fallback to DATABASE_URL
+const conn = process.env.ORACLE_PG_CONNECTION_STRING || process.env.DATABASE_URL || (() => {
+  const host = process.env.ORACLE_PG_HOST || process.env.PG_HOST;
+  const port = process.env.ORACLE_PG_PORT || process.env.PG_PORT || '5432';
+  const user = process.env.ORACLE_PG_USER || process.env.PG_USER || 'postgres';
+  const pass = process.env.ORACLE_PG_PASSWORD || process.env.PG_PASSWORD || '';
+  const db = process.env.ORACLE_PG_DATABASE || process.env.PG_DATABASE || 'bluconecta_dw';
+  if (!host) return null;
+  return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}/${db}`;
+})();
+
 if (!conn) {
-  console.error('NEON_DATABASE_URL não encontrado no .env');
+  console.error('Conexão não encontrada no .env (defina ORACLE_PG_HOST ou DATABASE_URL)');
   process.exit(1);
 }
 
@@ -11,7 +21,7 @@ if (!conn) {
   const pool = new Pool({ connectionString: conn, ssl: { rejectUnauthorized: false } });
   try {
     await pool.connect();
-    console.log('Conectado ao Neon (verificação de valores monetários)');
+    console.log('Conectado ao banco de destino (verificação de valores monetários)');
 
     // Buscar amostras de LOCACAO para placas mencionadas
     const placas = ['SGN-8G42', 'SGN8G42', 'GED-7C63', 'GED7C63'];

@@ -1,5 +1,5 @@
 // supabase/functions/query-local-db/index.ts
-// Edge Function que serve como ponte segura para o banco de dados Neon
+// Edge Function que serve como ponte segura para o banco de dados de destino (PostgreSQL)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
@@ -80,9 +80,17 @@ let pool: Pool | null = null;
 
 function getPool(): Pool {
   if (!pool) {
-    const connectionString = Deno.env.get("LOCAL_DB_URL");
+    // Prefer LOCAL_DB_URL, se não existir constrói a connectionString a partir das variáveis ORACLE_PG_*
+    let connectionString = Deno.env.get("LOCAL_DB_URL");
     if (!connectionString) {
-      throw new Error("LOCAL_DB_URL não configurada");
+      const host = Deno.env.get('ORACLE_PG_HOST') || Deno.env.get('PG_HOST');
+      const port = Deno.env.get('ORACLE_PG_PORT') || Deno.env.get('PG_PORT') || '5432';
+      const user = Deno.env.get('ORACLE_PG_USER') || Deno.env.get('PG_USER') || 'postgres';
+      const pass = Deno.env.get('ORACLE_PG_PASSWORD') || Deno.env.get('PG_PASSWORD') || '';
+      const db = Deno.env.get('ORACLE_PG_DATABASE') || Deno.env.get('PG_DATABASE') || 'bluconecta_dw';
+      if (!host) throw new Error('LOCAL_DB_URL não configurada e ORACLE_PG_HOST ausente');
+      const sslParam = Deno.env.get('ORACLE_PG_SSL') === 'true' ? '?sslmode=require' : '';
+      connectionString = `postgresql://${user}:${encodeURIComponent(pass)}@${host}:${port}/${db}${sslParam}`;
     }
     pool = new Pool(connectionString, 2, true); // Reduzido para 2 conexões
   }
@@ -200,7 +208,7 @@ serve(async (req) => {
         success: false,
         error: errorMessage,
         hint: isConnectionError 
-          ? "Verifique se o banco Neon está acessível"
+          ? "Verifique se o banco de destino está acessível (verifique ORACLE_PG_HOST)"
           : undefined,
       }),
       { 

@@ -32,19 +32,27 @@ export interface Contract {
   currentFipe: number;
   purchasePrice: number;
   currentKm: number;
+  // KmInformado alternative field name (for compatibility)
+  KmInformado?: number;
   manufacturingYear: number;
   renewalStrategy: RenewalStrategy;
   observation?: string;
   // Idade do veículo em meses (quando disponível a partir de `dim_frota`)
   ageMonths?: number;
+  // Km informado / atual (alguns registros usam `km` como alias)
+  km?: number;
   // Valor FIPE atual trazido de `dim_frota`
   valorFipeAtual?: number;
   // Montadora (ex: Volkswagen, Toyota)
   montadora?: string;
   // Modelo do veículo (string original do dim_frota)
   modelo?: string;
+  // Modelo alternativo vindo do JOIN (`modelo_veiculo`)
+  modelo_veiculo?: string;
   // Categoria / Grupo do veículo
   categoria?: string;
+  // Localização do veículo vinda de dim_frota (LocalizacaoVeiculo / Localizacao)
+  localizacaoVeiculo?: string;
   // Campos adicionais
   commercialContract?: string;
   mainPlate?: string;

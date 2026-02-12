@@ -421,6 +421,12 @@ const DIMENSIONS = [
                 FROM MovimentacaoVeiculos 
                 ORDER BY Placa, DataRetirada`
     }
+    ,
+    {
+        table: 'fat_precos_locacao',
+        // Trazer todos os campos da tabela de preços de contratos (ContratosLocacaoPrecos)
+        query: `SELECT * FROM ContratosLocacaoPrecos WITH (NOLOCK)`
+    }
 ];
 
 // ==============================================================================

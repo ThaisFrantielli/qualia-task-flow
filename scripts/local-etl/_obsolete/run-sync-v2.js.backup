@@ -28,7 +28,7 @@ const sqlConfig = {
 };
 
 // PostgreSQL (DESTINO - BluConecta_Dw)
-// Forçar uso das variáveis PG_* locais. Neon foi removido do fluxo.
+// Forçar uso das variáveis PG_* locais; o destino é configurado via ORACLE_PG_* / PG_*.
 const pgConfig = {
     host: process.env.PG_HOST || '127.0.0.1',
     port: process.env.PG_PORT || 5432,
@@ -49,7 +49,7 @@ if (!SUPABASE_SERVICE_KEY) {
     console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY não configurado. Upload para Storage será desabilitado.');
 }
 
-// Modo apenas JSON local: evita conexões/gravações no PostgreSQL (Neon)
+// Modo apenas JSON local: evita conexões/gravações no PostgreSQL de produção
 const JSON_ONLY = process.argv.includes('--json-only') || process.env.JSON_ONLY === '1';
 if (JSON_ONLY) console.log('⚠️  Modo JSON_ONLY ativo: não será feita escrita no PostgreSQL (somente geração/upload de JSON).');
 
