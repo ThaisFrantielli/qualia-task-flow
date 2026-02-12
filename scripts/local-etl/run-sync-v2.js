@@ -4,7 +4,7 @@ const { Pool } = require('pg');
 const { performance } = require('perf_hooks');
 const fs = require('fs');
 const path = require('path');
-const { saveJSONToPublicData } = require('./save-json-helper.js');
+// saveJSONToPublicData removido — sistema agora consome dados diretamente do PostgreSQL via API.
 
 // ******************************************************************************
 // CONFIGURAÇÃO DE CONEXÃO
@@ -40,17 +40,9 @@ const pgConfig = {
     connectionTimeoutMillis: 10000,
 };
 
-// Supabase (para upload de JSON)
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Supabase Storage e JSON_ONLY removidos — sistema agora é 100% PostgreSQL.
+// O frontend consome dados via Vercel Serverless Functions → PostgreSQL.
 
-if (!SUPABASE_SERVICE_KEY) {
-    console.warn('⚠️  SUPABASE_SERVICE_ROLE_KEY não configurado. Upload para Storage será desabilitado.');
-}
-
-// Modo apenas JSON local: evita conexões/gravações no PostgreSQL
-const JSON_ONLY = process.argv.includes('--json-only') || process.env.JSON_ONLY === '1';
-if (JSON_ONLY) console.log('⚠️  Modo JSON_ONLY ativo: não será feita escrita no PostgreSQL (somente geração/upload de JSON).');
 
 // HELPER (Para campos monetários)
 // Trata dois cenários:
@@ -1485,14 +1477,7 @@ async function processQuery(pgClient, sqlPool, tableName, query, appendMode = fa
             return;
         }
 
-        // 5.5. Se modo JSON_ONLY: salvar JSON e retornar (pular inserção no Postgres)
-        if (JSON_ONLY) {
-            saveJSONToPublicData(tableName, finalData, dwLastUpdate);
-            const duration = ((performance.now() - start) / 1000).toFixed(2);
-            console.log(`      ✅ ${progressStr} ${tableName} (${finalData.length} linhas) - ${duration}s`);
-            finalData = null;
-            return;
-        }
+        // JSON_ONLY mode removido — dados são sempre inseridos no PostgreSQL.
 
         // 6. Inserir no PostgreSQL com transação
         const client = await pgClient.connect();

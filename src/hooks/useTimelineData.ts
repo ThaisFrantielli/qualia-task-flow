@@ -36,10 +36,14 @@ interface UseTimelineDataResult<T> {
   refetch: () => void;
 }
 
-// Cache simples
+// Simple cache
 const timelineCache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * Busca dados de timeline diretamente da API Serverless (/api/bi-data)
+ * que consulta o PostgreSQL na Oracle Cloud.
+ */
 export function useTimelineData<T = TimelineAggregated>(
   mode: TimelineMode = 'aggregated',
   placa?: string,
@@ -72,441 +76,78 @@ export function useTimelineData<T = TimelineAggregated>(
     setLoading(true);
     setError(null);
 
-    // Try static files in public/data first (dev-friendly)
     try {
-      // Candidates include the timeline_<mode> variants *and* names produced by ETL
-      const baseNames = [] as string[];
-      baseNames.push(`timeline_${mode}_all`);
-      baseNames.push(`timeline_${mode}`);
-      if (placa) baseNames.push(`timeline_${mode}_${placa}`);
+      // Determine table name based on mode
+      const tableName = mode === 'aggregated' || mode === 'recent'
+        ? 'hist_vida_veiculo_timeline'
+        : 'historico_situacao_veiculos';
 
-      // ETL-produced timeline names
-      baseNames.push('hist_vida_veiculo_timeline');
-      baseNames.push('hist_vida_veiculo_timeline_all');
-      baseNames.push('historico_situacao_veiculos');
-      baseNames.push('historico_situacao_veiculos_all');
+      const url = `/api/bi-data?table=${encodeURIComponent(tableName)}`;
+      const resp = await fetch(url);
 
-      for (const base of baseNames) {
-        // First, if there's a manifest for this base, try manifest+parts (same strategy as useBIData)
-        const manifestUrl = `/data/${base}_manifest.json`;
+      if (!resp.ok) {
+        throw new Error(`API returned status ${resp.status}`);
+      }
+
+      const body = await resp.json();
+      if (fetchId !== fetchIdRef.current) return;
+
+      let rows: any[] = Array.isArray(body.data) ? body.data : (Array.isArray(body) ? body : []);
+
+      // Filter by placa if in vehicle mode
+      if (placa && rows.length > 0) {
+        const placaUpper = placa.trim().toUpperCase();
+        rows = rows.filter((r: any) =>
+          String(r.Placa || r.placa || '').trim().toUpperCase() === placaUpper
+        );
+      }
+
+      // Augment with dim_frota (add vehicles that exist in fleet but have no timeline events)
+      if (mode === 'aggregated' || mode === 'recent') {
         try {
-          const mResp = await fetch(manifestUrl);
-          if (mResp.ok) {
-            const ct = (mResp.headers.get('content-type') || '').toLowerCase();
-            let manifest: any = null;
-            if (ct.includes('json')) {
-              manifest = await mResp.json();
-            } else {
-              const t = await mResp.text();
-              if (t.trim().startsWith('<')) throw new Error('Resposta HTML (provavelmente index.html)');
-              manifest = JSON.parse(t);
-            }
-
-            const total = manifest.total_chunks || manifest.totalParts || manifest.totalParts || 0;
-            if (!total || total <= 0) throw new Error('Manifest inválido ou sem partes');
-
-            const parts: any[] = [];
-            for (let i = 1; i <= total; i++) {
-              const partUrl = `/data/${base}_part${i}of${total}.json`;
-              const pResp = await fetch(partUrl);
-              if (!pResp.ok) throw new Error(`Parte ausente: ${partUrl} (${pResp.status})`);
-              const pct = (pResp.headers.get('content-type') || '').toLowerCase();
-              if (pct.includes('json')) {
-                parts.push(await pResp.json());
-              } else {
-                const t = await pResp.text();
-                if (t.trim().startsWith('<')) throw new Error(`Parte retornou HTML: ${partUrl}`);
-                parts.push(JSON.parse(t));
-              }
-            }
-
-            // merge parts
-            let assembled: any = null;
-            if (Array.isArray(parts[0])) assembled = parts.flat();
-            else if (typeof parts[0] === 'object') assembled = Object.assign({}, ...parts);
-            else assembled = parts;
-
-            if (fetchId !== fetchIdRef.current) return;
-            if (Array.isArray(assembled)) {
-              // attempt to augment with missing vehicles from dim_frota (so UI shows vehicles
-              // that exist in the fleet but may not have timeline events)
-              const augmentWithDim = async (items: any[]) => {
-                try {
-                  const resp = await fetch('/data/dim_frota.json');
-                  if (!resp.ok) return items;
-                  const parsed = await resp.json();
-                  const dimArr = Array.isArray(parsed) ? parsed : (parsed?.data || []);
-                  const present = new Set(items.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
-                  const missing = dimArr
-                    .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
-                    .map((d: any) => ({
-                      Placa: String(d.Placa).trim().toUpperCase(),
-                      data_compra: d.DataCompra || d.data_compra || null,
-                      data_venda: d.DataVenda || d.data_venda || null,
-                      qtd_locacoes: 0,
-                      qtd_manutencoes: 0,
-                      qtd_sinistros: 0,
-                      total_eventos: 0,
-                      primeiro_evento: null,
-                      ultimo_evento: null,
-                      dias_vida: null,
-                      Modelo: d.Modelo || d.modelo,
-                      Montadora: d.Montadora || d.montadora,
-                      Status: d.Status || d.status,
-                      ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
-                    }));
-                  if (missing.length) return items.concat(missing);
-                } catch (e) {
-                  // ignore augmentation errors
-                }
-                return items;
-              };
-
-              const finalArr = await augmentWithDim(assembled);
-              timelineCache.set(cacheKey, { data: finalArr, timestamp: Date.now() });
-              setData(finalArr as T[]);
-              setError(null);
-              setLoading(false);
-              console.log(`✅ [useTimelineData] loaded static manifest ${manifestUrl} (${finalArr.length} registros) (base=${base})`);
-              return;
-            }
-            if (assembled && typeof assembled === 'object' && Array.isArray((assembled as any).data)) {
-              const arr = (assembled as any).data as T[];
-              timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
-              setData(arr);
-              setError(null);
-              setLoading(false);
-              console.log(`✅ [useTimelineData] loaded static manifest-wrapped ${manifestUrl} (${arr.length} registros) (base=${base})`);
-              return;
-            }
+          const dimResp = await fetch('/api/bi-data?table=dim_frota');
+          if (dimResp.ok) {
+            const dimBody = await dimResp.json();
+            const dimArr = Array.isArray(dimBody.data) ? dimBody.data : [];
+            const present = new Set(
+              rows.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase())
+            );
+            const missing = dimArr
+              .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
+              .map((d: any) => ({
+                Placa: String(d.Placa).trim().toUpperCase(),
+                data_compra: d.DataCompra || d.data_compra || null,
+                data_venda: d.DataVenda || d.data_venda || null,
+                qtd_locacoes: 0,
+                qtd_manutencoes: 0,
+                qtd_sinistros: 0,
+                total_eventos: 0,
+                primeiro_evento: null,
+                ultimo_evento: null,
+                dias_vida: null,
+                Modelo: d.Modelo || d.modelo,
+                Montadora: d.Montadora || d.montadora,
+                Status: d.Status || d.status,
+                ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
+              }));
+            if (missing.length) rows = rows.concat(missing);
           }
-        } catch (mErr) {
-          // manifest not present or invalid — fall through to single-file attempt
-          if (String(mErr).includes('HTML')) {
-            console.warn(`[useTimelineData] static ${manifestUrl} returned HTML (likely index.html). Skipping.`);
-          }
-        }
-
-        // Try single-file variants for this base
-        const url = `/data/${base}.json`;
-        try {
-          const resp = await fetch(url);
-          if (!resp.ok) {
-            console.debug(`[useTimelineData] static ${url} returned status ${resp.status}`);
-            continue;
-          }
-          const ct = (resp.headers.get('content-type') || '').toLowerCase();
-          if (ct.includes('html')) {
-            console.warn(`[useTimelineData] static ${url} returned HTML (likely index.html). Skipping.`);
-            continue;
-          }
-          const parsed = await resp.json();
-          if (fetchId !== fetchIdRef.current) return;
-          if (Array.isArray(parsed)) {
-            // augment with dim_frota missing vehicles
-            try {
-              const respDim = await fetch('/data/dim_frota.json');
-              if (respDim.ok) {
-                const parsedDim = await respDim.json();
-                const dimArr = Array.isArray(parsedDim) ? parsedDim : (parsedDim?.data || []);
-                const present = new Set(parsed.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
-                const missing = dimArr
-                  .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
-                  .map((d: any) => ({
-                    Placa: String(d.Placa).trim().toUpperCase(),
-                    data_compra: d.DataCompra || d.data_compra || null,
-                    data_venda: d.DataVenda || d.data_venda || null,
-                    qtd_locacoes: 0,
-                    qtd_manutencoes: 0,
-                    qtd_sinistros: 0,
-                    total_eventos: 0,
-                    primeiro_evento: null,
-                    ultimo_evento: null,
-                    dias_vida: null,
-                    Modelo: d.Modelo || d.modelo,
-                    Montadora: d.Montadora || d.montadora,
-                    Status: d.Status || d.status,
-                    ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
-                  }));
-                if (missing.length) parsed.push(...missing);
-              }
-            } catch (e) {
-              // ignore
-            }
-
-            timelineCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
-            setData(parsed as T[]);
-            setError(null);
-            setLoading(false);
-            console.log(`✅ [useTimelineData] loaded static ${url} (${parsed.length} registros) (base=${base})`);
-            return;
-          }
-          if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).data)) {
-            const arr = (parsed as any).data as T[];
-            timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
-            setData(arr);
-            setError(null);
-            setLoading(false);
-            console.log(`✅ [useTimelineData] loaded static wrapped ${url} (${arr.length} registros) (base=${base})`);
-            return;
-          }
-        } catch (e) {
-          console.debug(`[useTimelineData] fetch static ${url} failed:`, e instanceof Error ? e.message : String(e));
-          continue;
+        } catch {
+          // ignore augmentation errors
         }
       }
-    } catch (staticErr) {
-      console.debug('[useTimelineData] static fetch attempt failed:', staticErr);
-    }
 
-    // Priorizar o arquivo estático único gerado pelo ETL
-    try {
-      const primaryUrl = '/data/hist_vida_veiculo_timeline.json';
-      const resp = await fetch(primaryUrl);
-      if (resp.ok) {
-        const ct = (resp.headers.get('content-type') || '').toLowerCase();
-        if (ct.includes('html')) {
-          console.warn(`[useTimelineData] ${primaryUrl} retornou HTML (provavelmente index.html). Ignorando.`);
-        } else {
-          const parsed = await resp.json();
-          if (fetchId !== fetchIdRef.current) return;
-          let arr: any[] | null = null;
-          if (Array.isArray(parsed)) arr = parsed as any[];
-          else if (parsed && Array.isArray((parsed as any).data)) arr = (parsed as any).data;
-
-          if (arr) {
-            // tentar augment com dim_frota como antes
-            try {
-              const respDim = await fetch('/data/dim_frota.json');
-              if (respDim.ok) {
-                const parsedDim = await respDim.json();
-                const dimArr = Array.isArray(parsedDim) ? parsedDim : (parsedDim?.data || []);
-                const present = new Set(arr.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
-                const missing = dimArr
-                  .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
-                  .map((d: any) => ({
-                    Placa: String(d.Placa).trim().toUpperCase(),
-                    data_compra: d.DataCompra || d.data_compra || null,
-                    data_venda: d.DataVenda || d.data_venda || null,
-                    qtd_locacoes: 0,
-                    qtd_manutencoes: 0,
-                    qtd_sinistros: 0,
-                    total_eventos: 0,
-                    primeiro_evento: null,
-                    ultimo_evento: null,
-                    dias_vida: null,
-                    Modelo: d.Modelo || d.modelo,
-                    Montadora: d.Montadora || d.montadora,
-                    Status: d.Status || d.status,
-                    ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
-                  }));
-                if (missing.length) arr.push(...missing);
-              }
-            } catch (e) {
-              // ignore
-            }
-
-            timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
-            setData(arr as T[]);
-            setError(null);
-            setLoading(false);
-            console.log(`✅ [useTimelineData] loaded static ${primaryUrl} (${arr.length} registros)`);
-            return;
-          }
-        }
-      } else {
-        console.debug(`[useTimelineData] ${primaryUrl} retornou status ${resp.status}`);
-      }
-    } catch (e) {
-      console.debug(`[useTimelineData] fetch ${'/data/hist_vida_veiculo_timeline.json'} falhou:`, e instanceof Error ? e.message : String(e));
-    }
-
-    // Se não encontrou o arquivo único, continua tentando manifests/parts e outros nomes (como antes)
-    try {
-      const baseNames = [] as string[];
-      baseNames.push(`timeline_${mode}_all`);
-      baseNames.push(`timeline_${mode}`);
-      if (placa) baseNames.push(`timeline_${mode}_${placa}`);
-      baseNames.push('hist_vida_veiculo_timeline');
-      baseNames.push('hist_vida_veiculo_timeline_all');
-      baseNames.push('historico_situacao_veiculos');
-      baseNames.push('historico_situacao_veiculos_all');
-
-      for (const base of baseNames) {
-        const manifestUrl = `/data/${base}_manifest.json`;
-        try {
-          const mResp = await fetch(manifestUrl);
-          if (mResp.ok) {
-            const ct = (mResp.headers.get('content-type') || '').toLowerCase();
-            let manifest: any = null;
-            if (ct.includes('json')) {
-              manifest = await mResp.json();
-            } else {
-              const t = await mResp.text();
-              if (t.trim().startsWith('<')) throw new Error('Resposta HTML (provavelmente index.html)');
-              manifest = JSON.parse(t);
-            }
-
-            const total = manifest.total_chunks || manifest.totalParts || manifest.totalParts || 0;
-            if (!total || total <= 0) throw new Error('Manifest inválido ou sem partes');
-
-            const parts: any[] = [];
-            for (let i = 1; i <= total; i++) {
-              const partUrl = `/data/${base}_part${i}of${total}.json`;
-              const pResp = await fetch(partUrl);
-              if (!pResp.ok) throw new Error(`Parte ausente: ${partUrl} (${pResp.status})`);
-              const pct = (pResp.headers.get('content-type') || '').toLowerCase();
-              if (pct.includes('json')) {
-                parts.push(await pResp.json());
-              } else {
-                const t = await pResp.text();
-                if (t.trim().startsWith('<')) throw new Error(`Parte retornou HTML: ${partUrl}`);
-                parts.push(JSON.parse(t));
-              }
-            }
-
-            // merge parts
-            let assembled: any = null;
-            if (Array.isArray(parts[0])) assembled = parts.flat();
-            else if (typeof parts[0] === 'object') assembled = Object.assign({}, ...parts);
-            else assembled = parts;
-
-            if (fetchId !== fetchIdRef.current) return;
-            if (Array.isArray(assembled)) {
-              const augmentWithDim = async (items: any[]) => {
-                try {
-                  const resp = await fetch('/data/dim_frota.json');
-                  if (!resp.ok) return items;
-                  const parsed = await resp.json();
-                  const dimArr = Array.isArray(parsed) ? parsed : (parsed?.data || []);
-                  const present = new Set(items.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
-                  const missing = dimArr
-                    .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
-                    .map((d: any) => ({
-                      Placa: String(d.Placa).trim().toUpperCase(),
-                      data_compra: d.DataCompra || d.data_compra || null,
-                      data_venda: d.DataVenda || d.data_venda || null,
-                      qtd_locacoes: 0,
-                      qtd_manutencoes: 0,
-                      qtd_sinistros: 0,
-                      total_eventos: 0,
-                      primeiro_evento: null,
-                      ultimo_evento: null,
-                      dias_vida: null,
-                      Modelo: d.Modelo || d.modelo,
-                      Montadora: d.Montadora || d.montadora,
-                      Status: d.Status || d.status,
-                      ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
-                    }));
-                  if (missing.length) return items.concat(missing);
-                } catch (e) {
-                  // ignore augmentation errors
-                }
-                return items;
-              };
-
-              const finalArr = await augmentWithDim(assembled);
-              timelineCache.set(cacheKey, { data: finalArr, timestamp: Date.now() });
-              setData(finalArr as T[]);
-              setError(null);
-              setLoading(false);
-              console.log(`✅ [useTimelineData] loaded static manifest ${manifestUrl} (${finalArr.length} registros) (base=${base})`);
-              return;
-            }
-            if (assembled && typeof assembled === 'object' && Array.isArray((assembled as any).data)) {
-              const arr = (assembled as any).data as T[];
-              timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
-              setData(arr);
-              setError(null);
-              setLoading(false);
-              console.log(`✅ [useTimelineData] loaded static manifest-wrapped ${manifestUrl} (${arr.length} registros) (base=${base})`);
-              return;
-            }
-          }
-        } catch (mErr) {
-          if (String(mErr).includes('HTML')) {
-            console.warn(`[useTimelineData] static ${manifestUrl} returned HTML (likely index.html). Skipping.`);
-          }
-        }
-
-        // Try single-file variants for this base
-        const url = `/data/${base}.json`;
-        try {
-          const resp = await fetch(url);
-          if (!resp.ok) {
-            console.debug(`[useTimelineData] static ${url} returned status ${resp.status}`);
-            continue;
-          }
-          const ct = (resp.headers.get('content-type') || '').toLowerCase();
-          if (ct.includes('html')) {
-            console.warn(`[useTimelineData] static ${url} returned HTML (likely index.html). Skipping.`);
-            continue;
-          }
-          const parsed = await resp.json();
-          if (fetchId !== fetchIdRef.current) return;
-          if (Array.isArray(parsed)) {
-            try {
-              const respDim = await fetch('/data/dim_frota.json');
-              if (respDim.ok) {
-                const parsedDim = await respDim.json();
-                const dimArr = Array.isArray(parsedDim) ? parsedDim : (parsedDim?.data || []);
-                const present = new Set(parsed.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase()));
-                const missing = dimArr
-                  .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
-                  .map((d: any) => ({
-                    Placa: String(d.Placa).trim().toUpperCase(),
-                    data_compra: d.DataCompra || d.data_compra || null,
-                    data_venda: d.DataVenda || d.data_venda || null,
-                    qtd_locacoes: 0,
-                    qtd_manutencoes: 0,
-                    qtd_sinistros: 0,
-                    total_eventos: 0,
-                    primeiro_evento: null,
-                    ultimo_evento: null,
-                    dias_vida: null,
-                    Modelo: d.Modelo || d.modelo,
-                    Montadora: d.Montadora || d.montadora,
-                    Status: d.Status || d.status,
-                    ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
-                  }));
-                if (missing.length) parsed.push(...missing);
-              }
-            } catch (e) {
-              // ignore
-            }
-
-            timelineCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
-            setData(parsed as T[]);
-            setError(null);
-            setLoading(false);
-            console.log(`✅ [useTimelineData] loaded static ${url} (${parsed.length} registros) (base=${base})`);
-            return;
-          }
-          if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).data)) {
-            const arr = (parsed as any).data as T[];
-            timelineCache.set(cacheKey, { data: arr, timestamp: Date.now() });
-            setData(arr);
-            setError(null);
-            setLoading(false);
-            console.log(`✅ [useTimelineData] loaded static wrapped ${url} (${arr.length} registros) (base=${base})`);
-            return;
-          }
-        } catch (e) {
-          console.debug(`[useTimelineData] fetch static ${url} failed:`, e instanceof Error ? e.message : String(e));
-          continue;
-        }
-      }
-    } catch (staticErr) {
-      console.debug('[useTimelineData] static fetch attempt failed:', staticErr);
-    }
-
-    // Se chegou aqui, não foram encontrados arquivos estáticos válidos
-    if (fetchId === fetchIdRef.current) {
-      const msg = 'Arquivo estático /data/hist_vida_veiculo_timeline.json não disponível ainda. Aguarde o download ou rode o ETL.';
-      setError(msg);
-      setData(null);
+      timelineCache.set(cacheKey, { data: rows, timestamp: Date.now() });
+      setData(rows as T[]);
+      setError(null);
       setLoading(false);
-      console.error(`[useTimelineData] ${msg}`);
+      console.log(`✅ [useTimelineData] loaded ${rows.length} rows from API (mode=${mode})`);
+    } catch (err) {
+      if (fetchId !== fetchIdRef.current) return;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[useTimelineData] Error:`, message);
+      setError(message);
+      setLoading(false);
     }
   }, [mode, placa, enabled]);
 
@@ -516,11 +157,10 @@ export function useTimelineData<T = TimelineAggregated>(
 
   useEffect(() => {
     load();
+    return () => {
+      fetchIdRef.current++;
+    };
   }, [load]);
 
   return { data, loading, error, refetch };
-}
-
-export function clearTimelineCache() {
-  timelineCache.clear();
 }
