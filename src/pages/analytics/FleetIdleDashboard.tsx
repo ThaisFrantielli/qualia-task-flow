@@ -33,23 +33,36 @@ function parseDateSafe(v: any): Date {
   }
 }
 
+const normalizeStatus = (value: string) =>
+  (value || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
 const getCategory = (status: string) => {
-  const s = (status || '').toUpperCase().trim();
-  
-  // REGRA 1: Improdutiva (Específica e Restrita)
-  if (['RESERVA', 'DISPONÍVEL', 'DISPONIVEL', 'BLOQUEADO'].includes(s)) {
-    return 'Improdutiva';
+  const s = normalizeStatus(status);
+
+  if (['LOCADO', 'LOCADO VEICULO RESERVA', 'USO INTERNO', 'EM MOBILIZACAO'].includes(s)) {
+    return 'Produtiva';
   }
-  
-  // REGRA 2: Inativa (Fora de operação)
+
   if ([
-    'VENDIDO', 'BAIXADO', 'SINISTRO PERDA TOTAL', 'ROUBO', 'FURTO', 'DEVOLVIDO'
+    'VENDIDO',
+    'BAIXADO',
+    'SINISTRO PERDA TOTAL',
+    'ROUBO',
+    'FURTO',
+    'DEVOLVIDO',
+    'DISPONIVEL PRA VENDA',
+    'DISPONIVEL PARA VENDA',
+    'NAO DISPONIVEL',
+    'EM DESMOBILIZACAO'
   ].includes(s)) {
     return 'Inativa';
   }
-  
-  // REGRA 3: Produtiva (Todo o resto)
-  return 'Produtiva';
+
+  return 'Improdutiva';
 };
 
 export default function FleetIdleDashboard(): JSX.Element {
@@ -182,7 +195,8 @@ export default function FleetIdleDashboard(): JSX.Element {
         if (!status) return;
 
         const vCurrent = veiculoAtualMap.get(placa) as any;
-        const isTerceiro = (vCurrent?.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO';
+        const finalidadeVal = ((vCurrent?.FinalidadeUso ?? vCurrent?.finalidadeUso ?? '') as any).toString().trim();
+        const isTerceiro = finalidadeVal.toUpperCase() === 'TERCEIRO';
 
         // Excluir veículos de 'Terceiro' do monitoramento de improdutiva
         if (isTerceiro) return;
@@ -257,7 +271,8 @@ export default function FleetIdleDashboard(): JSX.Element {
         const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
 
         // Excluir veículos de 'Terceiro' do monitoramento
-        const isTerceiro = (v?.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO';
+        const finalidadeValV = ((v?.FinalidadeUso ?? v?.finalidadeUso ?? '') as any).toString().trim();
+        const isTerceiro = finalidadeValV.toUpperCase() === 'TERCEIRO';
         if (!isTerceiro) {
           improdutivos.push({
           Placa: placa,
@@ -279,11 +294,15 @@ export default function FleetIdleDashboard(): JSX.Element {
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
   const currentIdleKPIs = useMemo(() => {
-    const improdutivos = frota.filter(v => getCategory(v.Status) === 'Improdutiva' && ((v.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
+    const improdutivos = frota.filter(v => {
+      const finalidadeVal = ((v.FinalidadeUso ?? v.finalidadeUso ?? '') as any).toString().trim();
+      return getCategory(v.Status) === 'Improdutiva' && finalidadeVal.toUpperCase() !== 'TERCEIRO';
+    });
     const ativos = frota.filter(v => {
       const cat = getCategory(v.Status);
       // Excluir 'Terceiro' do monitoramento de ativos/improdutiva
-      const isTerceiro = ((v.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO');
+      const finalidadeVal = ((v.FinalidadeUso ?? v.finalidadeUso ?? '') as any).toString().trim();
+      const isTerceiro = finalidadeVal.toUpperCase() === 'TERCEIRO';
       if (isTerceiro) return false;
       return cat === 'Produtiva' || cat === 'Improdutiva';
     });

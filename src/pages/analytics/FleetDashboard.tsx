@@ -188,7 +188,7 @@ export default function FleetDashboard(): JSX.Element {
             const inicio = getStartDate(c);
             const next = {
                 NomeCliente: normalizeText(c.NomeCliente ?? c.nomecliente ?? c.Cliente ?? c.cliente ?? 'Sem Cliente') || 'Sem Cliente',
-                TipoLocacao: normalizeText(c.TipoLocacao ?? c.tipolocacao ?? 'N├úo Definido') || 'N├úo Definido',
+                TipoLocacao: normalizeText(c.TipoLocacao ?? c.tipolocacao ?? 'Não Definido') || 'Não Definido',
                 NumeroContratoLocacao: contratoId || undefined,
                 SituacaoLocacao: status || undefined,
                 DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'dataprevistatermino', 'DataFimPrevista', 'datafimprevista', 'DataFimPrevisto', 'datafimprevisto', 'DataFim', 'datafim', 'DataTerminoPrevisto', 'dataterminoprevisto', 'DataFimLocacao', 'datafimlocacao']) || undefined,
@@ -203,7 +203,7 @@ export default function FleetDashboard(): JSX.Element {
                 continue;
             }
 
-            // Preferir contrato n├úo encerrado/cancelado; em empate, pegar o mais recente por data de in├¡cio
+            // Preferir contrato não encerrado/cancelado; em empate, pegar o mais recente por data de início
             const prevClosed = isClosed(prev.SituacaoLocacao || '');
             const nextClosed = isClosed(status);
             if (prevClosed && !nextClosed) {
@@ -385,7 +385,7 @@ export default function FleetDashboard(): JSX.Element {
     const extractLocation = (address: string): { uf: string, city: string } => {
         const fullAddr = (address || '').trim();
         let uf = 'ND';
-        let city = 'N├úo Identificado';
+        let city = 'Não Identificado';
 
         const ufMatch = fullAddr.match(/\(([A-Z]{2})\)/);
         if (ufMatch) uf = ufMatch[1];
@@ -525,15 +525,20 @@ export default function FleetDashboard(): JSX.Element {
 
         return frotaWithLocation.filter(r => {
             const cat = getCategory(r.Status);
+            const finalidadeVal = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim();
+            const isTerceiro = finalidadeVal.toUpperCase() === 'TERCEIRO';
+            const wantsTerceiro = prodFilters.includes('Terceiro');
+
+            // Regra global: não considerar terceiros em nenhum dashboard,
+            // exceto quando o filtro "Terceiro" estiver explicitamente selecionado.
+            if (!wantsTerceiro && isTerceiro) return false;
+
             if (prodFilters.length > 0) {
                 const allowed = new Set<string>();
                 if (prodFilters.includes('Ativa')) { allowed.add('Produtiva'); allowed.add('Improdutiva'); }
                 if (prodFilters.includes('Produtiva')) allowed.add('Produtiva');
                 if (prodFilters.includes('Improdutiva')) allowed.add('Improdutiva');
                 if (prodFilters.includes('Inativa')) allowed.add('Inativa');
-
-                const wantsTerceiro = prodFilters.includes('Terceiro');
-                const isTerceiro = (r.FinalidadeUso || '').toString().toUpperCase() === 'TERCEIRO';
 
                 if (wantsTerceiro) {
                     // If user selected only 'Terceiro', require FinalidadeUso==='Terceiro'
@@ -618,7 +623,7 @@ export default function FleetDashboard(): JSX.Element {
             
             // Filtro de provedor de telemetria
             if (telemetriaFilters.length > 0) {
-                const provedor = r.ProvedorTelemetria || 'N├úo Definido';
+                const provedor = r.ProvedorTelemetria || 'Não Definido';
                 if (!telemetriaFilters.includes(provedor)) return false;
             }
             
@@ -628,19 +633,19 @@ export default function FleetDashboard(): JSX.Element {
                     ? 'Com Seguro'
                     : r.ComSeguroVigente === false || r.ComSeguroVigente === 'false' || r.ComSeguroVigente === 0
                         ? 'Sem Seguro'
-                        : 'N├úo Informado';
+                        : 'Não Informado';
                 if (!seguroFilters.includes(seguro)) return false;
             }
             
             // Filtro de propriet├írio
             if (proprietarioFilters.length > 0) {
-                const prop = r.Proprietario || 'N├úo Definido';
+                const prop = r.Proprietario || 'Não Definido';
                 if (!proprietarioFilters.includes(prop)) return false;
             }
             
             // Filtro de finalidade de uso
             if (finalidadeFilters.length > 0) {
-                const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'N├úo Definido';
+                const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
                 if (!finalidadeFilters.includes(finalidade)) return false;
             }
             
@@ -668,7 +673,10 @@ export default function FleetDashboard(): JSX.Element {
     const kpis = useMemo(() => {
         const total = filteredData.length;
         const produtiva = filteredData.filter(r => getCategory(r.Status) === 'Produtiva');
-        const improdutiva = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva' && ((r.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
+        const improdutiva = filteredData.filter(r => {
+            const finalidadeVal = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim();
+            return getCategory(r.Status) === 'Improdutiva' && finalidadeVal.toUpperCase() !== 'TERCEIRO';
+        });
         const inativa = filteredData.filter(r => getCategory(r.Status) === 'Inativa');
 
         const kmTotal = filteredData.reduce((s, r) => s + parseNum(r.KmInformado), 0);
@@ -744,8 +752,11 @@ export default function FleetDashboard(): JSX.Element {
     // Breakdown of 'Improdutiva' sub-statuses (counts and percentage of the improdutiva group)
     const improdutivaBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
-        const impro = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva' && ((r.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
-        impro.forEach(r => { const s = r.Status || 'N├úo Definido'; map[s] = (map[s] || 0) + 1; });
+        const impro = filteredData.filter(r => {
+            const finalidadeVal = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim();
+            return getCategory(r.Status) === 'Improdutiva' && finalidadeVal.toUpperCase() !== 'TERCEIRO';
+        });
+        impro.forEach(r => { const s = r.Status || 'Não Definido'; map[s] = (map[s] || 0) + 1; });
         const total = impro.length || 1;
         return Object.entries(map).map(([name, value]) => ({ name, value, pct: (value / total) * 100 })).sort((a, b) => b.value - a.value);
     }, [filteredData]);
@@ -754,7 +765,7 @@ export default function FleetDashboard(): JSX.Element {
     const produtivaBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
         const prod = filteredData.filter(r => getCategory(r.Status) === 'Produtiva');
-        prod.forEach(r => { const s = r.Status || 'N├úo Definido'; map[s] = (map[s] || 0) + 1; });
+        prod.forEach(r => { const s = r.Status || 'Não Definido'; map[s] = (map[s] || 0) + 1; });
         const total = prod.length || 1;
         return Object.entries(map).map(([name, value]) => ({ name, value, pct: (value / total) * 100 })).sort((a, b) => b.value - a.value);
     }, [filteredData]);
@@ -837,7 +848,7 @@ export default function FleetDashboard(): JSX.Element {
                 ...r,
                 _lat: lat,
                 _lng: lng,
-                _city: city ?? 'N├úo Identificado',
+                _city: city ?? 'Não Identificado',
                 _uf: uf ?? 'ND'
             } as typeof r & { _lat: number; _lng: number; _city: string; _uf: string };
         });
@@ -848,9 +859,9 @@ export default function FleetDashboard(): JSX.Element {
 
         // Caso especial: sele├º├úo "N├úo classificados" deve mostrar ve├¡culos com telemetria
         // que n├úo tiveram uf/cidade extra├¡dos (uf === 'ND' ou endere├ºo ausente).
-        if (selectedLocation.uf === 'ND' && selectedLocation.city === 'N├úo classificados') {
+        if (selectedLocation.uf === 'ND' && selectedLocation.city === 'Não classificados') {
             return mapped.filter(r => (
-                r.ProvedorTelemetria && r.ProvedorTelemetria !== 'N├âO DEFINIDO' && r.ProvedorTelemetria !== 'N├úo Definido'
+                r.ProvedorTelemetria && r.ProvedorTelemetria !== 'NÃO DEFINIDO' && r.ProvedorTelemetria !== 'Não Definido'
             ) && (
                 !r.UltimoEnderecoTelemetria || (r._uf && r._uf === 'ND')
             ));
@@ -878,7 +889,7 @@ export default function FleetDashboard(): JSX.Element {
         const categoryMap: Record<string, Record<string, number>> = {};
 
         filteredData.forEach(r => {
-            const modelo = r.Modelo || 'N├úo Definido';
+            const modelo = r.Modelo || 'Não Definido';
             const categoria = r.Categoria || r.GrupoVeiculo || 'Outros';
 
             if (!categoryMap[categoria]) categoryMap[categoria] = {};
@@ -1015,8 +1026,8 @@ export default function FleetDashboard(): JSX.Element {
     const veiculosComTelemetria = useMemo(() => {
         return filteredData.filter(r =>
             r.ProvedorTelemetria &&
-            r.ProvedorTelemetria !== 'N├âO DEFINIDO' &&
-            r.ProvedorTelemetria !== 'N├úo Definido'
+            r.ProvedorTelemetria !== 'NÃO DEFINIDO' &&
+            r.ProvedorTelemetria !== 'Não Definido'
         );
     }, [filteredData]);
 
@@ -1035,12 +1046,12 @@ export default function FleetDashboard(): JSX.Element {
         const map: Record<string, number> = {
             'Com Seguro': 0,
             'Sem Seguro': 0,
-            'N├úo Informado': 0
+            'Não Informado': 0
         };
 
         filteredData.forEach(r => {
             if (r.ComSeguroVigente === null || r.ComSeguroVigente === undefined) {
-                map['N├úo Informado']++;
+                map['Não Informado']++;
             } else if (r.ComSeguroVigente === 1 || r.ComSeguroVigente === true || r.ComSeguroVigente === 'true') {
                 map['Com Seguro']++;
             } else {
@@ -1054,7 +1065,7 @@ export default function FleetDashboard(): JSX.Element {
     const proprietarioData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const prop = r.Proprietario || 'N├úo Definido';
+            const prop = r.Proprietario || 'Não Definido';
             map[prop] = (map[prop] || 0) + 1;
         });
         return Object.entries(map)
@@ -1065,7 +1076,7 @@ export default function FleetDashboard(): JSX.Element {
     const finalidadeData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'N├úo Definido';
+            const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
             map[finalidade] = (map[finalidade] || 0) + 1;
         });
         return Object.entries(map)
@@ -1093,7 +1104,7 @@ export default function FleetDashboard(): JSX.Element {
         let unclassifiedTotal = 0;
         const hasTracker = (r: any) => {
             const prov = (r.ProvedorTelemetria || '').toString().trim();
-            const hasTelemetria = prov && prov.toUpperCase() !== 'N├âO DEFINIDO' && prov.toUpperCase() !== 'N/A';
+            const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
             const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
             const hasCoords = isFinite(parseNum(r.Latitude)) && isFinite(parseNum(r.Longitude)) && parseNum(r.Latitude) !== 0 && parseNum(r.Longitude) !== 0;
             return hasTelemetria && (hasLastUpdate || hasCoords);
@@ -1133,7 +1144,7 @@ export default function FleetDashboard(): JSX.Element {
             sortedUFs.push({
                 uf: 'ND',
                 total: unclassifiedTotal,
-                cities: [{ name: 'N├úo classificados', value: unclassifiedTotal }]
+                cities: [{ name: 'Não classificados', value: unclassifiedTotal }]
             });
         }
 
@@ -1144,7 +1155,7 @@ export default function FleetDashboard(): JSX.Element {
         const placas: string[] = [];
         filteredData.forEach(r => {
             const prov = (r.ProvedorTelemetria || '').toString().trim();
-            const hasTelemetria = prov && prov.toUpperCase() !== 'N├âO DEFINIDO' && prov.toUpperCase() !== 'N/A';
+            const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
             // Considerar rastreador instalado somente quando h├í provedor v├ílido E
             // h├í alguma telemetria recente ou coordenadas conhecidas.
             const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
@@ -1223,7 +1234,7 @@ export default function FleetDashboard(): JSX.Element {
                 diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
             }
 
-            const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem p├ítio';
+            const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem pátio';
 
             return {
                 Placa: v.Placa,
@@ -1412,13 +1423,13 @@ export default function FleetDashboard(): JSX.Element {
             
             // Filtro de tipo de ve├¡culo (clique no gr├ífico Tipo Ve├¡culo)
             if (tiposVeiculo.length > 0) {
-                const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'N├úo Definido');
+                const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
                 if (!tiposVeiculo.includes(tipo)) return false;
             }
             
             // Filtro de localiza├º├úo (clique no gr├ífico Di├írias por Local)
             if (locais.length > 0) {
-                const city = (r.Cidade || 'N├úo Identificado').trim();
+                const city = (r.Cidade || 'Não Identificado').trim();
                 const uf = (r.Estado || '').trim();
                 const key = uf ? `${city} / ${uf}` : city;
                 if (!locais.includes(key)) return false;
@@ -1443,17 +1454,17 @@ export default function FleetDashboard(): JSX.Element {
         }).length;
 
         const motivoMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const m = r.Motivo || 'N├úo Definido'; motivoMap[m] = (motivoMap[m] || 0) + 1; });
+        filteredReservas.forEach(r => { const m = r.Motivo || 'Não Definido'; motivoMap[m] = (motivoMap[m] || 0) + 1; });
         const principalMotivo = Object.entries(motivoMap).sort((a, b) => b[1] - a[1])[0];
 
         const clienteMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const c = r.Cliente || 'N├úo Definido'; clienteMap[c] = (clienteMap[c] || 0) + 1; });
+        filteredReservas.forEach(r => { const c = r.Cliente || 'Não Definido'; clienteMap[c] = (clienteMap[c] || 0) + 1; });
         const clienteData = Object.entries(clienteMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         const motivoData = Object.entries(motivoMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         const statusMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'N├úo Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
+        filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'Não Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
         const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         // Tempo m├®dio de reserva (Conclu├¡das)
@@ -1655,7 +1666,7 @@ export default function FleetDashboard(): JSX.Element {
     const diariasByLocation = useMemo(() => {
         const map: Record<string, number> = {};
         (filteredReservas || []).forEach(r => {
-            const city = (r.Cidade || 'N├úo Identificado').trim();
+            const city = (r.Cidade || 'Não Identificado').trim();
             const uf = (r.Estado || '').trim();
             const key = uf ? `${city} / ${uf}` : city;
             const diarias = Number(r.DiariasEfetivas ?? r.Diarias ?? 0) || 0;
@@ -1667,7 +1678,7 @@ export default function FleetDashboard(): JSX.Element {
     const tipoVeiculoCounts = useMemo(() => {
         const map: Record<string, number> = {};
         (filteredReservas || []).forEach(r => {
-            const t = String(r.TipoVeiculoTemporario || r.Tipo || 'N├úo Definido');
+            const t = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
             map[t] = (map[t] || 0) + 1;
         });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -1676,7 +1687,7 @@ export default function FleetDashboard(): JSX.Element {
     const clienteContracts = useMemo(() => {
         const map: Record<string, { totalDiarias: number; contracts: Record<string, { diarias: number; ocorrencias: number }> }> = {};
         (filteredReservas || []).forEach(r => {
-            const cliente = String(r.Cliente || 'N├úo Definido');
+            const cliente = String(r.Cliente || 'Não Definido');
             const contrato = String(r.ContratoLocacao || r.ContratoComercial || r.IdContratoLocacao || 'Sem Contrato');
             const diarias = Number(r.DiariasEfetivas ?? r.Diarias ?? 0) || 0;
             if (!map[cliente]) map[cliente] = { totalDiarias: 0, contracts: {} };
@@ -1717,7 +1728,7 @@ export default function FleetDashboard(): JSX.Element {
         });
 
         dadosFiltrados.forEach(r => {
-            const m = r.ModeloReserva || 'N├úo Definido';
+            const m = r.ModeloReserva || 'Não Definido';
             map[m] = (map[m] || 0) + 1;
         });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -1781,7 +1792,7 @@ export default function FleetDashboard(): JSX.Element {
                 compra, fipe, manut, tco, depreciacao: compra - fipe,
                 tipo: getCategory(r.Status),
                 pctFipe: fipe > 0 ? (compra / fipe) * 100 : 0,
-                Patio: r.Patio || 'Sem p├ítio', DiasNoStatus: parseNum(r.DiasNoStatus),
+                Patio: r.Patio || 'Sem pátio', DiasNoStatus: parseNum(r.DiasNoStatus),
                 DataInicioStatus: r.DataInicioStatus || '-',
                 // Campos adicionais para telemetria
                 ProvedorTelemetria: r.ProvedorTelemetria,
@@ -1862,7 +1873,7 @@ export default function FleetDashboard(): JSX.Element {
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
             <div className="flex justify-between items-center">
-                <div><Title className="text-slate-900">Gest├úo de Frota</Title><Text className="text-slate-500">An├ílise de ativos, produtividade e localiza├º├úo.</Text></div>
+                <div><Title className="text-slate-900">Gestão de Frota</Title><Text className="text-slate-500">Análise de ativos, produtividade e localização.</Text></div>
                 <div className="flex items-center gap-3">
                     <DataUpdateBadge metadata={frotaMetadata} compact />
                     <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Car className="w-4 h-4" /> Hub Ativos</div>
@@ -1903,10 +1914,10 @@ export default function FleetDashboard(): JSX.Element {
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)} className="space-y-6">
                 <TabsList className="bg-white border">
-                    <TabsTrigger value="visao-geral">Vis├úo Geral</TabsTrigger>
-                    <TabsTrigger value="patio">Gest├úo de P├ítio</TabsTrigger>
+                    <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
+                    <TabsTrigger value="patio">Gestão de Pátio</TabsTrigger>
                     <TabsTrigger value="telemetria">Telemetria & Mapa</TabsTrigger>
-                    {/* Aba "Efici├¬ncia" removida */}
+                    {/* Aba "Eficiência" removida */}
                     <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
                     <TabsTrigger value="carro-reserva">Carro Reserva</TabsTrigger>
                 </TabsList>
@@ -1918,26 +1929,26 @@ export default function FleetDashboard(): JSX.Element {
                         <Card decoration="top" decorationColor="emerald"><Text>Produtiva</Text><Metric>{fmtDecimal(kpis.produtivaQtd)}</Metric><Text className="text-xs text-emerald-600">{kpis.taxaProdutividade.toFixed(1)}%</Text></Card>
                         <Card decoration="top" decorationColor="rose"><Text>Improdutiva</Text><Metric>{fmtDecimal(kpis.improdutivaQtd)}</Metric><Text className="text-xs text-rose-600">{kpis.taxaImprodutiva.toFixed(1)}%</Text></Card>
                         <Card decoration="top" decorationColor="slate"><Text>Inativa</Text><Metric>{fmtDecimal(kpis.inativaQtd)}</Metric></Card>
-                        <Card decoration="top" decorationColor="violet"><Text>Idade M├®dia</Text><Metric>{kpis.idadeMedia.toFixed(1)} m</Metric></Card>
+                        <Card decoration="top" decorationColor="violet"><Text>Idade Média</Text><Metric>{kpis.idadeMedia.toFixed(1)} m</Metric></Card>
                     </div>
 
-                    {/* KPIs executivos movidos para a vis├úo executiva (removidos desta p├ígina) */}
+                    {/* KPIs executivos movidos para a visão executiva (removidos desta página) */}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="border-l-4 border-l-emerald-500"><div className="flex justify-between items-center mb-4"><Title className="text-emerald-700">Frota Produtiva</Title><span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-1 rounded text-xs">{kpis.produtivaQtd} ve├¡culos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraProd)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeProd)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeProd <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeProd.toFixed(1)}%</span></div></div></Card>
-                        <Card className="border-l-4 border-l-rose-500"><div className="flex justify-between items-center mb-4"><Title className="text-rose-700">Frota Improdutiva</Title><span className="text-rose-800 font-bold bg-rose-100 px-2 py-1 rounded text-xs">{kpis.improdutivaQtd} ve├¡culos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraImprod)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeImprod)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeImprod <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeImprod.toFixed(1)}%</span></div></div></Card>
+                        <Card className="border-l-4 border-l-emerald-500"><div className="flex justify-between items-center mb-4"><Title className="text-emerald-700">Frota Produtiva</Title><span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-1 rounded text-xs">{kpis.produtivaQtd} veículos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraProd)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeProd)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeProd <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeProd.toFixed(1)}%</span></div></div></Card>
+                        <Card className="border-l-4 border-l-rose-500"><div className="flex justify-between items-center mb-4"><Title className="text-rose-700">Frota Improdutiva</Title><span className="text-rose-800 font-bold bg-rose-100 px-2 py-1 rounded text-xs">{kpis.improdutivaQtd} veículos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraImprod)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeImprod)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeImprod <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeImprod.toFixed(1)}%</span></div></div></Card>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card>
-                            <Title>Status da Frota <span className="text-xs text-slate-500 font-normal">(clique para filtrar | Ctrl+clique para m├║ltiplos)</span></Title>
+                            <Title>Status da Frota <span className="text-xs text-slate-500 font-normal">(clique para filtrar | Ctrl+clique para múltiplos)</span></Title>
                             <div className="h-96 mt-2">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={[...statusData].sort((a, b) => b.value - a.value)} layout="vertical" margin={{ left: 0, right: 80 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis type="number" tick={{ fontSize: 12 }} />
                                         <YAxis dataKey="name" type="category" width={220} tick={{ fontSize: 12 }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" barSize={20} radius={[6, 6, 6, 6]} onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             {statusData.map((entry, idx) => (
                                                 <Cell key={`cell-st-${idx}`} fill={isValueSelected('status', entry.name) ? '#063970' : entry.color} />
@@ -1970,11 +1981,11 @@ export default function FleetDashboard(): JSX.Element {
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <Text className="text-xs text-slate-500 text-center">Considera apenas ve├¡culos ativos na frota.</Text>
+                                <Text className="text-xs text-slate-500 text-center">Considera apenas veículos ativos na frota.</Text>
 
                                 <div className="pt-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <Title className="text-sm">Desdobramento Improdutiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: m├║ltiplo)</span></Title>
+                                        <Title className="text-sm">Desdobramento Improdutiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: múltiplo)</span></Title>
                                         <div className="h-64 mt-2">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={improdutivaBreakdown} layout="vertical" margin={{ left: 0, right: 80 }}>
@@ -1983,7 +1994,7 @@ export default function FleetDashboard(): JSX.Element {
                                                     <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 12 }} />
                                                     <Tooltip formatter={(value: any, _name: any, props: any) => {
                                                         const pct = props?.payload?.pct;
-                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Ve├¡culos'];
+                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                     }} />
                                                     <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#64748b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                         <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
@@ -1993,7 +2004,7 @@ export default function FleetDashboard(): JSX.Element {
                                         </div>
                                     </div>
                                     <div>
-                                        <Title className="text-sm">Desdobramento Produtiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: m├║ltiplo)</span></Title>
+                                        <Title className="text-sm">Desdobramento Produtiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: múltiplo)</span></Title>
                                         <div className="h-64 mt-2">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={produtivaBreakdown} layout="vertical" margin={{ left: 0, right: 80 }}>
@@ -2002,7 +2013,7 @@ export default function FleetDashboard(): JSX.Element {
                                                     <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 12 }} />
                                                     <Tooltip formatter={(value: any, _name: any, props: any) => {
                                                         const pct = props?.payload?.pct;
-                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Ve├¡culos'];
+                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                     }} />
                                                     <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                         <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
@@ -2016,13 +2027,13 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
                     </div>
 
-                    {/* Ve├¡culos por Modelo e Classifica├º├úo de Od├┤metro */}
+                    {/* Veículos por Modelo e Classificação de Odômetro */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card>
                             <div className="flex justify-between items-center mb-2">
                                 <div>
-                                    <Title>Ve├¡culos por Modelo <span className="text-xs text-slate-500 font-normal">(clique na categoria para expandir)</span></Title>
-                                    <Text className="text-xs text-slate-500">Agrupados por categoria de ve├¡culo</Text>
+                                    <Title>Veículos por Modelo <span className="text-xs text-slate-500 font-normal">(clique na categoria para expandir)</span></Title>
+                                    <Text className="text-xs text-slate-500">Agrupados por categoria de veículo</Text>
                                 </div>
                                 <button
                                     onClick={() => setExpandedCategories(prev =>
@@ -2032,7 +2043,7 @@ export default function FleetDashboard(): JSX.Element {
                                     )}
                                     className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
                                 >
-                                    {expandedCategories.length === modelosPorCategoria.length ? 'ÔêÆ Colapsar Todas' : '+ Expandir Todas'}
+                                    {expandedCategories.length === modelosPorCategoria.length ? '− Colapsar Todas' : '+ Expandir Todas'}
                                 </button>
                             </div>
                             <div className="h-[400px] mt-1 overflow-y-auto pr-2">
@@ -2041,7 +2052,7 @@ export default function FleetDashboard(): JSX.Element {
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(value: any) => [String(value), 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [String(value), 'Veículos']} />
                                         <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16}
                                             onClick={(data: any, _index: number, event: any) => {
                                                 if (data.isCategory) {
@@ -2049,7 +2060,7 @@ export default function FleetDashboard(): JSX.Element {
                                                     toggleCategory(data.categoria);
                                                 } else {
                                                     // Se for modelo, aplica filtro
-                                                    const modeloName = data.name.replace('  ÔööÔöÇ ', '').trim();
+                                                    const modeloName = data.name.replace('  • ', '').trim();
                                                     handleChartClick('modelo', modeloName, event as unknown as React.MouseEvent);
                                                     if (!((event?.ctrlKey) || (event?.metaKey))) {
                                                         document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' });
@@ -2072,24 +2083,24 @@ export default function FleetDashboard(): JSX.Element {
 
                         <Card>
                             <div className="flex justify-between items-center mb-6">
-                                <Title>Classifica├º├úo por Od├┤metro</Title>
+                                <Title>Classificação por Odômetro</Title>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setOdometroView('odometro')} className={`text-xs px-2 py-1 rounded ${odometroView === 'odometro' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-slate-500 border border-transparent'}`}>
-                                        Od├┤metro
+                                        Odômetro
                                     </button>
                                     <button onClick={() => setOdometroView('idade')} className={`text-xs px-2 py-1 rounded ${odometroView === 'idade' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-slate-500 border border-transparent'}`}>
                                         Idade (m)
                                     </button>
                                 </div>
                             </div>
-                            <Text className="text-xs text-slate-500 mb-3">Distribui├º├úo de ve├¡culos por faixa de quilometragem informada</Text>
+                            <Text className="text-xs text-slate-500 mb-3">Distribuição de veículos por faixa de quilometragem informada</Text>
                             <div className="h-[400px] mt-8">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={odometroView === 'odometro' ? odometroData : idadeFaixaData} margin={{ left: 20, right: 60, bottom: 36, top: 24 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={odometroView === 'odometro' ? -45 : 0} textAnchor={odometroView === 'odometro' ? 'end' : 'middle'} height={odometroView === 'odometro' ? 64 : 48} />
                                         <YAxis tick={{ fontSize: 12 }} />
-                                        <Tooltip formatter={(value: any) => [`${value} ve├¡culos`, 'Quantidade']} />
+                                        <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { const key = odometroView === 'odometro' ? 'odometro' : 'idade'; handleChartClick(key, data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             <LabelList dataKey="value" position="top" formatter={(v: any) => v > 0 ? String(v) : ''} fontSize={11} />
                                         </Bar>
@@ -2255,8 +2266,8 @@ export default function FleetDashboard(): JSX.Element {
                             </tr>))}</tbody></table></div>
                         <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
                             <div className="flex gap-2">
-                                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÉ</button>
-                                <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÆ</button>
+                                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
+                                <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
                             </div>
                         </div>
                     </Card>
@@ -2265,7 +2276,7 @@ export default function FleetDashboard(): JSX.Element {
                 <TabsContent value="patio" className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600" /><Title>Aging de P├ítio (Dias Parado)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600" /><Title>Aging de Pátio (Dias Parado)</Title></div>
                             <div className="h-64 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={agingData} margin={{ left: 20 }}>
@@ -2283,7 +2294,7 @@ export default function FleetDashboard(): JSX.Element {
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Ve├¡culos por P├ítio (Improdutivos)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Veículos por Pátio (Improdutivos)</Title></div>
                             <div className="h-64 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={patioData} layout="vertical" margin={{ left: 20 }}>
@@ -2301,7 +2312,7 @@ export default function FleetDashboard(): JSX.Element {
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Info size={16} className="text-rose-600" /><Title>Ve├¡culos por Status (Improdutivos)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Info size={16} className="text-rose-600" /><Title>Veículos por Status (Improdutivos)</Title></div>
                             <div className="h-64 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={statusImprodutivoData} layout="vertical" margin={{ left: 20 }}>
@@ -2320,17 +2331,17 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
                     </div>
 
-                    {/* Movimenta├º├Áes recentes removidas conforme solicitado */}
+                    {/* Movimentações recentes removidas conforme solicitado */}
 
                     <Card className="p-0 overflow-hidden" id="patio-table">
                         <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                             <div className="flex items-center gap-2">
-                                <Title>Ve├¡culos no P├ítio</Title>
+                                <Title>Veículos no Pátio</Title>
                                 <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(vehiclesDetailed.length)} registros</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <a href="/analytics/frota-improdutiva" className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-                                    Ver monitoramento completo ÔåÆ
+                                    Ver monitoramento completo →
                                 </a>
                                 <button onClick={() => exportToExcel(vehiclesDetailed, 'veiculos_patio')}
                                     className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded">
@@ -2363,7 +2374,7 @@ export default function FleetDashboard(): JSX.Element {
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('Patio')} className="flex items-center gap-2">
-                                                    <span>P├ítio</span>
+                                                    <span>Pátio</span>
                                                     {sortState.col === 'Patio' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
@@ -2381,7 +2392,7 @@ export default function FleetDashboard(): JSX.Element {
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('UltimaMovimentacao')} className="flex items-center gap-2">
-                                                    <span>├Ültima Movimenta├º├úo</span>
+                                                    <span>Última Movimentação</span>
                                                     {sortState.col === 'UltimaMovimentacao' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
@@ -2420,28 +2431,28 @@ export default function FleetDashboard(): JSX.Element {
                     {/* KPIs de Telemetria */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <Card decoration="top" decorationColor="blue">
-                            <Text>Ve├¡culos com Telemetria</Text>
+                            <Text>Veículos com Telemetria</Text>
                             <Metric>{fmtDecimal(veiculosComTelemetria.length)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">{((veiculosComTelemetria.length / filteredData.length) * 100).toFixed(1)}% da frota</Text>
                         </Card>
                         <Card decoration="top" decorationColor="emerald">
-                            <Text>Atualizado (├Ültimas 24h)</Text>
+                            <Text>Atualizado (Últimas 24h)</Text>
                             <Metric>{fmtDecimal(telemetriaAtualizada)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">Telemetria ativa</Text>
                         </Card>
                         <Card decoration="top" decorationColor="amber">
-                            <Text>Ve├¡culos Localiz├íveis</Text>
+                            <Text>Veículos Localizáveis</Text>
                             <Metric>{fmtDecimal(mapData.length)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">Com coordenadas GPS</Text>
                         </Card>
                         <Card decoration="top" decorationColor="violet">
                             <Text>Taxa de Cobertura GPS</Text>
                             <Metric>{((mapData.length / filteredData.length) * 100).toFixed(1)}%</Metric>
-                            <Text className="text-xs text-slate-500 mt-1">Lat/Long dispon├¡vel</Text>
+                            <Text className="text-xs text-slate-500 mt-1">Lat/Long disponível</Text>
                         </Card>
                     </div>
 
-                    {/* Gr├íficos de An├ílise */}
+                    {/* Gráficos de Análise */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                         <Card>
                             <Title>Provedores de Telemetria</Title>
@@ -2451,7 +2462,7 @@ export default function FleetDashboard(): JSX.Element {
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 11, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20} fill="#3b82f6"
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('telemetria', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2463,14 +2474,14 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
 
                         <Card>
-                            <Title>Situa├º├úo de Seguro</Title>
+                            <Title>Situação de Seguro</Title>
                             <div className="h-56 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={seguroData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} />
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('seguro', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2488,7 +2499,7 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
 
                         <Card>
-                            <Title>Diferen├ºa de Od├┤metro (Info vs Conf)</Title>
+                            <Title>Diferença de Odômetro (Info vs Conf)</Title>
                             <div className="h-56 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40 }}>
@@ -2507,14 +2518,14 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
 
                         <Card className="lg:col-start-1 lg:row-span-2">
-                            <Title>Ve├¡culos por Cliente</Title>
+                            <Title>Veículos por Cliente</Title>
                             <div className="h-[520px] mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={veiculosPorClienteData} layout="vertical" margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={150} fontSize={9} tick={{ fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={20}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2526,14 +2537,14 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
 
                         <Card className="lg:col-start-2 lg:col-span-1 lg:row-span-2">
-                            <Title>Propriet├írio do Ve├¡culo</Title>
+                            <Title>Proprietário do Veículo</Title>
                             <div className="h-[520px] mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={proprietarioData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} angle={-45} textAnchor="end" height={80} />
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={32}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('proprietario', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2552,7 +2563,7 @@ export default function FleetDashboard(): JSX.Element {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} angle={-45} textAnchor="end" height={80} />
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
                                         <Bar dataKey="value" fill="#06b6d4" radius={[6, 6, 0, 0]} barSize={32}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('finalidade', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2564,16 +2575,16 @@ export default function FleetDashboard(): JSX.Element {
                         </Card>
                     </div>
 
-                    {/* Gr├íficos de Localiza├º├úo (Telemetria) - Hier├írquico */}
+                    {/* Gráficos de Localização (Telemetria) - Hierárquico */}
                     <div className="grid grid-cols-1 gap-6">
                         <Card className="p-0 overflow-hidden">
                             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                                 <div>
-                                    <Title>Distribui├º├úo Geogr├ífica de Ve├¡culos (Por Estado)</Title>
+                                    <Title>Distribuição Geográfica de Veículos (Por Estado)</Title>
                                     <Text className="text-xs text-slate-500">Expanda o estado para visualizar as cidades</Text>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Badge className="ml-2">{mapData.length} ve├¡culos</Badge>
+                                    <Badge className="ml-2">{mapData.length} veículos</Badge>
                                 </div>
                             </div>
                             <div className="p-4">
@@ -2583,11 +2594,11 @@ export default function FleetDashboard(): JSX.Element {
                                             <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
                                                 <div className="flex w-full items-center justify-between pr-4">
                                                     <div className="flex items-center gap-3">
-                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'N├úo classificados' : item.uf}</Badge>
+                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'Não classificados' : item.uf}</Badge>
                                                         <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} ve├¡culos</span>
+                                                        <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} veículos</span>
                                                         <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden ml-2">
                                                             <div
                                                                 className="h-full bg-blue-600 rounded-full"
@@ -2599,7 +2610,7 @@ export default function FleetDashboard(): JSX.Element {
                                             </AccordionTrigger>
                                             <AccordionContent className="px-4 pb-4 pt-2">
                                                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                                                    <Title className="text-sm mb-3 text-slate-700">Ve├¡culos por Munic├¡pio em {item.uf}</Title>
+                                                    <Title className="text-sm mb-3 text-slate-700">Veículos por Município em {item.uf}</Title>
                                                     <div className="mt-2 space-y-1 max-h-96 overflow-y-auto">
                                                         {item.cities.map((city) => (
                                                             <div
@@ -2612,19 +2623,19 @@ export default function FleetDashboard(): JSX.Element {
                                                                     <span className="truncate text-slate-700 font-medium">{city.name}</span>
                                                                 </div>
                                                                 <div className="flex flex-col items-end">
-                                                                    <span className="text-slate-600 font-medium">{city.value} ve├¡culos</span>
-                                                                    {item.uf === 'ND' && city.name === 'N├úo classificados' && naoClassificadosPlacas.length > 0 && (
+                                                                    <span className="text-slate-600 font-medium">{city.value} veículos</span>
+                                                                    {item.uf === 'ND' && city.name === 'Não classificados' && naoClassificadosPlacas.length > 0 && (
                                                                         <div className="mt-2 flex gap-2 flex-wrap max-w-[360px] justify-end">
                                                                             {naoClassificadosPlacas.slice(0, 30).map(p => (
                                                                                 <button
                                                                                     key={p}
                                                                                     onClick={() => {
                                                                                         applyFilterValues('search', [p]);
-                                                                                        // garantir que a tabela local de telemetria tamb├®m aplique a pesquisa
+                                                                                        // garantir que a tabela local de telemetria também aplique a pesquisa
                                                                                         setAppliedPlateSearch(p);
                                                                                         setPlateSearch(p);
                                                                                         setActiveTab('telemetria');
-                                                                                        // rolar at├® a tabela de telemetria para foco do usu├írio
+                                                                                        // rolar até a tabela de telemetria para foco do usuário
                                                                                         setTimeout(() => {
                                                                                             const el = document.getElementById('telemetria-table');
                                                                                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2654,7 +2665,7 @@ export default function FleetDashboard(): JSX.Element {
                                 </Accordion>
                                 {localizacaoHierarquica.length === 0 && (
                                     <div className="p-8 text-center text-slate-500 text-sm">
-                                        Nenhuma informa├º├úo de localiza├º├úo dispon├¡vel nos filtros atuais.
+                                        Nenhuma informação de localização disponível nos filtros atuais.
                                     </div>
                                 )}
                             </div>
@@ -2667,12 +2678,12 @@ export default function FleetDashboard(): JSX.Element {
                             <MapPin className="w-5 h-5 text-blue-600" />
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                    <Title>Localiza├º├úo</Title>
+                                    <Title>Localização</Title>
                                     {selectedLocation && <Badge color="indigo">{selectedLocation.city}/{selectedLocation.uf}</Badge>}
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <Badge className="ml-2">{mapData.length} ve├¡culos</Badge>
+                                <Badge className="ml-2">{mapData.length} veículos</Badge>
                                 <div className="text-sm text-slate-600">Mostrando {Math.min(markerLimit, mapData.length)} / {fmtDecimal(mapData.length)}</div>
                                 {markerLimit < mapData.length && (
                                     <button
@@ -2745,7 +2756,7 @@ export default function FleetDashboard(): JSX.Element {
                                 <Info className="w-5 h-5 text-blue-600" />
                                 <Title>Detalhamento: Telemetria e Rastreamento</Title>
                                 <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">
-                                    {fmtDecimal(filteredData.length)} ve├¡culos
+                                    {fmtDecimal(filteredData.length)} veículos
                                 </span>
                             </div>
                                 <div className="flex items-center gap-2">
@@ -2810,11 +2821,11 @@ export default function FleetDashboard(): JSX.Element {
                                         <th className="px-4 py-3">Cliente</th>
                                         <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3">Provedor Telemetria</th>
-                                        <th className="px-4 py-3">├Ültima Atualiza├º├úo</th>
+                                        <th className="px-4 py-3">Última Atualização</th>
                                         <th className="px-4 py-3 text-center">GPS</th>
-                                        <th className="px-4 py-3">├Ültimo Endere├ºo</th>
+                                        <th className="px-4 py-3">Último Endereço</th>
                                         <th className="px-4 py-3 text-center">Seguro</th>
-                                        <th className="px-4 py-3">Propriet├írio</th>
+                                        <th className="px-4 py-3">Proprietário</th>
                                         <th className="px-4 py-3">Condutor</th>
                                         <th className="px-4 py-3 text-right">KM Info</th>
                                         <th className="px-4 py-3 text-right">KM Conf</th>
@@ -2823,8 +2834,8 @@ export default function FleetDashboard(): JSX.Element {
                                 <tbody className="divide-y divide-slate-100">
                                     {pageItems.map((r, i) => {
                                         const temTelemetria = r.ProvedorTelemetria &&
-                                            r.ProvedorTelemetria !== 'N├âO DEFINIDO' &&
-                                            r.ProvedorTelemetria !== 'N├úo Definido';
+                                            r.ProvedorTelemetria !== 'NÃO DEFINIDO' &&
+                                            r.ProvedorTelemetria !== 'Não Definido';
                                         const temGPS = r.lat && r.lng && r.lat !== 0 && r.lng !== 0;
                                         const atualizadoRecente = r.UltimaAtualizacaoTelemetria ?
                                             (new Date().getTime() - new Date(r.UltimaAtualizacaoTelemetria).getTime()) < (24 * 60 * 60 * 1000) :
@@ -2876,7 +2887,7 @@ export default function FleetDashboard(): JSX.Element {
                                                             Sim
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-300 text-xs">N├úo</span>
+                                                        <span className="text-slate-300 text-xs">Não</span>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3 text-xs max-w-xs truncate" title={r.UltimoEnderecoTelemetria || 'N/A'}>
@@ -2909,7 +2920,7 @@ export default function FleetDashboard(): JSX.Element {
                         </div>
                         <div className="flex justify-between items-center p-4 border-t border-slate-100">
                             <div className="text-sm text-slate-500">
-                                Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, tableData.length)} de {fmtDecimal(tableData.length)} ve├¡culos
+                                Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, tableData.length)} de {fmtDecimal(tableData.length)} veículos
                             </div>
                             <div className="flex gap-2">
                                 <button
@@ -2917,17 +2928,17 @@ export default function FleetDashboard(): JSX.Element {
                                     disabled={page === 0}
                                     className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 hover:bg-slate-200 transition-colors"
                                 >
-                                    ÔåÉ Anterior
+                                    ← Anterior
                                 </button>
                                 <span className="px-3 py-1 text-sm text-slate-600">
-                                    P├ígina {page + 1} de {Math.ceil(tableData.length / pageSize)}
+                                    Página {page + 1} de {Math.ceil(tableData.length / pageSize)}
                                 </span>
                                 <button
                                     onClick={() => setPage(page + 1)}
                                     disabled={(page + 1) * pageSize >= tableData.length}
                                     className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 hover:bg-slate-200 transition-colors"
                                 >
-                                    Pr├│xima ÔåÆ
+                                    Próxima →
                                 </button>
                             </div>
                         </div>
@@ -3025,8 +3036,8 @@ export default function FleetDashboard(): JSX.Element {
                                             <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
                                                 <p className="font-semibold mb-2">­ƒôè Como funciona este gr├ífico:</p>
                                                 <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
-                                                <p className="mb-2"><strong>C├ílculo:</strong> Para cada dia, conta quantos ve├¡culos estavam "na rua" simultaneamente.</p>
-                                                <p className="mb-2"><strong>Regra:</strong> Um ve├¡culo conta se DataInicio Ôëñ dia E (DataFim ÔëÑ dia OU DataFim = null)</p>
+                                                <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
+                                                <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio &lt;= dia E (DataFim &gt;= dia OU DataFim = null)</p>
                                                 <p><strong>­ƒÆí Dica:</strong> Use o slider abaixo para ajustar o per├¡odo de an├ílise!</p>
                                                 <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
                                             </div>
@@ -3049,9 +3060,9 @@ export default function FleetDashboard(): JSX.Element {
                                                 )}
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">├Ültimo m├¬s</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 75, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">├Ültimos 3m</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 50, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">├Ültimos 6m</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 75, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 50, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
                                                 <button onClick={() => setSliderRange({ startPercent: 0, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo per├¡odo</button>
                                             </div>
                                         </div>
@@ -3116,7 +3127,7 @@ export default function FleetDashboard(): JSX.Element {
                                     </div>
                                 )}
 
-                                <Text className="text-xs text-slate-500 mb-2">Evolu├º├úo da quantidade de ve├¡culos reserva em uso simult├óneo por dia <span className="text-cyan-600 font-medium">(clique em um ponto para ver detalhamento)</span></Text>
+                                <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia <span className="text-cyan-600 font-medium">(clique em um ponto para ver detalhamento)</span></Text>
                                 <div className="h-80 mt-4">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart 
@@ -3148,9 +3159,9 @@ export default function FleetDashboard(): JSX.Element {
                                                 }}
                                                 interval={Math.floor(ocupacaoSimultaneaData.length / 12)}
                                             />
-                                            <YAxis tick={{ fontSize: 12 }} label={{ value: 'Ve├¡culos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
+                                            <YAxis tick={{ fontSize: 12 }} label={{ value: 'Veículos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
                                             <Tooltip
-                                                formatter={(value: any) => [value, 'Ve├¡culos em Uso']}
+                                                formatter={(value: any) => [value, 'Veículos em Uso']}
                                                 labelFormatter={(label) => {
                                                     const date = new Date(label);
                                                     return date.toLocaleDateString('pt-BR');
@@ -3177,7 +3188,7 @@ export default function FleetDashboard(): JSX.Element {
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
                                                 <Title className="text-slate-700">Detalhamento - {new Date(selectedDayForDetail).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</Title>
-                                                <Text className="text-slate-500 text-sm mt-1">{reservasDetailForSelectedDay.length} ve├¡culo(s) reserva em uso simult├óneo neste dia</Text>
+                                                <Text className="text-slate-500 text-sm mt-1">{reservasDetailForSelectedDay.length} veículo(s) reserva em uso simultâneo neste dia</Text>
                                             </div>
                                             <button
                                                 onClick={() => setSelectedDayForDetail(null)}
@@ -3258,7 +3269,7 @@ export default function FleetDashboard(): JSX.Element {
                                             }}
                                             className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600 transition-colors"
                                         >
-                                            {expandedYears.length === reservaKPIs.monthlyData.length ? 'ÔêÆ Colapsar Tudo' : '+ Expandir Tudo'}
+                                            {expandedYears.length === reservaKPIs.monthlyData.length ? '− Colapsar Tudo' : '+ Expandir Tudo'}
                                         </button>
                                     </div>
                                 </div>
@@ -3420,7 +3431,7 @@ export default function FleetDashboard(): JSX.Element {
                                 </div>
                             </Card>
 
-                            {/* 3) Abas para Motivo / Status / Tipo Ve├¡culo / Modelo / Cliente / Local */}
+                            {/* 3) Abas para Motivo / Status / Tipo Veículo / Modelo / Cliente / Local */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <Title>Resumo Anal├¡tico de Carro Reserva</Title>
@@ -3441,7 +3452,7 @@ export default function FleetDashboard(): JSX.Element {
                                             onClick={() => setSelectedResumoChart('tipo')}
                                             className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'tipo' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                         >
-                                            Tipo Ve├¡culo
+                                            Tipo Veículo
                                         </button>
                                         <button
                                             onClick={() => setSelectedResumoChart('modelo')}
@@ -3576,7 +3587,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <th className="px-6 py-3">Di├írias</th>
                                                 <th className="px-6 py-3">Contrato Loca├º├úo</th>
                                                 <th className="px-6 py-3">Cliente</th>
-                                                <th className="px-6 py-3">Tipo Ve├¡culo</th>
+                                                <th className="px-6 py-3">Tipo Veículo</th>
                                                 <th className="px-6 py-3">Fornecedor Reserva</th>
                                                 <th className="px-6 py-3">Motivo</th>
                                                 <th className="px-6 py-3">N├║mero Reserva</th>
@@ -3631,9 +3642,9 @@ export default function FleetDashboard(): JSX.Element {
                                 </div>
                                 <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
                                     <div className="flex gap-2 items-center">
-                                        <button onClick={() => setReservaPage(Math.max(0, reservaPage - 1))} disabled={reservaPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÉ</button>
-                                        <span className="px-3 py-1 text-sm text-slate-600">P├ígina {reservaPage + 1} de {Math.ceil(filteredReservas.length / pageSize)}</span>
-                                        <button onClick={() => setReservaPage(reservaPage + 1)} disabled={(reservaPage + 1) * pageSize >= filteredReservas.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÆ</button>
+                                        <button onClick={() => setReservaPage(Math.max(0, reservaPage - 1))} disabled={reservaPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
+                                        <span className="px-3 py-1 text-sm text-slate-600">Página {reservaPage + 1} de {Math.ceil(filteredReservas.length / pageSize)}</span>
+                                        <button onClick={() => setReservaPage(reservaPage + 1)} disabled={(reservaPage + 1) * pageSize >= filteredReservas.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
                                     </div>
                                 </div>
                             </Card>
