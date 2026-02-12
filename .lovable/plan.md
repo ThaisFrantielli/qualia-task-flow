@@ -1,258 +1,121 @@
 
+# Plano: Correcao do Deploy Vercel e Analise da Atualizacao de Dados
 
-# Plano de Acao - Revisao Completa do CRM
+## 1. Problema do Deploy no Vercel
 
-## Resumo Executivo
+### Causa Raiz
 
-Apos investigacao detalhada do codigo-fonte e estrutura do banco de dados, identifiquei **12 inconsistencias criticas** que afetam a Central de Tickets, Central de Atendimento, WhatsApp, Hub de Clientes e Sistema de Pesquisas. Este plano apresenta as correcoes necessarias e melhorias propostas.
+O `vercel.json` usa a API legada `builds` + `routes`, que conflita com a API moderna `headers`. O Vercel nao suporta misturar essas APIs corretamente. Alem disso, o `vercel.json` forca Content-Type para `application/javascript` em **todos** os arquivos dentro de `/assets/`, incluindo CSS e fontes -- isso quebra o carregamento de estilos e assets.
 
----
+### Problemas Especificos
 
-## 1. Problemas Identificados
+1. **API mista**: `builds` (legada) + `routes` (legada) misturado com `headers` (que funciona melhor com `rewrites` moderna)
+2. **Content-Type incorreto**: A regra `source: "/assets/(.*)"` aplica `Content-Type: application/javascript` para **todos** os arquivos, incluindo `.css`, `.woff2`, `.png` -- o navegador rejeita CSS servido como JavaScript
+3. **Duplicidade de regras**: Ha regras separadas para `.js`, `.css`, `.woff2`, `.png`, `.svg` que ja cobrem o que a regra `/assets/(.*)` tenta fazer
 
-### 1.1 ERRO CRITICO: Criacao de Ticket Falhando
+### Solucao
 
-**Causa Raiz Identificada:**
-O formulario de criacao de ticket (`CreateTicketDialog.tsx`) envia o campo `origem` como string livre (ex: "Whatsapp"), mas a tabela `tickets` no banco de dados possui um campo `origem` do tipo VARCHAR que aceita qualquer valor, enquanto o sistema tambem possui uma tabela separada `ticket_origens` com UUIDs.
+Reescrever o `vercel.json` usando a API moderna e corrigir os Content-Types:
 
-**Problema Especifico:**
-- Linha 97-98: `origem: values.origem` esta enviando o UUID do motivo para `motivo_id`, correto.
-- Porem, `values.origem` vem do select que busca de `ticket_origens.value`, que e uma string (ex: "whatsapp", "telefone").
-- O banco aceita essa string, mas a inconsistencia esta na **ausencia de tratamento de erros robustos** - quando o banco rejeita dados invalidos, o erro nao e capturado corretamente.
-
-**Problema de Build Atual:**
-Existem **17 erros de TypeScript** de variaveis nao utilizadas em:
-- `AtendimentoActions.tsx` (linha 90)
-- `TicketDetail.tsx` (linhas 8, 9, 10, 13, 52, 139, 144)
-- `WhatsAppQuickActions.tsx` (linha 68)
-- `AtendimentoCentralPage.tsx` (linhas 23-33, 67, 238)
-
-### 1.2 Incompatibilidade de Enums - TICKET_MOTIVO_OPTIONS
-
-**Problema Critico:**
-O arquivo `src/constants/ticketOptions.ts` define valores de motivo que **NAO correspondem** aos enums do banco de dados:
-
-| Arquivo ticketOptions.ts | Enum ticket_motivo_enum (Banco) |
-|--------------------------|----------------------------------|
-| "Contestacao de Cobranca" | "Contestacao cobranca" |
-| "Demora na Aprovacao do Orcamento" | "Demora na aprovacao do orcamento" |
-| "Ma Qualidade de Servico" | "Ma qualidade do servico" |
-| "Problemas Com Fornecedor" | "Problema com fornecedor" |
-
-Esta incompatibilidade pode causar erros ao inserir tickets com esses motivos.
-
-**Solucao:** O sistema agora usa a tabela `ticket_motivos` (criada recentemente) em vez do enum. O hook `useTicketMotivos()` ja busca os valores corretos. O arquivo `ticketOptions.ts` esta desatualizado e deve ser removido ou sincronizado.
-
-### 1.3 Duplicidade de Clientes
-
-**Situacao Atual:**
-- O hook `useAutoMergeClients.ts` foi criado para detectar duplicatas baseado nos ultimos 9 digitos do telefone.
-- A funcao `findAllDuplicates()` busca corretamente os clientes e agrupa por telefone normalizado.
-- O botao "Unificar Duplicados" foi adicionado ao `CustomerHubPage.tsx`.
-
-**Problema Identificado:**
-A query de teste retornou array vazio, indicando que os dados atuais podem nao ter duplicatas reais no momento, OU a logica de normalizacao precisa ser ajustada para casos como:
-- Telefones com DDI (55)
-- Telefones com e sem DDD
-- Campos `telefone` vs `whatsapp_number` inconsistentes
-
-### 1.4 Erros de Build (TypeScript)
-
-Existem **17 variaveis declaradas mas nao utilizadas** que quebram o build:
-
-```text
-AtendimentoActions.tsx:90 - numeroTicket
-AtendimentoCentralPage.tsx:23-33 - MessageSquare, Users, Clock, Inbox, Bell, UserCheck
-AtendimentoCentralPage.tsx:67 - statsLoading
-AtendimentoCentralPage.tsx:238 - onlineAgentsCount
-TicketDetail.tsx:8-10 - Dialog, Select, Label
-TicketDetail.tsx:13 - Plus
-TicketDetail.tsx:52 - isAddDeptOpen
-TicketDetail.tsx:139 - handleAddDepartamento
-TicketDetail.tsx:144 - dept
-WhatsAppQuickActions.tsx:68 - numeroTicket
-```
-
-### 1.5 Seguranca - Linter do Supabase
-
-O linter identificou **76 problemas**:
-- 5 ERRORS: Views com SECURITY DEFINER
-- 71 WARNINGS: Funcoes sem `search_path` definido
-
----
-
-## 2. Arquitetura Atual vs Esperada
-
-### 2.1 Fluxo de Criacao de Ticket
-
-```text
-ATUAL:
-Usuario -> CreateTicketDialog -> useCreateTicket -> Supabase INSERT
-                                     |
-                                     v
-                              [FALHA] Se valores nao correspondem aos enums
-
-CORRIGIDO:
-Usuario -> CreateTicketDialog -> Validacao Frontend -> useCreateTicket -> Supabase INSERT
-                                     |                       |
-                                     v                       v
-                              [OK] Valores validados    [Fallback] try/catch robusto
-```
-
-### 2.2 Relacionamento de Entidades
-
-```text
-clientes (1) ---> (*) tickets
-    |                   |
-    v                   v
-cliente_contatos   ticket_interacoes
-                        |
-                        v
-                   ticket_departamentos
-```
-
----
-
-## 3. Plano de Correcoes
-
-### Fase 1: Correcoes Criticas (Build e Erros)
-
-| Prioridade | Arquivo | Acao |
-|------------|---------|------|
-| ALTA | TicketDetail.tsx | Remover imports e variaveis nao utilizados (linhas 8-10, 13, 52, 139, 144) |
-| ALTA | AtendimentoCentralPage.tsx | Remover imports nao utilizados (linhas 23-33, 67, 238) |
-| ALTA | AtendimentoActions.tsx | Remover `numeroTicket` (linha 90) |
-| ALTA | WhatsAppQuickActions.tsx | Remover `numeroTicket` (linha 68) |
-
-### Fase 2: Sincronizacao de Dados
-
-| Prioridade | Componente | Acao |
-|------------|------------|------|
-| ALTA | ticketOptions.ts | Atualizar TICKET_MOTIVO_OPTIONS para corresponder aos valores da tabela `ticket_motivos` ou remover em favor do hook |
-| MEDIA | CreateTicketDialog.tsx | Adicionar try/catch mais robusto e validacao pre-submit |
-| MEDIA | useAutoMergeClients.ts | Melhorar normalizacao de telefone para considerar DDI brasileiro |
-
-### Fase 3: Melhorias de UX
-
-| Prioridade | Componente | Acao |
-|------------|------------|------|
-| MEDIA | SurveyDashboard.tsx | Adicionar grafico de timeline por data de criacao |
-| MEDIA | SurveyReportsPage.tsx | Adicionar tabela de detalhamento com filtros |
-| BAIXA | DetractorAlerts.tsx | Adicionar workflow de follow-up com SLA |
-
----
-
-## 4. Detalhes Tecnicos das Correcoes
-
-### 4.1 Correcao do TicketDetail.tsx
-
-**Remover ou comentar:**
-```typescript
-// Linha 8-9: Remover imports Dialog e Select (ja existem no componente EditTicketDialog)
-// Linha 10: Remover Label
-// Linha 13: Remover Plus
-// Linha 52: Remover isAddDeptOpen ou implementar funcionalidade
-// Linha 139-144: Remover handleAddDepartamento e dept
-```
-
-### 4.2 Correcao do AtendimentoCentralPage.tsx
-
-**Remover imports nao utilizados:**
-```typescript
-// Linha 23-26, 29, 33: Remover MessageSquare, Users, Clock, Inbox, Bell, UserCheck
-// Linha 67: Remover statsLoading da desestruturacao
-// Linha 238: Remover onlineAgentsCount
-```
-
-### 4.3 Atualizacao do ticketOptions.ts
-
-**Sincronizar com enums do banco:**
-```typescript
-export const TICKET_MOTIVO_OPTIONS = [
-    { value: 'Contestação cobrança', label: 'Contestação de Cobrança' },
-    { value: 'Demora na aprovação do orçamento', label: 'Demora na Aprovação do Orçamento' },
-    { value: 'Agendamento errôneo', label: 'Agendamento Errôneo' },
-    { value: 'Má qualidade do serviço', label: 'Má Qualidade do Serviço' },
-    // ... demais valores conforme enum
-] as const;
-```
-
-OU remover o uso do arquivo estatico e usar exclusivamente `useTicketMotivos()`.
-
-### 4.4 Tratamento de Erros no CreateTicketDialog
-
-**Adicionar validacao pre-submit:**
-```typescript
-const actionInProgressRef = useRef(false);
-
-async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (actionInProgressRef.current) return;
-    actionInProgressRef.current = true;
-
-    try {
-        // Validacao adicional
-        if (!values.cliente_id || !values.motivo) {
-            toast.error("Preencha todos os campos obrigatórios");
-            return;
-        }
-
-        await createTicket.mutateAsync({ ... });
-        toast.success("Ticket criado com sucesso!");
-        setOpen(false);
-        form.reset();
-    } catch (error: any) {
-        console.error("Create ticket error:", error);
-        const message = error?.message || "Erro desconhecido ao criar ticket";
-        toast.error(message);
-    } finally {
-        actionInProgressRef.current = false;
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/((?!assets|data).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/data/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600" },
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+      ]
     }
+  ]
 }
 ```
 
----
-
-## 5. Inconsistencias Adicionais Encontradas
-
-### 5.1 Central de Atendimento (WhatsApp)
-
-- O componente `WhatsAppCentralPage.tsx` e `AtendimentoCentralPage.tsx` sao muito similares e podem ser unificados
-- Ambos usam os mesmos hooks: `useWhatsAppConversations`, `useWhatsAppStats`, `useWhatsAppAgents`
-- Recomendacao: Remover uma das paginas e redirecionar
-
-### 5.2 Sistema de Pesquisas
-
-- Hook `useSurveyMetrics.ts` calcula tendencia corretamente (linha 99)
-- Detratores pendentes filtrados corretamente (linhas 140-148)
-- Nao foram encontrados bugs criticos no modulo de pesquisas
-
-### 5.3 Hub de Clientes
-
-- A sincronizacao com BI funciona via `limpar_clientes_bi()` + reimport
-- Clientes manuais podem coexistir com clientes BI
-- A unificacao de duplicatas esta implementada mas requer teste manual
+Mudancas-chave:
+- Removida a secao `builds` (Vercel detecta automaticamente projetos Vite)
+- Usar `rewrites` em vez de `routes` (API moderna)
+- Remover forcamento de Content-Type em `/assets/` -- o Vercel ja detecta o MIME correto automaticamente
+- Adicionar regra para `/data/` com `Content-Type: application/json` para evitar que os JSONs do BI sejam servidos como HTML
+- O `rewrites` exclui `/assets/` e `/data/` do fallback para `index.html`, garantindo que arquivos estaticos sejam servidos diretamente
 
 ---
 
-## 6. Sequencia de Implementacao Recomendada
+## 2. Analise da Atualizacao Automatica de Dados
 
-| Ordem | Tarefa | Estimativa |
-|-------|--------|------------|
-| 1 | Corrigir erros de build (variaveis nao utilizadas) | 15 min |
-| 2 | Atualizar ticketOptions.ts ou remover uso estatico | 30 min |
-| 3 | Adicionar try/catch robusto no CreateTicketDialog | 20 min |
-| 4 | Testar criacao de ticket end-to-end | 15 min |
-| 5 | Revisar e testar unificacao de clientes duplicados | 30 min |
-| 6 | Implementar melhorias no dashboard de pesquisas | 2 horas |
+### Como Funciona Hoje
+
+```text
+SQL Server (DW) --> GitHub Actions (ETL 3x/dia) --> PostgreSQL (Neon)
+                                                       |
+                                                       v
+                                                  JSONs em public/data/
+                                                       |
+                                                       v
+                                              Frontend (useBIData hook)
+```
+
+**Schedule**: GitHub Actions roda nos horarios UTC `03:30`, `13:30`, `18:30` (equivalente a ~00:30, 10:30, 15:30 horario de Brasilia)
+
+**Fluxo**:
+1. O script `run-sync-v2.js` conecta ao SQL Server, extrai dados, e grava no PostgreSQL (Neon)
+2. Gera arquivos JSON particionados em `public/data/` (ex: `dim_frota.json`, `agg_custos_detalhados_part1of26.json`)
+3. Faz commit automatico via GitHub Actions (permissions: contents: write)
+4. O Vercel detecta o push e faz redeploy automatico
+
+**Frontend**:
+- O hook `useBIData` carrega JSONs via `fetch('/data/nome.json')`
+- Suporta manifests + partes para arquivos grandes
+- Cache de 5 minutos em memoria
+- O `DataUpdateBadge` exibe metadados de atualizacao (DW timestamp, ETL timestamp, versao)
+
+### Problemas Identificados
+
+1. **JSONs servidos como HTML**: Sem Content-Type adequado no Vercel, quando o browser pede `/data/dim_frota.json` e o arquivo nao existe, o fallback retorna `index.html` -- o `useBIData` ja tem protecao contra isso (verifica se o body comeca com `<`), mas o Content-Type correto evita o problema na raiz.
+
+2. **Dados desatualizados apos deploy**: O ETL faz commit no GitHub, mas se o Vercel nao redeployar (ex: branch errada, webhook desabilitado), os dados ficam desatualizados. A imagem mostra dados de 10/02/2026 (2 dias atras), o que e normal para o schedule de 3x/dia.
+
+3. **Sem mecanismo de "force refresh"**: O botao de refetch no `useBIData` limpa o cache de memoria, mas busca os mesmos JSONs estaticos -- nao ha como forcar uma atualizacao real sem um novo deploy.
+
+### Status Atual (Conforme Imagem)
+
+A imagem enviada mostra:
+- Ultima atualizacao DW: 10/02/2026, 07:29:14
+- ETL executado em: 10/02/2026, 14:21:15
+- Registros: 5.824
+- Versao ETL: 2.0
+- Dados atualizados ha: 1 dia
+
+Isso indica que o ETL esta funcionando corretamente. Os dados tem 1-2 dias de atraso, o que e esperado dado o schedule de 3x/dia. O proximo ETL atualizara os dados automaticamente.
 
 ---
 
-## 7. Resultado Esperado
+## 3. Sequencia de Implementacao
 
-Apos implementacao:
-1. Build sem erros de TypeScript
-2. Criacao de tickets funcionando sem erros de enum
-3. Clientes duplicados detectados e unificados automaticamente
-4. Dashboard de pesquisas com analise temporal
-5. Central de Atendimento sem codigo legado duplicado
+| Ordem | Acao | Impacto |
+|-------|------|---------|
+| 1 | Reescrever `vercel.json` com API moderna | Corrige deploy e Content-Types |
+| 2 | Verificar build local sem erros TypeScript | Garante que o deploy no Vercel funcione |
+| 3 | Testar se JSONs do `/data/` sao servidos corretamente | Valida atualizacao de dados |
 
+---
+
+## 4. Detalhes Tecnicos
+
+### Dependencias Node-only no package.json
+
+O `package.json` inclui pacotes que sao **exclusivamente para backend/ETL** (ex: `mssql`, `pg`, `express`, `body-parser`, `whatsapp-web.js`, `qrcode-terminal`). Estes nao sao importados no codigo frontend (`src/`), entao o Vite nao os inclui no bundle. Porem, o `npm install` no Vercel os instala desnecessariamente, aumentando o tempo de build. Idealmente deveriam estar em um `package.json` separado (como ja existe em `scripts/local-etl/package.json`), mas isso nao causa erro de build -- apenas lentidao.
+
+### noUnusedLocals no tsconfig.json
+
+O `tsconfig.json` tem `noUnusedLocals: true` e `noUnusedParameters: true`. Se houver variaveis nao utilizadas remanescentes, o `tsc` (typecheck) falhara. O `vite build` por si so nao roda `tsc`, entao isso so afeta se o Vercel tiver um step de typecheck. O script de build atual e apenas `vite build`, que deveria funcionar mesmo com warnings de TS.
