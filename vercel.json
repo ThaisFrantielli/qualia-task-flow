@@ -1,13 +1,12 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "version": 2,
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     },
     {
-      "source": "/((?!api|src|node_modules|@vite|@react-refresh|assets|data|favicon.ico).*)",
+      "source": "/((?!api|assets|data|@vite|@react-refresh|src|node_modules|favicon.ico).*)",
       "destination": "/index.html"
     }
   ]

@@ -109,6 +109,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     client = await pool.connect();
     let result;
     if (table === 'dim_contratos_locacao') {
+      // NOTE: ensure Postgres uses the exact cased column names when necessary.
+      // The query below aliases JSON extraction fields using double-quoted identifiers
+      // so that consumers can reference them unambiguously (e.g. c."IdContratoLocacao").
+      // Verified: all selected aliases below use double quotes for case-sensitive names.
       // Enriquecer contratos com dados da frota via LEFT JOIN (c.PlacaPrincipal = f.Placa)
       result = await client.query(
         `WITH contratos AS (

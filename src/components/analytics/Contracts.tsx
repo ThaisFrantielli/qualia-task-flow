@@ -767,6 +767,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                  <div className="flex items-center gap-2">
                    <label className="text-xs">Linhas:</label>
                    <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
+                     <option value={10}>10</option>
                      <option value={25}>25</option>
                      <option value={50}>50</option>
                      <option value={100}>100</option>
@@ -944,7 +945,14 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                             })()}
                           </td>
                           <td className="px-4 py-4 text-right">
-                            <div className="text-xs font-mono text-slate-600">{contract.valorFipeAtual ? `R$ ${contract.valorFipeAtual.toLocaleString('pt-BR')}` : '-'}</div>
+                            {(() => {
+                              const fipeVal = (typeof contract.valorFipeAtual === 'number' && Number.isFinite(contract.valorFipeAtual) && contract.valorFipeAtual > 0)
+                                ? contract.valorFipeAtual
+                                : (typeof contract.currentFipe === 'number' && Number.isFinite(contract.currentFipe) && contract.currentFipe > 0) ? contract.currentFipe : undefined;
+                              return (
+                                <div className="text-xs font-mono text-slate-600">{typeof fipeVal === 'number' ? `R$ ${fipeVal.toLocaleString('pt-BR')}` : '-'}</div>
+                              );
+                            })()}
                           </td>
                             <td className="px-4 py-4 text-right">
                               {typeof contract.ValorCompra === 'number' && contract.ValorCompra > 0 ? (

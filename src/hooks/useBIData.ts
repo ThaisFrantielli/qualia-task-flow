@@ -31,10 +31,31 @@ async function fetchFromAPI(tableName: string): Promise<{ data: unknown | null; 
   try {
     const url = `/api/bi-data?table=${encodeURIComponent(tableName)}`;
     const resp = await fetch(url);
+    console.debug(`[useBIData] fetch ${url} -> status=${resp.status} content-type=${resp.headers.get('content-type')}`);
 
     if (!resp.ok) {
-      const errorBody = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      // Try to parse JSON error body, but if it's not JSON log raw text for debugging
+      let errorBody: unknown = { error: `HTTP ${resp.status}` };
+      try {
+        errorBody = await resp.json();
+      } catch (e) {
+        try {
+          const txt = await resp.text();
+          console.error(`[useBIData] API returned non-JSON error body for "${tableName}":`, txt.slice ? txt.slice(0, 1000) : txt);
+        } catch (te) {
+          // ignore
+        }
+      }
       console.error(`[useBIData] API error for "${tableName}":`, errorBody);
+      return { data: null, metadata: null, success: false };
+    }
+
+    // Validate content-type before attempting JSON parse to get clearer logs when server returns JS/HTML
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const raw = await resp.text();
+      console.error(`[useBIData] Expected JSON response for "${tableName}" but received content-type="${contentType}"; response start:`,
+        raw && raw.slice ? raw.slice(0, 1000) : raw);
       return { data: null, metadata: null, success: false };
     }
 
