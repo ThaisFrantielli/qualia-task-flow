@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
@@ -30,6 +30,7 @@ type AnyObject = { [k: string]: any };
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function normalizePlate(v: any): string { return String(v ?? '').trim().toUpperCase(); }
 function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
 function fmtCompact(v: number) {
     try {
@@ -79,34 +80,58 @@ export default function FleetDashboard(): JSX.Element {
     const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
     const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao');
 
-    // Carregar fat_sinistros e fat_multas consolidados (tabelas únicas no banco de destino)
-const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
-  const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas_*.json');
+        // Carregar fat_sinistros e fat_multas consolidados (tabelas únicas no banco de destino)
+        const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros');
+        const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas');
 
     const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
     const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);
 
-    const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
-    const manutencao = useMemo(() => (manutencaoData as any)?.data || manutencaoData || [], [manutencaoData]);
+    const frota = useMemo<AnyObject[]>(() => {
+        const raw = Array.isArray(frotaData) ? frotaData : [];
+        return raw.map((item: AnyObject): AnyObject => ({
+            ...item,
+            Placa: item.Placa || item.placa || item.plate || '',
+            Modelo: item.Modelo || item.modelo || item.modelo_veiculo || 'N/A',
+            Status: item.Status || item.status || item.SituacaoVeiculo || item.situacaoveiculo || 'N/A',
+            ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.valor_compra || 0),
+            ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorFipe || item.valorfipe || 0),
+            KmInformado: parseNum(item.KmInformado || item.kminformado || item.currentkm || 0),
+            KmConfirmado: parseNum(item.KmConfirmado || item.kmconfirmado || 0),
+            IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.agemonths || 0),
+            Categoria: item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros',
+            Filial: item.Filial || item.filial || 'N/A',
+            UltimoEnderecoTelemetria: item.UltimoEnderecoTelemetria || item.ultimoenderecotelemetria || '',
+        }));
+    }, [frotaData]);
+    const manutencao = useMemo<AnyObject[]>(() => {
+        const raw = (manutencaoData as any)?.data || manutencaoData || [];
+        return raw.map((m: AnyObject): AnyObject => ({
+            ...m,
+            Placa: m.Placa || m.placa || '',
+            ValorTotal: parseCurrency(m.ValorTotal || m.valortotal || m.CustoTotalOS || m.custototalos || 0),
+            CustoTotalOS: parseCurrency(m.CustoTotalOS || m.custototalos || m.ValorTotal || m.valortotal || 0),
+        }));
+    }, [manutencaoData]);
     const movimentacoes = useMemo(() => (movimentacoesData as any)?.data || movimentacoesData || [], [movimentacoesData]);
     // Usar timeline recente para compatibilidade com componentes existentes
     const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
-    // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
+    // Timeline agregada por ve├¡culo para KPIs (dispon├¡vel para componentes filhos)
     const timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
-    // Log para debug - usar timelineStats em cálculos futuros
-    console.log(`[FleetDashboard] Timeline stats: ${timelineStats.length} veículos agregados`);
+    // Log para debug - usar timelineStats em c├ílculos futuros
+    console.log(`[FleetDashboard] Timeline stats: ${timelineStats.length} ve├¡culos agregados`);
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
-    // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
+    // Garantir que consideramos apenas ocorr├¬ncias do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
-        // Se o arquivo já é específico de "carro reserva" (sem campo Tipo/IdTipo),
-        // assume todos os registros pertencem a carro reserva. Caso contrário,
+        // Se o arquivo j├í ├® espec├¡fico de "carro reserva" (sem campo Tipo/IdTipo),
+        // assume todos os registros pertencem a carro reserva. Caso contr├írio,
         // aplica o filtro por Tipo/TipoOcorrencia/IdTipo quando presente.
         if (!Array.isArray(carroReserva) || carroReserva.length === 0) return [];
 
         const sample = carroReserva[0] || {};
         const hasTipoField = Object.prototype.hasOwnProperty.call(sample, 'Tipo') || Object.prototype.hasOwnProperty.call(sample, 'TipoOcorrencia') || Object.prototype.hasOwnProperty.call(sample, 'IdTipo');
 
-        if (!hasTipoField) return carroReserva; // já é um arquivo de carro reserva
+        if (!hasTipoField) return carroReserva; // j├í ├® um arquivo de carro reserva
 
         return carroReserva.filter(r => {
             const tipo = String(r.Tipo || r.TipoOcorrencia || '').toLowerCase();
@@ -134,7 +159,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         }> = {};
 
         const normalizeText = (v: any) => String(v ?? '').trim();
-        const getStatus = (c: AnyObject) => normalizeText(c.StatusLocacao ?? c.Status ?? c.Situacao ?? c.situacao);
+        const getStatus = (c: AnyObject) => normalizeText(c.StatusLocacao ?? c.statuslocacao ?? c.Status ?? c.status ?? c.Situacao ?? c.situacao);
         const isClosed = (status: string) => {
             const s = status.toUpperCase();
             return s.includes('ENCERR') || s.includes('CANCEL');
@@ -151,24 +176,24 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             const t = new Date(raw).getTime();
             return Number.isFinite(t) ? t : 0;
         };
-        const getStartDate = (c: AnyObject) => pickDate(c, ['DataInicio', 'InicioContrato', 'DataInicioContrato', 'DataRetirada', 'DataAbertura']);
+        const getStartDate = (c: AnyObject) => pickDate(c, ['DataInicio', 'datainicio', 'InicioContrato', 'iniciocontrato', 'DataInicioContrato', 'datainiciocontrato', 'DataRetirada', 'dataretirada', 'DataAbertura', 'dataabertura']);
 
         for (const c of contratosLocacao) {
-            const placa = String(c.PlacaPrincipal ?? c.Placa ?? '').trim();
+            const placa = normalizePlate(c.PlacaPrincipal ?? c.placaprincipal ?? c.Placa ?? c.placa ?? c.plate ?? '');
             if (!placa) continue;
 
             const status = getStatus(c);
-            const contratoId = normalizeText(c.NumeroContrato ?? c.Contrato ?? c.IdContratoLocacao ?? c.ContratoId);
+            const contratoId = normalizeText(c.NumeroContrato ?? c.numerocontrato ?? c.Contrato ?? c.contrato ?? c.IdContratoLocacao ?? c.idcontratolocacao ?? c.ContratoId ?? c.contratoid);
 
             const inicio = getStartDate(c);
             const next = {
-                NomeCliente: normalizeText(c.NomeCliente ?? c.Cliente ?? 'Sem Cliente') || 'Sem Cliente',
-                TipoLocacao: normalizeText(c.TipoLocacao ?? 'Não Definido') || 'Não Definido',
+                NomeCliente: normalizeText(c.NomeCliente ?? c.nomecliente ?? c.Cliente ?? c.cliente ?? 'Sem Cliente') || 'Sem Cliente',
+                TipoLocacao: normalizeText(c.TipoLocacao ?? c.tipolocacao ?? 'N├úo Definido') || 'N├úo Definido',
                 NumeroContratoLocacao: contratoId || undefined,
                 SituacaoLocacao: status || undefined,
-                DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'DataFimPrevista', 'DataFimPrevisto', 'DataFim', 'DataTerminoPrevisto', 'DataFimLocacao']) || undefined,
-                DataEncerramentoLocacao: pickDate(c, ['DataEncerramento', 'DataEncerrado', 'DataFimEfetiva', 'DataFim', 'DataTermino', 'DataFimLocacao']) || undefined,
-                ValorLocacao: parseCurrency(c.ValorMensal ?? c.ValorLocacao ?? c.ValorContrato ?? 0) || undefined,
+                DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'dataprevistatermino', 'DataFimPrevista', 'datafimprevista', 'DataFimPrevisto', 'datafimprevisto', 'DataFim', 'datafim', 'DataTerminoPrevisto', 'dataterminoprevisto', 'DataFimLocacao', 'datafimlocacao']) || undefined,
+                DataEncerramentoLocacao: pickDate(c, ['DataEncerramento', 'dataencerramento', 'DataEncerrado', 'dataencerrado', 'DataFimEfetiva', 'datafimefetiva', 'DataFim', 'datafim', 'DataTermino', 'datatermino', 'DataFimLocacao', 'datafimlocacao']) || undefined,
+                ValorLocacao: parseCurrency(c.ValorMensal ?? c.valormensal ?? c.ValorLocacao ?? c.valorlocacao ?? c.ValorContrato ?? c.valorcontrato ?? 0) || undefined,
                 __inicio: inicio || undefined,
             };
 
@@ -178,7 +203,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 continue;
             }
 
-            // Preferir contrato não encerrado/cancelado; em empate, pegar o mais recente por data de início
+            // Preferir contrato n├úo encerrado/cancelado; em empate, pegar o mais recente por data de in├¡cio
             const prevClosed = isClosed(prev.SituacaoLocacao || '');
             const nextClosed = isClosed(status);
             if (prevClosed && !nextClosed) {
@@ -198,8 +223,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     }, [contratosLocacao]);
 
     const frotaEnriched = useMemo(() => {
-        return frota.map(v => {
-            const contrato = contratosMap[v.Placa];
+        return frota.map((v: AnyObject) => {
+            const contrato = contratosMap[normalizePlate(v.Placa ?? v.placa ?? v.plate)];
             return {
                 ...v,
                 NomeCliente: contrato?.NomeCliente || 'N/A',
@@ -223,7 +248,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
     const manutencaoMap = useMemo(() => {
         const map: Record<string, number> = {};
-        manutencao.forEach((m: any) => { if (m.Placa) map[m.Placa] = (map[m.Placa] || 0) + parseCurrency(m.CustoTotalOS || m.ValorTotal); });
+        manutencao.forEach((m: any) => {
+            const placa = normalizePlate(m.Placa || m.placa);
+            if (!placa) return;
+            map[placa] = (map[placa] || 0) + parseCurrency(m.CustoTotalOS || m.custototalos || m.ValorTotal || m.valortotal);
+        });
         return map;
     }, [manutencao]);
 
@@ -248,13 +277,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const plateDebounceRef = useRef<number | null>(null);
     const [markerLimit, setMarkerLimit] = useState<number>(500);
     // (removed main header input; plates are shown as MultiSelect in the filters grid)
-    // Slider de período para gráfico de ocupação
+    // Slider de per├¡odo para gr├ífico de ocupa├º├úo
     const [sliderRange, setSliderRange] = useState<{ startPercent: number, endPercent: number }>({ startPercent: 0, endPercent: 100 });
     const [selectedResumoChart, setSelectedResumoChart] = useState<'motivo' | 'status' | 'tipo' | 'modelo' | 'cliente' | 'local'>('motivo');
     const [expandedYears, setExpandedYears] = useState<string[]>([]);
     const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
     const [selectedTemporalFilter, setSelectedTemporalFilter] = useState<{ year?: string, month?: string } | null>(null); // Filtro temporal ativo
-    const [selectedDayForDetail, setSelectedDayForDetail] = useState<string | null>(null); // Dia selecionado para detalhamento de ocupação
+    const [selectedDayForDetail, setSelectedDayForDetail] = useState<string | null>(null); // Dia selecionado para detalhamento de ocupa├º├úo
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
     // apply default filter: restore persisted `productivity` or show 'Ativa' on first load
@@ -309,16 +338,16 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
     // main header search removed: plates are a MultiSelect in the filters grid
 
-    // CLASSIFICAÇÃO DE FROTA
+    // CLASSIFICA├ç├âO DE FROTA
     const getCategory = (status: string) => {
         const s = (status || '').toUpperCase();
-        if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+        if (['LOCADO', 'LOCADO VE├ìCULO RESERVA', 'USO INTERNO', 'EM MOBILIZA├ç├âO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
         // Treat some statuses as Inativa (also exclude them from 'Improdutiva')
         if ([
             'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-            'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
-            'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
-            'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+            'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPON├ìVEL PARA VENDA', 'DISPON├ìVEL PRA VENDA',
+            'N├âO DISPON├ìVEL', 'NAO DISPONIVEL', 'N├âO DISPONIVEL', 'NAO DISPON├ìVEL',
+            'EM DESMOBILIZA├ç├âO', 'EM DESMOBILIZACAO'
         ].includes(s)) return 'Inativa';
         return 'Improdutiva';
     };
@@ -352,11 +381,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const [selectedLocation, setSelectedLocation] = useState<{ city: string, uf: string } | null>(null);
     const [activeTab, setActiveTab] = useState<string>('visao-geral');
 
-    // Helper centralizado para extração de localização
+    // Helper centralizado para extra├º├úo de localiza├º├úo
     const extractLocation = (address: string): { uf: string, city: string } => {
         const fullAddr = (address || '').trim();
         let uf = 'ND';
-        let city = 'Não Identificado';
+        let city = 'N├úo Identificado';
 
         const ufMatch = fullAddr.match(/\(([A-Z]{2})\)/);
         if (ufMatch) uf = ufMatch[1];
@@ -374,8 +403,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 const part = parts[i].toUpperCase();
                 if (part === 'BRASIL') continue;
                 if (/\d{5}-?\d{3}/.test(part)) continue;
-                if (part.startsWith('REGIÃO')) continue;
-                if (part.startsWith('MICRORREGIÃO')) continue;
+                if (part.startsWith('REGI├âO')) continue;
+                if (part.startsWith('MICRORREGI├âO')) continue;
                 if (part.startsWith('VILA ')) continue;
                 if (part.startsWith('JARDIM ')) continue;
                 if (part.length < 3 || /^\d+/.test(part)) continue;
@@ -385,72 +414,72 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             }
         } catch (e) { }
 
-        // --- CORREÇÕES MANUAIS ---
+        // --- CORRE├ç├òES MANUAIS ---
         const stateCorrections: Record<string, string> = {
             'DE': 'GO', 'DA': 'MT', 'DO': 'SP', 'GM': 'SP', 'VW': 'SP', 'EM': 'SP', 'FEDERAL DISTRICT': 'DF'
         };
         if (stateCorrections[uf]) uf = stateCorrections[uf];
 
         const cityCorrections: Record<string, string> = {
-            'Sia': 'Brasília', 'Scia': 'Brasília', 'Plano Piloto': 'Brasília', 'Gama': 'Brasília',
-            'Taguatinga': 'Brasília', 'Ceilândia': 'Brasília', 'Sobradinho': 'Brasília', 'Guará': 'Brasília',
-            'Samambaia': 'Brasília', 'Planaltina': 'Brasília', 'Santa Maria': 'Brasília', 'Cruzeiro': 'Brasília',
-            'Lago Sul': 'Brasília', 'Lago Norte': 'Brasília', 'Vicente Pires': 'Brasília', 'Sudoeste / Octogonal': 'Brasília',
-            'Recanto Das Emas': 'Brasília', 'Paranoá': 'Brasília', 'Riacho Fundo': 'Brasília', 'São Sebastião': 'Brasília',
-            'Águas Claras': 'Brasília', 'Candangolândia': 'Brasília', 'Núcleo Bandeirante': 'Brasília', 'Park Way': 'Brasília',
-            'Imbiribeira': 'Recife', 'Hauer': 'Curitiba', 'Pilarzinho': 'Curitiba', 'Portão': 'Curitiba', 'Centro': 'Curitiba',
-            'Parolin': 'Curitiba', 'Demarchi': 'São Bernardo do Campo', 'Santana': 'São Paulo', 'Barra Funda': 'São Paulo',
-            'República': 'São Paulo', 'Vila Leopoldina': 'São Paulo', 'Brás': 'São Paulo', 'Santo Amaro': 'São Paulo',
-            'Itaquera': 'São Paulo', 'Jabaquara': 'São Paulo', 'Moema': 'São Paulo', 'Perdizes': 'São Paulo',
-            'Pinheiros': 'São Paulo', 'Limão': 'São Paulo', 'Cachoeirinha': 'São Paulo', 'Brasilândia': 'São Paulo',
-            'Jardim Goiás': 'Goiânia', 'Setor Leste': 'Goiânia', 'Setor Norte': 'Brasília',
-            'Sol Nascente/pôr Do Sol': 'Brasília',
+            'Sia': 'Bras├¡lia', 'Scia': 'Bras├¡lia', 'Plano Piloto': 'Bras├¡lia', 'Gama': 'Bras├¡lia',
+            'Taguatinga': 'Bras├¡lia', 'Ceil├óndia': 'Bras├¡lia', 'Sobradinho': 'Bras├¡lia', 'Guar├í': 'Bras├¡lia',
+            'Samambaia': 'Bras├¡lia', 'Planaltina': 'Bras├¡lia', 'Santa Maria': 'Bras├¡lia', 'Cruzeiro': 'Bras├¡lia',
+            'Lago Sul': 'Bras├¡lia', 'Lago Norte': 'Bras├¡lia', 'Vicente Pires': 'Bras├¡lia', 'Sudoeste / Octogonal': 'Bras├¡lia',
+            'Recanto Das Emas': 'Bras├¡lia', 'Parano├í': 'Bras├¡lia', 'Riacho Fundo': 'Bras├¡lia', 'S├úo Sebasti├úo': 'Bras├¡lia',
+            '├üguas Claras': 'Bras├¡lia', 'Candangol├óndia': 'Bras├¡lia', 'N├║cleo Bandeirante': 'Bras├¡lia', 'Park Way': 'Bras├¡lia',
+            'Imbiribeira': 'Recife', 'Hauer': 'Curitiba', 'Pilarzinho': 'Curitiba', 'Port├úo': 'Curitiba', 'Centro': 'Curitiba',
+            'Parolin': 'Curitiba', 'Demarchi': 'S├úo Bernardo do Campo', 'Santana': 'S├úo Paulo', 'Barra Funda': 'S├úo Paulo',
+            'Rep├║blica': 'S├úo Paulo', 'Vila Leopoldina': 'S├úo Paulo', 'Br├ís': 'S├úo Paulo', 'Santo Amaro': 'S├úo Paulo',
+            'Itaquera': 'S├úo Paulo', 'Jabaquara': 'S├úo Paulo', 'Moema': 'S├úo Paulo', 'Perdizes': 'S├úo Paulo',
+            'Pinheiros': 'S├úo Paulo', 'Lim├úo': 'S├úo Paulo', 'Cachoeirinha': 'S├úo Paulo', 'Brasil├óndia': 'S├úo Paulo',
+            'Jardim Goi├ís': 'Goi├ónia', 'Setor Leste': 'Goi├ónia', 'Setor Norte': 'Bras├¡lia',
+            'Sol Nascente/p├┤r Do Sol': 'Bras├¡lia',
 
-            // Mapeamentos adicionais solicitados — forçar para Brasília
-            'Brasília': 'Brasília',
-            'Riacho Fundo Ii': 'Brasília',
-            'Riacho Fundo II': 'Brasília',
-            'Riacho Fundo Iii': 'Brasília',
-            'Arniqueira': 'Brasília',
-            'Arniqueiras': 'Brasília',
-            'Sobradinho Ii': 'Brasília',
-            'Itapoã': 'Brasília',
-            'Itapoa': 'Brasília',
-            'Brazlândia': 'Brasília',
-            'Rua Dos Ipês': 'Brasília',
-            'Valparaíso De Goiás': 'Brasília',
-            'Valparaíso de Goiás': 'Brasília',
-            'Setor Tradicional': 'Brasília',
-            'Cidade De Lucia Costa': 'Brasília',
-            'Quadra 35 Conjunto D': 'Brasília',
-            'Ville De Montagne - Q 17': 'Brasília',
-            'Sudoeste/Octogonal': 'Brasília',
-            'Sudoeste/octogonal': 'Brasília',
-            'Sudoeste / octogonal': 'Brasília',
-            'Condomínio Chácaras Itaipu Chácara 83': 'Brasília',
-            'Condominio Chacaras Itaipu Chacara 83': 'Brasília',
-            'Varjão': 'Brasília',
-            'Edf Smdb Shis Km 274': 'Brasília',
-            'Avenida São Sebastião': 'Brasília',
-            'Avenida Sao Sebastiao': 'Brasília',
-            'Novo Gama': 'Brasília',
-            'Avenida Dom Bosco': 'Brasília',
-            'Avenida Rio Tocantins': 'Brasília',
-            'Federal District': 'Brasília',
-            'Parque E Jardim Paineiras Conjunto 7': 'Brasília',
-            'Cristalina': 'Brasília'
+            // Mapeamentos adicionais solicitados ÔÇö for├ºar para Bras├¡lia
+            'Bras├¡lia': 'Bras├¡lia',
+            'Riacho Fundo Ii': 'Bras├¡lia',
+            'Riacho Fundo II': 'Bras├¡lia',
+            'Riacho Fundo Iii': 'Bras├¡lia',
+            'Arniqueira': 'Bras├¡lia',
+            'Arniqueiras': 'Bras├¡lia',
+            'Sobradinho Ii': 'Bras├¡lia',
+            'Itapo├ú': 'Bras├¡lia',
+            'Itapoa': 'Bras├¡lia',
+            'Brazl├óndia': 'Bras├¡lia',
+            'Rua Dos Ip├¬s': 'Bras├¡lia',
+            'Valpara├¡so De Goi├ís': 'Bras├¡lia',
+            'Valpara├¡so de Goi├ís': 'Bras├¡lia',
+            'Setor Tradicional': 'Bras├¡lia',
+            'Cidade De Lucia Costa': 'Bras├¡lia',
+            'Quadra 35 Conjunto D': 'Bras├¡lia',
+            'Ville De Montagne - Q 17': 'Bras├¡lia',
+            'Sudoeste/Octogonal': 'Bras├¡lia',
+            'Sudoeste/octogonal': 'Bras├¡lia',
+            'Sudoeste / octogonal': 'Bras├¡lia',
+            'Condom├¡nio Ch├ícaras Itaipu Ch├ícara 83': 'Bras├¡lia',
+            'Condominio Chacaras Itaipu Chacara 83': 'Bras├¡lia',
+            'Varj├úo': 'Bras├¡lia',
+            'Edf Smdb Shis Km 274': 'Bras├¡lia',
+            'Avenida S├úo Sebasti├úo': 'Bras├¡lia',
+            'Avenida Sao Sebastiao': 'Bras├¡lia',
+            'Novo Gama': 'Bras├¡lia',
+            'Avenida Dom Bosco': 'Bras├¡lia',
+            'Avenida Rio Tocantins': 'Bras├¡lia',
+            'Federal District': 'Bras├¡lia',
+            'Parque E Jardim Paineiras Conjunto 7': 'Bras├¡lia',
+            'Cristalina': 'Bras├¡lia'
         };
 
-        if (city.toUpperCase() === 'SÃO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
+        if (city.toUpperCase() === 'S├âO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
             if (uf !== 'SP') uf = 'SP';
         }
         if (city.toUpperCase() === 'RIO DE JANEIRO') if (uf !== 'RJ') uf = 'RJ';
         if (city.toUpperCase() === 'BELO HORIZONTE') if (uf !== 'MG') uf = 'MG';
-        if (city.toUpperCase() === 'BRASÍLIA' || city.toUpperCase().includes('DISTRITO FEDERAL')) {
+        if (city.toUpperCase() === 'BRAS├ìLIA' || city.toUpperCase().includes('DISTRITO FEDERAL')) {
             uf = 'DF';
-            city = 'Brasília';
+            city = 'Bras├¡lia';
         }
-        if (city.toUpperCase() === 'GOIÂNIA' || city.toUpperCase() === 'APARECIDA DE GOIÂNIA') if (uf !== 'GO') uf = 'GO';
+        if (city.toUpperCase() === 'GOI├éNIA' || city.toUpperCase() === 'APARECIDA DE GOI├éNIA') if (uf !== 'GO') uf = 'GO';
 
         city = city.toLowerCase().replace(/(?:^|\s)\S/g, function (a) { return a.toUpperCase(); });
         if (cityCorrections[city]) city = cityCorrections[city];
@@ -458,7 +487,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         return { uf, city };
     };
 
-    // Pré-calcular cidade/UF por veículo (evita regex/string parsing em cada alteração de filtro)
+    // Pr├®-calcular cidade/UF por ve├¡culo (evita regex/string parsing em cada altera├º├úo de filtro)
     const frotaWithLocation = useMemo(() => {
         return frotaEnriched.map(r => {
             const loc = extractLocation(r.UltimoEnderecoTelemetria);
@@ -483,11 +512,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const tipoLocacaoFilters = getFilterValues('tipoLocacao');
         const categoriaFilters = getFilterValues('categoria');
         
-        // Filtros para gráficos da aba Visão Geral
+        // Filtros para gr├íficos da aba Vis├úo Geral
         const odometroFilters = getFilterValues('odometro');
         const idadeFilters = getFilterValues('idade');
         
-        // Filtros para gráficos da aba Telemetria
+        // Filtros para gr├íficos da aba Telemetria
         const telemetriaFilters = getFilterValues('telemetria');
         const seguroFilters = getFilterValues('seguro');
         const proprietarioFilters = getFilterValues('proprietario');
@@ -533,7 +562,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
             if (patioFilters.length > 0 && !patioFilters.includes(r.Patio)) return false;
 
-            // Filtra por seleção de localização (quando usuário clica no mapa/accordion)
+            // Filtra por sele├º├úo de localiza├º├úo (quando usu├írio clica no mapa/accordion)
             if (selectedLocation) {
                 if ((r as any)._uf !== selectedLocation.uf || (r as any)._city !== selectedLocation.city) return false;
             }
@@ -550,7 +579,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 if (!ok) return false;
             }
             
-            // Filtro de odômetro (clique no gráfico de classificação por odômetro)
+            // Filtro de od├┤metro (clique no gr├ífico de classifica├º├úo por od├┤metro)
             if (odometroFilters.length > 0) {
                 const km = parseNum(r.KmInformado);
                 const ok = odometroFilters.some((of: string) => {
@@ -572,7 +601,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 if (!ok) return false;
             }
             
-            // Filtro de idade (clique no gráfico de classificação por idade)
+            // Filtro de idade (clique no gr├ífico de classifica├º├úo por idade)
             if (idadeFilters.length > 0) {
                 const idade = parseNum(r.IdadeVeiculo);
                 const ok = idadeFilters.some((idf: string) => {
@@ -589,7 +618,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             
             // Filtro de provedor de telemetria
             if (telemetriaFilters.length > 0) {
-                const provedor = r.ProvedorTelemetria || 'Não Definido';
+                const provedor = r.ProvedorTelemetria || 'N├úo Definido';
                 if (!telemetriaFilters.includes(provedor)) return false;
             }
             
@@ -599,29 +628,29 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     ? 'Com Seguro'
                     : r.ComSeguroVigente === false || r.ComSeguroVigente === 'false' || r.ComSeguroVigente === 0
                         ? 'Sem Seguro'
-                        : 'Não Informado';
+                        : 'N├úo Informado';
                 if (!seguroFilters.includes(seguro)) return false;
             }
             
-            // Filtro de proprietário
+            // Filtro de propriet├írio
             if (proprietarioFilters.length > 0) {
-                const prop = r.Proprietario || 'Não Definido';
+                const prop = r.Proprietario || 'N├úo Definido';
                 if (!proprietarioFilters.includes(prop)) return false;
             }
             
             // Filtro de finalidade de uso
             if (finalidadeFilters.length > 0) {
-                const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
+                const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'N├úo Definido';
                 if (!finalidadeFilters.includes(finalidade)) return false;
             }
             
-            // Filtro de diferença de KM
+            // Filtro de diferen├ºa de KM
             if (kmDiffFilters.length > 0) {
                 const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
                 const ok = kmDiffFilters.some((kf: string) => {
-                    if (kf === 'Sem Divergência') return diff === 0;
+                    if (kf === 'Sem Diverg├¬ncia') return diff === 0;
                     if (kf === 'Baixa (<1k)') return diff > 0 && diff <= 1000;
-                    if (kf === 'Média (1k-5k)') return diff > 1000 && diff <= 5000;
+                    if (kf === 'M├®dia (1k-5k)') return diff > 1000 && diff <= 5000;
                     if (kf === 'Alta (>5k)') return diff > 5000;
                     return false;
                 });
@@ -661,32 +690,32 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         // NOVOS KPIs: TCO, ROI, Health Score
         const tcoTotal = filteredData.reduce((s, r) => {
             const compra = parseCurrency(r.ValorCompra);
-            const manut = manutencaoMap[r.Placa] || 0;
+            const manut = manutencaoMap[normalizePlate(r.Placa)] || 0;
             const fipe = parseCurrency(r.ValorFipeAtual);
             const depreciacao = Math.max(0, compra - fipe);
             return s + compra + manut + depreciacao - fipe;
         }, 0);
         const tcoMedio = total > 0 ? tcoTotal / total : 0;
 
-        // ROI médio estimado (baseado em receita potencial vs custo)
+        // ROI m├®dio estimado (baseado em receita potencial vs custo)
         const receitaPotencialMensal = produtiva.reduce((s, r) => s + parseCurrency(r.ValorLocacao || 0), 0);
         const custoMensalEstimado = tcoTotal / 36; // amortizado em 36 meses
         const roiEstimado = custoMensalEstimado > 0 ? ((receitaPotencialMensal - custoMensalEstimado) / custoMensalEstimado) * 100 : 0;
 
-        // Health Score (0-100): Baseado em idade, passagens manutenção, % FIPE
+        // Health Score (0-100): Baseado em idade, passagens manuten├º├úo, % FIPE
         const healthScoreCalc = (r: any) => {
             let score = 100;
             const idade = parseNum(r.IdadeVeiculo);
-            const passagens = manutencaoMap[r.Placa] ? 1 : 0; // simplificado - presença de manutenção
+            const passagens = manutencaoMap[normalizePlate(r.Placa)] ? 1 : 0; // simplificado - presen├ºa de manuten├º├úo
             const pctFipe = parseCurrency(r.ValorFipeAtual) > 0
                 ? (parseCurrency(r.ValorCompra) / parseCurrency(r.ValorFipeAtual)) * 100
                 : 100;
 
             // Penaliza idade (cada 12 meses = -10 pontos)
             score -= Math.min(40, Math.floor(idade / 12) * 10);
-            // Penaliza manutenção alta
+            // Penaliza manuten├º├úo alta
             if (passagens > 0) score -= 15;
-            // Penaliza depreciação alta (se compra > 120% FIPE)
+            // Penaliza deprecia├º├úo alta (se compra > 120% FIPE)
             if (pctFipe > 120) score -= 20;
             else if (pctFipe > 110) score -= 10;
 
@@ -695,7 +724,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const healthScoreTotal = filteredData.reduce((s, r) => s + healthScoreCalc(r), 0);
         const healthScoreMedio = total > 0 ? healthScoreTotal / total : 0;
 
-        // Custo de ociosidade (improdutiva: valor locação potencial perdido)
+        // Custo de ociosidade (improdutiva: valor loca├º├úo potencial perdido)
         const custoOciosidade = improdutiva.reduce((s, r) => {
             const diasParado = parseNum(r.DiasNoStatus);
             const valorDiario = parseCurrency(r.ValorLocacao || 0) / 30;
@@ -716,7 +745,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const improdutivaBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
         const impro = filteredData.filter(r => getCategory(r.Status) === 'Improdutiva' && ((r.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
-        impro.forEach(r => { const s = r.Status || 'Não Definido'; map[s] = (map[s] || 0) + 1; });
+        impro.forEach(r => { const s = r.Status || 'N├úo Definido'; map[s] = (map[s] || 0) + 1; });
         const total = impro.length || 1;
         return Object.entries(map).map(([name, value]) => ({ name, value, pct: (value / total) * 100 })).sort((a, b) => b.value - a.value);
     }, [filteredData]);
@@ -725,7 +754,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const produtivaBreakdown = useMemo(() => {
         const map: Record<string, number> = {};
         const prod = filteredData.filter(r => getCategory(r.Status) === 'Produtiva');
-        prod.forEach(r => { const s = r.Status || 'Não Definido'; map[s] = (map[s] || 0) + 1; });
+        prod.forEach(r => { const s = r.Status || 'N├úo Definido'; map[s] = (map[s] || 0) + 1; });
         const total = prod.length || 1;
         return Object.entries(map).map(([name, value]) => ({ name, value, pct: (value / total) * 100 })).sort((a, b) => b.value - a.value);
     }, [filteredData]);
@@ -735,12 +764,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         'VENDIDO': '#10b981', // green
         'LOCADO': '#f59e0b', // amber
         'DISPONIVEL PARA VENDA': '#ef4444', // red
-        'DISPONÍVEL PARA VENDA': '#ef4444',
+        'DISPON├ìVEL PARA VENDA': '#ef4444',
         'DISPONIVEL PRA VENDA': '#ef4444',
         'BLOQUEADO': '#f97316',
         'DEVOLVIDO': '#64748b',
         'RESERVA': '#06b6d4',
-        'DISPONÍVEL': '#3b82f6'
+        'DISPON├ìVEL': '#3b82f6'
     };
 
     const statusData = useMemo(() => {
@@ -751,8 +780,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
     const cityCoordinates: Record<string, [number, number]> = {
         'Manaus': [-3.1190, -60.0217],
-        'Brasília': [-15.7975, -47.8919],
-        'São Paulo': [-23.5505, -46.6333],
+        'Bras├¡lia': [-15.7975, -47.8919],
+        'S├úo Paulo': [-23.5505, -46.6333],
         'Rio de Janeiro': [-22.9068, -43.1729],
         'Belo Horizonte': [-19.9167, -43.9345],
         'Curitiba': [-25.4244, -49.2654],
@@ -760,20 +789,20 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         'Salvador': [-12.9777, -38.5016],
         'Recife': [-8.0476, -34.8770],
         'Porto Alegre': [-30.0346, -51.2177],
-        'Goiânia': [-16.6869, -49.2648],
+        'Goi├ónia': [-16.6869, -49.2648],
         'Campinas': [-22.9099, -47.0626],
-        'Belém': [-1.4558, -48.4902],
-        'São Luís': [-2.5307, -44.3068],
-        'Maceió': [-9.6498, -35.7089],
+        'Bel├®m': [-1.4558, -48.4902],
+        'S├úo Lu├¡s': [-2.5307, -44.3068],
+        'Macei├│': [-9.6498, -35.7089],
         'Natal': [-5.7945, -35.2110],
         'Campo Grande': [-20.4697, -54.6201],
         'Teresina': [-5.0920, -42.8038],
-        'João Pessoa': [-7.1195, -34.8450],
+        'Jo├úo Pessoa': [-7.1195, -34.8450],
         'Aracaju': [-10.9472, -37.0731],
-        'Cuiabá': [-15.6014, -56.0979],
-        'Florianópolis': [-27.5954, -48.5480],
-        'Macapá': [0.0355, -51.0705],
-        'Vitória': [-20.3155, -40.3128],
+        'Cuiab├í': [-15.6014, -56.0979],
+        'Florian├│polis': [-27.5954, -48.5480],
+        'Macap├í': [0.0355, -51.0705],
+        'Vit├│ria': [-20.3155, -40.3128],
         'Porto Velho': [-8.7612, -63.9039],
         'Rio Branco': [-9.9754, -67.8249],
         'Palmas': [-10.1753, -48.3318],
@@ -781,7 +810,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     };
 
     const stableJitter = (seed: string, scale: number) => {
-        // hash simples e determinístico para gerar jitter estável por placa
+        // hash simples e determin├¡stico para gerar jitter est├ível por placa
         let h = 0;
         for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
         const x = Math.sin(h) * 10000;
@@ -808,7 +837,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 ...r,
                 _lat: lat,
                 _lng: lng,
-                _city: city ?? 'Não Identificado',
+                _city: city ?? 'N├úo Identificado',
                 _uf: uf ?? 'ND'
             } as typeof r & { _lat: number; _lng: number; _city: string; _uf: string };
         });
@@ -817,11 +846,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
         if (!selectedLocation) return coordsValid;
 
-        // Caso especial: seleção "Não classificados" deve mostrar veículos com telemetria
-        // que não tiveram uf/cidade extraídos (uf === 'ND' ou endereço ausente).
-        if (selectedLocation.uf === 'ND' && selectedLocation.city === 'Não classificados') {
+        // Caso especial: sele├º├úo "N├úo classificados" deve mostrar ve├¡culos com telemetria
+        // que n├úo tiveram uf/cidade extra├¡dos (uf === 'ND' ou endere├ºo ausente).
+        if (selectedLocation.uf === 'ND' && selectedLocation.city === 'N├úo classificados') {
             return mapped.filter(r => (
-                r.ProvedorTelemetria && r.ProvedorTelemetria !== 'NÃO DEFINIDO' && r.ProvedorTelemetria !== 'Não Definido'
+                r.ProvedorTelemetria && r.ProvedorTelemetria !== 'N├âO DEFINIDO' && r.ProvedorTelemetria !== 'N├úo Definido'
             ) && (
                 !r.UltimoEnderecoTelemetria || (r._uf && r._uf === 'ND')
             ));
@@ -831,25 +860,25 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     }, [filteredData, selectedLocation]);
 
     const kmDifferenceData = useMemo(() => {
-        const ranges = { 'Sem Divergência': 0, 'Baixa (<1k)': 0, 'Média (1k-5k)': 0, 'Alta (>5k)': 0 };
+        const ranges = { 'Sem Diverg├¬ncia': 0, 'Baixa (<1k)': 0, 'M├®dia (1k-5k)': 0, 'Alta (>5k)': 0 };
         filteredData.forEach(r => {
             const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
-            if (diff === 0) ranges['Sem Divergência']++;
+            if (diff === 0) ranges['Sem Diverg├¬ncia']++;
             else if (diff <= 1000) ranges['Baixa (<1k)']++;
-            else if (diff <= 5000) ranges['Média (1k-5k)']++;
+            else if (diff <= 5000) ranges['M├®dia (1k-5k)']++;
             else ranges['Alta (>5k)']++;
         });
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
 
-    // Distribuição por modelo removida - usar modelosPorCategoria (hierárquico)
+    // Distribui├º├úo por modelo removida - usar modelosPorCategoria (hier├írquico)
 
-    // Dados hierárquicos: categorias e modelos (usa GrupoVeiculo do banco)
+    // Dados hier├írquicos: categorias e modelos (usa GrupoVeiculo do banco)
     const modelosPorCategoria = useMemo(() => {
         const categoryMap: Record<string, Record<string, number>> = {};
 
         filteredData.forEach(r => {
-            const modelo = r.Modelo || 'Não Definido';
+            const modelo = r.Modelo || 'N├úo Definido';
             const categoria = r.Categoria || r.GrupoVeiculo || 'Outros';
 
             if (!categoryMap[categoria]) categoryMap[categoria] = {};
@@ -872,14 +901,14 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             .sort((a, b) => b.total - a.total);
     }, [filteredData]);
 
-    // Dados para exibição no gráfico (com categorias colapsáveis)
+    // Dados para exibi├º├úo no gr├ífico (com categorias colaps├íveis)
     const modelosHierarchicalData = useMemo(() => {
         const data: Array<{ name: string; value: number; isCategory?: boolean; categoria?: string }> = [];
 
         modelosPorCategoria.forEach(({ categoria, total, modelos }) => {
             // Adiciona a linha da categoria
             data.push({
-                name: `📁 ${categoria}`,
+                name: `­ƒôü ${categoria}`,
                 value: total,
                 isCategory: true,
                 categoria
@@ -889,7 +918,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             if (expandedCategories.includes(categoria)) {
                 modelos.forEach(modelo => {
                     data.push({
-                        name: `  └─ ${modelo.name}`,
+                        name: `  ÔööÔöÇ ${modelo.name}`,
                         value: modelo.value,
                         isCategory: false,
                         categoria
@@ -909,7 +938,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         );
     };
 
-    // Distribuição por faixa de odômetro (10k em 10k até 120k+)
+    // Distribui├º├úo por faixa de od├┤metro (10k em 10k at├® 120k+)
     const odometroData = useMemo(() => {
         const ranges: Record<string, number> = {
             '0-10k': 0,
@@ -950,7 +979,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     // Toggle view for odometer card: 'odometro' or 'idade' (idade em meses)
     const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
 
-    // Distribuição por faixa de idade (12 em 12 meses até 48+)
+    // Distribui├º├úo por faixa de idade (12 em 12 meses at├® 48+)
     const idadeFaixaData = useMemo(() => {
         const ranges: Record<string, number> = {
             '0-12m': 0,
@@ -970,7 +999,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
 
-    // ANÁLISES DE TELEMETRIA
+    // AN├üLISES DE TELEMETRIA
     const telemetriaData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
@@ -986,8 +1015,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const veiculosComTelemetria = useMemo(() => {
         return filteredData.filter(r =>
             r.ProvedorTelemetria &&
-            r.ProvedorTelemetria !== 'NÃO DEFINIDO' &&
-            r.ProvedorTelemetria !== 'Não Definido'
+            r.ProvedorTelemetria !== 'N├âO DEFINIDO' &&
+            r.ProvedorTelemetria !== 'N├úo Definido'
         );
     }, [filteredData]);
 
@@ -1006,12 +1035,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const map: Record<string, number> = {
             'Com Seguro': 0,
             'Sem Seguro': 0,
-            'Não Informado': 0
+            'N├úo Informado': 0
         };
 
         filteredData.forEach(r => {
             if (r.ComSeguroVigente === null || r.ComSeguroVigente === undefined) {
-                map['Não Informado']++;
+                map['N├úo Informado']++;
             } else if (r.ComSeguroVigente === 1 || r.ComSeguroVigente === true || r.ComSeguroVigente === 'true') {
                 map['Com Seguro']++;
             } else {
@@ -1025,7 +1054,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const proprietarioData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const prop = r.Proprietario || 'Não Definido';
+            const prop = r.Proprietario || 'N├úo Definido';
             map[prop] = (map[prop] || 0) + 1;
         });
         return Object.entries(map)
@@ -1036,7 +1065,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const finalidadeData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
+            const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'N├úo Definido';
             map[finalidade] = (map[finalidade] || 0) + 1;
         });
         return Object.entries(map)
@@ -1064,7 +1093,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         let unclassifiedTotal = 0;
         const hasTracker = (r: any) => {
             const prov = (r.ProvedorTelemetria || '').toString().trim();
-            const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
+            const hasTelemetria = prov && prov.toUpperCase() !== 'N├âO DEFINIDO' && prov.toUpperCase() !== 'N/A';
             const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
             const hasCoords = isFinite(parseNum(r.Latitude)) && isFinite(parseNum(r.Longitude)) && parseNum(r.Latitude) !== 0 && parseNum(r.Longitude) !== 0;
             return hasTelemetria && (hasLastUpdate || hasCoords);
@@ -1099,12 +1128,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     .sort((a, b) => b.value - a.value)
             }));
 
-        // Se houver veículos não classificados, adicionar ao final como grupo separado
+        // Se houver ve├¡culos n├úo classificados, adicionar ao final como grupo separado
         if (unclassifiedTotal > 0) {
             sortedUFs.push({
                 uf: 'ND',
                 total: unclassifiedTotal,
-                cities: [{ name: 'Não classificados', value: unclassifiedTotal }]
+                cities: [{ name: 'N├úo classificados', value: unclassifiedTotal }]
             });
         }
 
@@ -1115,9 +1144,9 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const placas: string[] = [];
         filteredData.forEach(r => {
             const prov = (r.ProvedorTelemetria || '').toString().trim();
-            const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
-            // Considerar rastreador instalado somente quando há provedor válido E
-            // há alguma telemetria recente ou coordenadas conhecidas.
+            const hasTelemetria = prov && prov.toUpperCase() !== 'N├âO DEFINIDO' && prov.toUpperCase() !== 'N/A';
+            // Considerar rastreador instalado somente quando h├í provedor v├ílido E
+            // h├í alguma telemetria recente ou coordenadas conhecidas.
             const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
             const hasCoords = isFinite(parseNum(r.Latitude)) && isFinite(parseNum(r.Longitude)) && parseNum(r.Latitude) !== 0 && parseNum(r.Longitude) !== 0;
             if (!hasTelemetria || (!hasLastUpdate && !hasCoords)) return; // sem rastreador/telemetria, ignorar
@@ -1147,16 +1176,16 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         }
     };
 
-    // ANÁLISE DE PÁTIO - vehiclesDetailed moved here (after filteredData is defined)
+    // AN├üLISE DE P├üTIO - vehiclesDetailed moved here (after filteredData is defined)
     const vehiclesDetailed = useMemo(() => {
         const getCategory = (status: string) => {
             const s = (status || '').toUpperCase();
-            if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+            if (['LOCADO', 'LOCADO VE├ìCULO RESERVA', 'USO INTERNO', 'EM MOBILIZA├ç├âO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
             if ([
                 'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-                'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
-                'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
-                'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+                'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPON├ìVEL PARA VENDA', 'DISPON├ìVEL PRA VENDA',
+                'N├âO DISPON├ìVEL', 'NAO DISPONIVEL', 'N├âO DISPONIVEL', 'NAO DISPON├ìVEL',
+                'EM DESMOBILIZA├ç├âO', 'EM DESMOBILIZACAO'
             ].includes(s)) return 'Inativa';
             return 'Improdutiva';
         };
@@ -1194,7 +1223,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
             }
 
-            const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem pátio';
+            const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem p├ítio';
 
             return {
                 Placa: v.Placa,
@@ -1209,7 +1238,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         });
     }, [filteredData, patioMov, veiculoMov]);
 
-    // Tabela: estado de ordenação e lista ordenada
+    // Tabela: estado de ordena├º├úo e lista ordenada
     const [sortState, setSortState] = useState<{ col: string | null; dir: 'asc' | 'desc' }>({ col: 'Placa', dir: 'asc' });
 
     const toggleSort = (col: string) => {
@@ -1234,12 +1263,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 return (da - db) * (sortState.dir === 'asc' ? 1 : -1);
             }
 
-            // Números
+            // N├║meros
             if (typeof va === 'number' || typeof vb === 'number') {
                 return ((va || 0) - (vb || 0)) * (sortState.dir === 'asc' ? 1 : -1);
             }
 
-            // Strings (comparação localizada, com números embutidos)
+            // Strings (compara├º├úo localizada, com n├║meros embutidos)
             return String(va || '').localeCompare(String(vb || ''), 'pt-BR', { numeric: true }) * (sortState.dir === 'asc' ? 1 : -1);
         });
         return arr;
@@ -1275,7 +1304,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [vehiclesDetailed]);
 
-    // stuckVehicles - disponível para uso futuro em tabela de veículos parados
+    // stuckVehicles - dispon├¡vel para uso futuro em tabela de ve├¡culos parados
     // const stuckVehicles = useMemo(() => {
     //     return filteredData
     //       .filter(r => getCategory(r.Status) === 'Improdutiva')
@@ -1297,7 +1326,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         setReservaPage(0);
     };
 
-    // Calcular min/max dates do histórico de reservas ANTES de filteredReservas
+    // Calcular min/max dates do hist├│rico de reservas ANTES de filteredReservas
     const reservaDateBounds = useMemo(() => {
         if (carroReservaFiltered.length === 0) return null;
 
@@ -1314,12 +1343,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 const df = new Date(r.DataFim);
                 if (!maxDate || df > maxDate) maxDate = df;
             } else {
-                // Se não tem DataFim, é uma reserva ativa
+                // Se n├úo tem DataFim, ├® uma reserva ativa
                 hasActiveReserva = true;
             }
         });
 
-        // Se há reservas ativas OU não há maxDate, usar hoje como máximo
+        // Se h├í reservas ativas OU n├úo h├í maxDate, usar hoje como m├íximo
         const hoje = new Date();
         let finalMaxDate = hoje;
 
@@ -1348,7 +1377,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const locais = getFilterValues('reserva_local');
         const search = (getFilterValues('reserva_search') || [])[0] || '';
 
-        // Filtrar pelo período do slider
+        // Filtrar pelo per├¡odo do slider
         if (!reservaDateBounds) return [];
         const { minDate, maxDate } = reservaDateBounds;
         const totalMs = maxDate.getTime() - minDate.getTime();
@@ -1358,15 +1387,15 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         dataFim.setHours(23, 59, 59, 999);
 
         return carroReservaFiltered.filter(r => {
-            // Filtro de período (slider)
+            // Filtro de per├¡odo (slider)
             if (r.DataInicio) {
                 const di = new Date(r.DataInicio);
                 const df = r.DataFim ? new Date(r.DataFim) : new Date();
-                // Incluir se há sobreposição com o período selecionado
+                // Incluir se h├í sobreposi├º├úo com o per├¡odo selecionado
                 if (!(di <= dataFim && df >= dataInicio)) return false;
             }
 
-            // Filtro temporal (clique em ano/mês na evolução)
+            // Filtro temporal (clique em ano/m├¬s na evolu├º├úo)
             if (selectedTemporalFilter && r.DataCriacao) {
                 const dataCriacao = new Date(r.DataCriacao);
                 const year = dataCriacao.getFullYear().toString();
@@ -1381,15 +1410,15 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
             
-            // Filtro de tipo de veículo (clique no gráfico Tipo Veículo)
+            // Filtro de tipo de ve├¡culo (clique no gr├ífico Tipo Ve├¡culo)
             if (tiposVeiculo.length > 0) {
-                const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
+                const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'N├úo Definido');
                 if (!tiposVeiculo.includes(tipo)) return false;
             }
             
-            // Filtro de localização (clique no gráfico Diárias por Local)
+            // Filtro de localiza├º├úo (clique no gr├ífico Di├írias por Local)
             if (locais.length > 0) {
-                const city = (r.Cidade || 'Não Identificado').trim();
+                const city = (r.Cidade || 'N├úo Identificado').trim();
                 const uf = (r.Estado || '').trim();
                 const key = uf ? `${city} / ${uf}` : city;
                 if (!locais.includes(key)) return false;
@@ -1405,7 +1434,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
     const reservaKPIs = useMemo(() => {
         const total = filteredReservas.length;
-        // Nova regra: ativa = sem data de conclusão (ex: DataDevolucao/DataConclusao) e não cancelada
+        // Nova regra: ativa = sem data de conclus├úo (ex: DataDevolucao/DataConclusao) e n├úo cancelada
         const ativas = filteredReservas.filter(r => {
             const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
             if (status.includes('cancel')) return false;
@@ -1414,22 +1443,22 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         }).length;
 
         const motivoMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const m = r.Motivo || 'Não Definido'; motivoMap[m] = (motivoMap[m] || 0) + 1; });
+        filteredReservas.forEach(r => { const m = r.Motivo || 'N├úo Definido'; motivoMap[m] = (motivoMap[m] || 0) + 1; });
         const principalMotivo = Object.entries(motivoMap).sort((a, b) => b[1] - a[1])[0];
 
         const clienteMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const c = r.Cliente || 'Não Definido'; clienteMap[c] = (clienteMap[c] || 0) + 1; });
+        filteredReservas.forEach(r => { const c = r.Cliente || 'N├úo Definido'; clienteMap[c] = (clienteMap[c] || 0) + 1; });
         const clienteData = Object.entries(clienteMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         const motivoData = Object.entries(motivoMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         const statusMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'Não Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
+        filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'N├úo Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
         const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
-        // Tempo médio de reserva (Concluídas)
+        // Tempo m├®dio de reserva (Conclu├¡das)
         const concluidas = filteredReservas.filter(r =>
-            ['Finalizado', 'Concluída'].includes(r.StatusOcorrencia || '') &&
+            ['Finalizado', 'Conclu├¡da'].includes(r.StatusOcorrencia || '') &&
             (r.DiariasEfetivas || (r.DataInicio && r.DataDevolucao))
         );
 
@@ -1447,12 +1476,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
             if (status.includes('cancel')) return false;
             const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-            // atrasada = ativa (não concluída e não cancelada) com DataFim prevista menor que hoje
+            // atrasada = ativa (n├úo conclu├¡da e n├úo cancelada) com DataFim prevista menor que hoje
             return !concluded && r.DataFim && new Date(r.DataFim) < hoje;
         }).length;
 
-        // Gráfico hierárquico com comparação YoY
-        const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> mês -> dia -> count
+        // Gr├ífico hier├írquico com compara├º├úo YoY
+        const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> m├¬s -> dia -> count
         const yearTotals: Record<string, number> = {};
 
         filteredReservas.forEach(r => {
@@ -1520,26 +1549,26 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         };
     }, [filteredReservas]);
 
-    // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider E filtro temporal)
+    // NOVO: An├ílise de Ocupa├º├úo Simult├ónea Di├íria (controlado por slider E filtro temporal)
     const ocupacaoSimultaneaData = useMemo(() => {
         if (!reservaDateBounds) return [];
 
         const { minDate, maxDate } = reservaDateBounds;
         const totalMs = maxDate.getTime() - minDate.getTime();
 
-        // Se há filtro temporal ativo, usar o período do filtro
+        // Se h├í filtro temporal ativo, usar o per├¡odo do filtro
         let dataInicio: Date;
         let dataFim: Date;
 
         if (selectedTemporalFilter) {
             if (selectedTemporalFilter.month) {
-                // Filtro de mês específico
+                // Filtro de m├¬s espec├¡fico
                 const year = parseInt(selectedTemporalFilter.year!);
                 const month = parseInt(selectedTemporalFilter.month) - 1;
                 dataInicio = new Date(year, month, 1);
                 dataFim = new Date(year, month + 1, 0, 23, 59, 59, 999);
             } else if (selectedTemporalFilter.year) {
-                // Filtro de ano específico
+                // Filtro de ano espec├¡fico
                 const year = parseInt(selectedTemporalFilter.year);
                 dataInicio = new Date(year, 0, 1);
                 dataFim = new Date(year, 11, 31, 23, 59, 59, 999);
@@ -1565,11 +1594,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
             dataAtual.setDate(dataAtual.getDate() + 1);
         }
 
-        // Para cada dia, contar quantos veículos estavam "na rua" (usar filteredReservas para respeitar filtros)
+        // Para cada dia, contar quantos ve├¡culos estavam "na rua" (usar filteredReservas para respeitar filtros)
         const ocupacaoPorDia = datas.map(dia => {
             const diaTime = dia.getTime();
 
-            // Contar veículos em uso neste dia específico
+            // Contar ve├¡culos em uso neste dia espec├¡fico
             const veiculosEmUso = filteredReservas.filter(reserva => {
                 if (!reserva.DataInicio) return false;
 
@@ -1577,12 +1606,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 dataInicio.setHours(0, 0, 0, 0);
                 const inicioTime = dataInicio.getTime();
 
-                // Se DataFim é null/vazio, o veículo ainda está com o cliente
+                // Se DataFim ├® null/vazio, o ve├¡culo ainda est├í com o cliente
                 const dataFim = reserva.DataFim ? new Date(reserva.DataFim) : null;
                 if (dataFim) dataFim.setHours(23, 59, 59, 999);
                 const fimTime = dataFim ? dataFim.getTime() : Date.now();
 
-                // Veículo conta como "Em Uso" se: DataInicio <= dia E (DataFim >= dia OU DataFim é null)
+                // Ve├¡culo conta como "Em Uso" se: DataInicio <= dia E (DataFim >= dia OU DataFim ├® null)
                 return inicioTime <= diaTime && fimTime >= diaTime;
             });
 
@@ -1596,7 +1625,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         return ocupacaoPorDia;
     }, [filteredReservas, sliderRange, reservaDateBounds, selectedTemporalFilter]);
 
-    // Detalhamento de veículos para o dia selecionado no gráfico de ocupação
+    // Detalhamento de ve├¡culos para o dia selecionado no gr├ífico de ocupa├º├úo
     const reservasDetailForSelectedDay = useMemo(() => {
         if (!selectedDayForDetail) return [];
 
@@ -1620,13 +1649,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     }, [selectedDayForDetail, filteredReservas]);
 
     // Novos agregados solicitados:
-    // - Diárias por Local (Cidade/UF)
+    // - Di├írias por Local (Cidade/UF)
     // - Contagem por TipoVeiculoTemporario
-    // - Estrutura Cliente -> Contratos com soma de diárias (para o gráfico colapsável)
+    // - Estrutura Cliente -> Contratos com soma de di├írias (para o gr├ífico colaps├ível)
     const diariasByLocation = useMemo(() => {
         const map: Record<string, number> = {};
         (filteredReservas || []).forEach(r => {
-            const city = (r.Cidade || 'Não Identificado').trim();
+            const city = (r.Cidade || 'N├úo Identificado').trim();
             const uf = (r.Estado || '').trim();
             const key = uf ? `${city} / ${uf}` : city;
             const diarias = Number(r.DiariasEfetivas ?? r.Diarias ?? 0) || 0;
@@ -1638,7 +1667,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const tipoVeiculoCounts = useMemo(() => {
         const map: Record<string, number> = {};
         (filteredReservas || []).forEach(r => {
-            const t = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
+            const t = String(r.TipoVeiculoTemporario || r.Tipo || 'N├úo Definido');
             map[t] = (map[t] || 0) + 1;
         });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -1647,7 +1676,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     const clienteContracts = useMemo(() => {
         const map: Record<string, { totalDiarias: number; contracts: Record<string, { diarias: number; ocorrencias: number }> }> = {};
         (filteredReservas || []).forEach(r => {
-            const cliente = String(r.Cliente || 'Não Definido');
+            const cliente = String(r.Cliente || 'N├úo Definido');
             const contrato = String(r.ContratoLocacao || r.ContratoComercial || r.IdContratoLocacao || 'Sem Contrato');
             const diarias = Number(r.DiariasEfetivas ?? r.Diarias ?? 0) || 0;
             if (!map[cliente]) map[cliente] = { totalDiarias: 0, contracts: {} };
@@ -1665,8 +1694,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     }, [clienteContracts]);
 
 
-    // Distribuição por modelo dos veículos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
-    // Filtra automaticamente pelo período do slider
+    // Distribui├º├úo por modelo dos ve├¡culos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
+    // Filtra automaticamente pelo per├¡odo do slider
     const reservaModelData = useMemo(() => {
         if (!reservaDateBounds) return [];
 
@@ -1677,24 +1706,24 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
         const map: Record<string, number> = {};
 
-        // Filtrar pelo período do slider
+        // Filtrar pelo per├¡odo do slider
         const dadosFiltrados = carroReservaFiltered.filter(r => {
             if (!r.DataInicio) return false;
             const di = new Date(r.DataInicio);
             const df = r.DataFim ? new Date(r.DataFim) : new Date();
 
-            // Incluir se há sobreposição com o período selecionado
+            // Incluir se h├í sobreposi├º├úo com o per├¡odo selecionado
             return di <= dataFim && df >= dataInicio;
         });
 
         dadosFiltrados.forEach(r => {
-            const m = r.ModeloReserva || 'Não Definido';
+            const m = r.ModeloReserva || 'N├úo Definido';
             map[m] = (map[m] || 0) + 1;
         });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
 
-    // KPIs de Eficiência de Ocupação
+    // KPIs de Efici├¬ncia de Ocupa├º├úo
     const ocupacaoKPIs = useMemo(() => {
         if (ocupacaoSimultaneaData.length === 0) {
             return { picoUtilizacao: 0, mediaCarrosNaRua: 0 };
@@ -1741,7 +1770,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
         const data = base.map(r => {
             const compra = parseCurrency(r.ValorCompra);
             const fipe = parseCurrency(r.ValorFipeAtual);
-            const manut = manutencaoMap[r.Placa] || 0;
+            const manut = manutencaoMap[normalizePlate(r.Placa)] || 0;
             const tco = compra + manut;
             return {
                 Placa: r.Placa, Modelo: r.Modelo || 'N/A', Status: r.Status || 'N/A',
@@ -1752,7 +1781,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 compra, fipe, manut, tco, depreciacao: compra - fipe,
                 tipo: getCategory(r.Status),
                 pctFipe: fipe > 0 ? (compra / fipe) * 100 : 0,
-                Patio: r.Patio || 'Sem pátio', DiasNoStatus: parseNum(r.DiasNoStatus),
+                Patio: r.Patio || 'Sem p├ítio', DiasNoStatus: parseNum(r.DiasNoStatus),
                 DataInicioStatus: r.DataInicioStatus || '-',
                 // Campos adicionais para telemetria
                 ProvedorTelemetria: r.ProvedorTelemetria,
@@ -1833,7 +1862,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
             <div className="flex justify-between items-center">
-                <div><Title className="text-slate-900">Gestão de Frota</Title><Text className="text-slate-500">Análise de ativos, produtividade e localização.</Text></div>
+                <div><Title className="text-slate-900">Gest├úo de Frota</Title><Text className="text-slate-500">An├ílise de ativos, produtividade e localiza├º├úo.</Text></div>
                 <div className="flex items-center gap-3">
                     <DataUpdateBadge metadata={frotaMetadata} compact />
                     <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Car className="w-4 h-4" /> Hub Ativos</div>
@@ -1874,10 +1903,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)} className="space-y-6">
                 <TabsList className="bg-white border">
-                    <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
-                    <TabsTrigger value="patio">Gestão de Pátio</TabsTrigger>
+                    <TabsTrigger value="visao-geral">Vis├úo Geral</TabsTrigger>
+                    <TabsTrigger value="patio">Gest├úo de P├ítio</TabsTrigger>
                     <TabsTrigger value="telemetria">Telemetria & Mapa</TabsTrigger>
-                    {/* Aba "Eficiência" removida */}
+                    {/* Aba "Efici├¬ncia" removida */}
                     <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
                     <TabsTrigger value="carro-reserva">Carro Reserva</TabsTrigger>
                 </TabsList>
@@ -1889,26 +1918,26 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         <Card decoration="top" decorationColor="emerald"><Text>Produtiva</Text><Metric>{fmtDecimal(kpis.produtivaQtd)}</Metric><Text className="text-xs text-emerald-600">{kpis.taxaProdutividade.toFixed(1)}%</Text></Card>
                         <Card decoration="top" decorationColor="rose"><Text>Improdutiva</Text><Metric>{fmtDecimal(kpis.improdutivaQtd)}</Metric><Text className="text-xs text-rose-600">{kpis.taxaImprodutiva.toFixed(1)}%</Text></Card>
                         <Card decoration="top" decorationColor="slate"><Text>Inativa</Text><Metric>{fmtDecimal(kpis.inativaQtd)}</Metric></Card>
-                        <Card decoration="top" decorationColor="violet"><Text>Idade Média</Text><Metric>{kpis.idadeMedia.toFixed(1)} m</Metric></Card>
+                        <Card decoration="top" decorationColor="violet"><Text>Idade M├®dia</Text><Metric>{kpis.idadeMedia.toFixed(1)} m</Metric></Card>
                     </div>
 
-                    {/* KPIs executivos movidos para a visão executiva (removidos desta página) */}
+                    {/* KPIs executivos movidos para a vis├úo executiva (removidos desta p├ígina) */}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="border-l-4 border-l-emerald-500"><div className="flex justify-between items-center mb-4"><Title className="text-emerald-700">Frota Produtiva</Title><span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-1 rounded text-xs">{kpis.produtivaQtd} veículos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraProd)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeProd)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeProd <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeProd.toFixed(1)}%</span></div></div></Card>
-                        <Card className="border-l-4 border-l-rose-500"><div className="flex justify-between items-center mb-4"><Title className="text-rose-700">Frota Improdutiva</Title><span className="text-rose-800 font-bold bg-rose-100 px-2 py-1 rounded text-xs">{kpis.improdutivaQtd} veículos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraImprod)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeImprod)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeImprod <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeImprod.toFixed(1)}%</span></div></div></Card>
+                        <Card className="border-l-4 border-l-emerald-500"><div className="flex justify-between items-center mb-4"><Title className="text-emerald-700">Frota Produtiva</Title><span className="text-emerald-800 font-bold bg-emerald-100 px-2 py-1 rounded text-xs">{kpis.produtivaQtd} ve├¡culos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraProd)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeProd)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeProd <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeProd.toFixed(1)}%</span></div></div></Card>
+                        <Card className="border-l-4 border-l-rose-500"><div className="flex justify-between items-center mb-4"><Title className="text-rose-700">Frota Improdutiva</Title><span className="text-rose-800 font-bold bg-rose-100 px-2 py-1 rounded text-xs">{kpis.improdutivaQtd} ve├¡culos</span></div><div className="space-y-2"><div className="flex justify-between text-sm"><span className="text-slate-500">Valor Compra:</span><span className="font-bold">{fmtCompact(kpis.compraImprod)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Valor FIPE:</span><span className="font-bold">{fmtCompact(kpis.fipeImprod)}</span></div><div className="flex justify-between text-sm border-t pt-1"><span className="text-slate-500">% FIPE:</span><span className={`font-bold ${kpis.pctFipeImprod <= 100 ? 'text-emerald-600' : 'text-red-600'}`}>{kpis.pctFipeImprod.toFixed(1)}%</span></div></div></Card>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card>
-                            <Title>Status da Frota <span className="text-xs text-slate-500 font-normal">(clique para filtrar | Ctrl+clique para múltiplos)</span></Title>
+                            <Title>Status da Frota <span className="text-xs text-slate-500 font-normal">(clique para filtrar | Ctrl+clique para m├║ltiplos)</span></Title>
                             <div className="h-96 mt-2">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={[...statusData].sort((a, b) => b.value - a.value)} layout="vertical" margin={{ left: 0, right: 80 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis type="number" tick={{ fontSize: 12 }} />
                                         <YAxis dataKey="name" type="category" width={220} tick={{ fontSize: 12 }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
                                         <Bar dataKey="value" barSize={20} radius={[6, 6, 6, 6]} onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             {statusData.map((entry, idx) => (
                                                 <Cell key={`cell-st-${idx}`} fill={isValueSelected('status', entry.name) ? '#063970' : entry.color} />
@@ -1941,11 +1970,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <Text className="text-xs text-slate-500 text-center">Considera apenas veículos ativos na frota.</Text>
+                                <Text className="text-xs text-slate-500 text-center">Considera apenas ve├¡culos ativos na frota.</Text>
 
                                 <div className="pt-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <Title className="text-sm">Desdobramento Improdutiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: múltiplo)</span></Title>
+                                        <Title className="text-sm">Desdobramento Improdutiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: m├║ltiplo)</span></Title>
                                         <div className="h-64 mt-2">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={improdutivaBreakdown} layout="vertical" margin={{ left: 0, right: 80 }}>
@@ -1954,7 +1983,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                     <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 12 }} />
                                                     <Tooltip formatter={(value: any, _name: any, props: any) => {
                                                         const pct = props?.payload?.pct;
-                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
+                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Ve├¡culos'];
                                                     }} />
                                                     <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#64748b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                         <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
@@ -1964,7 +1993,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         </div>
                                     </div>
                                     <div>
-                                        <Title className="text-sm">Desdobramento Produtiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: múltiplo)</span></Title>
+                                        <Title className="text-sm">Desdobramento Produtiva <span className="text-xs text-slate-400 font-normal">(Ctrl+clique: m├║ltiplo)</span></Title>
                                         <div className="h-64 mt-2">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={produtivaBreakdown} layout="vertical" margin={{ left: 0, right: 80 }}>
@@ -1973,7 +2002,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                     <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 12 }} />
                                                     <Tooltip formatter={(value: any, _name: any, props: any) => {
                                                         const pct = props?.payload?.pct;
-                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
+                                                        return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Ve├¡culos'];
                                                     }} />
                                                     <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                         <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
@@ -1987,13 +2016,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
                     </div>
 
-                    {/* Veículos por Modelo e Classificação de Odômetro */}
+                    {/* Ve├¡culos por Modelo e Classifica├º├úo de Od├┤metro */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card>
                             <div className="flex justify-between items-center mb-2">
                                 <div>
-                                    <Title>Veículos por Modelo <span className="text-xs text-slate-500 font-normal">(clique na categoria para expandir)</span></Title>
-                                    <Text className="text-xs text-slate-500">Agrupados por categoria de veículo</Text>
+                                    <Title>Ve├¡culos por Modelo <span className="text-xs text-slate-500 font-normal">(clique na categoria para expandir)</span></Title>
+                                    <Text className="text-xs text-slate-500">Agrupados por categoria de ve├¡culo</Text>
                                 </div>
                                 <button
                                     onClick={() => setExpandedCategories(prev =>
@@ -2003,7 +2032,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     )}
                                     className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
                                 >
-                                    {expandedCategories.length === modelosPorCategoria.length ? '− Colapsar Todas' : '+ Expandir Todas'}
+                                    {expandedCategories.length === modelosPorCategoria.length ? 'ÔêÆ Colapsar Todas' : '+ Expandir Todas'}
                                 </button>
                             </div>
                             <div className="h-[400px] mt-1 overflow-y-auto pr-2">
@@ -2012,7 +2041,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(value: any) => [String(value), 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [String(value), 'Ve├¡culos']} />
                                         <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16}
                                             onClick={(data: any, _index: number, event: any) => {
                                                 if (data.isCategory) {
@@ -2020,7 +2049,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                     toggleCategory(data.categoria);
                                                 } else {
                                                     // Se for modelo, aplica filtro
-                                                    const modeloName = data.name.replace('  └─ ', '').trim();
+                                                    const modeloName = data.name.replace('  ÔööÔöÇ ', '').trim();
                                                     handleChartClick('modelo', modeloName, event as unknown as React.MouseEvent);
                                                     if (!((event?.ctrlKey) || (event?.metaKey))) {
                                                         document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' });
@@ -2043,24 +2072,24 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
                         <Card>
                             <div className="flex justify-between items-center mb-6">
-                                <Title>Classificação por Odômetro</Title>
+                                <Title>Classifica├º├úo por Od├┤metro</Title>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setOdometroView('odometro')} className={`text-xs px-2 py-1 rounded ${odometroView === 'odometro' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-slate-500 border border-transparent'}`}>
-                                        Odômetro
+                                        Od├┤metro
                                     </button>
                                     <button onClick={() => setOdometroView('idade')} className={`text-xs px-2 py-1 rounded ${odometroView === 'idade' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'text-slate-500 border border-transparent'}`}>
                                         Idade (m)
                                     </button>
                                 </div>
                             </div>
-                            <Text className="text-xs text-slate-500 mb-3">Distribuição de veículos por faixa de quilometragem informada</Text>
+                            <Text className="text-xs text-slate-500 mb-3">Distribui├º├úo de ve├¡culos por faixa de quilometragem informada</Text>
                             <div className="h-[400px] mt-8">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={odometroView === 'odometro' ? odometroData : idadeFaixaData} margin={{ left: 20, right: 60, bottom: 36, top: 24 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={odometroView === 'odometro' ? -45 : 0} textAnchor={odometroView === 'odometro' ? 'end' : 'middle'} height={odometroView === 'odometro' ? 64 : 48} />
                                         <YAxis tick={{ fontSize: 12 }} />
-                                        <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
+                                        <Tooltip formatter={(value: any) => [`${value} ve├¡culos`, 'Quantidade']} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { const key = odometroView === 'odometro' ? 'odometro' : 'idade'; handleChartClick(key, data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                             <LabelList dataKey="value" position="top" formatter={(v: any) => v > 0 ? String(v) : ''} fontSize={11} />
                                         </Bar>
@@ -2135,7 +2164,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </th>
                             <th className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-between">
-                                    <span className="cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Locação</span>
+                                    <span className="cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Loca├º├úo</span>
                                     <span className="flex items-center gap-1">
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
@@ -2165,7 +2194,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </th>
                             <th className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-between">
-                                    <span className="cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info)</span>
+                                    <span className="cursor-pointer" onClick={() => handleSort('KmInformado')}>Od├┤metro (Info)</span>
                                     <span className="flex items-center gap-1">
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
@@ -2226,8 +2255,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </tr>))}</tbody></table></div>
                         <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
                             <div className="flex gap-2">
-                                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
-                                <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+                                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÉ</button>
+                                <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÆ</button>
                             </div>
                         </div>
                     </Card>
@@ -2236,7 +2265,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                 <TabsContent value="patio" className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600" /><Title>Aging de Pátio (Dias Parado)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Timer size={16} className="text-amber-600" /><Title>Aging de P├ítio (Dias Parado)</Title></div>
                             <div className="h-64 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={agingData} margin={{ left: 20 }}>
@@ -2254,7 +2283,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Veículos por Pátio (Improdutivos)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Ve├¡culos por P├ítio (Improdutivos)</Title></div>
                             <div className="h-64 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={patioData} layout="vertical" margin={{ left: 20 }}>
@@ -2272,7 +2301,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Info size={16} className="text-rose-600" /><Title>Veículos por Status (Improdutivos)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Info size={16} className="text-rose-600" /><Title>Ve├¡culos por Status (Improdutivos)</Title></div>
                             <div className="h-64 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={statusImprodutivoData} layout="vertical" margin={{ left: 20 }}>
@@ -2291,17 +2320,17 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
                     </div>
 
-                    {/* Movimentações recentes removidas conforme solicitado */}
+                    {/* Movimenta├º├Áes recentes removidas conforme solicitado */}
 
                     <Card className="p-0 overflow-hidden" id="patio-table">
                         <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                             <div className="flex items-center gap-2">
-                                <Title>Veículos no Pátio</Title>
+                                <Title>Ve├¡culos no P├ítio</Title>
                                 <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(vehiclesDetailed.length)} registros</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <a href="/analytics/frota-improdutiva" className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-                                    Ver monitoramento completo →
+                                    Ver monitoramento completo ÔåÆ
                                 </a>
                                 <button onClick={() => exportToExcel(vehiclesDetailed, 'veiculos_patio')}
                                     className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded">
@@ -2334,7 +2363,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('Patio')} className="flex items-center gap-2">
-                                                    <span>Pátio</span>
+                                                    <span>P├ítio</span>
                                                     {sortState.col === 'Patio' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
@@ -2346,19 +2375,19 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('DataInicioStatus')} className="flex items-center gap-2">
-                                                    <span>Data Início Status</span>
+                                                    <span>Data In├¡cio Status</span>
                                                     {sortState.col === 'DataInicioStatus' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('UltimaMovimentacao')} className="flex items-center gap-2">
-                                                    <span>Última Movimentação</span>
+                                                    <span>├Ültima Movimenta├º├úo</span>
                                                     {sortState.col === 'UltimaMovimentacao' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('UsuarioMovimentacao')} className="flex items-center gap-2">
-                                                    <span>Usuário</span>
+                                                    <span>Usu├írio</span>
                                                     {sortState.col === 'UsuarioMovimentacao' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
@@ -2391,28 +2420,28 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                     {/* KPIs de Telemetria */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <Card decoration="top" decorationColor="blue">
-                            <Text>Veículos com Telemetria</Text>
+                            <Text>Ve├¡culos com Telemetria</Text>
                             <Metric>{fmtDecimal(veiculosComTelemetria.length)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">{((veiculosComTelemetria.length / filteredData.length) * 100).toFixed(1)}% da frota</Text>
                         </Card>
                         <Card decoration="top" decorationColor="emerald">
-                            <Text>Atualizado (Últimas 24h)</Text>
+                            <Text>Atualizado (├Ültimas 24h)</Text>
                             <Metric>{fmtDecimal(telemetriaAtualizada)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">Telemetria ativa</Text>
                         </Card>
                         <Card decoration="top" decorationColor="amber">
-                            <Text>Veículos Localizáveis</Text>
+                            <Text>Ve├¡culos Localiz├íveis</Text>
                             <Metric>{fmtDecimal(mapData.length)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">Com coordenadas GPS</Text>
                         </Card>
                         <Card decoration="top" decorationColor="violet">
                             <Text>Taxa de Cobertura GPS</Text>
                             <Metric>{((mapData.length / filteredData.length) * 100).toFixed(1)}%</Metric>
-                            <Text className="text-xs text-slate-500 mt-1">Lat/Long disponível</Text>
+                            <Text className="text-xs text-slate-500 mt-1">Lat/Long dispon├¡vel</Text>
                         </Card>
                     </div>
 
-                    {/* Gráficos de Análise */}
+                    {/* Gr├íficos de An├ílise */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                         <Card>
                             <Title>Provedores de Telemetria</Title>
@@ -2422,7 +2451,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 11, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
                                         <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20} fill="#3b82f6"
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('telemetria', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2434,14 +2463,14 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
 
                         <Card>
-                            <Title>Situação de Seguro</Title>
+                            <Title>Situa├º├úo de Seguro</Title>
                             <div className="h-56 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={seguroData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} />
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('seguro', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2459,7 +2488,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
 
                         <Card>
-                            <Title>Diferença de Odômetro (Info vs Conf)</Title>
+                            <Title>Diferen├ºa de Od├┤metro (Info vs Conf)</Title>
                             <div className="h-56 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40 }}>
@@ -2478,14 +2507,14 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
 
                         <Card className="lg:col-start-1 lg:row-span-2">
-                            <Title>Veículos por Cliente</Title>
+                            <Title>Ve├¡culos por Cliente</Title>
                             <div className="h-[520px] mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={veiculosPorClienteData} layout="vertical" margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={150} fontSize={9} tick={{ fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
                                         <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={20}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2497,14 +2526,14 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
 
                         <Card className="lg:col-start-2 lg:col-span-1 lg:row-span-2">
-                            <Title>Proprietário do Veículo</Title>
+                            <Title>Propriet├írio do Ve├¡culo</Title>
                             <div className="h-[520px] mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={proprietarioData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} angle={-45} textAnchor="end" height={80} />
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
                                         <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={32}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('proprietario', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2523,7 +2552,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} angle={-45} textAnchor="end" height={80} />
                                         <YAxis tick={{ fontSize: 12, fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Ve├¡culos']} />
                                         <Bar dataKey="value" fill="#06b6d4" radius={[6, 6, 0, 0]} barSize={32}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('finalidade', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2535,16 +2564,16 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </Card>
                     </div>
 
-                    {/* Gráficos de Localização (Telemetria) - Hierárquico */}
+                    {/* Gr├íficos de Localiza├º├úo (Telemetria) - Hier├írquico */}
                     <div className="grid grid-cols-1 gap-6">
                         <Card className="p-0 overflow-hidden">
                             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                                 <div>
-                                    <Title>Distribuição Geográfica de Veículos (Por Estado)</Title>
+                                    <Title>Distribui├º├úo Geogr├ífica de Ve├¡culos (Por Estado)</Title>
                                     <Text className="text-xs text-slate-500">Expanda o estado para visualizar as cidades</Text>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Badge className="ml-2">{mapData.length} veículos</Badge>
+                                    <Badge className="ml-2">{mapData.length} ve├¡culos</Badge>
                                 </div>
                             </div>
                             <div className="p-4">
@@ -2554,11 +2583,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
                                                 <div className="flex w-full items-center justify-between pr-4">
                                                     <div className="flex items-center gap-3">
-                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'Não classificados' : item.uf}</Badge>
+                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'N├úo classificados' : item.uf}</Badge>
                                                         <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} veículos</span>
+                                                        <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} ve├¡culos</span>
                                                         <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden ml-2">
                                                             <div
                                                                 className="h-full bg-blue-600 rounded-full"
@@ -2570,7 +2599,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             </AccordionTrigger>
                                             <AccordionContent className="px-4 pb-4 pt-2">
                                                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                                                    <Title className="text-sm mb-3 text-slate-700">Veículos por Município em {item.uf}</Title>
+                                                    <Title className="text-sm mb-3 text-slate-700">Ve├¡culos por Munic├¡pio em {item.uf}</Title>
                                                     <div className="mt-2 space-y-1 max-h-96 overflow-y-auto">
                                                         {item.cities.map((city) => (
                                                             <div
@@ -2583,19 +2612,19 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                     <span className="truncate text-slate-700 font-medium">{city.name}</span>
                                                                 </div>
                                                                 <div className="flex flex-col items-end">
-                                                                    <span className="text-slate-600 font-medium">{city.value} veículos</span>
-                                                                    {item.uf === 'ND' && city.name === 'Não classificados' && naoClassificadosPlacas.length > 0 && (
+                                                                    <span className="text-slate-600 font-medium">{city.value} ve├¡culos</span>
+                                                                    {item.uf === 'ND' && city.name === 'N├úo classificados' && naoClassificadosPlacas.length > 0 && (
                                                                         <div className="mt-2 flex gap-2 flex-wrap max-w-[360px] justify-end">
                                                                             {naoClassificadosPlacas.slice(0, 30).map(p => (
                                                                                 <button
                                                                                     key={p}
                                                                                     onClick={() => {
                                                                                         applyFilterValues('search', [p]);
-                                                                                        // garantir que a tabela local de telemetria também aplique a pesquisa
+                                                                                        // garantir que a tabela local de telemetria tamb├®m aplique a pesquisa
                                                                                         setAppliedPlateSearch(p);
                                                                                         setPlateSearch(p);
                                                                                         setActiveTab('telemetria');
-                                                                                        // rolar até a tabela de telemetria para foco do usuário
+                                                                                        // rolar at├® a tabela de telemetria para foco do usu├írio
                                                                                         setTimeout(() => {
                                                                                             const el = document.getElementById('telemetria-table');
                                                                                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2625,7 +2654,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 </Accordion>
                                 {localizacaoHierarquica.length === 0 && (
                                     <div className="p-8 text-center text-slate-500 text-sm">
-                                        Nenhuma informação de localização disponível nos filtros atuais.
+                                        Nenhuma informa├º├úo de localiza├º├úo dispon├¡vel nos filtros atuais.
                                     </div>
                                 )}
                             </div>
@@ -2638,12 +2667,12 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             <MapPin className="w-5 h-5 text-blue-600" />
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                    <Title>Localização</Title>
+                                    <Title>Localiza├º├úo</Title>
                                     {selectedLocation && <Badge color="indigo">{selectedLocation.city}/{selectedLocation.uf}</Badge>}
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <Badge className="ml-2">{mapData.length} veículos</Badge>
+                                <Badge className="ml-2">{mapData.length} ve├¡culos</Badge>
                                 <div className="text-sm text-slate-600">Mostrando {Math.min(markerLimit, mapData.length)} / {fmtDecimal(mapData.length)}</div>
                                 {markerLimit < mapData.length && (
                                     <button
@@ -2716,7 +2745,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 <Info className="w-5 h-5 text-blue-600" />
                                 <Title>Detalhamento: Telemetria e Rastreamento</Title>
                                 <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">
-                                    {fmtDecimal(filteredData.length)} veículos
+                                    {fmtDecimal(filteredData.length)} ve├¡culos
                                 </span>
                             </div>
                                 <div className="flex items-center gap-2">
@@ -2756,7 +2785,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 Longitude: r.Longitude || 0,
                                                 'Último Endereço': r.UltimoEnderecoTelemetria || 'N/A',
                                                 'Com Seguro': r.ComSeguroVigente ? 'Sim' : 'Não',
-                                                Proprietário: r.Proprietario || 'N/A',
+                                                'Proprietário': r.Proprietario || 'N/A',
                                                 'Finalidade': r.FinalidadeUso || 'N/A',
                                                 'KM Informado': r.KmInformado || 0,
                                                 'KM Confirmado': r.KmConfirmado || 0,
@@ -2781,11 +2810,11 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <th className="px-4 py-3">Cliente</th>
                                         <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3">Provedor Telemetria</th>
-                                        <th className="px-4 py-3">Última Atualização</th>
+                                        <th className="px-4 py-3">├Ültima Atualiza├º├úo</th>
                                         <th className="px-4 py-3 text-center">GPS</th>
-                                        <th className="px-4 py-3">Último Endereço</th>
+                                        <th className="px-4 py-3">├Ültimo Endere├ºo</th>
                                         <th className="px-4 py-3 text-center">Seguro</th>
-                                        <th className="px-4 py-3">Proprietário</th>
+                                        <th className="px-4 py-3">Propriet├írio</th>
                                         <th className="px-4 py-3">Condutor</th>
                                         <th className="px-4 py-3 text-right">KM Info</th>
                                         <th className="px-4 py-3 text-right">KM Conf</th>
@@ -2794,8 +2823,8 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 <tbody className="divide-y divide-slate-100">
                                     {pageItems.map((r, i) => {
                                         const temTelemetria = r.ProvedorTelemetria &&
-                                            r.ProvedorTelemetria !== 'NÃO DEFINIDO' &&
-                                            r.ProvedorTelemetria !== 'Não Definido';
+                                            r.ProvedorTelemetria !== 'N├âO DEFINIDO' &&
+                                            r.ProvedorTelemetria !== 'N├úo Definido';
                                         const temGPS = r.lat && r.lng && r.lat !== 0 && r.lng !== 0;
                                         const atualizadoRecente = r.UltimaAtualizacaoTelemetria ?
                                             (new Date().getTime() - new Date(r.UltimaAtualizacaoTelemetria).getTime()) < (24 * 60 * 60 * 1000) :
@@ -2847,7 +2876,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                             Sim
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-300 text-xs">Não</span>
+                                                        <span className="text-slate-300 text-xs">N├úo</span>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3 text-xs max-w-xs truncate" title={r.UltimoEnderecoTelemetria || 'N/A'}>
@@ -2880,7 +2909,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                         </div>
                         <div className="flex justify-between items-center p-4 border-t border-slate-100">
                             <div className="text-sm text-slate-500">
-                                Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, tableData.length)} de {fmtDecimal(tableData.length)} veículos
+                                Mostrando {page * pageSize + 1} - {Math.min((page + 1) * pageSize, tableData.length)} de {fmtDecimal(tableData.length)} ve├¡culos
                             </div>
                             <div className="flex gap-2">
                                 <button
@@ -2888,24 +2917,24 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     disabled={page === 0}
                                     className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 hover:bg-slate-200 transition-colors"
                                 >
-                                    ← Anterior
+                                    ÔåÉ Anterior
                                 </button>
                                 <span className="px-3 py-1 text-sm text-slate-600">
-                                    Página {page + 1} de {Math.ceil(tableData.length / pageSize)}
+                                    P├ígina {page + 1} de {Math.ceil(tableData.length / pageSize)}
                                 </span>
                                 <button
                                     onClick={() => setPage(page + 1)}
                                     disabled={(page + 1) * pageSize >= tableData.length}
                                     className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50 hover:bg-slate-200 transition-colors"
                                 >
-                                    Próxima →
+                                    Pr├│xima ÔåÆ
                                 </button>
                             </div>
                         </div>
                     </Card>
                 </TabsContent>
 
-                {/* Aba 'Eficiência' removida */}
+                {/* Aba 'Efici├¬ncia' removida */}
 
                 <TabsContent value="timeline">
                     <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} movimentacoes={movimentacoes} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
@@ -2917,7 +2946,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                             <div className="p-8 text-center">
                                 <Info className="w-12 h-12 mx-auto text-slate-400 mb-4" />
                                 <Title>Sem Dados de Carro Reserva</Title>
-                                <Text className="mt-2 text-slate-500">Nenhuma ocorrência de carro reserva foi encontrada. Verifique se o arquivo `fat_carro_reserva.json` está disponível.</Text>
+                                <Text className="mt-2 text-slate-500">Nenhuma ocorr├¬ncia de carro reserva foi encontrada. Verifique se o arquivo `fat_carro_reserva.json` est├í dispon├¡vel.</Text>
                             </div>
                         </Card>
                     )}
@@ -2940,21 +2969,21 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             className="bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
                                             onClick={() => setSelectedTemporalFilter(null)}
                                         >
-                                            📅 {selectedTemporalFilter.month
+                                            ­ƒôà {selectedTemporalFilter.month
                                                 ? `${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][parseInt(selectedTemporalFilter.month) - 1]}/${selectedTemporalFilter.year}`
                                                 : selectedTemporalFilter.year
-                                            } ✕
+                                            } Ô£ò
                                         </Badge>
                                     )}
                                 </div>
                             </Card>
 
-                            {/* KPIs - ATUALIZADO: KPIs de performance e ocupação */}
+                            {/* KPIs - ATUALIZADO: KPIs de performance e ocupa├º├úo */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                 <Card decoration="top" decorationColor="blue">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Total de Ocorrências</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Total de Ocorr├¬ncias</Text>
                                     <Metric className="mt-1">{fmtDecimal(reservaKPIs.total)}</Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">No período selecionado</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">No per├¡odo selecionado</Text>
                                 </Card>
                                 <Card decoration="top" decorationColor="emerald">
                                     <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Reservas Ativas</Text>
@@ -2970,35 +2999,35 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 </Card>
                                 
                                 <Card decoration="top" decorationColor="violet">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo Médio (Geral)</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo M├®dio (Geral)</Text>
                                     <Metric className="mt-1">{reservaKPIs.tempoMedio.toFixed(1)} <span className="text-sm font-normal text-slate-500">dias</span></Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">Base: Reservas concluídas</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">Base: Reservas conclu├¡das</Text>
                                 </Card>
                                 <Card decoration="top" decorationColor="rose">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Pico de Utilização</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Pico de Utiliza├º├úo</Text>
                                     <Metric className="mt-1">{ocupacaoKPIs.picoUtilizacao}</Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">Máx simultâneo no período</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">M├íx simult├óneo no per├¡odo</Text>
                                 </Card>
                                 <Card decoration="top" decorationColor="cyan">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Média de Frota Ativa</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">M├®dia de Frota Ativa</Text>
                                     <Metric className="mt-1">{ocupacaoKPIs.mediaCarrosNaRua.toFixed(1)}</Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">Carros/dia no período</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">Carros/dia no per├¡odo</Text>
                                 </Card>
                             </div>
 
-                            {/* 1) Ocupação simultânea diária - destaque em largura total */}
+                            {/* 1) Ocupa├º├úo simult├ónea di├íria - destaque em largura total */}
                             <Card className="mt-4">
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                        <Title>Ocupação Simultânea Diária</Title>
+                                        <Title>Ocupa├º├úo Simult├ónea Di├íria</Title>
                                         <div className="group relative">
                                             <Info size={16} className="text-slate-400 hover:text-blue-600 cursor-help transition-colors" />
                                             <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
-                                                <p className="font-semibold mb-2">📊 Como funciona este gráfico:</p>
+                                                <p className="font-semibold mb-2">­ƒôè Como funciona este gr├ífico:</p>
                                                 <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
-                                                <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
-                                                <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio ≤ dia E (DataFim ≥ dia OU DataFim = null)</p>
-                                                <p><strong>💡 Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
+                                                <p className="mb-2"><strong>C├ílculo:</strong> Para cada dia, conta quantos ve├¡culos estavam "na rua" simultaneamente.</p>
+                                                <p className="mb-2"><strong>Regra:</strong> Um ve├¡culo conta se DataInicio Ôëñ dia E (DataFim ÔëÑ dia OU DataFim = null)</p>
+                                                <p><strong>­ƒÆí Dica:</strong> Use o slider abaixo para ajustar o per├¡odo de an├ílise!</p>
                                                 <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
                                             </div>
                                         </div>
@@ -3009,7 +3038,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     <div className="mb-4 px-2">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
-                                                <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
+                                                <Text className="text-xs font-medium text-slate-700">Per├¡odo de An├ílise:</Text>
                                                 {selectedTemporalFilter && (
                                                     <Badge color="purple" size="xs">
                                                         Filtrado: {selectedTemporalFilter.month
@@ -3020,10 +3049,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 )}
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 75, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 50, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 0, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo período</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">├Ültimo m├¬s</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 75, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">├Ültimos 3m</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 50, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">├Ültimos 6m</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 0, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo per├¡odo</button>
                                             </div>
                                         </div>
 
@@ -3087,7 +3116,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     </div>
                                 )}
 
-                                <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia <span className="text-cyan-600 font-medium">(clique em um ponto para ver detalhamento)</span></Text>
+                                <Text className="text-xs text-slate-500 mb-2">Evolu├º├úo da quantidade de ve├¡culos reserva em uso simult├óneo por dia <span className="text-cyan-600 font-medium">(clique em um ponto para ver detalhamento)</span></Text>
                                 <div className="h-80 mt-4">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart 
@@ -3119,9 +3148,9 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 }}
                                                 interval={Math.floor(ocupacaoSimultaneaData.length / 12)}
                                             />
-                                            <YAxis tick={{ fontSize: 12 }} label={{ value: 'Veículos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
+                                            <YAxis tick={{ fontSize: 12 }} label={{ value: 'Ve├¡culos', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }} />
                                             <Tooltip
-                                                formatter={(value: any) => [value, 'Veículos em Uso']}
+                                                formatter={(value: any) => [value, 'Ve├¡culos em Uso']}
                                                 labelFormatter={(label) => {
                                                     const date = new Date(label);
                                                     return date.toLocaleDateString('pt-BR');
@@ -3148,13 +3177,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
                                                 <Title className="text-slate-700">Detalhamento - {new Date(selectedDayForDetail).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</Title>
-                                                <Text className="text-slate-500 text-sm mt-1">{reservasDetailForSelectedDay.length} veículo(s) reserva em uso simultâneo neste dia</Text>
+                                                <Text className="text-slate-500 text-sm mt-1">{reservasDetailForSelectedDay.length} ve├¡culo(s) reserva em uso simult├óneo neste dia</Text>
                                             </div>
                                             <button
                                                 onClick={() => setSelectedDayForDetail(null)}
                                                 className="px-3 py-1.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors flex items-center gap-1"
                                             >
-                                                ✕ Fechar
+                                                Ô£ò Fechar
                                             </button>
                                         </div>
                                         <div className="overflow-x-auto">
@@ -3166,7 +3195,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Cliente</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Motivo</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Status</th>
-                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Início</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data In├¡cio</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Fim</th>
                                                         <th className="px-3 py-2 text-right font-semibold text-slate-700 border-b">Dias</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Local</th>
@@ -3179,27 +3208,27 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                             : Math.ceil((Date.now() - new Date(r.DataInicio!).getTime()) / (1000 * 60 * 60 * 24));
                                                         return (
                                                             <tr key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                                                                <td className="px-3 py-2 font-mono font-semibold text-slate-800">{r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || '—'}</td>
-                                                                <td className="px-3 py-2 text-slate-700">{r.ModeloVeiculoReserva || r.ModeloReserva || '—'}</td>
-                                                                <td className="px-3 py-2 text-slate-700">{r.Cliente || '—'}</td>
+                                                                <td className="px-3 py-2 font-mono font-semibold text-slate-800">{r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || 'ÔÇö'}</td>
+                                                                <td className="px-3 py-2 text-slate-700">{r.ModeloVeiculoReserva || r.ModeloReserva || 'ÔÇö'}</td>
+                                                                <td className="px-3 py-2 text-slate-700">{r.Cliente || 'ÔÇö'}</td>
                                                                 <td className="px-3 py-2">
                                                                     <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-                                                                        {r.Motivo || '—'}
+                                                                        {r.Motivo || 'ÔÇö'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-3 py-2">
                                                                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                                        (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
+                                                                        (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('conclu├¡da') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
                                                                             ? 'bg-emerald-100 text-emerald-700'
                                                                             : 'bg-slate-100 text-slate-600'
                                                                     }`}>
-                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || '—'}
+                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || 'ÔÇö'}
                                                                     </span>
                                                                 </td>
-                                                                <td className="px-3 py-2 text-slate-600">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-600">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : 'ÔÇö'}</td>
                                                                 <td className="px-3 py-2 text-slate-600">{r.DataFim ? new Date(r.DataFim).toLocaleDateString('pt-BR') : <span className="text-rose-600 font-medium">Em andamento</span>}</td>
                                                                 <td className="px-3 py-2 text-right font-medium text-slate-700">{diasParado}</td>
-                                                                <td className="px-3 py-2 text-slate-600 text-xs">{r.Cidade ? `${r.Cidade}${r.Estado ? ` / ${r.Estado}` : ''}` : '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-600 text-xs">{r.Cidade ? `${r.Cidade}${r.Estado ? ` / ${r.Estado}` : ''}` : 'ÔÇö'}</td>
                                                             </tr>
                                                         );
                                                     })}
@@ -3210,10 +3239,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 )}
                             </Card>
 
-                            {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
+                            {/* 2) Evolu├º├úo hier├írquica de ocorr├¬ncias (Ano->M├¬s->Dia) - largura cheia */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
+                                    <Title>Evolu├º├úo de Ocorr├¬ncias <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => {
@@ -3229,7 +3258,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             }}
                                             className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600 transition-colors"
                                         >
-                                            {expandedYears.length === reservaKPIs.monthlyData.length ? '− Colapsar Tudo' : '+ Expandir Tudo'}
+                                            {expandedYears.length === reservaKPIs.monthlyData.length ? 'ÔêÆ Colapsar Tudo' : '+ Expandir Tudo'}
                                         </button>
                                     </div>
                                 </div>
@@ -3247,7 +3276,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                         if (e.ctrlKey || e.metaKey) {
                                                             // Ctrl+click: expandir/colapsar meses junto com o ano
                                                             if (expandedYears.includes(yearData.year)) {
-                                                                // já expandido -> colapsar ano e remover meses desse ano
+                                                                // j├í expandido -> colapsar ano e remover meses desse ano
                                                                 setExpandedYears(prev => prev.filter(y => y !== yearData.year));
                                                                 setExpandedMonths(prev => prev.filter(m => !m.startsWith(`${yearData.year}-`)));
                                                             } else {
@@ -3286,13 +3315,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                             className="w-6 h-6 flex items-center justify-center text-sm rounded hover:bg-slate-100"
                                                             aria-label={isYearExpanded ? 'Colapsar ano' : 'Expandir ano'}
                                                         >
-                                                            {isYearExpanded ? '▼' : '▶'}
+                                                            {isYearExpanded ? 'Ôû╝' : 'ÔûÂ'}
                                                         </button>
                                                         <span className="text-lg font-bold text-blue-700">{yearData.year}</span>
-                                                        <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorrências</Badge>
+                                                        <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorr├¬ncias</Badge>
                                                         {yearData.prevYearTotal > 0 && (
                                                             <span className={`text-xs font-medium ${yearData.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                {yearData.yoyChange >= 0 ? '▲' : '▼'} {Math.abs(yearData.yoyChange).toFixed(1)}% vs {parseInt(yearData.year) - 1}
+                                                                {yearData.yoyChange >= 0 ? 'Ôû▓' : 'Ôû╝'} {Math.abs(yearData.yoyChange).toFixed(1)}% vs {parseInt(yearData.year) - 1}
                                                             </span>
                                                         )}
                                                     </div>
@@ -3310,7 +3339,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
 
                                                             return (
                                                                 <div key={monthKey} className="border-t border-slate-100">
-                                                                    {/* Linha do Mês */}
+                                                                    {/* Linha do M├¬s */}
                                                                     <div
                                                                         onClick={(e) => {
                                                                             // Ctrl+click: expandir/colapsar dias
@@ -3321,7 +3350,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                                         : [...prev, monthKey]
                                                                                 );
                                                                             } else {
-                                                                                // Click normal: filtrar por este mês
+                                                                                // Click normal: filtrar por este m├¬s
                                                                                 if (selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month) {
                                                                                     setSelectedTemporalFilter(null);
                                                                                 } else {
@@ -3347,9 +3376,9 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                                     }
                                                                                 }}
                                                                                 className="w-6 h-6 flex items-center justify-center text-xs rounded hover:bg-slate-100 mr-2"
-                                                                                aria-label={isMonthExpanded ? 'Colapsar mês' : 'Expandir mês'}
+                                                                                aria-label={isMonthExpanded ? 'Colapsar m├¬s' : 'Expandir m├¬s'}
                                                                             >
-                                                                                {isMonthExpanded ? '▼' : '▶'}
+                                                                                {isMonthExpanded ? 'Ôû╝' : 'ÔûÂ'}
                                                                             </button>
                                                                             <span className={`text-sm font-medium ${selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month
                                                                                     ? 'text-blue-700 font-bold'
@@ -3358,7 +3387,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                             <Badge size="xs" className={selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-600 text-white' : 'bg-slate-600 text-white'}>{monthData.monthTotal}</Badge>
                                                                             {monthData.prevMonthTotal > 0 && (
                                                                                 <span className={`text-xs ${monthData.monthYoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                                    {monthData.monthYoyChange >= 0 ? '▲' : '▼'} {Math.abs(monthData.monthYoyChange).toFixed(0)}%
+                                                                                    {monthData.monthYoyChange >= 0 ? 'Ôû▓' : 'Ôû╝'} {Math.abs(monthData.monthYoyChange).toFixed(0)}%
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -3367,7 +3396,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Dias do Mês (se expandido) */}
+                                                                    {/* Dias do M├¬s (se expandido) */}
                                                                     {isMonthExpanded && (
                                                                         <div className="bg-slate-50 px-4 py-2">
                                                                             <div className="grid grid-cols-7 gap-1">
@@ -3391,10 +3420,10 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 </div>
                             </Card>
 
-                            {/* 3) Abas para Motivo / Status / Tipo Veículo / Modelo / Cliente / Local */}
+                            {/* 3) Abas para Motivo / Status / Tipo Ve├¡culo / Modelo / Cliente / Local */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <Title>Resumo Analítico de Carro Reserva</Title>
+                                    <Title>Resumo Anal├¡tico de Carro Reserva</Title>
                                     <div className="flex gap-2 flex-wrap">
                                         <button
                                             onClick={() => setSelectedResumoChart('motivo')}
@@ -3412,7 +3441,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             onClick={() => setSelectedResumoChart('tipo')}
                                             className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'tipo' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                         >
-                                            Tipo Veículo
+                                            Tipo Ve├¡culo
                                         </button>
                                         <button
                                             onClick={() => setSelectedResumoChart('modelo')}
@@ -3424,13 +3453,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                             onClick={() => setSelectedResumoChart('cliente')}
                                             className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'cliente' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                         >
-                                            Diárias por Cliente
+                                            Di├írias por Cliente
                                         </button>
                                         <button
                                             onClick={() => setSelectedResumoChart('local')}
                                             className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'local' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                         >
-                                            Diárias por Local
+                                            Di├írias por Local
                                         </button>
                                     </div>
                                 </div>
@@ -3442,7 +3471,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 12 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorr├¬ncias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_motivo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                 </Bar>
@@ -3456,7 +3485,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 12 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorr├¬ncias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                 </Bar>
@@ -3470,7 +3499,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={180} tick={{ fontSize: 11 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorr├¬ncias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16} fill="#7c3aed" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_tipo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                                 </Bar>
@@ -3498,7 +3527,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Di├írias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                                 </Bar>
@@ -3512,7 +3541,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Di├írias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#2563eb" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_local', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                                 </Bar>
@@ -3522,13 +3551,13 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 </div>
                             </Card>
 
-                            {/* Modelos agora acessíveis via o card de Resumo (botão 'Modelo') - card duplicado removido */}
+                            {/* Modelos agora acess├¡veis via o card de Resumo (bot├úo 'Modelo') - card duplicado removido */}
 
                             {/* Tabela de Detalhamento */}
                             <Card id="reserva-table" className="p-0 overflow-hidden">
                                 <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                                     <div className="flex items-center gap-2">
-                                        <Title>Detalhamento de Ocorrências</Title>
+                                        <Title>Detalhamento de Ocorr├¬ncias</Title>
                                         <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(filteredReservas.length)} registros</span>
                                     </div>
                                     <button onClick={() => exportToExcel(filteredReservas, 'carro_reserva')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded">
@@ -3539,18 +3568,18 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                     <table className="w-full text-sm text-left">
                                         <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
                                             <tr>
-                                                <th className="px-6 py-3">Data Criação</th>
-                                                <th className="px-6 py-3">Ocorrência</th>
+                                                <th className="px-6 py-3">Data Cria├º├úo</th>
+                                                <th className="px-6 py-3">Ocorr├¬ncia</th>
                                                 <th className="px-6 py-3">Placa Reserva</th>
                                                 <th className="px-6 py-3">Modelo Reserva</th>
-                                                <th className="px-6 py-3">Data Devolução</th>
-                                                <th className="px-6 py-3">Diárias</th>
-                                                <th className="px-6 py-3">Contrato Locação</th>
+                                                <th className="px-6 py-3">Data Devolu├º├úo</th>
+                                                <th className="px-6 py-3">Di├írias</th>
+                                                <th className="px-6 py-3">Contrato Loca├º├úo</th>
                                                 <th className="px-6 py-3">Cliente</th>
-                                                <th className="px-6 py-3">Tipo Veículo</th>
+                                                <th className="px-6 py-3">Tipo Ve├¡culo</th>
                                                 <th className="px-6 py-3">Fornecedor Reserva</th>
                                                 <th className="px-6 py-3">Motivo</th>
-                                                <th className="px-6 py-3">Número Reserva</th>
+                                                <th className="px-6 py-3">N├║mero Reserva</th>
                                                 <th className="px-6 py-3">Requisitante</th>
                                                 <th className="px-6 py-3">Telefone</th>
                                                 <th className="px-6 py-3">Origem</th>
@@ -3559,7 +3588,7 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                                 <th className="px-6 py-3">Km Final</th>
                                                 <th className="px-6 py-3">Cancelado Em</th>
                                                 <th className="px-6 py-3">Motivo Cancelamento</th>
-                                                <th className="px-6 py-3">Observações</th>
+                                                <th className="px-6 py-3">Observa├º├Áes</th>
                                                 <th className="px-6 py-3 text-center">Status</th>
                                             </tr>
                                         </thead>
@@ -3602,9 +3631,9 @@ const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros_*.json');
                                 </div>
                                 <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
                                     <div className="flex gap-2 items-center">
-                                        <button onClick={() => setReservaPage(Math.max(0, reservaPage - 1))} disabled={reservaPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
-                                        <span className="px-3 py-1 text-sm text-slate-600">Página {reservaPage + 1} de {Math.ceil(filteredReservas.length / pageSize)}</span>
-                                        <button onClick={() => setReservaPage(reservaPage + 1)} disabled={(reservaPage + 1) * pageSize >= filteredReservas.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
+                                        <button onClick={() => setReservaPage(Math.max(0, reservaPage - 1))} disabled={reservaPage === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÉ</button>
+                                        <span className="px-3 py-1 text-sm text-slate-600">P├ígina {reservaPage + 1} de {Math.ceil(filteredReservas.length / pageSize)}</span>
+                                        <button onClick={() => setReservaPage(reservaPage + 1)} disabled={(reservaPage + 1) * pageSize >= filteredReservas.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">ÔåÆ</button>
                                     </div>
                                 </div>
                             </Card>

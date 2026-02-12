@@ -42,6 +42,8 @@ const ALLOWED_TABLES = new Set([
   'hist_vida_veiculo_timeline',
   'fat_carro_reserva',
   'fat_manutencao_unificado',
+  'fat_sinistros',
+  'fat_multas',
   'agg_custos_detalhados',
   'fat_movimentacao_ocorrencias',
   'fat_precos_locacao',
@@ -107,20 +109,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     client = await pool.connect();
     let result;
     if (table === 'dim_contratos_locacao') {
-      // Enriquecer contratos com dados de frota (Montadora, Modelo, Categoria)
-      // Faz LEFT JOIN usando PlacaPrincipal (contratos) = Placa (frota)
+      // Enriquecer contratos com dados de frota sem depender de colunas fixas da dim_frota
+      // (evita erros quando o ETL muda nomes como Categoria/GrupoVeiculo, ValorFipe/ValorFipeAtual)
       result = await client.query(
         `SELECT c.*,
-                f."Placa" AS "plate",
-                f."Montadora" AS "montadora",
-                f."Modelo" AS "modelo_veiculo",
-                f."Categoria" AS "categoria",
-                f."KmInformado" AS "currentKm",
-                f."IdadeVeiculo" AS "ageMonths",
-                f."ValorFipe" AS "valorFipeAtual"
+                to_jsonb(f)->>'Placa' AS "plate",
+                to_jsonb(f)->>'Montadora' AS "montadora",
+                to_jsonb(f)->>'Modelo' AS "modelo_veiculo",
+                COALESCE(to_jsonb(f)->>'Categoria', to_jsonb(f)->>'GrupoVeiculo') AS "categoria",
+                to_jsonb(f)->>'KmInformado' AS "currentKm",
+                to_jsonb(f)->>'IdadeVeiculo' AS "ageMonths",
+                COALESCE(to_jsonb(f)->>'ValorFipeAtual', to_jsonb(f)->>'ValorFipe') AS "valorFipeAtual"
          FROM public."dim_contratos_locacao" c
          LEFT JOIN public."dim_frota" f
-           ON UPPER(COALESCE(c."PlacaPrincipal", '')) = UPPER(COALESCE(f."Placa", ''))
+           ON UPPER(COALESCE(c."PlacaPrincipal", '')) = UPPER(COALESCE(to_jsonb(f)->>'Placa', ''))
          LIMIT $1`,
         [limit]
       );

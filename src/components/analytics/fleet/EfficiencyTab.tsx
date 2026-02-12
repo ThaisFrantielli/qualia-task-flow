@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList, PieChart, Pie, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Wrench, Target, AlertTriangle, Zap } from 'lucide-react';
@@ -47,7 +47,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
     });
   }, [timeline, filteredData, frota]);
 
-  // Calcula métricas de eficiência por veículo
+  // Calcula m├®tricas de efici├¬ncia por ve├¡culo
   const vehicleMetrics = useMemo(() => {
     return timelineGrouped.map(({ placa, modelo, eventos }) => {
       const sortedEvents = [...eventos]
@@ -98,12 +98,12 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
     };
   }, [vehicleMetrics]);
 
-  // Distribuição de utilização
+  // Distribui├º├úo de utiliza├º├úo
   const utilizationDistribution = useMemo(() => [
     { name: 'Excelente (80-100%)', value: kpis.excellent, color: COLORS.excellent },
     { name: 'Bom (60-79%)', value: kpis.good, color: COLORS.good },
     { name: 'Regular (40-59%)', value: kpis.warning, color: COLORS.warning },
-    { name: 'Crítico (<40%)', value: kpis.critical, color: COLORS.critical }
+    { name: 'Cr├¡tico (<40%)', value: kpis.critical, color: COLORS.critical }
   ].filter(d => d.value > 0), [kpis]);
 
   // Top/Bottom performers
@@ -115,7 +115,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
     [...vehicleMetrics].sort((a, b) => a.utilization - b.utilization).slice(0, 8)
   , [vehicleMetrics]);
 
-  // Veículos mais tempo em manutenção
+  // Ve├¡culos mais tempo em manuten├º├úo
   const topMaintenance = useMemo(() => 
     [...vehicleMetrics].sort((a, b) => b.manutencaoDays - a.manutencaoDays).slice(0, 10)
   , [vehicleMetrics]);
@@ -139,9 +139,9 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-200 flex items-center justify-center">
             <Activity className="w-10 h-10 text-slate-400" />
           </div>
-          <Title className="text-slate-600">Sem Dados de Eficiência</Title>
+          <Title className="text-slate-600">Sem Dados de Efici├¬ncia</Title>
           <Text className="mt-3 text-slate-500 max-w-md mx-auto">
-            Nenhum evento de histórico foi encontrado. Verifique se o arquivo <code className="bg-slate-200 px-2 py-1 rounded text-xs">hist_vida_veiculo_timeline.json</code> está disponível no storage.
+            Nenhum evento de hist├│rico foi encontrado. Verifique se o arquivo <code className="bg-slate-200 px-2 py-1 rounded text-xs">hist_vida_veiculo_timeline.json</code> est├í dispon├¡vel no storage.
           </Text>
         </div>
       </Card>
@@ -164,7 +164,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
             <div>
               <Text className="text-slate-500 text-xs uppercase tracking-wide">Excelente</Text>
               <Metric className="text-emerald-600">{kpis.excellent}</Metric>
-              <Text className="text-xs text-slate-400">≥80% utilização</Text>
+              <Text className="text-xs text-slate-400">ÔëÑ80% utiliza├º├úo</Text>
             </div>
           </div>
         </Card>
@@ -180,7 +180,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
             <div>
               <Text className="text-slate-500 text-xs uppercase tracking-wide">Bom</Text>
               <Metric className="text-blue-600">{kpis.good}</Metric>
-              <Text className="text-xs text-slate-400">60-79% utilização</Text>
+              <Text className="text-xs text-slate-400">60-79% utiliza├º├úo</Text>
             </div>
           </div>
         </Card>
@@ -196,7 +196,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
             <div>
               <Text className="text-slate-500 text-xs uppercase tracking-wide">Regular</Text>
               <Metric className="text-amber-600">{kpis.warning}</Metric>
-              <Text className="text-xs text-slate-400">40-59% utilização</Text>
+              <Text className="text-xs text-slate-400">40-59% utiliza├º├úo</Text>
             </div>
           </div>
         </Card>
@@ -210,24 +210,24 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
               <TrendingDown className="w-6 h-6 text-rose-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs uppercase tracking-wide">Crítico</Text>
+              <Text className="text-slate-500 text-xs uppercase tracking-wide">Cr├¡tico</Text>
               <Metric className="text-rose-600">{kpis.critical}</Metric>
-              <Text className="text-xs text-slate-400">&lt;40% utilização</Text>
+              <Text className="text-xs text-slate-400">&lt;40% utiliza├º├úo</Text>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Gráficos principais */}
+      {/* Gr├íficos principais */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Distribuição de Utilização */}
+        {/* Distribui├º├úo de Utiliza├º├úo */}
         <Card className="shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <Title className="flex items-center gap-2">
               <Target className="w-5 h-5 text-indigo-600" />
-              Distribuição de Utilização
+              Distribui├º├úo de Utiliza├º├úo
             </Title>
-            <Badge color="indigo">{kpis.totalVehicles} veículos</Badge>
+            <Badge color="indigo">{kpis.totalVehicles} ve├¡culos</Badge>
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -252,21 +252,21 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => [value, 'Veículos']} />
+                <Tooltip formatter={(value: number) => [value, 'Ve├¡culos']} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* Top Manutenção */}
+        {/* Top Manuten├º├úo */}
         <Card className="shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <Title className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-amber-600" />
-              Mais Tempo em Manutenção
+              Mais Tempo em Manuten├º├úo
             </Title>
-            <Text className="text-xs text-slate-500">Média: {kpis.avgManutenction.toFixed(0)} dias</Text>
+            <Text className="text-xs text-slate-500">M├®dia: {kpis.avgManutenction.toFixed(0)} dias</Text>
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -275,7 +275,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
                 <Tooltip 
-                  formatter={(value: number) => [`${value} dias`, 'Em Manutenção']}
+                  formatter={(value: number) => [`${value} dias`, 'Em Manuten├º├úo']}
                   labelFormatter={(label) => `Placa: ${label}`}
                 />
                 <Bar dataKey="manutencaoDays" radius={[0, 6, 6, 0]} barSize={16}>
@@ -309,7 +309,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                 <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
                 <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
                 <Tooltip 
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utilização']}
+                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utiliza├º├úo']}
                   labelFormatter={(label) => `Placa: ${label}`}
                 />
                 <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={18} fill={COLORS.excellent}>
@@ -324,7 +324,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
           <div className="flex items-center justify-between mb-4">
             <Title className="flex items-center gap-2 text-rose-700">
               <AlertTriangle className="w-5 h-5" />
-              Veículos que Precisam de Atenção
+              Ve├¡culos que Precisam de Aten├º├úo
             </Title>
           </div>
           <div className="h-80">
@@ -334,7 +334,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                 <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
                 <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
                 <Tooltip 
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utilização']}
+                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utiliza├º├úo']}
                   labelFormatter={(label) => `Placa: ${label}`}
                 />
                 <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={18}>
@@ -357,16 +357,16 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
         <Card className="shadow-lg overflow-hidden">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Title>Veículos Filtrados</Title>
+              <Title>Ve├¡culos Filtrados</Title>
               <Badge color={selectedRange === 'excellent' ? 'emerald' : selectedRange === 'good' ? 'blue' : selectedRange === 'warning' ? 'amber' : 'rose'}>
-                {filteredVehicles.length} veículos
+                {filteredVehicles.length} ve├¡culos
               </Badge>
             </div>
             <button 
               onClick={() => setSelectedRange(null)}
               className="text-sm text-slate-500 hover:text-slate-700"
             >
-              Limpar filtro ×
+              Limpar filtro ├ù
             </button>
           </div>
           <div className="overflow-x-auto max-h-96">
@@ -375,10 +375,10 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Placa</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Modelo</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600">Utilização</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-600">Utiliza├º├úo</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-600">Dias Locado</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600">Dias Manutenção</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600">Dias Disponível</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-600">Dias Manuten├º├úo</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-600">Dias Dispon├¡vel</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

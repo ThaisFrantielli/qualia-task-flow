@@ -74,7 +74,7 @@ function MontadoraSection({ montadora, models, defaultExpanded = false }: { mont
               <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 10 }} />
               <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
               <Bar dataKey="value" fill="#10B981" barSize={12}>
-                {models.slice(0, 10).map((entry, i) => (
+                {models.slice(0, 10).map((_entry, i) => (
                   <Cell key={i} />
                 ))}
               </Bar>

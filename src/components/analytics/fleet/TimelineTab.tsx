@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+﻿import { useMemo, useState, useEffect } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
 import {
@@ -27,10 +27,10 @@ interface TimelineTabProps {
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
 
 function fmtMoney(v: any) {
-  // Parse do valor: aceita strings com R$, pontos e vírgulas
+  // Parse do valor: aceita strings com R$, pontos e v├¡rgulas
   let num: number;
   if (typeof v === 'string') {
-    // Remove R$, espaços, e converte vírgula decimal em ponto
+    // Remove R$, espa├ºos, e converte v├¡rgula decimal em ponto
     const cleaned = v.replace(/R\$?\s*/g, '').replace(/\./g, '').replace(',', '.');
     num = parseFloat(cleaned);
   } else {
@@ -39,7 +39,7 @@ function fmtMoney(v: any) {
   
   if (!num || isNaN(num)) return 'R$ 0,00';
   
-  // Formata com vírgula para decimal e ponto para milhares
+  // Formata com v├¡rgula para decimal e ponto para milhares
   return new Intl.NumberFormat('pt-BR', { 
     style: 'currency', 
     currency: 'BRL',
@@ -72,7 +72,7 @@ function toISODateKey(d: Date): string {
 }
 
 function fmtDateTimeBR(d: Date | null | undefined): string {
-  if (!d) return '—';
+  if (!d) return 'ÔÇö';
   try {
     const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
     return new Intl.DateTimeFormat('pt-BR', options).format(d);
@@ -82,16 +82,16 @@ function fmtDateTimeBR(d: Date | null | undefined): string {
 }
 
 function fmtDateBR(d: Date | null | undefined): string {
-  if (!d) return '—';
+  if (!d) return 'ÔÇö';
   try {
     const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
     return new Intl.DateTimeFormat('pt-BR', options).format(d as Date);
   } catch (err) {
-    return d ? (d as Date).toLocaleDateString('pt-BR') : '—';
+    return d ? (d as Date).toLocaleDateString('pt-BR') : 'ÔÇö';
   }
 }
 
-// Verifica recursivamente se um objeto/valor contém o termo de busca
+// Verifica recursivamente se um objeto/valor cont├®m o termo de busca
 function objectContainsTerm(obj: any, term: string): boolean {
   if (obj == null) return false;
   const t = term.toLowerCase();
@@ -123,7 +123,7 @@ function getMinutesConclusaoRetirada(row: any): number | null {
     const first = row?.osRecords?.[0] ?? {};
     if (first?.Minutos_Chegada_Retirada != null) return Number(first.Minutos_Chegada_Retirada);
     if (row?.Minutos_Chegada_Retirada != null) return Number(row.Minutos_Chegada_Retirada);
-    // fallback para conclusão->retirada
+    // fallback para conclus├úo->retirada
     if (first?.Minutos_Conclusao_Retirada != null) return Number(first.Minutos_Conclusao_Retirada);
     if (first?.Minutos_Conclusao_Ret != null) return Number(first.Minutos_Conclusao_Ret);
     if (row?.osRecords?.[0]?.Horas_Conclusao_Retirada != null) return Number(row.osRecords[0].Horas_Conclusao_Retirada) * 60;
@@ -137,7 +137,7 @@ function getMinutesConclusaoRetirada(row: any): number | null {
 }
 
 function fmtDurationFromMinutes(mins?: number | null): string {
-  if (mins == null || isNaN(mins)) return '—';
+  if (mins == null || isNaN(mins)) return 'ÔÇö';
   const total = Math.max(0, Math.floor(mins));
   const days = Math.floor(total / (60 * 24));
   const hours = Math.floor((total % (60 * 24)) / 60);
@@ -149,9 +149,9 @@ function fmtDurationFromMinutes(mins?: number | null): string {
   return parts.join(' ');
 }
 
-// Formata uma duração em dias para representação mista: anos, meses, dias.
+// Formata uma dura├º├úo em dias para representa├º├úo mista: anos, meses, dias.
 function formatDurationDays(days?: number | null): string {
-  if (days == null || isNaN(days)) return '—';
+  if (days == null || isNaN(days)) return 'ÔÇö';
   const d = Math.max(0, Math.floor(days));
   if (d === 0) return '0 d';
   const years = Math.floor(d / 365);
@@ -169,16 +169,16 @@ function parseDateAny(raw?: string | null): Date | null {
   const s = String(raw).trim();
   if (!s) return null;
 
-  // Aceitar timestamps numéricos (ms) ou strings numéricas longas
+  // Aceitar timestamps num├®ricos (ms) ou strings num├®ricas longas
   if (typeof raw === 'number') {
     const dt = new Date(raw);
     return Number.isNaN(dt.getTime()) ? null : dt;
   }
   if (/^\d{10,}$/.test(s)) {
-    // 10+ dígitos: presumir segundos (10) ou milissegundos (13+)
+    // 10+ d├¡gitos: presumir segundos (10) ou milissegundos (13+)
     const n = Number(s);
     if (!Number.isNaN(n)) {
-      // se tem 13+ dígitos, já está em ms
+      // se tem 13+ d├¡gitos, j├í est├í em ms
       const ms = s.length >= 13 ? n : n * 1000;
       const dt = new Date(ms);
       if (!Number.isNaN(dt.getTime())) return dt;
@@ -281,7 +281,7 @@ type SinistroOccurrence = {
   situacao?: string | null;
   cliente?: string | null;
   fornecedor?: string | null;
-  // Datas derivadas para exibição (opcionais)
+  // Datas derivadas para exibi├º├úo (opcionais)
   dataAberturaOcorrencia?: Date | null;
   dataConclusaoOcorrencia?: Date | null;
   dataChegadaVeiculo?: Date | null;
@@ -315,11 +315,11 @@ function normalizeOcorrenciaKey(raw?: unknown): string {
   if (!raw && raw !== 0) return '';
   const s = String(raw).trim();
   if (!s) return '';
-  // manter prefixo QUAL- se já existir, caso contrário manter como está
+  // manter prefixo QUAL- se j├í existir, caso contr├írio manter como est├í
   return s;
 }
 
-// Nova função: agrupa manutenções por Ocorrência
+// Nova fun├º├úo: agrupa manuten├º├Áes por Ocorr├¬ncia
 function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurrence[] {
   // Agrupar por IdOcorrencia/Ocorrencia
   const occurrenceMap = new Map<string, AnyObject[]>();
@@ -327,7 +327,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
   for (const r of records) {
     const occId = getOccurrenceId(r);
     if (!occId || occId === '' || occId === 'undefined' || occId === 'null') {
-      // Se não tem ID de ocorrência, criar uma ocorrência única para esta OS
+      // Se n├úo tem ID de ocorr├¬ncia, criar uma ocorr├¬ncia ├║nica para esta OS
       const osId = getMaintenanceId(r);
       const fallbackDateKey = String(parseDateAny(r?.DataEntrada ?? r?.Data)?.getTime() ?? 'noDate');
       const uniqueKey = `solo-os:${osId || fallbackDateKey}`;
@@ -346,7 +346,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
   const occurrences: MaintenanceOccurrence[] = [];
 
   for (const [occId, osRecords] of occurrenceMap.entries()) {
-    // Pegar a data mais antiga como data da ocorrência
+    // Pegar a data mais antiga como data da ocorr├¬ncia
     const dates = osRecords
       .map(r => parseDateAny(
         r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura ?? r?.DataAgendamento ??
@@ -359,13 +359,13 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
 
     const firstRecord = osRecords[0];
 
-    // Calcular custo total da ocorrência
+    // Calcular custo total da ocorr├¬ncia
     const custoTotal = osRecords.reduce((sum, r) => {
       const val = Number(r?.CustoTotalOS ?? r?.ValorTotal ?? 0);
       return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
-    // padronizar datas: pegar primeiro valor disponível por campo
+    // padronizar datas: pegar primeiro valor dispon├¡vel por campo
     const dataAberturaOcorrencia = osRecords
       .map(r => parseDateAny(r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura ?? r?.DataEntrada ?? r?.Data))
       .filter((d): d is Date => !!d)[0] ?? null;
@@ -382,7 +382,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
       .map(r => parseDateAny(r?.DataRetiradaVeiculo ?? r?.DataRetirada ?? r?.DataSaida))
       .filter((d): d is Date => !!d)[0] ?? null;
 
-    // movimentacoes: pode vir como JSON string ou como array já desserializado
+    // movimentacoes: pode vir como JSON string ou como array j├í desserializado
     let movimentacoes: any[] = [];
     try {
       const sample = osRecords.find(r => r?.MovimentacoesJson || r?.Movimentacoes);
@@ -395,7 +395,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
       movimentacoes = [];
     }
 
-    // Preferir data de chegada indicada nas movimentações (etapa 'Aguardando Chegada')
+    // Preferir data de chegada indicada nas movimenta├º├Áes (etapa 'Aguardando Chegada')
     try {
       if (Array.isArray(movimentacoes) && movimentacoes.length > 0) {
         const busca = movimentacoes.find((m: any) => typeof m?.Etapa === 'string' && m.Etapa.toLowerCase().includes('aguardando chegada') && (m.DataConfirmacao || m.DataDeConfirmacao));
@@ -438,7 +438,7 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
     });
   }
 
-  // Ordenar por data da ocorrência (mais recente primeiro)
+  // Ordenar por data da ocorr├¬ncia (mais recente primeiro)
   return occurrences.sort((a, b) => b.ocorrenciaDate.getTime() - a.ocorrenciaDate.getTime());
 }
 
@@ -450,7 +450,7 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
     const tipo = normalizeEventName(e?.TipoEvento || e?.Evento || '') || '';
     if (!tipo.includes('SINIST')) continue;
 
-    // prioridade de chave: Ocorrencia / IdSinistro / NumeroBO ; fallback determinístico: placa+data
+    // prioridade de chave: Ocorrencia / IdSinistro / NumeroBO ; fallback determin├¡stico: placa+data
     const occVal = e?.Ocorrencia ?? e?.NumeroOcorrencia ?? null;
     const idVal = e?.IdSinistro ?? e?.IdOcorrencia ?? null;
     const numBO = e?.NumeroBO ?? e?.BoletimOcorrencia ?? null;
@@ -479,7 +479,7 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
 
     const first = dates[0];
     const sample = items[0] || {};
-    // Datas derivadas (abertura / conclusão / chegada / retirada)
+    // Datas derivadas (abertura / conclus├úo / chegada / retirada)
     const aberturaDates = items
       .map(i => parseDateAny(i?.DataAberturaOcorrencia ?? i?.DataAbertura ?? i?.DataEvento ?? i?.DataSinistro ?? i?.DataInicio ?? i?.Data))
       .filter((d): d is Date => d != null)
@@ -497,7 +497,7 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
     const valorOrcamento = sample?.ValorOrcamento ?? sample?.ValorOrcamentoEstimado ?? sample?.Valor ?? null;
     const situacao = sample?.Situacao ?? sample?.SituacaoOcorrencia ?? null;
 
-    // Tentar inferir `Ocorrencia` (QUAL-xxx) a partir de um evento de manutenção próximo
+    // Tentar inferir `Ocorrencia` (QUAL-xxx) a partir de um evento de manuten├º├úo pr├│ximo
     let inferredOcorrencia = sample?.Ocorrencia ?? sample?.NumeroOcorrencia ?? undefined;
     if (!inferredOcorrencia) {
       let best: AnyObject | null = null;
@@ -508,7 +508,7 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
         const evDate = parseDateAny(ev?.DataEvento ?? ev?.Data) || null;
         if (!evDate) continue;
         const diff = Math.abs(evDate.getTime() - first.getTime());
-        // considerar candidatos até 30 dias de distância
+        // considerar candidatos at├® 30 dias de dist├óncia
         if (diff < bestDiff && diff <= 1000 * 60 * 60 * 24 * 30) {
           best = ev;
           bestDiff = diff;
@@ -566,7 +566,7 @@ function groupSinistrosFromFat(records: AnyObject[] | undefined): SinistroOccurr
     const dataChegada = parseDateAny(r?.DataChegadaVeiculo ?? r?.DataChegada ?? r?.DataConfirmacao) || null;
     const dataRetirada = parseDateAny(r?.DataRetiradaVeiculo ?? r?.DataRetirada ?? r?.DataSaida) || null;
 
-    // items: manter o registro original dentro de um array para exibição
+    // items: manter o registro original dentro de um array para exibi├º├úo
     const primary = occVal ?? idVal ?? numBO ?? null;
     const keyCore = occVal ? String(occVal).trim() : (primary ? String(primary).trim() : `${normalizePlacaKey(r?.Placa ?? '')}:${date.getTime()}`);
 
@@ -613,7 +613,7 @@ function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): Main
     const effectiveLastEnd = lastEnd ?? now;
     const effectiveItemEnd = itemEnd ?? now;
 
-    // Junta intervalos muito próximos (mesmo dia ou dia seguinte)
+    // Junta intervalos muito pr├│ximos (mesmo dia ou dia seguinte)
     const canMerge =
       last &&
       itemStart.getTime() <= effectiveLastEnd.getTime() + 24 * 60 * 60 * 1000;
@@ -632,7 +632,7 @@ function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): Main
 
     // merge
     last.records.push(item.r);
-    // atualiza end (prioriza o maior end conhecido; se algum for aberto, mantém aberto)
+    // atualiza end (prioriza o maior end conhecido; se algum for aberto, mant├®m aberto)
     if (!last.end || !itemEnd) {
       last.end = null;
     } else if (itemEnd.getTime() > last.end.getTime()) {
@@ -647,7 +647,7 @@ function buildMaintenanceIntervals(records: AnyObject[], now = new Date()): Main
 }
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
-  // Tipos vêm normalizados (sem acento) via normalizeEventName()
+  // Tipos v├¬m normalizados (sem acento) via normalizeEventName()
   'LOCACAO': <Play size={14} className="text-emerald-500" />,
   'DEVOLUCAO': <RotateCcw size={14} className="text-blue-500" />,
   'MANUTENCAO': <Wrench size={14} className="text-amber-500" />,
@@ -662,27 +662,27 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  LOCACAO: 'LOCAÇÃO',
-  DEVOLUCAO: 'DEVOLUÇÃO',
-  MANUTENCAO: 'MANUTENÇÃO',
-  MOVIMENTACAO: 'MOVIMENTAÇÃO',
+  LOCACAO: 'LOCA├ç├âO',
+  DEVOLUCAO: 'DEVOLU├ç├âO',
+  MANUTENCAO: 'MANUTEN├ç├âO',
+  MOVIMENTACAO: 'MOVIMENTA├ç├âO',
   SINISTRO: 'SINISTRO',
   MULTA: 'MULTA',
   MULTAS: 'MULTAS',
   COMPRA: 'COMPRA',
-  AQUISICAO: 'AQUISIÇÃO',
+  AQUISICAO: 'AQUISI├ç├âO',
   VENDA: 'VENDA',
   BAIXA: 'BAIXA',
 };
 
-// Identifica o Ator para evitar confusão na coluna Cliente
+// Identifica o Ator para evitar confus├úo na coluna Cliente
 function getEventActor(tipoNorm: string, item: AnyObject) {
   const genericClient = item.Cliente || item.NomeCliente || '';
 
   if (tipoNorm === 'MANUTENCAO') {
     return {
       label: 'Oficina',
-      value: item.Fornecedor || genericClient || 'Oficina não inf.',
+      value: item.Fornecedor || genericClient || 'Oficina n├úo inf.',
       icon: <Store size={12} />
     };
   }
@@ -690,7 +690,7 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
   if (tipoNorm === 'MULTA' || tipoNorm === 'MULTAS') {
     return {
       label: 'Condutor',
-      value: item.NomeCondutor || genericClient || 'Condutor não inf.',
+      value: item.NomeCondutor || genericClient || 'Condutor n├úo inf.',
       icon: <User size={12} />
     };
   }
@@ -712,7 +712,7 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
   }
 
   return {
-    label: 'Responsável',
+    label: 'Respons├ível',
     value: genericClient,
     icon: <User size={12} />
   };
@@ -723,19 +723,19 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
 export default function TimelineTab({ timeline, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas }: TimelineTabProps) { // Adicionado movimentacoes
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set()); // Novo controle para sub-seções (ex: lista de multas)
+  const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set()); // Novo controle para sub-se├º├Áes (ex: lista de multas)
   const [_expandedVersion, setExpandedVersion] = useState(0); // Force re-render trigger
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 15;
 
   useEffect(() => {
-    // Forçar estado limpo na montagem para garantir colapso
+    // For├ºar estado limpo na montagem para garantir colapso
     setExpandedSubSections(new Set());
     console.log('TimelineTab mounted, reset expandedSubSections');
   }, []);
 
-  // Hook de filtro Power BI-style para os gráficos
+  // Hook de filtro Power BI-style para os gr├íficos
   const {
     filters: chartFilters,
     handleChartClick,
@@ -746,7 +746,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   } = useChartFilter();
   const { getFilterValues } = useChartFilter();
 
-  // Métricas agregadas usando nova lógica
+  // M├®tricas agregadas usando nova l├│gica
   const aggregatedMetrics = useMemo(() => {
     const safeMovimentacoes = Array.isArray(movimentacoes) ? movimentacoes : [];
 
@@ -756,7 +756,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     );
   }, [frota, contratosLocacao, manutencao, movimentacoes]);
 
-  // Mapa de métricas por placa para lookup rápido
+  // Mapa de m├®tricas por placa para lookup r├ípido
   const metricsByPlaca = useMemo(() => {
     const map: Record<string, any> = {};
     for (const m of aggregatedMetrics.metricsPerVehicle || []) {
@@ -765,12 +765,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return map;
   }, [aggregatedMetrics]);
 
-  // Expor métricas para depuração no console do navegador
+  // Expor m├®tricas para depura├º├úo no console do navegador
   useEffect(() => {
     try {
       // @ts-ignore
       if (typeof window !== 'undefined') {
-        // Não poluir namespace em produção; apenas quando dev
+        // N├úo poluir namespace em produ├º├úo; apenas quando dev
         // (o app roda em dev durante QA)
         (window as any).__AGGREGATED_METRICS = aggregatedMetrics;
         (window as any).__METRICS_BY_PLACA = metricsByPlaca;
@@ -780,10 +780,10 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     }
   }, [aggregatedMetrics, metricsByPlaca]);
 
-  // Auto-expandir primeiro veículo
+  // Auto-expandir primeiro ve├¡culo
   const [autoExpanded, setAutoExpanded] = useState(false);
 
-  // Criar mapa de sinistros por placa para enriquecimento rápido
+  // Criar mapa de sinistros por placa para enriquecimento r├ípido
   const sinistrosByPlaca = useMemo(() => {
     const map: Record<string, AnyObject[]> = {};
     if (!Array.isArray(sinistros)) return map;
@@ -875,14 +875,14 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       if (ti && t >= ti && (tf === null || t <= tf)) return c;
     }
 
-    // fallback: pega o contrato mais recente com início anterior à data
+    // fallback: pega o contrato mais recente com in├¡cio anterior ├á data
     for (const c of arr) {
       const inicio = c.__inicio as Date | null;
       const ti = inicio?.getTime() ?? 0;
       if (ti && t >= ti) return c;
     }
 
-    // Último fallback: retorna o contrato mais recente se existir algum
+    // ├Ültimo fallback: retorna o contrato mais recente se existir algum
     return arr[0] ?? null;
   };
 
@@ -909,12 +909,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     const normalizeStatus = (s: any) => String(s || '').toUpperCase();
     const getCategoryLocal = (statusRaw: any) => {
       const s = normalizeStatus(statusRaw);
-      if (['LOCADO', 'LOCADO VEÍCULO RESERVA', 'USO INTERNO', 'EM MOBILIZAÇÃO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+      if (['LOCADO', 'LOCADO VE├ìCULO RESERVA', 'USO INTERNO', 'EM MOBILIZA├ç├âO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
       if ([
         'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-        'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONÍVEL PARA VENDA', 'DISPONÍVEL PRA VENDA',
-        'NÃO DISPONÍVEL', 'NAO DISPONIVEL', 'NÃO DISPONIVEL', 'NAO DISPONÍVEL',
-        'EM DESMOBILIZAÇÃO', 'EM DESMOBILIZACAO'
+        'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPON├ìVEL PARA VENDA', 'DISPON├ìVEL PRA VENDA',
+        'N├âO DISPON├ìVEL', 'NAO DISPONIVEL', 'N├âO DISPONIVEL', 'NAO DISPON├ìVEL',
+        'EM DESMOBILIZA├ç├âO', 'EM DESMOBILIZACAO'
       ].includes(s)) return 'Inativa';
       return 'Improdutiva';
     };
@@ -938,7 +938,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       if (wanted.size > 0) placasFiltradas = wanted;
     }
 
-    // Se houver filtros ativos e um conjunto de placas filtradas, aplicar; caso contrário, mostrar timeline completo
+    // Se houver filtros ativos e um conjunto de placas filtradas, aplicar; caso contr├írio, mostrar timeline completo
     const hasFiltrosAtivos = hasActiveFilters || (filteredData && filteredData.length > 0);
     const data = hasFiltrosAtivos && placasFiltradas.size > 0
       ? timeline.filter(t => placasFiltradas.has(t.Placa))
@@ -952,7 +952,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       grouped[placa].push(item);
     });
 
-    // Construir mapas por placa normalizada para lookups robustos (evita diferenças de formatação)
+    // Construir mapas por placa normalizada para lookups robustos (evita diferen├ºas de formata├º├úo)
     const frotaMap: Record<string, AnyObject> = {};
     for (const f of frota || []) {
       if (f?.Placa) frotaMap[normalizePlacaKey(f.Placa)] = f;
@@ -974,11 +974,11 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           return ad.getTime() - bd.getTime();
         });
 
-      // Usar métricas centralizadas calculadas por `aggregateFleetMetrics`
+      // Usar m├®tricas centralizadas calculadas por `aggregateFleetMetrics`
       const metric = metricsByPlaca[placaKey] || null;
       const locacaoDaysReal = metric ? (metric.diasLocado ?? 0) : 0;
       const manutencaoDaysReal = metric ? (metric.diasManutencao ?? 0) : 0;
-      // ownershipDays não é usado diretamente, mas está disponível em metric.diasVida
+      // ownershipDays n├úo ├® usado diretamente, mas est├í dispon├¡vel em metric.diasVida
       const frotaParadaDays = metric ? (metric.diasParado ?? 0) : 0;
       const utilization = metric ? (metric.percentualUtilizacao ?? 0) : 0;
 
@@ -1010,7 +1010,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         locacaoDays: Math.round(locacaoDaysReal),
         manutencaoDays: Math.round(manutencaoDaysReal),
         sinistroDays: Math.round(sinistroDaysReal),
-        frotaParadaDays: Math.round(frotaParadaDays), // Vida do veículo - dias locado
+        frotaParadaDays: Math.round(frotaParadaDays), // Vida do ve├¡culo - dias locado
         utilization
       };
     }).sort((a, b) => b.totalEvents - a.totalEvents);
@@ -1030,7 +1030,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     });
   }, [timelineGrouped, searchTerm]);
 
-  // Aplicar filtros de gráfico (Ctrl+Click)
+  // Aplicar filtros de gr├ífico (Ctrl+Click)
   const filteredGrouped = useMemo(() => {
     let result = searchFiltered;
 
@@ -1050,7 +1050,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       });
     }
 
-    // Filtro por faixa de dias de manutenção
+    // Filtro por faixa de dias de manuten├º├úo
     const faixaManutencao = chartFilters['faixaManutencao'] || [];
     if (faixaManutencao.length > 0) {
       result = result.filter(v => {
@@ -1066,16 +1066,16 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       });
     }
 
-    // Filtro por faixa de utilização
+    // Filtro por faixa de utiliza├º├úo
     const faixaUtilizacao = chartFilters['faixaUtilizacao'] || [];
     if (faixaUtilizacao.length > 0) {
       result = result.filter(v => {
         const util = v.utilization;
         return faixaUtilizacao.some(faixa => {
-          if (faixa === '< 40% (Crítico)') return util < 40;
+          if (faixa === '< 40% (Cr├¡tico)') return util < 40;
           if (faixa === '40-59% (Regular)') return util >= 40 && util < 60;
           if (faixa === '60-79% (Bom)') return util >= 60 && util < 80;
-          if (faixa === '≥ 80% (Excelente)') return util >= 80;
+          if (faixa === 'ÔëÑ 80% (Excelente)') return util >= 80;
           return false;
         });
       });
@@ -1084,18 +1084,18 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return result;
   }, [searchFiltered, chartFilters]);
 
-  // Paginação
+  // Pagina├º├úo
   const pageItems = filteredGrouped.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(filteredGrouped.length / pageSize);
 
-  // Auto-expandir primeiro veículo ao carregar
+  // Auto-expandir primeiro ve├¡culo ao carregar
   useEffect(() => {
     if (!autoExpanded && pageItems.length > 0) {
       const firstPlate = pageItems[0]?.placa;
       if (firstPlate) {
         setExpandedPlates(new Set([firstPlate]));
         setAutoExpanded(true);
-        // Expandir eventos após um delay
+        // Expandir eventos ap├│s um delay
         setTimeout(() => {
           togglePlate(firstPlate);
         }, 300);
@@ -1103,13 +1103,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     }
   }, [pageItems, autoExpanded]);
 
-  // KPIs - Usar métricas agregadas (MÉDIAS)
+  // KPIs - Usar m├®tricas agregadas (M├ëDIAS)
   const kpis = useMemo(() => {
     const totalVehicles = timelineGrouped.length;
     const totalEvents = timeline.length;
     const avgEvents = totalVehicles > 0 ? totalEvents / totalVehicles : 0;
 
-    // Usar as métricas agregadas
+    // Usar as m├®tricas agregadas
     const {
       mediaLocado,
       mediaManutencao,
@@ -1120,7 +1120,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       utilizacaoPct
     } = aggregatedMetrics;
 
-    // Distribuição por tipo de evento
+    // Distribui├º├úo por tipo de evento
     const eventTypes: Record<string, number> = {};
     let totalMultas = 0;
     let totalSinistros = 0;
@@ -1141,7 +1141,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
       eventTypes,
       totalMultas,
       totalSinistros,
-      // Médias (novos)
+      // M├®dias (novos)
       mediaLocado,
       mediaManutencao,
       mediaParado,
@@ -1153,7 +1153,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     };
   }, [timelineGrouped, timeline, aggregatedMetrics]);
 
-  // Gráfico 1: Veículos por faixa de dias locados
+  // Gr├ífico 1: Ve├¡culos por faixa de dias locados
   const vehiclesByRentalDays = useMemo(() => {
     const ranges = [
       { name: '0-30 dias', min: 0, max: 30, count: 0, color: '#ef4444' },
@@ -1172,7 +1172,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return ranges.filter(r => r.count > 0);
   }, [timelineGrouped]);
 
-  // Gráfico 2: Veículos por faixa de dias de manutenção
+  // Gr├ífico 2: Ve├¡culos por faixa de dias de manuten├º├úo
   const vehiclesByMaintenanceDays = useMemo(() => {
     const ranges = [
       { name: '0 dias', min: 0, max: 0, count: 0, color: '#10b981' },
@@ -1191,13 +1191,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     return ranges.filter(r => r.count > 0);
   }, [timelineGrouped]);
 
-  // Gráfico 3: Veículos por faixa de utilização
+  // Gr├ífico 3: Ve├¡culos por faixa de utiliza├º├úo
   const vehiclesByUtilization = useMemo(() => {
     const ranges = [
-      { name: '< 40% (Crítico)', min: 0, max: 39.99, count: 0, color: '#ef4444' },
+      { name: '< 40% (Cr├¡tico)', min: 0, max: 39.99, count: 0, color: '#ef4444' },
       { name: '40-59% (Regular)', min: 40, max: 59.99, count: 0, color: '#f59e0b' },
       { name: '60-79% (Bom)', min: 60, max: 79.99, count: 0, color: '#3b82f6' },
-      { name: '≥ 80% (Excelente)', min: 80, max: 100, count: 0, color: '#10b981' }
+      { name: 'ÔëÑ 80% (Excelente)', min: 80, max: 100, count: 0, color: '#10b981' }
     ];
 
     timelineGrouped.forEach(v => {
@@ -1223,7 +1223,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
     });
 
     if (isCurrentlyExpanded) {
-      // Ao fechar veículo, limpar os eventos expandidos desse veículo
+      // Ao fechar ve├¡culo, limpar os eventos expandidos desse ve├¡culo
       setExpandedRows(prevRows => {
         const nextRows = new Set(prevRows);
         Array.from(nextRows).forEach(key => {
@@ -1234,12 +1234,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         return nextRows;
       });
     } else {
-      // Ao abrir veículo, expandir automaticamente TODOS os eventos após um pequeno delay
+      // Ao abrir ve├¡culo, expandir automaticamente TODOS os eventos ap├│s um pequeno delay
       setTimeout(() => {
         setExpandedRows(prevRows => {
           const nextRows = new Set(prevRows);
 
-          // Expandir manutenções
+          // Expandir manuten├º├Áes
           const manutRecords = manutencaoByPlaca[normalizePlacaKey(placa)] ?? [];
           if (manutRecords.length > 0) {
             const intervals = buildMaintenanceIntervals(manutRecords);
@@ -1251,7 +1251,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           // Expandir eventos normais - buscar no timelineGrouped
           const veiculoData = timelineGrouped.find(g => g.placa === placa);
           if (veiculoData) {
-            // Processar eventos para criar as mesmas keys que são usadas na renderização
+            // Processar eventos para criar as mesmas keys que s├úo usadas na renderiza├º├úo
             const groups = new Map<string, Date>();
             veiculoData.eventos.forEach(ev => {
               const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
@@ -1288,7 +1288,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
   };
 
   const exportToExcel = () => {
-    // Exportar apenas os veículos filtrados
+    // Exportar apenas os ve├¡culos filtrados
     const placasFiltradas = new Set(filteredGrouped.map(g => g.placa));
     const dataToExport = timeline
       .filter(e => placasFiltradas.has(e.Placa))
@@ -1315,7 +1315,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           </div>
           <Title className="text-slate-600">Sem Dados de Timeline</Title>
           <Text className="mt-3 text-slate-500 max-w-md mx-auto">
-            Nenhum evento de histórico foi encontrado. Verifique se o arquivo <code className="bg-slate-200 px-2 py-1 rounded text-xs">hist_vida_veiculo_timeline.json</code> está disponível.
+            Nenhum evento de hist├│rico foi encontrado. Verifique se o arquivo <code className="bg-slate-200 px-2 py-1 rounded text-xs">hist_vida_veiculo_timeline.json</code> est├í dispon├¡vel.
           </Text>
         </div>
       </Card>
@@ -1332,7 +1332,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <History className="w-8 h-8" />
               Linha do Tempo da Frota
             </h2>
-            <p className="text-slate-300 mt-1">Histórico completo de eventos, locações e manutenções</p>
+            <p className="text-slate-300 mt-1">Hist├│rico completo de eventos, loca├º├Áes e manuten├º├Áes</p>
           </div>
           <div className="flex items-center gap-6">
             <div className="text-center">
@@ -1341,13 +1341,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold">{fmtDecimal(kpis.totalVehicles)}</div>
-              <div className="text-slate-400 text-sm">Veículos</div>
+              <div className="text-slate-400 text-sm">Ve├¡culos</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* KPIs: Média Locado, Média Manutenção, Média Frota Parada, % Utilização */}
+      {/* KPIs: M├®dia Locado, M├®dia Manuten├º├úo, M├®dia Frota Parada, % Utiliza├º├úo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-white">
           <div className="flex items-center gap-3">
@@ -1355,9 +1355,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Play className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Média Locado</Text>
+              <Text className="text-slate-500 text-xs">M├®dia Locado</Text>
               <Metric className="text-emerald-600">{formatDurationDays(Math.round(kpis.mediaLocado || 0))}</Metric>
-              <Text className="text-[10px] text-slate-400">por veículo</Text>
+              <Text className="text-[10px] text-slate-400">por ve├¡culo</Text>
             </div>
           </div>
         </Card>
@@ -1368,9 +1368,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Wrench className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Média Manutenção</Text>
+              <Text className="text-slate-500 text-xs">M├®dia Manuten├º├úo</Text>
               <Metric className="text-amber-600">{formatDurationDays(Math.round(kpis.mediaManutencao || 0))}</Metric>
-              <Text className="text-[10px] text-slate-400">por veículo</Text>
+              <Text className="text-[10px] text-slate-400">por ve├¡culo</Text>
             </div>
           </div>
         </Card>
@@ -1381,9 +1381,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <Archive className="w-6 h-6 text-slate-700" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">Média Frota Parada</Text>
+              <Text className="text-slate-500 text-xs">M├®dia Frota Parada</Text>
               <Metric className="text-slate-700">{formatDurationDays(Math.round(kpis.mediaParado || 0))}</Metric>
-              <Text className="text-[10px] text-slate-400">por veículo</Text>
+              <Text className="text-[10px] text-slate-400">por ve├¡culo</Text>
             </div>
           </div>
         </Card>
@@ -1394,9 +1394,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               <TrendingUp className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <Text className="text-slate-500 text-xs">% Utilização</Text>
+              <Text className="text-slate-500 text-xs">% Utiliza├º├úo</Text>
               <Metric className="text-blue-600">{(kpis.utilizationPct ?? 0).toFixed(1)}%</Metric>
-              <Text className="text-[10px] text-slate-400">{kpis.totalVehicles} veículos</Text>
+              <Text className="text-[10px] text-slate-400">{kpis.totalVehicles} ve├¡culos</Text>
             </div>
           </div>
         </Card>
@@ -1409,29 +1409,29 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           onClearFilter={clearFilter}
           onClearAll={clearAllFilters}
           labelMap={{
-            faixaLocacao: 'Faixa Locação',
-            faixaManutencao: 'Faixa Manutenção',
-            faixaUtilizacao: 'Faixa Utilização'
+            faixaLocacao: 'Faixa Loca├º├úo',
+            faixaManutencao: 'Faixa Manuten├º├úo',
+            faixaUtilizacao: 'Faixa Utiliza├º├úo'
           }}
         />
       )}
 
-      {/* Gráficos - Novos gráficos de faixas */}
+      {/* Gr├íficos - Novos gr├íficos de faixas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Veículos por faixa de dias locados */}
+        {/* Ve├¡culos por faixa de dias locados */}
         <Card className="shadow-lg">
           <Title className="flex items-center gap-2 mb-4">
             <Car className="w-5 h-5 text-emerald-600" />
-            Veículos por Dias Locados
+            Ve├¡culos por Dias Locados
           </Title>
-          <Text className="text-xs text-slate-500 mb-2">Distribuição por faixa de dias em locação</Text>
+          <Text className="text-xs text-slate-500 mb-2">Distribui├º├úo por faixa de dias em loca├º├úo</Text>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={vehiclesByRentalDays} layout="vertical" margin={{ left: 10, right: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
+                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Ve├¡culos']} />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20} style={{ cursor: 'pointer' }}>
                   {vehiclesByRentalDays.map((entry, index) => (
                     <Cell
@@ -1447,20 +1447,20 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           </div>
         </Card>
 
-        {/* Veículos por faixa de dias de manutenção */}
+        {/* Ve├¡culos por faixa de dias de manuten├º├úo */}
         <Card className="shadow-lg">
           <Title className="flex items-center gap-2 mb-4">
             <Wrench className="w-5 h-5 text-amber-600" />
-            Veículos por Dias de Manutenção
+            Ve├¡culos por Dias de Manuten├º├úo
           </Title>
-          <Text className="text-xs text-slate-500 mb-2">Distribuição por faixa de dias em oficina</Text>
+          <Text className="text-xs text-slate-500 mb-2">Distribui├º├úo por faixa de dias em oficina</Text>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={vehiclesByMaintenanceDays} layout="vertical" margin={{ left: 10, right: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
+                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Ve├¡culos']} />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20} style={{ cursor: 'pointer' }}>
                   {vehiclesByMaintenanceDays.map((entry, index) => (
                     <Cell
@@ -1476,20 +1476,20 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           </div>
         </Card>
 
-        {/* Veículos por faixa de utilização */}
+        {/* Ve├¡culos por faixa de utiliza├º├úo */}
         <Card className="shadow-lg">
           <Title className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-blue-600" />
-            Veículos por Faixa de Utilização
+            Ve├¡culos por Faixa de Utiliza├º├úo
           </Title>
-          <Text className="text-xs text-slate-500 mb-2">Distribuição por % de utilização</Text>
+          <Text className="text-xs text-slate-500 mb-2">Distribui├º├úo por % de utiliza├º├úo</Text>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={vehiclesByUtilization} layout="vertical" margin={{ left: 10, right: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Veículos']} />
+                <Tooltip formatter={(value: number) => [fmtDecimal(value), 'Ve├¡culos']} />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={20} style={{ cursor: 'pointer' }}>
                   {vehiclesByUtilization.map((entry, index) => (
                     <Cell
@@ -1506,15 +1506,15 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
         </Card>
       </div>
 
-      {/* Timeline por veículo */}
+      {/* Timeline por ve├¡culo */}
       <Card className="shadow-lg overflow-hidden">
         <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Title className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-slate-600" />
-              Timeline por Veículo
+              Timeline por Ve├¡culo
             </Title>
-            <Badge color="slate">{fmtDecimal(filteredGrouped.length)} veículos</Badge>
+            <Badge color="slate">{fmtDecimal(filteredGrouped.length)} ve├¡culos</Badge>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -1561,7 +1561,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                   </div>
                   <div className="text-center">
                     <div className="text-amber-600 font-bold">{formatDurationDays(manutencaoDays)}</div>
-                    <div className="text-xs text-slate-400">Manutenção</div>
+                    <div className="text-xs text-slate-400">Manuten├º├úo</div>
                   </div>
                   <div className="text-center">
                     <div className="text-slate-700 font-bold">{formatDurationDays(frotaParadaDays)}</div>
@@ -1571,7 +1571,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                     <div className={`font-bold ${utilization >= 70 ? 'text-emerald-600' : utilization >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
                       {utilization.toFixed(0)}%
                     </div>
-                    <div className="text-xs text-slate-400">Utilização</div>
+                    <div className="text-xs text-slate-400">Utiliza├º├úo</div>
                   </div>
                 </div>
               </div>
@@ -1581,21 +1581,21 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                 <div className="px-4 pb-4 pl-14">
                   <div className="relative border-l-2 border-slate-200 ml-2 space-y-3">
                     {(() => {
-                      // Deriva linhas “colapsadas” para validação: manutenção por período + agrupamento de eventos por dia/tipo
-                      // 1) Manutenção (via dataset fat_manutencao_unificado)
+                      // Deriva linhas ÔÇ£colapsadasÔÇØ para valida├º├úo: manuten├º├úo por per├¡odo + agrupamento de eventos por dia/tipo
+                      // 1) Manuten├º├úo (via dataset fat_manutencao_unificado)
                       const manutRecords = manutencaoByPlaca[normalizePlacaKey(placa)] ?? [];
                       const manutOccurrences = groupMaintenanceByOccurrence(manutRecords);
 
                       // 2) Eventos agrupados por dia/tipo
-                      // Se houver intervalos de manutenção consolidados, não mostrar eventos individuais de manutenção
-                      // Multas serão exibidas em um tópico próprio (usando fat_multas).
+                      // Se houver intervalos de manuten├º├úo consolidados, n├úo mostrar eventos individuais de manuten├º├úo
+                      // Multas ser├úo exibidas em um t├│pico pr├│prio (usando fat_multas).
                       const groups = new Map<string, { tipo: string; date: Date; items: AnyObject[] }>();
                       for (const ev of [...eventos].slice().reverse()) {
-                        // reverse para manter o último evento do dia no topo ao expandir o grupo
+                        // reverse para manter o ├║ltimo evento do dia no topo ao expandir o grupo
                         const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
-                        // Se há ocorrências consolidadas, pular eventos de manutenção individuais
+                        // Se h├í ocorr├¬ncias consolidadas, pular eventos de manuten├º├úo individuais
                         if (tipo.includes('MANUT') && manutOccurrences.length > 0) continue;
-                        // Multas vêm de fat_multas; sinistros serão agrupados separadamente
+                        // Multas v├¬m de fat_multas; sinistros ser├úo agrupados separadamente
                         if (tipo.includes('MULTA')) continue;
                         if (tipo.includes('SINIST')) continue;
                         const d = new Date(ev.DataEvento || ev.Data);
@@ -1621,11 +1621,11 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                       // Preferir sinistros estruturados de `fat_sinistros` (quando presentes)
                       const placaKey = normalizePlacaKey(placa);
                       const sinistrosFromFat = groupSinistrosFromFat(sinistrosByPlaca[placaKey]);
-                      // Também coletar sinistros detectados no stream (fallback)
+                      // Tamb├®m coletar sinistros detectados no stream (fallback)
                       const sinistrosFromEvents = groupSinistrosFromEvents(eventos);
 
-                      // Combinar: usar entradas de fat_sinistros quando houver mesma ocorrência/numeroBO,
-                      // caso contrário, incluir sinistros detectados no stream.
+                      // Combinar: usar entradas de fat_sinistros quando houver mesma ocorr├¬ncia/numeroBO,
+                      // caso contr├írio, incluir sinistros detectados no stream.
                       const sinistroMap = new Map<string, SinistroOccurrence>();
                       const keyFor = (s: SinistroOccurrence) => {
                         const occ = normalizeOcorrenciaKey(s.ocorrencia);
@@ -1648,7 +1648,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                       const sinistroOccurrences = Array.from(sinistroMap.values()).sort((a, b) => b.sinistroDate.getTime() - a.sinistroDate.getTime());
 
-                      // Eventos prioritários que SEMPRE devem aparecer (ciclo de vida do veículo)
+                      // Eventos priorit├írios que SEMPRE devem aparecer (ciclo de vida do ve├¡culo)
                       const PRIORITY_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO'];
                       
                       // Helper para extrair data de qualquer tipo de row
@@ -1668,7 +1668,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                           return bd.getTime() - ad.getTime();
                         });
                       
-                      // Separar eventos prioritários dos demais
+                      // Separar eventos priorit├írios dos demais
                       const priorityRows = allRows.filter(r => 
                         r.kind === 'EVENTO_DIA_TIPO' && PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt))
                       );
@@ -1679,7 +1679,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                         (r.kind === 'EVENTO_DIA_TIPO' && !PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt)))
                       );
                       
-                      // Combinar: todos os prioritários + até 25 outros
+                      // Combinar: todos os priorit├írios + at├® 25 outros
                       const rows: TimelineRow[] = [
                         ...priorityRows,
                         ...otherRows.slice(0, Math.max(25, 40 - priorityRows.length))
@@ -1697,13 +1697,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                       return (
                         <>
-                          {/* Seção de Ciclo de Vida do Veículo - Destaque para COMPRA/VENDA */}
+                          {/* Se├º├úo de Ciclo de Vida do Ve├¡culo - Destaque para COMPRA/VENDA */}
                           {lifecycleEvents.length > 0 && (
                             <div className="pl-6 mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                               <div className="flex items-center gap-2 text-sm mb-2">
                                 <ShoppingCart className="w-4 h-4 text-purple-600" />
                                 <span className="font-semibold text-purple-800">
-                                  Ciclo de Vida do Veículo
+                                  Ciclo de Vida do Ve├¡culo
                                 </span>
                               </div>
                               <div className="space-y-2">
@@ -1736,7 +1736,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             </div>
                           )}
 
-                          {/* Seção de Contratos de Locação */}
+                          {/* Se├º├úo de Contratos de Loca├º├úo */}
                           {(() => {
                             const locacaoEvents = priorityRows.filter(r => 
                               r.kind === 'EVENTO_DIA_TIPO' && 
@@ -1745,7 +1745,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             
                             if (locacaoEvents.length === 0) return null;
                             
-                            // Agrupar por contrato para mostrar início->fim
+                            // Agrupar por contrato para mostrar in├¡cio->fim
                             const locacoes = locacaoEvents.filter(e => e.tipo.includes('LOCACAO'));
                             const devolucoes = locacaoEvents.filter(e => e.tipo.includes('DEVOLUCAO'));
                             
@@ -1754,19 +1754,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                 <div className="flex items-center gap-2 text-sm mb-2">
                                   <Play className="w-4 h-4 text-emerald-600" />
                                   <span className="font-semibold text-emerald-800">
-                                    Histórico de Locações ({locacoes.length} locação(ões) • {devolucoes.length} devolução(ões))
+                                    Hist├│rico de Loca├º├Áes ({locacoes.length} loca├º├úo(├Áes) ÔÇó {devolucoes.length} devolu├º├úo(├Áes))
                                   </span>
                                 </div>
                                 <div className="space-y-2">
                                   {locacaoEvents.slice(0, 8).map((ev, idx) => {
                                     const item = ev.items[0];
                                     const isLocacao = ev.tipo.includes('LOCACAO');
-                                    const cliente = item?.Cliente || item?.NomeCliente || item?.NomeFantasia || 'Cliente não informado';
+                                    const cliente = item?.Cliente || item?.NomeCliente || item?.NomeFantasia || 'Cliente n├úo informado';
                                     const contrato = item?.ContratoLocacao || item?.ContratoComercial || item?.NumeroContrato || '';
                                     const situacao = item?.Situacao || item?.StatusLocacao || item?.SituacaoContrato || '';
                                     const valorMensal = item?.ValorMensal || item?.ValorMensalAtual;
                                     
-                                    // Calcular duração da locação
+                                    // Calcular dura├º├úo da loca├º├úo
                                     const dataInicio = parseDateAny(item?.DataInicio || item?.DataInicioContrato);
                                     const dataFim = parseDateAny(item?.DataFimReal || item?.DataEncerramento) || new Date();
                                     let duracaoMeses = 0;
@@ -1785,7 +1785,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             <RotateCcw size={14} className="text-blue-500" />
                                           )}
                                           <span className="font-medium text-sm text-slate-700">
-                                            {isLocacao ? 'LOCAÇÃO' : 'DEVOLUÇÃO'}
+                                            {isLocacao ? 'LOCA├ç├âO' : 'DEVOLU├ç├âO'}
                                           </span>
                                           <span className="text-xs text-slate-500">{fmtDateBR(ev.date)}</span>
                                           {duracaoMeses > 0 && (
@@ -1805,7 +1805,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             </Badge>
                                           )}
                                           {valorMensal != null && Number(valorMensal) > 0 && (
-                                            <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorMensal)}/mês</span>
+                                            <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorMensal)}/m├¬s</span>
                                           )}
                                         </div>
                                       </div>
@@ -1813,7 +1813,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                   })}
                                   {locacaoEvents.length > 8 && (
                                     <div className="text-xs text-emerald-600 text-center">
-                                      +{locacaoEvents.length - 8} eventos de locação...
+                                      +{locacaoEvents.length - 8} eventos de loca├º├úo...
                                     </div>
                                   )}
                                 </div>
@@ -1826,11 +1826,11 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                               <div className="flex items-center gap-2 text-sm">
                                 <Wrench className="w-4 h-4 text-amber-600" />
                                 <span className="font-semibold text-amber-800">
-                                  {manutOccurrences.length} ocorrência(s) de manutenção • {manutRecords.length} OS total
+                                  {manutOccurrences.length} ocorr├¬ncia(s) de manuten├º├úo ÔÇó {manutRecords.length} OS total
                                 </span>
                               </div>
                               <div className="text-xs text-amber-600 mt-1">
-                                Clique nas ocorrências abaixo para ver as ordens de serviço detalhadas
+                                Clique nas ocorr├¬ncias abaixo para ver as ordens de servi├ºo detalhadas
                               </div>
                             </div>
                           )}
@@ -1842,18 +1842,18 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                               <div className="flex items-center gap-2 text-sm">
                                 <Wrench className="w-4 h-4 text-amber-600" />
                                 <span className="font-semibold text-amber-800">
-                                  Manutenção: {manutencaoDays} dias calculados
+                                  Manuten├º├úo: {manutencaoDays} dias calculados
                                 </span>
                               </div>
                               <div className="text-xs text-amber-600 mt-1">
-                                Os registros detalhados de OS não estão disponíveis para este veículo
+                                Os registros detalhados de OS n├úo est├úo dispon├¡veis para este ve├¡culo
                               </div>
                             </div>
                           )}
 
                           {/* Multas Section */}
                           {(() => {
-                            // UX Improvement: Toggle para sub-seções
+                            // UX Improvement: Toggle para sub-se├º├Áes
                             const toggleSubSection = (subKey: string) => {
                               const next = new Set(expandedSubSections);
                               if (next.has(subKey)) next.delete(subKey);
@@ -1881,7 +1881,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       <Badge color="red" className="shrink-0">{placaMultas.length} Multas</Badge>
                                     </div>
                                     <div className="text-xs text-blue-500 font-medium font-mono">
-                                      {isListOpen ? '▼ Ocultar' : '▶ Expandir Detalhes'}
+                                      {isListOpen ? 'Ôû╝ Ocultar' : 'ÔûÂ Expandir Detalhes'}
                                     </div>
                                   </div>
                                   {isListOpen && (
@@ -1890,7 +1890,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         {placaMultas.map((multa: any, idx: number) => {
                                           const dataMulta = multa.DataMulta || multa.Data || multa.DataInfracao;
                                           const valor = multa.ValorMulta || multa.Valor || 0;
-                                          const descricao = multa.DescricaoInfracao || multa.Descricao || multa.Infracao || 'Infração não especificada';
+                                          const descricao = multa.DescricaoInfracao || multa.Descricao || multa.Infracao || 'Infra├º├úo n├úo especificada';
                                           const local = multa.LocalInfracao || multa.Local || '';
                                           const condutor = multa.NomeCondutor || multa.Condutor || '';
                                           const status = multa.StatusMulta || multa.Status || '';
@@ -1912,8 +1912,8 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     )}
                                                   </div>
                                                   <div className="text-sm font-medium text-slate-800 mb-1">{descricao}</div>
-                                                  {local && <div className="text-xs text-slate-500">📍 {local}</div>}
-                                                  {condutor && <div className="text-xs text-slate-500">👤 {condutor}</div>}
+                                                  {local && <div className="text-xs text-slate-500">­ƒôì {local}</div>}
+                                                  {condutor && <div className="text-xs text-slate-500">­ƒæñ {condutor}</div>}
                                                 </div>
                                                 <div className="text-right">
                                                   <div className="text-sm font-bold text-red-600">
@@ -1945,7 +1945,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             if (row.kind === 'SINISTRO_OCORRENCIA') {
                               const sin = row as SinistroOccurrence;
                               const icon = EVENT_ICONS['SINISTRO'] || <AlertTriangle size={14} className="text-rose-500" />;
-                              // Preferir `ocorrencia` (ex: QUAL-440121). Se for numérico, prefixar com QUAL-
+                              // Preferir `ocorrencia` (ex: QUAL-440121). Se for num├®rico, prefixar com QUAL-
                               let title = '';
                               if (sin.ocorrencia) {
                                 title = String(sin.ocorrencia);
@@ -1969,9 +1969,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                               const fornecedor = sin.fornecedor ?? sin.items?.[0]?.Fornecedor ?? null;
                               const cliente = sin.cliente ?? sin.items?.[0]?.Cliente ?? null;
 
-                              // Se inferimos uma ocorrência QUAL-xxx, tentar reaproveitar a renderização
+                              // Se inferimos uma ocorr├¬ncia QUAL-xxx, tentar reaproveitar a renderiza├º├úo
                               // de `MANUTENCAO_OCORRENCIA` para mostrar as OSs detalhadas.
-                              // Preferir `NumeroOcorrencia` presente no primeiro item quando disponível.
+                              // Preferir `NumeroOcorrencia` presente no primeiro item quando dispon├¡vel.
                               if (!sin.ocorrencia && sin.items?.[0]) {
                                 sin.ocorrencia = sin.items[0]?.NumeroOcorrencia ?? sin.items[0]?.Ocorrencia ?? sin.ocorrencia;
                               }
@@ -1990,13 +1990,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       best = m; bestDiff = diff;
                                     }
                                   }
-                                  // aceitar correspondência se dentro de 7 dias
+                                  // aceitar correspond├¬ncia se dentro de 7 dias
                                   if (best && bestDiff <= 1000 * 60 * 60 * 24 * 7) matchedManut = best;
                                 }
                               }
 
-                              // Se não encontramos uma manutenção correspondente mas o sinistro tem `ocorrencia`,
-                              // criar uma ocorrência sintética a partir do sinistro para reaproveitar o mesmo layout.
+                              // Se n├úo encontramos uma manuten├º├úo correspondente mas o sinistro tem `ocorrencia`,
+                              // criar uma ocorr├¬ncia sint├®tica a partir do sinistro para reaproveitar o mesmo layout.
                               let syntheticManut: MaintenanceOccurrence | undefined;
                               if (!matchedManut && sin.ocorrencia) {
                                 syntheticManut = {
@@ -2024,7 +2024,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                 const row = matchedManut;
                                 const iconMan = EVENT_ICONS['MANUTENCAO'] || <Wrench size={14} className="text-amber-500" />;
                                 const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
-                                const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0,10)}`);
+                                const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORR├èNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0,10)}`);
                                 const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                                 const firstRec = row.osRecords[0];
                                 const motivo = firstRec?.Motivo ?? '';
@@ -2063,7 +2063,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             )}
                                           </div>
                                           <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
-                                            <div><b>Data:</b> {dataOcorrencia} {motivo && <>• <b>Motivo:</b> {motivo}</>}</div>
+                                            <div><b>Data:</b> {dataOcorrencia} {motivo && <>ÔÇó <b>Motivo:</b> {motivo}</>}</div>
                                             {descricao && (
                                               <div className="flex items-start gap-2">
                                                 <div className={`italic text-slate-500 ${isRowExpanded ? '' : 'line-clamp-2'}`}>{descricao}</div>
@@ -2088,16 +2088,16 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                         <div className="flex flex-col items-end gap-2 shrink-0">
                                           <div className="text-right text-[11px] text-slate-600">
                                             <div><b>Abertura:</b> {fmtDateTimeBR(row.dataAberturaOcorrencia ?? row.ocorrenciaDate)}</div>
-                                            <div><b>Conclusão:</b> {fmtDateTimeBR(row.dataConclusaoOcorrencia)}</div>
+                                            <div><b>Conclus├úo:</b> {fmtDateTimeBR(row.dataConclusaoOcorrencia)}</div>
                                             {row.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(row.dataChegadaVeiculo)}</div>}
                                             <div><b>Retirada:</b> {fmtDateTimeBR(row.dataRetiradaVeiculo)}</div>
                                             {(() => {
                                               const minsConclRet = getMinutesConclusaoRetirada(row);
                                               return minsConclRet != null ? (
-                                                <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                                <div className="text-amber-700 font-semibold mt-1">╬ö ConclÔåÆRet: {fmtDurationFromMinutes(minsConclRet)}</div>
                                               ) : null;
                                             })()}
-                                            {/* Se há um registro de sinistro associado, mostrar campos vindos do registro bruto */}
+                                            {/* Se h├í um registro de sinistro associado, mostrar campos vindos do registro bruto */}
                                             {sin.items?.[0] && (
                                               (() => {
                                                 const itm = sin.items[0];
@@ -2114,13 +2114,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 const placaIt = String(itm?.Placa ?? itm?.PlacaVeiculo ?? itm?.PlacaVeiculoCorrida ?? '')
                                                 return (
                                                   <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
-                                                    {dataCriacao && <div><b>DataCriação:</b> {dataCriacao}</div>}
+                                                    {dataCriacao && <div><b>DataCria├º├úo:</b> {dataCriacao}</div>}
                                                     {dataSin && <div><b>DataSinistro:</b> {dataSin}</div>}
-                                                    {dataConclusaoOc && <div><b>DataConclusão:</b> {dataConclusaoOc}</div>}
+                                                    {dataConclusaoOc && <div><b>DataConclus├úo:</b> {dataConclusaoOc}</div>}
                                                     {dataAgendamento && <div><b>DataAgendamento:</b> {dataAgendamento}</div>}
                                                     {dataRetirada && <div><b>DataRetirada:</b> {dataRetirada}</div>}
-                                                    {dataRetiradaVeic && <div><b>DataRetiradaVeículo:</b> {dataRetiradaVeic}</div>}
-                                                    {situ && <div><b>Situação:</b> {situ}</div>}
+                                                    {dataRetiradaVeic && <div><b>DataRetiradaVe├¡culo:</b> {dataRetiradaVeic}</div>}
+                                                    {situ && <div><b>Situa├º├úo:</b> {situ}</div>}
                                                     {etapa && <div><b>Etapa:</b> {etapa}</div>}
                                                     {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
                                                     {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
@@ -2130,7 +2130,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               })()
                                             )}
                                             </div>
-                                            <div className="text-xs text-amber-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                            <div className="text-xs text-amber-600 font-medium">{isRowExpanded ? 'Ôû╝ Ocultar' : 'ÔûÂ Expandir'}</div>
                                         </div>
                                       </div>
 
@@ -2199,13 +2199,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       <div className="flex flex-col items-end gap-2 shrink-0">
                                         <div className="text-right text-[11px] text-slate-600">
                                           <div><b>Abertura:</b> {fmtDateTimeBR(sin.dataAberturaOcorrencia ?? sin.sinistroDate)}</div>
-                                          <div><b>Conclusão:</b> {fmtDateTimeBR(sin.dataConclusaoOcorrencia)}</div>
+                                          <div><b>Conclus├úo:</b> {fmtDateTimeBR(sin.dataConclusaoOcorrencia)}</div>
                                           {sin.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(sin.dataChegadaVeiculo)}</div>}
                                           <div><b>Retirada:</b> {fmtDateTimeBR(sin.dataRetiradaVeiculo)}</div>
                                           {(() => {
                                             const minsConclRet = getMinutesConclusaoRetirada(sin);
                                             return minsConclRet != null ? (
-                                              <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                              <div className="text-amber-700 font-semibold mt-1">╬ö ConclÔåÆRet: {fmtDurationFromMinutes(minsConclRet)}</div>
                                             ) : null;
                                           })()}
                                           {sin.items?.[0] && (
@@ -2224,13 +2224,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               const placaIt = String(itm?.Placa ?? itm?.PlacaVeiculo ?? itm?.PlacaVeiculoCorrida ?? '')
                                               return (
                                                 <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
-                                                  {dataCriacao && <div><b>DataCriação:</b> {dataCriacao}</div>}
+                                                  {dataCriacao && <div><b>DataCria├º├úo:</b> {dataCriacao}</div>}
                                                   {dataSin && <div><b>DataSinistro:</b> {dataSin}</div>}
-                                                  {dataConclusaoOc && <div><b>DataConclusão:</b> {dataConclusaoOc}</div>}
+                                                  {dataConclusaoOc && <div><b>DataConclus├úo:</b> {dataConclusaoOc}</div>}
                                                   {dataAgendamento && <div><b>DataAgendamento:</b> {dataAgendamento}</div>}
                                                   {dataRetirada && <div><b>DataRetirada:</b> {dataRetirada}</div>}
-                                                  {dataRetiradaVeic && <div><b>DataRetiradaVeículo:</b> {dataRetiradaVeic}</div>}
-                                                  {situ && <div><b>Situação:</b> {situ}</div>}
+                                                  {dataRetiradaVeic && <div><b>DataRetiradaVe├¡culo:</b> {dataRetiradaVeic}</div>}
+                                                  {situ && <div><b>Situa├º├úo:</b> {situ}</div>}
                                                   {etapa && <div><b>Etapa:</b> {etapa}</div>}
                                                   {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
                                                   {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
@@ -2240,7 +2240,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             })()
                                           )}
                                         </div>
-                                        <div className="text-xs text-amber-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                        <div className="text-xs text-amber-600 font-medium">{isSinExpanded ? 'Ôû╝ Ocultar' : 'ÔûÂ Expandir'}</div>
                                       </div>
                                     </div>
 
@@ -2269,13 +2269,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                 </div>
                               );
                             }
-                            // MANUTENCAO_OCORRENCIA - novo agrupamento por ocorrência
+                            // MANUTENCAO_OCORRENCIA - novo agrupamento por ocorr├¬ncia
                             if (row.kind === 'MANUTENCAO_OCORRENCIA') {
-                              const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
+                              const icon = EVENT_ICONS['MANUTEN├ç├âO'] || <Wrench size={14} className="text-amber-500" />;
                               const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
-                              // Melhorar exibição: se for só número, adicionar prefixo "OCORRÊNCIA #"
+                              // Melhorar exibi├º├úo: se for s├│ n├║mero, adicionar prefixo "OCORR├èNCIA #"
                               const title = /^\d+$/.test(String(ocorrenciaRaw)) 
-                                ? `OCORRÊNCIA #${ocorrenciaRaw}` 
+                                ? `OCORR├èNCIA #${ocorrenciaRaw}` 
                                 : String(ocorrenciaRaw);
                               const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                               const firstRec = row.osRecords[0];
@@ -2287,7 +2287,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                               return (
                                 <div key={row.key} className="relative pl-6">
-                                  {/* Renderização para Sinistros (mesmo molde de ocorrências) - placeholder removido */}
+                                  {/* Renderiza├º├úo para Sinistros (mesmo molde de ocorr├¬ncias) - placeholder removido */}
                                   <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
                                     {icon}
                                   </div>
@@ -2317,7 +2317,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           )}
                                         </div>
                                         <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
-                                          <div><b>Data:</b> {dataOcorrencia} {motivo && <>• <b>Motivo:</b> {motivo}</>}</div>
+                                          <div><b>Data:</b> {dataOcorrencia} {motivo && <>ÔÇó <b>Motivo:</b> {motivo}</>}</div>
                                           {descricao && (
                                             <div className="flex items-start gap-2">
                                               <div className={`italic text-slate-500 ${isRowExpanded ? '' : 'line-clamp-2'}`}>{descricao}</div>
@@ -2340,11 +2340,11 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           {/* Alerta de dados faltantes */}
                                           {(!motivo || !descricao || !fornecedor) && (
                                             <div className="text-[10px] text-amber-600 italic mt-1">
-                                              ⚠️ Dados incompletos: {[
+                                              ÔÜá´©Å Dados incompletos: {[
                                                 !motivo && 'Motivo',
-                                                !descricao && 'Descrição',
+                                                !descricao && 'Descri├º├úo',
                                                 !fornecedor && 'Fornecedor'
-                                              ].filter(Boolean).join(', ')} não informado(s)
+                                              ].filter(Boolean).join(', ')} n├úo informado(s)
                                             </div>
                                           )}
                                         </div>
@@ -2352,25 +2352,25 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       <div className="flex flex-col items-end gap-2 shrink-0">
                                         <div className="text-right text-[11px] text-slate-600">
                                           <div><b>Abertura:</b> {fmtDateTimeBR(row.dataAberturaOcorrencia ?? row.ocorrenciaDate)}</div>
-                                          <div><b>Conclusão:</b> {fmtDateTimeBR(row.dataConclusaoOcorrencia)}</div>
+                                          <div><b>Conclus├úo:</b> {fmtDateTimeBR(row.dataConclusaoOcorrencia)}</div>
                                           {row.dataChegadaVeiculo && <div><b>Chegada:</b> {fmtDateTimeBR(row.dataChegadaVeiculo)}</div>}
                                           <div><b>Retirada:</b> {fmtDateTimeBR(row.dataRetiradaVeiculo)}</div>
                                           {(() => {
                                             const minsConclRet = getMinutesConclusaoRetirada(row);
                                             return minsConclRet != null ? (
-                                              <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                              <div className="text-amber-700 font-semibold mt-1">╬ö ConclÔåÆRet: {fmtDurationFromMinutes(minsConclRet)}</div>
                                             ) : null;
                                           })()}
                                         </div>
                                         <div className="text-xs text-amber-600 font-medium">
-                                          {expandedRows.has(row.key) ? '▼ Ocultar' : '▶ Expandir'}
+                                          {expandedRows.has(row.key) ? 'Ôû╝ Ocultar' : 'ÔûÂ Expandir'}
                                         </div>
                                       </div>
                                     </div>
 
                                     {expandedRows.has(row.key) && (
                                       <div className="mt-3 space-y-2">
-                                        {/* Movimentações: mostrar etapas com data e tempo desde anterior */}
+                                        {/* Movimenta├º├Áes: mostrar etapas com data e tempo desde anterior */}
                                         {Array.isArray(row.movimentacoes) && row.movimentacoes.length > 0 && (
                                           <div className="bg-slate-50 p-2 rounded text-xs text-slate-700">
                                             <div className="font-medium text-[12px] mb-1">Etapas</div>
@@ -2379,10 +2379,10 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 <div key={`mov:${idx}`} className="flex items-center justify-between gap-3">
                                                   <div className="min-w-0">
                                                     <div className="flex items-baseline gap-2">
-                                                      <div className="font-medium text-[12px]">{m?.Etapa ?? '—'}</div>
-                                                      {m?.Usuario ? <div className="text-[11px] text-slate-400">• {String(m.Usuario)}</div> : null}
+                                                      <div className="font-medium text-[12px]">{m?.Etapa ?? 'ÔÇö'}</div>
+                                                      {m?.Usuario ? <div className="text-[11px] text-slate-400">ÔÇó {String(m.Usuario)}</div> : null}
                                                     </div>
-                                                    <div className="text-[11px] text-slate-500">{m?.DataConfirmacao ? (function () { const dt = parseDateAny(m.DataConfirmacao); return dt ? fmtDateTimeBR(dt) : String(m.DataConfirmacao); })() : '—'}</div>
+                                                    <div className="text-[11px] text-slate-500">{m?.DataConfirmacao ? (function () { const dt = parseDateAny(m.DataConfirmacao); return dt ? fmtDateTimeBR(dt) : String(m.DataConfirmacao); })() : 'ÔÇö'}</div>
                                                   </div>
                                                   <div className="text-[11px] text-slate-600">{fmtDurationFromMinutes(m?.MinutosDesdeAnterior ?? (m?.HorasDesdeAnterior != null ? Number(m.HorasDesdeAnterior) * 60 : null))}</div>
                                                 </div>
@@ -2427,7 +2427,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 )}
                                               </div>
 
-                                              {/* Linha 2: Datas e Odômetro */}
+                                              {/* Linha 2: Datas e Od├┤metro */}
                                               <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-amber-50/50 p-2 rounded">
                                                 {entrada && (
                                                   <div>
@@ -2437,13 +2437,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 )}
                                                 {saida && (
                                                   <div>
-                                                    <span className="text-slate-500 font-medium">Saída:</span>
+                                                    <span className="text-slate-500 font-medium">Sa├¡da:</span>
                                                     <div className="font-semibold">{fmtDateBR(saida)}</div>
                                                   </div>
                                                 )}
                                                 {odometro != null && Number(odometro) > 0 && (
                                                   <div>
-                                                    <span className="text-slate-500 font-medium">Odômetro:</span>
+                                                    <span className="text-slate-500 font-medium">Od├┤metro:</span>
                                                     <div className="font-semibold">{fmtDecimal(Number(odometro))} km</div>
                                                   </div>
                                                 )}
@@ -2473,19 +2473,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 </div>
                                               )}
 
-                                              {/* Linha 4: Valores Reembolsáveis */}
+                                              {/* Linha 4: Valores Reembols├íveis */}
                                               {(valorReembolsavel != null && Number(valorReembolsavel) > 0) ||
                                                 (valorNaoReembolsavel != null && Number(valorNaoReembolsavel) > 0) ? (
                                                 <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
                                                   {valorReembolsavel != null && Number(valorReembolsavel) > 0 && (
                                                     <div>
-                                                      <span className="text-slate-500 font-medium">Reembolsável:</span>
+                                                      <span className="text-slate-500 font-medium">Reembols├ível:</span>
                                                       <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
                                                     </div>
                                                   )}
                                                   {valorNaoReembolsavel != null && Number(valorNaoReembolsavel) > 0 && (
                                                     <div>
-                                                      <span className="text-slate-500 font-medium">Não Reembolsável:</span>
+                                                      <span className="text-slate-500 font-medium">N├úo Reembols├ível:</span>
                                                       <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
                                                     </div>
                                                   )}
@@ -2513,9 +2513,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                             if (row.kind === 'MANUTENCAO_PERIODO') {
                               const endLabel = row.end ? fmtDateBR(row.end) : 'Em aberto';
-                              const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
-                              const title = `MANUTENÇÃO ${fmtDateBR(row.start)} → ${endLabel}`;
-                              const subtitle = `${row.days} dia(s) • ${row.records.length} ocorrência(s)`;
+                              const icon = EVENT_ICONS['MANUTEN├ç├âO'] || <Wrench size={14} className="text-amber-500" />;
+                              const title = `MANUTEN├ç├âO ${fmtDateBR(row.start)} ÔåÆ ${endLabel}`;
+                              const subtitle = `${row.days} dia(s) ÔÇó ${row.records.length} ocorr├¬ncia(s)`;
 
                               const top = row.records[0];
                               const fornecedor = top?.Fornecedor || top?.Oficina;
@@ -2541,9 +2541,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                           {subtitle}
                                           {(fornecedor || tipoOcorrencia) && (
                                             <>
-                                              {' • '}
+                                              {' ÔÇó '}
                                               {fornecedor ? `Oficina: ${fornecedor}` : ''}
-                                              {fornecedor && tipoOcorrencia ? ' • ' : ''}
+                                              {fornecedor && tipoOcorrencia ? ' ÔÇó ' : ''}
                                               {tipoOcorrencia ? `Tipo: ${tipoOcorrencia}` : ''}
                                             </>
                                           )}
@@ -2579,9 +2579,9 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               {/* Linha 1: ID e Valor */}
                                               <div className="flex justify-between items-start font-medium">
                                                 <div className="flex flex-col gap-0.5">
-                                                  <span className="text-slate-700 font-mono">OS: {id || ocorrencia || '—'}</span>
+                                                  <span className="text-slate-700 font-mono">OS: {id || ocorrencia || 'ÔÇö'}</span>
                                                   {ocorrencia && ocorrencia !== id && (
-                                                    <span className="text-[10px] text-slate-500">Ocorrência: {ocorrencia}</span>
+                                                    <span className="text-[10px] text-slate-500">Ocorr├¬ncia: {ocorrencia}</span>
                                                   )}
                                                 </div>
                                                 {custo && <span className="text-amber-700 font-bold">{fmtMoney(custo)}</span>}
@@ -2594,18 +2594,18 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                   <div className="font-semibold">{fmtDateBR(entrada)}</div>
                                                 </div>
                                                 <div>
-                                                  <span className="text-slate-500 font-medium">Saída:</span>
+                                                  <span className="text-slate-500 font-medium">Sa├¡da:</span>
                                                   <div className="font-semibold">{fmtDateBR(saida)}</div>
                                                 </div>
                                                 {conclusao && (
                                                   <div>
-                                                    <span className="text-slate-500 font-medium">Conclusão:</span>
+                                                    <span className="text-slate-500 font-medium">Conclus├úo:</span>
                                                     <div className="font-semibold">{fmtDateBR(conclusao)}</div>
                                                   </div>
                                                 )}
                                               </div>
 
-                                              {/* Linha 3: Tipo, Situação, Status */}
+                                              {/* Linha 3: Tipo, Situa├º├úo, Status */}
                                               <div className="flex flex-wrap gap-2 items-center">
                                                 {tipoR && (
                                                   <div className="flex items-center gap-1">
@@ -2615,7 +2615,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 )}
                                                 {situacao && (
                                                   <div className="flex items-center gap-1">
-                                                    <span className="text-slate-500 text-[10px]">Situação:</span>
+                                                    <span className="text-slate-500 text-[10px]">Situa├º├úo:</span>
                                                     <Badge color="blue" size="xs">{situacao}</Badge>
                                                   </div>
                                                 )}
@@ -2633,25 +2633,25 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 )}
                                               </div>
 
-                                              {/* Linha 4: Valores Reembolsáveis */}
+                                              {/* Linha 4: Valores Reembols├íveis */}
                                               {(valorReembolsavel != null || valorNaoReembolsavel != null) && (
                                                 <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
                                                   {valorReembolsavel != null && (
                                                     <div>
-                                                      <span className="text-slate-500 font-medium">Reembolsável:</span>
+                                                      <span className="text-slate-500 font-medium">Reembols├ível:</span>
                                                       <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
                                                     </div>
                                                   )}
                                                   {valorNaoReembolsavel != null && (
                                                     <div>
-                                                      <span className="text-slate-500 font-medium">Não Reembolsável:</span>
+                                                      <span className="text-slate-500 font-medium">N├úo Reembols├ível:</span>
                                                       <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
                                                     </div>
                                                   )}
                                                 </div>
                                               )}
 
-                                              {/* Linha 5: Descrição */}
+                                              {/* Linha 5: Descri├º├úo */}
                                               {descricao && (
                                                 <div className="text-slate-600 italic text-[11px] bg-slate-50 p-2 rounded">
                                                   {descricao}
@@ -2659,7 +2659,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               )}
 
                                               {/* Linha 6: Oficina */}
-                                              {actor.value && actor.value !== 'Oficina não inf.' && (
+                                              {actor.value && actor.value !== 'Oficina n├úo inf.' && (
                                                 <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit">
                                                   {actor.icon} <span className="text-[10px]">Oficina: <b>{actor.value}</b></span>
                                                 </div>
@@ -2668,17 +2668,17 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               {/* Linha 7: KM */}
                                               {(kmEntrada || kmSaida) && (
                                                 <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                                  <span className="font-medium">Odômetro:</span>
-                                                  <span>{kmEntrada ? fmtDecimal(Number(kmEntrada)) : '—'} km</span>
-                                                  <span>→</span>
-                                                  <span>{kmSaida ? fmtDecimal(Number(kmSaida)) : '—'} km</span>
+                                                  <span className="font-medium">Od├┤metro:</span>
+                                                  <span>{kmEntrada ? fmtDecimal(Number(kmEntrada)) : 'ÔÇö'} km</span>
+                                                  <span>ÔåÆ</span>
+                                                  <span>{kmSaida ? fmtDecimal(Number(kmSaida)) : 'ÔÇö'} km</span>
                                                 </div>
                                               )}
                                             </div>
                                           );
                                         })}
                                         {row.records.length > 8 && (
-                                          <div className="text-xs text-slate-400">+{row.records.length - 8} ocorrências…</div>
+                                          <div className="text-xs text-slate-400">+{row.records.length - 8} ocorr├¬nciasÔÇª</div>
                                         )}
                                       </div>
                                     )}
@@ -2696,7 +2696,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             const label = row.count > 1 ? `${labelBase} (${row.count})` : labelBase;
                             const topItem = row.items[0];
 
-                            // Melhorar busca de descrição - garantir fallback
+                            // Melhorar busca de descri├º├úo - garantir fallback
                             const topDetail = topItem?.Detalhe1 || topItem?.Descricao || topItem?.DescricaoEvento ||
                               topItem?.Observacao || topItem?.TipoEvento || topItem?.Evento ||
                               `${labelBase} registrado em ${formattedDate}`;
@@ -2719,7 +2719,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                     </div>
                                     <div className="flex items-center gap-3">
                                       <span className="text-xs text-slate-400">{formattedDate}</span>
-                                      <span className="text-xs text-blue-500 font-medium">{expandedRows.has(row.key) ? '▼' : '▶'}</span>
+                                      <span className="text-xs text-blue-500 font-medium">{expandedRows.has(row.key) ? 'Ôû╝' : 'ÔûÂ'}</span>
                                     </div>
                                   </div>
                                   {topDetail && !expandedRows.has(row.key) && (
@@ -2727,12 +2727,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                   )}
                                 </div>
 
-                                {/* Detalhes expandidos - FORA do card clicável */}
+                                {/* Detalhes expandidos - FORA do card clic├ível */}
                                 {isExpandable && expandedRows.has(row.key) && (
                                   <div className="mt-2 ml-3 space-y-2 border-l-2 border-blue-200 pl-3">
                                     {row.items.slice(0, 10).map((it, i) => {
                                       const dd = parseDateAny(it.DataEvento || it.Data);
-                                      // Melhorar busca de descrição com fallback garantido
+                                      // Melhorar busca de descri├º├úo com fallback garantido
                                       const detail = it.Detalhe1 || it.Descricao || it.DescricaoInfracao ||
                                         it.Detalhe2 || it.DescricaoEvento || it.Observacao ||
                                         it.TipoEvento || tipo || `Evento ${i + 1}`;
@@ -2745,7 +2745,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       const sinistroData = tipoNorm === 'SINISTRO' ? (() => {
                                         const sinistrosPlaca = sinistrosByPlaca[normalizePlacaKey(placa)] ?? [];
                                         if (sinistrosPlaca.length === 0) return null;
-                                        // Tentar encontrar sinistro pela data ou ID de ocorrência
+                                        // Tentar encontrar sinistro pela data ou ID de ocorr├¬ncia
                                         const idOcorrencia = it?.IdOcorrencia ?? it?.NumeroOcorrencia ?? it?.Ocorrencia;
                                         if (idOcorrencia) {
                                           const found = sinistrosPlaca.find(s =>
@@ -2767,14 +2767,14 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                               diff: Math.abs((x.dt as Date).getTime() - ddTime),
                                             }))
                                             .sort((a, b) => a.diff - b.diff)[0];
-                                          if (closest && closest.diff < 7 * 24 * 60 * 60 * 1000) { // 7 dias de tolerância
+                                          if (closest && closest.diff < 7 * 24 * 60 * 60 * 1000) { // 7 dias de toler├óncia
                                             return closest.s;
                                           }
                                         }
                                         return sinistrosPlaca[0]; // Fallback para o primeiro
                                       })() : null;
 
-                                      // Contrato Comercial e Locação (priorizando campos ETL dim_contratos_locacao)
+                                      // Contrato Comercial e Loca├º├úo (priorizando campos ETL dim_contratos_locacao)
                                       // Filtrar valores "N/A" e strings vazias
                                       const contratoComercial = String(
                                         contrato?.ContratoComercial ?? contrato?.NumeroContratoComercial ?? contrato?.ContratoCorporativo ?? contrato?.NumeroContrato ??
@@ -2868,7 +2868,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       const danosOutros = sinistroData?.DanosOutros ?? it?.DanosOutros;
                                       const localSinistro = sinistroData?.Cidade ? `${sinistroData.Cidade}${sinistroData.Estado ? ` - ${sinistroData.Estado}` : ''}` : null;
 
-                                      // Movimentação
+                                      // Movimenta├º├úo
                                       const showMovimentacao = tipoNorm === 'MOVIMENTACAO';
                                       const origem = String(it?.Origem ?? it?.origem ?? it?.LocalOrigem ?? '').trim();
                                       const destino = String(it?.Destino ?? it?.destino ?? it?.LocalDestino ?? '').trim();
@@ -2880,12 +2880,12 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             <div className="text-slate-400 shrink-0">{fmtDateBR(dd)}</div>
                                           </div>
 
-                                          {/* Detalhes de Locação/Devolução - padrão atualizado com dim_contratos_locacao */}
+                                          {/* Detalhes de Loca├º├úo/Devolu├º├úo - padr├úo atualizado com dim_contratos_locacao */}
                                           {showContrato && (
                                             <div className="bg-emerald-50/70 rounded-lg p-3 mt-2 border border-emerald-200">
                                               <div className="flex items-center gap-2 mb-3">
                                                 <span className="text-xs font-bold text-emerald-700">
-                                                  {tipoNorm === 'DEVOLUCAO' ? '📋 Devolução' : '📦 Locação'}
+                                                  {tipoNorm === 'DEVOLUCAO' ? '­ƒôï Devolu├º├úo' : '­ƒôª Loca├º├úo'}
                                                 </span>
                                                 {situacao && (
                                                   <Badge
@@ -2908,7 +2908,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     )}
                                                     {contratoLocacao && (
                                                       <div>
-                                                        <span className="text-slate-500">Contrato Locação:</span>
+                                                        <span className="text-slate-500">Contrato Loca├º├úo:</span>
                                                         <div className="font-mono font-semibold text-emerald-700">{contratoLocacao}</div>
                                                       </div>
                                                     )}
@@ -2920,7 +2920,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <div className="font-semibold text-slate-700">{contratoCliente}</div>
                                                   </div>
                                                 )}
-                                                {/* Datas e tipo de locação */}
+                                                {/* Datas e tipo de loca├º├úo */}
                                                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-2 border-t border-emerald-100">
                                                   {contrato?.TipoLocacao && (
                                                     <div>
@@ -2936,19 +2936,19 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                   )}
                                                   {dataInicio && (
                                                     <div>
-                                                      <span className="text-slate-500">Início:</span>
+                                                      <span className="text-slate-500">In├¡cio:</span>
                                                       <div className="font-semibold">{fmtDateBR(dataInicio)}</div>
                                                     </div>
                                                   )}
                                                   {previsto && (
                                                     <div>
-                                                      <span className="text-slate-500">Término Previsto:</span>
+                                                      <span className="text-slate-500">T├®rmino Previsto:</span>
                                                       <div>{fmtDateBR(previsto)}</div>
                                                     </div>
                                                   )}
                                                   {contrato?.PeriodoEmMeses && (
                                                     <div>
-                                                      <span className="text-slate-500">Período:</span>
+                                                      <span className="text-slate-500">Per├¡odo:</span>
                                                       <div className="font-medium">{Math.round(Number(contrato.PeriodoEmMeses))} meses</div>
                                                     </div>
                                                   )}
@@ -2967,21 +2967,21 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 </div>
                                                 {!contratoCliente && !contratoComercial && !contratoLocacao && (
                                                   <div className="text-[10px] text-amber-600 italic pt-2 border-t border-emerald-100">
-                                                    ⚠️ Dados de contrato não disponíveis - aguardando sincronização de dim_contratos_locacao
+                                                    ÔÜá´©Å Dados de contrato n├úo dispon├¡veis - aguardando sincroniza├º├úo de dim_contratos_locacao
                                                   </div>
                                                 )}
                                               </div>
                                             </div>
                                           )}
 
-                                          {/* Detalhes de Sinistro - layout com datas no lado direito igual manutenção */}
+                                          {/* Detalhes de Sinistro - layout com datas no lado direito igual manuten├º├úo */}
                                           {showSinistro && (
                                             <div className="bg-purple-50/50 rounded-lg p-3 mt-2 border border-purple-200">
                                               <div className="flex items-start justify-between gap-4">
-                                                {/* Lado esquerdo - Informações principais */}
+                                                {/* Lado esquerdo - Informa├º├Áes principais */}
                                                 <div className="flex-1 min-w-0 space-y-2">
                                                   <div className="flex items-center gap-2 mb-2">
-                                                    <span className="text-xs font-bold text-purple-700">⚠️ Sinistro</span>
+                                                    <span className="text-xs font-bold text-purple-700">ÔÜá´©Å Sinistro</span>
                                                     {statusSinistro && (
                                                       <Badge color={statusSinistro.toLowerCase().includes('conclu') || statusSinistro.toLowerCase().includes('encerr') ? 'emerald' : statusSinistro.toLowerCase().includes('cancel') ? 'slate' : 'purple'} className="text-[10px]">
                                                         {statusSinistro}
@@ -2996,7 +2996,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                                                       {numeroOcorrencia && (
                                                         <div className="flex gap-2">
-                                                          <span className="text-slate-500 font-medium">Nº Ocorrência:</span>
+                                                          <span className="text-slate-500 font-medium">N┬║ Ocorr├¬ncia:</span>
                                                           <span className="font-mono font-semibold text-purple-700">{numeroOcorrencia}</span>
                                                         </div>
                                                       )}
@@ -3020,7 +3020,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                       )}
                                                     </div>
 
-                                                    {/* Documentação e Responsabilidade */}
+                                                    {/* Documenta├º├úo e Responsabilidade */}
                                                     {(boletimOcorrencia || apoliceSeguro || motoristaCulpado || responsavelCulpado) && (
                                                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t border-purple-200">
                                                         {boletimOcorrencia && (
@@ -3031,7 +3031,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                         )}
                                                         {apoliceSeguro && (
                                                           <div className="flex gap-2">
-                                                            <span className="text-slate-500 font-medium">Apólice:</span>
+                                                            <span className="text-slate-500 font-medium">Ap├│lice:</span>
                                                             <span className="font-mono text-slate-700">{String(apoliceSeguro)}</span>
                                                           </div>
                                                         )}
@@ -3039,13 +3039,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                           <div className="flex gap-2">
                                                             <span className="text-slate-500 font-medium">Mot. Culpado:</span>
                                                             <Badge color={motoristaCulpado === true || motoristaCulpado === 'Sim' ? 'rose' : 'slate'} className="text-[10px]">
-                                                              {motoristaCulpado === true || motoristaCulpado === 'Sim' ? 'Sim' : motoristaCulpado === false || motoristaCulpado === 'Não' ? 'Não' : String(motoristaCulpado)}
+                                                              {motoristaCulpado === true || motoristaCulpado === 'Sim' ? 'Sim' : motoristaCulpado === false || motoristaCulpado === 'N├úo' ? 'N├úo' : String(motoristaCulpado)}
                                                             </Badge>
                                                           </div>
                                                         )}
                                                         {responsavelCulpado && (
                                                           <div className="flex gap-2">
-                                                            <span className="text-slate-500 font-medium">Responsável:</span>
+                                                            <span className="text-slate-500 font-medium">Respons├ível:</span>
                                                             <span className="text-slate-700">{String(responsavelCulpado)}</span>
                                                           </div>
                                                         )}
@@ -3059,7 +3059,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                         <div className="flex flex-wrap gap-1 mt-1">
                                                           {danosLataria && <Badge color="rose" className="text-[10px]">Lataria</Badge>}
                                                           {danosMotor && <Badge color="rose" className="text-[10px]">Motor</Badge>}
-                                                          {danosAcessorios && <Badge color="amber" className="text-[10px]">Acessórios</Badge>}
+                                                          {danosAcessorios && <Badge color="amber" className="text-[10px]">Acess├│rios</Badge>}
                                                           {danosOutros && <Badge color="slate" className="text-[10px]">Outros</Badge>}
                                                         </div>
                                                       </div>
@@ -3067,14 +3067,14 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                                                     {descricaoSinistro && (
                                                       <div className="pt-2 border-t border-purple-200">
-                                                        <span className="text-slate-500 font-medium">Descrição:</span>
+                                                        <span className="text-slate-500 font-medium">Descri├º├úo:</span>
                                                         <div className="text-slate-600 mt-0.5 italic">{String(descricaoSinistro)}</div>
                                                       </div>
                                                     )}
                                                   </div>
                                                 </div>
 
-                                                {/* Lado direito - Datas (igual manutenção) */}
+                                                {/* Lado direito - Datas (igual manuten├º├úo) */}
                                                 <div className="shrink-0 text-right text-[11px] text-slate-600 border-l border-purple-200 pl-3">
                                                   {dataSinistro && (
                                                     <div><b>Sinistro:</b> {fmtDateTimeBR(dataSinistro)}</div>
@@ -3083,28 +3083,28 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     <div><b>Abertura:</b> {fmtDateTimeBR(dataAberturaOcorrenciaSinistro)}</div>
                                                   )}
                                                   {dataConclusaoOcorrenciaSinistro && (
-                                                    <div><b>Conclusão:</b> {fmtDateTimeBR(dataConclusaoOcorrenciaSinistro)}</div>
+                                                    <div><b>Conclus├úo:</b> {fmtDateTimeBR(dataConclusaoOcorrenciaSinistro)}</div>
                                                   )}
                                                   {dataAgendamentoSinistro && (
                                                     <div><b>Agendamento:</b> {fmtDateTimeBR(dataAgendamentoSinistro)}</div>
                                                   )}
                                                   {dataLiberacaoSinistro && (
-                                                    <div className="text-green-700"><b>Liberação:</b> {fmtDateTimeBR(dataLiberacaoSinistro)}</div>
+                                                    <div className="text-green-700"><b>Libera├º├úo:</b> {fmtDateTimeBR(dataLiberacaoSinistro)}</div>
                                                   )}
-                                                  {/* Calcular diferença entre agendamento e liberação */}
+                                                  {/* Calcular diferen├ºa entre agendamento e libera├º├úo */}
                                                   {dataAgendamentoSinistro && dataLiberacaoSinistro && (() => {
                                                     const diffMs = dataLiberacaoSinistro.getTime() - dataAgendamentoSinistro.getTime();
                                                     const diffMins = Math.round(diffMs / (1000 * 60));
                                                     return diffMins > 0 ? (
-                                                      <div className="text-purple-700 font-semibold mt-1">Δ Agend→Lib: {fmtDurationFromMinutes(diffMins)}</div>
+                                                      <div className="text-purple-700 font-semibold mt-1">╬ö AgendÔåÆLib: {fmtDurationFromMinutes(diffMins)}</div>
                                                     ) : null;
                                                   })()}
-                                                  {/* Fallback: diferença entre abertura e conclusão se não tiver agendamento/liberação */}
+                                                  {/* Fallback: diferen├ºa entre abertura e conclus├úo se n├úo tiver agendamento/libera├º├úo */}
                                                   {!dataAgendamentoSinistro && !dataLiberacaoSinistro && dataAberturaOcorrenciaSinistro && dataConclusaoOcorrenciaSinistro && (() => {
                                                     const diffMs = dataConclusaoOcorrenciaSinistro.getTime() - dataAberturaOcorrenciaSinistro.getTime();
                                                     const diffMins = Math.round(diffMs / (1000 * 60));
                                                     return diffMins > 0 ? (
-                                                      <div className="text-purple-700 font-semibold mt-1">Δ Abertura→Concl: {fmtDurationFromMinutes(diffMins)}</div>
+                                                      <div className="text-purple-700 font-semibold mt-1">╬ö AberturaÔåÆConcl: {fmtDurationFromMinutes(diffMins)}</div>
                                                     ) : null;
                                                   })()}
                                                 </div>
@@ -3112,13 +3112,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             </div>
                                           )}
 
-                                          {/* Detalhes de Manutenção - quando EVENTO_DIA_TIPO for MANUTENCAO */}
+                                          {/* Detalhes de Manuten├º├úo - quando EVENTO_DIA_TIPO for MANUTENCAO */}
                                           {tipoNorm === 'MANUTENCAO' && (() => {
                                             // Buscar dados do fat_manutencao_unificado
                                             const manutRecords = manutencaoByPlaca[normalizePlacaKey(placa)] ?? [];
                                             const manutData = (() => {
                                               if (manutRecords.length === 0) return null;
-                                              // Tentar encontrar por ID de ocorrência
+                                              // Tentar encontrar por ID de ocorr├¬ncia
                                               const idOcorrencia = it?.IdOcorrencia ?? it?.NumeroOcorrencia ?? it?.Ocorrencia ?? it?.IdOS;
                                               if (idOcorrencia) {
                                                 const found = manutRecords.find(m =>
@@ -3140,16 +3140,16 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     diff: Math.abs((x.dt as Date).getTime() - ddTime),
                                                   }))
                                                   .sort((a, b) => a.diff - b.diff)[0];
-                                                if (closest && closest.diff < 7 * 24 * 60 * 60 * 1000) { // 7 dias de tolerância
+                                                if (closest && closest.diff < 7 * 24 * 60 * 60 * 1000) { // 7 dias de toler├óncia
                                                   return closest.m;
                                                 }
                                               }
                                               return null;
                                             })();
 
-                                            // Usar dados enriquecidos se disponível, senão usar dados do evento
+                                            // Usar dados enriquecidos se dispon├¡vel, sen├úo usar dados do evento
                                             const sourceData = manutData ?? it;
-                                            const id = manutData ? getMaintenanceId(manutData) : (it?.IdOS ?? it?.IdOcorrencia ?? it?.NumeroOS ?? '—');
+                                            const id = manutData ? getMaintenanceId(manutData) : (it?.IdOS ?? it?.IdOcorrencia ?? it?.NumeroOS ?? 'ÔÇö');
                                             const ocorrencia = sourceData?.IdOcorrencia ?? sourceData?.Ocorrencia ?? sourceData?.NumeroOcorrencia ?? id;
                                             const entrada = normalizeDateLocal(sourceData?.DataEntrada ?? sourceData?.DataEntradaOficina ?? sourceData?.DataAgendamento ?? it?.DataEvento ?? it?.Data);
                                             const saida = normalizeDateLocal(sourceData?.DataSaida ?? sourceData?.DataSaidaOficina ?? sourceData?.DataConclusao);
@@ -3169,15 +3169,15 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             return (
                                               <div className="space-y-2 text-slate-600 bg-amber-50/50 rounded-lg p-3 mt-2 border border-amber-100">
                                                 <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-2">
-                                                  🔧 Detalhes da Manutenção
+                                                  ­ƒöº Detalhes da Manuten├º├úo
                                                 </div>
 
                                                 {/* Linha 1: ID e Valor */}
                                                 <div className="flex justify-between items-start font-medium">
                                                   <div className="flex flex-col gap-0.5">
-                                                    <span className="text-slate-700 font-mono text-xs">OS: {id || '—'}</span>
+                                                    <span className="text-slate-700 font-mono text-xs">OS: {id || 'ÔÇö'}</span>
                                                     {ocorrencia && ocorrencia !== id && (
-                                                      <span className="text-[10px] text-slate-500">Ocorrência: {ocorrencia}</span>
+                                                      <span className="text-[10px] text-slate-500">Ocorr├¬ncia: {ocorrencia}</span>
                                                     )}
                                                   </div>
                                                   {custo && <span className="text-amber-700 font-bold text-xs">{fmtMoney(custo)}</span>}
@@ -3194,20 +3194,20 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     )}
                                                     {saida && (
                                                       <div>
-                                                        <span className="text-slate-500 font-medium">Saída:</span>
+                                                        <span className="text-slate-500 font-medium">Sa├¡da:</span>
                                                         <div className="font-semibold">{fmtDateBR(saida)}</div>
                                                       </div>
                                                     )}
                                                     {conclusao && (
                                                       <div>
-                                                        <span className="text-slate-500 font-medium">Conclusão:</span>
+                                                        <span className="text-slate-500 font-medium">Conclus├úo:</span>
                                                         <div className="font-semibold">{fmtDateBR(conclusao)}</div>
                                                       </div>
                                                     )}
                                                   </div>
                                                 )}
 
-                                                {/* Linha 3: Tipo, Situação, Status */}
+                                                {/* Linha 3: Tipo, Situa├º├úo, Status */}
                                                 {(tipoR || situacao || statusManut || despesa) && (
                                                   <div className="flex flex-wrap gap-2 items-center">
                                                     {tipoR && (
@@ -3218,7 +3218,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                     )}
                                                     {situacao && (
                                                       <div className="flex items-center gap-1">
-                                                        <span className="text-slate-500 text-[10px]">Situação:</span>
+                                                        <span className="text-slate-500 text-[10px]">Situa├º├úo:</span>
                                                         <Badge color="blue" size="xs">{situacao}</Badge>
                                                       </div>
                                                     )}
@@ -3237,25 +3237,25 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                   </div>
                                                 )}
 
-                                                {/* Linha 4: Valores Reembolsáveis */}
+                                                {/* Linha 4: Valores Reembols├íveis */}
                                                 {(valorReembolsavel != null || valorNaoReembolsavel != null) && (
                                                   <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
                                                     {valorReembolsavel != null && (
                                                       <div>
-                                                        <span className="text-slate-500 font-medium">Reembolsável:</span>
+                                                        <span className="text-slate-500 font-medium">Reembols├ível:</span>
                                                         <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
                                                       </div>
                                                     )}
                                                     {valorNaoReembolsavel != null && (
                                                       <div>
-                                                        <span className="text-slate-500 font-medium">Não Reembolsável:</span>
+                                                        <span className="text-slate-500 font-medium">N├úo Reembols├ível:</span>
                                                         <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
                                                       </div>
                                                     )}
                                                   </div>
                                                 )}
 
-                                                {/* Linha 5: Descrição */}
+                                                {/* Linha 5: Descri├º├úo */}
                                                 {descricaoManut && (
                                                   <div className="text-slate-600 italic text-[11px] bg-slate-50 p-2 rounded">
                                                     {descricaoManut}
@@ -3273,11 +3273,11 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                 {/* Linha 7: KM */}
                                                 {(kmEntrada || kmSaida) && (
                                                   <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                                    <span className="font-medium">Odômetro:</span>
-                                                    <span>{kmEntrada ? fmtDecimal(Number(kmEntrada)) : '—'} km</span>
+                                                    <span className="font-medium">Od├┤metro:</span>
+                                                    <span>{kmEntrada ? fmtDecimal(Number(kmEntrada)) : 'ÔÇö'} km</span>
                                                     {kmSaida && (
                                                       <>
-                                                        <span>→</span>
+                                                        <span>ÔåÆ</span>
                                                         <span>{fmtDecimal(Number(kmSaida))} km</span>
                                                       </>
                                                     )}
@@ -3286,27 +3286,27 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
 
                                                 {!manutData && (
                                                   <div className="text-xs text-amber-600 italic mt-2 bg-amber-100/30 p-2 rounded">
-                                                    ℹ️ Detalhes básicos - dados completos não encontrados em fat_manutencao_unificado
+                                                    Ôä╣´©Å Detalhes b├ísicos - dados completos n├úo encontrados em fat_manutencao_unificado
                                                   </div>
                                                 )}
                                               </div>
                                             );
                                           })()}
 
-                                          {/* Detalhes de Movimentação - SEMPRE mostrar */}
+                                          {/* Detalhes de Movimenta├º├úo - SEMPRE mostrar */}
                                           {showMovimentacao && (
                                             <div className="space-y-1.5 text-slate-600 bg-blue-50/50 rounded-lg p-3 mt-2 border border-blue-100">
                                               <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-2">
-                                                📍 Detalhes da Movimentação
+                                                ­ƒôì Detalhes da Movimenta├º├úo
                                               </div>
                                               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                 <div className="flex gap-2">
                                                   <span className="text-slate-500 font-medium">Origem:</span>
-                                                  <span className="text-slate-700">{origem || '—'}</span>
+                                                  <span className="text-slate-700">{origem || 'ÔÇö'}</span>
                                                 </div>
                                                 <div className="flex gap-2">
                                                   <span className="text-slate-500 font-medium">Destino:</span>
-                                                  <span className="text-slate-700">{destino || '—'}</span>
+                                                  <span className="text-slate-700">{destino || 'ÔÇö'}</span>
                                                 </div>
                                               </div>
                                             </div>
@@ -3335,7 +3335,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                             return (
                                               <div className="space-y-1.5 text-slate-600 bg-amber-50/50 rounded-lg p-3 mt-2 border border-amber-100">
                                                 <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-2">
-                                                  🛒 Dados do Veículo (Compra)
+                                                  ­ƒøÆ Dados do Ve├¡culo (Compra)
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                   {/* Modelo e Montadora */}
@@ -3378,13 +3378,13 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                                   )}
                                                   {localizacao && (
                                                     <div className="flex gap-2">
-                                                      <span className="text-slate-500 font-medium">Localização:</span>
+                                                      <span className="text-slate-500 font-medium">Localiza├º├úo:</span>
                                                       <span className="text-slate-700">{String(localizacao)}</span>
                                                     </div>
                                                   )}
                                                   {proprietario && (
                                                     <div className="flex gap-2">
-                                                      <span className="text-slate-500 font-medium">Proprietário:</span>
+                                                      <span className="text-slate-500 font-medium">Propriet├írio:</span>
                                                       <span className="text-slate-700">{String(proprietario)}</span>
                                                     </div>
                                                   )}
@@ -3435,7 +3435,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                                       );
                                     })}
                                     {row.items.length > 10 && (
-                                      <div className="text-xs text-slate-400">+{row.items.length - 10} ocorrências…</div>
+                                      <div className="text-xs text-slate-400">+{row.items.length - 10} ocorr├¬nciasÔÇª</div>
                                     )}
                                   </div>
                                 )}
@@ -3443,7 +3443,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
                             );
                           })}
                           {eventos.length > 0 && rows.length === 0 && (
-                            <div className="pl-6 text-sm text-slate-500">Sem eventos válidos para exibição.</div>
+                            <div className="pl-6 text-sm text-slate-500">Sem eventos v├ílidos para exibi├º├úo.</div>
                           )}
                         </>
                       );
@@ -3455,7 +3455,7 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
           ))}
         </div>
 
-        {/* Paginação */}
+        {/* Pagina├º├úo */}
         < div className="p-4 border-t bg-slate-50 flex items-center justify-between" >
           <div className="flex items-center gap-2">
             <button
@@ -3463,17 +3463,17 @@ export default function TimelineTab({ timeline, filteredData, frota, manutencao,
               disabled={page === 0}
               className="px-3 py-1 text-sm border rounded disabled:opacity-50 hover:bg-white"
             >
-              ← Anterior
+              ÔåÉ Anterior
             </button>
             <span className="px-3 py-1 text-sm text-slate-600">
-              Página {page + 1} de {totalPages}
+              P├ígina {page + 1} de {totalPages}
             </span>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
               className="px-3 py-1 text-sm border rounded disabled:opacity-50 hover:bg-white"
             >
-              Próxima →
+              Pr├│xima ÔåÆ
             </button>
           </div>
           <Text className="text-slate-500">
