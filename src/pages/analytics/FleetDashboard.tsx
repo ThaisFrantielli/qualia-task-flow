@@ -116,22 +116,22 @@ export default function FleetDashboard(): JSX.Element {
     const movimentacoes = useMemo(() => (movimentacoesData as any)?.data || movimentacoesData || [], [movimentacoesData]);
     // Usar timeline recente para compatibilidade com componentes existentes
     const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
-    // Timeline agregada por ve├¡culo para KPIs (dispon├¡vel para componentes filhos)
+    // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
     const timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
-    // Log para debug - usar timelineStats em c├ílculos futuros
-    console.log(`[FleetDashboard] Timeline stats: ${timelineStats.length} ve├¡culos agregados`);
+    // Log para debug - usar timelineStats em cálculos futuros
+    console.log(`[FleetDashboard] Timeline stats: ${timelineStats.length} veículos agregados`);
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
-    // Garantir que consideramos apenas ocorr├¬ncias do tipo 'Carro Reserva'
+    // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
-        // Se o arquivo j├í ├® espec├¡fico de "carro reserva" (sem campo Tipo/IdTipo),
-        // assume todos os registros pertencem a carro reserva. Caso contr├írio,
+        // Se o arquivo já é específico de "carro reserva" (sem campo Tipo/IdTipo),
+        // assume todos os registros pertencem a carro reserva. Caso contrário,
         // aplica o filtro por Tipo/TipoOcorrencia/IdTipo quando presente.
         if (!Array.isArray(carroReserva) || carroReserva.length === 0) return [];
 
         const sample = carroReserva[0] || {};
         const hasTipoField = Object.prototype.hasOwnProperty.call(sample, 'Tipo') || Object.prototype.hasOwnProperty.call(sample, 'TipoOcorrencia') || Object.prototype.hasOwnProperty.call(sample, 'IdTipo');
 
-        if (!hasTipoField) return carroReserva; // j├í ├® um arquivo de carro reserva
+        if (!hasTipoField) return carroReserva; // já é um arquivo de carro reserva
 
         return carroReserva.filter(r => {
             const tipo = String(r.Tipo || r.TipoOcorrencia || '').toLowerCase();
@@ -277,13 +277,13 @@ export default function FleetDashboard(): JSX.Element {
     const plateDebounceRef = useRef<number | null>(null);
     const [markerLimit, setMarkerLimit] = useState<number>(500);
     // (removed main header input; plates are shown as MultiSelect in the filters grid)
-    // Slider de per├¡odo para gr├ífico de ocupa├º├úo
+    // Slider de período para gráfico de ocupação
     const [sliderRange, setSliderRange] = useState<{ startPercent: number, endPercent: number }>({ startPercent: 0, endPercent: 100 });
     const [selectedResumoChart, setSelectedResumoChart] = useState<'motivo' | 'status' | 'tipo' | 'modelo' | 'cliente' | 'local'>('motivo');
     const [expandedYears, setExpandedYears] = useState<string[]>([]);
     const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
     const [selectedTemporalFilter, setSelectedTemporalFilter] = useState<{ year?: string, month?: string } | null>(null); // Filtro temporal ativo
-    const [selectedDayForDetail, setSelectedDayForDetail] = useState<string | null>(null); // Dia selecionado para detalhamento de ocupa├º├úo
+    const [selectedDayForDetail, setSelectedDayForDetail] = useState<string | null>(null); // Dia selecionado para detalhamento de ocupação
     // reserva filters are handled via useChartFilter keys: 'reserva_motivo','reserva_cliente','reserva_status','reserva_search'
 
     // apply default filter: restore persisted `productivity` or show 'Ativa' on first load
@@ -338,16 +338,24 @@ export default function FleetDashboard(): JSX.Element {
 
     // main header search removed: plates are a MultiSelect in the filters grid
 
-    // CLASSIFICA├ç├âO DE FROTA
+    // CLASSIFICAÇÃO DE FROTA
+    const normalizeStatus = (value: string) =>
+        (value || '')
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[^A-Z0-9\s\/]/g, '')
+            .trim();
+
     const getCategory = (status: string) => {
-        const s = (status || '').toUpperCase();
-        if (['LOCADO', 'LOCADO VE├ìCULO RESERVA', 'USO INTERNO', 'EM MOBILIZA├ç├âO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
-        // Treat some statuses as Inativa (also exclude them from 'Improdutiva')
+        const s = normalizeStatus(status);
+        // Produtiva (inclui variações com/sem acento)
+        if (['LOCADO', 'LOCADO VEICULO RESERVA', 'USO INTERNO', 'EM MOBILIZACAO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
+        // Inativa
         if ([
             'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-            'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPON├ìVEL PARA VENDA', 'DISPON├ìVEL PRA VENDA',
-            'N├âO DISPON├ìVEL', 'NAO DISPONIVEL', 'N├âO DISPONIVEL', 'NAO DISPON├ìVEL',
-            'EM DESMOBILIZA├ç├âO', 'EM DESMOBILIZACAO'
+            'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONIVEL PARA VENDA', 'DISPONIVEL PRA VENDA',
+            'NAO DISPONIVEL', 'NAO DISPONIVEL', 'NAO DISPONIVEL', 'NAO DISPONIVEL',
+            'EM DESMOBILIZACAO'
         ].includes(s)) return 'Inativa';
         return 'Improdutiva';
     };
@@ -381,7 +389,7 @@ export default function FleetDashboard(): JSX.Element {
     const [selectedLocation, setSelectedLocation] = useState<{ city: string, uf: string } | null>(null);
     const [activeTab, setActiveTab] = useState<string>('visao-geral');
 
-    // Helper centralizado para extra├º├úo de localiza├º├úo
+    // Helper centralizado para extração de localização
     const extractLocation = (address: string): { uf: string, city: string } => {
         const fullAddr = (address || '').trim();
         let uf = 'ND';
@@ -403,8 +411,8 @@ export default function FleetDashboard(): JSX.Element {
                 const part = parts[i].toUpperCase();
                 if (part === 'BRASIL') continue;
                 if (/\d{5}-?\d{3}/.test(part)) continue;
-                if (part.startsWith('REGI├âO')) continue;
-                if (part.startsWith('MICRORREGI├âO')) continue;
+                if (part.startsWith('REGIÃO')) continue;
+                if (part.startsWith('MICRORREGIÃO')) continue;
                 if (part.startsWith('VILA ')) continue;
                 if (part.startsWith('JARDIM ')) continue;
                 if (part.length < 3 || /^\d+/.test(part)) continue;
@@ -414,72 +422,72 @@ export default function FleetDashboard(): JSX.Element {
             }
         } catch (e) { }
 
-        // --- CORRE├ç├òES MANUAIS ---
+        // --- CORREÇÕES MANUAIS ---
         const stateCorrections: Record<string, string> = {
             'DE': 'GO', 'DA': 'MT', 'DO': 'SP', 'GM': 'SP', 'VW': 'SP', 'EM': 'SP', 'FEDERAL DISTRICT': 'DF'
         };
         if (stateCorrections[uf]) uf = stateCorrections[uf];
 
         const cityCorrections: Record<string, string> = {
-            'Sia': 'Bras├¡lia', 'Scia': 'Bras├¡lia', 'Plano Piloto': 'Bras├¡lia', 'Gama': 'Bras├¡lia',
-            'Taguatinga': 'Bras├¡lia', 'Ceil├óndia': 'Bras├¡lia', 'Sobradinho': 'Bras├¡lia', 'Guar├í': 'Bras├¡lia',
-            'Samambaia': 'Bras├¡lia', 'Planaltina': 'Bras├¡lia', 'Santa Maria': 'Bras├¡lia', 'Cruzeiro': 'Bras├¡lia',
-            'Lago Sul': 'Bras├¡lia', 'Lago Norte': 'Bras├¡lia', 'Vicente Pires': 'Bras├¡lia', 'Sudoeste / Octogonal': 'Bras├¡lia',
-            'Recanto Das Emas': 'Bras├¡lia', 'Parano├í': 'Bras├¡lia', 'Riacho Fundo': 'Bras├¡lia', 'S├úo Sebasti├úo': 'Bras├¡lia',
-            '├üguas Claras': 'Bras├¡lia', 'Candangol├óndia': 'Bras├¡lia', 'N├║cleo Bandeirante': 'Bras├¡lia', 'Park Way': 'Bras├¡lia',
-            'Imbiribeira': 'Recife', 'Hauer': 'Curitiba', 'Pilarzinho': 'Curitiba', 'Port├úo': 'Curitiba', 'Centro': 'Curitiba',
-            'Parolin': 'Curitiba', 'Demarchi': 'S├úo Bernardo do Campo', 'Santana': 'S├úo Paulo', 'Barra Funda': 'S├úo Paulo',
-            'Rep├║blica': 'S├úo Paulo', 'Vila Leopoldina': 'S├úo Paulo', 'Br├ís': 'S├úo Paulo', 'Santo Amaro': 'S├úo Paulo',
-            'Itaquera': 'S├úo Paulo', 'Jabaquara': 'S├úo Paulo', 'Moema': 'S├úo Paulo', 'Perdizes': 'S├úo Paulo',
-            'Pinheiros': 'S├úo Paulo', 'Lim├úo': 'S├úo Paulo', 'Cachoeirinha': 'S├úo Paulo', 'Brasil├óndia': 'S├úo Paulo',
-            'Jardim Goi├ís': 'Goi├ónia', 'Setor Leste': 'Goi├ónia', 'Setor Norte': 'Bras├¡lia',
-            'Sol Nascente/p├┤r Do Sol': 'Bras├¡lia',
+            'Sia': 'Brasília', 'Scia': 'Brasília', 'Plano Piloto': 'Brasília', 'Gama': 'Brasília',
+            'Taguatinga': 'Brasília', 'Ceilândia': 'Brasília', 'Sobradinho': 'Brasília', 'Guará': 'Brasília',
+            'Samambaia': 'Brasília', 'Planaltina': 'Brasília', 'Santa Maria': 'Brasília', 'Cruzeiro': 'Brasília',
+            'Lago Sul': 'Brasília', 'Lago Norte': 'Brasília', 'Vicente Pires': 'Brasília', 'Sudoeste / Octogonal': 'Brasília',
+            'Recanto Das Emas': 'Brasília', 'Paranoá': 'Brasília', 'Riacho Fundo': 'Brasília', 'São Sebastião': 'Brasília',
+            'Águas Claras': 'Brasília', 'Candangolândia': 'Brasília', 'Núcleo Bandeirante': 'Brasília', 'Park Way': 'Brasília',
+            'Imbiribeira': 'Recife', 'Hauer': 'Curitiba', 'Pilarzinho': 'Curitiba', 'Portão': 'Curitiba', 'Centro': 'Curitiba',
+            'Parolin': 'Curitiba', 'Demarchi': 'São Bernardo do Campo', 'Santana': 'São Paulo', 'Barra Funda': 'São Paulo',
+            'República': 'São Paulo', 'Vila Leopoldina': 'São Paulo', 'Brás': 'São Paulo', 'Santo Amaro': 'São Paulo',
+            'Itaquera': 'São Paulo', 'Jabaquara': 'São Paulo', 'Moema': 'São Paulo', 'Perdizes': 'São Paulo',
+            'Pinheiros': 'São Paulo', 'Limão': 'São Paulo', 'Cachoeirinha': 'São Paulo', 'Brasilândia': 'São Paulo',
+            'Jardim Goiás': 'Goiânia', 'Setor Leste': 'Goiânia', 'Setor Norte': 'Brasília',
+            'Sol Nascente/pôr Do Sol': 'Brasília',
 
-            // Mapeamentos adicionais solicitados ÔÇö for├ºar para Bras├¡lia
-            'Bras├¡lia': 'Bras├¡lia',
-            'Riacho Fundo Ii': 'Bras├¡lia',
-            'Riacho Fundo II': 'Bras├¡lia',
-            'Riacho Fundo Iii': 'Bras├¡lia',
-            'Arniqueira': 'Bras├¡lia',
-            'Arniqueiras': 'Bras├¡lia',
-            'Sobradinho Ii': 'Bras├¡lia',
-            'Itapo├ú': 'Bras├¡lia',
-            'Itapoa': 'Bras├¡lia',
-            'Brazl├óndia': 'Bras├¡lia',
-            'Rua Dos Ip├¬s': 'Bras├¡lia',
-            'Valpara├¡so De Goi├ís': 'Bras├¡lia',
-            'Valpara├¡so de Goi├ís': 'Bras├¡lia',
-            'Setor Tradicional': 'Bras├¡lia',
-            'Cidade De Lucia Costa': 'Bras├¡lia',
-            'Quadra 35 Conjunto D': 'Bras├¡lia',
-            'Ville De Montagne - Q 17': 'Bras├¡lia',
-            'Sudoeste/Octogonal': 'Bras├¡lia',
-            'Sudoeste/octogonal': 'Bras├¡lia',
-            'Sudoeste / octogonal': 'Bras├¡lia',
-            'Condom├¡nio Ch├ícaras Itaipu Ch├ícara 83': 'Bras├¡lia',
-            'Condominio Chacaras Itaipu Chacara 83': 'Bras├¡lia',
-            'Varj├úo': 'Bras├¡lia',
-            'Edf Smdb Shis Km 274': 'Bras├¡lia',
-            'Avenida S├úo Sebasti├úo': 'Bras├¡lia',
-            'Avenida Sao Sebastiao': 'Bras├¡lia',
-            'Novo Gama': 'Bras├¡lia',
-            'Avenida Dom Bosco': 'Bras├¡lia',
-            'Avenida Rio Tocantins': 'Bras├¡lia',
-            'Federal District': 'Bras├¡lia',
-            'Parque E Jardim Paineiras Conjunto 7': 'Bras├¡lia',
-            'Cristalina': 'Bras├¡lia'
+            // Mapeamentos adicionais solicitados ÔÇö forçar para Brasília
+            'Brasília': 'Brasília',
+            'Riacho Fundo Ii': 'Brasília',
+            'Riacho Fundo II': 'Brasília',
+            'Riacho Fundo Iii': 'Brasília',
+            'Arniqueira': 'Brasília',
+            'Arniqueiras': 'Brasília',
+            'Sobradinho Ii': 'Brasília',
+            'Itapoã': 'Brasília',
+            'Itapoa': 'Brasília',
+            'Brazlândia': 'Brasília',
+            'Rua Dos Ipês': 'Brasília',
+            'Valparaíso De Goiás': 'Brasília',
+            'Valparaíso de Goiás': 'Brasília',
+            'Setor Tradicional': 'Brasília',
+            'Cidade De Lucia Costa': 'Brasília',
+            'Quadra 35 Conjunto D': 'Brasília',
+            'Ville De Montagne - Q 17': 'Brasília',
+            'Sudoeste/Octogonal': 'Brasília',
+            'Sudoeste/octogonal': 'Brasília',
+            'Sudoeste / octogonal': 'Brasília',
+            'Condomínio Chácaras Itaipu Chácara 83': 'Brasília',
+            'Condominio Chacaras Itaipu Chacara 83': 'Brasília',
+            'Varjão': 'Brasília',
+            'Edf Smdb Shis Km 274': 'Brasília',
+            'Avenida São Sebastião': 'Brasília',
+            'Avenida Sao Sebastiao': 'Brasília',
+            'Novo Gama': 'Brasília',
+            'Avenida Dom Bosco': 'Brasília',
+            'Avenida Rio Tocantins': 'Brasília',
+            'Federal District': 'Brasília',
+            'Parque E Jardim Paineiras Conjunto 7': 'Brasília',
+            'Cristalina': 'Brasília'
         };
 
-        if (city.toUpperCase() === 'S├âO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
+        if (city.toUpperCase() === 'SÃO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
             if (uf !== 'SP') uf = 'SP';
         }
         if (city.toUpperCase() === 'RIO DE JANEIRO') if (uf !== 'RJ') uf = 'RJ';
         if (city.toUpperCase() === 'BELO HORIZONTE') if (uf !== 'MG') uf = 'MG';
-        if (city.toUpperCase() === 'BRAS├ìLIA' || city.toUpperCase().includes('DISTRITO FEDERAL')) {
+        if (city.toUpperCase() === 'BRASÍLIA' || city.toUpperCase().includes('DISTRITO FEDERAL')) {
             uf = 'DF';
-            city = 'Bras├¡lia';
+            city = 'Brasília';
         }
-        if (city.toUpperCase() === 'GOI├éNIA' || city.toUpperCase() === 'APARECIDA DE GOI├éNIA') if (uf !== 'GO') uf = 'GO';
+        if (city.toUpperCase() === 'GOIÂNIA' || city.toUpperCase() === 'APARECIDA DE GOIÂNIA') if (uf !== 'GO') uf = 'GO';
 
         city = city.toLowerCase().replace(/(?:^|\s)\S/g, function (a) { return a.toUpperCase(); });
         if (cityCorrections[city]) city = cityCorrections[city];
@@ -487,7 +495,7 @@ export default function FleetDashboard(): JSX.Element {
         return { uf, city };
     };
 
-    // Pr├®-calcular cidade/UF por ve├¡culo (evita regex/string parsing em cada altera├º├úo de filtro)
+    // Pré-calcular cidade/UF por veículo (evita regex/string parsing em cada alteração de filtro)
     const frotaWithLocation = useMemo(() => {
         return frotaEnriched.map(r => {
             const loc = extractLocation(r.UltimoEnderecoTelemetria);
@@ -512,11 +520,11 @@ export default function FleetDashboard(): JSX.Element {
         const tipoLocacaoFilters = getFilterValues('tipoLocacao');
         const categoriaFilters = getFilterValues('categoria');
         
-        // Filtros para gr├íficos da aba Vis├úo Geral
+        // Filtros para gráficos da aba Visão Geral
         const odometroFilters = getFilterValues('odometro');
         const idadeFilters = getFilterValues('idade');
         
-        // Filtros para gr├íficos da aba Telemetria
+        // Filtros para gráficos da aba Telemetria
         const telemetriaFilters = getFilterValues('telemetria');
         const seguroFilters = getFilterValues('seguro');
         const proprietarioFilters = getFilterValues('proprietario');
@@ -567,7 +575,7 @@ export default function FleetDashboard(): JSX.Element {
 
             if (patioFilters.length > 0 && !patioFilters.includes(r.Patio)) return false;
 
-            // Filtra por sele├º├úo de localiza├º├úo (quando usu├írio clica no mapa/accordion)
+            // Filtra por seleção de localização (quando usuário clica no mapa/accordion)
             if (selectedLocation) {
                 if ((r as any)._uf !== selectedLocation.uf || (r as any)._city !== selectedLocation.city) return false;
             }
@@ -584,7 +592,7 @@ export default function FleetDashboard(): JSX.Element {
                 if (!ok) return false;
             }
             
-            // Filtro de od├┤metro (clique no gr├ífico de classifica├º├úo por od├┤metro)
+            // Filtro de odômetro (clique no gráfico de classificação por odômetro)
             if (odometroFilters.length > 0) {
                 const km = parseNum(r.KmInformado);
                 const ok = odometroFilters.some((of: string) => {
@@ -606,7 +614,7 @@ export default function FleetDashboard(): JSX.Element {
                 if (!ok) return false;
             }
             
-            // Filtro de idade (clique no gr├ífico de classifica├º├úo por idade)
+            // Filtro de idade (clique no gráfico de classificação por idade)
             if (idadeFilters.length > 0) {
                 const idade = parseNum(r.IdadeVeiculo);
                 const ok = idadeFilters.some((idf: string) => {
@@ -637,7 +645,7 @@ export default function FleetDashboard(): JSX.Element {
                 if (!seguroFilters.includes(seguro)) return false;
             }
             
-            // Filtro de propriet├írio
+            // Filtro de proprietário
             if (proprietarioFilters.length > 0) {
                 const prop = r.Proprietario || 'Não Definido';
                 if (!proprietarioFilters.includes(prop)) return false;
@@ -649,13 +657,13 @@ export default function FleetDashboard(): JSX.Element {
                 if (!finalidadeFilters.includes(finalidade)) return false;
             }
             
-            // Filtro de diferen├ºa de KM
+            // Filtro de diferença de KM
             if (kmDiffFilters.length > 0) {
                 const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
                 const ok = kmDiffFilters.some((kf: string) => {
-                    if (kf === 'Sem Diverg├¬ncia') return diff === 0;
+                    if (kf === 'Sem Divergência') return diff === 0;
                     if (kf === 'Baixa (<1k)') return diff > 0 && diff <= 1000;
-                    if (kf === 'M├®dia (1k-5k)') return diff > 1000 && diff <= 5000;
+                    if (kf === 'Média (1k-5k)') return diff > 1000 && diff <= 5000;
                     if (kf === 'Alta (>5k)') return diff > 5000;
                     return false;
                 });
@@ -705,25 +713,25 @@ export default function FleetDashboard(): JSX.Element {
         }, 0);
         const tcoMedio = total > 0 ? tcoTotal / total : 0;
 
-        // ROI m├®dio estimado (baseado em receita potencial vs custo)
+        // ROI médio estimado (baseado em receita potencial vs custo)
         const receitaPotencialMensal = produtiva.reduce((s, r) => s + parseCurrency(r.ValorLocacao || 0), 0);
         const custoMensalEstimado = tcoTotal / 36; // amortizado em 36 meses
         const roiEstimado = custoMensalEstimado > 0 ? ((receitaPotencialMensal - custoMensalEstimado) / custoMensalEstimado) * 100 : 0;
 
-        // Health Score (0-100): Baseado em idade, passagens manuten├º├úo, % FIPE
+        // Health Score (0-100): Baseado em idade, passagens manutenção, % FIPE
         const healthScoreCalc = (r: any) => {
             let score = 100;
             const idade = parseNum(r.IdadeVeiculo);
-            const passagens = manutencaoMap[normalizePlate(r.Placa)] ? 1 : 0; // simplificado - presen├ºa de manuten├º├úo
+            const passagens = manutencaoMap[normalizePlate(r.Placa)] ? 1 : 0; // simplificado - presença de manutenção
             const pctFipe = parseCurrency(r.ValorFipeAtual) > 0
                 ? (parseCurrency(r.ValorCompra) / parseCurrency(r.ValorFipeAtual)) * 100
                 : 100;
 
             // Penaliza idade (cada 12 meses = -10 pontos)
             score -= Math.min(40, Math.floor(idade / 12) * 10);
-            // Penaliza manuten├º├úo alta
+            // Penaliza manutenção alta
             if (passagens > 0) score -= 15;
-            // Penaliza deprecia├º├úo alta (se compra > 120% FIPE)
+            // Penaliza depreciação alta (se compra > 120% FIPE)
             if (pctFipe > 120) score -= 20;
             else if (pctFipe > 110) score -= 10;
 
@@ -732,7 +740,7 @@ export default function FleetDashboard(): JSX.Element {
         const healthScoreTotal = filteredData.reduce((s, r) => s + healthScoreCalc(r), 0);
         const healthScoreMedio = total > 0 ? healthScoreTotal / total : 0;
 
-        // Custo de ociosidade (improdutiva: valor loca├º├úo potencial perdido)
+        // Custo de ociosidade (improdutiva: valor locação potencial perdido)
         const custoOciosidade = improdutiva.reduce((s, r) => {
             const diasParado = parseNum(r.DiasNoStatus);
             const valorDiario = parseCurrency(r.ValorLocacao || 0) / 30;
@@ -748,6 +756,15 @@ export default function FleetDashboard(): JSX.Element {
             tcoTotal, tcoMedio, roiEstimado, healthScoreMedio, custoOciosidade
         };
     }, [filteredData, manutencaoMap]);
+
+        // Debug: log KPIs counts to compare with FleetIdleDashboard
+        console.log('🔎 [FleetDashboard] KPIs:', {
+            total: kpis?.total,
+            produtiva: kpis?.produtivaQtd,
+            improdutiva: kpis?.improdutivaQtd,
+            taxaProdutividade: kpis?.taxaProdutividade,
+            taxaImprodutiva: kpis?.taxaImprodutiva
+        });
 
     // Breakdown of 'Improdutiva' sub-statuses (counts and percentage of the improdutiva group)
     const improdutivaBreakdown = useMemo(() => {
@@ -775,12 +792,12 @@ export default function FleetDashboard(): JSX.Element {
         'VENDIDO': '#10b981', // green
         'LOCADO': '#f59e0b', // amber
         'DISPONIVEL PARA VENDA': '#ef4444', // red
-        'DISPON├ìVEL PARA VENDA': '#ef4444',
+        'DISPONÍVEL PARA VENDA': '#ef4444',
         'DISPONIVEL PRA VENDA': '#ef4444',
         'BLOQUEADO': '#f97316',
         'DEVOLVIDO': '#64748b',
         'RESERVA': '#06b6d4',
-        'DISPON├ìVEL': '#3b82f6'
+        'DISPONÍVEL': '#3b82f6'
     };
 
     const statusData = useMemo(() => {
@@ -791,8 +808,8 @@ export default function FleetDashboard(): JSX.Element {
 
     const cityCoordinates: Record<string, [number, number]> = {
         'Manaus': [-3.1190, -60.0217],
-        'Bras├¡lia': [-15.7975, -47.8919],
-        'S├úo Paulo': [-23.5505, -46.6333],
+        'Brasília': [-15.7975, -47.8919],
+        'São Paulo': [-23.5505, -46.6333],
         'Rio de Janeiro': [-22.9068, -43.1729],
         'Belo Horizonte': [-19.9167, -43.9345],
         'Curitiba': [-25.4244, -49.2654],
@@ -800,20 +817,20 @@ export default function FleetDashboard(): JSX.Element {
         'Salvador': [-12.9777, -38.5016],
         'Recife': [-8.0476, -34.8770],
         'Porto Alegre': [-30.0346, -51.2177],
-        'Goi├ónia': [-16.6869, -49.2648],
+        'Goiânia': [-16.6869, -49.2648],
         'Campinas': [-22.9099, -47.0626],
-        'Bel├®m': [-1.4558, -48.4902],
-        'S├úo Lu├¡s': [-2.5307, -44.3068],
-        'Macei├│': [-9.6498, -35.7089],
+        'Belém': [-1.4558, -48.4902],
+        'São Luís': [-2.5307, -44.3068],
+        'Maceió': [-9.6498, -35.7089],
         'Natal': [-5.7945, -35.2110],
         'Campo Grande': [-20.4697, -54.6201],
         'Teresina': [-5.0920, -42.8038],
-        'Jo├úo Pessoa': [-7.1195, -34.8450],
+        'João Pessoa': [-7.1195, -34.8450],
         'Aracaju': [-10.9472, -37.0731],
-        'Cuiab├í': [-15.6014, -56.0979],
-        'Florian├│polis': [-27.5954, -48.5480],
-        'Macap├í': [0.0355, -51.0705],
-        'Vit├│ria': [-20.3155, -40.3128],
+        'Cuiabá': [-15.6014, -56.0979],
+        'Florianópolis': [-27.5954, -48.5480],
+        'Macapá': [0.0355, -51.0705],
+        'Vitória': [-20.3155, -40.3128],
         'Porto Velho': [-8.7612, -63.9039],
         'Rio Branco': [-9.9754, -67.8249],
         'Palmas': [-10.1753, -48.3318],
@@ -821,7 +838,7 @@ export default function FleetDashboard(): JSX.Element {
     };
 
     const stableJitter = (seed: string, scale: number) => {
-        // hash simples e determin├¡stico para gerar jitter est├ível por placa
+        // hash simples e determinístico para gerar jitter estável por placa
         let h = 0;
         for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
         const x = Math.sin(h) * 10000;
@@ -857,8 +874,8 @@ export default function FleetDashboard(): JSX.Element {
 
         if (!selectedLocation) return coordsValid;
 
-        // Caso especial: sele├º├úo "N├úo classificados" deve mostrar ve├¡culos com telemetria
-        // que n├úo tiveram uf/cidade extra├¡dos (uf === 'ND' ou endere├ºo ausente).
+        // Caso especial: seleção "Não classificados" deve mostrar veículos com telemetria
+        // que não tiveram uf/cidade extraídos (uf === 'ND' ou endereço ausente).
         if (selectedLocation.uf === 'ND' && selectedLocation.city === 'Não classificados') {
             return mapped.filter(r => (
                 r.ProvedorTelemetria && r.ProvedorTelemetria !== 'NÃO DEFINIDO' && r.ProvedorTelemetria !== 'Não Definido'
@@ -871,20 +888,20 @@ export default function FleetDashboard(): JSX.Element {
     }, [filteredData, selectedLocation]);
 
     const kmDifferenceData = useMemo(() => {
-        const ranges = { 'Sem Diverg├¬ncia': 0, 'Baixa (<1k)': 0, 'M├®dia (1k-5k)': 0, 'Alta (>5k)': 0 };
+        const ranges = { 'Sem Divergência': 0, 'Baixa (<1k)': 0, 'Média (1k-5k)': 0, 'Alta (>5k)': 0 };
         filteredData.forEach(r => {
             const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
-            if (diff === 0) ranges['Sem Diverg├¬ncia']++;
+            if (diff === 0) ranges['Sem Divergência']++;
             else if (diff <= 1000) ranges['Baixa (<1k)']++;
-            else if (diff <= 5000) ranges['M├®dia (1k-5k)']++;
+            else if (diff <= 5000) ranges['Média (1k-5k)']++;
             else ranges['Alta (>5k)']++;
         });
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
 
-    // Distribui├º├úo por modelo removida - usar modelosPorCategoria (hier├írquico)
+    // Distribuição por modelo removida - usar modelosPorCategoria (hierárquico)
 
-    // Dados hier├írquicos: categorias e modelos (usa GrupoVeiculo do banco)
+    // Dados hierárquicos: categorias e modelos (usa GrupoVeiculo do banco)
     const modelosPorCategoria = useMemo(() => {
         const categoryMap: Record<string, Record<string, number>> = {};
 
@@ -912,7 +929,7 @@ export default function FleetDashboard(): JSX.Element {
             .sort((a, b) => b.total - a.total);
     }, [filteredData]);
 
-    // Dados para exibi├º├úo no gr├ífico (com categorias colaps├íveis)
+    // Dados para exibição no gráfico (com categorias colapsáveis)
     const modelosHierarchicalData = useMemo(() => {
         const data: Array<{ name: string; value: number; isCategory?: boolean; categoria?: string }> = [];
 
@@ -949,7 +966,7 @@ export default function FleetDashboard(): JSX.Element {
         );
     };
 
-    // Distribui├º├úo por faixa de od├┤metro (10k em 10k at├® 120k+)
+    // Distribuição por faixa de odômetro (10k em 10k até 120k+)
     const odometroData = useMemo(() => {
         const ranges: Record<string, number> = {
             '0-10k': 0,
@@ -990,7 +1007,7 @@ export default function FleetDashboard(): JSX.Element {
     // Toggle view for odometer card: 'odometro' or 'idade' (idade em meses)
     const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
 
-    // Distribui├º├úo por faixa de idade (12 em 12 meses at├® 48+)
+    // Distribuição por faixa de idade (12 em 12 meses até 48+)
     const idadeFaixaData = useMemo(() => {
         const ranges: Record<string, number> = {
             '0-12m': 0,
@@ -1010,7 +1027,7 @@ export default function FleetDashboard(): JSX.Element {
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
 
-    // AN├üLISES DE TELEMETRIA
+    // ANÁLISES DE TELEMETRIA
     const telemetriaData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
@@ -1139,7 +1156,7 @@ export default function FleetDashboard(): JSX.Element {
                     .sort((a, b) => b.value - a.value)
             }));
 
-        // Se houver ve├¡culos n├úo classificados, adicionar ao final como grupo separado
+        // Se houver veículos não classificados, adicionar ao final como grupo separado
         if (unclassifiedTotal > 0) {
             sortedUFs.push({
                 uf: 'ND',
@@ -1156,8 +1173,8 @@ export default function FleetDashboard(): JSX.Element {
         filteredData.forEach(r => {
             const prov = (r.ProvedorTelemetria || '').toString().trim();
             const hasTelemetria = prov && prov.toUpperCase() !== 'NÃO DEFINIDO' && prov.toUpperCase() !== 'N/A';
-            // Considerar rastreador instalado somente quando h├í provedor v├ílido E
-            // h├í alguma telemetria recente ou coordenadas conhecidas.
+            // Considerar rastreador instalado somente quando há provedor válido E
+            // há alguma telemetria recente ou coordenadas conhecidas.
             const hasLastUpdate = !!(r.UltimaAtualizacaoTelemetria || r.UltimaAtualizacaoTelemetria === 0);
             const hasCoords = isFinite(parseNum(r.Latitude)) && isFinite(parseNum(r.Longitude)) && parseNum(r.Latitude) !== 0 && parseNum(r.Longitude) !== 0;
             if (!hasTelemetria || (!hasLastUpdate && !hasCoords)) return; // sem rastreador/telemetria, ignorar
@@ -1187,19 +1204,9 @@ export default function FleetDashboard(): JSX.Element {
         }
     };
 
-    // AN├üLISE DE P├üTIO - vehiclesDetailed moved here (after filteredData is defined)
+    // ANÁLISE DE PÁTIO - vehiclesDetailed moved here (after filteredData is defined)
     const vehiclesDetailed = useMemo(() => {
-        const getCategory = (status: string) => {
-            const s = (status || '').toUpperCase();
-            if (['LOCADO', 'LOCADO VE├ìCULO RESERVA', 'USO INTERNO', 'EM MOBILIZA├ç├âO', 'EM MOBILIZACAO'].includes(s)) return 'Produtiva';
-            if ([
-                'DEVOLVIDO', 'ROUBO / FURTO', 'BAIXADO', 'VENDIDO', 'SINISTRO PERDA TOTAL',
-                'DISPONIVEL PRA VENDA', 'DISPONIVEL PARA VENDA', 'DISPON├ìVEL PARA VENDA', 'DISPON├ìVEL PRA VENDA',
-                'N├âO DISPON├ìVEL', 'NAO DISPONIVEL', 'N├âO DISPONIVEL', 'NAO DISPON├ìVEL',
-                'EM DESMOBILIZA├ç├âO', 'EM DESMOBILIZACAO'
-            ].includes(s)) return 'Inativa';
-            return 'Improdutiva';
-        };
+        // removed inner duplicate - using top-level `getCategory`
 
         // Use filteredData (respects global filters) and only show Improdutiva (exclude 'Terceiro')
         const improdutivos = filteredData.filter(v => getCategory(v.Status) === 'Improdutiva' && ((v.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
@@ -1249,7 +1256,7 @@ export default function FleetDashboard(): JSX.Element {
         });
     }, [filteredData, patioMov, veiculoMov]);
 
-    // Tabela: estado de ordena├º├úo e lista ordenada
+    // Tabela: estado de ordenação e lista ordenada
     const [sortState, setSortState] = useState<{ col: string | null; dir: 'asc' | 'desc' }>({ col: 'Placa', dir: 'asc' });
 
     const toggleSort = (col: string) => {
@@ -1274,12 +1281,12 @@ export default function FleetDashboard(): JSX.Element {
                 return (da - db) * (sortState.dir === 'asc' ? 1 : -1);
             }
 
-            // N├║meros
+            // Números
             if (typeof va === 'number' || typeof vb === 'number') {
                 return ((va || 0) - (vb || 0)) * (sortState.dir === 'asc' ? 1 : -1);
             }
 
-            // Strings (compara├º├úo localizada, com n├║meros embutidos)
+            // Strings (comparação localizada, com números embutidos)
             return String(va || '').localeCompare(String(vb || ''), 'pt-BR', { numeric: true }) * (sortState.dir === 'asc' ? 1 : -1);
         });
         return arr;
@@ -1315,7 +1322,7 @@ export default function FleetDashboard(): JSX.Element {
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [vehiclesDetailed]);
 
-    // stuckVehicles - dispon├¡vel para uso futuro em tabela de ve├¡culos parados
+    // stuckVehicles - disponível para uso futuro em tabela de veículos parados
     // const stuckVehicles = useMemo(() => {
     //     return filteredData
     //       .filter(r => getCategory(r.Status) === 'Improdutiva')
@@ -1337,7 +1344,7 @@ export default function FleetDashboard(): JSX.Element {
         setReservaPage(0);
     };
 
-    // Calcular min/max dates do hist├│rico de reservas ANTES de filteredReservas
+    // Calcular min/max dates do histórico de reservas ANTES de filteredReservas
     const reservaDateBounds = useMemo(() => {
         if (carroReservaFiltered.length === 0) return null;
 
@@ -1354,12 +1361,12 @@ export default function FleetDashboard(): JSX.Element {
                 const df = new Date(r.DataFim);
                 if (!maxDate || df > maxDate) maxDate = df;
             } else {
-                // Se n├úo tem DataFim, ├® uma reserva ativa
+                // Se não tem DataFim, é uma reserva ativa
                 hasActiveReserva = true;
             }
         });
 
-        // Se h├í reservas ativas OU n├úo h├í maxDate, usar hoje como m├íximo
+        // Se há reservas ativas OU não há maxDate, usar hoje como máximo
         const hoje = new Date();
         let finalMaxDate = hoje;
 
@@ -1388,7 +1395,7 @@ export default function FleetDashboard(): JSX.Element {
         const locais = getFilterValues('reserva_local');
         const search = (getFilterValues('reserva_search') || [])[0] || '';
 
-        // Filtrar pelo per├¡odo do slider
+        // Filtrar pelo período do slider
         if (!reservaDateBounds) return [];
         const { minDate, maxDate } = reservaDateBounds;
         const totalMs = maxDate.getTime() - minDate.getTime();
@@ -1398,15 +1405,15 @@ export default function FleetDashboard(): JSX.Element {
         dataFim.setHours(23, 59, 59, 999);
 
         return carroReservaFiltered.filter(r => {
-            // Filtro de per├¡odo (slider)
+            // Filtro de período (slider)
             if (r.DataInicio) {
                 const di = new Date(r.DataInicio);
                 const df = r.DataFim ? new Date(r.DataFim) : new Date();
-                // Incluir se h├í sobreposi├º├úo com o per├¡odo selecionado
+                // Incluir se há sobreposição com o período selecionado
                 if (!(di <= dataFim && df >= dataInicio)) return false;
             }
 
-            // Filtro temporal (clique em ano/m├¬s na evolu├º├úo)
+            // Filtro temporal (clique em ano/mês na evolução)
             if (selectedTemporalFilter && r.DataCriacao) {
                 const dataCriacao = new Date(r.DataCriacao);
                 const year = dataCriacao.getFullYear().toString();
@@ -1421,13 +1428,13 @@ export default function FleetDashboard(): JSX.Element {
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
             
-            // Filtro de tipo de ve├¡culo (clique no gr├ífico Tipo Ve├¡culo)
+            // Filtro de tipo de veículo (clique no gráfico Tipo Veículo)
             if (tiposVeiculo.length > 0) {
                 const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
                 if (!tiposVeiculo.includes(tipo)) return false;
             }
             
-            // Filtro de localiza├º├úo (clique no gr├ífico Di├írias por Local)
+            // Filtro de localização (clique no gráfico Diárias por Local)
             if (locais.length > 0) {
                 const city = (r.Cidade || 'Não Identificado').trim();
                 const uf = (r.Estado || '').trim();
@@ -1445,7 +1452,7 @@ export default function FleetDashboard(): JSX.Element {
 
     const reservaKPIs = useMemo(() => {
         const total = filteredReservas.length;
-        // Nova regra: ativa = sem data de conclus├úo (ex: DataDevolucao/DataConclusao) e n├úo cancelada
+        // Nova regra: ativa = sem data de conclusão (ex: DataDevolucao/DataConclusao) e não cancelada
         const ativas = filteredReservas.filter(r => {
             const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
             if (status.includes('cancel')) return false;
@@ -1467,9 +1474,9 @@ export default function FleetDashboard(): JSX.Element {
         filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'Não Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
         const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
-        // Tempo m├®dio de reserva (Conclu├¡das)
+        // Tempo médio de reserva (Concluídas)
         const concluidas = filteredReservas.filter(r =>
-            ['Finalizado', 'Conclu├¡da'].includes(r.StatusOcorrencia || '') &&
+            ['Finalizado', 'Concluída'].includes(r.StatusOcorrencia || '') &&
             (r.DiariasEfetivas || (r.DataInicio && r.DataDevolucao))
         );
 
@@ -1487,12 +1494,12 @@ export default function FleetDashboard(): JSX.Element {
             const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
             if (status.includes('cancel')) return false;
             const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-            // atrasada = ativa (n├úo conclu├¡da e n├úo cancelada) com DataFim prevista menor que hoje
+            // atrasada = ativa (não concluída e não cancelada) com DataFim prevista menor que hoje
             return !concluded && r.DataFim && new Date(r.DataFim) < hoje;
         }).length;
 
-        // Gr├ífico hier├írquico com compara├º├úo YoY
-        const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> m├¬s -> dia -> count
+        // Gráfico hierárquico com comparação YoY
+        const yearMap: Record<string, Record<string, Record<string, number>>> = {}; // ano -> mês -> dia -> count
         const yearTotals: Record<string, number> = {};
 
         filteredReservas.forEach(r => {
@@ -1560,26 +1567,26 @@ export default function FleetDashboard(): JSX.Element {
         };
     }, [filteredReservas]);
 
-    // NOVO: An├ílise de Ocupa├º├úo Simult├ónea Di├íria (controlado por slider E filtro temporal)
+    // NOVO: Análise de Ocupação Simultânea Diária (controlado por slider E filtro temporal)
     const ocupacaoSimultaneaData = useMemo(() => {
         if (!reservaDateBounds) return [];
 
         const { minDate, maxDate } = reservaDateBounds;
         const totalMs = maxDate.getTime() - minDate.getTime();
 
-        // Se h├í filtro temporal ativo, usar o per├¡odo do filtro
+        // Se há filtro temporal ativo, usar o período do filtro
         let dataInicio: Date;
         let dataFim: Date;
 
         if (selectedTemporalFilter) {
             if (selectedTemporalFilter.month) {
-                // Filtro de m├¬s espec├¡fico
+                // Filtro de mês específico
                 const year = parseInt(selectedTemporalFilter.year!);
                 const month = parseInt(selectedTemporalFilter.month) - 1;
                 dataInicio = new Date(year, month, 1);
                 dataFim = new Date(year, month + 1, 0, 23, 59, 59, 999);
             } else if (selectedTemporalFilter.year) {
-                // Filtro de ano espec├¡fico
+                // Filtro de ano específico
                 const year = parseInt(selectedTemporalFilter.year);
                 dataInicio = new Date(year, 0, 1);
                 dataFim = new Date(year, 11, 31, 23, 59, 59, 999);
@@ -1605,11 +1612,11 @@ export default function FleetDashboard(): JSX.Element {
             dataAtual.setDate(dataAtual.getDate() + 1);
         }
 
-        // Para cada dia, contar quantos ve├¡culos estavam "na rua" (usar filteredReservas para respeitar filtros)
+        // Para cada dia, contar quantos veículos estavam "na rua" (usar filteredReservas para respeitar filtros)
         const ocupacaoPorDia = datas.map(dia => {
             const diaTime = dia.getTime();
 
-            // Contar ve├¡culos em uso neste dia espec├¡fico
+            // Contar veículos em uso neste dia específico
             const veiculosEmUso = filteredReservas.filter(reserva => {
                 if (!reserva.DataInicio) return false;
 
@@ -1617,12 +1624,12 @@ export default function FleetDashboard(): JSX.Element {
                 dataInicio.setHours(0, 0, 0, 0);
                 const inicioTime = dataInicio.getTime();
 
-                // Se DataFim ├® null/vazio, o ve├¡culo ainda est├í com o cliente
+                // Se DataFim é null/vazio, o veículo ainda está com o cliente
                 const dataFim = reserva.DataFim ? new Date(reserva.DataFim) : null;
                 if (dataFim) dataFim.setHours(23, 59, 59, 999);
                 const fimTime = dataFim ? dataFim.getTime() : Date.now();
 
-                // Ve├¡culo conta como "Em Uso" se: DataInicio <= dia E (DataFim >= dia OU DataFim ├® null)
+                // Veículo conta como "Em Uso" se: DataInicio <= dia E (DataFim >= dia OU DataFim é null)
                 return inicioTime <= diaTime && fimTime >= diaTime;
             });
 
@@ -1636,7 +1643,7 @@ export default function FleetDashboard(): JSX.Element {
         return ocupacaoPorDia;
     }, [filteredReservas, sliderRange, reservaDateBounds, selectedTemporalFilter]);
 
-    // Detalhamento de ve├¡culos para o dia selecionado no gr├ífico de ocupa├º├úo
+    // Detalhamento de veículos para o dia selecionado no gráfico de ocupação
     const reservasDetailForSelectedDay = useMemo(() => {
         if (!selectedDayForDetail) return [];
 
@@ -1660,9 +1667,9 @@ export default function FleetDashboard(): JSX.Element {
     }, [selectedDayForDetail, filteredReservas]);
 
     // Novos agregados solicitados:
-    // - Di├írias por Local (Cidade/UF)
+    // - Diárias por Local (Cidade/UF)
     // - Contagem por TipoVeiculoTemporario
-    // - Estrutura Cliente -> Contratos com soma de di├írias (para o gr├ífico colaps├ível)
+    // - Estrutura Cliente -> Contratos com soma de diárias (para o gráfico colapsável)
     const diariasByLocation = useMemo(() => {
         const map: Record<string, number> = {};
         (filteredReservas || []).forEach(r => {
@@ -1705,8 +1712,8 @@ export default function FleetDashboard(): JSX.Element {
     }, [clienteContracts]);
 
 
-    // Distribui├º├úo por modelo dos ve├¡culos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
-    // Filtra automaticamente pelo per├¡odo do slider
+    // Distribuição por modelo dos veículos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
+    // Filtra automaticamente pelo período do slider
     const reservaModelData = useMemo(() => {
         if (!reservaDateBounds) return [];
 
@@ -1717,13 +1724,13 @@ export default function FleetDashboard(): JSX.Element {
 
         const map: Record<string, number> = {};
 
-        // Filtrar pelo per├¡odo do slider
+        // Filtrar pelo período do slider
         const dadosFiltrados = carroReservaFiltered.filter(r => {
             if (!r.DataInicio) return false;
             const di = new Date(r.DataInicio);
             const df = r.DataFim ? new Date(r.DataFim) : new Date();
 
-            // Incluir se h├í sobreposi├º├úo com o per├¡odo selecionado
+            // Incluir se há sobreposição com o período selecionado
             return di <= dataFim && df >= dataInicio;
         });
 
@@ -1734,7 +1741,7 @@ export default function FleetDashboard(): JSX.Element {
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
 
-    // KPIs de Efici├¬ncia de Ocupa├º├úo
+    // KPIs de Eficiência de Ocupação
     const ocupacaoKPIs = useMemo(() => {
         if (ocupacaoSimultaneaData.length === 0) {
             return { picoUtilizacao: 0, mediaCarrosNaRua: 0 };
@@ -2175,7 +2182,7 @@ export default function FleetDashboard(): JSX.Element {
                             </th>
                             <th className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-between">
-                                    <span className="cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Loca├º├úo</span>
+                                    <span className="cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Locação</span>
                                     <span className="flex items-center gap-1">
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
@@ -2205,7 +2212,7 @@ export default function FleetDashboard(): JSX.Element {
                             </th>
                             <th className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-between">
-                                    <span className="cursor-pointer" onClick={() => handleSort('KmInformado')}>Od├┤metro (Info)</span>
+                                    <span className="cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info)</span>
                                     <span className="flex items-center gap-1">
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
                                         <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
@@ -2386,7 +2393,7 @@ export default function FleetDashboard(): JSX.Element {
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('DataInicioStatus')} className="flex items-center gap-2">
-                                                    <span>Data In├¡cio Status</span>
+                                                    <span>Data Início Status</span>
                                                     {sortState.col === 'DataInicioStatus' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
@@ -2398,7 +2405,7 @@ export default function FleetDashboard(): JSX.Element {
                                             </th>
                                             <th className="px-6 py-3">
                                                 <button onClick={() => toggleSort('UsuarioMovimentacao')} className="flex items-center gap-2">
-                                                    <span>Usu├írio</span>
+                                                    <span>Usuário</span>
                                                     {sortState.col === 'UsuarioMovimentacao' ? (sortState.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
                                                 </button>
                                             </th>
@@ -2945,7 +2952,7 @@ export default function FleetDashboard(): JSX.Element {
                     </Card>
                 </TabsContent>
 
-                {/* Aba 'Efici├¬ncia' removida */}
+                {/* Aba 'Eficiência' removida */}
 
                 <TabsContent value="timeline">
                     <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} movimentacoes={movimentacoes} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
@@ -2957,7 +2964,7 @@ export default function FleetDashboard(): JSX.Element {
                             <div className="p-8 text-center">
                                 <Info className="w-12 h-12 mx-auto text-slate-400 mb-4" />
                                 <Title>Sem Dados de Carro Reserva</Title>
-                                <Text className="mt-2 text-slate-500">Nenhuma ocorr├¬ncia de carro reserva foi encontrada. Verifique se o arquivo `fat_carro_reserva.json` est├í dispon├¡vel.</Text>
+                                <Text className="mt-2 text-slate-500">Nenhuma ocorrência de carro reserva foi encontrada. Verifique se o arquivo `fat_carro_reserva.json` está disponível.</Text>
                             </div>
                         </Card>
                     )}
@@ -2989,12 +2996,12 @@ export default function FleetDashboard(): JSX.Element {
                                 </div>
                             </Card>
 
-                            {/* KPIs - ATUALIZADO: KPIs de performance e ocupa├º├úo */}
+                            {/* KPIs - ATUALIZADO: KPIs de performance e ocupação */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                 <Card decoration="top" decorationColor="blue">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Total de Ocorr├¬ncias</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Total de Ocorrências</Text>
                                     <Metric className="mt-1">{fmtDecimal(reservaKPIs.total)}</Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">No per├¡odo selecionado</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">No período selecionado</Text>
                                 </Card>
                                 <Card decoration="top" decorationColor="emerald">
                                     <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Reservas Ativas</Text>
@@ -3010,35 +3017,35 @@ export default function FleetDashboard(): JSX.Element {
                                 </Card>
                                 
                                 <Card decoration="top" decorationColor="violet">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo M├®dio (Geral)</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo Médio (Geral)</Text>
                                     <Metric className="mt-1">{reservaKPIs.tempoMedio.toFixed(1)} <span className="text-sm font-normal text-slate-500">dias</span></Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">Base: Reservas conclu├¡das</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">Base: Reservas concluídas</Text>
                                 </Card>
                                 <Card decoration="top" decorationColor="rose">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Pico de Utiliza├º├úo</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Pico de Utilização</Text>
                                     <Metric className="mt-1">{ocupacaoKPIs.picoUtilizacao}</Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">M├íx simult├óneo no per├¡odo</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">Máx simultâneo no período</Text>
                                 </Card>
                                 <Card decoration="top" decorationColor="cyan">
-                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">M├®dia de Frota Ativa</Text>
+                                    <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Média de Frota Ativa</Text>
                                     <Metric className="mt-1">{ocupacaoKPIs.mediaCarrosNaRua.toFixed(1)}</Metric>
-                                    <Text className="text-xs text-slate-400 mt-2">Carros/dia no per├¡odo</Text>
+                                    <Text className="text-xs text-slate-400 mt-2">Carros/dia no período</Text>
                                 </Card>
                             </div>
 
-                            {/* 1) Ocupa├º├úo simult├ónea di├íria - destaque em largura total */}
+                            {/* 1) Ocupação simultânea diária - destaque em largura total */}
                             <Card className="mt-4">
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                        <Title>Ocupa├º├úo Simult├ónea Di├íria</Title>
+                                        <Title>Ocupação Simultânea Diária</Title>
                                         <div className="group relative">
                                             <Info size={16} className="text-slate-400 hover:text-blue-600 cursor-help transition-colors" />
                                             <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
-                                                <p className="font-semibold mb-2">­ƒôè Como funciona este gr├ífico:</p>
+                                                <p className="font-semibold mb-2">­ƒôè Como funciona este gráfico:</p>
                                                 <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
                                                 <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
                                                 <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio &lt;= dia E (DataFim &gt;= dia OU DataFim = null)</p>
-                                                <p><strong>­ƒÆí Dica:</strong> Use o slider abaixo para ajustar o per├¡odo de an├ílise!</p>
+                                                <p><strong>­ƒÆí Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
                                                 <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
                                             </div>
                                         </div>
@@ -3049,7 +3056,7 @@ export default function FleetDashboard(): JSX.Element {
                                     <div className="mb-4 px-2">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
-                                                <Text className="text-xs font-medium text-slate-700">Per├¡odo de An├ílise:</Text>
+                                                <Text className="text-xs font-medium text-slate-700">Período de Análise:</Text>
                                                 {selectedTemporalFilter && (
                                                     <Badge color="purple" size="xs">
                                                         Filtrado: {selectedTemporalFilter.month
@@ -3063,7 +3070,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
                                                 <button onClick={() => setSliderRange({ startPercent: 75, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
                                                 <button onClick={() => setSliderRange({ startPercent: 50, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 0, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo per├¡odo</button>
+                                                <button onClick={() => setSliderRange({ startPercent: 0, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo período</button>
                                             </div>
                                         </div>
 
@@ -3206,7 +3213,7 @@ export default function FleetDashboard(): JSX.Element {
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Cliente</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Motivo</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Status</th>
-                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data In├¡cio</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Início</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Fim</th>
                                                         <th className="px-3 py-2 text-right font-semibold text-slate-700 border-b">Dias</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Local</th>
@@ -3229,7 +3236,7 @@ export default function FleetDashboard(): JSX.Element {
                                                                 </td>
                                                                 <td className="px-3 py-2">
                                                                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                                        (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('conclu├¡da') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
+                                                                        (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
                                                                             ? 'bg-emerald-100 text-emerald-700'
                                                                             : 'bg-slate-100 text-slate-600'
                                                                     }`}>
@@ -3250,10 +3257,10 @@ export default function FleetDashboard(): JSX.Element {
                                 )}
                             </Card>
 
-                            {/* 2) Evolu├º├úo hier├írquica de ocorr├¬ncias (Ano->M├¬s->Dia) - largura cheia */}
+                            {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <Title>Evolu├º├úo de Ocorr├¬ncias <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
+                                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => {
@@ -3287,7 +3294,7 @@ export default function FleetDashboard(): JSX.Element {
                                                         if (e.ctrlKey || e.metaKey) {
                                                             // Ctrl+click: expandir/colapsar meses junto com o ano
                                                             if (expandedYears.includes(yearData.year)) {
-                                                                // j├í expandido -> colapsar ano e remover meses desse ano
+                                                                // já expandido -> colapsar ano e remover meses desse ano
                                                                 setExpandedYears(prev => prev.filter(y => y !== yearData.year));
                                                                 setExpandedMonths(prev => prev.filter(m => !m.startsWith(`${yearData.year}-`)));
                                                             } else {
@@ -3329,7 +3336,7 @@ export default function FleetDashboard(): JSX.Element {
                                                             {isYearExpanded ? 'Ôû╝' : 'ÔûÂ'}
                                                         </button>
                                                         <span className="text-lg font-bold text-blue-700">{yearData.year}</span>
-                                                        <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorr├¬ncias</Badge>
+                                                        <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorrências</Badge>
                                                         {yearData.prevYearTotal > 0 && (
                                                             <span className={`text-xs font-medium ${yearData.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 {yearData.yoyChange >= 0 ? 'Ôû▓' : 'Ôû╝'} {Math.abs(yearData.yoyChange).toFixed(1)}% vs {parseInt(yearData.year) - 1}
@@ -3350,7 +3357,7 @@ export default function FleetDashboard(): JSX.Element {
 
                                                             return (
                                                                 <div key={monthKey} className="border-t border-slate-100">
-                                                                    {/* Linha do M├¬s */}
+                                                                    {/* Linha do Mês */}
                                                                     <div
                                                                         onClick={(e) => {
                                                                             // Ctrl+click: expandir/colapsar dias
@@ -3361,7 +3368,7 @@ export default function FleetDashboard(): JSX.Element {
                                                                                         : [...prev, monthKey]
                                                                                 );
                                                                             } else {
-                                                                                // Click normal: filtrar por este m├¬s
+                                                                                // Click normal: filtrar por este mês
                                                                                 if (selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month) {
                                                                                     setSelectedTemporalFilter(null);
                                                                                 } else {
@@ -3387,7 +3394,7 @@ export default function FleetDashboard(): JSX.Element {
                                                                                     }
                                                                                 }}
                                                                                 className="w-6 h-6 flex items-center justify-center text-xs rounded hover:bg-slate-100 mr-2"
-                                                                                aria-label={isMonthExpanded ? 'Colapsar m├¬s' : 'Expandir m├¬s'}
+                                                                                aria-label={isMonthExpanded ? 'Colapsar mês' : 'Expandir mês'}
                                                                             >
                                                                                 {isMonthExpanded ? 'Ôû╝' : 'ÔûÂ'}
                                                                             </button>
@@ -3407,7 +3414,7 @@ export default function FleetDashboard(): JSX.Element {
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Dias do M├¬s (se expandido) */}
+                                                                    {/* Dias do Mês (se expandido) */}
                                                                     {isMonthExpanded && (
                                                                         <div className="bg-slate-50 px-4 py-2">
                                                                             <div className="grid grid-cols-7 gap-1">
@@ -3434,7 +3441,7 @@ export default function FleetDashboard(): JSX.Element {
                             {/* 3) Abas para Motivo / Status / Tipo Veículo / Modelo / Cliente / Local */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <Title>Resumo Anal├¡tico de Carro Reserva</Title>
+                                    <Title>Resumo Analítico de Carro Reserva</Title>
                                     <div className="flex gap-2 flex-wrap">
                                         <button
                                             onClick={() => setSelectedResumoChart('motivo')}
@@ -3464,13 +3471,13 @@ export default function FleetDashboard(): JSX.Element {
                                             onClick={() => setSelectedResumoChart('cliente')}
                                             className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'cliente' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                         >
-                                            Di├írias por Cliente
+                                            Diárias por Cliente
                                         </button>
                                         <button
                                             onClick={() => setSelectedResumoChart('local')}
                                             className={`px-3 py-1 text-xs rounded-full border transition-colors ${selectedResumoChart === 'local' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                                         >
-                                            Di├írias por Local
+                                            Diárias por Local
                                         </button>
                                     </div>
                                 </div>
@@ -3482,7 +3489,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 12 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorr├¬ncias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_motivo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                 </Bar>
@@ -3496,7 +3503,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 12 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorr├¬ncias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
                                                 </Bar>
@@ -3510,7 +3517,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={180} tick={{ fontSize: 11 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorr├¬ncias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Ocorrências']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16} fill="#7c3aed" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_tipo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                                 </Bar>
@@ -3538,7 +3545,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Di├írias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                                 </Bar>
@@ -3552,7 +3559,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                                 <XAxis type="number" hide />
                                                 <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Di├írias']} />
+                                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
                                                 <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#2563eb" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_local', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
                                                     <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
                                                 </Bar>
@@ -3562,13 +3569,13 @@ export default function FleetDashboard(): JSX.Element {
                                 </div>
                             </Card>
 
-                            {/* Modelos agora acess├¡veis via o card de Resumo (bot├úo 'Modelo') - card duplicado removido */}
+                            {/* Modelos agora acessíveis via o card de Resumo (botão 'Modelo') - card duplicado removido */}
 
                             {/* Tabela de Detalhamento */}
                             <Card id="reserva-table" className="p-0 overflow-hidden">
                                 <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                                     <div className="flex items-center gap-2">
-                                        <Title>Detalhamento de Ocorr├¬ncias</Title>
+                                        <Title>Detalhamento de Ocorrências</Title>
                                         <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(filteredReservas.length)} registros</span>
                                     </div>
                                     <button onClick={() => exportToExcel(filteredReservas, 'carro_reserva')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded">
@@ -3579,18 +3586,18 @@ export default function FleetDashboard(): JSX.Element {
                                     <table className="w-full text-sm text-left">
                                         <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
                                             <tr>
-                                                <th className="px-6 py-3">Data Cria├º├úo</th>
-                                                <th className="px-6 py-3">Ocorr├¬ncia</th>
+                                                <th className="px-6 py-3">Data Criação</th>
+                                                <th className="px-6 py-3">Ocorrência</th>
                                                 <th className="px-6 py-3">Placa Reserva</th>
                                                 <th className="px-6 py-3">Modelo Reserva</th>
-                                                <th className="px-6 py-3">Data Devolu├º├úo</th>
-                                                <th className="px-6 py-3">Di├írias</th>
-                                                <th className="px-6 py-3">Contrato Loca├º├úo</th>
+                                                <th className="px-6 py-3">Data Devolução</th>
+                                                <th className="px-6 py-3">Diárias</th>
+                                                <th className="px-6 py-3">Contrato Locação</th>
                                                 <th className="px-6 py-3">Cliente</th>
                                                 <th className="px-6 py-3">Tipo Veículo</th>
                                                 <th className="px-6 py-3">Fornecedor Reserva</th>
                                                 <th className="px-6 py-3">Motivo</th>
-                                                <th className="px-6 py-3">N├║mero Reserva</th>
+                                                <th className="px-6 py-3">Número Reserva</th>
                                                 <th className="px-6 py-3">Requisitante</th>
                                                 <th className="px-6 py-3">Telefone</th>
                                                 <th className="px-6 py-3">Origem</th>
@@ -3599,7 +3606,7 @@ export default function FleetDashboard(): JSX.Element {
                                                 <th className="px-6 py-3">Km Final</th>
                                                 <th className="px-6 py-3">Cancelado Em</th>
                                                 <th className="px-6 py-3">Motivo Cancelamento</th>
-                                                <th className="px-6 py-3">Observa├º├Áes</th>
+                                                <th className="px-6 py-3">Observações</th>
                                                 <th className="px-6 py-3 text-center">Status</th>
                                             </tr>
                                         </thead>

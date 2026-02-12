@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, BarChart3, List, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2 } from 'lucide-react';
+import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2 } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend } from 'recharts';
 
@@ -54,8 +54,12 @@ const KM_ORDER = ['0-10k', '10k-20k', '20k-30k', '30k-40k', '40k-50k', '50k-60k'
 const AGE_ORDER = ['0-12m', '13-24m', '25-36m', '37-48m', '49-60m', '+60m'];
 
 // Component: collapsible section per montadora showing top models as a small bar chart
-function MontadoraSection({ montadora, models, defaultExpanded = false }: { montadora: string; models: { name: string; value: number; fullKey: string }[]; defaultExpanded?: boolean }) {
+
+// Lightweight virtual table (no external deps)
+
+const MontadoraSection = React.memo(function MontadoraSection({ montadora, models, defaultExpanded = false }: { montadora: string; models: { name: string; value: number; fullKey: string }[]; defaultExpanded?: boolean }) {
   const [expanded, setExpanded] = useState(!!defaultExpanded);
+  React.useEffect(() => setExpanded(!!defaultExpanded), [defaultExpanded]);
   const totalCount = models.reduce((s, m) => s + m.value, 0);
 
   return (
@@ -84,15 +88,17 @@ function MontadoraSection({ montadora, models, defaultExpanded = false }: { mont
       )}
     </div>
   );
-}
+});
 
-export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContract }) => {
+const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContract }) => {
+  // removed virtualized ROW_HEIGHT (no longer used)
   const [viewMode, setViewMode] = useState<'analysis' | 'list'>('analysis');
   const [expandAllModels, setExpandAllModels] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   // Pagination for list view
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(25);
   // For dropdown-style filter panels in List view
   const [openFilterPanel, setOpenFilterPanel] = useState<string | null>(null);
   // per-panel search text to filter long lists inside dropdowns
@@ -123,7 +129,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
     contractNumber: string[];
     plate: string[];
     model: string[];
-  }>({
+  }>( {
     strategy: [],
     type: [],
     year: [],
@@ -150,7 +156,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const toggleFilter = (key: keyof typeof filters, value: string) => {
+  const toggleFilter = React.useCallback((key: keyof typeof filters, value: string) => {
     setFilters(prev => {
       const current = prev[key];
       if (current.includes(value)) {
@@ -159,11 +165,11 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
         return { ...prev, [key]: [...current, value] }; 
       }
     });
-  };
+  }, []);
 
-  const clearFilters = () => {
+  const clearFilters = React.useCallback(() => {
     setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [] });
-  };
+  }, []);
   
   // --- DATA PREPARATION ---
   const enrichedContracts = useMemo(() => {
@@ -195,7 +201,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
       if (filters.model.length > 0 && !filters.model.includes(String(c.modelo_veiculo || c.model || c.modelo || '').trim())) return false;
       if (filters.situation.length > 0 && !filters.situation.includes(String(c.contractStatus || '').trim())) return false;
 
-      const lowerSearch = searchTerm.toLowerCase();
+      const lowerSearch = debouncedSearchTerm.toLowerCase();
       const searchMatch =
         String(c.clientName || '').toLowerCase().includes(lowerSearch) ||
         String(c.contractNumber || '').toLowerCase().includes(lowerSearch) ||
@@ -211,18 +217,60 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
 
       return true;
     });
-  }, [enrichedContracts, searchTerm, filters]);
+  }, [enrichedContracts, debouncedSearchTerm, filters]);
 
   // Reset to first page when filters/search change
   React.useEffect(() => {
     setPage(1);
-  }, [filteredContracts.length, searchTerm, filters]);
+  }, [filteredContracts.length, debouncedSearchTerm, filters]);
+
+  // Debounce searchTerm to avoid recomputing filters on every keystroke
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
 
   const pageCount = Math.max(1, Math.ceil(filteredContracts.length / pageSize));
   const currentPageContracts = useMemo(() => {
     const start = (page - 1) * pageSize;
     return filteredContracts.slice(start, start + pageSize);
   }, [filteredContracts, page, pageSize]);
+
+  // Progressive/chunked rendering state to avoid blocking the main thread
+  const [visibleContracts, setVisibleContracts] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const source = (pageSize === 999999) ? filteredContracts : currentPageContracts;
+    if (!source || source.length === 0) {
+      setVisibleContracts([]);
+      return;
+    }
+
+    if (source.length <= 200) {
+      setVisibleContracts(source);
+      return;
+    }
+
+    let cancelled = false;
+    setVisibleContracts([]);
+    const chunk = 100;
+    let idx = 0;
+
+    const pushChunk = () => {
+      if (cancelled) return;
+      const next = source.slice(idx, idx + chunk);
+      setVisibleContracts(prev => prev.concat(next));
+      idx += chunk;
+      if (idx < source.length) {
+        setTimeout(pushChunk, 0);
+      }
+    };
+
+    pushChunk();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredContracts, currentPageContracts, pageSize]);
 
   // --- CHART AGGREGATIONS ---
   const analysisData = useMemo(() => {
@@ -282,7 +330,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
        groups[key].count += 1;
        // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe` if present
        groups[key].fipe += (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
-       groups[key].acquisition += c.purchasePrice || 0;
+      groups[key].acquisition += (c.ValorCompra as number) || c.purchasePrice || 0;
        groups[key].rental += c.monthlyValue || 0;
      });
 
@@ -296,7 +344,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
     revenue: filteredContracts.reduce((acc, c) => acc + c.monthlyValue, 0),
     // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe`
     fipe: filteredContracts.reduce((acc, c) => acc + ((c.valorFipeAtual as number) || (c.currentFipe as number) || 0), 0),
-    acquisition: filteredContracts.reduce((acc, c) => acc + c.purchasePrice, 0),
+    acquisition: filteredContracts.reduce((acc, c) => acc + (((c as any).ValorCompra as number) || c.purchasePrice || 0), 0),
   };
 
   const hasObservations = filteredContracts.some(c => !!c.observation);
@@ -304,10 +352,9 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
   const RETURN_PERCENTAGE = 0.80; // 80%
 
   // Handlers
-  const handleStrategyChange = (id: string, newStrategy: RenewalStrategy) => {
+  const handleStrategyChange = React.useCallback((id: string, newStrategy: RenewalStrategy) => {
     const contract = contracts.find(c => c.id === id);
     if (!contract) return;
-    // If the selected strategy requires purchasePrice and it's missing, open modal to collect it
     if (newStrategy === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
       setPendingStrategyChange({ id, newStrategy });
       setPurchaseModalContractId(id);
@@ -316,21 +363,20 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
       return;
     }
     onUpdateContract({ ...contract, renewalStrategy: newStrategy });
-  };
+  }, [contracts, onUpdateContract]);
 
-  const openPurchaseModalFor = (id: string) => {
+  const openPurchaseModalFor = React.useCallback((id: string) => {
     const contract = contracts.find(c => c.id === id);
     setPurchaseModalContractId(id);
     setTempPurchasePrice(contract && contract.purchasePrice ? String(contract.purchasePrice) : '');
     setPendingStrategyChange(null);
     setPurchaseModalOpen(true);
-  };
+  }, [contracts]);
 
-  const handleSavePurchasePrice = () => {
+  const handleSavePurchasePrice = React.useCallback(() => {
     if (!purchaseModalContractId) return;
     const value = Number(String(tempPurchasePrice).replace(/[^0-9.,-]/g, '').replace(',', '.'));
     if (!Number.isFinite(value) || value <= 0) {
-      // minimal validation
       alert('Informe um valor de aquisição válido maior que zero.');
       return;
     }
@@ -345,37 +391,47 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
     setPendingStrategyChange(null);
     setPurchaseModalContractId(null);
     setTempPurchasePrice('');
-  };
+  }, [purchaseModalContractId, tempPurchasePrice, contracts, pendingStrategyChange, onUpdateContract]);
   
-  const handleOpenObservation = (contract: Contract) => {
+  const handleOpenObservation = React.useCallback((contract: Contract) => {
     setSelectedContractId(contract.id);
     setTempObservation(contract.observation || '');
     setObservationModalOpen(true);
-  };
+  }, []);
 
-  const handleSaveObservation = () => {
+  const handleSaveObservation = React.useCallback(() => {
     if (selectedContractId) {
         const contract = contracts.find(c => c.id === selectedContractId);
         if (contract) onUpdateContract({ ...contract, observation: tempObservation });
     }
     setObservationModalOpen(false);
-  };
+  }, [selectedContractId, contracts, tempObservation, onUpdateContract]);
 
   // Helper to check if any filters are active
   const hasActiveFilters = Object.values(filters).some(arr => arr.length > 0);
+
+  // Options used to render compact filter buttons (kept out of JSX to avoid parser issues)
+  const filterOptions = [
+    { key: 'client', label: 'Cliente', list: clientsList },
+    { key: 'commercialContract', label: 'Contrato Comercial', list: commercialContractsList },
+    { key: 'contractNumber', label: 'Contrato Locação', list: contractNumbersList },
+    { key: 'plate', label: 'Placa', list: platesList },
+    { key: 'model', label: 'Modelo', list: modelsList },
+    { key: 'situation', label: 'Situação', list: situationsList },
+    { key: 'year', label: 'Vencimentos', list: yearsList }
+  ];
 
   return (
     <div className="p-6 max-w-[1920px] mx-auto min-h-screen bg-slate-50">
       
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <BarChart3 className="text-blue-600" /> Painel de Renovação
-          </h2>
+          <h2 className="text-2xl font-bold text-slate-800">Contratos & Ativos</h2>
           <p className="text-sm text-slate-500">Gestão estratégica de contratos e ativos.</p>
         </div>
-        <div className="flex gap-4">
+      </div>
+      <div className="flex gap-4">
             {hasActiveFilters && (
                 <button 
                   onClick={clearFilters}
@@ -385,21 +441,21 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                 </button>
             )}
             <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                <button onClick={() => setViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-                    <BarChart3 size={14}/> Gráficos
-                </button>
-                <button onClick={() => setViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-                    <List size={14}/> Lista
-                </button>
+              <button onClick={() => setViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+                <BarChart3 size={14}/> Gráficos
+              </button>
+              <button onClick={() => setViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+                <ListIcon size={14}/> Lista
+              </button>
             </div>
-        </div>
-      </div>
+          </div>
 
       {viewMode === 'analysis' && (
+        <>
         <div className="animate-in fade-in duration-500 space-y-6">
-          
-          {/* 1. FINANCIAL SUMMARY KPI (Blue Cards) */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+          {/* KPIs Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* FIPE */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
                   <div className="bg-blue-700 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
@@ -455,17 +511,9 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                   </div>
               </div>
           </div>
-          {/* Compact filters (buttons) - Analysis view */}
+
           <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-center">
-            {[
-              { key: 'client', label: 'Cliente', list: clientsList },
-              { key: 'commercialContract', label: 'Contrato Comercial', list: commercialContractsList },
-              { key: 'contractNumber', label: 'Contrato Locação', list: contractNumbersList },
-              { key: 'plate', label: 'Placa', list: platesList },
-              { key: 'model', label: 'Modelo', list: modelsList },
-              { key: 'situation', label: 'Situação', list: situationsList },
-              { key: 'year', label: 'Vencimentos', list: yearsList }
-            ].map(f => (
+            {filterOptions.map(f => (
               <div key={f.key} className="relative">
                 <button onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
                   <span>{f.label}</span>
@@ -670,7 +718,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                          <th className="px-6 py-3">Rótulos de Linha (Estratégia)</th>
                          <th className="px-6 py-3 text-center">QT</th>
                          <th className="px-6 py-3 text-right">Valor Fipe</th>
-                         <th className="px-6 py-3 text-right">Valor Aquisição</th>
+                         <th className="px-6 py-3 text-right">Valor Compra</th>
                          <th className="px-6 py-3 text-right">Valor de Locação</th>
                       </tr>
                    </thead>
@@ -704,6 +752,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
           </div>
 
         </div>
+        </>
       )}
 
       {viewMode === 'list' && (
@@ -717,7 +766,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                  <div className="whitespace-nowrap">{filteredContracts.length} contratos encontrados.</div>
                  <div className="flex items-center gap-2">
                    <label className="text-xs">Linhas:</label>
-                   <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
+                   <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
                      <option value={25}>25</option>
                      <option value={50}>50</option>
                      <option value={100}>100</option>
@@ -807,13 +856,14 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                        <th className="px-4 py-4">Veículo</th>
                        <th className="px-4 py-4">Montadora</th>
                        <th className="px-4 py-4">Modelo</th>
-                       <th className="px-4 py-4">Categoria</th>
+                       <th className="px-4 py-4">Grupo Veículo</th>
                        <th className="px-4 py-4 text-center">Período</th>
                        <th className="px-4 py-4 text-center">Situação Contrato</th>
                        <th className="px-4 py-4 text-center">Idade Veículo</th>
                        <th className="px-4 py-4 text-center">KM Informado</th>
                        <th className="px-4 py-4 text-right">FIPE</th>
-                       <th className="px-4 py-4 text-right">Valor Aquisição</th>
+                       <th className="px-4 py-4 text-right">Valor Compra</th>
+                       <th className="px-4 py-4 text-right">Valor Aquisição (Zero KM)</th>
                        <th className="px-4 py-4 text-right">Valores</th>
                        <th className="px-4 py-4 text-center">Estratégia</th>
                        {hasObservations && <th className="px-4 py-4">Obs.</th>}
@@ -821,7 +871,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
-                    {currentPageContracts.map((contract: any) => {
+                    {visibleContracts.map((contract: any) => {
                        const formatDate = (dateStr?: string) => {
                          if (!dateStr) return '-';
                          try {
@@ -858,7 +908,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                             <div className="text-xs text-slate-700">{contract.modelo_veiculo && contract.modelo_veiculo !== 'N/A' ? contract.modelo_veiculo : (contract.modelo && contract.modelo !== 'N/A' ? contract.modelo : (contract.model && contract.model !== 'N/A' ? contract.model : '-'))}</div>
                           </td>
                           <td className="px-4 py-4">
-                            <div className="text-xs text-slate-700">{contract.categoria && contract.categoria !== 'N/A' ? contract.categoria : '-'}</div>
+                            <div className="text-xs text-slate-700">{(contract.grupoVeiculo || contract.categoria) && (contract.grupoVeiculo || contract.categoria) !== 'N/A' ? (contract.grupoVeiculo || contract.categoria) : '-'}</div>
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="text-[10px] text-slate-500">Início: {formatDate(contract.initialDate)}</div>
@@ -897,8 +947,8 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                             <div className="text-xs font-mono text-slate-600">{contract.valorFipeAtual ? `R$ ${contract.valorFipeAtual.toLocaleString('pt-BR')}` : '-'}</div>
                           </td>
                             <td className="px-4 py-4 text-right">
-                              {typeof contract.purchasePrice === 'number' && contract.purchasePrice > 0 ? (
-                                <div className="text-xs font-mono text-slate-600">R$ {contract.purchasePrice.toLocaleString('pt-BR')}</div>
+                              {typeof contract.ValorCompra === 'number' && contract.ValorCompra > 0 ? (
+                                <div className="text-xs font-mono text-slate-600">R$ {contract.ValorCompra.toLocaleString('pt-BR')}</div>
                               ) : (
                                 contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
                                   <div className="flex items-center gap-2 justify-end">
@@ -909,6 +959,9 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                                   <div className="text-xs font-mono text-slate-600">-</div>
                                 )
                               )}
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <div className="text-xs font-mono text-slate-600">-</div>
                             </td>
                           <td className="px-4 py-4 text-right">
                             <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
@@ -930,9 +983,9 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
                           </td>
                        </tr>
                        );
-                    })}
-                 </tbody>
-              </table>
+                      })}
+                    </tbody>
+                  </table>
            </div>
         </div>
       )}
@@ -992,3 +1045,7 @@ export const Contracts: React.FC<ContractsProps> = ({ contracts, onUpdateContrac
     </div>
   );
 };
+
+export const Contracts = React.memo(ContractsComponent);
+Contracts.displayName = 'Contracts';
+export default Contracts;

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
@@ -73,7 +73,17 @@ export default function FleetIdleDashboard(): JSX.Element {
   const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
   const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
-  const frota = useMemo(() => Array.isArray(frotaData) ? frotaData : [], [frotaData]);
+  // Normalizar dados da frota para nomes de propriedades consistentes
+  const frota = useMemo(() => {
+    const raw = Array.isArray(frotaData) ? frotaData : [];
+    return raw.map((v: any) => ({
+      ...v,
+      Placa: String(v.Placa || v.placa || '').trim().toUpperCase(),
+      Status: v.Status || v.status || v.SituacaoVeiculo || v.situacaoveiculo || 'N/A',
+      FinalidadeUso: String(v.FinalidadeUso || v.finalidadeUso || v.finalidadeuso || v.finalidade || '').trim().toUpperCase(),
+      DiasNoStatus: parseNum(v.DiasSituacao || v.diassituacao || v.diasnostatus || v.DiasNoStatus || 0)
+    }));
+  }, [frotaData]);
   const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
   const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
   const historicoSituacao = useMemo(() => Array.isArray(historicoSituacaoRaw) ? historicoSituacaoRaw : [], [historicoSituacaoRaw]);
@@ -82,20 +92,28 @@ export default function FleetIdleDashboard(): JSX.Element {
   const historicoMap = useMemo(() => {
     const map = new Map<string, any[]>();
     historicoSituacao.forEach((h: any) => {
-      const placa = h.Placa;
+      const placaRaw = h.Placa || h.placa || '';
+      const placa = String(placaRaw).trim().toUpperCase();
       if (!placa) return;
       if (!map.has(placa)) map.set(placa, []);
       map.get(placa)!.push(h);
     });
-    map.forEach((arr) => arr.sort((a: any, b: any) => parseDateSafe(a?.UltimaAtualizacao).getTime() - parseDateSafe(b?.UltimaAtualizacao).getTime()));
+    map.forEach((arr) => arr.sort((a: any, b: any) => {
+      const da = parseDateSafe(a?.UltimaAtualizacao || a?.ultimaatualizacao || a?.DataEvento || a?.dataevento);
+      const db = parseDateSafe(b?.UltimaAtualizacao || b?.ultimaatualizacao || b?.DataEvento || b?.dataevento);
+      return da.getTime() - db.getTime();
+    }));
     return map;
   }, [historicoSituacao]);
 
   const veiculoAtualMap = useMemo(() => {
     const m = new Map<string, any>();
-    frota.forEach(v => { if (v.Placa) m.set(v.Placa, v); });
+    frota.forEach(v => { if (v.Placa) m.set(String(v.Placa).trim().toUpperCase(), v); });
     return m;
   }, [frota]);
+
+  // Cache de status por placa+data (evita recalcular historico repetidamente)
+  const statusCacheRef = useRef<Map<string, { status: string | null; usedHistorico: boolean; lastChangeDate: string | null }>>(new Map());
 
   // Menor timestamp entre todas as fontes (usado para o modo 'all')
   
@@ -104,16 +122,22 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   // Resolve o status de uma placa em uma data (snapshot). Retorna { status, lastChangeDate, usedHistorico, usedFallback }
   const resolveStatusForDate = (placa: string, checkDate: Date) => {
-    const events = (historicoMap.get(placa) || []);
+    const dateKey = checkDate.toISOString().split('T')[0];
+    const cacheKey = `${placa}|${dateKey}`;
+    const cached = statusCacheRef.current.get(cacheKey);
+    if (cached) return { ...cached };
+    const events = (historicoMap.get(String(placa).trim().toUpperCase()) || []);
     let status: string | null = null;
     let usedHistorico = false;
     let lastChangeDate: string | null = null;
 
     if (events.length > 0) {
       for (let j = events.length - 1; j >= 0; j--) {
-        const evDate = parseDateSafe(events[j]?.UltimaAtualizacao);
+        const evDate = parseDateSafe(
+          events[j]?.UltimaAtualizacao || events[j]?.ultimaatualizacao || events[j]?.DataEvento || events[j]?.dataevento
+        );
         if (evDate.getTime() <= checkDate.getTime()) {
-          status = events[j]?.SituacaoVeiculo || null;
+          status = events[j]?.SituacaoVeiculo || events[j]?.situacaoveiculo || events[j]?.Situacao || events[j]?.situacao || null;
           usedHistorico = true;
           lastChangeDate = evDate.toISOString();
           break;
@@ -122,39 +146,38 @@ export default function FleetIdleDashboard(): JSX.Element {
     }
 
     if (!status) {
-      const v = veiculoAtualMap.get(placa);
+      const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
       if (v) {
-        status = v.Status ?? null;
+        status = v.Status || v.status || v.SituacaoVeiculo || v.situacaoveiculo || null;
       }
     }
-
-    return { status, usedHistorico, lastChangeDate };
+    const result = { status, usedHistorico, lastChangeDate };
+    try { statusCacheRef.current.set(cacheKey, result); } catch (e) { /* ignore */ }
+    return result;
   };
+
+  // Limpar cache quando dados mudarem para evitar resultados obsoletos
+  useEffect(() => {
+    statusCacheRef.current.clear();
+  }, [historicoSituacao, frota]);
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
   const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d'>('90d');
   // Debug: log quando periodoSelecionado mudar
-  useEffect(() => {
-    console.log('[FleetIdle] periodoSelecionado:', periodoSelecionado);
-  }, [periodoSelecionado]);
+  // Removido useEffect vazio que causava re-renders potenciais
   
   const pageSize = 10;
-
-  // Debug: verificar dados carregados
-  const hasPatioData = patioMov.length > 0;
 
   // Gerar histórico diário de % improdutiva (90 dias ou todo histórico disponível)
   const dailyIdleHistory = useMemo(() => {
     const today = new Date();
     const data: { date: string; dateLocal: string; pct: number; improdutiva: number; total: number; displayDate: string }[] = [];
 
-    // Debug log
-    console.log('📊 [FleetIdle] Total de placas na frota:', frota.length);
-    console.log('📊 [FleetIdle] Total de eventos no histórico:', historicoSituacao.length);
-    console.log('📊 [FleetIdle] Placas com histórico:', historicoMap.size);
-
-    const placas = frota.map(v => v.Placa).filter(Boolean);
+    // OTIMIZAÇÃO: Filtrar terceiros ANTES do loop pesado para melhorar performance
+    const placas = frota
+      .filter(v => v.Placa && v.FinalidadeUso !== 'TERCEIRO')
+      .map(v => v.Placa);
 
     // (usar `veiculoAtualMap` memoizado acima para fallback de status)
 
@@ -187,42 +210,27 @@ export default function FleetIdleDashboard(): JSX.Element {
       let usandoHistoricoCount = 0;
       let usandoFallbackCount = 0;
 
-      placas.forEach((placa: string) => {
+      for (let idx = 0; idx < placas.length; idx++) {
+        const placa = placas[idx];
         const { status, usedHistorico } = resolveStatusForDate(placa, checkDate);
         if (usedHistorico) usandoHistoricoCount++;
         else usandoFallbackCount++;
+        if (!status) continue;
 
-        if (!status) return;
-
-        const vCurrent = veiculoAtualMap.get(placa) as any;
-        const finalidadeVal = ((vCurrent?.FinalidadeUso ?? vCurrent?.finalidadeUso ?? '') as any).toString().trim();
-        const isTerceiro = finalidadeVal.toUpperCase() === 'TERCEIRO';
-
-        // Excluir veículos de 'Terceiro' do monitoramento de improdutiva
-        if (isTerceiro) return;
-
+        // Terceiros já foram filtrados antes do loop
         const cat = getCategory(status || '');
+        // DEBUG: Log primeiro dia para verificar classificação
+        if (i === daysToGenerate - 1 && idx < 5) {
+          console.log(`📊 Placa ${placa}: status="${status}" → categoria="${cat}"`);
+        }
         if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
         if (cat === 'Improdutiva') improdutivaCount += 1;
-      });
+      }
 
       const pct = activeCount > 0 ? (improdutivaCount / activeCount) * 100 : 0;
       data.push({ date: dateISO, dateLocal: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate });
 
-      // Debug para primeiros e últimos dias
-      if (daysToGenerate <= 100) {
-        if (i >= daysToGenerate - 3 || i <= 2) {
-          console.log(`📅 [${dateStr}] Improd: ${improdutivaCount}, Total: ${activeCount}, Pct: ${pct.toFixed(1)}%, Histórico: ${usandoHistoricoCount}, Fallback: ${usandoFallbackCount}`);
-        }
-      } else {
-        // apenas amostra
-        if (i % Math.ceil(daysToGenerate / 6) === 0) {
-          console.log(`📅 [${dateStr}] Improd: ${improdutivaCount}, Total: ${activeCount}, Pct: ${pct.toFixed(1)}%`);
-        }
-      }
     }
-
-    console.log('📊 [FleetIdle] Histórico gerado com', data.length, 'dias');
     return data;
   }, [frota, historicoSituacao, periodoSelecionado, patioMov, veiculoMov]);
 
@@ -234,14 +242,17 @@ export default function FleetIdleDashboard(): JSX.Element {
     const checkDate = parts.length === 3
       ? new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
       : new Date(selectedDate + 'T23:59:59');
-    const placas = frota.map(v => v.Placa).filter(Boolean);
+    // OTIMIZAÇÃO: Filtrar terceiros antes do processamento
+    const placas = frota
+      .filter(v => v.Placa && v.FinalidadeUso !== 'TERCEIRO')
+      .map(v => v.Placa);
 
     // Usar historicoMap centralizado
 
     const improdutivos: any[] = [];
 
     placas.forEach((placa: string) => {
-      const v = frota.find(f => f.Placa === placa) || {} as any;
+      const v = veiculoAtualMap.get(placa) || {} as any;
 
       // Reconstruir status até checkDate usando a função centralizada
       const { status: currentStatus, lastChangeDate } = resolveStatusForDate(placa, checkDate);
@@ -270,11 +281,8 @@ export default function FleetIdleDashboard(): JSX.Element {
 
         const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
 
-        // Excluir veículos de 'Terceiro' do monitoramento
-        const finalidadeValV = ((v?.FinalidadeUso ?? v?.finalidadeUso ?? '') as any).toString().trim();
-        const isTerceiro = finalidadeValV.toUpperCase() === 'TERCEIRO';
-        if (!isTerceiro) {
-          improdutivos.push({
+        // Terceiros já foram filtrados antes do loop
+        improdutivos.push({
           Placa: placa,
           Modelo: v.Modelo,
           Status: currentStatus || v.Status,
@@ -283,8 +291,7 @@ export default function FleetIdleDashboard(): JSX.Element {
           DataInicioStatus: dataInicioStatus,
           UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
           UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
-          });
-        }
+        });
       }
     });
 
@@ -294,33 +301,28 @@ export default function FleetIdleDashboard(): JSX.Element {
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
   const currentIdleKPIs = useMemo(() => {
-    const improdutivos = frota.filter(v => {
-      const finalidadeVal = ((v.FinalidadeUso ?? v.finalidadeUso ?? '') as any).toString().trim();
-      return getCategory(v.Status) === 'Improdutiva' && finalidadeVal.toUpperCase() !== 'TERCEIRO';
-    });
-    const ativos = frota.filter(v => {
-      const cat = getCategory(v.Status);
-      // Excluir 'Terceiro' do monitoramento de ativos/improdutiva
-      const finalidadeVal = ((v.FinalidadeUso ?? v.finalidadeUso ?? '') as any).toString().trim();
-      const isTerceiro = finalidadeVal.toUpperCase() === 'TERCEIRO';
-      if (isTerceiro) return false;
-      return cat === 'Produtiva' || cat === 'Improdutiva';
-    });
-    
-    const pct = ativos.length > 0 ? (improdutivos.length / ativos.length) * 100 : 0;
-    const mediaDias = improdutivos.length > 0
-      ? improdutivos.reduce((sum, v) => sum + parseNum(v.DiasNoStatus), 0) / improdutivos.length
+    // Calcular os KPIs usando o status atual da frota (mesma origem da Taxa de Produtividade)
+    const ativosList = frota.filter(v => v.Placa && v.FinalidadeUso !== 'TERCEIRO');
+
+    const produtivaCount = ativosList.filter(v => getCategory(v.Status) === 'Produtiva').length;
+    const improdutivaCount = ativosList.filter(v => getCategory(v.Status) === 'Improdutiva').length;
+
+    const ativos = produtivaCount + improdutivaCount;
+    const pct = ativos > 0 ? (improdutivaCount / ativos) * 100 : 0;
+
+    const mediaDias = improdutivaCount > 0
+      ? ativosList.reduce((sum, v) => (getCategory(v.Status) === 'Improdutiva' ? sum + parseNum(v.DiasNoStatus) : sum), 0) / improdutivaCount
       : 0;
-    
-    // Tendência (comparar últimos 7 dias vs 7 anteriores)
+
+    // Tendência (comparar últimos 7 dias vs 7 anteriores) — manter baseado no histórico
     const last7 = dailyIdleHistory.slice(-7);
     const prev7 = dailyIdleHistory.slice(-14, -7);
-    const avgLast7 = last7.reduce((s, d) => s + d.pct, 0) / 7;
-    const avgPrev7 = prev7.reduce((s, d) => s + d.pct, 0) / 7;
+    const avgLast7 = last7.length > 0 ? last7.reduce((s, d) => s + d.pct, 0) / last7.length : 0;
+    const avgPrev7 = prev7.length > 0 ? prev7.reduce((s, d) => s + d.pct, 0) / prev7.length : 0;
     const trend = avgLast7 - avgPrev7;
-    
-    return { qtd: improdutivos.length, pct, mediaDias, trend };
-  }, [frota, dailyIdleHistory]);
+
+    return { qtd: improdutivaCount, pct, mediaDias, trend };
+  }, [frota, dailyIdleHistory, historicoSituacao]);
 
   const exportToExcel = (data: any[], filename: string) => {
     try {
@@ -349,25 +351,6 @@ export default function FleetIdleDashboard(): JSX.Element {
           </div>
         </div>
       </div>
-
-      {/* Aviso sobre dados faltantes */}
-      {!hasPatioData && (
-        <Card className="bg-amber-50 border border-amber-200">
-          <div className="flex gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <Title className="text-amber-800">Dados de Movimentação de Pátio Indisponíveis</Title>
-              <Text className="text-amber-700 mt-2">
-                As análises avançadas (tempo médio por pátio, taxa de giro, análise de usuários, heat map) 
-                requerem dados de movimentação que ainda não foram gerados pelo ETL.
-              </Text>
-              <Text className="text-amber-700 mt-2 font-medium">
-                Execute: <code className="bg-amber-100 px-2 py-1 rounded">cd scripts/local-etl && node run-sync-v2.js</code>
-              </Text>
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* KPIs Atuais */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -414,7 +397,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   title="Últimos 30 dias"
                 >
                   Últimos 30 dias
-                
+                </button>
                 <button
                   onClick={() => setPeriodoSelecionado('90d')}
                   className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '90d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
@@ -428,7 +411,6 @@ export default function FleetIdleDashboard(): JSX.Element {
                   title="Últimos 6 meses"
                 >
                   Últimos 6 meses
-                </button>
                 </button>
               </div>
               <Badge color="rose" icon={TrendingDown}>

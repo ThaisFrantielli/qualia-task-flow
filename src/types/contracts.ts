@@ -43,6 +43,8 @@ export interface Contract {
   km?: number;
   // Valor FIPE atual trazido de `dim_frota`
   valorFipeAtual?: number;
+  // Valor de compra do veículo (dim_frota)
+  ValorCompra?: number;
   // Montadora (ex: Volkswagen, Toyota)
   montadora?: string;
   // Modelo do veículo (string original do dim_frota)
@@ -50,6 +52,10 @@ export interface Contract {
   // Modelo alternativo vindo do JOIN (`modelo_veiculo`)
   modelo_veiculo?: string;
   // Categoria / Grupo do veículo
+  // Grupo do Veículo (mapeado da coluna `GrupoVeiculo` em `dim_frota`)
+  grupoVeiculo?: string;
+  // Deprecated: campo antigo `categoria` mantido por compatibilidade.
+  // Favor usar `grupoVeiculo` que corresponde à coluna `GrupoVeiculo`.
   categoria?: string;
   // Localização do veículo vinda de dim_frota (LocalizacaoVeiculo / Localizacao)
   localizacaoVeiculo?: string;

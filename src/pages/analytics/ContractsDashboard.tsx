@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Contracts } from '@/components/analytics/Contracts';
 import { Contract } from '@/types/contracts';
@@ -8,16 +8,12 @@ type AnyObject = { [k: string]: any };
 
 export default function ContractsDashboard(): JSX.Element {
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
-  const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
   
-  const [contracts, setContracts] = useState<Contract[]>([]);
-
   // Transform raw data to Contract types
-  const enrichedContracts = useMemo(() => {
+  const contracts = useMemo(() => {
     if (!contractsData || !Array.isArray(contractsData)) return [];
     
     const contractsArray = contractsData as AnyObject[];
-    const frotaArray = (frotaData || []) as AnyObject[];
     
     // Create a map for quick frota lookup by normalized plate
     const normalizeForLookup = (p: unknown) => {
@@ -25,14 +21,7 @@ export default function ContractsDashboard(): JSX.Element {
       return String(p).toUpperCase().replace(/[^A-Z0-9]/g, '');
     };
     
-    const frotaMap = new Map<string, AnyObject>();
-    frotaArray.forEach(v => {
-      const placa = v.Placa || v.placa;
-      const key = normalizeForLookup(placa);
-      if (key) frotaMap.set(key, v);
-    });
-
-    console.log(`[ContractsDashboard] Processing ${contractsArray.length} contracts with ${frotaData?.length || 0} vehicle records available for fallback.`);
+    
 
     return contractsArray.map((c, idx) => {
       // Helper for numeric parsing
@@ -51,18 +40,15 @@ export default function ContractsDashboard(): JSX.Element {
         return '';
       };
 
-      // 1. Resolve Vehicle (Primary or Reserve/Temporary)
-      let lookupKey = normalizeForLookup(c.plate || c.PlacaPrincipal);
-      let veiculo = lookupKey ? frotaMap.get(lookupKey) : undefined;
+      // 1. Resolve plate and joined vehicle fields from API
+      let lookupKey = normalizeForLookup(c.plate || c.PlacaPrincipal || c.placaprincipal);
       let displaySuffix = '';
 
       // Fallback: If no primary vehicle, try PlacaReserva
       if (!lookupKey) {
         const pReserva = getStr(c.PlacaReserva, c.placa_reserva);
         if (pReserva) {
-          // Use reserve plate for lookup to find vehicle stats (Model, KM, etc)
           lookupKey = normalizeForLookup(pReserva);
-          veiculo = lookupKey ? frotaMap.get(lookupKey) : undefined;
           
           const tTemporario = getStr(c.TipoVeiculoTemporario, c.tipo_veiculo_temporario);
           if (tTemporario) {
@@ -71,24 +57,21 @@ export default function ContractsDashboard(): JSX.Element {
         }
       }
 
-      let finalPlate = getStr(c.plate, c.PlacaPrincipal, veiculo?.Placa, getStr(c.PlacaReserva, c.placa_reserva));
+      let finalPlate = getStr(c.plate, c.PlacaPrincipal, c.placaprincipal, getStr(c.PlacaReserva, c.placa_reserva));
       if (finalPlate && displaySuffix) {
         finalPlate += displaySuffix;
       }
 
-      // Prefer data from the matched `veiculo` (dim_frota) when available.
-      // This ensures that when we use a reserve plate (PlacaReserva) the model/categoria
-      // reflect the reserve vehicle instead of falling back to contract-level fields.
-      const finalMontadora = getStr(veiculo?.Montadora, c.montadora, c.Montadora);
-      const finalModelo = getStr(veiculo?.Modelo, c.modelo_veiculo, c.Modelo, c.model);
-      const finalCategoria = getStr(veiculo?.Categoria, veiculo?.GrupoVeiculo, c.categoria, c.Categoria);
+      // Dados vindos do LEFT JOIN de dim_contratos_locacao + dim_frota
+      const finalMontadora = getStr(c.Montadora, c.montadora);
+      const finalModelo = getStr(c.Modelo, c.modelo_veiculo, c.modelo, c.model);
+      const finalCategoria = getStr(c.GrupoVeiculo, c.grupoveiculo, c.Categoria, c.categoria);
 
-      // KM Logic: prefer dim_frota values (most authoritative) then API aliases
-      const rawKm = veiculo?.KmInformado || veiculo?.KM || veiculo?.Km || c.currentKm || c.KmInformado || c.km;
+      // KM / Idade / FIPE / Compra via JOIN (com fallback de nomes)
+      const rawKm = c.currentKm || c.KmInformado || c.kminformado || c.km;
       const finalKm = rawKm ? parseNum(rawKm) : 0;
 
-      // Age Logic: prefer dim_frota age when available
-      const rawAge = veiculo?.IdadeVeiculo || c.ageMonths || c.IdadeVeiculo;
+      const rawAge = c.ageMonths || c.IdadeVeiculo || c.idadeveiculo;
       const finalAge = (rawAge !== undefined && rawAge !== null) ? Math.round(parseNum(rawAge)) : undefined;
 
       // Ensure unique ID (using index to prevent duplicates)
@@ -104,9 +87,11 @@ export default function ContractsDashboard(): JSX.Element {
         
         model: finalModelo,
         montadora: finalMontadora,
+        grupoVeiculo: finalCategoria,
+        // backward-compatible field
         categoria: finalCategoria,
         modelo_veiculo: finalModelo,
-        localizacaoVeiculo: veiculo?.LocalizacaoVeiculo || veiculo?.Localizacao || c.LocalizacaoVeiculo || c.Localizacao || '',
+        localizacaoVeiculo: c.LocalizacaoVeiculo || c.localizacaoveiculo || c.Localizacao || c.localizacao || '',
         mainPlate: finalPlate,
 
         // Numeric fields
@@ -114,17 +99,18 @@ export default function ContractsDashboard(): JSX.Element {
         KmInformado: finalKm, // for compatibility
         ageMonths: finalAge,
         
-        // FIPE: prefer dim_frota authoritative values
-        valorFipeAtual: parseNum(veiculo?.ValorFipeAtual || veiculo?.ValorFipe || c.valorFipeAtual || c.ValorFipeAtual),
+        // FIPE e Compra via JOIN
+        valorFipeAtual: parseNum(c.valorFipeAtual || c.ValorFipeAtual || c.ValorFipe || c.valorfipe),
+        ValorCompra: parseNum(c.ValorCompra || c.valorcompra),
         
         // Original fields logic preserved but simplified
         type: String(c.TipoLocacao || 'Locação'),
         startDate: c.DataInicio || c.DataInicial || new Date().toISOString(),
         endDate: c.DataTermino || c.DataFinal || new Date().toISOString(),
         monthlyValue: parseNum(c.ValorMensalAtual || c.ValorLocacao),
-        currentFipe: parseNum(c.valorFipeAtual || veiculo?.ValorFipeAtual),
-        purchasePrice: parseNum(veiculo?.ValorCompra || c.ValorCompra),
-        manufacturingYear: parseInt(String(veiculo?.AnoFabricacao || new Date().getFullYear())) || new Date().getFullYear(),
+        currentFipe: parseNum(c.valorFipeAtual || c.ValorFipeAtual || c.ValorFipe),
+        purchasePrice: parseNum(c.ValorCompra || c.valorcompra),
+        manufacturingYear: parseInt(String(c.AnoFabricacao || c.anofabricacao || new Date().getFullYear())) || new Date().getFullYear(),
         renewalStrategy: 'WAIT_PERIOD',
         // Dates
         initialDate: c.DataInicio || c.DataInicial || undefined,
@@ -144,41 +130,14 @@ export default function ContractsDashboard(): JSX.Element {
         })()
       } as Contract;
     });
-  }, [contractsData, frotaData]);
-
-  // Update contracts whenever enriched data changes
-  React.useEffect(() => {
-    if (enrichedContracts.length > 0) {
-      const sample = enrichedContracts[0];
-      console.log('[ContractsDashboard] Dados do primeiro contrato:', {
-        id: sample.id,
-        plate: sample.plate,
-        currentKm: sample.currentKm,
-        ageMonths: sample.ageMonths,
-        montadora: sample.montadora,
-        modelo_veiculo: sample.modelo_veiculo,
-        categoria: sample.categoria,
-        currentFipe: sample.currentFipe
-      });
-      // Debug specific plate (reserve) if present - helps verify veiculo lookup
-      try {
-        const normalize = (s?: string) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const target = 'REO-3G47';
-        const targetNorm = normalize(target);
-        const found = enrichedContracts.find(x => normalize(x.plate) === targetNorm || normalize(x.mainPlate) === targetNorm);
-        if (found) console.log('[ContractsDashboard][DEBUG] Found reserva plate data:', found);
-      } catch (e) {
-        // ignore
-      }
-      setContracts(enrichedContracts);
-    }
-  }, [enrichedContracts]);
+  }, [contractsData]);
 
   const handleUpdateContract = useCallback((updatedContract: Contract) => {
-    setContracts(prev => prev.map(c => c.id === updatedContract.id ? updatedContract : c));
+    // Handle updates if needed in the future
+    console.log('Contract update requested:', updatedContract.id);
   }, []);
 
-  if (loadingContracts || loadingFrota) {
+  if (loadingContracts) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
