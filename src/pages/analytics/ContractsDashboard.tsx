@@ -68,9 +68,13 @@ export default function ContractsDashboard(): JSX.Element {
         commercialContract: String(c.ContratoComercial || c.contrato_comercial || c.RefContratoCliente || ''),
         mainPlate: String(c.PlacaPrincipal || c.placa_principal || placa || ''),
         // Dados extraídos de `dim_frota`
-        montadora: String(veiculo?.Montadora || veiculo?.montadora || ''),
+        montadora: String(
+          veiculo?.Montadora || veiculo?.montadora || c.Montadora || c.montadora || ''
+        ),
         modelo: String(veiculo?.Modelo || c.Modelo || c.modelo || ''),
-        categoria: String(veiculo?.Categoria || veiculo?.GrupoVeiculo || ''),
+        categoria: String(
+          veiculo?.Categoria || veiculo?.GrupoVeiculo || c.Categoria || c.categoria || ''
+        ),
         initialDate: dataInicio || undefined,
         finalDate: dataFim || undefined,
         periodMonths: periodMonths || undefined,
