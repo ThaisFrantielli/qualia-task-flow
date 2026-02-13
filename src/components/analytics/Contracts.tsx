@@ -1069,7 +1069,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          </div>
                        </th>
                        {hasObservations && <th className="px-4 py-4">Obs.</th>}
-                       <th className="px-4 py-4 text-center min-w-[80px]">Ações</th>
+                       <th className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-30">Ações</th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
@@ -1229,9 +1229,23 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                              </select>
                           </td>
                           {hasObservations && <td className="px-4 py-4">{contract.observation && <span className="bg-yellow-100 px-2 py-0.5 rounded text-[10px] text-yellow-800">Obs</span>}</td>}
-                            <td className="px-4 py-4 text-center min-w-[80px]">
-                              <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
-                            </td>
+                              <td className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-20">
+                                <div className="flex items-center justify-center gap-2">
+                                 <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
+                                 <div className="relative">
+                                  <select 
+                                    value={contract.renewalStrategy}
+                                    onChange={(e) => handleStrategyChange(contract.id, e.target.value as RenewalStrategy)}
+                                    className="w-full text-xs border rounded py-1 px-2"
+                                    style={{minWidth: 110}}
+                                  >
+                                    {Object.entries(RenewalStrategyLabel).map(([key, label]) => (
+                                      <option key={key} value={key}>{label}</option>
+                                    ))}
+                                  </select>
+                                 </div>
+                                </div>
+                              </td>
                        </tr>
                        );
                       })}
