@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
-import useBIData from '@/hooks/useBIData';
+import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import * as XLSX from 'xlsx';
@@ -66,23 +66,31 @@ interface FleetTableItem {
 
 // Using shared MultiSelect component with built-in search
 
-export default function FleetDashboard(): JSX.Element {
-    const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota');
-    const { data: manutencaoData } = useBIData<AnyObject[]>('fat_manutencao_unificado');
-    const { data: movimentacoesData } = useBIData<AnyObject[]>('fat_movimentacao_ocorrencias');
-    
-    // Timeline agregada via Edge Function otimizada
+    // Batch 1: Primary data (single HTTP request)
+    const { results: primaryData, loading: loadingPrimary } = useBIDataBatch([
+        'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
+    ]);
+    // Batch 2: Secondary/fact tables (single HTTP request)
+    const { results: secondaryData, loading: loadingSecondary } = useBIDataBatch([
+        'fat_sinistros', 'fat_multas', 'fat_carro_reserva', 'fat_movimentacao_ocorrencias', 'fat_manutencao_unificado'
+    ]);
+
+    // Timeline agregada via API
     const { data: timelineAggregated } = useTimelineData('aggregated');
     const { data: timelineRecent } = useTimelineData('recent');
-    
-    const { data: carroReservaData } = useBIData<AnyObject[]>('fat_carro_reserva');
-    const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
-    const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
-    const { data: contratosLocacaoData } = useBIData<AnyObject[]>('dim_contratos_locacao');
 
-        // Carregar fat_sinistros e fat_multas consolidados (tabelas únicas no banco de destino)
-        const { data: sinistrosRaw } = useBIData<AnyObject[]>('fat_sinistros');
-        const { data: multasRaw } = useBIData<AnyObject[]>('fat_multas');
+    // Extract individual datasets from batch results
+    const frotaData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_frota'), [primaryData]);
+    const contratosLocacaoData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_contratos_locacao'), [primaryData]);
+    const patioMovData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_movimentacao_patios'), [primaryData]);
+    const veiculoMovData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_movimentacao_veiculos'), [primaryData]);
+    const sinistrosRaw = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_sinistros'), [secondaryData]);
+    const multasRaw = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_multas'), [secondaryData]);
+    const carroReservaData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_carro_reserva'), [secondaryData]);
+    const movimentacoesData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_movimentacao_ocorrencias'), [secondaryData]);
+    const manutencaoData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_manutencao_unificado'), [secondaryData]);
+
+    const frotaMetadata = null; // batch doesn't return per-table metadata
 
     const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
     const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);
@@ -3662,4 +3670,4 @@ export default function FleetDashboard(): JSX.Element {
         </div>
     );
 }
-// TimelineRow e TimelineDetails movidos para TimelineTab component
+

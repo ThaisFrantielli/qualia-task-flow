@@ -102,40 +102,8 @@ export function useTimelineData<T = TimelineAggregated>(
         );
       }
 
-      // Augment with dim_frota (add vehicles that exist in fleet but have no timeline events)
-      if (mode === 'aggregated' || mode === 'recent') {
-        try {
-          const dimResp = await fetch('/api/bi-data?table=dim_frota');
-          if (dimResp.ok) {
-            const dimBody = await dimResp.json();
-            const dimArr = Array.isArray(dimBody.data) ? dimBody.data : [];
-            const present = new Set(
-              rows.map((i: any) => String(i.Placa || i.placa || '').trim().toUpperCase())
-            );
-            const missing = dimArr
-              .filter((d: any) => d?.Placa && !present.has(String(d.Placa).trim().toUpperCase()))
-              .map((d: any) => ({
-                Placa: String(d.Placa).trim().toUpperCase(),
-                data_compra: d.DataCompra || d.data_compra || null,
-                data_venda: d.DataVenda || d.data_venda || null,
-                qtd_locacoes: 0,
-                qtd_manutencoes: 0,
-                qtd_sinistros: 0,
-                total_eventos: 0,
-                primeiro_evento: null,
-                ultimo_evento: null,
-                dias_vida: null,
-                Modelo: d.Modelo || d.modelo,
-                Montadora: d.Montadora || d.montadora,
-                Status: d.Status || d.status,
-                ValorAquisicao: d.ValorAquisicao || d.valor_aquisicao || null,
-              }));
-            if (missing.length) rows = rows.concat(missing);
-          }
-        } catch {
-          // ignore augmentation errors
-        }
-      }
+      // Note: dim_frota augmentation removed — vehicles without timeline events
+      // are handled at the component level to avoid redundant HTTP requests
 
       timelineCache.set(cacheKey, { data: rows, timestamp: Date.now() });
       setData(rows as T[]);
