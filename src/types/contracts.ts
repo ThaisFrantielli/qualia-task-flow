@@ -51,6 +51,8 @@ export interface Contract {
   modelo?: string;
   // Modelo alternativo vindo do JOIN (`modelo_veiculo`)
   modelo_veiculo?: string;
+  // Modelo de aquisição salvo pelo usuário (campo novo)
+  modelo_aquisicao?: string;
   // Categoria / Grupo do veículo
   // Grupo do Veículo (mapeado da coluna `GrupoVeiculo` em `dim_frota`)
   grupoVeiculo?: string;

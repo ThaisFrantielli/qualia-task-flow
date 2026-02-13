@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle } from 'lucide-react';
+import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend } from 'recharts';
 
@@ -232,10 +232,38 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
 
   const pageCount = Math.max(1, Math.ceil(filteredContracts.length / pageSize));
+  // Sorting state for list table
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const handleSort = React.useCallback((key: string) => {
+    setSortConfig(prev => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return null;
+    });
+  }, []);
+
   const currentPageContracts = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredContracts.slice(start, start + pageSize);
-  }, [filteredContracts, page, pageSize]);
+    let source = Array.isArray(filteredContracts) ? [...filteredContracts] : [];
+    if (sortConfig) {
+      const { key, direction } = sortConfig;
+      source.sort((a: any, b: any) => {
+        const va = a?.[key];
+        const vb = b?.[key];
+        if (va == null && vb == null) return 0;
+        if (va == null) return direction === 'asc' ? 1 : -1;
+        if (vb == null) return direction === 'asc' ? -1 : 1;
+        if (typeof va === 'number' && typeof vb === 'number') return direction === 'asc' ? va - vb : vb - va;
+        const sa = String(va).toLowerCase();
+        const sb = String(vb).toLowerCase();
+        if (sa < sb) return direction === 'asc' ? -1 : 1;
+        if (sa > sb) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return source.slice(start, start + pageSize);
+  }, [filteredContracts, page, pageSize, sortConfig]);
 
   // Progressive/chunked rendering state to avoid blocking the main thread
   const [visibleContracts, setVisibleContracts] = useState<any[]>([]);
@@ -356,6 +384,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     const contract = contracts.find(c => c.id === id);
     if (!contract) return;
     if (newStrategy === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
+      // Optimistic UI update: set strategy immediately so user sees change,
+      // then open modal to collect required purchase price.
+      onUpdateContract({ ...contract, renewalStrategy: newStrategy });
       setPendingStrategyChange({ id, newStrategy });
       setPurchaseModalContractId(id);
       setTempPurchasePrice('');
@@ -365,13 +396,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     onUpdateContract({ ...contract, renewalStrategy: newStrategy });
   }, [contracts, onUpdateContract]);
 
-  const openPurchaseModalFor = React.useCallback((id: string) => {
-    const contract = contracts.find(c => c.id === id);
-    setPurchaseModalContractId(id);
-    setTempPurchasePrice(contract && contract.purchasePrice ? String(contract.purchasePrice) : '');
-    setPendingStrategyChange(null);
-    setPurchaseModalOpen(true);
-  }, [contracts]);
+  
 
   const handleSavePurchasePrice = React.useCallback(() => {
     if (!purchaseModalContractId) return;
@@ -867,6 +892,15 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                        <th className="px-4 py-4 text-center">KM Confirmado</th>
                        <th className="px-4 py-4 text-right">FIPE</th>
                        <th className="px-4 py-4 text-right">Valor Compra</th>
+                       <th className="px-4 py-4 text-right">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('modelo_aquisicao')}>Modelo de Aquisição</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
                        <th className="px-4 py-4 text-right">Valor Aquisição (Zero KM)</th>
                        <th className="px-4 py-4 text-right">Valores</th>
                        <th className="px-4 py-4 text-center">Estratégia</th>
@@ -977,14 +1011,43 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                               {typeof contract.ValorCompra === 'number' && contract.ValorCompra > 0 ? (
                                 <div className="text-xs font-mono text-slate-600">R$ {contract.ValorCompra.toLocaleString('pt-BR')}</div>
                               ) : (
-                                contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
-                                  <div className="flex items-center gap-2 justify-end">
-                                    <span className="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded">Obrigatório</span>
-                                    <button onClick={() => openPurchaseModalFor(contract.id)} className="text-xs text-blue-600 underline">Adicionar</button>
-                                  </div>
-                                ) : (
-                                  <div className="text-xs font-mono text-slate-600">-</div>
-                                )
+                                <div className="text-xs font-mono text-slate-600">-</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              {/* Modelo de Aquisição: input when strategy is RENEW_SWAP_ZERO, otherwise dash */}
+                              {contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
+                                <input
+                                  defaultValue={(contract as any).modelo_aquisicao ?? ''}
+                                  onBlur={(e) => {
+                                    const val = e.currentTarget.value?.trim() || null;
+                                    if (val === ((contract as any).modelo_aquisicao ?? null)) return;
+                                    onUpdateContract({ ...contract, modelo_aquisicao: val ?? null });
+                                  }}
+                                  className="w-full text-xs border rounded px-2 py-1"
+                                  placeholder="Modelo de Aquisição"
+                                />
+                              ) : (
+                                <div className="text-xs font-mono text-slate-600">-</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              {/* Valor Aquisição (Zero KM): input when strategy is RENEW_SWAP_ZERO */}
+                              {contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
+                                <input
+                                  defaultValue={Number(contract.purchasePrice || 0) > 0 ? String(contract.purchasePrice) : ''}
+                                  onBlur={(e) => {
+                                    const raw = e.currentTarget.value || '';
+                                    const parsed = Number(String(raw).replace(/[^0-9.,-]/g, '').replace(',', '.'));
+                                    const val = Number.isFinite(parsed) ? parsed : (raw.trim() === '' ? null : 0);
+                                    if (val === (contract.purchasePrice ?? null)) return;
+                                    onUpdateContract({ ...contract, purchasePrice: val ?? null });
+                                  }}
+                                  className="w-full text-xs border rounded px-2 py-1 text-right"
+                                  placeholder="R$ 0,00"
+                                />
+                              ) : (
+                                <div className="text-xs font-mono text-slate-600">-</div>
                               )}
                             </td>
                             <td className="px-4 py-4 text-right">

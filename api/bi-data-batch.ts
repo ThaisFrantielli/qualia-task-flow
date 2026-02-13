@@ -50,12 +50,14 @@ function buildContratosQuery(): string {
       f.*, 
       f."GrupoVeiculo" AS "Categoria",
       f."OdometroConfirmado" AS "KmConfirmado",
+      f."IdadeVeiculo" AS "IdadeVeiculo",
       f."IdadeVeiculo" AS "IdadeEmMeses",
       f."ValorAtualFIPE" AS "ValorFipe",
       f."ValorCompra",
       COALESCE(md_contrato.estrategia, md_placa.estrategia) AS estrategia,
       COALESCE(md_contrato.valor_aquisicao_zero, md_placa.valor_aquisicao_zero) AS valor_aquisicao_zero,
-      COALESCE(md_contrato.observacoes, md_placa.observacoes) AS observacoes
+      COALESCE(md_contrato.observacoes, md_placa.observacoes) AS observacoes,
+      COALESCE(md_contrato.modelo_aquisicao, md_placa.modelo_aquisicao) AS modelo_aquisicao
     FROM public."dim_contratos_locacao" c
     LEFT JOIN public."dim_frota" f
       ON UPPER(TRIM(COALESCE(c."PlacaPrincipal", ''))) = UPPER(TRIM(COALESCE(f."Placa", '')))
@@ -99,34 +101,35 @@ function parseTableRequests(tablesStr: string, fieldsStr?: string, limitDefault 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-    return `
-      SELECT 
-        c.*, 
-        c."DataInicial" AS "DataInicial",
-        c."DataFinal" AS "DataFinal",
-        c."ContratoDeOrigem" AS "ContratoDeOrigem",
-        c."DataMigracao" AS "DataMigracao",
-        c."OrigemMigracao" AS "OrigemMigracao",
-        f.*, 
-        f."GrupoVeiculo" AS "Categoria",
-        f."OdometroConfirmado" AS "KmConfirmado",
-        f."IdadeVeiculo" AS "IdadeEmMeses",
-        f."ValorAtualFIPE" AS "ValorFipe",
-        f."ValorCompra",
-        m.estrategia as "estrategia_salva", 
-        m.valor_aquisicao_zero as "valor_zero_salvo", 
-        m.observacoes as "observacoes_salvas"
-      FROM public."dim_contratos_locacao" c
-      LEFT JOIN public."dim_frota" f 
-        ON UPPER(TRIM(c."PlacaPrincipal")) = UPPER(TRIM(f."Placa"))
-      LEFT JOIN public.dim_contratos_metadata m 
-        ON c."PlacaPrincipal" = m.id_referencia
-      LIMIT $1
-    `;
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const rawTables = req.query.tables;
+  if (!rawTables || typeof rawTables !== 'string') {
+    return res.status(400).json({ error: 'Missing "tables" query parameter' });
+  }
+
+  const limitParam = req.query.limit;
+  const limitDefault = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
+  const fieldsParam = typeof req.query.fields === 'string' ? req.query.fields : (Array.isArray(req.query.fields) ? String(req.query.fields[0]) : undefined);
+
+  const requests = parseTableRequests(rawTables, fieldsParam, limitDefault);
+  if (requests.length === 0) {
+    return res.status(400).json({ error: 'No valid tables requested' });
+  }
+
+  const batchCacheKey = `batch_${rawTables}_${fieldsParam || '*'}_${limitDefault}`;
+  const cached = cache.get(batchCacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return res.status(200).json(cached.data);
+  }
 
   const client = await pool.connect();
   try {
-    // Execute all queries in parallel on the same connection
     const results = await Promise.all(
       requests.map(async (r) => {
         const tableCacheKey = `batch_${r.table}_${r.fields?.join(',') || '*'}`;
@@ -148,7 +151,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           result = await client.query(`SELECT * FROM public."${r.table}" LIMIT $1`, [r.limit]);
         }
 
-        // Convert BigInt
         const rows = result.rows.map((row: Record<string, unknown>) => {
           const converted: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(row)) {

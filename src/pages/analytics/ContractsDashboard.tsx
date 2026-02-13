@@ -90,6 +90,8 @@ export default function ContractsDashboard(): JSX.Element {
         observation: c.observacoes_salvas ?? (c.observation || undefined),
         renewalStrategy: (c.estrategia_salva as any) ?? 'WAIT_PERIOD',
         purchasePrice: (c.valor_zero_salvo ? 0 : parseNum(c.ValorCompra || c.valorcompra)),
+        // novo campo salvo pelo usuário
+        modelo_aquisicao: (c.modelo_aquisicao as string) ?? null,
         type: String(c.TipoLocacao || 'Locação'),
         startDate: c.DataInicial || c.DataInicio || c.DataInicial || new Date().toISOString(),
         endDate: c.DataFinal || c.DataTermino || c.DataFinal || new Date().toISOString(),
@@ -134,6 +136,7 @@ export default function ContractsDashboard(): JSX.Element {
         estrategia: updatedContract.renewalStrategy || null,
         valor_aquisicao_zero: Boolean((updatedContract as any).purchasePrice === 0),
         observacoes: (updatedContract as any).observation ?? null,
+        modelo_aquisicao: (updatedContract as any).modelo_aquisicao ?? null,
       };
 
       const resp = await fetch('/api/save-metadata', {

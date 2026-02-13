@@ -50,11 +50,13 @@ function buildContratosQuery(fields?: string[]): string {
       f.*, 
       f."GrupoVeiculo" AS "Categoria",
       f."OdometroConfirmado" AS "KmConfirmado",
+      f."IdadeVeiculo" AS "IdadeVeiculo",
       f."IdadeVeiculo" AS "IdadeEmMeses",
       f."ValorAtualFIPE" AS "ValorFipe",
       m.estrategia as "estrategia_salva", 
       m.valor_aquisicao_zero as "valor_zero_salvo", 
-      m.observacoes as "observacoes_salvas"
+      m.observacoes as "observacoes_salvas",
+      m.modelo_aquisicao as "modelo_aquisicao"
     FROM public."dim_contratos_locacao" c
     LEFT JOIN public."dim_frota" f 
       ON UPPER(TRIM(c."PlacaPrincipal")) = UPPER(TRIM(f."Placa"))

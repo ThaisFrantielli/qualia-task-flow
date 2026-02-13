@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { id_referencia, estrategia, valor_aquisicao_zero, observacoes } = body || {};
+    const { id_referencia, estrategia, valor_aquisicao_zero, observacoes, modelo_aquisicao } = body || {};
 
     if (!id_referencia || typeof id_referencia !== 'string') {
       return res.status(400).json({ error: 'Missing id_referencia (string)' });
@@ -32,17 +32,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const client = await pool.connect();
     try {
       const q = `
-        INSERT INTO public.dim_contratos_metadata (id_referencia, estrategia, valor_aquisicao_zero, observacoes, updated_at)
-        VALUES ($1, $2, $3, $4, now())
+        INSERT INTO public.dim_contratos_metadata (id_referencia, estrategia, valor_aquisicao_zero, observacoes, modelo_aquisicao)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (id_referencia) DO UPDATE SET
           estrategia = EXCLUDED.estrategia,
           valor_aquisicao_zero = EXCLUDED.valor_aquisicao_zero,
           observacoes = EXCLUDED.observacoes,
-          updated_at = now()
+          modelo_aquisicao = EXCLUDED.modelo_aquisicao
         RETURNING *;
       `;
 
-      const vals = [id_referencia, estrategia ?? null, valor_aquisicao_zero === true, observacoes ?? null];
+      const vals = [id_referencia, estrategia ?? null, valor_aquisicao_zero === true, observacoes ?? null, modelo_aquisicao ?? null];
       const result = await client.query(q, vals);
       return res.status(200).json({ success: true, updated: result.rows[0] });
     } finally {
