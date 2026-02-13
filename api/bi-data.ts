@@ -1,24 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
-// Validate required environment variables
-const requiredEnvVars = {
-  ORACLE_PG_HOST: process.env.ORACLE_PG_HOST,
-  ORACLE_PG_PORT: process.env.ORACLE_PG_PORT,
-  ORACLE_PG_USER: process.env.ORACLE_PG_USER,
-  ORACLE_PG_PASSWORD: process.env.ORACLE_PG_PASSWORD,
-  ORACLE_PG_DATABASE: process.env.ORACLE_PG_DATABASE,
-};
-
-const missingVars = Object.entries(requiredEnvVars)
-  .filter(([_, value]) => !value)
-  .map(([key]) => key);
-
-if (missingVars.length > 0) {
-  console.error('[bi-data] Missing environment variables:', missingVars.join(', '));
-  console.error('[bi-data] Available env keys:', Object.keys(process.env).filter(k => k.includes('PG')).join(', '));
-}
-
 // PostgreSQL connection to Oracle Cloud server
 const pool = new Pool({
   host: process.env.ORACLE_PG_HOST || '137.131.163.167',
@@ -32,172 +14,76 @@ const pool = new Pool({
   ssl: false,
 });
 
-// Whitelist of allowed tables to prevent SQL injection
+// Whitelist of allowed tables
 const ALLOWED_TABLES = new Set([
-  'dim_frota',
-  'dim_contratos_locacao',
-  'dim_movimentacao_patios',
-  'dim_movimentacao_veiculos',
-  'historico_situacao_veiculos',
-  'hist_vida_veiculo_timeline',
-  'fat_carro_reserva',
-  'fat_manutencao_unificado',
-  'fat_sinistros',
-  'fat_multas',
-  'agg_custos_detalhados',
-  'fat_movimentacao_ocorrencias',
-  'fat_precos_locacao',
-  'agg_lead_time_etapas',
-  'agg_funil_conversao',
-  'agg_performance_usuarios',
-  'fat_detalhe_itens_os_2022',
-  'fat_detalhe_itens_os_2023',
-  'fat_detalhe_itens_os_2024',
-  'fat_detalhe_itens_os_2025',
-  'fat_detalhe_itens_os_2026',
-  'fato_financeiro_dre',
-  'dim_clientes',
-  'dim_alienacoes',
-  'dim_condutores',
-  'dim_fornecedores',
+  'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios',
+  'dim_movimentacao_veiculos', 'historico_situacao_veiculos',
+  'hist_vida_veiculo_timeline', 'fat_carro_reserva', 'fat_manutencao_unificado',
+  'fat_sinistros', 'fat_multas', 'agg_custos_detalhados',
+  'fat_movimentacao_ocorrencias', 'fat_precos_locacao',
+  'agg_lead_time_etapas', 'agg_funil_conversao', 'agg_performance_usuarios',
+  'fat_detalhe_itens_os_2022', 'fat_detalhe_itens_os_2023',
+  'fat_detalhe_itens_os_2024', 'fat_detalhe_itens_os_2025',
+  'fat_detalhe_itens_os_2026', 'fato_financeiro_dre',
+  'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
   'agg_dre_mensal',
 ]);
 
-// In-memory cache (per serverless instance)
+// Allowed fields per table (whitelist to prevent injection via fields param)
+const FIELD_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+// In-memory cache
 const cache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+// Special query for dim_contratos_locacao with direct column access + JOIN
+function buildContratosQuery(fields?: string[]): string {
+  // Direct column access — no to_jsonb overhead
+  return `
+    SELECT
+      c."IdContratoLocacao", c."ContratoLocacao", c."NumeroContrato",
+      c."NomeCliente", c."PlacaPrincipal", c."PlacaReserva",
+      c."TipoVeiculoTemporario", c."TipoLocacao",
+      c."DataInicio", c."DataTermino",
+      c."ValorMensalAtual", c."ValorLocacao",
+      c."SituacaoContratoLocacao", c."SituacaoContrato",
+      c."DataEncerramento", c."ContratoComercial",
+      f."Montadora", f."Modelo",
+      f."Categoria", f."KmInformado" AS "currentKm",
+      f."IdadeVeiculo" AS "ageMonths",
+      f."ValorFipeAtual" AS "valorFipeAtual",
+      f."ValorCompra"
+    FROM public."dim_contratos_locacao" c
+    LEFT JOIN public."dim_frota" f
+      ON UPPER(TRIM(COALESCE(c."PlacaPrincipal", ''))) = UPPER(TRIM(COALESCE(f."Placa", '')))
+    LIMIT $1
+  `;
+}
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const rawTable = req.query.table;
-  if (!rawTable || typeof rawTable !== 'string') {
-    return res.status(400).json({ error: 'Missing "table" query parameter' });
-  }
-
-  // Normalize: remove .json suffix, remove trailing year suffixes for base matching
-  const table = rawTable.replace(/\.json$/, '');
-
-  if (!ALLOWED_TABLES.has(table)) {
-    return res.status(403).json({ error: `Table "${table}" is not allowed` });
-  }
-
-  // Optional limit parameter (default: no limit for small tables, 50000 for safety)
-  const limitParam = req.query.limit;
-  const limit = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
-
-  // Check cache
-  const cacheKey = `${table}_${limit}`;
-  const cached = cache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    return res.status(200).json(cached.data);
-  }
-
-  let client;
+export async function queryTable(
+  table: string,
+  limit: number,
+  fields?: string[]
+): Promise<{ rows: Record<string, unknown>[]; }> {
+  const client = await pool.connect();
   try {
-    client = await pool.connect();
     let result;
     if (table === 'dim_contratos_locacao') {
-      // NOTE: ensure Postgres uses the exact cased column names when necessary.
-      // The query below aliases JSON extraction fields using double-quoted identifiers
-      // so that consumers can reference them unambiguously (e.g. c."IdContratoLocacao").
-      // Verified: all selected aliases below use double quotes for case-sensitive names.
-      // Enriquecer contratos com dados da frota via LEFT JOIN (c.PlacaPrincipal = f.Placa)
-      result = await client.query(
-        `WITH contratos AS (
-            SELECT
-              to_jsonb(c)->>'IdContratoLocacao' AS "IdContratoLocacao",
-              to_jsonb(c)->>'ContratoLocacao' AS "ContratoLocacao",
-              to_jsonb(c)->>'NumeroContrato' AS "NumeroContrato",
-              to_jsonb(c)->>'id_contrato_locacao' AS "id_contrato_locacao",
-              to_jsonb(c)->>'NomeCliente' AS "NomeCliente",
-              to_jsonb(c)->>'nome_cliente' AS "nome_cliente",
-              to_jsonb(c)->>'PlacaPrincipal' AS "PlacaPrincipal",
-              to_jsonb(c)->>'placaprincipal' AS "placaprincipal",
-              to_jsonb(c)->>'PlacaReserva' AS "PlacaReserva",
-              to_jsonb(c)->>'placa_reserva' AS "placa_reserva",
-              to_jsonb(c)->>'TipoVeiculoTemporario' AS "TipoVeiculoTemporario",
-              to_jsonb(c)->>'tipo_veiculo_temporario' AS "tipo_veiculo_temporario",
-              to_jsonb(c)->>'TipoLocacao' AS "TipoLocacao",
-              to_jsonb(c)->>'DataInicio' AS "DataInicio",
-              to_jsonb(c)->>'DataInicial' AS "DataInicial",
-              to_jsonb(c)->>'DataTermino' AS "DataTermino",
-              to_jsonb(c)->>'DataFinal' AS "DataFinal",
-              to_jsonb(c)->>'ValorMensalAtual' AS "ValorMensalAtual",
-              to_jsonb(c)->>'ValorLocacao' AS "ValorLocacao",
-              to_jsonb(c)->>'SituacaoContratoLocacao' AS "SituacaoContratoLocacao",
-              to_jsonb(c)->>'SituacaoContrato' AS "SituacaoContrato",
-              to_jsonb(c)->>'DataEncerramento' AS "DataEncerramento",
-              to_jsonb(c)->>'ContratoComercial' AS "ContratoComercial",
-              UPPER(TRIM(COALESCE(to_jsonb(c)->>'PlacaPrincipal', to_jsonb(c)->>'placaprincipal', ''))) AS placa_norm
-            FROM public."dim_contratos_locacao" c
-            LIMIT $1
-          ),
-          frota AS (
-            SELECT
-              COALESCE(to_jsonb(f)->>'Placa', to_jsonb(f)->>'placa') AS "plate",
-              COALESCE(to_jsonb(f)->>'Montadora', to_jsonb(f)->>'montadora') AS "Montadora",
-              COALESCE(to_jsonb(f)->>'Modelo', to_jsonb(f)->>'modelo', to_jsonb(f)->>'modelo_veiculo') AS "Modelo",
-              COALESCE(to_jsonb(f)->>'Categoria', to_jsonb(f)->>'categoria', to_jsonb(f)->>'GrupoVeiculo', to_jsonb(f)->>'grupoveiculo') AS "Categoria",
-              COALESCE(to_jsonb(f)->>'KmInformado', to_jsonb(f)->>'kminformado', to_jsonb(f)->>'currentKm', to_jsonb(f)->>'km') AS "currentKm",
-              COALESCE(to_jsonb(f)->>'IdadeVeiculo', to_jsonb(f)->>'idadeveiculo', to_jsonb(f)->>'ageMonths') AS "ageMonths",
-              COALESCE(to_jsonb(f)->>'ValorFipeAtual', to_jsonb(f)->>'valorfipeatual', to_jsonb(f)->>'ValorFipe', to_jsonb(f)->>'valorfipe') AS "valorFipeAtual",
-              COALESCE(to_jsonb(f)->>'ValorCompra', to_jsonb(f)->>'valorcompra') AS "ValorCompra",
-              UPPER(TRIM(COALESCE(to_jsonb(f)->>'Placa', to_jsonb(f)->>'placa', ''))) AS placa_norm
-            FROM public."dim_frota" f
-          )
-          SELECT
-            c."IdContratoLocacao",
-            c."ContratoLocacao",
-            c."NumeroContrato",
-            c."id_contrato_locacao",
-            c."NomeCliente",
-            c."nome_cliente",
-            c."PlacaPrincipal",
-            c."placaprincipal",
-            c."PlacaReserva",
-            c."placa_reserva",
-            c."TipoVeiculoTemporario",
-            c."tipo_veiculo_temporario",
-            c."TipoLocacao",
-            c."DataInicio",
-            c."DataInicial",
-            c."DataTermino",
-            c."DataFinal",
-            c."ValorMensalAtual",
-            c."ValorLocacao",
-            c."SituacaoContratoLocacao",
-            c."SituacaoContrato",
-            c."DataEncerramento",
-            c."ContratoComercial",
-            f."plate",
-            f."Montadora",
-            f."Modelo",
-            f."Categoria",
-            f."currentKm",
-            f."ageMonths",
-            f."valorFipeAtual",
-            f."ValorCompra"
-          FROM contratos c
-          LEFT JOIN frota f ON c.placa_norm = f.placa_norm`,
-        [limit]
-      );
+      result = await client.query(buildContratosQuery(fields), [limit]);
+    } else if (fields && fields.length > 0) {
+      // Validate field names
+      const safeFields = fields.filter(f => FIELD_REGEX.test(f));
+      if (safeFields.length === 0) {
+        result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
+      } else {
+        const cols = safeFields.map(f => `"${f}"`).join(', ');
+        result = await client.query(`SELECT ${cols} FROM public."${table}" LIMIT $1`, [limit]);
+      }
     } else {
       result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
     }
 
-    // Convert BigInt to Number if needed
+    // Convert BigInt to Number
     const rows = result.rows.map((row: Record<string, unknown>) => {
       const converted: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(row)) {
@@ -205,6 +91,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       return converted;
     });
+
+    return { rows };
+  } finally {
+    client.release();
+  }
+}
+
+function parseFields(raw: string | string[] | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const str = typeof raw === 'string' ? raw : raw[0];
+  return str.split(',').map(f => f.trim()).filter(Boolean);
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const rawTable = req.query.table;
+  if (!rawTable || typeof rawTable !== 'string') {
+    return res.status(400).json({ error: 'Missing "table" query parameter' });
+  }
+
+  const table = rawTable.replace(/\.json$/, '');
+  if (!ALLOWED_TABLES.has(table)) {
+    return res.status(403).json({ error: `Table "${table}" is not allowed` });
+  }
+
+  const limitParam = req.query.limit;
+  const limit = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
+  const fields = parseFields(req.query.fields as string | undefined);
+
+  // Check cache
+  const cacheKey = `${table}_${limit}_${fields?.join(',') || '*'}`;
+  const cached = cache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return res.status(200).json(cached.data);
+  }
+
+  try {
+    const { rows } = await queryTable(table, limit, fields);
 
     const payload = {
       metadata: {
@@ -217,20 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       data: rows,
     };
 
-    // Store in cache
     cache.set(cacheKey, { data: payload, timestamp: Date.now() });
-
-    // Set cache headers
-    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json(payload);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[bi-data] Error querying table "${table}":`, message);
-    return res.status(500).json({
-      error: 'Database query failed',
-      details: message,
-    });
-  } finally {
-    if (client) client.release();
+    return res.status(500).json({ error: 'Database query failed', details: message });
   }
 }
