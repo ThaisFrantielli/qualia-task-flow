@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2 } from 'lucide-react';
+import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend } from 'recharts';
 
@@ -398,6 +398,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     setTempObservation(contract.observation || '');
     setObservationModalOpen(true);
   }, []);
+
+  // Migration popover state (which contract id is showing migration info)
+  const [openMigrationId, setOpenMigrationId] = useState<string | null>(null);
 
   const handleSaveObservation = React.useCallback(() => {
     if (selectedContractId) {
@@ -861,7 +864,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                        <th className="px-4 py-4 text-center">Período</th>
                        <th className="px-4 py-4 text-center">Situação Contrato</th>
                        <th className="px-4 py-4 text-center">Idade Veículo</th>
-                       <th className="px-4 py-4 text-center">KM Informado</th>
+                       <th className="px-4 py-4 text-center">KM Confirmado</th>
                        <th className="px-4 py-4 text-right">FIPE</th>
                        <th className="px-4 py-4 text-right">Valor Compra</th>
                        <th className="px-4 py-4 text-right">Valor Aquisição (Zero KM)</th>
@@ -891,8 +894,24 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                               if (contract.commercialContract && contract.commercialContract !== 'N/A') parts.push(contract.commercialContract);
                               if (contract.contractNumber && contract.contractNumber !== 'N/A') parts.push(contract.contractNumber);
                               const header = parts.length > 0 ? parts.join(' | ') : '-';
-                              return <div className="text-xs text-slate-700 font-bold">{header}</div>;
+                              return (
+                                <div className="text-xs text-slate-700 font-bold flex items-center gap-2">
+                                  <span>{header}</span>
+                                  {contract.migratedFrom && (
+                                    <button onClick={() => setOpenMigrationId(openMigrationId === contract.id ? null : contract.id)} className="text-yellow-700 hover:text-yellow-900" title="Contrato migrado">
+                                      <AlertCircle size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              );
                             })()}
+                          {openMigrationId === contract.id && contract.migratedFrom && (
+                            <div className="mt-1 p-2 bg-yellow-50 border border-yellow-100 rounded text-xs text-yellow-900">
+                              {`Este contrato foi migrado de: ${contract.migratedFrom} `}
+                              {contract.migrationDate ? `em ${new Date(contract.migrationDate).toLocaleDateString('pt-BR')}` : ''}
+                              {contract.migrationSource ? ` via ${contract.migrationSource}` : ''}
+                            </div>
+                          )}
                             <div className="text-xs text-slate-500 mt-0.5">{contract.clientName && contract.clientName !== 'N/A' ? contract.clientName : ''}</div>
                           </td>
                           <td className="px-4 py-4">

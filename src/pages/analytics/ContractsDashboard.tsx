@@ -58,9 +58,9 @@ export default function ContractsDashboard(): JSX.Element {
       const finalModelo = getStr(c.Modelo, c.modelo_veiculo, c.modelo, c.Modelo);
       const finalCategoria = getStr(c.Categoria, c.categoria, c.GrupoVeiculo, c.grupoveiculo);
 
-      const finalKm = parseNum(c.KmInformado ?? c.currentKm ?? c.kminformado ?? 0);
-      const finalFipe = parseNum(c.ValorFipe ?? c.valorFipeAtual ?? c.ValorFipeAtual ?? 0);
-      const finalAge = parseNum(c.IdadeVeiculo ?? c.ageMonths ?? 0) || undefined;
+      const finalKm = parseNum(c.KmConfirmado ?? c.OdometroConfirmado ?? c.KmInformado ?? c.currentKm ?? 0);
+      const finalFipe = parseNum(c.ValorFipe ?? c.ValorAtualFIPE ?? c.valorFipeAtual ?? c.ValorFipeAtual ?? 0);
+      const finalAge = parseNum(c.IdadeEmMeses ?? c.IdadeVeiculo ?? c.ageMonths ?? 0) || undefined;
 
       const uniqueId = `${c.IdContratoLocacao || 'gen'}-${idx}`;
 
@@ -97,8 +97,13 @@ export default function ContractsDashboard(): JSX.Element {
         currentFipe: finalFipe,
         // purchasePrice already set above (honoring valor_zero_salvo)
         manufacturingYear: parseInt(String(c.AnoFabricacao || c.anofabricacao || new Date().getFullYear())) || new Date().getFullYear(),
-        initialDate: c.DataInicio || undefined,
-        finalDate: c.DataTermino || undefined,
+        // prefer explicit DataInicial/DataFinal from API (pascal-case DB columns)
+        initialDate: c.DataInicial || c.DataInicio || undefined,
+        finalDate: c.DataFinal || c.DataTermino || undefined,
+        // migration metadata
+        migratedFrom: c.ContratoDeOrigem ?? c.contratoDeOrigem ?? undefined,
+        migrationDate: c.DataMigracao ?? c.DataMigracao ?? c.dataMigracao ?? undefined,
+        migrationSource: c.OrigemMigracao ?? c.OrigemMigracao ?? c.origemMigracao ?? undefined,
         contractStatus: String(c.SituacaoContratoLocacao || c.SituacaoContrato || ''),
         closingDate: c.DataEncerramento || undefined,
         commercialContract: c.ContratoComercial || '',

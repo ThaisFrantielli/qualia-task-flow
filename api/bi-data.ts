@@ -42,8 +42,16 @@ function buildContratosQuery(fields?: string[]): string {
   return `
     SELECT 
       c.*, 
+      c."DataInicial" AS "DataInicial",
+      c."DataFinal" AS "DataFinal",
+      c."ContratoDeOrigem" AS "ContratoDeOrigem",
+      c."DataMigracao" AS "DataMigracao",
+      c."OrigemMigracao" AS "OrigemMigracao",
       f.*, 
       f."GrupoVeiculo" AS "Categoria",
+      f."OdometroConfirmado" AS "KmConfirmado",
+      f."IdadeVeiculo" AS "IdadeEmMeses",
+      f."ValorAtualFIPE" AS "ValorFipe",
       m.estrategia as "estrategia_salva", 
       m.valor_aquisicao_zero as "valor_zero_salvo", 
       m.observacoes as "observacoes_salvas"
