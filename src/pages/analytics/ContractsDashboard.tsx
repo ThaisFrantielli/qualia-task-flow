@@ -3,13 +3,16 @@ import useBIData from '@/hooks/useBIData';
 import { Contracts } from '@/components/analytics/Contracts';
 import { Contract } from '@/types/contracts';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 type AnyObject = { [k: string]: any };
 
 export default function ContractsDashboard(): JSX.Element {
   // API already JOINs dim_contratos_locacao with dim_frota — no need for separate dim_frota fetch
-  const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
+  const { data: contractsData, loading: loadingContracts, refetch } = useBIData<AnyObject[]>('dim_contratos_locacao');
   
+  const { toast } = useToast();
+
   // Transform raw data to Contract types
   const contracts = useMemo(() => {
     if (!contractsData || !Array.isArray(contractsData)) return [];
@@ -52,16 +55,20 @@ export default function ContractsDashboard(): JSX.Element {
 
       // Fields already come from the LEFT JOIN in the API
       const finalMontadora = getStr(c.Montadora, c.montadora);
-      const finalModelo = getStr(c.Modelo, c.modelo_veiculo, c.modelo);
+      const finalModelo = getStr(c.Modelo, c.modelo_veiculo, c.modelo, c.Modelo);
       const finalCategoria = getStr(c.Categoria, c.categoria, c.GrupoVeiculo, c.grupoveiculo);
 
-      const finalKm = parseNum(c.currentKm ?? c.KmInformado ?? c.kminformado ?? 0);
-      const finalFipe = parseNum(c.valorFipeAtual ?? c.ValorFipeAtual ?? 0);
-      const finalAge = parseNum(c.ageMonths ?? c.IdadeVeiculo ?? 0) || undefined;
+      const finalKm = parseNum(c.KmInformado ?? c.currentKm ?? c.kminformado ?? 0);
+      const finalFipe = parseNum(c.ValorFipe ?? c.valorFipeAtual ?? c.ValorFipeAtual ?? 0);
+      const finalAge = parseNum(c.IdadeVeiculo ?? c.ageMonths ?? 0) || undefined;
 
       const uniqueId = `${c.IdContratoLocacao || 'gen'}-${idx}`;
 
+      // keep original contract id for metadata reference when available
+      const rawRef = c.IdContratoLocacao ?? c.NumeroContratoLocacao ?? c.NumeroContrato ?? c.ContratoLocacao;
+
       return {
+        rawId: rawRef,
         id: uniqueId,
         contractNumber: String(c.ContratoLocacao || c.NumeroContrato || c.id_contrato_locacao || 'N/A'),
         clientName: String(c.NomeCliente || c.nome_cliente || 'N/A'),
@@ -79,14 +86,17 @@ export default function ContractsDashboard(): JSX.Element {
         ageMonths: finalAge,
         valorFipeAtual: finalFipe,
         ValorCompra: parseNum(c.ValorCompra || c.valorcompra),
+        // metadata saved by user (priority over ERP fields)
+        observation: c.observacoes_salvas ?? (c.observation || undefined),
+        renewalStrategy: (c.estrategia_salva as any) ?? 'WAIT_PERIOD',
+        purchasePrice: (c.valor_zero_salvo ? 0 : parseNum(c.ValorCompra || c.valorcompra)),
         type: String(c.TipoLocacao || 'Locação'),
-        startDate: c.DataInicio || c.DataTermino || new Date().toISOString(),
-        endDate: c.DataTermino || c.DataInicio || new Date().toISOString(),
+        startDate: c.DataInicial || c.DataInicio || c.DataInicial || new Date().toISOString(),
+        endDate: c.DataFinal || c.DataTermino || c.DataFinal || new Date().toISOString(),
         monthlyValue: parseNum(c.ValorMensalAtual || c.ValorLocacao),
         currentFipe: finalFipe,
-        purchasePrice: parseNum(c.ValorCompra || c.valorcompra),
+        // purchasePrice already set above (honoring valor_zero_salvo)
         manufacturingYear: parseInt(String(c.AnoFabricacao || c.anofabricacao || new Date().getFullYear())) || new Date().getFullYear(),
-        renewalStrategy: 'WAIT_PERIOD',
         initialDate: c.DataInicio || undefined,
         finalDate: c.DataTermino || undefined,
         contractStatus: String(c.SituacaoContratoLocacao || c.SituacaoContrato || ''),
@@ -100,13 +110,49 @@ export default function ContractsDashboard(): JSX.Element {
           }
           return undefined;
         })()
-      } as Contract;
+        } as Contract;
     });
   }, [contractsData]);
 
-  const handleUpdateContract = useCallback((updatedContract: Contract) => {
-    console.log('Contract update requested:', updatedContract.id);
-  }, []);
+  const handleUpdateContract = useCallback(async (updatedContract: Contract) => {
+    const t = toast({ title: 'Salvando...', description: 'Enviando alterações ao servidor...' });
+    try {
+      const id_ref = (updatedContract as any).rawId ? String((updatedContract as any).rawId) : (updatedContract.plate || updatedContract.contractNumber || '') ;
+      if (!id_ref) {
+        console.warn('[ContractsDashboard] No id_referencia available for save');
+        t.update({ title: 'Erro', description: 'Referência ausente para salvar.', variant: 'destructive' } as any);
+        return;
+      }
+
+      const payload = {
+        id_referencia: id_ref,
+        estrategia: updatedContract.renewalStrategy || null,
+        valor_aquisicao_zero: Boolean((updatedContract as any).purchasePrice === 0),
+        observacoes: (updatedContract as any).observation ?? null,
+      };
+
+      const resp = await fetch('/api/save-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text();
+        console.error('[ContractsDashboard] save-metadata failed:', resp.status, body);
+        t.update({ title: 'Erro ao salvar', description: `Status ${resp.status}: ${body}`, variant: 'destructive' } as any);
+        return;
+      }
+
+      // Refresh data so metadata from DB is reflected (API batch includes metadata now)
+      if (typeof refetch === 'function') refetch();
+
+      t.update({ title: 'Sucesso!', description: 'Alterações salvas com sucesso.' } as any);
+    } catch (err: any) {
+      console.error('[ContractsDashboard] Error saving metadata:', err);
+      t.update({ title: 'Erro ao salvar', description: err?.message || String(err), variant: 'destructive' } as any);
+    }
+  }, [refetch]);
 
   if (loadingContracts) {
     return (

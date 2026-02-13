@@ -42,14 +42,24 @@ function buildContratosQuery(): string {
       c."ValorMensalAtual", c."ValorLocacao",
       c."SituacaoContratoLocacao", c."SituacaoContrato",
       c."DataEncerramento", c."ContratoComercial",
-      f."Montadora", f."Modelo",
-      f."Categoria", f."KmInformado" AS "currentKm",
+      f.*, 
+      f."GrupoVeiculo" AS "Categoria",
+      f."KmInformado" AS "currentKm",
       f."IdadeVeiculo" AS "ageMonths",
       f."ValorFipeAtual" AS "valorFipeAtual",
-      f."ValorCompra"
+      f."ValorCompra",
+      COALESCE(md_contrato.estrategia, md_placa.estrategia) AS estrategia,
+      COALESCE(md_contrato.valor_aquisicao_zero, md_placa.valor_aquisicao_zero) AS valor_aquisicao_zero,
+      COALESCE(md_contrato.observacoes, md_placa.observacoes) AS observacoes
     FROM public."dim_contratos_locacao" c
     LEFT JOIN public."dim_frota" f
       ON UPPER(TRIM(COALESCE(c."PlacaPrincipal", ''))) = UPPER(TRIM(COALESCE(f."Placa", '')))
+    -- Join user-saved metadata (by placa or by contrato id)
+    LEFT JOIN public.dim_contratos_metadata md_placa
+      ON md_placa.id_referencia = UPPER(TRIM(COALESCE(c."PlacaPrincipal", '')))
+    LEFT JOIN public.dim_contratos_metadata md_contrato
+      ON md_contrato.id_referencia = CAST(c."IdContratoLocacao" AS TEXT)
+    -- Expose metadata fields as top-level columns
     LIMIT $1
   `;
 }
@@ -84,33 +94,25 @@ function parseTableRequests(tablesStr: string, fieldsStr?: string, limitDefault 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-
-  const tablesStr = req.query.tables;
-  if (!tablesStr || typeof tablesStr !== 'string') {
-    return res.status(400).json({ error: 'Missing "tables" query parameter (comma-separated)' });
-  }
-
-  const fieldsStr = typeof req.query.fields === 'string' ? req.query.fields : undefined;
-  const limitParam = req.query.limit;
-  const limit = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
-  
-  const requests = parseTableRequests(tablesStr, fieldsStr, limit);
-  if (requests.length === 0) {
-    return res.status(400).json({ error: 'No valid tables specified' });
-  }
-
-  // Check full batch cache
-  const batchCacheKey = requests.map(r => `${r.table}_${r.fields?.join(',') || '*'}`).join('|');
-  const cached = cache.get(batchCacheKey);
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-    return res.status(200).json(cached.data);
-  }
+    return `
+      SELECT 
+        c.*, 
+        f.*, 
+        f."GrupoVeiculo" AS "Categoria",
+        f."KmInformado", 
+        f."IdadeVeiculo", 
+        f."ValorFipe", 
+        f."ValorCompra",
+        m.estrategia as "estrategia_salva", 
+        m.valor_aquisicao_zero as "valor_zero_salvo", 
+        m.observacoes as "observacoes_salvas"
+      FROM public."dim_contratos_locacao" c
+      LEFT JOIN public."dim_frota" f 
+        ON UPPER(TRIM(c."PlacaPrincipal")) = UPPER(TRIM(f."Placa"))
+      LEFT JOIN public.dim_contratos_metadata m 
+        ON c."PlacaPrincipal" = m.id_referencia
+      LIMIT $1
+    `;
 
   const client = await pool.connect();
   try {

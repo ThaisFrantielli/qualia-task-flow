@@ -40,22 +40,18 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 function buildContratosQuery(fields?: string[]): string {
   // Direct column access — no to_jsonb overhead
   return `
-    SELECT
-      c."IdContratoLocacao", c."ContratoLocacao", c."NumeroContrato",
-      c."NomeCliente", c."PlacaPrincipal", c."PlacaReserva",
-      c."TipoVeiculoTemporario", c."TipoLocacao",
-      c."DataInicio", c."DataTermino",
-      c."ValorMensalAtual", c."ValorLocacao",
-      c."SituacaoContratoLocacao", c."SituacaoContrato",
-      c."DataEncerramento", c."ContratoComercial",
-      f."Montadora", f."Modelo",
-      f."Categoria", f."KmInformado" AS "currentKm",
-      f."IdadeVeiculo" AS "ageMonths",
-      f."ValorFipeAtual" AS "valorFipeAtual",
-      f."ValorCompra"
+    SELECT 
+      c.*, 
+      f.*, 
+      f."GrupoVeiculo" AS "Categoria",
+      m.estrategia as "estrategia_salva", 
+      m.valor_aquisicao_zero as "valor_zero_salvo", 
+      m.observacoes as "observacoes_salvas"
     FROM public."dim_contratos_locacao" c
-    LEFT JOIN public."dim_frota" f
-      ON UPPER(TRIM(COALESCE(c."PlacaPrincipal", ''))) = UPPER(TRIM(COALESCE(f."Placa", '')))
+    LEFT JOIN public."dim_frota" f 
+      ON UPPER(TRIM(c."PlacaPrincipal")) = UPPER(TRIM(f."Placa"))
+    LEFT JOIN public.dim_contratos_metadata m 
+      ON c."PlacaPrincipal" = m.id_referencia
     LIMIT $1
   `;
 }

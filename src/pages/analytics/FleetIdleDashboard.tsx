@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
+import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
@@ -67,11 +68,16 @@ const getCategory = (status: string) => {
 };
 
 export default function FleetIdleDashboard(): JSX.Element {
-  const { data: frotaData, metadata: frotaMetadata } = useBIData<AnyObject[]>('dim_frota');
+  // Batch load primary tables (frota + movimentacoes) to reduce HTTP requests
+  const { results: primaryResults } = useBIDataBatch([
+    'dim_frota', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
+  ]);
   // Timeline via Edge Function otimizada
   useTimelineData('recent');
-  const { data: patioMovData } = useBIData<AnyObject[]>('dim_movimentacao_patios');
-  const { data: veiculoMovData } = useBIData<AnyObject[]>('dim_movimentacao_veiculos');
+  const frotaData = getBatchTable<AnyObject>(primaryResults, 'dim_frota');
+  const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
+  const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
+  const frotaMetadata = null;
   const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   // Normalizar dados da frota para nomes de propriedades consistentes

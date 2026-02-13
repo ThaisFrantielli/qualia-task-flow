@@ -66,12 +66,14 @@ interface FleetTableItem {
 
 // Using shared MultiSelect component with built-in search
 
+export default function FleetDashboard() {
+
     // Batch 1: Primary data (single HTTP request)
-    const { results: primaryData, loading: loadingPrimary } = useBIDataBatch([
+    const { results: primaryData } = useBIDataBatch([
         'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
     ]);
     // Batch 2: Secondary/fact tables (single HTTP request)
-    const { results: secondaryData, loading: loadingSecondary } = useBIDataBatch([
+    const { results: secondaryData } = useBIDataBatch([
         'fat_sinistros', 'fat_multas', 'fat_carro_reserva', 'fat_movimentacao_ocorrencias', 'fat_manutencao_unificado'
     ]);
 
