@@ -53,15 +53,16 @@ function buildContratosQuery(fields?: string[]): string {
       f."IdadeEmMeses" AS "IdadeEmMeses",
       f."IdadeEmMeses" AS "IdadeVeiculo",
       f."ValorAtualFIPE" AS "ValorFipe",
-      m.estrategia as "estrategia_salva", 
-      m.valor_aquisicao_zero as "valor_zero_salvo", 
+      m.estrategia as "estrategia_salva",
+      m.valor_aquisicao as "valor_aquisicao",
       m.observacoes as "observacoes_salvas",
+      m.acao_usuario as "acao_usuario",
       m.modelo_aquisicao as "modelo_aquisicao"
     FROM public."dim_contratos_locacao" c
     LEFT JOIN public."dim_frota" f 
-      ON UPPER(TRIM(c."PlacaPrincipal")) = UPPER(TRIM(f."Placa"))
+      ON regexp_replace(UPPER(TRIM(c."PlacaPrincipal")), '[^A-Z0-9]', '', 'g') = regexp_replace(UPPER(TRIM(f."Placa")), '[^A-Z0-9]', '', 'g')
     LEFT JOIN public.dim_contratos_metadata m 
-      ON c."PlacaPrincipal" = m.id_referencia
+      ON regexp_replace(UPPER(TRIM(c."PlacaPrincipal")), '[^A-Z0-9]', '', 'g') = regexp_replace(UPPER(TRIM(m.id_referencia::text)), '[^A-Z0-9]', '', 'g')
     LIMIT $1
   `;
 }
@@ -132,10 +133,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const limit = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
   const fields = parseFields(req.query.fields as string | undefined);
 
-  // Check cache
+  // Check cache (allow bust param to force refresh)
   const cacheKey = `${table}_${limit}_${fields?.join(',') || '*'}`;
+  const forceRefresh = !!req.query.bust || !!req.query.refresh;
   const cached = cache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+  if (!forceRefresh && cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json(cached.data);
   }

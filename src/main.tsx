@@ -3,6 +3,9 @@ import React from 'react';
 
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+// Initialize global interaction guards early to prevent select-originated
+// events from triggering document-level handlers that cause view jumps.
+import './init/interactionGuards';
 import './index.css';
 import { AuthProvider } from './contexts/AuthContext';
 import { UsersProvider } from './contexts/UsersContext'; // <-- IMPORTE O NOVO PROVIDER

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend, LabelList } from 'recharts';
 
 interface ContractsProps {
   contracts: Contract[];
@@ -81,6 +81,7 @@ const MontadoraSection = React.memo(function MontadoraSection({ montadora, model
                 {models.slice(0, 10).map((_entry, i) => (
                   <Cell key={i} />
                 ))}
+                <LabelList dataKey="value" position="right" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -90,19 +91,90 @@ const MontadoraSection = React.memo(function MontadoraSection({ montadora, model
   );
 });
 
+// Custom label for pie slices: show prominent percentage outside the slice with a subtle leader line and value below
+const renderPieLabel = (props: any) => {
+  const { cx, cy, midAngle, outerRadius, percent, value } = props;
+  const RADIAN = Math.PI / 180;
+  const sin = Math.sin(-midAngle * RADIAN);
+  const cos = Math.cos(-midAngle * RADIAN);
+  // start point on outer edge, small mid point outside, and end point further for text
+  const sx = cx + outerRadius * cos;
+  const sy = cy + outerRadius * sin;
+  const mx = cx + (outerRadius + 8) * cos;
+  const my = cy + (outerRadius + 8) * sin;
+  const ex = mx + (cos >= 0 ? 1 : -1) * 28;
+  const ey = my;
+  const textAnchor = cos >= 0 ? 'start' : 'end';
+  const pct = Math.round((percent || 0) * 100);
+
+  return (
+    <g>
+      <polyline points={`${sx},${sy} ${mx},${my} ${ex},${ey}`} stroke="#e5e7eb" fill="none" strokeWidth={1} />
+      <text x={ex + (cos >= 0 ? 6 : -6)} y={ey - 2} textAnchor={textAnchor} dominantBaseline="central" fontSize={12} fontWeight={700} fill="#111">
+        {`${pct}%`}
+      </text>
+      <text x={ex + (cos >= 0 ? 6 : -6)} y={ey + 12} textAnchor={textAnchor} dominantBaseline="central" fontSize={11} fill="#6b7280">
+        {String(value)}
+      </text>
+    </g>
+  );
+};
+
 const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContract }) => {
   // removed virtualized ROW_HEIGHT (no longer used)
-  const [viewMode, setViewMode] = useState<'analysis' | 'list'>('analysis');
+  const [viewMode, setViewMode] = useState<'analysis' | 'list'>(() => {
+    try {
+      const v = localStorage.getItem('contracts:viewMode');
+      if (v === 'analysis' || v === 'list') return v;
+    } catch (e) {}
+    return 'analysis';
+  });
+  const lastPointerTarget = React.useRef<HTMLElement | null>(null);
+  const safeSetViewMode = React.useCallback((mode: 'analysis' | 'list') => {
+    if (mode === 'analysis') {
+      const t = lastPointerTarget.current;
+      if (t) {
+        try {
+          if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest && !!t.closest('select')) {
+            console.debug('[Contracts] blocked viewMode change to analysis due to select interaction', t.tagName, t.className);
+            return;
+          }
+        } catch (e) {}
+      }
+    }
+    try { localStorage.setItem('contracts:viewMode', mode); } catch (e) {}
+    setViewMode(mode);
+  }, []);
   const [expandAllModels, setExpandAllModels] = useState(false);
+  const [zoom, setZoom] = useState<number>(0.92);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   // Pagination for list view
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(10);
   // For dropdown-style filter panels in List view
   const [openFilterPanel, setOpenFilterPanel] = useState<string | null>(null);
   // per-panel search text to filter long lists inside dropdowns
   const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
+
+  // Persisted zoom level for table layout (saved in localStorage)
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('contracts:zoom');
+      if (raw) {
+        const v = Number(raw);
+        if (Number.isFinite(v) && v > 0) setZoom(v);
+      }
+    } catch (e) {}
+  }, []);
+
+  React.useEffect(() => {
+    try { localStorage.setItem('contracts:zoom', String(zoom)); } catch (e) {}
+  }, [zoom]);
+
+  const increaseZoom = () => setZoom(z => Math.min(1.2, +(z + 0.03).toFixed(2)));
+  const decreaseZoom = () => setZoom(z => Math.max(0.6, +(z - 0.03).toFixed(2)));
+  const resetZoom = () => setZoom(0.92);
 
   // Modal to collect purchasePrice when required by strategy
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
@@ -154,6 +226,33 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Debug viewMode changes during development (can be removed later)
+  React.useEffect(() => {
+    try {
+      const stack = (new Error()).stack;
+      const t = lastPointerTarget.current;
+      console.debug('[Contracts] viewMode:', viewMode, '\nlastPointer:', t ? `${t.tagName} ${t.className}` : 'none', '\nstack:', stack);
+    } catch (e) {
+      console.debug('[Contracts] viewMode:', viewMode, '\nlastPointer: unknown');
+    }
+  }, [viewMode]);
+
+  // Track the most recent pointer/mousedown target to help debug unexpected view changes
+  React.useEffect(() => {
+    const m = (e: MouseEvent) => {
+      try { lastPointerTarget.current = e.target as HTMLElement; } catch { lastPointerTarget.current = null; }
+    };
+    const p = (e: PointerEvent) => {
+      try { lastPointerTarget.current = e.target as HTMLElement; } catch { lastPointerTarget.current = null; }
+    };
+    document.addEventListener('mousedown', m, { capture: true });
+    document.addEventListener('pointerdown', p, { capture: true });
+    return () => {
+      document.removeEventListener('mousedown', m, { capture: true } as any);
+      document.removeEventListener('pointerdown', p, { capture: true } as any);
+    };
   }, []);
 
   const toggleFilter = React.useCallback((key: keyof typeof filters, value: string) => {
@@ -268,6 +367,48 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   // Progressive/chunked rendering state to avoid blocking the main thread
   const [visibleContracts, setVisibleContracts] = useState<any[]>([]);
 
+  // Draft edits per-row (modelo_aquisicao and purchasePrice as strings)
+  const [drafts, setDrafts] = useState<Record<string, { modelo_aquisicao?: string; purchasePrice?: string }>>({});
+  // Which rows are currently in edit mode (double-click to edit)
+  const [editingRows, setEditingRows] = useState<Record<string, boolean>>({});
+
+  const setDraftValue = (id: string, field: 'modelo_aquisicao' | 'purchasePrice', value: string) => {
+    setDrafts(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }));
+  };
+
+  const clearDraft = (id: string) => setDrafts(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+
+  const saveDraft = (id: string) => {
+    const draft = drafts[id];
+    if (!draft) return;
+    const contract = contracts.find(c => c.id === id);
+    if (!contract) return;
+
+    const parsed = draft.purchasePrice !== undefined && draft.purchasePrice !== ''
+      ? Number(String(draft.purchasePrice).replace(/[^0-9.,-]/g, '').replace(',', '.'))
+      : (draft.purchasePrice === '' ? null : contract.purchasePrice ?? null);
+
+    const updates: any = { ...contract };
+    if (draft.modelo_aquisicao !== undefined) updates.modelo_aquisicao = draft.modelo_aquisicao ?? null;
+    if (draft.purchasePrice !== undefined) updates.purchasePrice = Number.isFinite(parsed) ? parsed : (draft.purchasePrice === '' ? null : contract.purchasePrice);
+
+    onUpdateContract(updates);
+    clearDraft(id);
+    setEditingRows(prev => ({ ...prev, [id]: false }));
+  };
+
+  const hasDraftChanges = (id: string, contract: any) => {
+    const d = drafts[id];
+    if (!d) return false;
+    if (d.modelo_aquisicao !== undefined && d.modelo_aquisicao !== (contract as any).modelo_aquisicao) return true;
+    if (d.purchasePrice !== undefined) {
+      const parsed = d.purchasePrice === '' ? null : Number(String(d.purchasePrice).replace(/[^0-9.,-]/g, '').replace(',', '.'));
+      const current = (contract as any).purchasePrice ?? null;
+      if ((parsed === null && current !== null) || (parsed !== null && parsed !== current)) return true;
+    }
+    return false;
+  };
+
   React.useEffect(() => {
     const source = (pageSize === 999999) ? filteredContracts : currentPageContracts;
     if (!source || source.length === 0) {
@@ -380,24 +521,28 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const RETURN_PERCENTAGE = 0.80; // 80%
 
   // Handlers
-  const handleStrategyChange = React.useCallback((id: string, newStrategy: RenewalStrategy) => {
+
+  // New: handler for 'Ação' select which saves into acao_usuario metadata
+  const handleAcaoChange = React.useCallback((id: string, newAcao: RenewalStrategy) => {
     const contract = contracts.find(c => c.id === id);
     if (!contract) return;
-    // Optimistic UI update: update visibleContracts immediately so the
-    // list view reflects the new strategy without waiting the server roundtrip.
-    setVisibleContracts(prev => prev.map((c: any) => c.id === id ? { ...c, renewalStrategy: newStrategy } : c));
+    console.debug('[Contracts] handleAcaoChange', { id, newAcao });
+    setVisibleContracts(prev => prev.map((c: any) => c.id === id ? { ...c, acao_usuario: newAcao } : c));
 
-    if (newStrategy === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
-      // also open modal to collect required purchase price
-      onUpdateContract({ ...contract, renewalStrategy: newStrategy });
-      setPendingStrategyChange({ id, newStrategy });
+    // If action requires purchase price and it's missing, open modal to collect
+    if (newAcao === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
+      onUpdateContract({ ...contract, acao_usuario: newAcao, renewalStrategy: newAcao });
+      setPendingStrategyChange({ id, newStrategy: newAcao });
       setPurchaseModalContractId(id);
       setTempPurchasePrice('');
       setPurchaseModalOpen(true);
       return;
     }
 
-    onUpdateContract({ ...contract, renewalStrategy: newStrategy });
+    // Update both the metadata `acao_usuario` and the visible `renewalStrategy`
+    onUpdateContract({ ...contract, acao_usuario: newAcao, renewalStrategy: newAcao });
+    // Ensure we stay in list view after changing action (avoid accidental view switch)
+    try { safeSetViewMode('list'); } catch (e) {}
   }, [contracts, onUpdateContract]);
 
   // Export visible/filtered contracts to CSV (Excel-friendly)
@@ -482,6 +627,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         if (contract) onUpdateContract({ ...contract, observation: tempObservation });
     }
     setObservationModalOpen(false);
+    // Keep list view open after saving observation to avoid jumping to charts
+    try { safeSetViewMode('list'); } catch (e) {}
   }, [selectedContractId, contracts, tempObservation, onUpdateContract]);
 
   // Helper to check if any filters are active
@@ -499,13 +646,20 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   ];
 
   return (
-    <div className="p-6 max-w-[1920px] mx-auto min-h-screen bg-slate-50">
+    <div className="p-6 max-w-[1920px] mx-auto min-h-screen bg-slate-50" style={{ zoom }}>
       
       {/* HEADER */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Contratos & Ativos</h2>
           <p className="text-sm text-slate-500">Gestão estratégica de contratos e ativos.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-slate-500 mr-2">Zoom:</div>
+          <button onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
+          <button onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
+          <button onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
+          <div className="text-xs text-slate-500 ml-2">{Math.round(zoom * 100)}%</div>
         </div>
       </div>
       <div className="flex gap-4">
@@ -518,10 +672,10 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                 </button>
             )}
             <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-              <button onClick={() => setViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+              <button onClick={() => safeSetViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
                 <BarChart3 size={14}/> Gráficos
               </button>
-              <button onClick={() => setViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+              <button onClick={() => safeSetViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
                 <ListIcon size={14}/> Lista
               </button>
             </div>
@@ -662,6 +816,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                         {analysisData.strategy.map((entry, index) => (
                            <Cell key={index} fill={COLORS[index % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('strategy', entry.fullKey)} opacity={filters.strategy.length && !filters.strategy.includes(entry.fullKey) ? 0.3 : 1} />
                         ))}
+                       <LabelList dataKey="value" position="right" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
                      </Bar>
                    </BarChart>
                  </ResponsiveContainer>
@@ -682,6 +837,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                        {analysisData.year.map((entry, index) => (
                           <Cell key={index} fill={filters.year.includes(entry.fullKey) ? '#1e40af' : '#3B82F6'} cursor="pointer" onClick={() => toggleFilter('year', entry.fullKey)} />
                        ))}
+                      <LabelList dataKey="value" position="top" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
                      </Bar>
                    </BarChart>
                  </ResponsiveContainer>
@@ -694,11 +850,11 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                <div className="h-56">
                  <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
-                     <Pie data={analysisData.type} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2}>
+                     <Pie data={analysisData.type} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2} label={renderPieLabel}>
                         {analysisData.type.map((entry, index) => (
-                           <Cell key={index} fill={COLORS[(index + 3) % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('type', entry.fullKey)} opacity={filters.type.length && !filters.type.includes(entry.fullKey) ? 0.3 : 1} />
+                          <Cell key={index} fill={COLORS[(index + 3) % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('type', entry.fullKey)} opacity={filters.type.length && !filters.type.includes(entry.fullKey) ? 0.3 : 1} />
                         ))}
-                     </Pie>
+                      </Pie>
                      <Tooltip contentStyle={{fontSize: '12px'}} />
                      <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{fontSize: '10px'}} />
                    </PieChart>
@@ -755,6 +911,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                         {analysisData.km.map((entry, index) => (
                            <Cell key={index} fill={filters.kmRange.includes(entry.fullKey) ? '#b45309' : '#F59E0B'} cursor="pointer" onClick={() => toggleFilter('kmRange', entry.fullKey)} />
                         ))}
+                        <LabelList dataKey="value" position="top" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
                      </Bar>
                    </BarChart>
                  </ResponsiveContainer>
@@ -775,6 +932,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                         {analysisData.age.map((entry, index) => (
                            <Cell key={index} fill={filters.ageRange.includes(entry.fullKey) ? '#4338ca' : '#6366F1'} cursor="pointer" onClick={() => toggleFilter('ageRange', entry.fullKey)} />
                         ))}
+                        <LabelList dataKey="value" position="top" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
                      </Bar>
                    </BarChart>
                  </ResponsiveContainer>
@@ -929,7 +1087,12 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <button onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
             </div>
           </div>
-           <div className="overflow-x-auto min-h-[400px]">
+           <div
+             className="overflow-x-auto min-h-[400px]"
+             onClick={(e) => { e.stopPropagation(); }}
+             onMouseDown={(e) => { e.stopPropagation(); }}
+             onPointerDown={(e) => { e.stopPropagation(); }}
+           >
               <table className="w-full text-sm text-left">
                  <thead className="bg-white text-slate-500 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
                     <tr>
@@ -1059,15 +1222,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                            </span>
                          </div>
                        </th>
-                       <th className="px-4 py-4 text-center">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('renewalStrategy')}>Estratégia</span>
-                           <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'renewalStrategy', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'renewalStrategy', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
+                       <th className="px-4 py-4 text-center">Estratégia</th>
+                       <th className="px-4 py-4 text-center">Ação</th>
                        {hasObservations && <th className="px-4 py-4">Obs.</th>}
                        <th className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-30">Ações</th>
                     </tr>
@@ -1084,7 +1240,34 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                        };
                        
                        return (
-                       <tr key={contract.id} className="hover:bg-blue-50/30 transition-colors">
+                       <tr
+                         key={contract.id}
+                         className="hover:bg-blue-50/30 transition-colors"
+                         onClick={(e) => {
+                           const t = e.target as HTMLElement;
+                           if (!t) return;
+                           const tag = t.tagName || '';
+                           // If the click originated from a select/option (or inside one), don't let it bubble
+                           if (tag === 'SELECT' || tag === 'OPTION' || !!t.closest('select')) {
+                             e.stopPropagation();
+                             return;
+                           }
+                         }}
+                         onMouseDown={(e) => {
+                           const t = e.target as HTMLElement;
+                           if (!t) return;
+                           if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest('select')) {
+                             e.stopPropagation();
+                           }
+                         }}
+                         onPointerDown={(e) => {
+                           const t = e.target as HTMLElement;
+                           if (!t) return;
+                             if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest('select')) {
+                             e.stopPropagation();
+                           }
+                         }}
+                       >
                           <td className="px-4 py-4">
                             {/* Mostrar no padrão: Comercial | Contrato (remover N/A) */}
                             {(() => {
@@ -1179,37 +1362,82 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                               )}
                             </td>
                             <td className="px-4 py-4 text-right">
-                              {/* Modelo de Aquisição: input when strategy is RENEW_SWAP_ZERO, otherwise dash */}
-                              {contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
-                                <input
-                                  defaultValue={(contract as any).modelo_aquisicao ?? ''}
-                                  onBlur={(e) => {
-                                    const val = e.currentTarget.value?.trim() || null;
-                                    if (val === ((contract as any).modelo_aquisicao ?? null)) return;
-                                    onUpdateContract({ ...contract, modelo_aquisicao: val ?? null });
-                                  }}
-                                  className="w-full text-xs border rounded px-2 py-1"
-                                  placeholder="Modelo de Aquisição"
-                                />
-                              ) : (
-                                <div className="text-xs font-mono text-slate-600">-</div>
-                              )}
+                              {/* Modelo de Aquisição: input when strategy or ação is RENEW_SWAP_ZERO, otherwise dash */}
+                                {((contract as any).acao_usuario === 'RENEW_SWAP_ZERO' || contract.renewalStrategy === 'RENEW_SWAP_ZERO') ? (
+                                  <div
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      // initialize draft if missing
+                                      if (!drafts[contract.id] || typeof drafts[contract.id].modelo_aquisicao === 'undefined') {
+                                        setDraftValue(contract.id, 'modelo_aquisicao', String((contract as any).modelo_aquisicao ?? ''));
+                                      }
+                                      setEditingRows(prev => ({ ...prev, [contract.id]: true }));
+                                      setTimeout(() => {
+                                        const el = document.getElementById(`modelo-${contract.id}`) as HTMLInputElement | null;
+                                        if (el) el.focus();
+                                      }, 50);
+                                    }}
+                                  >
+                                    {editingRows[contract.id] ? (
+                                      <div className="flex flex-col gap-2">
+                                        <input
+                                          id={`modelo-${contract.id}`}
+                                          value={drafts[contract.id]?.modelo_aquisicao ?? ((contract as any).modelo_aquisicao ?? '')}
+                                          onChange={(e) => setDraftValue(contract.id, 'modelo_aquisicao', e.currentTarget.value)}
+                                          className="w-full text-xs border rounded px-2 py-1"
+                                          placeholder="Modelo de Aquisição"
+                                        />
+                                        {hasDraftChanges(contract.id, contract) && (
+                                          <div className="flex gap-2">
+                                            <button onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
+                                            <button onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700 truncate">{(contract as any).modelo_aquisicao || '-'}</div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-xs font-mono text-slate-600">-</div>
+                                )}
                             </td>
                             <td className="px-4 py-4 text-right">
-                              {/* Valor Aquisição (Zero KM): input when strategy is RENEW_SWAP_ZERO */}
-                              {contract.renewalStrategy === 'RENEW_SWAP_ZERO' ? (
-                                <input
-                                  defaultValue={Number(contract.purchasePrice || 0) > 0 ? String(contract.purchasePrice) : ''}
-                                  onBlur={(e) => {
-                                    const raw = e.currentTarget.value || '';
-                                    const parsed = Number(String(raw).replace(/[^0-9.,-]/g, '').replace(',', '.'));
-                                    const val = Number.isFinite(parsed) ? parsed : (raw.trim() === '' ? null : 0);
-                                    if (val === (contract.purchasePrice ?? null)) return;
-                                    onUpdateContract({ ...contract, purchasePrice: val ?? null });
+                              {/* Valor Aquisição (Zero KM): input when strategy or ação is RENEW_SWAP_ZERO */}
+                              {((contract as any).acao_usuario === 'RENEW_SWAP_ZERO' || contract.renewalStrategy === 'RENEW_SWAP_ZERO') ? (
+                                <div
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!drafts[contract.id] || typeof drafts[contract.id].purchasePrice === 'undefined') {
+                                      setDraftValue(contract.id, 'purchasePrice', (Number(contract.purchasePrice) || 0) > 0 ? String(contract.purchasePrice) : '');
+                                    }
+                                    setEditingRows(prev => ({ ...prev, [contract.id]: true }));
+                                    setTimeout(() => {
+                                      const el = document.getElementById(`price-${contract.id}`) as HTMLInputElement | null;
+                                      if (el) el.focus();
+                                    }, 50);
                                   }}
-                                  className="w-full text-xs border rounded px-2 py-1 text-right"
-                                  placeholder="R$ 0,00"
-                                />
+                                >
+                                  {editingRows[contract.id] ? (
+                                    <div className="flex flex-col gap-2">
+                                      <input
+                                        id={`price-${contract.id}`}
+                                        value={drafts[contract.id]?.purchasePrice ?? (Number(contract.purchasePrice || 0) > 0 ? String(contract.purchasePrice) : '')}
+                                        onChange={(e) => setDraftValue(contract.id, 'purchasePrice', e.currentTarget.value)}
+                                        className="w-full text-xs border rounded px-2 py-1 text-right"
+                                        placeholder="R$ 0,00"
+                                      />
+                                      {hasDraftChanges(contract.id, contract) && (
+                                        <div className="flex gap-2 justify-end">
+                                          <button onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
+                                          <button onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700">{(Number(contract.purchasePrice) || 0) > 0 ? String(contract.purchasePrice) : '-'}</div>
+                                  )}
+                                </div>
                               ) : (
                                 <div className="text-xs font-mono text-slate-600">-</div>
                               )}
@@ -1218,32 +1446,46 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                               <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
                             </td>
                           <td className="px-4 py-4">
-                             <select 
-                               value={contract.renewalStrategy}
-                               onChange={(e) => handleStrategyChange(contract.id, e.target.value as RenewalStrategy)}
-                               className="w-full text-xs border rounded py-1 px-2"
-                             >
-                                {Object.entries(RenewalStrategyLabel).map(([key, label]) => (
-                                   <option key={key} value={key}>{label}</option>
-                                ))}
-                             </select>
+                            <div className="text-xs text-slate-700 font-medium">
+                              {contract.renewalStrategy ? (RenewalStrategyLabel[contract.renewalStrategy as keyof typeof RenewalStrategyLabel] || contract.renewalStrategy) : '-'}
+                            </div>
                           </td>
-                          {hasObservations && <td className="px-4 py-4">{contract.observation && <span className="bg-yellow-100 px-2 py-0.5 rounded text-[10px] text-yellow-800">Obs</span>}</td>}
+                          <td className="px-4 py-4">
+                            <div className="text-xs">
+                              <select
+                                value={(contract as any).acao_usuario || ''}
+                                onChange={(e) => { e.stopPropagation(); handleAcaoChange(contract.id, e.target.value as RenewalStrategy); }}
+                                onFocus={(e) => { e.stopPropagation(); }}
+                                onClick={(e) => { e.stopPropagation(); }}
+                                onPointerDown={(e) => { e.stopPropagation(); }}
+                                onMouseDown={(e) => { e.stopPropagation(); }}
+                                onPointerUp={(e) => { e.stopPropagation(); }}
+                                onMouseUp={(e) => { e.stopPropagation(); }}
+                                onBlur={(e) => { e.stopPropagation(); }}
+                                disabled={observationModalOpen || purchaseModalOpen}
+                                className="w-full text-xs border rounded py-1 px-2"
+                                style={{ minWidth: 160, position: 'relative', zIndex: 50, pointerEvents: (observationModalOpen || purchaseModalOpen) ? 'none' : 'auto' }}
+                              >
+                                <option value="">Selecione</option>
+                                {Object.entries(RenewalStrategyLabel).map(([key, label]) => (
+                                  <option key={key} value={key}>{label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                          {hasObservations && <td className="px-4 py-4">{contract.observation ? (
+                            <span
+                              title={String(contract.observation)}
+                              aria-label={String(contract.observation)}
+                              className="bg-yellow-100 px-2 py-0.5 rounded text-[10px] text-yellow-800 cursor-help"
+                            >
+                              Obs
+                            </span>
+                          ) : null}</td>}
                               <td className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-20">
                                 <div className="flex items-center justify-center gap-2">
                                  <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
-                                 <div className="relative">
-                                  <select 
-                                    value={contract.renewalStrategy}
-                                    onChange={(e) => handleStrategyChange(contract.id, e.target.value as RenewalStrategy)}
-                                    className="w-full text-xs border rounded py-1 px-2"
-                                    style={{minWidth: 110}}
-                                  >
-                                    {Object.entries(RenewalStrategyLabel).map(([key, label]) => (
-                                      <option key={key} value={key}>{label}</option>
-                                    ))}
-                                  </select>
-                                 </div>
+                                {/* Ações: apenas botões (observação). Removido select duplicado de estratégia */}
                                 </div>
                               </td>
                        </tr>

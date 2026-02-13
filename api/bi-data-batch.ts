@@ -55,7 +55,7 @@ function buildContratosQuery(): string {
       f."ValorAtualFIPE" AS "ValorFipe",
       f."ValorCompra",
       COALESCE(md_contrato.estrategia, md_placa.estrategia) AS estrategia,
-      COALESCE(md_contrato.valor_aquisicao_zero, md_placa.valor_aquisicao_zero) AS valor_aquisicao_zero,
+      COALESCE(md_contrato.valor_aquisicao, md_placa.valor_aquisicao) AS valor_aquisicao,
       COALESCE(md_contrato.observacoes, md_placa.observacoes) AS observacoes,
       COALESCE(md_contrato.modelo_aquisicao, md_placa.modelo_aquisicao) AS modelo_aquisicao
     FROM public."dim_contratos_locacao" c

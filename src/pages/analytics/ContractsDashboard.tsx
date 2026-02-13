@@ -24,14 +24,34 @@ export default function ContractsDashboard(): JSX.Element {
     };
 
     return contractsArray.map((c, idx) => {
+      const parseCurrency = (raw: string): number => {
+        if (raw === null || raw === undefined) return 0;
+        let out = String(raw).replace(/\s/g, '');
+        // If contains both '.' and ',', assume '.' thousands and ',' decimal (pt-BR)
+        if (out.indexOf('.') !== -1 && out.indexOf(',') !== -1) {
+          out = out.replace(/\./g, '').replace(',', '.');
+          const v = parseFloat(out);
+          return Number.isFinite(v) ? v : 0;
+        }
+        // If contains only comma, treat comma as decimal separator
+        if (out.indexOf(',') !== -1 && out.indexOf('.') === -1) {
+          out = out.replace(',', '.');
+          const v = parseFloat(out);
+          return Number.isFinite(v) ? v : 0;
+        }
+        // Otherwise remove non-digit except dot and parse
+        out = out.replace(/[^0-9.\-]/g, '');
+        const v = parseFloat(out);
+        return Number.isFinite(v) ? v : 0;
+      };
+
       const parseNum = (val: any): number => {
         if (val === null || val === undefined) return 0;
         if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
-        const s = String(val).replace(/[^0-9.]/g, '');
-        const n = parseFloat(s);
-        return Number.isFinite(n) ? n : 0;
+        const s = String(val).replace(/[^0-9.,-]/g, '').trim();
+        if (!s) return 0;
+        return parseCurrency(s);
       };
-
       const getStr = (...candidates: any[]) => {
         for (const cand of candidates) {
           if (cand && typeof cand === 'string' && cand.trim() !== '' && cand !== 'N/A') return cand;
@@ -89,13 +109,18 @@ export default function ContractsDashboard(): JSX.Element {
         // metadata saved by user (priority over ERP fields)
         observation: c.observacoes_salvas ?? (c.observation || undefined),
         renewalStrategy: (c.estrategia_salva as any) ?? 'WAIT_PERIOD',
-        purchasePrice: (c.valor_zero_salvo ? 0 : parseNum(c.ValorCompra || c.valorcompra)),
+        // prefer explicit saved `valor_aquisicao` (can be 0). fallback to ERP ValorCompra
+        purchasePrice: (c.valor_aquisicao !== undefined && c.valor_aquisicao !== null) ? parseNum(c.valor_aquisicao) : parseNum(c.ValorCompra || c.valorcompra),
         // novo campo salvo pelo usuário
         modelo_aquisicao: (c.modelo_aquisicao as string) ?? null,
-        type: String(c.TipoLocacao || 'Locação'),
+        // Ação do usuário (campo novo salvo em dim_contratos_metadata.acao_usuario)
+        acao_usuario: (c.acao_usuario as any) ?? null,
+        // Prefer explicit DB column `TipoDeContrato` if present, fallback to legacy `TipoLocacao` then 'Locação'
+        type: String(getStr(c.TipoDeContrato, c.TipoLocacao) || 'Locação'),
         startDate: c.DataInicial || c.DataInicio || c.DataInicial || new Date().toISOString(),
         endDate: c.DataFinal || c.DataTermino || c.DataFinal || new Date().toISOString(),
-        monthlyValue: parseNum(c.ValorMensalAtual || c.ValorLocacao),
+        // Prefer new Oracle column UltimoValorLocacao (may be formatted string), fallback to legacy fields
+        monthlyValue: parseNum(((c.UltimoValorLocacao ?? c.ultimo_valor_locacao ?? c.ValorMensalAtual ?? c.ValorLocacao ?? c.ValorMensal) || 0)),
         currentFipe: finalFipe,
         // purchasePrice already set above (honoring valor_zero_salvo)
         manufacturingYear: parseInt(String(c.AnoFabricacao || c.anofabricacao || new Date().getFullYear())) || new Date().getFullYear(),
@@ -124,39 +149,87 @@ export default function ContractsDashboard(): JSX.Element {
   const handleUpdateContract = useCallback(async (updatedContract: Contract) => {
     const t = toast({ title: 'Salvando...', description: 'Enviando alterações ao servidor...' });
     try {
-      const id_ref = (updatedContract as any).rawId ? String((updatedContract as any).rawId) : (updatedContract.plate || updatedContract.contractNumber || '') ;
+      // Prefer sending the plate (PlacaPrincipal) as id_referencia to match dim_contratos_metadata.id_referencia
+      // Prefer normalized plate (without formatting) as id_referencia; fallback to rawId or contractNumber
+      const maybePlateNorm = (updatedContract as any).plateNormalized || (updatedContract as any).plate || (updatedContract as any).mainPlate || '';
+      const normalizeRef = (s: unknown) => {
+        if (!s && s !== 0) return '';
+        return String(s).toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
+      };
+      const rawIdVal = (updatedContract as any).rawId;
+      const id_ref = normalizeRef(maybePlateNorm) || (rawIdVal ? String(rawIdVal) : (updatedContract.contractNumber || ''));
       if (!id_ref) {
         console.warn('[ContractsDashboard] No id_referencia available for save');
         t.update({ title: 'Erro', description: 'Referência ausente para salvar.', variant: 'destructive' } as any);
         return;
       }
 
+      const normVal = (v: any) => {
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'string') {
+          const s = v.trim();
+          if (!s || s.toLowerCase() === 'undefined') return null;
+          return s;
+        }
+        return v;
+      };
+
       const payload = {
         id_referencia: id_ref,
-        estrategia: updatedContract.renewalStrategy || null,
+        estrategia: normVal(updatedContract.renewalStrategy),
+        acao_usuario: normVal((updatedContract as any).acao_usuario),
         valor_aquisicao_zero: Boolean((updatedContract as any).purchasePrice === 0),
         valor_aquisicao: (updatedContract as any).purchasePrice ?? null,
+        ultimo_valor_locacao: (updatedContract as any).monthlyValue ?? null,
         observacoes: (updatedContract as any).observation ?? null,
         modelo_aquisicao: (updatedContract as any).modelo_aquisicao ?? null,
       };
 
+      console.debug('[ContractsDashboard] save payload', payload);
       const resp = await fetch('/api/save-metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      let saveJson: any = null;
+      try {
+        saveJson = await resp.clone().json();
+      } catch (e) {
+        try { saveJson = await resp.clone().text(); } catch { saveJson = null; }
+      }
+      console.debug('[ContractsDashboard] save response', resp.status, saveJson);
+
       if (!resp.ok) {
-        const body = await resp.text();
+        const body = typeof saveJson === 'string' ? saveJson : JSON.stringify(saveJson);
         console.error('[ContractsDashboard] save-metadata failed:', resp.status, body);
         t.update({ title: 'Erro ao salvar', description: `Status ${resp.status}: ${body}`, variant: 'destructive' } as any);
         return;
       }
 
       // Refresh data so metadata from DB is reflected (API batch includes metadata now)
-      if (typeof refetch === 'function') refetch();
+      // Also trigger server-side cache refresh for bi-data so UI shows latest metadata
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        try {
+          const bustResp = await fetch(`/api/bi-data?table=dim_contratos_locacao&bust=${Date.now()}`, { signal: controller.signal });
+          if (!bustResp.ok) console.warn('[ContractsDashboard] bust fetch responded not ok', bustResp.status);
+        } catch (e) {
+          console.warn('[ContractsDashboard] bust fetch error', e);
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (e) {
+        console.warn('[ContractsDashboard] bust fetch outer error', e);
+      }
 
-      t.update({ title: 'Sucesso!', description: 'Alterações salvas com sucesso.' } as any);
+      if (typeof refetch === 'function') {
+        try { await (refetch as any)(); } catch (e) { console.warn('[ContractsDashboard] refetch failed', e); }
+      }
+
+      const durationMsg = saveJson && typeof saveJson === 'object' && saveJson.duration_ms ? ` (db ${saveJson.duration_ms}ms)` : '';
+      t.update({ title: 'Sucesso!', description: `Alterações salvas com sucesso.${durationMsg}` } as any);
     } catch (err: any) {
       console.error('[ContractsDashboard] Error saving metadata:', err);
       t.update({ title: 'Erro ao salvar', description: err?.message || String(err), variant: 'destructive' } as any);

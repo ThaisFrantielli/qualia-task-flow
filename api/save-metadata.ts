@@ -23,7 +23,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { id_referencia, estrategia, valor_aquisicao_zero, valor_aquisicao, observacoes, modelo_aquisicao } = body || {};
+    let { id_referencia, estrategia, acao_usuario, valor_aquisicao, observacoes, modelo_aquisicao } = body || {};
+    const norm = (v: any) => {
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'string') {
+        const s = v.trim();
+        if (!s || s.toLowerCase() === 'undefined') return null;
+        return s;
+      }
+      return v;
+    };
+    estrategia = norm(estrategia);
+    acao_usuario = norm(acao_usuario);
+    modelo_aquisicao = norm(modelo_aquisicao);
+    observacoes = typeof observacoes === 'string' ? observacoes.trim() : observacoes;
+    console.debug('[save-metadata] incoming payload', { id_referencia, estrategia, acao_usuario, valor_aquisicao, modelo_aquisicao });
 
     if (!id_referencia || typeof id_referencia !== 'string') {
       return res.status(400).json({ error: 'Missing id_referencia (string)' });
@@ -31,28 +45,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const client = await pool.connect();
     try {
+      const start = Date.now();
+
+      // Normalize incoming id for lookup (remove non-alphanumerics and uppercase)
+      const norm = String(id_referencia).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+      // Try to find an existing row whose normalized id_referencia matches
+      const findQ = `SELECT id_referencia FROM public.dim_contratos_metadata WHERE regexp_replace(UPPER(TRIM(id_referencia::text)), '[^A-Z0-9]', '', 'g') = $1 LIMIT 1`;
+      const found = await client.query(findQ, [norm]);
+
+      if (found && found.rows && found.rows.length > 0) {
+        // Update the canonical existing id_referencia row
+        const existingId = found.rows[0].id_referencia;
+        const uQ = `
+          UPDATE public.dim_contratos_metadata SET
+            acao_usuario = COALESCE($2, acao_usuario),
+            estrategia = COALESCE($3, estrategia),
+            modelo_aquisicao = COALESCE($4, modelo_aquisicao),
+            valor_aquisicao = COALESCE($5, valor_aquisicao),
+            observacoes = COALESCE($6, observacoes),
+            atualizado_em = CURRENT_TIMESTAMP
+          WHERE id_referencia = $1
+          RETURNING *;
+        `;
+        const uVals = [
+          existingId,
+          acao_usuario ?? null,
+          estrategia ?? null,
+          modelo_aquisicao ?? null,
+          (typeof valor_aquisicao === 'number') ? valor_aquisicao : (valor_aquisicao ? Number(valor_aquisicao) : null),
+          observacoes ?? null,
+        ];
+        const result = await client.query(uQ, uVals);
+        const dur = Date.now() - start;
+        console.debug('[save-metadata] query finished (update existing)', { duration_ms: dur, rows: result.rowCount });
+        return res.status(200).json({ success: true, updated: result.rows[0], duration_ms: dur });
+      }
+
+      // No matching normalized row — insert new
       const q = `
-        INSERT INTO public.dim_contratos_metadata (id_referencia, estrategia, valor_aquisicao_zero, valor_aquisicao, observacoes, modelo_aquisicao)
+        INSERT INTO public.dim_contratos_metadata (id_referencia, acao_usuario, estrategia, modelo_aquisicao, valor_aquisicao, observacoes)
         VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (id_referencia) DO UPDATE SET
-          estrategia = EXCLUDED.estrategia,
-          valor_aquisicao_zero = EXCLUDED.valor_aquisicao_zero,
-          valor_aquisicao = EXCLUDED.valor_aquisicao,
-          observacoes = EXCLUDED.observacoes,
-          modelo_aquisicao = EXCLUDED.modelo_aquisicao
         RETURNING *;
       `;
 
       const vals = [
         id_referencia,
+        acao_usuario ?? null,
         estrategia ?? null,
-        valor_aquisicao_zero === true,
+        modelo_aquisicao ?? null,
         (typeof valor_aquisicao === 'number') ? valor_aquisicao : (valor_aquisicao ? Number(valor_aquisicao) : null),
         observacoes ?? null,
-        modelo_aquisicao ?? null
       ];
+
       const result = await client.query(q, vals);
-      return res.status(200).json({ success: true, updated: result.rows[0] });
+      const dur = Date.now() - start;
+      console.debug('[save-metadata] query finished (insert)', { duration_ms: dur, rows: result.rowCount });
+      if (!result || !result.rows || result.rows.length === 0) {
+        return res.status(200).json({ success: true, updated: null, note: 'no rows returned' });
+      }
+
+      return res.status(200).json({ success: true, updated: result.rows[0], duration_ms: dur });
     } finally {
       client.release();
     }

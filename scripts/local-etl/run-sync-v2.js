@@ -26,12 +26,15 @@ const TABLES = [
         table: 'dim_frota',
         query: `SELECT * FROM Veiculos WITH (NOLOCK)`
     },
-    {
+        {
         table: 'dim_contratos_locacao',
         query: `
             SELECT 
                 cl.*, 
                 cli.NomeFantasia as NomeCliente,
+                -- Busca o último preço unitário baseado na DataInicial mais recente
+                ult_preco.PrecoUnitario as UltimoValorLocacao,
+                -- Lógica de classificação que já tínhamos
                 CASE 
                     WHEN cli.Tipo = 'Pessoa Física' THEN 'Assinatura'
                     WHEN cli.Tipo = 'Pessoa Jurídica' AND cli.NaturezaCliente = 'Privado' THEN 'Terceirização de Frota'
@@ -41,6 +44,12 @@ const TABLES = [
             FROM ContratosLocacao cl WITH (NOLOCK)
             LEFT JOIN ContratosComerciais cc WITH (NOLOCK) ON cl.IdContrato = cc.IdContratoComercial 
             LEFT JOIN Clientes cli WITH (NOLOCK) ON cc.IdCliente = cli.IdCliente
+            OUTER APPLY (
+                SELECT TOP 1 p.PrecoUnitario
+                FROM ContratosLocacaoPrecos p
+                WHERE p.IdContratoLocacao = cl.IdContratoLocacao
+                ORDER BY p.DataInicial DESC, p.IdPrecoContratoLocacao DESC
+            ) ult_preco
         `
     },
     { table: 'fat_precos_locacao', query: `SELECT * FROM ContratosLocacaoPrecos WITH (NOLOCK)` },

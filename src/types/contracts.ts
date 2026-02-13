@@ -53,6 +53,8 @@ export interface Contract {
   modelo_veiculo?: string;
   // Modelo de aquisição salvo pelo usuário (campo novo)
   modelo_aquisicao?: string;
+  // Ação escolhida pelo usuário (novo campo salvo em dim_contratos_metadata.acao_usuario)
+  acao_usuario?: RenewalStrategy;
   // Categoria / Grupo do veículo
   // Grupo do Veículo (mapeado da coluna `GrupoVeiculo` em `dim_frota`)
   grupoVeiculo?: string;
