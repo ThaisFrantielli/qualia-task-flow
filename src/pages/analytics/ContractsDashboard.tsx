@@ -135,6 +135,7 @@ export default function ContractsDashboard(): JSX.Element {
         id_referencia: id_ref,
         estrategia: updatedContract.renewalStrategy || null,
         valor_aquisicao_zero: Boolean((updatedContract as any).purchasePrice === 0),
+        valor_aquisicao: (updatedContract as any).purchasePrice ?? null,
         observacoes: (updatedContract as any).observation ?? null,
         modelo_aquisicao: (updatedContract as any).modelo_aquisicao ?? null,
       };

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend } from 'recharts';
 
@@ -383,9 +383,12 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const handleStrategyChange = React.useCallback((id: string, newStrategy: RenewalStrategy) => {
     const contract = contracts.find(c => c.id === id);
     if (!contract) return;
+    // Optimistic UI update: update visibleContracts immediately so the
+    // list view reflects the new strategy without waiting the server roundtrip.
+    setVisibleContracts(prev => prev.map((c: any) => c.id === id ? { ...c, renewalStrategy: newStrategy } : c));
+
     if (newStrategy === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
-      // Optimistic UI update: set strategy immediately so user sees change,
-      // then open modal to collect required purchase price.
+      // also open modal to collect required purchase price
       onUpdateContract({ ...contract, renewalStrategy: newStrategy });
       setPendingStrategyChange({ id, newStrategy });
       setPurchaseModalContractId(id);
@@ -393,8 +396,54 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       setPurchaseModalOpen(true);
       return;
     }
+
     onUpdateContract({ ...contract, renewalStrategy: newStrategy });
   }, [contracts, onUpdateContract]);
+
+  // Export visible/filtered contracts to CSV (Excel-friendly)
+  const exportContractsCSV = (rows: any[]) => {
+    if (!rows || rows.length === 0) {
+      alert('Nenhum contrato para exportar.');
+      return;
+    }
+    const headers = [
+      'Contrato', 'Veículo', 'Montadora', 'Modelo', 'Grupo Veículo', 'Período (meses)', 'Situação Contrato', 'Idade (meses)', 'KM Confirmado', 'FIPE', 'Valor Compra', 'Modelo de Aquisição', 'Valor Aquisição (Zero KM)', 'Último Valor de Locação', 'Estratégia'
+    ];
+    const cols = [
+      'contractNumber','plate','montadora','modelo_veiculo','grupoVeiculo','periodMonths','contractStatus','ageMonths','currentKm','valorFipeAtual','ValorCompra','modelo_aquisicao','purchasePrice','monthlyValue','renewalStrategy'
+    ];
+
+    const escape = (v: any) => {
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'number') return String(v);
+      return String(v).replace(/"/g, '""');
+    };
+
+    // Use semicolon as separator for better Excel compatibility in some locales
+    const sep = ';';
+    const lines = [];
+    lines.push(headers.join(sep));
+    rows.forEach(r => {
+      const vals = cols.map(k => {
+        const v = r[k];
+        // format numeric values without thousands separators
+        if (typeof v === 'number') return v;
+        return escape(v);
+      });
+      lines.push(vals.join(sep));
+    });
+
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contratos_export_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   
 
@@ -792,6 +841,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               </div>
               <div className="flex-1 flex justify-end items-center gap-4 text-xs text-slate-500">
                  <div className="whitespace-nowrap">{filteredContracts.length} contratos encontrados.</div>
+                     <button onClick={() => exportContractsCSV(filteredContracts)} title="Exportar CSV" className="ml-2 px-2 py-1 rounded border bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 text-xs">
+                       <Download size={14} /> Exportar
+                     </button>
                  <div className="flex items-center gap-2">
                    <label className="text-xs">Linhas:</label>
                    <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
@@ -881,17 +933,105 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <table className="w-full text-sm text-left">
                  <thead className="bg-white text-slate-500 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
                     <tr>
-                       <th className="px-4 py-4">Contrato</th>
-                       <th className="px-4 py-4">Veículo</th>
-                       <th className="px-4 py-4">Montadora</th>
-                       <th className="px-4 py-4">Modelo</th>
-                       <th className="px-4 py-4">Grupo Veículo</th>
-                       <th className="px-4 py-4 text-center">Período</th>
-                       <th className="px-4 py-4 text-center">Situação Contrato</th>
-                       <th className="px-4 py-4 text-center">Idade Veículo</th>
-                       <th className="px-4 py-4 text-center">KM Confirmado</th>
-                       <th className="px-4 py-4 text-right">FIPE</th>
-                       <th className="px-4 py-4 text-right">Valor Compra</th>
+                       <th className="px-4 py-4">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('contractNumber')}>Contrato</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('plate')}>Veículo</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('montadora')}>Montadora</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('modelo_veiculo')}>Modelo</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('grupoVeiculo')}>Grupo Veículo</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-center">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('periodMonths')}>Período</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-center">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('contractStatus')}>Situação Contrato</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-center">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('ageMonths')}>Idade Veículo</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-center">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('currentKm')}>KM Confirmado</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-right">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('valorFipeAtual')}>FIPE</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-right"> 
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('ValorCompra')}>Valor Compra</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
                        <th className="px-4 py-4 text-right">
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('modelo_aquisicao')}>Modelo de Aquisição</span>
@@ -901,11 +1041,35 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                            </span>
                          </div>
                        </th>
-                       <th className="px-4 py-4 text-right">Valor Aquisição (Zero KM)</th>
-                       <th className="px-4 py-4 text-right">Valores</th>
-                       <th className="px-4 py-4 text-center">Estratégia</th>
+                       <th className="px-4 py-4 text-right">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('purchasePrice')}>Valor Aquisição (Zero KM)</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-right">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('monthlyValue')}>Último Valor de Locação</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
+                       <th className="px-4 py-4 text-center">
+                         <div className="flex items-center justify-between">
+                           <span className="cursor-pointer" onClick={() => handleSort('renewalStrategy')}>Estratégia</span>
+                           <span className="flex items-center gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'renewalStrategy', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'renewalStrategy', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                           </span>
+                         </div>
+                       </th>
                        {hasObservations && <th className="px-4 py-4">Obs.</th>}
-                       <th className="px-4 py-4 text-center">Ações</th>
+                       <th className="px-4 py-4 text-center min-w-[80px]">Ações</th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
@@ -1051,11 +1215,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                               )}
                             </td>
                             <td className="px-4 py-4 text-right">
-                              <div className="text-xs font-mono text-slate-600">-</div>
+                              <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
                             </td>
-                          <td className="px-4 py-4 text-right">
-                            <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
-                          </td>
                           <td className="px-4 py-4">
                              <select 
                                value={contract.renewalStrategy}
@@ -1068,9 +1229,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                              </select>
                           </td>
                           {hasObservations && <td className="px-4 py-4">{contract.observation && <span className="bg-yellow-100 px-2 py-0.5 rounded text-[10px] text-yellow-800">Obs</span>}</td>}
-                          <td className="px-4 py-4 text-center">
-                             <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
-                          </td>
+                            <td className="px-4 py-4 text-center min-w-[80px]">
+                              <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
+                            </td>
                        </tr>
                        );
                       })}
