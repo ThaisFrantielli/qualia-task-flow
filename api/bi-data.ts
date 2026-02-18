@@ -62,7 +62,7 @@ function buildContratosQuery(fields?: string[]): string {
     LEFT JOIN public."dim_frota" f 
       ON regexp_replace(UPPER(TRIM(c."PlacaPrincipal")), '[^A-Z0-9]', '', 'g') = regexp_replace(UPPER(TRIM(f."Placa")), '[^A-Z0-9]', '', 'g')
     LEFT JOIN public.dim_contratos_metadata m 
-      ON TRIM(c."NumeroContratoLocacao") = TRIM(m.id_referencia)
+      ON regexp_replace(UPPER(TRIM(c."PlacaPrincipal")), '[^A-Z0-9]', '', 'g') = regexp_replace(UPPER(TRIM(m.id_referencia::text)), '[^A-Z0-9]', '', 'g')
     LIMIT $1
   `;
 }
