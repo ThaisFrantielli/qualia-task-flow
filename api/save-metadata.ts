@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    let { id_referencia, estrategia, acao_usuario, valor_aquisicao, observacoes, modelo_aquisicao } = body || {};
+    let { id_referencia, contrato_comercial, estrategia, acao_usuario, valor_aquisicao, observacoes, modelo_aquisicao } = body || {};
     const norm = (v: any) => {
       if (v === null || v === undefined) return null;
       if (typeof v === 'string') {
@@ -36,8 +36,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     estrategia = norm(estrategia);
     acao_usuario = norm(acao_usuario);
     modelo_aquisicao = norm(modelo_aquisicao);
+    contrato_comercial = norm(contrato_comercial);
     observacoes = typeof observacoes === 'string' ? observacoes.trim() : observacoes;
-    console.debug('[save-metadata] incoming payload', { id_referencia, estrategia, acao_usuario, valor_aquisicao, modelo_aquisicao });
+    console.debug('[save-metadata] incoming payload', { id_referencia, contrato_comercial, estrategia, acao_usuario, valor_aquisicao, modelo_aquisicao });
 
     if (!id_referencia || typeof id_referencia !== 'string') {
       return res.status(400).json({ error: 'Missing id_referencia (string)' });
@@ -48,32 +49,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const start = Date.now();
 
       // Normalize incoming id for lookup (remove non-alphanumerics and uppercase)
-      const norm = String(id_referencia).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const normalizedId = String(id_referencia).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
       // Try to find an existing row whose normalized id_referencia matches
       const findQ = `SELECT id_referencia FROM public.dim_contratos_metadata WHERE regexp_replace(UPPER(TRIM(id_referencia::text)), '[^A-Z0-9]', '', 'g') = $1 LIMIT 1`;
-      const found = await client.query(findQ, [norm]);
+      const found = await client.query(findQ, [normalizedId]);
 
       if (found && found.rows && found.rows.length > 0) {
         // Update the canonical existing id_referencia row
         const existingId = found.rows[0].id_referencia;
         const uQ = `
           UPDATE public.dim_contratos_metadata SET
-            acao_usuario = COALESCE($2, acao_usuario),
-            estrategia = COALESCE($3, estrategia),
-            modelo_aquisicao = COALESCE($4, modelo_aquisicao),
-            valor_aquisicao = COALESCE($5, valor_aquisicao),
-            observacoes = COALESCE($6, observacoes),
+            contrato_comercial = COALESCE($2, contrato_comercial),
+            acao_usuario = COALESCE($3, acao_usuario),
+            estrategia = COALESCE($4, estrategia),
+            modelo_aquisicao = COALESCE($5, modelo_aquisicao),
+            valor_aquisicao = COALESCE($6, valor_aquisicao),
+            observacoes = COALESCE($7, observacoes),
             atualizado_em = CURRENT_TIMESTAMP
           WHERE id_referencia = $1
           RETURNING *;
         `;
         const uVals = [
           existingId,
+          contrato_comercial ?? null,
           acao_usuario ?? null,
           estrategia ?? null,
           modelo_aquisicao ?? null,
-          (typeof valor_aquisicao === 'number') ? valor_aquisicao : (valor_aquisicao ? Number(valor_aquisicao) : null),
+          (typeof valor_aquisicao === 'number') ? valor_aquisicao : (valor_aquisicao ? Number(String(valor_aquisicao).replace(/[^0-9,\.]/g, '').replace(/\./g, '').replace(/,/, '.')) : null),
           observacoes ?? null,
         ];
         const result = await client.query(uQ, uVals);
@@ -84,17 +87,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // No matching normalized row — insert new
       const q = `
-        INSERT INTO public.dim_contratos_metadata (id_referencia, acao_usuario, estrategia, modelo_aquisicao, valor_aquisicao, observacoes)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO public.dim_contratos_metadata (id_referencia, contrato_comercial, acao_usuario, estrategia, modelo_aquisicao, valor_aquisicao, observacoes)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
       `;
 
       const vals = [
         id_referencia,
+        contrato_comercial ?? null,
         acao_usuario ?? null,
         estrategia ?? null,
         modelo_aquisicao ?? null,
-        (typeof valor_aquisicao === 'number') ? valor_aquisicao : (valor_aquisicao ? Number(valor_aquisicao) : null),
+        (typeof valor_aquisicao === 'number') ? valor_aquisicao : (valor_aquisicao ? Number(String(valor_aquisicao).replace(/[^0-9,\.]/g, '').replace(/\./g, '').replace(/,/, '.')) : null),
         observacoes ?? null,
       ];
 

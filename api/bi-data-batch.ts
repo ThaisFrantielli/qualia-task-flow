@@ -65,7 +65,7 @@ function buildContratosQuery(): string {
     LEFT JOIN public.dim_contratos_metadata md_placa
       ON md_placa.id_referencia = UPPER(TRIM(COALESCE(c."PlacaPrincipal", '')))
     LEFT JOIN public.dim_contratos_metadata md_contrato
-      ON md_contrato.id_referencia = CAST(c."IdContratoLocacao" AS TEXT)
+      ON TRIM(c."NumeroContratoLocacao") = TRIM(md_contrato.id_referencia)
     -- Expose metadata fields as top-level columns
     LIMIT $1
   `;

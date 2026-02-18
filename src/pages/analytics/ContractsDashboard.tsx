@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Contracts } from '@/components/analytics/Contracts';
-import { Contract } from '@/types/contracts';
+import { Contract, RenewalStrategyLabel } from '@/types/contracts';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -108,7 +108,20 @@ export default function ContractsDashboard(): JSX.Element {
         ValorCompra: parseNum(c.ValorCompra || c.valorcompra),
         // metadata saved by user (priority over ERP fields)
         observation: c.observacoes_salvas ?? (c.observation || undefined),
-        renewalStrategy: (c.estrategia_salva as any) ?? 'WAIT_PERIOD',
+        // Normalize saved estrategia: accept either enum key or user-facing label (case/space-insensitive)
+        renewalStrategy: (() => {
+          const raw = c.estrategia_salva ?? null;
+          if (!raw) return 'WAIT_PERIOD';
+          const s = String(raw).trim();
+          const keys = Object.keys(RenewalStrategyLabel);
+          // check keys case-insensitive
+          const keyMatch = keys.find(k => k.toLowerCase() === s.toLowerCase());
+          if (keyMatch) return keyMatch as any;
+          // map labels to keys (compare trimmed lowercase)
+          const labelMatch = keys.find(k => (RenewalStrategyLabel as any)[k].trim().toLowerCase() === s.trim().toLowerCase());
+          if (labelMatch) return labelMatch as any;
+          return 'WAIT_PERIOD';
+        })(),
         // prefer explicit saved `valor_aquisicao` (can be 0). fallback to ERP ValorCompra
         purchasePrice: (c.valor_aquisicao !== undefined && c.valor_aquisicao !== null) ? parseNum(c.valor_aquisicao) : parseNum(c.ValorCompra || c.valorcompra),
         // novo campo salvo pelo usuário

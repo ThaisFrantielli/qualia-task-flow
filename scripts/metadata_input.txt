@@ -1,0 +1,1047 @@
+Contrato de Locação	Contrato Comercial	ValorAquisicao	Estratégia
+LOC-2893-1/14	CTO-2897		Não Renova
+LOC-2728-1/12	CTO-2728		Não Renova
+LOC-2740-1/12	CTO-2740		Não Renova
+LOC-2779-2/12	CTO-2779		Não Renova
+LOC-2772-1/18	CTO-2772		Não Renova
+LOC-2068-1/36	CTO-2798		Não Renova
+LOC-2810-1/10	CTO-2810		Não Renova
+LOC-2812-1/12	CTO-2812		Não Renova
+LOC-2407-74/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1646-1/18	CTO-2818		Não Renova
+LOC-2407-91/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2390-1/24	CTO-2837		Não Renova
+LOC-1634-3/36	CTO-2848		Não Renova
+LOC-1988-1/24	CTO-2863		Não Renova
+LOC-2864-1/12	CTO-2864		Não Renova
+LOC-2426-1/12	CTO-2841		Não Renova
+LOC-2874-1/5	CTO-2874		Não Renova
+LOC-2880-1/20	CTO-2880		Não Renova
+LOC-2671-1/12	CTO-2875		Não Renova
+LOC-2407-73/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-81/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-23/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2407-103/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-75/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-93/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-70/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-42/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-66/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2896-1/12	CTO-2896		Não Renova
+LOC-2857-1/12	CTO-2857		Não Renova
+LOC-2856-2/12	CTO-2856		Não Renova
+LOC-1450-15/48	CTO-2070		Não Renova
+LOC-1769-1/48	CTO-1769		Não Renova
+LOC-2054-1/48	CTO-2054		Não Renova
+LOC-2890-1/2	CTO-2890		Não Renova
+LOC-1608-1/24	CTO-1608		Não Renova
+LOC-1568-1/36	CTO-1568		Não Renova
+LOC-2612-1/24	CTO-2612		Não Renova
+LOC-1687-1/48	CTO-1687		Não Renova
+LOC-2024-1/48	CTO-2024		Não Renova
+LOC-2489-1/12	CTO-2695		Não Renova
+LOC-2759-1/6	CTO-2759		Não Renova
+LOC-1515-353/36	CTO-1515		Não Renova
+LOC-1001-12/12	CTO-1001		Não Renova
+LOC-1810-1/48	CTO-1810		Não Renova
+LOC-2734-1/12	CTO-2734		Não Renova
+LOC-1001-16/12	CTO-1001		Não Renova
+LOC-2530-1/24	CTO-2530		Não Renova
+LOC-1450-42/48	CTO-2070		Não Renova
+LOC-1515-395/36	CTO-1515		Não Renova
+LOC-2471-13/30	CTO-2471		Não Renova
+LOC-2009-32/60	CTO-2070		Não Renova
+LOC-2557-2/12	CTO-2557		Não Renova
+LOC-2049-28/60	CTO-2070		Não Renova
+LOC-1450-41/48	CTO-2070		Não Renova
+LOC-2115-49/36	CTO-2070		Não Renova
+LOC-1176-5/36	CTO-1176		Não Renova
+LOC-1393-3/24	CTO-1393		Não Renova
+LOC-1001-24/12	CTO-1001		Não Renova
+LOC-1176-6/36	CTO-1176		Não Renova
+LOC-2889-1/12	CTO-2889		Não Renova
+LOC-2681-1/12	CTO-2681		Não Renova
+LOC-2629-1/24	CTO-2629		Não Renova
+LOC-2065-7/24	CTO-2070		Não Renova
+LOC-1176-3/36	CTO-1176		Não Renova
+LOC-2220-2/6	CTO-2220		Não Renova
+LOC-1515-384/36	CTO-1515		Não Renova
+LOC-2049-34/60	CTO-2070		Não Renova
+LOC-1931-127/48	CTO-1931		Não Renova
+LOC-1393-4/24	CTO-1393		Não Renova
+LOC-2070-151/48	CTO-2070		Não Renova
+LOC-2049-3/60	CTO-2070		Não Renova
+LOC-2548-1/12	CTO-2750		Não Renova
+LOC-2234-3/24	CTO-2860	 R$ 109.152,00 	Renova com troca (zero)
+LOC-2234-1/24	CTO-2838	 R$ 108.265,00 	Renova com troca (zero)
+LOC-1515-349/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-1959-1/48	CTO-1959		Não Renova
+LOC-2745-1/6	CTO-2745		Não Renova
+LOC-1948-1/48	CTO-1948		Não Renova
+LOC-1001-2/12	CTO-1001		Não Renova
+LOC-2009-57/60	CTO-2070		Não Renova
+LOC-1495-1/48	CTO-1495		Não Renova
+LOC-2519-1/24	CTO-2519		Não Renova
+LOC-1701-1/36	CTO-2739		Não Renova
+LOC-1450-16/48	CTO-2070		Não Renova
+LOC-1393-2/24	CTO-1393		Não Renova
+LOC-1931-12/48	CTO-1931		Não Renova
+LOC-1001-27/12	CTO-1001		Não Renova
+LOC-2070-134/48	CTO-2070		Não Renova
+LOC-2009-44/60	CTO-2070		Não Renova
+LOC-2070-158/48	CTO-2070		Não Renova
+LOC-1450-43/48	CTO-2070		Não Renova
+LOC-1001-18/12	CTO-1001		Não Renova
+LOC-2070-172/48	CTO-2070		Não Renova
+LOC-2009-40/60	CTO-2070		Não Renova
+LOC-2385-1/24	CTO-2819		Não Renova
+LOC-2700-2/12	CTO-2700		Não Renova
+LOC-1001-10/12	CTO-1001		Não Renova
+LOC-1450-24/48	CTO-2070		Não Renova
+LOC-2757-1/6	CTO-2757		Não Renova
+LOC-2653-1/6	CTO-2653		Não Renova
+LOC-1992-1/48	CTO-1992		Não Renova
+LOC-2070-20/48	CTO-2070		Não Renova
+LOC-2585-1/24	CTO-2585		Não Renova
+LOC-1737-1/48	CTO-1737		Não Renova
+LOC-2175-1/24	CTO-2733		Não Renova
+LOC-2049-40/60	CTO-2070		Não Renova
+LOC-2660-1/6	CTO-2776		Não Renova
+LOC-2115-1/36	CTO-2070		Não Renova
+LOC-2596-1/24	CTO-2596		Não Renova
+LOC-2009-4/60	CTO-2070		Não Renova
+LOC-1495-7/48	CTO-1495		Não Renova
+LOC-1176-4/36	CTO-1176		Não Renova
+LOC-1001-4/12	CTO-1001		Não Renova
+LOC-2814-1/12	CTO-2814		Não Renova
+LOC-2070-38/48	CTO-2070		Não Renova
+LOC-1450-28/48	CTO-2070		Não Renova
+LOC-1176-7/36	CTO-1176		Não Renova
+LOC-2730-1/12	CTO-2730		Não Renova
+LOC-1515-378/36	CTO-1515		Não Renova
+LOC-2532-1/12	CTO-2743		Não Renova
+LOC-1515-392/36	CTO-1515		Não Renova
+LOC-2070-99/48	CTO-2070		Não Renova
+LOC-1001-8/12	CTO-1001		Não Renova
+LOC-1001-25/12	CTO-1001		Não Renova
+LOC-1450-10/48	CTO-2070		Não Renova
+LOC-1176-9/36	CTO-1176		Não Renova
+LOC-1515-394/36	CTO-1515		Não Renova
+LOC-1450-47/48	CTO-2070		Não Renova
+LOC-1450-45/48	CTO-2070		Não Renova
+LOC-2070-82/48	CTO-2070		Não Renova
+LOC-1450-6/48	CTO-2070		Não Renova
+LOC-2070-128/48	CTO-2070		Não Renova
+LOC-2070-118/48	CTO-2070		Não Renova
+LOC-2407-15/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-1515-362/36	CTO-1515		Não Renova
+LOC-2407-77/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2070-107/48	CTO-2070		Não Renova
+LOC-2115-10/36	CTO-2070		Não Renova
+LOC-2070-27/48	CTO-2070		Não Renova
+LOC-2070-126/48	CTO-2070		Não Renova
+LOC-1450-50/48	CTO-2070		Não Renova
+LOC-1515-329/24	CTO-1514	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2070-21/48	CTO-2070		Não Renova
+LOC-1001-11/12	CTO-1001		Não Renova
+LOC-2070-121/48	CTO-2070		Não Renova
+LOC-1931-14/48	CTO-1931		Não Renova
+LOC-2049-42/60	CTO-2070		Não Renova
+LOC-2049-39/60	CTO-2070		Não Renova
+LOC-1450-27/48	CTO-2070		Não Renova
+LOC-1001-17/12	CTO-1001		Não Renova
+LOC-1450-44/48	CTO-2070		Não Renova
+LOC-1450-25/48	CTO-2070		Não Renova
+LOC-2049-19/60	CTO-2070		Não Renova
+LOC-1450-17/48	CTO-2070		Não Renova
+LOC-1001-28/12	CTO-1001		Não Renova
+LOC-2049-11/60	CTO-2070		Não Renova
+LOC-1979-2/24	CTO-1979		Não Renova
+LOC-1001-23/12	CTO-1001		Não Renova
+LOC-1001-21/12	CTO-1001		Não Renova
+LOC-2049-47/60	CTO-2070		Não Renova
+LOC-1931-3/48	CTO-1931		Não Renova
+LOC-2070-49/48	CTO-2070		Não Renova
+LOC-1001-15/12	CTO-1001		Não Renova
+LOC-2070-119/48	CTO-2070		Não Renova
+LOC-2070-78/48	CTO-2070		Não Renova
+LOC-2847-1/12	CTO-2847		Não Renova
+LOC-2049-31/60	CTO-2070		Não Renova
+LOC-2070-153/48	CTO-2070		Não Renova
+LOC-1931-6/48	CTO-1931		Não Renova
+LOC-2049-32/60	CTO-2070		Não Renova
+LOC-2806-1/12	CTO-2806		Não Renova
+LOC-1450-7/48	CTO-2070		Não Renova
+LOC-2115-55/36	CTO-2070		Não Renova
+LOC-1001-29/12	CTO-1001		Não Renova
+LOC-1001-14/12	CTO-1001		Não Renova
+LOC-1450-8/48	CTO-2070		Não Renova
+LOC-2070-108/48	CTO-2070		Não Renova
+LOC-2471-10/30	CTO-2471		Não Renova
+LOC-1001-5/12	CTO-1001		Não Renova
+LOC-2298-23/30	CTO-2298		Não Renova
+LOC-1001-13/12	CTO-1001		Não Renova
+LOC-2070-148/48	CTO-2070		Não Renova
+LOC-1001-26/12	CTO-1001		Não Renova
+LOC-2009-84/60	CTO-2070		Não Renova
+LOC-2070-32/48	CTO-2070		Não Renova
+LOC-2070-102/48	CTO-2070		Não Renova
+LOC-1515-393/36	CTO-1515		Não Renova
+LOC-1450-1/48	CTO-2070		Não Renova
+LOC-1515-385/36	CTO-1515		Não Renova
+LOC-1515-345/36	CTO-1515		Não Renova
+LOC-2029-1/24	CTO-2699		Não Renova
+LOC-1450-48/48	CTO-2070		Não Renova
+LOC-1450-59/48	CTO-2070		Não Renova
+LOC-2482-1/6	CTO-2685		Não Renova
+LOC-2070-117/48	CTO-2070		Não Renova
+LOC-2307-1/36	CTO-2307		Não Renova
+LOC-2224-2/24	CTO-2795		Não Renova
+LOC-2070-44/48	CTO-2070		Não Renova
+LOC-2070-133/48	CTO-2070		Não Renova
+LOC-1929-7/18	CTO-2070		Não Renova
+LOC-1176-1/36	CTO-1176		Não Renova
+LOC-2070-112/48	CTO-2070		Não Renova
+LOC-1001-19/12	CTO-1001		Não Renova
+LOC-2727-1/12	CTO-2727		Não Renova
+LOC-2070-18/48	CTO-2070		Não Renova
+LOC-1931-16/48	CTO-1931		Não Renova
+LOC-2665-1/12	CTO-2665		Não Renova
+LOC-1515-356/36	CTO-1515		Não Renova
+LOC-2070-74/48	CTO-2070		Não Renova
+LOC-1450-31/48	CTO-2070		Não Renova
+LOC-1515-377/36	CTO-1515		Não Renova
+LOC-2070-127/48	CTO-2070		Não Renova
+LOC-1450-13/48	CTO-2070		Não Renova
+LOC-1931-8/48	CTO-1931		Não Renova
+LOC-2070-39/48	CTO-2070		Não Renova
+LOC-2049-51/60	CTO-2070		Não Renova
+LOC-2070-152/48	CTO-2070		Não Renova
+LOC-2498-1/24	CTO-2498		Não Renova
+LOC-2683-1/12	CTO-2683		Não Renova
+LOC-1575-1/48	CTO-1575		Não Renova
+LOC-1931-7/48	CTO-1931		Não Renova
+LOC-2070-111/48	CTO-2070		Não Renova
+LOC-2070-98/48	CTO-2070		Não Renova
+LOC-1598-1/48	CTO-1598		Não Renova
+LOC-2070-96/48	CTO-2070		Não Renova
+LOC-2049-9/60	CTO-2070		Não Renova
+LOC-1493-3/48	CTO-1493		Não Renova
+LOC-2070-176/48	CTO-2070		Não Renova
+LOC-2070-46/48	CTO-2070		Não Renova
+LOC-1450-39/48	CTO-2070		Não Renova
+LOC-1450-23/48	CTO-2070		Não Renova
+LOC-2070-146/48	CTO-2070		Não Renova
+LOC-1515-330/24	CTO-1514	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1450-46/48	CTO-2070		Não Renova
+LOC-2070-71/48	CTO-2070		Não Renova
+LOC-1515-357/36	CTO-1515		Não Renova
+LOC-1822-1/24	CTO-2711		Não Renova
+LOC-1450-19/48	CTO-2070		Não Renova
+LOC-2597-2/24	CTO-2597		Não Renova
+LOC-2049-43/60	CTO-2070		Não Renova
+LOC-1450-37/48	CTO-2070		Não Renova
+LOC-2106-1/48	CTO-2106		Não Renova
+LOC-1450-32/48	CTO-2070		Não Renova
+LOC-2538-4/24	CTO-2538	 R$ 109.765,00 	Renova com troca (zero)
+LOC-1450-2/48	CTO-2070		Não Renova
+LOC-1929-12/18	CTO-2070		Não Renova
+LOC-1450-36/48	CTO-2070		Não Renova
+LOC-2552-1/24	CTO-2552		Não Renova
+LOC-1929-8/18	CTO-2070		Não Renova
+LOC-1450-29/48	CTO-2070		Não Renova
+LOC-1001-20/12	CTO-1001		Não Renova
+LOC-2070-124/48	CTO-2070		Não Renova
+LOC-1450-4/48	CTO-2070		Não Renova
+LOC-2070-104/48	CTO-2070		Não Renova
+LOC-2070-131/48	CTO-2070		Não Renova
+LOC-1450-49/48	CTO-2070		Não Renova
+LOC-2009-92/60	CTO-2070		Não Renova
+LOC-1303-1/48	CTO-1303		Não Renova
+LOC-1001-7/12	CTO-1001		Não Renova
+LOC-2597-8/24	CTO-2597		Não Renova
+LOC-2070-48/48	CTO-2070		Não Renova
+LOC-1593-1/24	CTO-1593		Não Renova
+LOC-2407-82/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2023-1/48	CTO-2023		Não Renova
+LOC-2070-150/48	CTO-2070		Não Renova
+LOC-2070-145/48	CTO-2070		Não Renova
+LOC-1001-22/12	CTO-1001		Não Renova
+LOC-2070-193/48	CTO-2070		Não Renova
+LOC-2298-88/30	CTO-2298		Não Renova
+LOC-2407-36/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2471-2/30	CTO-2471		Não Renova
+LOC-2070-144/48	CTO-2070		Não Renova
+LOC-2049-18/60	CTO-2070		Não Renova
+LOC-2049-16/60	CTO-2070		Não Renova
+LOC-2407-78/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2070-65/48	CTO-2070		Não Renova
+LOC-1450-40/48	CTO-2070		Não Renova
+LOC-1450-14/48	CTO-2070		Não Renova
+LOC-1450-5/48	CTO-2070		Não Renova
+LOC-2407-90/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2471-12/30	CTO-2471		Não Renova
+LOC-1450-21/48	CTO-2070		Não Renova
+LOC-2407-72/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1515-360/36	CTO-1515		Não Renova
+LOC-2407-94/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1515-379/36	CTO-1515		Não Renova
+LOC-1450-22/48	CTO-2070		Não Renova
+LOC-1515-382/36	CTO-1515		Não Renova
+LOC-1515-363/36	CTO-1515		Não Renova
+LOC-1515-391/36	CTO-1515		Não Renova
+LOC-2407-22/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2407-25/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-1450-3/48	CTO-2070		Não Renova
+LOC-1930-1/12	CTO-2070		Não Renova
+LOC-2070-62/48	CTO-2070		Não Renova
+LOC-2407-71/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1450-11/48	CTO-2070		Não Renova
+LOC-2366-1/36	CTO-2366		Não Renova
+LOC-2658-1/6	CTO-2843		Não Renova
+LOC-2407-21/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-1929-13/18	CTO-2070		Não Renova
+LOC-2070-34/48	CTO-2070		Não Renova
+LOC-2431-1/29	CTO-2431		Não Renova
+LOC-1450-33/48	CTO-2070		Não Renova
+LOC-2407-12/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-1931-13/48	CTO-1931		Não Renova
+LOC-2070-58/48	CTO-2070		Não Renova
+LOC-1450-9/48	CTO-2070		Não Renova
+LOC-2731-1/12	CTO-2731		Não Renova
+LOC-2630-1/24	CTO-2630		Não Renova
+LOC-1814-1/15	CTO-2868		Não Renova
+LOC-1450-18/48	CTO-2070		Não Renova
+LOC-2184-1/18	CTO-2842		Não Renova
+LOC-1450-63/48	CTO-2070		Não Renova
+LOC-1450-34/48	CTO-2070		Não Renova
+LOC-2471-5/30	CTO-2471		Renova com mesmo Veiculo
+LOC-2407-7/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-1515-358/36	CTO-1515		Não Renova
+LOC-1450-38/48	CTO-2070		Não Renova
+LOC-1176-2/36	CTO-1176		Não Renova
+LOC-2597-1/24	CTO-2597		Não Renova
+LOC-2597-4/24	CTO-2597		Não Renova
+LOC-1515-380/36	CTO-1515		Não Renova
+LOC-1450-20/48	CTO-2070		Não Renova
+LOC-2070-59/48	CTO-2070		Não Renova
+LOC-1514-5/24	CTO-1514		Não Renova
+LOC-2070-149/48	CTO-2070		Não Renova
+LOC-1515-387/36	CTO-1515		Não Renova
+LOC-2070-64/48	CTO-2070		Não Renova
+LOC-1515-354/36	CTO-1515		Não Renova
+LOC-1450-51/48	CTO-2070		Não Renova
+LOC-2453-1/30	CTO-2453		Renova com mesmo Veiculo
+LOC-1929-4/18	CTO-2070		Não Renova
+LOC-2407-28/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-1515-359/36	CTO-1515		Não Renova
+LOC-2471-14/30	CTO-2471		Não Renova
+LOC-1450-54/48	CTO-2070		Não Renova
+LOC-2348-1/36	CTO-2348		Não Renova
+LOC-2471-7/30	CTO-2471		Não Renova
+LOC-2070-147/48	CTO-2070		Não Renova
+LOC-2471-11/30	CTO-2471		Renova com mesmo Veiculo
+LOC-2422-1/36	CTO-2422		Renova com mesmo Veiculo
+LOC-2558-1/24	CTO-2558		Não Renova
+LOC-2805-1/12	CTO-2805		Não Renova
+LOC-1450-52/48	CTO-2070		Não Renova
+LOC-1450-58/48	CTO-2070		Não Renova
+LOC-2070-15/48	CTO-2070		Não Renova
+LOC-2756-1/6	CTO-2871		Não Renova
+LOC-2407-80/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2070-16/48	CTO-2070		Não Renova
+LOC-2407-18/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2597-6/24	CTO-2597		Não Renova
+LOC-1929-14/18	CTO-2070		Não Renova
+LOC-2407-13/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2563-1/24	CTO-2563		Não Renova
+LOC-1450-73/48	CTO-2070		Não Renova
+LOC-2471-9/30	CTO-2471		Não Renova
+LOC-2597-9/24	CTO-2597		Não Renova
+LOC-1434-2/36	CTO-1434		Não Renova
+LOC-1930-2/12	CTO-2070		Não Renova
+LOC-2471-6/30	CTO-2471		Não Renova
+LOC-1929-11/18	CTO-2070		Não Renova
+LOC-1450-71/48	CTO-2070		Não Renova
+LOC-1450-55/48	CTO-2070		Não Renova
+LOC-1450-75/48	CTO-2070		Não Renova
+LOC-2471-8/30	CTO-2471		Não Renova
+LOC-1450-94/48	CTO-2070		Não Renova
+LOC-2597-5/24	CTO-2597		Não Renova
+LOC-2471-1/30	CTO-2471		Não Renova
+LOC-1450-35/48	CTO-2070		Não Renova
+LOC-2471-3/30	CTO-2471		Não Renova
+LOC-1450-74/48	CTO-2070		Não Renova
+LOC-1450-69/48	CTO-2070		Não Renova
+LOC-2471-4/30	CTO-2471		Não Renova
+LOC-2509-1/12	CTO-2718		Não Renova
+LOC-2224-3/24	CTO-2795		Não Renova (Retorna pra Frota)
+LOC-2298-71/30	CTO-2298		Não Renova (Retorna pra Frota)
+LOC-2742-3/12	CTO-2742		Não Renova (Retorna pra Frota)
+LOC-2742-4/12	CTO-2742		Não Renova (Retorna pra Frota)
+LOC-2298-59/30	CTO-2298		Não Renova (Retorna pra Frota)
+LOC-2514-1/30	CTO-2514	 R$ 390.000,00 	Renova com troca (zero)
+LOC-2514-2/30	CTO-2514	 R$ 390.000,00 	Renova com troca (zero)
+LOC-2298-28/30	CTO-2298		Não Renova (Retorna pra Frota)
+LOC-2597-10/24	CTO-2597		Não Renova (Retorna pra Frota)
+LOC-2224-1/24	CTO-2795		Não Renova (Retorna pra Frota)
+LOC-2597-7/24	CTO-2597		Não Renova (Retorna pra Frota)
+LOC-2597-3/24	CTO-2597		Não Renova (Retorna pra Frota)
+LOC-2506-2/12	CTO-2506		Renova com mesmo Veiculo
+LOC-2506-1/12	CTO-2506		Renova com mesmo Veiculo
+LOC-2746-1/12	CTO-2746		Renova com mesmo Veiculo
+LOC-2777-2/8	CTO-2777		Não Renova
+LOC-2804-1/12	CTO-2804		Renova com mesmo Veiculo
+LOC-2624-3/12	CTO-2624	 R$ 180.000,00 	Renova com troca (zero)
+LOC-2407-20/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2624-4/12	CTO-2624	 R$ 180.000,00 	Renova com troca (zero)
+LOC-2487-14/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-32/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2865-1/12	CTO-2865		Renova com mesmo Veiculo
+LOC-2487-42/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2891-1/4	CTO-2891		Renova com mesmo Veiculo
+LOC-2461-4/12	CTO-2887		Renova com mesmo Veiculo
+LOC-2487-36/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-28/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2407-27/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2487-26/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-6/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2777-1/8	CTO-2777		Não Renova
+LOC-2775-1/12	CTO-2775		Renova com mesmo Veiculo
+LOC-2487-27/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-15/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-25/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-29/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-17/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-18/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-21/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2487-9/12	CTO-2846		Renova com mesmo Veiculo
+LOC-2427-39/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-43/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-40/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-47/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-38/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-45/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-34/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-32/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-44/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-42/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-36/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-33/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-23/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-37/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2407-17/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2427-31/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-30/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-46/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-41/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-2/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-3/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-29/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-4/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2427-25/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2528-7/24	CTO-2528		Renova com mesmo Veiculo
+LOC-2583-5/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2427-5/30	CTO-2427		Renova com mesmo Veiculo
+LOC-2513-1/12	CTO-2513		Renova com mesmo Veiculo
+LOC-2429-31/30	CTO-2429		Não Renova
+LOC-2583-12/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2429-20/30	CTO-2429		Não Renova
+LOC-1008-30/36	CTO-2429		Não Renova
+LOC-2429-13/30	CTO-2429		Não Renova
+LOC-2833-1/12	CTO-2833		Renova com mesmo Veiculo
+LOC-2429-11/30	CTO-2429		Não Renova
+LOC-2407-39/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-44/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-56/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-67/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2429-18/30	CTO-2429		Não Renova
+LOC-2429-25/30	CTO-2429		Não Renova
+LOC-2429-8/30	CTO-2429		Não Renova
+LOC-2429-24/30	CTO-2429		Não Renova
+LOC-2429-23/30	CTO-2429		Não Renova
+LOC-2407-47/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-24/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2429-9/30	CTO-2429		Não Renova
+LOC-2429-30/30	CTO-2429		Não Renova
+LOC-2429-19/30	CTO-2429		Não Renova
+LOC-2583-7/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2429-15/30	CTO-2429		Não Renova
+LOC-2429-16/30	CTO-2429		Não Renova
+LOC-2429-17/30	CTO-2429		Não Renova
+LOC-2429-1/30	CTO-2429		Não Renova
+LOC-2429-10/30	CTO-2429		Não Renova
+LOC-2429-2/30	CTO-2429		Não Renova
+LOC-2429-22/30	CTO-2429		Não Renova
+LOC-2407-60/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2429-21/30	CTO-2429		Não Renova
+LOC-2429-3/30	CTO-2429		Não Renova
+LOC-2429-6/30	CTO-2429		Não Renova
+LOC-2429-7/30	CTO-2429		Não Renova
+LOC-2429-4/30	CTO-2429		Não Renova
+LOC-2429-12/30	CTO-2429		Não Renova
+LOC-2542-7/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2407-9/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2542-16/12	CTO-2542		Renova com mesmo Veiculo
+LOC-1515-215/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2542-15/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-11/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-6/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2583-1/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2407-5/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2542-14/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-5/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2407-76/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2542-10/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2407-102/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2542-13/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-8/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-9/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-12/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-3/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2542-4/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2407-14/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2542-2/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2583-14/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2542-17/12	CTO-2542		Renova com mesmo Veiculo
+LOC-2407-4/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2499-6/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2499-1/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2499-2/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2499-3/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2583-13/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2497-18/18	CTO-2497	 R$ 98.592,70 	Renova com troca (zero)
+LOC-2583-11/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2499-8/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2499-5/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2583-9/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2499-4/12	CTO-2499		Renova com mesmo Veiculo
+LOC-2656-1/12	CTO-2656		Renova com mesmo Veiculo
+LOC-2656-2/12	CTO-2656		Renova com mesmo Veiculo
+LOC-2487-4/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2497-11/18	CTO-2854	 R$ 102.476,00 	Renova com troca (zero)
+LOC-2487-40/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2407-68/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2487-39/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-34/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2850-1/12	CTO-2850		Renova com mesmo Veiculo
+LOC-1121-1/36	CTO-1121		Renova com mesmo Veiculo
+LOC-2586-23/36	CTO-2130		Renova com mesmo Veiculo
+LOC-2487-38/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-1/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2407-26/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2407-89/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1515-321/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2487-43/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2879-1/12	CTO-2879		Renova com mesmo Veiculo
+LOC-2407-69/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2487-16/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-3/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-30/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-35/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2407-58/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2487-37/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-23/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-7/12	CTO-2487		Renova com mesmo Veiculo
+LOC-1515-322/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2487-19/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-31/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2407-29/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2676-2/12	CTO-2676		Renova com mesmo Veiculo
+LOC-2487-5/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2407-8/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2487-44/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-11/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-12/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-24/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-10/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-33/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-22/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2407-64/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-10/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2487-2/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2487-20/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2526-1/24	CTO-2526		Renova com mesmo Veiculo
+LOC-2407-19/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2487-8/12	CTO-2487		Renova com mesmo Veiculo
+LOC-2473-174/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-188/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-190/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2528-6/24	CTO-2480		Renova com mesmo Veiculo
+LOC-2407-54/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-106/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1515-311/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-55/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-1/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-142/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2573-2/24	CTO-2573		Renova com mesmo Veiculo
+LOC-1515-283/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-29/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-88/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-11/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2407-2/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2473-81/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-97/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-92/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-23/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-284/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-78/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-114/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-69/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-87/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-82/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-99/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-75/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-168/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-167/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-107/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-161/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-113/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-27/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-1/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2473-20/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-44/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-132/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-53/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-42/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-72/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-6/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2473-41/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-31/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-32/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-144/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-63/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-91/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-98/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-74/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2461-5/12	CTO-2461		Renova com mesmo Veiculo
+LOC-2628-2/12	CTO-2862		Renova com mesmo Veiculo
+LOC-2473-89/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-79/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-86/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-95/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2583-8/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2473-39/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-2/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-165/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-136/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-108/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-85/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-150/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-45/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-121/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-285/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-127/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2583-10/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2473-141/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-26/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-66/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-281/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-124/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-45/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-300/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-185/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-54/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-182/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-159/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-21/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-171/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2497-26/18	CTO-2497	 R$ 107.992,00 	Renova com troca (zero)
+LOC-2407-63/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-40/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-183/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-131/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-67/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-173/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-319/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-157/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-320/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-172/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-179/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-177/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-55/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-59/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-137/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-282/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2799-1/12	CTO-2817		Renova com mesmo Veiculo
+LOC-2473-176/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-30/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2473-178/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-180/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-53/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2407-61/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-128/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-58/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-3/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-4/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-130/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-34/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-49/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-48/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-47/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-8/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-46/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-187/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-36/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-57/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-156/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-96/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-305/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-143/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-100/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-93/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-62/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-1515-280/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-112/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-138/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-135/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-129/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-123/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-110/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-149/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-83/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-134/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-87/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-17/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-101/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-104/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-116/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2130-3/36	CTO-2130		Renova com mesmo Veiculo
+LOC-1515-328/24	CTO-1515		Renova com mesmo Veiculo
+LOC-1515-327/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2741-1/12	CTO-2741		Renova com mesmo Veiculo
+LOC-2583-2/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2473-146/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-10/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-90/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-65/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-122/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-80/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-148/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-11/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-154/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-164/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-104/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-189/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-152/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2583-4/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2473-101/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-153/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-41/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-145/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-50/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-37/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-43/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-181/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-28/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-16/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2840-1/12	CTO-2840		Renova com mesmo Veiculo
+LOC-2473-14/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-38/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-162/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-52/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2763-1/30	CTO-2763		Renova com mesmo Veiculo
+LOC-1515-279/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-43/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-57/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-9/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2583-6/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2473-24/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-61/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-19/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-155/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-56/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-160/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-70/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-84/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-46/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2473-6/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2586-56/36	CTO-2130		Renova com mesmo Veiculo
+LOC-2473-65/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-169/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-103/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-76/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-115/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-151/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-68/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-119/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-94/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-133/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2586-46/36	CTO-2130		Renova com mesmo Veiculo
+LOC-2473-109/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-170/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-158/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-139/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-126/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-147/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-30/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-163/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-98/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-33/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-125/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-191/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-40/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-13/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-107/30	CTO-2407	 R$ 60.562,00 	Renova com troca (zero)
+LOC-2473-73/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-18/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2586-19/36	CTO-2130		Renova com mesmo Veiculo
+LOC-2473-71/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-106/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-77/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-102/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-64/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-120/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-34/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2407-51/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2407-49/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-175/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2786-1/12	CTO-2786		Renova com mesmo Veiculo
+LOC-2583-3/27	CTO-2583		Renova com mesmo Veiculo
+LOC-2473-111/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-105/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2834-1/12	CTO-2834		Renova com mesmo Veiculo
+LOC-2473-51/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-96/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2407-38/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-95/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-5/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-52/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-31/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-15/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-60/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-62/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-35/30	CTO-2407	 R$ 57.191,00 	Renova com troca (zero)
+LOC-2407-3/30	CTO-2407	 R$ 53.730,00 	Renova com troca (zero)
+LOC-2473-59/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2586-32/36	CTO-2130		Renova com mesmo Veiculo
+LOC-2407-86/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-117/12	CTO-2473		Renova com mesmo Veiculo
+LOC-1515-333/24	CTO-1515		Renova com mesmo Veiculo
+LOC-2473-100/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-83/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-25/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2407-32/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2407-85/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2473-118/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-184/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-186/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-166/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-22/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2473-105/12	CTO-2473		Renova com mesmo Veiculo
+LOC-2674-2/12	CTO-2674		Renova com mesmo Veiculo
+LOC-2674-1/12	CTO-2674		Renova com mesmo Veiculo
+LOC-2461-3/12	CTO-2887		Renova com mesmo Veiculo
+LOC-2275-1/12	CTO-2899		Renova com mesmo Veiculo
+LOC-2407-99/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2497-17/18	CTO-2497		Renova com mesmo Veiculo
+LOC-2799-2/12	CTO-2799		Renova com Troca (Seminovo)
+LOC-2844-2/12	CTO-2844		Renova com Troca (Seminovo)
+LOC-2873-1/1	CTO-2873		Renova com Troca (Seminovo)
+LOC-2884-1/12	CTO-2884		Renova com Troca (Seminovo)
+LOC-2407-48/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2407-33/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2888-1/12	CTO-2888		Renova com Troca (Seminovo)
+LOC-2298-85/30	CTO-2298		Renova com troca (SEMINOVO)
+LOC-2407-88/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2064-1/18	CTO-2064		Renova com Troca (Seminovo)
+LOC-2500-1/24	CTO-2500		Renova com Troca (Seminovo)
+LOC-2417-2/12	CTO-2725		Renova com Troca (Seminovo)
+LOC-2811-1/12	CTO-2811		Renova com Troca (Seminovo)
+LOC-2623-1/12	CTO-2844		Renova com Troca (Seminovo)
+LOC-2577-2/18	CTO-2577		Renova com Troca (Seminovo)
+LOC-2600-2/24	CTO-2600		Renova com Troca (Seminovo)
+LOC-2617-5/18	CTO-2617		Renova com Troca (Seminovo)
+LOC-2816-1/36	CTO-2816		Sublocado
+LOC-2701-5/48	CTO-2701		Sublocado
+LOC-2701-14/48	CTO-2701		Sublocado
+LOC-2701-13/48	CTO-2701		Sublocado
+LOC-2701-16/48	CTO-2701		Sublocado
+LOC-1515-489/36	CTO-1515		Sublocado
+LOC-2701-2/48	CTO-2701		Sublocado
+LOC-2701-9/48	CTO-2701		Sublocado
+LOC-2701-4/48	CTO-2701		Sublocado
+LOC-2701-3/48	CTO-2701		Sublocado
+LOC-2701-8/48	CTO-2701		Sublocado
+LOC-2701-12/48	CTO-2701		Sublocado
+LOC-2701-17/48	CTO-2701		Sublocado
+LOC-1515-490/36	CTO-1515		Sublocado
+LOC-2407-97/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2701-6/48	CTO-2701		Sublocado
+LOC-2701-7/48	CTO-2701		Sublocado
+LOC-2407-84/30	CTO-2407	 R$ 77.122,00 	Renova com troca (zero)
+LOC-2701-11/48	CTO-2701		Sublocado
+LOC-2701-1/48	CTO-2701		Sublocado
+LOC-2497-12/18	CTO-2854	 R$ 102.476,00 	Renova com troca (zero)
+LOC-2524-10/36	CTO-2744		Sublocado
+LOC-2706-3/24	CTO-2706		Sublocado
+LOC-2701-15/48	CTO-2701		Sublocado
+LOC-2707-1/36	CTO-2707		Sublocado
+LOC-2234-4/24	CTO-2234	 R$ 109.152,00 	Renova com troca (zero)
+LOC-2589-1/60	CTO-2589	 R$ 128.581,65 	Renova com troca (zero)
+LOC-2589-5/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-1515-526/36	CTO-1515		Aguardando periodo para analise 
+LOC-1515-528/36	CTO-1515		Aguardando periodo para analise 
+LOC-2589-2/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-3/60	CTO-2589	 R$ 128.581,65 	Renova com troca (zero)
+LOC-2589-4/60	CTO-2589	 R$ 128.581,65 	Renova com troca (zero)
+LOC-2589-10/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-7/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-8/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2234-6/24	CTO-2234	 R$ 109.152,00 	Renova com troca (zero)
+LOC-2589-6/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-9/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2604-6/36	CTO-2604		Aguardando periodo para analise 
+LOC-2589-11/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2603-26/24	CTO-2603		Aguardando periodo para analise 
+LOC-2589-12/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2234-5/24	CTO-2234	 R$ 80.263,00 	Renova com troca (zero)
+LOC-2589-14/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-13/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2234-8/24	CTO-2234		Aguardando periodo para analise 
+LOC-2774-1/24	CTO-2774		Aguardando periodo para analise 
+LOC-2589-15/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-1515-264/24	CTO-1515	 R$ 150.269,00 	Renova com troca (zero)
+LOC-1515-347/36	CTO-1515	 R$ 155.393,00 	Renova com troca (zero)
+LOC-2589-16/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-1515-504/36	CTO-1515		Aguardando periodo para analise 
+LOC-1515-339/36	CTO-1515	 R$ 87.216,00 	Renova com troca (zero)
+LOC-1515-506/36	CTO-1515		Aguardando periodo para analise 
+LOC-2589-17/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-19/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-1515-343/36	CTO-1515	 R$ 155.393,00 	Renova com troca (zero)
+LOC-1515-510/36	CTO-1515		Aguardando periodo para analise 
+LOC-1515-515/36	CTO-1515		Aguardando periodo para analise 
+LOC-1515-338/36	CTO-1515	 R$ 87.216,00 	Renova com troca (zero)
+LOC-2589-18/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-20/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-1515-341/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-1514-52/24	CTO-1514		Aguardando periodo para analise 
+LOC-2589-22/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-1515-352/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-27/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-25/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-23/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-24/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-26/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-28/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-30/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-31/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-29/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-34/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-361/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-32/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-386/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-33/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-35/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-36/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-351/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-37/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-59/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-40/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-42/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-53/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-383/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-39/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-366/36	CTO-1515	 R$ 71.785,00 	Renova com troca (zero)
+LOC-2589-51/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-38/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-369/36	CTO-1515	 R$ 71.785,00 	Renova com troca (zero)
+LOC-2589-45/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-58/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-57/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-43/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-41/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-49/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-46/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-44/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-47/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-54/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-52/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-48/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-56/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-55/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-63/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-65/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-62/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-60/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-66/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-67/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-64/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-61/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-69/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-68/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-70/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-71/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-76/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-75/60	CTO-2589	 R$ 128.581,65 	Renova com troca (zero)
+LOC-2589-72/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-77/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-74/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-78/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-80/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-79/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-82/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-87/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-81/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-73/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-90/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-86/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-83/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2825-2/36	CTO-2825		Aguardando periodo para analise 
+LOC-2820-1/36	CTO-2820		Aguardando periodo para analise 
+LOC-2589-84/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-85/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-88/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-89/60	CTO-2589	 R$ 214.374,70 	Renova com troca (zero)
+LOC-2589-91/60	CTO-2589	 R$ 128.581,65 	Renova com troca (zero)
+LOC-2589-98/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-94/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-95/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2867-1/36	CTO-2867		Aguardando periodo para analise 
+LOC-2867-2/36	CTO-2867		Aguardando periodo para analise 
+LOC-2867-3/36	CTO-2867		Aguardando periodo para analise 
+LOC-1515-364/36	CTO-1515	 R$ 71.785,00 	Renova com troca (zero)
+LOC-2589-110/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-103/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-101/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-97/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-348/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-104/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-93/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-100/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-92/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-99/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-96/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-107/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-102/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-109/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-350/36	CTO-1515	 R$ 74.848,00 	Renova com troca (zero)
+LOC-2589-105/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-108/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2497-14/18	CTO-2854	 R$ 102.476,00 	Renova com troca (zero)
+LOC-2589-121/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-123/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-370/36	CTO-1515	 R$ 71.785,00 	Renova com troca (zero)
+LOC-2589-106/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-122/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2867-4/36	CTO-2867		Aguardando periodo para analise 
+LOC-2589-112/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-111/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-130/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-119/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-125/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-1515-372/36	CTO-1515	 R$ 71.785,00 	Renova com troca (zero)
+LOC-2589-113/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-127/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-120/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-126/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-128/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-115/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-124/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-129/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-114/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-116/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-131/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-117/60	CTO-2589	 R$ 68.000,00 	Renova com troca (zero)
+LOC-2589-118/60	CTO-2589	 R$ 68.00

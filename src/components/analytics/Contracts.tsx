@@ -307,7 +307,11 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         String(c.plate || c.mainPlate || '').toLowerCase().includes(lowerSearch);
       
       if (!searchMatch) return false;
-      if (filters.strategy.length > 0 && !filters.strategy.includes(c.renewalStrategy)) return false;
+      if (filters.strategy.length > 0) {
+        const norm = (v: any) => String(v || '').trim().toLowerCase();
+        const match = filters.strategy.some(f => norm(f) === norm(c.renewalStrategy));
+        if (!match) return false;
+      }
       if (filters.type.length > 0 && !filters.type.includes(c.type)) return false;
       if (filters.year.length > 0 && !filters.year.includes(c.expiryYear)) return false;
       if (filters.group.length > 0 && !filters.group.includes(c.groupLabel)) return false;
@@ -828,17 +832,17 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Calendar size={14}/> Vencimentos (Ano)</h4>
                <div className="h-56">
                  <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={analysisData.year}>
+                   <BarChart data={analysisData.year} margin={{ top: 22, right: 10, left: 10, bottom: 0 }}>
                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
                      <XAxis dataKey="name" tick={{fontSize: 10}} axisLine={false} tickLine={false} />
                      <YAxis hide />
                      <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} />
                      <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={32}>
-                       {analysisData.year.map((entry, index) => (
-                          <Cell key={index} fill={filters.year.includes(entry.fullKey) ? '#1e40af' : '#3B82F6'} cursor="pointer" onClick={() => toggleFilter('year', entry.fullKey)} />
-                       ))}
-                      <LabelList dataKey="value" position="top" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-                     </Bar>
+                      {analysisData.year.map((entry, index) => (
+                        <Cell key={index} fill={filters.year.includes(entry.fullKey) ? '#1e40af' : '#3B82F6'} cursor="pointer" onClick={() => toggleFilter('year', entry.fullKey)} />
+                      ))}
+                     <LabelList dataKey="value" position="top" offset={6} formatter={(v: any) => (typeof v === 'number' ? v : v)} />
+                    </Bar>
                    </BarChart>
                  </ResponsiveContainer>
                </div>
@@ -923,17 +927,17 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Clock size={14}/> Idade da Frota</h4>
                <div className="h-56">
                  <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={analysisData.age}>
+                   <BarChart data={analysisData.age} margin={{ top: 22, right: 10, left: 10, bottom: 0 }}>
                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
                      <XAxis dataKey="name" tick={{fontSize: 10}} axisLine={false} tickLine={false} />
                      <YAxis hide />
                      <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} />
-                     <Bar dataKey="value" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={32}>
-                        {analysisData.age.map((entry, index) => (
-                           <Cell key={index} fill={filters.ageRange.includes(entry.fullKey) ? '#4338ca' : '#6366F1'} cursor="pointer" onClick={() => toggleFilter('ageRange', entry.fullKey)} />
-                        ))}
-                        <LabelList dataKey="value" position="top" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-                     </Bar>
+                    <Bar dataKey="value" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={32}>
+                      {analysisData.age.map((entry, index) => (
+                        <Cell key={index} fill={filters.ageRange.includes(entry.fullKey) ? '#4338ca' : '#6366F1'} cursor="pointer" onClick={() => toggleFilter('ageRange', entry.fullKey)} />
+                      ))}
+                      <LabelList dataKey="value" position="top" offset={6} formatter={(v: any) => (typeof v === 'number' ? v : v)} />
+                    </Bar>
                    </BarChart>
                  </ResponsiveContainer>
                </div>
