@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend, LabelList } from 'recharts';
+import ActionPicker from './ActionPicker';
 
 interface ContractsProps {
   contracts: Contract[];
@@ -1455,27 +1456,11 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                             </div>
                           </td>
                           <td className="px-4 py-4">
-                            <div className="text-xs">
-                              <select
-                                value={(contract as any).acao_usuario || ''}
-                                onChange={(e) => { e.stopPropagation(); handleAcaoChange(contract.id, e.target.value as RenewalStrategy); }}
-                                onFocus={(e) => { e.stopPropagation(); }}
-                                onClick={(e) => { e.stopPropagation(); }}
-                                onPointerDown={(e) => { e.stopPropagation(); }}
-                                onMouseDown={(e) => { e.stopPropagation(); }}
-                                onPointerUp={(e) => { e.stopPropagation(); }}
-                                onMouseUp={(e) => { e.stopPropagation(); }}
-                                onBlur={(e) => { e.stopPropagation(); }}
-                                disabled={observationModalOpen || purchaseModalOpen}
-                                className="w-full text-xs border rounded py-1 px-2"
-                                style={{ minWidth: 160, position: 'relative', zIndex: 50, pointerEvents: (observationModalOpen || purchaseModalOpen) ? 'none' : 'auto' }}
-                              >
-                                <option value="">Selecione</option>
-                                {Object.entries(RenewalStrategyLabel).map(([key, label]) => (
-                                  <option key={key} value={key}>{label}</option>
-                                ))}
-                              </select>
-                            </div>
+                            <ActionPicker
+                              value={(contract as any).acao_usuario || null}
+                              onChange={(val) => handleAcaoChange(contract.id, val)}
+                              disabled={observationModalOpen || purchaseModalOpen}
+                            />
                           </td>
                           {hasObservations && <td className="px-4 py-4">{contract.observation ? (
                             <span
