@@ -132,8 +132,8 @@ export default function ContractsDashboard(): JSX.Element {
         type: String(getStr(c.TipoDeContrato, c.TipoLocacao) || 'Locação'),
         startDate: c.DataInicial || c.DataInicio || c.DataInicial || new Date().toISOString(),
         endDate: c.DataFinal || c.DataTermino || c.DataFinal || new Date().toISOString(),
-        // Prefer new Oracle column UltimoValorLocacao (may be formatted string), fallback to legacy fields
-        monthlyValue: parseNum(((c.UltimoValorLocacao ?? c.ultimo_valor_locacao ?? c.ValorMensalAtual ?? c.ValorLocacao ?? c.ValorMensal) || 0)),
+        // Prefer ERP column UltimoValorLocacao, fallback to legacy fields
+        monthlyValue: parseNum(((c.UltimoValorLocacao ?? c.ValorMensalAtual ?? c.ValorLocacao ?? c.ValorMensal) || 0)),
         currentFipe: finalFipe,
         // purchasePrice already set above (honoring valor_zero_salvo)
         manufacturingYear: parseInt(String(c.AnoFabricacao || c.anofabricacao || new Date().getFullYear())) || new Date().getFullYear(),
@@ -162,18 +162,11 @@ export default function ContractsDashboard(): JSX.Element {
   const handleUpdateContract = useCallback(async (updatedContract: Contract) => {
     const t = toast({ title: 'Salvando...', description: 'Enviando alterações ao servidor...' });
     try {
-      // Prefer sending the plate (PlacaPrincipal) as id_referencia to match dim_contratos_metadata.id_referencia
-      // Prefer normalized plate (without formatting) as id_referencia; fallback to rawId or contractNumber
-      const maybePlateNorm = (updatedContract as any).plateNormalized || (updatedContract as any).plate || (updatedContract as any).mainPlate || '';
-      const normalizeRef = (s: unknown) => {
-        if (!s && s !== 0) return '';
-        return String(s).toUpperCase().replace(/[^A-Z0-9]/g, '') || '';
-      };
-      const rawIdVal = (updatedContract as any).rawId;
-      const id_ref = normalizeRef(maybePlateNorm) || (rawIdVal ? String(rawIdVal) : (updatedContract.contractNumber || ''));
-      if (!id_ref) {
-        console.warn('[ContractsDashboard] No id_referencia available for save');
-        t.update({ title: 'Erro', description: 'Referência ausente para salvar.', variant: 'destructive' } as any);
+      // Usar ContratoLocacao como id_referencia (ex: LOC-2407-74/30)
+      const id_ref = updatedContract.contractNumber || (updatedContract as any).rawId || '';
+      if (!id_ref || id_ref === 'N/A') {
+        console.warn('[ContractsDashboard] Número do contrato de locação ausente para salvar');
+        t.update({ title: 'Erro', description: 'Número do contrato de locação ausente para salvar.', variant: 'destructive' } as any);
         return;
       }
 
@@ -193,7 +186,6 @@ export default function ContractsDashboard(): JSX.Element {
         acao_usuario: normVal((updatedContract as any).acao_usuario),
         valor_aquisicao_zero: Boolean((updatedContract as any).purchasePrice === 0),
         valor_aquisicao: (updatedContract as any).purchasePrice ?? null,
-        ultimo_valor_locacao: (updatedContract as any).monthlyValue ?? null,
         observacoes: (updatedContract as any).observation ?? null,
         modelo_aquisicao: (updatedContract as any).modelo_aquisicao ?? null,
       };
@@ -220,23 +212,7 @@ export default function ContractsDashboard(): JSX.Element {
         return;
       }
 
-      // Refresh data so metadata from DB is reflected (API batch includes metadata now)
-      // Also trigger server-side cache refresh for bi-data so UI shows latest metadata
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        try {
-          const bustResp = await fetch(`/api/bi-data?table=dim_contratos_locacao&bust=${Date.now()}`, { signal: controller.signal });
-          if (!bustResp.ok) console.warn('[ContractsDashboard] bust fetch responded not ok', bustResp.status);
-        } catch (e) {
-          console.warn('[ContractsDashboard] bust fetch error', e);
-        } finally {
-          clearTimeout(timeout);
-        }
-      } catch (e) {
-        console.warn('[ContractsDashboard] bust fetch outer error', e);
-      }
-
+      // refetch agora já buста o cache do servidor (append &refresh=timestamp) e o cache do frontend
       if (typeof refetch === 'function') {
         try { await (refetch as any)(); } catch (e) { console.warn('[ContractsDashboard] refetch failed', e); }
       }

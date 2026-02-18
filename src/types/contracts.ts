@@ -45,6 +45,8 @@ export interface Contract {
   valorFipeAtual?: number;
   // Valor de compra do veículo (dim_frota)
   ValorCompra?: number;
+  // Valor de aquisição 0km da planilha estrategia
+  ValorAquisicaoPlanilha?: number;
   // Montadora (ex: Volkswagen, Toyota)
   montadora?: string;
   // Modelo do veículo (string original do dim_frota)

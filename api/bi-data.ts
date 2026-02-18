@@ -27,6 +27,7 @@ const ALLOWED_TABLES = new Set([
   'fat_detalhe_itens_os_2026', 'fato_financeiro_dre',
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
   'agg_dre_mensal',
+  'fluxo_caixa_projetado',
 ]);
 
 // Allowed fields per table (whitelist to prevent injection via fields param)
@@ -62,7 +63,7 @@ function buildContratosQuery(fields?: string[]): string {
     LEFT JOIN public."dim_frota" f 
       ON regexp_replace(UPPER(TRIM(c."PlacaPrincipal")), '[^A-Z0-9]', '', 'g') = regexp_replace(UPPER(TRIM(f."Placa")), '[^A-Z0-9]', '', 'g')
     LEFT JOIN public.dim_contratos_metadata m 
-      ON regexp_replace(UPPER(TRIM(c."PlacaPrincipal")), '[^A-Z0-9]', '', 'g') = regexp_replace(UPPER(TRIM(m.id_referencia::text)), '[^A-Z0-9]', '', 'g')
+      ON UPPER(TRIM(c."ContratoLocacao"::text)) = UPPER(TRIM(m.id_referencia::text))
     LIMIT $1
   `;
 }
@@ -105,6 +106,181 @@ export async function queryTable(
   }
 }
 
+async function buildCashflowProjection(req: VercelRequest, limit: number) {
+  // Fetch contratos with joined frota and metadata via existing helper
+  const { rows } = await queryTable('dim_contratos_locacao', limit);
+
+  // Filters from query params (client, categoria, filial)
+  const clienteFilter = typeof req.query.cliente === 'string' ? req.query.cliente.toLowerCase() : undefined;
+  const categoriaFilter = typeof req.query.categoria === 'string' ? req.query.categoria.toLowerCase() : undefined;
+  const filialFilter = typeof req.query.filial === 'string' ? req.query.filial.toLowerCase() : undefined;
+
+  const today = new Date();
+  const months: Array<{ year: number; month: number }> = [];
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
+
+  // Helper to read string/number fields safely
+  const toNumber = (v: unknown) => {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const cleaned = v.replace(/[^0-9.,-]/g, '').replace(',', '.');
+      const n = Number(cleaned);
+      return Number.isFinite(n) ? n : 0;
+    }
+    if (typeof v === 'bigint') return Number(v);
+    return 0;
+  };
+
+  // Pre-process rows: apply filters and extract relevant fields
+  const processed = rows.map(r => {
+    const vencStr = (r['DataEncerramento'] ?? r['DataFinal'] ?? r['datafinal'] ?? r['DataFinal']) as string | undefined;
+    const dataInicialStr = (r['DataInicial'] ?? r['Inicio'] ?? r['dataInicial']) as string | undefined;
+    const dataFinalStr = (r['DataFinal'] ?? r['DataFinal'] ?? r['datafinal']) as string | undefined;
+    const vencimento = vencStr ? new Date(vencStr) : (dataFinalStr ? new Date(dataFinalStr) : null);
+
+    const ultimoVal = toNumber(r['UltimoValorLocacao'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual'] ?? r['CustoAtual'] ?? r['ValorMensalAtual'] ?? r['ValorMensalAtual']);
+    const valorFipe = toNumber(r['ValorFipe'] ?? r['valorFipeAtual'] ?? r['valorFipe'] ?? r['valorFipeAtual']);
+    const valorAquisicao = toNumber(r['valor_aquisicao'] ?? r['ValorAquisicao'] ?? r['valorAquisicao']);
+    const estrategia = (r['estrategia_salva'] ?? r['estrategia'] ?? r['Estrategia'] ?? '') as string;
+
+    // status checks - exclude if Encerrado or Vendido in any plausible status field
+    const statusFields = ['Status', 'status', 'SituacaoContrato', 'SituacaoContratoLocacao', 'SituacaoContrato', 'StatusLocacao', 'statuslocacao', 'SituacaoDoFaturamento'];
+    const isExcluded = statusFields.some(k => {
+      const v = r[k];
+      return typeof v === 'string' && /encerrado|vendido/i.test(v);
+    });
+
+    const cliente = (r['NomeCliente'] ?? r['nomecliente'] ?? r['Cliente'] ?? r['cliente']) as string | undefined;
+    const categoria = (r['Categoria'] ?? r['categoria'] ?? r['GrupoVeiculo'] ?? r['grupoveiculo']) as string | undefined;
+    const filial = (r['Filial'] ?? r['filial']) as string | undefined;
+
+    return {
+      raw: r,
+      vencimento,
+      dataInicial: dataInicialStr ? new Date(dataInicialStr) : null,
+      dataFinal: dataFinalStr ? new Date(dataFinalStr) : null,
+      ultimoVal,
+      valorFipe,
+      valorAquisicao,
+      estrategia: estrategia ?? '',
+      isExcluded,
+      cliente: cliente ?? '',
+      categoria: categoria ?? '',
+      filial: filial ?? '',
+    };
+  }).filter(r => {
+    // apply global filters (case-insensitive substring)
+    if (clienteFilter && !r.cliente.toLowerCase().includes(clienteFilter)) return false;
+    if (categoriaFilter && !r.categoria.toLowerCase().includes(categoriaFilter)) return false;
+    if (filialFilter && !r.filial.toLowerCase().includes(filialFilter)) return false;
+    return true;
+  });
+
+  // Initial faturamento: sum UltimoValorLocacao of contracts active today (DataInicial <= today <= DataFinal) and not excluded
+  const initalFaturamento = processed.reduce((sum, c) => {
+    const start = c.dataInicial; const end = c.dataFinal;
+    const active = start && end && start <= today && today <= end && !c.isExcluded;
+    return sum + (active ? c.ultimoVal : 0);
+  }, 0);
+
+  const rowsByMonth = months.map(m => {
+    const loss = processed.reduce((s, c) => {
+      if (!c.vencimento) return s;
+      if (c.isExcluded) return s;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) return s + c.ultimoVal;
+      return s;
+    }, 0);
+
+    const valorFipeVenda = processed.reduce((s, c) => {
+      if (!c.vencimento) return s;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) return s + c.valorFipe;
+      return s;
+    }, 0);
+
+    const qtdeVenda = processed.reduce((n, c) => {
+      if (!c.vencimento) return n;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) return n + 1;
+      return n;
+    }, 0);
+
+    const valorEstAquisicao = processed.reduce((s, c) => {
+      if (!c.vencimento) return s;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
+        if (String(c.estrategia).toLowerCase().includes('renova com troca (zero)') || String(c.estrategia).toLowerCase().includes('renova com troca')) {
+          return s + c.valorAquisicao;
+        }
+      }
+      return s;
+    }, 0);
+
+    const qtdeAquisicao = processed.reduce((n, c) => {
+      if (!c.vencimento) return n;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
+        if (String(c.estrategia).toLowerCase().includes('renova com troca (zero)') || String(c.estrategia).toLowerCase().includes('renova com troca')) {
+          return n + 1;
+        }
+      }
+      return n;
+    }, 0);
+
+    // Receita de novas renovações: heuristic — contracts with estrategia containing 'renova' but not 'renova com troca (zero)'
+    const receitaRenovacoes = processed.reduce((s, c) => {
+      if (!c.vencimento) return s;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
+        const estr = String(c.estrategia).toLowerCase();
+        if (estr.includes('renova') && !estr.includes('renova com troca')) return s + c.ultimoVal;
+      }
+      return s;
+    }, 0);
+
+    return {
+      year: m.year,
+      month: m.month,
+      loss,
+      valorFipeVenda,
+      qtdeVenda,
+      valorEstAquisicao,
+      qtdeAquisicao,
+      receitaRenovacoes,
+    };
+  });
+
+  // Build final sequence with faturamento inicial/final
+  const result: Array<Record<string, unknown>> = [];
+  let prevFaturamento = initalFaturamento;
+  for (let i = 0; i < rowsByMonth.length; i++) {
+    const r = rowsByMonth[i];
+    const faturamentoInicial = prevFaturamento;
+    const faturamentoFinal = faturamentoInicial - r.loss + r.receitaRenovacoes;
+    result.push({
+      mes: `${String(r.month).padStart(2, '0')}/${r.year}`,
+      faturamentoInicial: Number(faturamentoInicial.toFixed(2)),
+      perdaPrevista: Number(r.loss.toFixed(2)),
+      faturamentoFinal: Number(faturamentoFinal.toFixed(2)),
+      qtdeParaVenda: r.qtdeVenda,
+      valorFipeVenda: Number(r.valorFipeVenda.toFixed(2)),
+      qtdeParaAquisicao: r.qtdeAquisicao,
+      valorEstimadoAquisicao: Number(r.valorEstAquisicao.toFixed(2)),
+    });
+    prevFaturamento = faturamentoFinal;
+  }
+
+  return {
+    metadata: {
+      generated_at: new Date().toISOString(),
+      source: 'projection',
+      months: result.length,
+      filtros: { cliente: clienteFilter, categoria: categoriaFilter, filial: filialFilter },
+      initial_faturamento: Number(initalFaturamento.toFixed(2)),
+    },
+    data: result,
+  };
+}
+
 function parseFields(raw: string | string[] | undefined): string[] | undefined {
   if (!raw) return undefined;
   const str = typeof raw === 'string' ? raw : raw[0];
@@ -143,6 +319,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (table === 'fluxo_caixa_projetado') {
+      const payload = await buildCashflowProjection(req, limit);
+      cache.set(cacheKey, { data: payload, timestamp: Date.now() });
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+      return res.status(200).json(payload);
+    }
+
     const { rows } = await queryTable(table, limit, fields);
 
     const payload = {

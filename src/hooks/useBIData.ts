@@ -27,9 +27,10 @@ function normalizeTableName(identifier: string): string {
 /**
  * Busca dados da API Serverless (/api/bi-data) que consulta o PostgreSQL na Oracle Cloud.
  */
-async function fetchFromAPI(tableName: string): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
+async function fetchFromAPI(tableName: string, bustServer = false): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
   try {
-    const url = `/api/bi-data?table=${encodeURIComponent(tableName)}`;
+    const bust = bustServer ? `&refresh=${Date.now()}` : '';
+    const url = `/api/bi-data?table=${encodeURIComponent(tableName)}${bust}`;
     const resp = await fetch(url);
     console.debug(`[useBIData] fetch ${url} -> status=${resp.status} content-type=${resp.headers.get('content-type')}`);
 
@@ -114,7 +115,7 @@ export default function useBIData<T = unknown>(
     setLoading(true);
     setError(null);
 
-    const result = await fetchFromAPI(tableName);
+    const result = await fetchFromAPI(tableName, forceRefresh);
     if (fetchId !== fetchIdRef.current) return;
 
     if (result.success && result.data != null) {

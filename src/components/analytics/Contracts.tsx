@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download, ChevronRight, ChevronDown } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend, LabelList } from 'recharts';
 import ActionPicker from './ActionPicker';
@@ -66,10 +67,10 @@ const MontadoraSection = React.memo(function MontadoraSection({ montadora, model
   return (
     <div className="border rounded p-2 bg-white">
       <div className="flex justify-between items-center">
-        <button onClick={() => setExpanded(e => !e)} className="text-left font-bold text-sm text-slate-800">
+        <button type="button" onClick={() => setExpanded(e => !e)} className="text-left font-bold text-sm text-slate-800">
           {montadora} <span className="text-xs text-slate-500">({totalCount})</span>
         </button>
-        <button onClick={() => setExpanded(e => !e)} className="text-xs text-slate-500">{expanded ? 'Ocultar' : 'Mostrar'}</button>
+        <button type="button" onClick={() => setExpanded(e => !e)} className="text-xs text-slate-500">{expanded ? 'Ocultar' : 'Mostrar'}</button>
       </div>
       {expanded && (
         <div className="mt-2" style={{ height: 120 }}>
@@ -188,7 +189,34 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [tempObservation, setTempObservation] = useState('');
 
+  // Expansion states for hierarchical table
+  const [expandedStrategies, setExpandedStrategies] = useState<Set<string>>(new Set());
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
+
   // --- FILTERS STATE ---
+  // --- FILTERS STATE ---
+  const parseFiltersFromUrl = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const keys = ['strategy','type','year','group','kmRange','ageRange','situation','client','commercialContract','contractNumber','plate','model'];
+      const out: Record<string, string[]> = {};
+      keys.forEach(k => {
+        const v = params.get(k);
+        if (v && v.length) {
+          out[k] = v.split(',').map(s => decodeURIComponent(s)).filter(Boolean);
+        } else {
+          out[k] = [];
+        }
+      });
+      return out as any;
+    } catch (e) {
+      return {
+        strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: []
+      } as any;
+    }
+  };
+
   const [filters, setFilters] = useState<{
     strategy: string[];
     type: string[];
@@ -202,20 +230,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     contractNumber: string[];
     plate: string[];
     model: string[];
-  }>( {
-    strategy: [],
-    type: [],
-    year: [],
-    group: [],
-    kmRange: [],
-    ageRange: [],
-    situation: [],
-    client: [],
-    commercialContract: [],
-    contractNumber: [],
-    plate: [],
-    model: []
-  });
+  }>(() => parseFiltersFromUrl());
 
   // Close open filter panel when clicking outside (prevents panel sticking and blocking UI)
   React.useEffect(() => {
@@ -270,6 +285,24 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const clearFilters = React.useCallback(() => {
     setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [] });
   }, []);
+
+  // Keep filters in sync with URL so reloads / navigations preserve selection
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      Object.entries(filters).forEach(([k, arr]) => {
+        if (Array.isArray(arr) && arr.length > 0) {
+          params.set(k, arr.map(encodeURIComponent).join(','));
+        } else {
+          params.delete(k);
+        }
+      });
+      const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+      window.history.replaceState(null, '', newUrl);
+    } catch (e) {
+      // ignore
+    }
+  }, [filters]);
   
   // --- DATA PREPARATION ---
   const enrichedContracts = useMemo(() => {
@@ -490,21 +523,27 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
   // --- TABLE SUMMARY AGGREGATION ---
   const summaryTableData = useMemo(() => {
-    const groups: Record<string, { count: number; fipe: number; acquisition: number; rental: number; label: string }> = {};
+    const groups: Record<string, { count: number; fipe: number; retornoFipe: number; acquisition: number; acquisition0km: number; rental: number; label: string }> = {};
 
     // Ensure all strategies are present even if 0
     Object.keys(RenewalStrategyLabel).forEach(key => {
-        groups[key] = { count: 0, fipe: 0, acquisition: 0, rental: 0, label: RenewalStrategyLabel[key as RenewalStrategy] };
+      groups[key] = { count: 0, fipe: 0, retornoFipe: 0, acquisition: 0, acquisition0km: 0, rental: 0, label: RenewalStrategyLabel[key as RenewalStrategy] };
     });
 
      filteredContracts.forEach(c => {
        const key = c.renewalStrategy || 'UNDEFINED';
-       if (!groups[key]) groups[key] = { count: 0, fipe: 0, acquisition: 0, rental: 0, label: key };
+      if (!groups[key]) groups[key] = { count: 0, fipe: 0, retornoFipe: 0, acquisition: 0, acquisition0km: 0, rental: 0, label: key };
 
        groups[key].count += 1;
        // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe` if present
-       groups[key].fipe += (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
-      groups[key].acquisition += (c.ValorCompra as number) || c.purchasePrice || 0;
+       const fipeVal = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
+       groups[key].fipe += fipeVal;
+       // RetornoFipe applies only to specific strategies
+       if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) {
+         groups[key].retornoFipe += fipeVal * 0.8;
+       }
+       groups[key].acquisition += (c.ValorCompra as number) || 0;
+       groups[key].acquisition0km += (Number(c.purchasePrice) || 0);
        groups[key].rental += c.monthlyValue || 0;
      });
 
@@ -513,12 +552,77 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     return Object.values(groups).sort((a, b) => b.count - a.count);
   }, [filteredContracts]);
 
+  // Hierarchical data for expansion: Strategy -> Clients -> Plates
+  const hierarchicalData = useMemo(() => {
+    const hierarchy: Record<string, Record<string, Contract[]>> = {};
+    
+    filteredContracts.forEach(c => {
+      const strategy = c.renewalStrategy || 'UNDEFINED';
+      const client = c.clientName || 'Sem Cliente';
+      
+      if (!hierarchy[strategy]) hierarchy[strategy] = {};
+      if (!hierarchy[strategy][client]) hierarchy[strategy][client] = [];
+      
+      hierarchy[strategy][client].push(c);
+    });
+    
+    return hierarchy;
+  }, [filteredContracts]);
+
+  const toggleStrategy = (strategy: string) => {
+    setExpandedStrategies(prev => {
+      const next = new Set(prev);
+      if (next.has(strategy)) {
+        next.delete(strategy);
+        // Also collapse all clients under this strategy
+        setExpandedClients(prevClients => {
+          const nextClients = new Set(prevClients);
+          Object.keys(hierarchicalData[strategy] || {}).forEach(client => {
+            nextClients.delete(`${strategy}___${client}`);
+          });
+          return nextClients;
+        });
+      } else {
+        next.add(strategy);
+      }
+      return next;
+    });
+  };
+
+  const toggleClient = (strategy: string, client: string) => {
+    const key = `${strategy}___${client}`;
+    setExpandedClients(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const togglePlate = (contractId: string) => {
+    setExpandedPlates(prev => {
+      const next = new Set(prev);
+      if (next.has(contractId)) next.delete(contractId); else next.add(contractId);
+      return next;
+    });
+  };
+
   const totals = {
     count: filteredContracts.length,
     revenue: filteredContracts.reduce((acc, c) => acc + c.monthlyValue, 0),
     // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe`
     fipe: filteredContracts.reduce((acc, c) => acc + ((c.valorFipeAtual as number) || (c.currentFipe as number) || 0), 0),
-    acquisition: filteredContracts.reduce((acc, c) => acc + (((c as any).ValorCompra as number) || c.purchasePrice || 0), 0),
+    retornoFipe: filteredContracts.reduce((acc, c) => {
+      const key = c.renewalStrategy || 'UNDEFINED';
+      const f = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
+      if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return acc + f * 0.8;
+      return acc;
+    }, 0),
+    acquisition: filteredContracts.reduce((acc, c) => acc + ((c.ValorCompra as number) || 0), 0),
+    acquisition0km: filteredContracts.reduce((acc, c) => acc + (Number(c.purchasePrice) || 0), 0),
   };
 
   const hasObservations = filteredContracts.some(c => !!c.observation);
@@ -532,7 +636,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     const contract = contracts.find(c => c.id === id);
     if (!contract) return;
     console.debug('[Contracts] handleAcaoChange', { id, newAcao });
-    setVisibleContracts(prev => prev.map((c: any) => c.id === id ? { ...c, acao_usuario: newAcao } : c));
+    setVisibleContracts(prev => prev.map((c: any) => c.id === id ? { ...c, acao_usuario: newAcao, renewalStrategy: newAcao } : c));
 
     // If action requires purchase price and it's missing, open modal to collect
     if (newAcao === 'RENEW_SWAP_ZERO' && (!contract.purchasePrice || contract.purchasePrice === 0)) {
@@ -550,49 +654,69 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     try { safeSetViewMode('list'); } catch (e) {}
   }, [contracts, onUpdateContract]);
 
-  // Export visible/filtered contracts to CSV (Excel-friendly)
-  const exportContractsCSV = (rows: any[]) => {
+  // Exporta contratos filtrados para Excel (.xlsx)
+  const exportToExcel = (rows: Contract[]) => {
     if (!rows || rows.length === 0) {
       alert('Nenhum contrato para exportar.');
       return;
     }
-    const headers = [
-      'Contrato', 'Veículo', 'Montadora', 'Modelo', 'Grupo Veículo', 'Período (meses)', 'Situação Contrato', 'Idade (meses)', 'KM Confirmado', 'FIPE', 'Valor Compra', 'Modelo de Aquisição', 'Valor Aquisição (Zero KM)', 'Último Valor de Locação', 'Estratégia'
-    ];
-    const cols = [
-      'contractNumber','plate','montadora','modelo_veiculo','grupoVeiculo','periodMonths','contractStatus','ageMonths','currentKm','valorFipeAtual','ValorCompra','modelo_aquisicao','purchasePrice','monthlyValue','renewalStrategy'
-    ];
 
-    const escape = (v: any) => {
-      if (v === null || v === undefined) return '';
-      if (typeof v === 'number') return String(v);
-      return String(v).replace(/"/g, '""');
+    // Formata ISO date → DD/MM/AAAA
+    const formatDate = (iso: string | undefined) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleDateString('pt-BR');
     };
 
-    // Use semicolon as separator for better Excel compatibility in some locales
-    const sep = ';';
-    const lines = [];
-    lines.push(headers.join(sep));
-    rows.forEach(r => {
-      const vals = cols.map(k => {
-        const v = r[k];
-        // format numeric values without thousands separators
-        if (typeof v === 'number') return v;
-        return escape(v);
-      });
-      lines.push(vals.join(sep));
-    });
+    // Garante que valor financeiro seja número (remove R$, pontos de milhar, troca vírgula por ponto)
+    const toNum = (v: any): number => {
+      if (typeof v === 'number') return v;
+      if (!v) return 0;
+      const s = String(v)
+        .replace(/R\$\s*/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.')
+        .trim();
+      const n = parseFloat(s);
+      return isNaN(n) ? 0 : n;
+    };
 
-    const csv = lines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `contratos_export_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    const dataToExport = rows.map(c => ({
+      'Contrato': c.contractNumber,
+      'Veículo (Placa)': c.plate,
+      'Montadora': (c as any).montadora || '',
+      'Modelo': (c as any).modelo_veiculo || (c as any).modelo || c.model || '',
+      'Situação Contrato': (c as any).contractStatus || '',
+      'Início do Contrato': formatDate(c.startDate),
+      'Fim do Contrato': formatDate(c.endDate),
+      'Idade (meses)': (c as any).ageMonths ?? '',
+      'KM Confirmado': c.currentKm ?? '',
+      'FIPE (R$)': toNum((c as any).valorFipeAtual ?? c.currentFipe),
+      'Retorno FIPE (R$)': ((): number => {
+        const key = c.renewalStrategy || 'UNDEFINED';
+        const f = toNum((c as any).valorFipeAtual ?? c.currentFipe);
+        if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return Math.round(f * RETURN_PERCENTAGE * 100) / 100;
+        return 0;
+      })(),
+      'Odômetro informado': ((): number | '' => {
+        const v = (c as any).KmInformado ?? c.currentKm ?? (c as any).km;
+        if (v === null || v === undefined || v === '') return '';
+        const n = Number(String(v).replace(/[^0-9]/g, ''));
+        return isNaN(n) ? '' : n;
+      })(),
+      'Valor Compra (R$)': toNum((c as any).ValorCompra),
+      'Último Valor Locação (R$)': toNum(c.monthlyValue),
+      'Estratégia': c.renewalStrategy
+        ? (RenewalStrategyLabel[c.renewalStrategy] || c.renewalStrategy)
+        : '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Contratos');
+    const filename = `Relatorio_Contratos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
   };
 
   
@@ -659,17 +783,18 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
           <h2 className="text-2xl font-bold text-slate-800">Contratos & Ativos</h2>
           <p className="text-sm text-slate-500">Gestão estratégica de contratos e ativos.</p>
         </div>
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <div className="text-xs text-slate-500 mr-2">Zoom:</div>
-          <button onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
-          <button onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
-          <button onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
+          <button type="button" onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
+          <button type="button" onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
+          <button type="button" onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
           <div className="text-xs text-slate-500 ml-2">{Math.round(zoom * 100)}%</div>
         </div>
       </div>
       <div className="flex gap-4">
             {hasActiveFilters && (
                 <button 
+                  type="button"
                   onClick={clearFilters}
                   className="px-4 py-1.5 text-xs font-bold rounded bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2"
                 >
@@ -677,10 +802,10 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                 </button>
             )}
             <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-              <button onClick={() => safeSetViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+              <button type="button" onClick={() => safeSetViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
                 <BarChart3 size={14}/> Gráficos
               </button>
-              <button onClick={() => safeSetViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+              <button type="button" onClick={() => safeSetViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
                 <ListIcon size={14}/> Lista
               </button>
             </div>
@@ -724,9 +849,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       Retorno FIPE Estimado
                   </div>
                   <div className="p-4 text-center bg-blue-50/50">
-                      <h3 className="text-2xl font-bold text-slate-800">
-                         R$ {(totals.fipe * RETURN_PERCENTAGE).toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                      </h3>
+                       <h3 className="text-2xl font-bold text-slate-800">
+                         R$ {totals.retornoFipe.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                       </h3>
                       <p className="text-[10px] text-slate-400 mt-1">Projeção de Revenda</p>
                   </div>
                   <div className="absolute top-1 right-1 bg-yellow-300 text-yellow-900 text-[10px] font-bold px-1.5 rounded">
@@ -751,7 +876,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
           <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-center">
             {filterOptions.map(f => (
               <div key={f.key} className="relative">
-                <button onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
+                <button type="button" onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
                   <span>{f.label}</span>
                   {filters[f.key as keyof typeof filters].length > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{filters[f.key as keyof typeof filters].length}</span>}
                 </button>
@@ -761,11 +886,11 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
                     </div>
                     <div className="flex justify-between items-center mb-2">
-                      <button className="text-xs text-slate-500" onClick={() => {
+                      <button type="button" className="text-xs text-slate-500" onClick={() => {
                         const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
                         setFilters(prev => ({ ...prev, [f.key]: visible }));
                       }}>Selecionar tudo</button>
-                      <button className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
+                      <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
                     </div>
                     <div className="space-y-1">
                       { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
@@ -801,7 +926,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               </select>
             </div>
             <div className="ml-auto">
-              <button onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
+              <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
             </div>
           </div>
 
@@ -872,8 +997,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                <div className="flex items-center justify-between mb-2">
                  <h4 className="text-xs font-bold text-slate-500 flex items-center gap-2 uppercase tracking-wide"><Truck size={14}/> Modelos (por Montadora)</h4>
                  <div className="flex gap-2">
-                   <button onClick={() => setExpandAllModels(true)} className="text-xs text-slate-500 hover:text-slate-700">Expandir tudo</button>
-                   <button onClick={() => setExpandAllModels(false)} className="text-xs text-slate-500 hover:text-slate-700">Colapsar tudo</button>
+                   <button type="button" onClick={() => setExpandAllModels(true)} className="text-xs text-slate-500 hover:text-slate-700">Expandir tudo</button>
+                   <button type="button" onClick={() => setExpandAllModels(false)} className="text-xs text-slate-500 hover:text-slate-700">Colapsar tudo</button>
                  </div>
                </div>
                <div className="max-h-56 overflow-y-auto pr-2 space-y-2">
@@ -958,32 +1083,145 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <th className="px-6 py-3">Rótulos de Linha (Estratégia)</th>
                          <th className="px-6 py-3 text-center">QT</th>
                          <th className="px-6 py-3 text-right">Valor Fipe</th>
+                         <th className="px-6 py-3 text-right">Retorno FIPE</th>
                          <th className="px-6 py-3 text-right">Valor Compra</th>
+                         <th className="px-6 py-3 text-right">Valor Aquisição (0km)</th>
                          <th className="px-6 py-3 text-right">Valor de Locação</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
-                      {summaryTableData.map((row) => (
-                         <tr key={row.label} className="hover:bg-slate-50">
-                            <td className="px-6 py-3 font-medium text-slate-800">{row.label}</td>
-                            <td className="px-6 py-3 text-center font-bold">{row.count}</td>
-                            <td className="px-6 py-3 text-right font-mono text-slate-600">
-                               R$ {row.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                            </td>
-                            <td className="px-6 py-3 text-right font-mono text-slate-600">
-                               R$ {row.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                            </td>
-                            <td className="px-6 py-3 text-right font-mono text-blue-700 font-bold">
-                               R$ {row.rental.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                            </td>
-                         </tr>
-                      ))}
+                      {summaryTableData.map((row) => {
+                        const strategyKey = Object.keys(RenewalStrategyLabel).find(k => RenewalStrategyLabel[k as RenewalStrategy] === row.label) || 'UNDEFINED';
+                        const isExpanded = expandedStrategies.has(strategyKey);
+                        const clients = hierarchicalData[strategyKey] || {};
+                        
+                        return (
+                          <React.Fragment key={row.label}>
+                            {/* Strategy Row */}
+                            <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleStrategy(strategyKey)}>
+                              <td className="px-6 py-3 font-medium text-slate-800">
+                                <div className="flex items-center gap-2">
+                                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                  <span>{row.label}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-3 text-center font-bold">{row.count}</td>
+                              <td className="px-6 py-3 text-right font-mono text-slate-600">
+                                R$ {row.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </td>
+                              <td className="px-6 py-3 text-right font-mono text-slate-600">
+                                R$ {row.retornoFipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </td>
+                              <td className="px-6 py-3 text-right font-mono text-slate-600">
+                                R$ {row.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </td>
+                              <td className="px-6 py-3 text-right font-mono text-slate-600">
+                                R$ {row.acquisition0km.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </td>
+                              <td className="px-6 py-3 text-right font-mono text-blue-700 font-bold">
+                                R$ {row.rental.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </td>
+                            </tr>
+                            
+                            {/* Client Rows (when strategy is expanded) */}
+                            {isExpanded && Object.entries(clients).map(([clientName, contracts]) => {
+                              const clientKey = `${strategyKey}___${clientName}`;
+                              const isClientExpanded = expandedClients.has(clientKey);
+                              const clientTotals = {
+                                count: contracts.length,
+                                fipe: contracts.reduce((sum, c) => sum + ((c.valorFipeAtual as number) || (c.currentFipe as number) || 0), 0),
+                                retornoFipe: contracts.reduce((sum, c) => {
+                                  const key = c.renewalStrategy || 'UNDEFINED';
+                                  const f = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
+                                  return sum + (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key) ? f * 0.8 : 0);
+                                }, 0),
+                                acquisition: contracts.reduce((sum, c) => sum + ((c.ValorCompra as number) || 0), 0),
+                                acquisition0km: contracts.reduce((sum, c) => sum + (Number(c.purchasePrice) || 0), 0),
+                                rental: contracts.reduce((sum, c) => sum + (c.monthlyValue || 0), 0),
+                              };
+                              
+                              return (
+                                <React.Fragment key={clientKey}>
+                                  {/* Client Row */}
+                                  <tr className="bg-blue-50 hover:bg-blue-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleClient(strategyKey, clientName); }}>
+                                    <td className="px-6 py-2 font-medium text-slate-700">
+                                      <div className="flex items-center gap-2 pl-8">
+                                        {isClientExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                        <span className="text-sm">{clientName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-2 text-center font-semibold text-sm">{clientTotals.count}</td>
+                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                      R$ {clientTotals.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                    </td>
+                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                      R$ {clientTotals.retornoFipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                    </td>
+                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                      R$ {clientTotals.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                    </td>
+                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                      R$ {clientTotals.acquisition0km.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                    </td>
+                                    <td className="px-6 py-2 text-right font-mono text-sm text-blue-700 font-semibold">
+                                      R$ {clientTotals.rental.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                    </td>
+                                  </tr>
+                                  
+                                  {/* Plate Rows (when client is expanded) */}
+                                  {isClientExpanded && contracts.map((contract) => (
+                                    <React.Fragment key={contract.id}>
+                                      <tr className="bg-slate-50 hover:bg-slate-100">
+                                        <td className="px-6 py-2 text-slate-600">
+                                          <div className="pl-16 text-xs flex items-center gap-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); togglePlate(contract.id); }}>
+                                            {expandedPlates.has(contract.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                            <span>{contract.plate || 'Sem Placa'}</span>
+                                          </div>
+                                        </td>
+                                        <td className="px-6 py-2 text-center text-xs">1</td>
+                                        <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
+                                          R$ {((contract.valorFipeAtual as number) || (contract.currentFipe as number) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                        </td>
+                                        <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
+                                          R$ {((contract.ValorCompra as number) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                        </td>
+                                        <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
+                                          R$ {(Number(contract.purchasePrice) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                        </td>
+                                        <td className="px-6 py-2 text-right font-mono text-xs text-blue-600">
+                                          R$ {(contract.monthlyValue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                        </td>
+                                      </tr>
+                                      {expandedPlates.has(contract.id) && (
+                                        <tr>
+                                          <td colSpan={18} className="px-6 py-2 bg-white">
+                                            <div className="pl-20 text-sm text-slate-700">Odômetro informado: {
+                                              (() => {
+                                                const v = (contract as any).KmInformado ?? contract.currentKm ?? (contract as any).km;
+                                                if (v === null || v === undefined || v === '') return '—';
+                                                const n = Number(v);
+                                                return isNaN(n) ? String(v) : `${n.toLocaleString('pt-BR')} km`;
+                                              })()
+                                            }</div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  ))}
+                                </React.Fragment>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
                       {/* Total Row */}
                       <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
                          <td className="px-6 py-3 uppercase text-slate-700">Total Geral</td>
                          <td className="px-6 py-3 text-center text-slate-800">{totals.count}</td>
                          <td className="px-6 py-3 text-right text-slate-800">R$ {totals.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                         <td className="px-6 py-3 text-right text-slate-800">R$ {totals.retornoFipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                          <td className="px-6 py-3 text-right text-slate-800">R$ {totals.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                         <td className="px-6 py-3 text-right text-slate-800">R$ {totals.acquisition0km.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                          <td className="px-6 py-3 text-right text-blue-800">R$ {totals.revenue.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                       </tr>
                    </tbody>
@@ -1004,7 +1242,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               </div>
               <div className="flex-1 flex justify-end items-center gap-4 text-xs text-slate-500">
                  <div className="whitespace-nowrap">{filteredContracts.length} contratos encontrados.</div>
-                     <button onClick={() => exportContractsCSV(filteredContracts)} title="Exportar CSV" className="ml-2 px-2 py-1 rounded border bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 text-xs">
+                     <button type="button" onClick={() => exportToExcel(filteredContracts)} title="Exportar Excel" className="ml-2 px-2 py-1 rounded border bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 text-xs">
                        <Download size={14} /> Exportar
                      </button>
                  <div className="flex items-center gap-2">
@@ -1019,9 +1257,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                    </select>
                  </div>
                  <div className="flex items-center gap-2">
-                   <button onClick={() => setPage(p => Math.max(1, p - 1))} className="px-2 py-1 rounded border bg-white text-xs">Anterior</button>
+                   <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} className="px-2 py-1 rounded border bg-white text-xs">Anterior</button>
                    <div className="text-xs">{page} / {pageCount}</div>
-                   <button onClick={() => setPage(p => Math.min(pageCount, p + 1))} className="px-2 py-1 rounded border bg-white text-xs">Próx.</button>
+                   <button type="button" onClick={() => setPage(p => Math.min(pageCount, p + 1))} className="px-2 py-1 rounded border bg-white text-xs">Próx.</button>
                  </div>
               </div>
            </div>
@@ -1038,7 +1276,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               { key: 'year', label: 'Vencimentos', list: yearsList }
             ].map(f => (
               <div key={f.key} className="relative">
-                <button onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-2 border rounded bg-white text-xs flex items-center gap-2">
+                <button type="button" onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-2 border rounded bg-white text-xs flex items-center gap-2">
                   <span>{f.label}</span>
                   {filters[f.key as keyof typeof filters].length > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{filters[f.key as keyof typeof filters].length}</span>}
                 </button>
@@ -1048,11 +1286,11 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
                     </div>
                     <div className="flex justify-between items-center mb-2">
-                      <button className="text-xs text-slate-500" onClick={() => {
+                      <button type="button" className="text-xs text-slate-500" onClick={() => {
                         const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
                         setFilters(prev => ({ ...prev, [f.key]: visible }));
                       }}>Selecionar tudo</button>
-                      <button className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
+                      <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
                     </div>
                     <div className="space-y-1">
                       { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
@@ -1089,7 +1327,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               </select>
             </div>
             <div className="ml-auto">
-              <button onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
+              <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
             </div>
           </div>
            <div
@@ -1105,8 +1343,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('contractNumber')}>Contrato</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1114,8 +1352,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('plate')}>Veículo</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1123,8 +1361,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('montadora')}>Montadora</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1132,8 +1370,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('modelo_veiculo')}>Modelo</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1141,8 +1379,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('grupoVeiculo')}>Grupo Veículo</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1150,8 +1388,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('periodMonths')}>Período</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1159,8 +1397,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('contractStatus')}>Situação Contrato</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1168,8 +1406,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('ageMonths')}>Idade Veículo</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1177,8 +1415,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('currentKm')}>KM Confirmado</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1186,8 +1424,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('valorFipeAtual')}>FIPE</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1195,8 +1433,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('ValorCompra')}>Valor Compra</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1204,8 +1442,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('modelo_aquisicao')}>Modelo de Aquisição</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1213,8 +1451,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('purchasePrice')}>Valor Aquisição (Zero KM)</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1222,8 +1460,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                          <div className="flex items-center justify-between">
                            <span className="cursor-pointer" onClick={() => handleSort('monthlyValue')}>Último Valor de Locação</span>
                            <span className="flex items-center gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                            </span>
                          </div>
                        </th>
@@ -1284,7 +1522,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                                 <div className="text-xs text-slate-700 font-bold flex items-center gap-2">
                                   <span>{header}</span>
                                   {contract.migratedFrom && (
-                                    <button onClick={() => setOpenMigrationId(openMigrationId === contract.id ? null : contract.id)} className="text-yellow-700 hover:text-yellow-900" title="Contrato migrado">
+                                    <button type="button" onClick={() => setOpenMigrationId(openMigrationId === contract.id ? null : contract.id)} className="text-yellow-700 hover:text-yellow-900" title="Contrato migrado">
                                       <AlertCircle size={14} />
                                     </button>
                                   )}
@@ -1394,8 +1632,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                                         />
                                         {hasDraftChanges(contract.id, contract) && (
                                           <div className="flex gap-2">
-                                            <button onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
-                                            <button onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
+                                            <button type="button" onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
+                                            <button type="button" onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
                                           </div>
                                         )}
                                       </div>
@@ -1434,13 +1672,13 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                                       />
                                       {hasDraftChanges(contract.id, contract) && (
                                         <div className="flex gap-2 justify-end">
-                                          <button onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
-                                          <button onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
+                                          <button type="button" onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
+                                          <button type="button" onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
                                         </div>
                                       )}
                                     </div>
                                   ) : (
-                                    <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700">{(Number(contract.purchasePrice) || 0) > 0 ? String(contract.purchasePrice) : '-'}</div>
+                                    <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700">{(Number(contract.purchasePrice) || 0) > 0 ? `R$ ${Number(contract.purchasePrice).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}</div>
                                   )}
                                 </div>
                               ) : (
@@ -1494,7 +1732,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <MessageSquarePlus className="text-blue-600" size={20}/> Observação
                  </h3>
-                 <button onClick={() => setObservationModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                 <button type="button" onClick={() => setObservationModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                     <X size={24} />
                  </button>
               </div>
@@ -1506,8 +1744,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                     onChange={(e) => setTempObservation(e.target.value)}
                  ></textarea>
                  <div className="mt-6 flex justify-end gap-3">
-                    <button onClick={() => setObservationModalOpen(false)} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
-                    <button onClick={handleSaveObservation} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
+                    <button type="button" onClick={() => setObservationModalOpen(false)} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
+                    <button type="button" onClick={handleSaveObservation} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
                  </div>
               </div>
            </div>
@@ -1522,7 +1760,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <Briefcase className="text-blue-600" size={20}/> Valor Aquisição
               </h3>
-              <button onClick={() => setPurchaseModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={() => setPurchaseModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={24} />
               </button>
             </div>
@@ -1530,8 +1768,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <label className="text-xs text-slate-600">Informe o Valor de Aquisição (R$)</label>
               <input type="text" value={tempPurchasePrice} onChange={(e) => setTempPurchasePrice(e.target.value)} className="w-full mt-2 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: 12500.00" />
               <div className="mt-6 flex justify-end gap-3">
-                <button onClick={() => { setPurchaseModalOpen(false); setPendingStrategyChange(null); setPurchaseModalContractId(null); setTempPurchasePrice(''); }} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
-                <button onClick={handleSavePurchasePrice} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
+                <button type="button" onClick={() => { setPurchaseModalOpen(false); setPendingStrategyChange(null); setPurchaseModalContractId(null); setTempPurchasePrice(''); }} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
+                <button type="button" onClick={handleSavePurchasePrice} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
               </div>
             </div>
           </div>

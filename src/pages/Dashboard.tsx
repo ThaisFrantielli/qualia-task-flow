@@ -7,9 +7,10 @@ import TeamPerformance from '@/components/dashboard/TeamPerformance';
 import ProductivityMetrics from '@/components/dashboard/ProductivityMetrics';
 import TeamDashboard from '@/components/dashboard/TeamDashboard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Target, CheckCircle, Clock, AlertTriangle, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import FluxoCaixaProjetado from '@/components/FluxoCaixaProjetado';
 
 const Dashboard = () => {
   const { tasks, loading: tasksLoading } = useTasks({});
@@ -123,6 +124,13 @@ const Dashboard = () => {
               Minha Equipe
             </TabsTrigger>
           )}
+
+          <TabsTrigger
+            value="fluxo"
+            className="rounded-lg px-4 py-2 text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow data-[state=active]:text-primary"
+          >
+            Fluxo de Caixa Projetado
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -150,6 +158,15 @@ const Dashboard = () => {
             <TeamDashboard />
           </TabsContent>
         )}
+
+        <TabsContent value="fluxo" className="pt-6">
+          {/* Passa filtros via query string: cliente, categoria, filial (se presentes) */}
+          <FluxoCaixaProjetado
+            cliente={new URLSearchParams(useLocation().search).get('cliente') ?? undefined}
+            categoria={new URLSearchParams(useLocation().search).get('categoria') ?? undefined}
+            filial={new URLSearchParams(useLocation().search).get('filial') ?? undefined}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
