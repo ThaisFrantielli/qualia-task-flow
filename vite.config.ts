@@ -103,6 +103,13 @@ export default defineConfig(async ({ mode }) => {
         '**/whatsapp-session-default/**'
       ]
     },
-    }
+    proxy: {
+      '/api': {
+        target: 'https://qualityconecta.vercel.app',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+    },
   }
 })
