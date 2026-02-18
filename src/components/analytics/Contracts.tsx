@@ -816,7 +816,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         <div className="animate-in fade-in duration-500 space-y-6">
 
           {/* KPIs Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* FIPE */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
                   <div className="bg-blue-700 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
@@ -830,18 +830,31 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                   </div>
               </div>
 
-              {/* AQUISIÇÃO */}
-              <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+                {/* VALOR COMPRA */}
+                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
                   <div className="bg-blue-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                      Valor Aquisição
+                    Valor Compra
                   </div>
                   <div className="p-4 text-center bg-blue-50/30">
-                      <h3 className="text-2xl font-bold text-slate-800">
-                         R$ {totals.acquisition.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                      </h3>
-                      <p className="text-[10px] text-slate-400 mt-1">Custo Histórico</p>
+                    <h3 className="text-2xl font-bold text-slate-800">
+                     R$ {totals.acquisition.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">Custo Histórico</p>
                   </div>
-              </div>
+                </div>
+
+                {/* VALOR AQUISIÇÃO (ZERO KM) */}
+                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+                  <div className="bg-indigo-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                    Valor Aquisição (Zero KM)
+                  </div>
+                  <div className="p-4 text-center bg-indigo-50/30">
+                    <h3 className="text-2xl font-bold text-slate-800">
+                     R$ {totals.acquisition0km.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">Valor de aquisição informado (0km)</p>
+                  </div>
+                </div>
 
               {/* RETORNO ESTIMADO */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden relative">
