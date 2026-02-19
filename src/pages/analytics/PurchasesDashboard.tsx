@@ -599,7 +599,12 @@ export default function PurchasesDashboard() {
                 <Tooltip formatter={(v: any) => fmtNum(Number(v))} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} name="Qtd">
                   {bySituacao.map((entry, i) => (
-                    <Cell key={i} fill={SITUACAO_COLOR[entry.name] ?? PALETTE[i % PALETTE.length]} />
+                    <Cell
+                      key={i}
+                      fill={SITUACAO_COLOR[entry.name] ?? PALETTE[i % PALETTE.length]}
+                      cursor="pointer"
+                      onClick={() => { setFilterSituacao(entry.name); setPage(0); }}
+                    />
                   ))}
                   <LabelList dataKey="value" position="right" style={{ fontSize: 11, fill: '#374151' }} />
                 </Bar>
