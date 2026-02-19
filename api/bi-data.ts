@@ -26,7 +26,7 @@ const ALLOWED_TABLES = new Set([
   'fat_detalhe_itens_os_2024', 'fat_detalhe_itens_os_2025',
   'fat_detalhe_itens_os_2026', 'fato_financeiro_dre',
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
-  'agg_dre_mensal',
+  'agg_dre_mensal', 'dim_compras',
   'fluxo_caixa_projetado',
 ]);
 
@@ -77,7 +77,14 @@ export async function queryTable(
   try {
     let result;
     if (table === 'dim_contratos_locacao') {
-      result = await client.query(buildContratosQuery(fields), [limit]);
+      try {
+        result = await client.query(buildContratosQuery(fields), [limit]);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        console.warn('[bi-data] dim_contratos_locacao query with joins failed, falling back to simple select:', errMsg);
+        // fallback to a simple select to avoid breaking the API when auxiliary tables are missing or schema differs
+        result = await client.query(`SELECT * FROM public."dim_contratos_locacao" LIMIT $1`, [limit]);
+      }
     } else if (fields && fields.length > 0) {
       // Validate field names
       const safeFields = fields.filter(f => FIELD_REGEX.test(f));
@@ -209,6 +216,8 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
   }, 0);
 
   const rowsByMonth = months.map(m => {
+  const monthStart = new Date(m.year, m.month - 1, 1);
+  const monthEnd = new Date(m.year, m.month, 0);
     const loss = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.isExcluded) return s;
@@ -269,6 +278,27 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       return s;
     }, 0);
 
+    const qtdeRenovacoes = processed.reduce((n, c) => {
+      if (!c.vencimento) return n;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
+        const estr = String(c.estrategia);
+        const isRenewWithoutSwap =
+          estr === 'RENEW_PERIOD' ||
+          estr === 'RENEW_PERIOD_RAISE' ||
+          estr === 'RENEW_SWAP_SEMINOVO' ||
+          (estr.toLowerCase().includes('renova') && !estr.toLowerCase().includes('renova com troca'));
+        if (isRenewWithoutSwap) return n + 1;
+      }
+      return n;
+    }, 0);
+
+    const activeCount = processed.reduce((n, c) => {
+      const start = c.dataInicial;
+      const end = c.dataFinal;
+      const activeInMonth = start && start <= monthEnd && (!end || end >= monthStart) && !c.isExcluded;
+      return activeInMonth ? n + 1 : n;
+    }, 0);
+
     return {
       year: m.year,
       month: m.month,
@@ -278,6 +308,8 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       valorEstAquisicao,
       qtdeAquisicao,
       receitaRenovacoes,
+      qtdeRenovacoes,
+      activeCount,
     };
   });
 
@@ -298,6 +330,8 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       valorFipeVenda: Number(r.valorFipeVenda.toFixed(2)),
       qtdeParaAquisicao: r.qtdeAquisicao,
       valorEstimadoAquisicao: Number(r.valorEstAquisicao.toFixed(2)),
+      qtdeRenovacoes: r.qtdeRenovacoes,
+      activeCount: r.activeCount,
     });
     prevFaturamento = faturamentoFinal;
   }
@@ -309,6 +343,7 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       months: result.length,
       filtros: { cliente: clienteFilter, categoria: categoriaFilter, filial: filialFilter },
       initial_faturamento: Number(initalFaturamento.toFixed(2)),
+      contracts_count: processed.length,
     },
     data: result,
   };
@@ -377,7 +412,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(payload);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[bi-data] Error querying table "${table}":`, message);
+    console.error(`[bi-data] Error querying table "${table}":`, err);
     return res.status(500).json({ error: 'Database query failed', details: message });
   }
 }

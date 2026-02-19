@@ -1362,6 +1362,22 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
       {viewMode === 'fluxo' && (
         <div className="animate-in fade-in duration-300">
+          <div className="p-4 border-b border-slate-200 flex gap-4 bg-slate-50">
+            <div className="relative w-96">
+              <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+              <input type="text" placeholder="Buscar contratos, cliente, placa..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500">Período</label>
+              <input type="date" value={filters.periodStart?.[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, periodStart: e.target.value ? [e.target.value] : [] }))} className="text-xs border rounded px-2 py-1" />
+              <span className="text-xs text-slate-400">a</span>
+              <input type="date" value={filters.periodEnd?.[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, periodEnd: e.target.value ? [e.target.value] : [] }))} className="text-xs border rounded px-2 py-1" />
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              {searchTerm && (<button type="button" onClick={() => setSearchTerm('')} className="px-3 py-2 text-xs border rounded bg-white">Limpar</button>)}
+              {(filters.periodStart?.length || filters.periodEnd?.length) && (<button type="button" onClick={() => setFilters(prev => ({ ...prev, periodStart: [], periodEnd: [] }))} className="px-3 py-2 text-xs border rounded bg-white">Limpar Período</button>)}
+            </div>
+          </div>
           {/* Reuse the same filters bar used in List view so user sees familiar filters */}
           <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-start">
             {[
@@ -1430,7 +1446,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
           </div>
 
           <CashFlowProjectionPage
-            cliente={filters.client?.length ? filters.client.join(',') : ''}
+            cliente={searchTerm || (filters.client?.length ? filters.client.join(',') : '')}
             categoria={filters.group?.length ? filters.group.join(',') : ''}
             filial={''}
             periodStart={filters.periodStart?.length ? filters.periodStart.join(',') : ''}

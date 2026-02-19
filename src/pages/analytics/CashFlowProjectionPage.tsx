@@ -16,6 +16,8 @@ interface CashFlowRow {
   valorFipeVenda: number;
   qtdeParaAquisicao: number;
   valorEstimadoAquisicao: number;
+  qtdeRenovacoes?: number;
+  activeCount?: number;
 }
 
 interface ApiResponse {
@@ -24,6 +26,7 @@ interface ApiResponse {
     source: string;
     months: number;
     initial_faturamento: number;
+    contracts_count?: number;
     filtros: { cliente?: string; categoria?: string; filial?: string };
   };
   data: CashFlowRow[];
@@ -150,6 +153,11 @@ export default function CashFlowProjectionPage(props: Props) {
   const aquisicaoTotal = data.reduce((s, r) => s + (r.valorEstimadoAquisicao || 0), 0);
   const qtdeVendaTotal = data.reduce((s, r) => s + (r.qtdeParaVenda || 0), 0);
   const qtdeAquisicaoTotal = data.reduce((s, r) => s + (r.qtdeParaAquisicao || 0), 0);
+  const qtdeRenovacoesTotal = data.reduce((s, r) => s + (r.qtdeRenovacoes || 0), 0);
+
+  const contractsCount = metadata?.contracts_count ?? 0;
+  const contractsDisplay = contractsCount >= 1000 ? `${Math.round(contractsCount / 1000)}` : `${contractsCount}`;
+  const contractsLabel = contractsCount >= 1000 ? 'mil contratos de locação incluídos' : 'contratos de locação incluídos';
 
   // Lowest faturamento final across projection
   const minFat = data.reduce((min, r) => Math.min(min, r.faturamentoFinal ?? Infinity), Infinity);
@@ -161,21 +169,24 @@ export default function CashFlowProjectionPage(props: Props) {
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-          <p className="text-sm text-slate-500">Projeção até {lastMonthLabel || `${monthsCount} meses`} — consolidado: contratos, frota e metadados.</p>
+        <div>
+          {/* mensagem de contexto removida para alinhar com o design onde a busca fica acima dos filtros */}
         </div>
-        <button
-          type="button"
-          onClick={() => fetchData(true)}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 border rounded bg-white text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Atualizar
-        </button>
+        {!(typeof props.cliente !== 'undefined' || typeof props.categoria !== 'undefined' || typeof props.filial !== 'undefined' || typeof props.periodStart !== 'undefined' || typeof props.periodEnd !== 'undefined') && (
+          <button
+            type="button"
+            onClick={() => fetchData(true)}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 border rounded bg-white text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Atualizar
+          </button>
+        )}
       </div>
 
-      {/* Universal Search */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
+      {/* Universal Search + Period Filters */}
+      {!(typeof props.cliente !== 'undefined' || typeof props.categoria !== 'undefined' || typeof props.filial !== 'undefined' || typeof props.periodStart !== 'undefined' || typeof props.periodEnd !== 'undefined') && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-4">
         <div className="relative w-96">
           <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
           <input
@@ -186,10 +197,34 @@ export default function CashFlowProjectionPage(props: Props) {
             className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
-        {q && (
-          <button type="button" onClick={() => setQ('')} className="px-3 py-2 text-xs border rounded bg-white">Limpar</button>
-        )}
-      </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-slate-500">Período</label>
+          <input
+            type="date"
+            value={periodStart}
+            onChange={(e) => setPeriodStart(e.target.value)}
+            className="text-xs border rounded px-2 py-1"
+          />
+          <span className="text-xs text-slate-400">a</span>
+          <input
+            type="date"
+            value={periodEnd}
+            onChange={(e) => setPeriodEnd(e.target.value)}
+            className="text-xs border rounded px-2 py-1"
+          />
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          {q && (
+            <button type="button" onClick={() => setQ('')} className="px-3 py-2 text-xs border rounded bg-white">Limpar</button>
+          )}
+          {(periodStart || periodEnd) && (
+            <button type="button" onClick={() => { setPeriodStart(''); setPeriodEnd(''); }} className="px-3 py-2 text-xs border rounded bg-white">Limpar Período</button>
+          )}
+        </div>
+        </div>
+      )}
 
       {/* Loading / Error */}
       {loading && (
@@ -204,47 +239,47 @@ export default function CashFlowProjectionPage(props: Props) {
       {!loading && !error && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-violet-600 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Contratos de Locação</div>
+              <div className="p-4 text-center">
+                <div className="text-xl font-bold text-slate-800">{metadata?.contracts_count?.toLocaleString('pt-BR') ?? '—'}</div>
+              </div>
+            </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-blue-700 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Faturamento Atual</div>
               <div className="p-4 text-center">
                 <div className="text-xl font-bold text-slate-800">{fmtCompact(faturamentoAtual)}</div>
-                <div className="text-[10px] text-slate-400 mt-1">Valor inicial (mês corrente)</div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-red-600 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Perda Projetada ({monthsCount}m)</div>
               <div className="p-4 text-center">
                 <div className="text-xl font-bold text-slate-800">{fmtCompact(perdaTotal)}</div>
-                <div className="text-[10px] text-slate-400 mt-1">{pct(perdaTotal, faturamentoAtual)} do faturamento</div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-emerald-600 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Faturamento Final</div>
               <div className="p-4 text-center">
                 <div className="text-xl font-bold text-slate-800">{fmtCompact(lastFat)}</div>
-                  <div className="text-[10px] text-slate-400 mt-1">Último mês projetado {lastMonthLabel ? `(${lastMonthLabel})` : ''}</div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-amber-500 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Valor FIPE p/ Venda</div>
               <div className="p-4 text-center">
                 <div className="text-xl font-bold text-slate-800">{fmtCompact(fipeTotal)}</div>
-                <div className="text-[10px] text-slate-400 mt-1">{qtdeVendaTotal} veículos p/ venda</div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-indigo-600 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Valor Est. Aquisição</div>
               <div className="p-4 text-center">
                 <div className="text-xl font-bold text-slate-800">{fmtCompact(aquisicaoTotal)}</div>
-                <div className="text-[10px] text-slate-400 mt-1">{qtdeAquisicaoTotal} veículos p/ aquisição</div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-slate-600 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Mínimo Projetado</div>
               <div className="p-4 text-center">
                 <div className="text-xl font-bold text-slate-800">{fmtCompact(Number.isFinite(minFat) ? minFat : 0)}</div>
-                <div className="text-[10px] text-slate-400 mt-1">Piso do faturamento</div>
               </div>
             </div>
           </div>
@@ -411,12 +446,15 @@ export default function CashFlowProjectionPage(props: Props) {
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-slate-600">
                           {fmt(row.faturamentoInicial)}
+                          <div className="text-[10px] text-slate-400 mt-1">{(row.activeCount ?? 0) > 0 ? `${(row.activeCount ?? 0).toLocaleString('pt-BR')} contratos de locação` : '—'}</div>
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-red-600">
                           {row.perdaPrevista > 0 ? fmt(row.perdaPrevista) : <span className="text-slate-400">—</span>}
+                          <div className="text-[10px] text-slate-400 mt-1">{(row.qtdeParaVenda ?? 0) > 0 ? `${(row.qtdeParaVenda ?? 0)} veículos` : '—'}</div>
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-emerald-600">
                           {row.receitaEstimada > 0 ? fmt(row.receitaEstimada) : <span className="text-slate-400">—</span>}
+                          <div className="text-[10px] text-slate-400 mt-1">{(row.qtdeRenovacoes ?? 0) > 0 ? `${(row.qtdeRenovacoes ?? 0)} renovações` : '—'}</div>
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono font-bold text-blue-700">
                           {fmt(row.faturamentoFinal)}
@@ -463,6 +501,7 @@ export default function CashFlowProjectionPage(props: Props) {
                       <td className="px-4 py-3 text-right font-mono text-red-700">{fmt(perdaTotal)}</td>
                       <td className="px-4 py-3 text-right font-mono text-emerald-700">
                         {fmt(data.reduce((s, r) => s + (r.receitaEstimada || 0), 0))}
+                        <div className="text-[10px] text-slate-700 mt-1">{qtdeRenovacoesTotal > 0 ? `${qtdeRenovacoesTotal} renovações` : '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-blue-700">{fmt(lastFat)}</td>
                       <td className="px-4 py-3 text-right font-mono">

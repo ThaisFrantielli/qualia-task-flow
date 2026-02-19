@@ -5,7 +5,8 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Mail, Send, DollarSign, Headphones
+  PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Mail, Send, DollarSign, Headphones,
+  ShoppingCart
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -61,8 +62,8 @@ const baseMenuGroups: MenuGroup[] = [
   {
     title: 'COMERCIAL',
     items: [
+      { label: 'Veículos Comprados', url: '/analytics/compras', icon: ShoppingCart, permissionKey: 'crm' },
       { label: 'Contratos', url: '/analytics/contratos', icon: FileText, permissionKey: 'crm' },
-      { label: 'Fluxo de Caixa Prev.', url: '/analytics/fluxo-caixa', icon: DollarSign, permissionKey: 'crm' },
     ]
   },
   {

@@ -26,6 +26,7 @@ import FleetIdleDashboard from '@/pages/analytics/FleetIdleDashboard';
 import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 import CashFlowProjectionPage from '@/pages/analytics/CashFlowProjectionPage';
+import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -115,6 +116,7 @@ function App() {
                 <Route path="frota-idle" element={<FleetIdleDashboard />} />
                 <Route path="frota-metodologia" element={<FleetMethodologyPage />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
+                <Route path="compras" element={<PurchasesDashboard />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />

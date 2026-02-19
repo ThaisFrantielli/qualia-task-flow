@@ -22,6 +22,7 @@ const pgConfig = {
 };
 
 const TABLES = [
+    
     {
         table: 'dim_frota',
         query: `SELECT * FROM Veiculos WITH (NOLOCK)`
