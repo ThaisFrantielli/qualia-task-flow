@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend
 } from 'recharts';
 import { DollarSign, RefreshCw, Search, Loader2, ArrowUp, ArrowDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import type { Contract } from '@/types/contracts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface CashFlowRow {
@@ -69,12 +70,97 @@ type Props = {
   filial?: string;
   periodStart?: string;
   periodEnd?: string;
+  /** Quando fornecido, calcula projeção localmente desses contratos (reflete todos os filtros ativos) */
+  contracts?: Contract[];
 };
 
+/** Espelha a lógica de buildCashflowProjection do backend, mas rodando no frontend a partir dos contratos já filtrados */
+function computeProjectionFromContracts(contracts: Contract[]): { data: CashFlowRow[]; initialFaturamento: number } {
+  const RENEWAL_STRATEGIES = new Set(['RENEW_SAME', 'RENEW_SWAP_ZERO', 'RENEW_SWAP_SEMINOVO']);
+  const isRenewal = (s: string) => RENEWAL_STRATEGIES.has(s) || s.toLowerCase().includes('renova');
+
+  const today = new Date();
+  const excluded = new Set(['encerrado', 'vendido']);
+  const active = contracts.filter(c => !excluded.has((c.contractStatus ?? '').toLowerCase()));
+
+  // Range de meses: de hoje até o último endDate
+  const maxTime = active.reduce((max, c) => {
+    const t = new Date(c.endDate).getTime();
+    return t > max ? t : max;
+  }, 0);
+
+  const months: { year: number; month: number }[] = [];
+  if (maxTime > 0) {
+    let cursor = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(new Date(maxTime).getFullYear(), new Date(maxTime).getMonth(), 1);
+    while (cursor <= end) {
+      months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+  } else {
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    }
+  }
+
+  // Faturamento inicial: contratos ativos hoje
+  const initialFaturamento = active.reduce((s, c) => {
+    const start = new Date(c.startDate);
+    const end = new Date(c.endDate);
+    return start <= today && today <= end ? s + (c.monthlyValue || 0) : s;
+  }, 0);
+
+  const rows = months.map(m => {
+    const monthStart = new Date(m.year, m.month - 1, 1);
+    const monthEnd = new Date(m.year, m.month, 0);
+
+    const venceNoMes = (c: Contract) => {
+      const d = new Date(c.endDate);
+      return d.getFullYear() === m.year && (d.getMonth() + 1) === m.month;
+    };
+
+    const loss = active.reduce((s, c) => venceNoMes(c) && !isRenewal(c.renewalStrategy ?? '') ? s + (c.monthlyValue || 0) : s, 0);
+    const receitaRenovacoes = active.reduce((s, c) => venceNoMes(c) && isRenewal(c.renewalStrategy ?? '') ? s + (c.monthlyValue || 0) : s, 0);
+    const qtdeRenovacoes = active.reduce((n, c) => venceNoMes(c) && isRenewal(c.renewalStrategy ?? '') ? n + 1 : n, 0);
+    const qtdeVenda = active.reduce((n, c) => venceNoMes(c) ? n + 1 : n, 0);
+    const valorFipeVenda = active.reduce((s, c) => venceNoMes(c) ? s + ((c.valorFipeAtual || c.currentFipe || 0)) : s, 0);
+    const qtdeAquisicao = active.reduce((n, c) => venceNoMes(c) && c.renewalStrategy === 'RENEW_SWAP_ZERO' ? n + 1 : n, 0);
+    const valorEstAquisicao = active.reduce((s, c) => venceNoMes(c) && c.renewalStrategy === 'RENEW_SWAP_ZERO' ? s + ((c.ValorAquisicaoPlanilha || c.ValorCompra || 0)) : s, 0);
+    const activeCount = active.reduce((n, c) => {
+      const s = new Date(c.startDate); const e = new Date(c.endDate);
+      return s <= monthEnd && e >= monthStart ? n + 1 : n;
+    }, 0);
+
+    return { month: m.month, year: m.year, loss, receitaRenovacoes, qtdeRenovacoes, qtdeVenda, valorFipeVenda, qtdeAquisicao, valorEstAquisicao, activeCount };
+  });
+
+  const result: CashFlowRow[] = [];
+  let prev = initialFaturamento;
+  for (const r of rows) {
+    const faturamentoFinal = prev - r.loss;
+    result.push({
+      mes: `${String(r.month).padStart(2, '0')}/${r.year}`,
+      faturamentoInicial: Math.round(prev * 100) / 100,
+      perdaPrevista: Math.round(r.loss * 100) / 100,
+      receitaEstimada: Math.round(r.receitaRenovacoes * 100) / 100,
+      faturamentoFinal: Math.round(faturamentoFinal * 100) / 100,
+      qtdeParaVenda: r.qtdeVenda,
+      valorFipeVenda: Math.round(r.valorFipeVenda * 100) / 100,
+      qtdeParaAquisicao: r.qtdeAquisicao,
+      valorEstimadoAquisicao: Math.round(r.valorEstAquisicao * 100) / 100,
+      qtdeRenovacoes: r.qtdeRenovacoes,
+      activeCount: r.activeCount,
+    });
+    prev = faturamentoFinal;
+  }
+  return { data: result, initialFaturamento };
+}
+
 export default function CashFlowProjectionPage(props: Props) {
-  const [data, setData] = useState<CashFlowRow[]>([]);
+  const [apiData, setApiData] = useState<CashFlowRow[]>([]);
   const [metadata, setMetadata] = useState<ApiResponse['metadata'] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!props.contracts);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc'|'desc' } | null>(null);
 
@@ -103,6 +189,8 @@ export default function CashFlowProjectionPage(props: Props) {
   }, [props.cliente, props.categoria, props.filial, props.periodStart, props.periodEnd]);
 
   const fetchData = useCallback(async (bust = false) => {
+    // Quando contratos locais são fornecidos, não chama a API
+    if (props.contracts) return;
     if (ctlRef.current) ctlRef.current.abort();
     ctlRef.current = new AbortController();
     setLoading(true);
@@ -110,7 +198,6 @@ export default function CashFlowProjectionPage(props: Props) {
     try {
       const params = new URLSearchParams({ table: 'fluxo_caixa_projetado' });
       if (dq) params.set('q', dq);
-      // forward optional period filters if provided
       if (props.periodStart || periodStart) params.set('periodStart', props.periodStart ?? periodStart);
       if (props.periodEnd || periodEnd) params.set('periodEnd', props.periodEnd ?? periodEnd);
       if (bust) params.set('refresh', String(Date.now()));
@@ -118,16 +205,24 @@ export default function CashFlowProjectionPage(props: Props) {
       const resp = await fetch(`/api/bi-data?${params.toString()}`, { signal: ctlRef.current.signal });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json: ApiResponse = await resp.json();
-      setData(Array.isArray(json.data) ? json.data : []);
+      setApiData(Array.isArray(json.data) ? json.data : []);
       setMetadata(json.metadata ?? null);
     } catch (e: any) {
       if (e?.name !== 'AbortError') setError(e?.message || 'Erro ao carregar dados.');
     } finally {
       setLoading(false);
     }
-  }, [dq, props.periodStart, props.periodEnd, periodStart, periodEnd]);
+  }, [props.contracts, dq, props.periodStart, props.periodEnd, periodStart, periodEnd]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Cálculo local quando contratos filtrados são fornecidos diretamente
+  const localProjection = useMemo(() => {
+    if (!props.contracts) return null;
+    return computeProjectionFromContracts(props.contracts);
+  }, [props.contracts]);
+
+  const data: CashFlowRow[] = localProjection ? localProjection.data : apiData;
 
   const monthsCount = metadata?.months ?? data.length;
   const lastMonthLabel = data.length > 0 ? data[data.length - 1].mes : '';
@@ -157,7 +252,7 @@ export default function CashFlowProjectionPage(props: Props) {
       { Campo: 'Fonte', Valor: metadata?.source ?? 'bi-data' },
       { Campo: 'Meses projetados', Valor: metadata?.months ?? '' },
       { Campo: 'Faturamento inicial (meta)', Valor: metadata?.initial_faturamento ?? '' },
-      { Campo: 'Contratos incluídos', Valor: metadata?.contracts_count ?? '' },
+      { Campo: 'Contratos incluídos', Valor: contractsCount },
       { Campo: 'Filtro - cliente', Valor: metadata?.filtros?.cliente ?? (props.cliente ?? q ?? '') },
       { Campo: 'Filtro - categoria', Valor: metadata?.filtros?.categoria ?? (props.categoria ?? '') },
       { Campo: 'Filtro - filial', Valor: metadata?.filtros?.filial ?? (props.filial ?? '') },
@@ -190,7 +285,12 @@ export default function CashFlowProjectionPage(props: Props) {
   }
 
   // ─── KPIs ─────────────────────────────────────────────────────────────────
-  const faturamentoAtual = metadata?.initial_faturamento ?? (data[0]?.faturamentoInicial ?? 0);
+  const faturamentoAtual = localProjection
+    ? localProjection.initialFaturamento
+    : (metadata?.initial_faturamento ?? (data[0]?.faturamentoInicial ?? 0));
+  const contractsCount = localProjection
+    ? (props.contracts?.length ?? 0)
+    : (metadata?.contracts_count ?? 0);
   const perdaTotal = data.reduce((s, r) => s + (r.perdaPrevista || 0), 0);
   const fipeTotal = data.reduce((s, r) => s + (r.valorFipeVenda || 0), 0);
   const aquisicaoTotal = data.reduce((s, r) => s + (r.valorEstimadoAquisicao || 0), 0);
@@ -198,13 +298,17 @@ export default function CashFlowProjectionPage(props: Props) {
   const qtdeAquisicaoTotal = data.reduce((s, r) => s + (r.qtdeParaAquisicao || 0), 0);
   const qtdeRenovacoesTotal = data.reduce((s, r) => s + (r.qtdeRenovacoes || 0), 0);
 
-  const contractsCount = metadata?.contracts_count ?? 0;
-  const contractsDisplay = contractsCount >= 1000 ? `${Math.round(contractsCount / 1000)}` : `${contractsCount}`;
-  const contractsLabel = contractsCount >= 1000 ? 'mil contratos de locação incluídos' : 'contratos de locação incluídos';
-
   // Lowest faturamento final across projection
   const minFat = data.reduce((min, r) => Math.min(min, r.faturamentoFinal ?? Infinity), Infinity);
   const lastFat = data.length > 0 ? data[data.length - 1].faturamentoFinal : 0;
+
+  // Modo embutido: contratos passados diretamente pelo pai (todos os filtros já aplicados)
+  const isEmbedded = !!props.contracts ||
+    typeof props.cliente !== 'undefined' ||
+    typeof props.categoria !== 'undefined' ||
+    typeof props.filial !== 'undefined' ||
+    typeof props.periodStart !== 'undefined' ||
+    typeof props.periodEnd !== 'undefined';
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -212,10 +316,8 @@ export default function CashFlowProjectionPage(props: Props) {
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          {/* mensagem de contexto removida para alinhar com o design onde a busca fica acima dos filtros */}
-        </div>
-        {!(typeof props.cliente !== 'undefined' || typeof props.categoria !== 'undefined' || typeof props.filial !== 'undefined' || typeof props.periodStart !== 'undefined' || typeof props.periodEnd !== 'undefined') && (
+        <div />
+        {!isEmbedded && (
           <button
             type="button"
             onClick={() => fetchData(true)}
@@ -227,8 +329,8 @@ export default function CashFlowProjectionPage(props: Props) {
         )}
       </div>
 
-      {/* Universal Search + Period Filters */}
-      {!(typeof props.cliente !== 'undefined' || typeof props.categoria !== 'undefined' || typeof props.filial !== 'undefined' || typeof props.periodStart !== 'undefined' || typeof props.periodEnd !== 'undefined') && (
+      {/* Universal Search + Period Filters — só no modo standalone */}
+      {!isEmbedded && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-4">
         <div className="relative w-96">
           <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
@@ -286,7 +388,7 @@ export default function CashFlowProjectionPage(props: Props) {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="bg-violet-600 text-white text-center py-1 text-[10px] font-bold uppercase tracking-widest">Contratos de Locação</div>
               <div className="p-4 text-center">
-                <div className="text-xl font-bold text-slate-800">{metadata?.contracts_count?.toLocaleString('pt-BR') ?? '—'}</div>
+                <div className="text-xl font-bold text-slate-800">{contractsCount.toLocaleString('pt-BR')}</div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

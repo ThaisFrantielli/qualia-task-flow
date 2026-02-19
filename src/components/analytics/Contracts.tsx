@@ -1371,7 +1371,10 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                                         <td className="px-6 py-2 text-slate-600">
                                           <div className="pl-16 text-xs flex items-center gap-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); togglePlate(contract.id); }}>
                                             {expandedPlates.has(contract.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                            <span>{contract.plate || 'Sem Placa'}</span>
+                                            <span className="font-medium">{contract.plate || 'Sem Placa'}</span>
+                                            {contract.modelo && (
+                                              <span className="text-slate-500">— {contract.modelo}</span>
+                                            )}
                                           </div>
                                         </td>
                                         <td className="px-6 py-2 text-center text-xs">1</td>
@@ -1507,13 +1510,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
             </div>
           </div>
 
-          <CashFlowProjectionPage
-            cliente={searchTerm || (filters.client?.length ? filters.client.join(',') : '')}
-            categoria={filters.group?.length ? filters.group.join(',') : ''}
-            filial={''}
-            periodStart={filters.periodStart?.length ? filters.periodStart.join(',') : ''}
-            periodEnd={filters.periodEnd?.length ? filters.periodEnd.join(',') : ''}
-          />
+          <CashFlowProjectionPage />
         </div>
       )}
 
