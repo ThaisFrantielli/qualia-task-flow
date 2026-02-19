@@ -1,4 +1,3 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AreaChart,
@@ -29,21 +28,22 @@ export default function FluxoCaixaProjetado({
   categoria?: string;
   filial?: string;
 }) {
-  const qKey = ['fluxo_caixa_projetado', cliente || '', categoria || '', filial || ''];
-
-  const { data, isLoading, error } = useQuery(qKey, async () => {
-    const params = new URLSearchParams();
-    params.set('table', 'fluxo_caixa_projetado');
-    if (cliente) params.set('cliente', cliente);
-    if (categoria) params.set('categoria', categoria);
-    if (filial) params.set('filial', filial);
-    params.set('limit', '100000');
-    const r = await fetch(`/api/bi-data?${params.toString()}`);
-    if (!r.ok) throw new Error('Erro ao buscar projeção');
-    return r.json();
+  const { data, isLoading, error } = useQuery<{ data: Row[] }>({
+    queryKey: ['fluxo_caixa_projetado', cliente || '', categoria || '', filial || ''],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('table', 'fluxo_caixa_projetado');
+      if (cliente) params.set('cliente', cliente);
+      if (categoria) params.set('categoria', categoria);
+      if (filial) params.set('filial', filial);
+      params.set('limit', '100000');
+      const r = await fetch(`/api/bi-data?${params.toString()}`);
+      if (!r.ok) throw new Error('Erro ao buscar projeção');
+      return r.json();
+    },
   });
 
-  const rows: Row[] = (data?.data as Row[]) || [];
+  const rows: Row[] = data?.data || [];
 
   return (
     <div className="p-4 bg-white rounded shadow">

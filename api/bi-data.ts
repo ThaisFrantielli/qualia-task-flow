@@ -215,9 +215,23 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
     return sum + (active ? c.ultimoVal : 0);
   }, 0);
 
+  // Helper: retorna true para QUALQUER estratégia de renovação (não gera perda de receita)
+  const isAnyRenewal = (estr: string): boolean => {
+    const low = estr.toLowerCase();
+    return (
+      estr === 'RENEW_PERIOD' ||
+      estr === 'RENEW_PERIOD_RAISE' ||
+      estr === 'RENEW_SWAP_ZERO' ||
+      estr === 'RENEW_SWAP_SEMINOVO' ||
+      low.includes('renova') // cobre variações textuais (ex: "Renova com troca zero", etc.)
+    );
+  };
+
   const rowsByMonth = months.map(m => {
   const monthStart = new Date(m.year, m.month - 1, 1);
   const monthEnd = new Date(m.year, m.month, 0);
+    // perdaPrevista = TODOS os contratos que vencem no mês (saem do faturamento)
+    // receitaRenovacoes cobre de volta os que renovam → faturamentoFinal = inicial - loss + renovacoes
     const loss = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.isExcluded) return s;
@@ -263,17 +277,13 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       return n;
     }, 0);
 
-    // Receita de novas renovações: estratégias RENEW_PERIOD, RENEW_PERIOD_RAISE, RENEW_SWAP_SEMINOVO
+    // Receita de renovações — cobre TODOS os tipos:
+    // mesmo veículo (RENEW_PERIOD/RAISE), troca zero (RENEW_SWAP_ZERO), troca seminovo (RENEW_SWAP_SEMINOVO)
+    // É somada ao faturamentoFinal para repor os contratos que saíram e renovaram
     const receitaRenovacoes = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
-        const estr = String(c.estrategia);
-        const isRenewWithoutSwap =
-          estr === 'RENEW_PERIOD' ||
-          estr === 'RENEW_PERIOD_RAISE' ||
-          estr === 'RENEW_SWAP_SEMINOVO' ||
-          (estr.toLowerCase().includes('renova') && !estr.toLowerCase().includes('renova com troca'));
-        if (isRenewWithoutSwap) return s + c.ultimoVal;
+        if (isAnyRenewal(c.estrategia)) return s + c.ultimoVal;
       }
       return s;
     }, 0);
@@ -281,13 +291,7 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
     const qtdeRenovacoes = processed.reduce((n, c) => {
       if (!c.vencimento) return n;
       if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
-        const estr = String(c.estrategia);
-        const isRenewWithoutSwap =
-          estr === 'RENEW_PERIOD' ||
-          estr === 'RENEW_PERIOD_RAISE' ||
-          estr === 'RENEW_SWAP_SEMINOVO' ||
-          (estr.toLowerCase().includes('renova') && !estr.toLowerCase().includes('renova com troca'));
-        if (isRenewWithoutSwap) return n + 1;
+        if (isAnyRenewal(c.estrategia)) return n + 1;
       }
       return n;
     }, 0);
@@ -319,6 +323,7 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
   for (let i = 0; i < rowsByMonth.length; i++) {
     const r = rowsByMonth[i];
     const faturamentoInicial = prevFaturamento;
+    // faturamentoFinal = faturamentoInicial - perdaPrevista (todos que vencem) + renovações (os que voltam)
     const faturamentoFinal = faturamentoInicial - r.loss + r.receitaRenovacoes;
     result.push({
       mes: `${String(r.month).padStart(2, '0')}/${r.year}`,

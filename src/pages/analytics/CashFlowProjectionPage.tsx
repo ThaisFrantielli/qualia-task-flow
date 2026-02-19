@@ -3,7 +3,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend
 } from 'recharts';
-import { DollarSign, RefreshCw, Search, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
+import { DollarSign, RefreshCw, Search, Loader2, ArrowUp, ArrowDown, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface CashFlowRow {
@@ -145,6 +146,48 @@ export default function CashFlowProjectionPage(props: Props) {
       return String(va).localeCompare(String(vb)) * dir;
     });
   })();
+
+  // ── Export XLSX (inclui filtros) ─────────────────────────────────────────
+  function exportXLSX() {
+    const wb = XLSX.utils.book_new();
+
+    // Aba de filtros / contexto
+    const filters = [
+      { Campo: 'Gerado em', Valor: metadata?.generated_at ?? new Date().toISOString() },
+      { Campo: 'Fonte', Valor: metadata?.source ?? 'bi-data' },
+      { Campo: 'Meses projetados', Valor: metadata?.months ?? '' },
+      { Campo: 'Faturamento inicial (meta)', Valor: metadata?.initial_faturamento ?? '' },
+      { Campo: 'Contratos incluídos', Valor: metadata?.contracts_count ?? '' },
+      { Campo: 'Filtro - cliente', Valor: metadata?.filtros?.cliente ?? (props.cliente ?? q ?? '') },
+      { Campo: 'Filtro - categoria', Valor: metadata?.filtros?.categoria ?? (props.categoria ?? '') },
+      { Campo: 'Filtro - filial', Valor: metadata?.filtros?.filial ?? (props.filial ?? '') },
+      { Campo: 'Período início', Valor: props.periodStart ?? periodStart ?? '' },
+      { Campo: 'Período fim', Valor: props.periodEnd ?? periodEnd ?? '' },
+    ];
+    const wsFilters = XLSX.utils.json_to_sheet(filters);
+    XLSX.utils.book_append_sheet(wb, wsFilters, 'Filtros e Contexto');
+
+    // Aba principal: Projeção Mensal Detalhada
+    const rows = sortedData.map(r => ({
+      Mes: r.mes,
+      'Faturamento Inicial': r.faturamentoInicial,
+      'Perda Prevista': r.perdaPrevista,
+      'Renovação': r.receitaEstimada,
+      'Faturamento Final': r.faturamentoFinal,
+      'Taxa Perda (%)': r.faturamentoInicial ? Math.round((r.perdaPrevista / r.faturamentoInicial) * 100) : 0,
+      'Qtde para Venda': r.qtdeParaVenda,
+      'Valor FIPE Venda': r.valorFipeVenda,
+      'Qtde para Aquisição': r.qtdeParaAquisicao,
+      'Valor Est. Aquisição': r.valorEstimadoAquisicao,
+      'Qtde Renovacoes': r.qtdeRenovacoes ?? 0,
+      'Contratos Ativos no Mês': r.activeCount ?? 0,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Projeção Mensal Detalhada');
+
+    const filename = `projecao_mensal_detalhada_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
 
   // ─── KPIs ─────────────────────────────────────────────────────────────────
   const faturamentoAtual = metadata?.initial_faturamento ?? (data[0]?.faturamentoInicial ?? 0);
@@ -344,7 +387,7 @@ export default function CashFlowProjectionPage(props: Props) {
                   <Area
                     type="monotone"
                     dataKey="receitaEstimada"
-                    name="Receita Estimada"
+                    name="Renovação"
                     stroke="#10B981"
                     strokeWidth={1.5}
                     fill="url(#gradReceita)"
@@ -361,11 +404,21 @@ export default function CashFlowProjectionPage(props: Props) {
             <div className="bg-slate-100 px-6 py-3 border-b border-slate-200 flex items-center gap-2">
               <DollarSign size={16} className="text-slate-500" />
               <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Projeção Mensal Detalhada</h4>
-              {metadata && (
-                <span className="ml-auto text-xs text-slate-400">
-                  Gerado em {new Date(metadata.generated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
+              <div className="ml-auto flex items-center gap-3">
+                {metadata && (
+                  <span className="text-xs text-slate-400">
+                    Gerado em {new Date(metadata.generated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={exportXLSX}
+                  className="flex items-center gap-2 px-3 py-1.5 border rounded bg-white text-xs text-slate-600 hover:bg-slate-50"
+                >
+                  <FileSpreadsheet size={14} />
+                  Exportar Excel
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left whitespace-nowrap">
@@ -392,7 +445,7 @@ export default function CashFlowProjectionPage(props: Props) {
                         </th>
                         <th className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <span>Receita Estimada</span>
+                            <span>Renovação</span>
                             <span className="flex items-center gap-1">
                               <button type="button" onClick={() => setSortConfig({ key: 'receitaEstimada', direction: 'asc' })} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
                               <button type="button" onClick={() => setSortConfig({ key: 'receitaEstimada', direction: 'desc' })} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>

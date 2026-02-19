@@ -177,6 +177,7 @@ export default function PurchasesDashboard() {
 
   // ── Filtros ──────────────────────────────────────────────────────
   const [filterAno, setFilterAno] = useState('Todos');
+  const [filterMes, setFilterMes] = useState('Todos');
   const [filterMarca, setFilterMarca] = useState('Todos');
   const [filterSituacao, setFilterSituacao] = useState('Todos');
   const [filterTipoAq, setFilterTipoAq] = useState('Todos');
@@ -194,6 +195,17 @@ export default function PurchasesDashboard() {
     () => ['Todos', ...Array.from(new Set(data.map(d => String(d.ano_compra || '')).filter(Boolean))).sort().reverse()],
     [data],
   );
+  const meses = useMemo(() => {
+    const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const setM = new Set<number>();
+    for (const d of data) {
+      if (filterAno !== 'Todos' && String(d.ano_compra || '') !== filterAno) continue;
+      const m = Number(d.mes_compra || (d.data_compra ? new Date(d.data_compra).getMonth() + 1 : NaN)) || 0;
+      if (m >= 1 && m <= 12) setM.add(m);
+    }
+    const arr = Array.from(setM).sort((a, b) => a - b);
+    return ['Todos', ...arr.map(m => `${m} - ${monthNames[m - 1]}`)];
+  }, [data, filterAno]);
   // definir ano padrão: preferir o último ano completo disponível (ano < ano atual),
   // caso não exista, usar o maior ano disponível.
   const defaultAno = useMemo(() => {
@@ -227,6 +239,11 @@ export default function PurchasesDashboard() {
 
   const filtered = useMemo(() => data.filter(r => {
     if (filterAno !== 'Todos' && String(r.ano_compra || '') !== filterAno) return false;
+    if (filterMes !== 'Todos') {
+      const mnum = parseInt(String(filterMes).split(' ')[0], 10) || 0;
+      const rMes = Number(r.mes_compra || (r.data_compra ? new Date(r.data_compra).getMonth() + 1 : NaN)) || 0;
+      if (rMes !== mnum) return false;
+    }
     if (filterMarca !== 'Todos' && (r.marca || '').split(' - ')[0].trim() !== filterMarca) return false;
     if (filterSituacao !== 'Todos' && r.situacao_atual !== filterSituacao) return false;
     if (filterTipoAq !== 'Todos' && r.tipoAquisicao !== filterTipoAq) return false;
@@ -250,12 +267,12 @@ export default function PurchasesDashboard() {
   }), [data, filterAno, filterMarca, filterSituacao, filterTipoAq, filterModelo, filterBanco, filterFipe]);
 
   function clearFilters() {
-    setFilterAno(defaultAno || 'Todos'); setFilterMarca('Todos');
+    setFilterAno(defaultAno || 'Todos'); setFilterMes('Todos'); setFilterMarca('Todos');
     setFilterSituacao('Todos'); setFilterTipoAq('Todos');
     setFilterModelo('Todos'); setFilterBanco('Todos'); setFilterFipe('Todos');
     setPage(0);
   }
-  const hasActiveFilters = [filterAno, filterMarca, filterSituacao, filterTipoAq, filterModelo, filterBanco, filterFipe].some(f => f !== 'Todos');
+  const hasActiveFilters = [filterAno, filterMes, filterMarca, filterSituacao, filterTipoAq, filterModelo, filterBanco, filterFipe].some(f => f !== 'Todos');
 
   // ── KPIs ──────────────────────────────────────────────────────────
   const totalInvestido = useMemo(
@@ -518,6 +535,7 @@ export default function PurchasesDashboard() {
           </div>
           <div className="flex flex-wrap gap-4 items-end">
             <FilterSelect label="Ano Compra" value={filterAno} options={anos} onChange={v => { setFilterAno(v); setPage(0); }} />
+            <FilterSelect label="Mês Compra" value={filterMes} options={meses} onChange={v => { setFilterMes(v); setPage(0); }} />
             <FilterSelect label="Montadora" value={filterMarca} options={marcas} onChange={v => { setFilterMarca(v); setPage(0); }} />
             <FilterSelect label="Situação Atual" value={filterSituacao} options={situacoes} onChange={v => { setFilterSituacao(v); setPage(0); }} />
             <FilterSelect label="Tipo Aquisição" value={filterTipoAq} options={tiposAq} onChange={v => { setFilterTipoAq(v); setPage(0); }} />

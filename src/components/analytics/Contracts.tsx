@@ -188,6 +188,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const [openFilterPanel, setOpenFilterPanel] = useState<string | null>(null);
   // per-panel search text to filter long lists inside dropdowns
   const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
+  const [expandedYearFilters, setExpandedYearFilters] = useState<Set<string>>(new Set());
 
   // Persisted zoom level for table layout (saved in localStorage)
   React.useEffect(() => {
@@ -229,7 +230,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const parseFiltersFromUrl = () => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const keys = ['strategy','type','year','group','kmRange','ageRange','situation','client','commercialContract','contractNumber','plate','model','periodStart','periodEnd'];
+      const keys = ['strategy','type','year','month','group','kmRange','ageRange','situation','client','commercialContract','contractNumber','plate','model','periodStart','periodEnd'];
       const out: Record<string, string[]> = {};
       keys.forEach(k => {
         const v = params.get(k);
@@ -242,7 +243,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       return out as any;
     } catch (e) {
       return {
-        strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [], periodStart: [], periodEnd: []
+        strategy: [], type: [], year: [], month: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [], periodStart: [], periodEnd: []
       } as any;
     }
   };
@@ -251,6 +252,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     strategy: string[];
     type: string[];
     year: string[];
+    month: string[];
     group: string[];
     kmRange: string[];
     ageRange: string[];
@@ -315,7 +317,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   }, []);
 
   const clearFilters = React.useCallback(() => {
-    setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [], periodStart: [], periodEnd: [] });
+    setFilters({ strategy: [], type: [], year: [], month: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [], periodStart: [], periodEnd: [] });
   }, []);
 
   // Keep filters in sync with URL so reloads / navigations preserve selection
@@ -343,6 +345,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       kmRangeLabel: getKmRangeLabel(Number(c.currentKm || c.km || 0)),
       ageRangeLabel: Number.isFinite(Number(c.ageMonths)) ? getAgeRangeLabelFromMonths(Number(c.ageMonths)) : getAgeRangeLabel(c.manufacturingYear),
       expiryYear: new Date(c.endDate).getFullYear().toString(),
+      expiryMonth: String((new Date(c.endDate).getMonth() + 1)).padStart(2, '0'),
       groupLabel: String(c.modelo_veiculo || c.model || c.modelo || '')
     }));
   }, [contracts]);
@@ -355,6 +358,22 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const modelsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.modelo_veiculo || c.model || c.modelo || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
   const situationsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.contractStatus || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
   const yearsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.expiryYear || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+  const yearMonthsMap = useMemo(() => {
+    const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const map: Record<string, Array<{ key: string; label: string }>> = {};
+    for (const c of enrichedContracts) {
+      const y = c.expiryYear || '';
+      const mRaw = String(c.expiryMonth || '').padStart(2, '0');
+      if (!y || !mRaw || mRaw === 'NaN' || mRaw === '00') continue;
+      const key = `${y}-${mRaw}`; // e.g. 2026-02
+      const label = `${monthNames[Number(mRaw) - 1] ?? mRaw}`;
+      if (!map[y]) map[y] = [];
+      if (!map[y].some(x => x.key === key)) map[y].push({ key, label });
+    }
+    // sort months for each year
+    Object.keys(map).forEach(y => map[y].sort((a, b) => a.key.localeCompare(b.key)));
+    return map;
+  }, [enrichedContracts]);
 
   // Set sensible defaults for filters: current year and 'andamento' situations when no URL filters provided
   React.useEffect(() => {
@@ -411,6 +430,10 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       }
       if (filters.type.length > 0 && !filters.type.includes(c.type)) return false;
       if (filters.year.length > 0 && !filters.year.includes(c.expiryYear)) return false;
+      if (filters.month.length > 0) {
+        const cKey = `${c.expiryYear}-${String(c.expiryMonth).padStart(2, '0')}`;
+        if (!filters.month.includes(cKey)) return false;
+      }
       if (filters.group.length > 0 && !filters.group.includes(c.groupLabel)) return false;
       if (filters.kmRange.length > 0 && !filters.kmRange.includes(c.kmRangeLabel)) return false;
       if (filters.ageRange.length > 0 && !filters.ageRange.includes(c.ageRangeLabel)) return false;
@@ -844,6 +867,57 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     { key: 'year', label: 'Vencimentos', list: yearsList }
   ];
 
+  const renderFilterItems = (f: { key: string; label: string; list: string[] }) => {
+    if (f.key === 'year') {
+      return (
+        <>
+          {(f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(year => {
+            const expanded = expandedYearFilters.has(year);
+            return (
+              <div key={year} className="text-xs">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={filters.year.includes(year)} onChange={() => toggleFilter('year', year)} />
+                    <span className="font-medium">{year}</span>
+                    <span className="text-[11px] text-slate-400 ml-2">{(yearMonthsMap[year] || []).length ? `(${(yearMonthsMap[year] || []).length} meses)` : ''}</span>
+                  </label>
+                  {(yearMonthsMap[year] || []).length > 0 && (
+                    <button type="button" onClick={() => setExpandedYearFilters(prev => {
+                      const next = new Set(prev);
+                      if (next.has(year)) next.delete(year); else next.add(year);
+                      return next;
+                    })} className="text-xs text-slate-500 px-2">{expanded ? '−' : '+'}</button>
+                  )}
+                </div>
+                {expanded && (yearMonthsMap[year] || []).length > 0 && (
+                  <div className="pl-6 mt-1 grid grid-cols-2 gap-1">
+                    {yearMonthsMap[year].map(m => (
+                      <label key={m.key} className="flex items-center gap-2 text-xs">
+                        <input type="checkbox" checked={filters.month.includes(m.key)} onChange={() => toggleFilter('month', m.key)} />
+                        <span className="truncate">{m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      );
+    }
+
+    return (
+      <>
+        {(f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
+          <label key={opt} className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
+            <span className="truncate">{opt}</span>
+          </label>
+        ))}
+      </>
+    );
+  };
+
   return (
     <div className="p-6 max-w-[1920px] mx-auto min-h-screen bg-slate-50" style={{ zoom }}>
       
@@ -977,7 +1051,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <div key={f.key} className="relative">
                 <button type="button" onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
                   <span>{f.label}</span>
-                  {filters[f.key as keyof typeof filters].length > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{filters[f.key as keyof typeof filters].length}</span>}
+                  {((f.key === 'year' ? (filters.year.length + filters.month.length) : (filters[f.key as keyof typeof filters].length)) > 0) && (
+                    <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{f.key === 'year' ? (filters.year.length + filters.month.length) : filters[f.key as keyof typeof filters].length}</span>
+                  )}
                 </button>
                 {openFilterPanel === f.key && (
                   <div className="filter-panel absolute z-50 top-10 left-0 w-64 bg-white border rounded shadow-lg p-2 max-h-72 overflow-y-auto">
@@ -991,14 +1067,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       }}>Selecionar tudo</button>
                       <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
                     </div>
-                    <div className="space-y-1">
-                      { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
-                        <label key={opt} className="flex items-center gap-2 text-xs">
-                          <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
-                          <span className="truncate">{opt}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <div className="space-y-1">{renderFilterItems(f)}</div>
                   </div>
                 )}
               </div>
@@ -1406,14 +1475,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       }}>Selecionar tudo</button>
                       <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
                     </div>
-                    <div className="space-y-1">
-                      { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
-                        <label key={opt} className="flex items-center gap-2 text-xs">
-                          <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
-                          <span className="truncate">{opt}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <div className="space-y-1">{renderFilterItems(f)}</div>
                   </div>
                 )}
               </div>
@@ -1514,14 +1576,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       }}>Selecionar tudo</button>
                       <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
                     </div>
-                    <div className="space-y-1">
-                      { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
-                        <label key={opt} className="flex items-center gap-2 text-xs">
-                          <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
-                          <span className="truncate">{opt}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <div className="space-y-1">{renderFilterItems(f)}</div>
                   </div>
                 )}
               </div>
