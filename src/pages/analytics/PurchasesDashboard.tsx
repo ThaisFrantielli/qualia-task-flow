@@ -699,6 +699,9 @@ export default function PurchasesDashboard() {
                 <Tooltip />
                 <Bar dataKey="qtd" fill="#f59e0b" opacity={0.9} radius={[0, 4, 4, 0]} name="Qtd">
                   <LabelList dataKey="qtd" position="right" style={{ fontSize: 11, fill: '#374151' }} />
+                  {byBanco.map((entry, i) => (
+                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} cursor="pointer" onClick={() => { setFilterBanco(entry.banco); setPage(0); }} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -725,7 +728,15 @@ export default function PurchasesDashboard() {
                 <Bar dataKey="qtd" name="Qtd" radius={[4, 4, 0, 0]}>
                   {byFipeBucket.map((entry, i) => {
                     const isAbove = ['100–110%', '110–120%', '> 120%'].includes(entry.faixa);
-                    return <Cell key={i} fill={isAbove ? '#f59e0b' : '#10b981'} opacity={0.85} />;
+                    return (
+                      <Cell
+                        key={i}
+                        fill={isAbove ? '#f59e0b' : '#10b981'}
+                        opacity={0.85}
+                        cursor="pointer"
+                        onClick={() => { setFilterFipe(entry.faixa); setPage(0); }}
+                      />
+                    );
                   })}
                   <LabelList dataKey="qtd" position="top" style={{ fontSize: 10 }} />
                 </Bar>
@@ -745,7 +756,9 @@ export default function PurchasesDashboard() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="qtd" fill="#a855f7" opacity={0.85} radius={[4, 4, 0, 0]} name="Qtd">
-                  {byFilial.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  {byFilial.map((entry, i) => (
+                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} cursor="pointer" onClick={() => { /* optional: add filterFilial if needed */ setPage(0); }} />
+                  ))}
                   <LabelList dataKey="qtd" position="top" style={{ fontSize: 11 }} />
                 </Bar>
               </BarChart>
