@@ -628,7 +628,14 @@ export default function PurchasesDashboard() {
                 <YAxis type="category" dataKey="marca" tick={{ fontSize: 11 }} width={110} />
                 <Tooltip />
                 <Bar dataKey="qtd" fill="#6366f1" opacity={0.85} radius={[0, 4, 4, 0]} name="Qtd">
-                  {byMarca.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  {byMarca.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={PALETTE[i % PALETTE.length]}
+                      cursor="pointer"
+                      onClick={() => { setFilterMarca(entry.marca); setPage(0); }}
+                    />
+                  ))}
                   <LabelList dataKey="qtd" position="right" style={{ fontSize: 11, fill: '#374151' }} />
                 </Bar>
                 </BarChart>
@@ -650,6 +657,9 @@ export default function PurchasesDashboard() {
                 <Tooltip />
                 <Bar dataKey="qtd" fill="#10b981" opacity={0.85} radius={[0, 4, 4, 0]} name="Qtd">
                   <LabelList dataKey="qtd" position="right" style={{ fontSize: 11, fill: '#374151' }} />
+                  {byModelo.map((entry, i) => (
+                    <Cell key={`m-${i}`} cursor="pointer" onClick={() => { setFilterModelo(entry.modelo); setPage(0); }} fill="transparent" />
+                  ))}
                 </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -669,7 +679,9 @@ export default function PurchasesDashboard() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v: any) => fmtNum(Number(v))} />
                 <Bar dataKey="qtd" radius={[4, 4, 0, 0]} name="Qtd">
-                  {byTipoAq.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  {byTipoAq.map((entry, i) => (
+                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} cursor="pointer" onClick={() => { setFilterTipoAq(entry.tipo); setPage(0); }} />
+                  ))}
                   <LabelList dataKey="qtd" position="top" style={{ fontSize: 10, fill: '#374151' }} />
                 </Bar>
               </BarChart>
