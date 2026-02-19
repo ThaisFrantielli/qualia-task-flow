@@ -230,12 +230,14 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
   const rowsByMonth = months.map(m => {
   const monthStart = new Date(m.year, m.month - 1, 1);
   const monthEnd = new Date(m.year, m.month, 0);
-    // perdaPrevista = TODOS os contratos que vencem no mês (saem do faturamento)
-    // receitaRenovacoes cobre de volta os que renovam → faturamentoFinal = inicial - loss + renovacoes
+    // perdaPrevista = apenas contratos que REALMENTE encerram (sem nenhuma estratégia de renovação)
+    // Renova mesmo veículo / troca zero / troca seminovo → NÃO entram na perda
     const loss = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.isExcluded) return s;
-      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) return s + c.ultimoVal;
+      if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
+        if (!isAnyRenewal(c.estrategia)) return s + c.ultimoVal;
+      }
       return s;
     }, 0);
 
@@ -277,9 +279,8 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       return n;
     }, 0);
 
-    // Receita de renovações — cobre TODOS os tipos:
-    // mesmo veículo (RENEW_PERIOD/RAISE), troca zero (RENEW_SWAP_ZERO), troca seminovo (RENEW_SWAP_SEMINOVO)
-    // É somada ao faturamentoFinal para repor os contratos que saíram e renovaram
+    // Renovação = receita retida pelos contratos que renovam (informativo)
+    // NÃO é somada ao faturamentoFinal pois esses contratos já não saíram da base (não entraram em loss)
     const receitaRenovacoes = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
@@ -323,8 +324,9 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
   for (let i = 0; i < rowsByMonth.length; i++) {
     const r = rowsByMonth[i];
     const faturamentoInicial = prevFaturamento;
-    // faturamentoFinal = faturamentoInicial - perdaPrevista (todos que vencem) + renovações (os que voltam)
-    const faturamentoFinal = faturamentoInicial - r.loss + r.receitaRenovacoes;
+    // faturamentoFinal = faturamentoInicial - perdaPrevista
+    // (apenas encerrados reais reduzem o faturamento; renovados já ficam na base)
+    const faturamentoFinal = faturamentoInicial - r.loss;
     result.push({
       mes: `${String(r.month).padStart(2, '0')}/${r.year}`,
       faturamentoInicial: Number(faturamentoInicial.toFixed(2)),
