@@ -67,8 +67,10 @@ function enrichRecord(r: AnyObject): AnyObject {
     return 0;
   })();
 
-  const bancoField = (r.instituicao || r.nomefornecedornotafiscal || r.Fornecedor || r.fornecedor || parseObs(obs, 'INSTITUIÇÃO FINANCEIRA')) || undefined;
+  const bancoField = (r.instituicao || r.Instituicao || r.nomefornecedornotafiscal || r.Fornecedor || r.fornecedor || parseObs(obs, 'INSTITUIÇÃO FINANCEIRA')) || undefined;
   const filialField = (r.filial || parseObs(obs, 'FILIAL')) || undefined;
+  // prefer explicit Tipo field when present
+  const tipoField = r.Tipo || r.tipo || parseObs(obs, 'AQUISIÇÃO');
 
   return {
     ...r,
@@ -90,7 +92,38 @@ function enrichRecord(r: AnyObject): AnyObject {
     mes_compra: dataCompraIso ? (new Date(dataCompraIso).getMonth() + 1) : (r.mes_compra ?? null),
     banco: bancoField,
     filial: filialField,
-    tipoAquisicao: parseObs(obs, 'AQUISIÇÃO'),
+    tipoAquisicao: tipoField,
+    // mapeamentos adicionais (dados vindos do arquivo de amostra)
+    IdVeiculo: r.IdVeiculo ?? r.idVeiculo ?? r.id_veiculo,
+    Chassi: r.Chassi ?? r.chassi,
+    chassi: r.Chassi ?? r.chassi,
+    Renavam: r.Renavam ?? r.renavam,
+    renavam: r.Renavam ?? r.renavam,
+    IdMontadora: r.IdMontadora ?? r.idMontadora ?? r.id_montadora,
+    IdModelo: r.IdModelo ?? r.idModelo ?? r.id_modelo,
+    AnoModelo: r.AnoModelo ?? r.ano_modelo,
+    ano_modelo: r.AnoModelo ?? r.ano_modelo,
+    AnoFabricacao: r.AnoFabricacao ?? r.ano_fabricacao ?? r.anoFabricacao,
+    ano_fabricacao: r.AnoFabricacao ?? r.ano_fabricacao ?? r.anoFabricacao,
+    CodigoFIPE: r.CodigoFIPE ?? r.codigo_fipe,
+    codigo_fipe: r.CodigoFIPE ?? r.codigo_fipe,
+    ValorAtualFIPE: parseCurrency(r.ValorAtualFIPE ?? r.valor_atual_fipe ?? r.valorAtualFIPE ?? r.ValorFIPE ?? valorFipe),
+    valor_atual_fipe: parseCurrency(r.ValorAtualFIPE ?? r.valor_atual_fipe ?? r.valorAtualFIPE ?? r.ValorFIPE ?? valorFipe),
+    NumeroNotaFiscal: r.NumeroNotaFiscal ?? r.numeroNotaFiscal ?? r.numero_nota_fiscal,
+    SerieNotaFiscal: r.SerieNotaFiscal ?? r.serieNotaFiscal ?? r.serie_nota_fiscal,
+    NomeFornecedorNotaFiscal: r.NomeFornecedorNotaFiscal ?? r.nomeFornecedorNotaFiscal ?? r.Fornecedor ?? r.fornecedor,
+    DocumentoFornecedorNotaFiscal: r.DocumentoFornecedorNotaFiscal ?? r.documentoFornecedorNotaFiscal,
+    DataEmissaoNotaFiscal: r.DataEmissaoNotaFiscal ?? r.dataEmissaoNotaFiscal,
+    ValorNotaFiscal: parseCurrency(r.ValorNotaFiscal ?? r.valorNotaFiscal ?? r.valor_nota_fiscal),
+    valor_acessorios: parseCurrency(r.ValorAcessorios ?? r.valor_acessorios ?? r.valorAcessorios),
+    ValorProjetadoVenda: parseCurrency(r.ValorProjetadoVenda ?? r.valorProjetadoVenda ?? r.valor_projetado_venda),
+    valor_projetado_venda: parseCurrency(r.ValorProjetadoVenda ?? r.valorProjetadoVenda ?? r.valor_projetado_venda),
+    DataProjetadaVenda: r.DataProjetadaVenda ?? r.dataProjetadaVenda ?? r.data_projetada_venda,
+    situacao_veiculo: r.SituacaoVeiculo ?? r.situacao_veiculo ?? r.situacao_atual,
+    situacao_financeira_veiculo: r.SituacaoFinanceiraVeiculo ?? r.situacao_financeira_veiculo,
+    informacoes_adicionais: r.InformacoesAdicionais ?? r.informacoes_adicionais ?? obs,
+    Patio: r.Patio ?? r.patio,
+    patio: r.Patio ?? r.patio,
   };
 }
 
@@ -394,22 +427,33 @@ export default function PurchasesDashboard() {
     const ws = XLSX.utils.json_to_sheet(tableData.map(r => ({
       'ID Veículo': r.IdVeiculo || r.id_veiculo,
       'Placa': r.Placa || r.placa,
+      'Chassi': r.Chassi || r.chassi,
+      'RENAVAM': r.Renavam || r.renavam,
       'Modelo': r.Modelo || r.modelo,
       'Marca': r.marca,
+      'Ano Modelo': r.AnoModelo || r.ano_modelo,
       'Ano Fabricação': r.ano_fabricacao,
       'Ano Compra': r.ano_compra,
       'Data Compra': r.data_compra || r.DataCompra,
+      'Numero Nota Fiscal': r.NumeroNotaFiscal || r.numero_nota_fiscal,
+      'Serie Nota Fiscal': r.SerieNotaFiscal || r.serie_nota_fiscal,
+      'Nome Fornecedor': r.NomeFornecedorNotaFiscal || r.Fornecedor || r.fornecedor,
+      'Documento Fornecedor': r.DocumentoFornecedorNotaFiscal || r.documentoFornecedorNotaFiscal,
+      'Valor Nota Fiscal': parseCurrency(r.ValorNotaFiscal || r.valor_nota_fiscal),
       'Valor Compra': parseCurrency(r.valor_compra || r.ValorCompra),
+      'Valor Acessórios': parseCurrency(r.valor_acessorios || r.ValorAcessorios),
       'Valor FIPE': parseCurrency(r.valor_fipe || r.ValorFIPE),
+      'Valor Atual FIPE': parseCurrency(r.ValorAtualFIPE || r.valor_atual_fipe),
       '% FIPE': r.percentual_fipe,
-      'Valor Acessórios': r.valor_acessorios,
-      'Valor Total Compra': r.valor_total_compra,
+      'Valor Projetado Venda': r.ValorProjetadoVenda || r.valor_projetado_venda,
+      'Data Projetada Venda': r.DataProjetadaVenda || r.data_projetada_venda,
       'Tipo Aquisição': r.tipoAquisicao,
-      'Banco': r.banco,
+      'Banco / Instituição': r.banco,
+      'Patio': r.Patio || r.patio,
       'Filial': r.filial,
-      'Situação Atual': r.situacao_atual,
-      'Chassi': r.chassi,
-      'RENAVAM': r.renavam,
+      'Situação Atual': r.situacao_veiculo || r.situacao_atual,
+      'Situação Financeira': r.situacao_financeira_veiculo,
+      'Informações Adicionais': r.informacoes_adicionais,
     })));
     XLSX.utils.book_append_sheet(wb, ws, 'Compras');
     XLSX.writeFile(wb, `veiculos_comprados_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -758,7 +802,7 @@ export default function PurchasesDashboard() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="qtd" fill="#a855f7" opacity={0.85} radius={[4, 4, 0, 0]} name="Qtd">
-                  {byFilial.map((entry, i) => (
+                  {byFilial.map((_entry, i) => (
                     <Cell key={i} fill={PALETTE[i % PALETTE.length]} cursor="pointer" onClick={() => { /* optional: add filterFilial if needed */ setPage(0); }} />
                   ))}
                   <LabelList dataKey="qtd" position="top" style={{ fontSize: 11 }} />
@@ -791,14 +835,20 @@ export default function PurchasesDashboard() {
                 <tr className="border-b border-slate-100 bg-slate-50">
                   {[
                     { label: 'Placa', field: 'placa' },
+                    { label: 'Chassi', field: 'chassi' },
+                    { label: 'RENAVAM', field: 'renavam' },
                     { label: 'Modelo', field: 'modelo' },
                     { label: 'Marca', field: 'marca' },
-                    { label: 'Ano', field: 'ano_fabricacao' },
+                    { label: 'Ano Modelo', field: 'ano_modelo' },
+                    { label: 'Ano Fab.', field: 'ano_fabricacao' },
                     { label: 'Data Compra', field: 'data_compra' },
                     { label: 'Valor Compra', field: 'valor_compra' },
+                    { label: 'Valor Atual FIPE', field: 'valor_atual_fipe' },
                     { label: '% FIPE', field: 'percentual_fipe' },
+                    { label: 'Acessórios', field: 'valor_acessorios' },
                     { label: 'Tipo Aquisição', field: 'tipoAquisicao' },
                     { label: 'Banco', field: 'banco' },
+                    { label: 'Patio', field: 'patio' },
                     { label: 'Filial', field: 'filial' },
                     { label: 'Situação', field: 'situacao_atual' },
                   ].map(col => (
@@ -826,20 +876,26 @@ export default function PurchasesDashboard() {
                   return (
                     <tr key={i} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-2.5 font-mono text-xs font-bold text-slate-800">{r.Placa || r.placa}</td>
+                      <td className="px-4 py-2.5 text-slate-700 text-xs">{r.Chassi || r.chassi || '—'}</td>
+                      <td className="px-4 py-2.5 text-slate-700 text-xs">{r.Renavam || r.renavam || '—'}</td>
                       <td className="px-4 py-2.5 text-slate-700 max-w-[200px] truncate text-xs" title={r.Modelo || r.modelo}>
                         {(r.Modelo || r.modelo || '').substring(0, 32)}
                       </td>
                       <td className="px-4 py-2.5 text-slate-600 text-xs">{(r.marca || '').split(' - ')[0]}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-600 text-xs">{r.AnoModelo || r.ano_modelo || '—'}</td>
                       <td className="px-4 py-2.5 text-center text-slate-600 text-xs">{r.ano_fabricacao}</td>
                       <td className="px-4 py-2.5 text-slate-600 text-xs">
                         {r.data_compra ? new Date(r.data_compra).toLocaleDateString('pt-BR') : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-right font-semibold text-slate-800 text-xs">{fmtBRL(vc)}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-slate-800 text-xs">{r.ValorAtualFIPE ? fmtBRL(parseCurrency(r.ValorAtualFIPE)) : r.valor_atual_fipe ? fmtBRL(parseCurrency(r.valor_atual_fipe)) : '—'}</td>
                       <td className={`px-4 py-2.5 text-right font-medium text-xs ${pct > 100 ? 'text-amber-600' : pct > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                         {pct > 0 ? `${pct.toFixed(1)}%` : '—'}
                       </td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{r.valor_acessorios ? fmtBRL(parseCurrency(r.valor_acessorios)) : '—'}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-600">{r.tipoAquisicao}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-600 max-w-[150px] truncate">{r.banco}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{r.Patio || r.patio || '—'}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-600">{r.filial}</td>
                       <td className="px-4 py-2.5">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sitStyle[r.situacao_atual ?? ''] ?? 'bg-slate-100 text-slate-600'}`}>
