@@ -167,6 +167,8 @@ export default function PurchasesDashboard() {
     const years = Array.from(new Set(data.map(d => Number(d.ano_compra)).filter(y => Number.isFinite(y) && y > 0)));
     if (years.length === 0) return null;
     years.sort((a, b) => a - b);
+    // prefer 2026 explicitly when available (project default), otherwise prefer last complete year
+    if (years.includes(2026)) return '2026';
     const currentYear = new Date().getFullYear();
     const past = years.filter(y => y < currentYear);
     const chosen = past.length ? Math.max(...past) : Math.max(...years);
@@ -466,7 +468,7 @@ export default function PurchasesDashboard() {
             <span className="text-sm font-semibold text-slate-700">Filtros</span>
             {hasActiveFilters && (
               <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                {[filterAno, filterMarca, filterSituacao, filterTipoAq].filter(f => f !== 'Todos').length} ativo(s)
+                {[filterAno, filterMarca, filterSituacao, filterTipoAq, filterModelo, filterBanco, filterFipe].filter(f => f !== 'Todos').length} ativo(s)
               </span>
             )}
           </div>
