@@ -62,6 +62,7 @@ const baseMenuGroups: MenuGroup[] = [
     title: 'COMERCIAL',
     items: [
       { label: 'Contratos', url: '/analytics/contratos', icon: FileText, permissionKey: 'crm' },
+      { label: 'Fluxo de Caixa Prev.', url: '/analytics/fluxo-caixa', icon: DollarSign, permissionKey: 'crm' },
     ]
   },
   {
@@ -117,7 +118,19 @@ const SidebarFixed: React.FC = () => {
         map.set(g.title, g);
       }
     });
-    return Array.from(map.values());
+    // Deduplicate menu items across all groups by url, keeping first (upper) occurrence
+    const seenUrls = new Set<string>();
+    const groups = Array.from(map.values()).map(group => {
+      const uniqueItems: MenuItem[] = [];
+      group.items.forEach(item => {
+        if (!seenUrls.has(item.url)) {
+          uniqueItems.push(item);
+          seenUrls.add(item.url);
+        }
+      });
+      return { ...group, items: uniqueItems };
+    });
+    return groups;
   };
   const location = useLocation();
   const navigate = useNavigate();

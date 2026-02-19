@@ -116,11 +116,6 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
   const filialFilter = typeof req.query.filial === 'string' ? req.query.filial.toLowerCase() : undefined;
 
   const today = new Date();
-  const months: Array<{ year: number; month: number }> = [];
-  for (let i = 0; i < 24; i++) {
-    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
-  }
 
   // Helper to read string/number fields safely
   const toNumber = (v: unknown) => {
@@ -180,6 +175,32 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
     return true;
   });
 
+  // Build months range up to the latest DataFinal/vencimento among processed contracts
+  const maxEndTime = processed.reduce((max, c) => {
+    const d = c.dataFinal ?? c.vencimento;
+    if (!d) return max;
+    const t = d.getTime();
+    return t > max ? t : max;
+  }, 0);
+
+  const months: Array<{ year: number; month: number }> = [];
+  if (maxEndTime > 0) {
+    const last = new Date(maxEndTime);
+    // start from current month
+    let cursor = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(last.getFullYear(), last.getMonth(), 1);
+    while (cursor <= end) {
+      months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+  } else {
+    // fallback to 24 months
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    }
+  }
+
   // Initial faturamento: sum UltimoValorLocacao of contracts active today (DataInicial <= today <= DataFinal) and not excluded
   const initalFaturamento = processed.reduce((sum, c) => {
     const start = c.dataInicial; const end = c.dataFinal;
@@ -210,9 +231,12 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
     const valorEstAquisicao = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
-        if (String(c.estrategia).toLowerCase().includes('renova com troca (zero)') || String(c.estrategia).toLowerCase().includes('renova com troca')) {
-          return s + c.valorAquisicao;
-        }
+        const eAq = String(c.estrategia);
+        const isSwapZero =
+          eAq === 'RENEW_SWAP_ZERO' ||
+          eAq.toLowerCase().includes('renova com troca (zero)') ||
+          eAq.toLowerCase().includes('renova com troca zero');
+        if (isSwapZero) return s + c.valorAquisicao;
       }
       return s;
     }, 0);
@@ -220,19 +244,27 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
     const qtdeAquisicao = processed.reduce((n, c) => {
       if (!c.vencimento) return n;
       if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
-        if (String(c.estrategia).toLowerCase().includes('renova com troca (zero)') || String(c.estrategia).toLowerCase().includes('renova com troca')) {
-          return n + 1;
-        }
+        const eAq = String(c.estrategia);
+        const isSwapZero =
+          eAq === 'RENEW_SWAP_ZERO' ||
+          eAq.toLowerCase().includes('renova com troca (zero)') ||
+          eAq.toLowerCase().includes('renova com troca zero');
+        if (isSwapZero) return n + 1;
       }
       return n;
     }, 0);
 
-    // Receita de novas renovações: heuristic — contracts with estrategia containing 'renova' but not 'renova com troca (zero)'
+    // Receita de novas renovações: estratégias RENEW_PERIOD, RENEW_PERIOD_RAISE, RENEW_SWAP_SEMINOVO
     const receitaRenovacoes = processed.reduce((s, c) => {
       if (!c.vencimento) return s;
       if (c.vencimento.getFullYear() === m.year && (c.vencimento.getMonth() + 1) === m.month) {
-        const estr = String(c.estrategia).toLowerCase();
-        if (estr.includes('renova') && !estr.includes('renova com troca')) return s + c.ultimoVal;
+        const estr = String(c.estrategia);
+        const isRenewWithoutSwap =
+          estr === 'RENEW_PERIOD' ||
+          estr === 'RENEW_PERIOD_RAISE' ||
+          estr === 'RENEW_SWAP_SEMINOVO' ||
+          (estr.toLowerCase().includes('renova') && !estr.toLowerCase().includes('renova com troca'));
+        if (isRenewWithoutSwap) return s + c.ultimoVal;
       }
       return s;
     }, 0);
@@ -260,6 +292,7 @@ async function buildCashflowProjection(req: VercelRequest, limit: number) {
       mes: `${String(r.month).padStart(2, '0')}/${r.year}`,
       faturamentoInicial: Number(faturamentoInicial.toFixed(2)),
       perdaPrevista: Number(r.loss.toFixed(2)),
+      receitaEstimada: Number(r.receitaRenovacoes.toFixed(2)),
       faturamentoFinal: Number(faturamentoFinal.toFixed(2)),
       qtdeParaVenda: r.qtdeVenda,
       valorFipeVenda: Number(r.valorFipeVenda.toFixed(2)),

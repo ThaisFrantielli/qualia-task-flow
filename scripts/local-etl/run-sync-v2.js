@@ -26,6 +26,7 @@ const TABLES = [
         table: 'dim_frota',
         query: `SELECT * FROM Veiculos WITH (NOLOCK)`
     },
+    { table: 'dim_compras', query: `SELECT * FROM VeiculosComprados WITH (NOLOCK)` },
         {
         table: 'dim_contratos_locacao',
         query: `

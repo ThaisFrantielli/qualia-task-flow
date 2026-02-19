@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
+// react-router navigation not required here; viewMode handles embedded projection view
+import CashFlowProjectionPage from '@/pages/analytics/CashFlowProjectionPage';
 import * as XLSX from 'xlsx';
-import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download, ChevronRight, ChevronDown, DollarSign } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend, LabelList } from 'recharts';
 import ActionPicker from './ActionPicker';
@@ -49,6 +51,33 @@ const getAgeRangeLabelFromMonths = (ageMonths: number): string => {
   if (ageMonths <= 48) return '37-48m';
   if (ageMonths <= 60) return '49-60m';
   return '+60m';
+};
+
+// Date display helpers: app standard is dd/mm/aaaa in filters
+const isoToDisplay = (iso?: string) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  } catch {
+    return '';
+  }
+};
+
+const displayToIso = (display: string) => {
+  if (!display) return '';
+  const m = display.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return '';
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  const yyyy = Number(m[3]);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return '';
+  // return ISO date (yyyy-mm-dd)
+  return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 };
 
 // Fixed orders for sorting charts
@@ -124,15 +153,16 @@ const renderPieLabel = (props: any) => {
 
 const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContract }) => {
   // removed virtualized ROW_HEIGHT (no longer used)
-  const [viewMode, setViewMode] = useState<'analysis' | 'list'>(() => {
+  const [viewMode, setViewMode] = useState<'analysis' | 'list' | 'fluxo'>(() => {
     try {
       const v = localStorage.getItem('contracts:viewMode');
-      if (v === 'analysis' || v === 'list') return v;
+      if (v === 'analysis' || v === 'list' || v === 'fluxo') return v;
     } catch (e) {}
     return 'analysis';
   });
   const lastPointerTarget = React.useRef<HTMLElement | null>(null);
-  const safeSetViewMode = React.useCallback((mode: 'analysis' | 'list') => {
+  const safeSetViewMode = React.useCallback((mode: 'analysis' | 'list' | 'fluxo') => {
+    // keep signature compatible with existing callers (list/analysis)
     if (mode === 'analysis') {
       const t = lastPointerTarget.current;
       if (t) {
@@ -199,7 +229,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const parseFiltersFromUrl = () => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const keys = ['strategy','type','year','group','kmRange','ageRange','situation','client','commercialContract','contractNumber','plate','model'];
+      const keys = ['strategy','type','year','group','kmRange','ageRange','situation','client','commercialContract','contractNumber','plate','model','periodStart','periodEnd'];
       const out: Record<string, string[]> = {};
       keys.forEach(k => {
         const v = params.get(k);
@@ -212,7 +242,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       return out as any;
     } catch (e) {
       return {
-        strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: []
+        strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [], periodStart: [], periodEnd: []
       } as any;
     }
   };
@@ -230,6 +260,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     contractNumber: string[];
     plate: string[];
     model: string[];
+    periodStart: string[];
+    periodEnd: string[];
   }>(() => parseFiltersFromUrl());
 
   // Close open filter panel when clicking outside (prevents panel sticking and blocking UI)
@@ -283,7 +315,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   }, []);
 
   const clearFilters = React.useCallback(() => {
-    setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [] });
+    setFilters({ strategy: [], type: [], year: [], group: [], kmRange: [], ageRange: [], situation: [], client: [], commercialContract: [], contractNumber: [], plate: [], model: [], periodStart: [], periodEnd: [] });
   }, []);
 
   // Keep filters in sync with URL so reloads / navigations preserve selection
@@ -323,6 +355,37 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const modelsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.modelo_veiculo || c.model || c.modelo || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
   const situationsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.contractStatus || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
   const yearsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.expiryYear || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
+
+  // Set sensible defaults for filters: current year and 'andamento' situations when no URL filters provided
+  React.useEffect(() => {
+    try {
+      setFilters(prev => {
+        const next = { ...prev };
+        let changed = false;
+
+        // Default year -> current year if available in yearsList and not specified in URL
+        const currentYear = String(new Date().getFullYear());
+        if ((!prev.year || prev.year.length === 0) && yearsList.includes(currentYear)) {
+          next.year = [currentYear];
+          changed = true;
+        }
+
+        // Default situation -> any situation containing 'andament' (e.g., 'Em Andamento')
+        if ((!prev.situation || prev.situation.length === 0) && Array.isArray(situationsList) && situationsList.length > 0) {
+          const defaults = situationsList.filter(s => /andament/i.test(String(s)));
+          if (defaults.length > 0) {
+            next.situation = defaults;
+            changed = true;
+          }
+        }
+
+        return changed ? next : prev;
+      });
+    } catch (e) {
+      // ignore
+    }
+  // Only run when available lists change
+  }, [yearsList, situationsList]);
 
   const filteredContracts = useMemo(() => {
     return enrichedContracts.filter(c => {
@@ -610,6 +673,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     });
   };
 
+  const RETURN_PERCENTAGE = 0.80; // 80%
+
   const totals = {
     count: filteredContracts.length,
     revenue: filteredContracts.reduce((acc, c) => acc + c.monthlyValue, 0),
@@ -618,16 +683,19 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     retornoFipe: filteredContracts.reduce((acc, c) => {
       const key = c.renewalStrategy || 'UNDEFINED';
       const f = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
-      if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return acc + f * 0.8;
+      if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return acc + f * RETURN_PERCENTAGE;
       return acc;
     }, 0),
     acquisition: filteredContracts.reduce((acc, c) => acc + ((c.ValorCompra as number) || 0), 0),
     acquisition0km: filteredContracts.reduce((acc, c) => acc + (Number(c.purchasePrice) || 0), 0),
   };
 
+  // Retorno estimado sobre a aquisição zero km
+  (totals as any).retornoAcquisition0km = totals.acquisition0km * RETURN_PERCENTAGE;
+
   const hasObservations = filteredContracts.some(c => !!c.observation);
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
-  const RETURN_PERCENTAGE = 0.80; // 80%
+  
 
   // Handlers
 
@@ -699,12 +767,14 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return Math.round(f * RETURN_PERCENTAGE * 100) / 100;
         return 0;
       })(),
+      'Valor Aquisição (R$)': toNum((c as any).purchasePrice),
       'Odômetro informado': ((): number | '' => {
         const v = (c as any).KmInformado ?? c.currentKm ?? (c as any).km;
         if (v === null || v === undefined || v === '') return '';
         const n = Number(String(v).replace(/[^0-9]/g, ''));
         return isNaN(n) ? '' : n;
       })(),
+      'Observação': (c as any).observation ? String((c as any).observation) : '',
       'Valor Compra (R$)': toNum((c as any).ValorCompra),
       'Último Valor Locação (R$)': toNum(c.monthlyValue),
       'Estratégia': c.renewalStrategy
@@ -808,6 +878,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <button type="button" onClick={() => safeSetViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
                 <ListIcon size={14}/> Lista
               </button>
+              <button type="button" onClick={() => safeSetViewMode('fluxo')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'fluxo' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+                <DollarSign size={14}/> Fluxo Prev.
+              </button>
             </div>
           </div>
 
@@ -816,7 +889,20 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         <div className="animate-in fade-in duration-500 space-y-6">
 
           {/* KPIs Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              {/* VALOR COMPRA */}
+              <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+                <div className="bg-blue-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                  Valor Compra
+                </div>
+                <div className="p-4 text-center bg-blue-50/30">
+                  <h3 className="text-2xl font-bold text-slate-800">
+                   R$ {totals.acquisition.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Custo Histórico</p>
+                </div>
+              </div>
+
               {/* FIPE */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
                   <div className="bg-blue-700 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
@@ -830,33 +916,20 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                   </div>
               </div>
 
-                {/* VALOR COMPRA */}
-                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-                  <div className="bg-blue-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                    Valor Compra
-                  </div>
-                  <div className="p-4 text-center bg-blue-50/30">
-                    <h3 className="text-2xl font-bold text-slate-800">
-                     R$ {totals.acquisition.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-1">Custo Histórico</p>
-                  </div>
+              {/* VALOR AQUISIÇÃO (ZERO KM) */}
+              <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+                <div className="bg-indigo-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                  Valor Aquisição (Zero KM)
                 </div>
-
-                {/* VALOR AQUISIÇÃO (ZERO KM) */}
-                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-                  <div className="bg-indigo-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                    Valor Aquisição (Zero KM)
-                  </div>
-                  <div className="p-4 text-center bg-indigo-50/30">
-                    <h3 className="text-2xl font-bold text-slate-800">
-                     R$ {totals.acquisition0km.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-1">Valor de aquisição informado (0km)</p>
-                  </div>
+                <div className="p-4 text-center bg-indigo-50/30">
+                  <h3 className="text-2xl font-bold text-slate-800">
+                   R$ {totals.acquisition0km.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Valor de aquisição informado (0km)</p>
                 </div>
+              </div>
 
-              {/* RETORNO ESTIMADO */}
+                {/* RETORNO ESTIMADO */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden relative">
                   <div className="bg-blue-600 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
                       Retorno FIPE Estimado
@@ -871,6 +944,19 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                       {(RETURN_PERCENTAGE * 100).toFixed(0)}%
                   </div>
               </div>
+
+                {/* RETORNO AQUISIÇÃO (0KM) */}
+                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+                  <div className="bg-indigo-600 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                    Retorno FIPE - Aquisição (Zero KM)
+                  </div>
+                  <div className="p-4 text-center bg-indigo-50/50">
+                     <h3 className="text-2xl font-bold text-slate-800">
+                     R$ {(totals as any).retornoAcquisition0km.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                     </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">Projeção de Revenda sobre aquisição (0km)</p>
+                  </div>
+                </div>
 
               {/* LOCAÇÃO */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
@@ -924,13 +1010,41 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                 {KM_ORDER.map(k => <option key={k} value={k}>{k}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs">Idade:</label>
-              <select value={filters.ageRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, ageRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
-                <option value="">Todos</option>
-                {AGE_ORDER.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs">Idade:</label>
+                <select value={filters.ageRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, ageRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                  <option value="">Todos</option>
+                  {AGE_ORDER.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs">Período Início:</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="dd/mm/aaaa"
+                  value={isoToDisplay(filters.periodStart[0])}
+                  onChange={(e) => {
+                    const iso = displayToIso(e.target.value);
+                    setFilters(prev => ({ ...prev, periodStart: iso ? [iso] : [] }));
+                  }}
+                  className="text-sm border rounded px-2 py-1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs">Período Fim:</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="dd/mm/aaaa"
+                  value={isoToDisplay(filters.periodEnd[0])}
+                  onChange={(e) => {
+                    const iso = displayToIso(e.target.value);
+                    setFilters(prev => ({ ...prev, periodEnd: iso ? [iso] : [] }));
+                  }}
+                  className="text-sm border rounded px-2 py-1"
+                />
+              </div>
             <div className="flex items-center gap-2">
               <label className="text-xs">Estratégia:</label>
               <select value={filters.strategy[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, strategy: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
@@ -1246,6 +1360,85 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         </>
       )}
 
+      {viewMode === 'fluxo' && (
+        <div className="animate-in fade-in duration-300">
+          {/* Reuse the same filters bar used in List view so user sees familiar filters */}
+          <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-start">
+            {[
+              { key: 'client', label: 'Cliente', list: clientsList },
+              { key: 'commercialContract', label: 'Contrato Comercial', list: commercialContractsList },
+              { key: 'contractNumber', label: 'Contrato Locação', list: contractNumbersList },
+              { key: 'plate', label: 'Placa', list: platesList },
+              { key: 'model', label: 'Modelo', list: modelsList },
+              { key: 'situation', label: 'Situação', list: situationsList },
+              { key: 'year', label: 'Vencimentos', list: yearsList }
+            ].map(f => (
+              <div key={f.key} className="relative">
+                <button type="button" onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-2 border rounded bg-white text-xs flex items-center gap-2">
+                  <span>{f.label}</span>
+                  {filters[f.key as keyof typeof filters].length > 0 && <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{filters[f.key as keyof typeof filters].length}</span>}
+                </button>
+                {openFilterPanel === f.key && (
+                  <div className="filter-panel absolute z-50 top-10 left-0 w-64 bg-white border rounded shadow-lg p-2 max-h-72 overflow-y-auto">
+                    <div className="mb-2">
+                      <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <button type="button" className="text-xs text-slate-500" onClick={() => {
+                        const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
+                        setFilters(prev => ({ ...prev, [f.key]: visible }));
+                      }}>Selecionar tudo</button>
+                      <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
+                    </div>
+                    <div className="space-y-1">
+                      { (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase())).map(opt => (
+                        <label key={opt} className="flex items-center gap-2 text-xs">
+                          <input type="checkbox" checked={filters[f.key as keyof typeof filters].includes(opt)} onChange={() => toggleFilter(f.key as keyof typeof filters, opt)} />
+                          <span className="truncate">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs">KM:</label>
+              <select value={filters.kmRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, kmRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todos</option>
+                {KM_ORDER.map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs">Idade:</label>
+              <select value={filters.ageRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, ageRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todos</option>
+                {AGE_ORDER.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs">Estratégia:</label>
+              <select value={filters.strategy[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, strategy: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                <option value="">Todas</option>
+                {Object.keys(RenewalStrategyLabel).map(k => <option key={k} value={k}>{RenewalStrategyLabel[k as RenewalStrategy]}</option>)}
+              </select>
+            </div>
+            <div className="ml-auto">
+              <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
+            </div>
+          </div>
+
+          <CashFlowProjectionPage
+            cliente={filters.client?.length ? filters.client.join(',') : ''}
+            categoria={filters.group?.length ? filters.group.join(',') : ''}
+            filial={''}
+            periodStart={filters.periodStart?.length ? filters.periodStart.join(',') : ''}
+            periodEnd={filters.periodEnd?.length ? filters.periodEnd.join(',') : ''}
+          />
+        </div>
+      )}
+
       {viewMode === 'list' && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-300">
            <div className="p-4 border-b border-slate-200 flex gap-4 bg-slate-50">
@@ -1481,7 +1674,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                        <th className="px-4 py-4 text-center">Estratégia</th>
                        <th className="px-4 py-4 text-center">Ação</th>
                        {hasObservations && <th className="px-4 py-4">Obs.</th>}
-                       <th className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-30">Ações</th>
+                       <th className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-30"><span className="sr-only">Ações</span></th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
@@ -1713,15 +1906,15 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                               disabled={observationModalOpen || purchaseModalOpen}
                             />
                           </td>
-                          {hasObservations && <td className="px-4 py-4">{contract.observation ? (
-                            <span
-                              title={String(contract.observation)}
-                              aria-label={String(contract.observation)}
-                              className="bg-yellow-100 px-2 py-0.5 rounded text-[10px] text-yellow-800 cursor-help"
-                            >
-                              Obs
-                            </span>
-                          ) : null}</td>}
+                          {hasObservations && <td className="px-4 py-4">
+                            {contract.observation ? (
+                              <div className="text-xs text-slate-700 truncate" title={String(contract.observation)} aria-label={String(contract.observation)}>
+                                {String(contract.observation)}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-slate-400">-</div>
+                            )}
+                          </td>}
                               <td className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-20">
                                 <div className="flex items-center justify-center gap-2">
                                  <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
