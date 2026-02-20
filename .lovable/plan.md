@@ -1,145 +1,93 @@
 
 
-# Plano de Otimizacao de Performance: Dashboards de Frota e Contratos
+# Plano de Otimizacao - Velocidade das Paginas de Analytics
 
-## Diagnostico dos Gargalos
+## Problema
+As paginas de analytics (Frota, Contratos, Frota Improdutiva) demoram muito para abrir porque fazem multiplas chamadas HTTP pesadas em sequencia, cada uma passando por 3 saltos de rede (Lovable -> Vercel -> Oracle PostgreSQL), e o usuario so ve um spinner ate que TODOS os dados cheguem.
 
-### Gargalo 1: Query SQL extremamente lenta para `dim_contratos_locacao`
+## Diagnostico
 
-A query atual na API (`api/bi-data.ts`) usa `to_jsonb(c)->>` para **cada coluna individualmente**. Isso converte a linha inteira em JSON repetidamente (uma vez por coluna) -- um anti-pattern severo do PostgreSQL. Para 5.000+ contratos com 20+ colunas, sao ~100.000 chamadas a `to_jsonb()`.
+| Pagina | Chamadas HTTP | Tabelas | Problema Principal |
+|--------|--------------|---------|-------------------|
+| Frota | 4 chamadas | 9 tabelas + 2 timelines | Volume massivo de dados sem filtro de colunas |
+| Contratos | 1 chamada | 1 tabela (JOIN pesado) | Query SQL com 3 JOINs, retorna todas as colunas |
+| Frota Improdutiva | 3 chamadas | 3 tabelas + historico | Carrega historico completo de todos os veiculos |
 
-```text
-ATUAL (lento):
-  to_jsonb(c)->>'IdContratoLocacao' AS "IdContratoLocacao",
-  to_jsonb(c)->>'ContratoLocacao' AS "ContratoLocacao",
-  ... (repete 22 vezes por tabela)
+## Solucoes Propostas (em ordem de impacto)
 
-CORRETO (rapido):
-  SELECT c."IdContratoLocacao", c."ContratoLocacao", ...
-  -- Acesso direto as colunas, sem conversao JSON
-```
+### 1. Skeleton Loading Progressivo (impacto visual imediato)
+Em vez de mostrar um spinner vazio ate todos os dados chegarem, exibir a estrutura da pagina com skeletons animados nos cards/tabelas. Assim o usuario ve a pagina "montar" progressivamente conforme os dados chegam.
 
-### Gargalo 2: Requisicoes HTTP em excesso
+- Renderizar o layout dos KPIs e tabs imediatamente
+- Mostrar skeletons nos valores numericos enquanto carregam
+- Carregar e mostrar cada secao independentemente (KPIs primeiro, tabela depois)
 
-- **FleetDashboard**: Dispara **12 chamadas HTTP paralelas** ao montar (10x `useBIData` + 2x `useTimelineData`, que internamente faz +1 fetch a `dim_frota`)
-- **ContractsDashboard**: Faz 2 chamadas (`dim_contratos_locacao` + `dim_frota`), mas a API ja faz o JOIN -- o fetch de `dim_frota` separado e **redundante**
-- Cada chamada tem latencia de rede (Vercel -> Oracle Cloud ~100-300ms) + cold start da serverless (~500ms na primeira)
+### 2. Reducao do Payload com Selecao de Campos
+Usar o parametro `fields` ja suportado pelo `useBIDataBatch` para trazer apenas as colunas necessarias em vez de `SELECT *`. Isso pode reduzir o payload de cada tabela em 50-80%.
 
-### Gargalo 3: Transferencia de dados excessiva
+Exemplo para FleetDashboard:
+- `dim_frota`: apenas Placa, Modelo, Status, ValorCompra, ValorFipeAtual, KmInformado, IdadeVeiculo, Categoria, Filial (em vez de todas as 30+ colunas)
+- `fat_sinistros`: apenas Placa, DataSinistro, ValorTotal
+- `fat_multas`: apenas Placa, DataMulta, Valor
 
-- `SELECT *` retorna **todas as colunas** mesmo quando o dashboard usa apenas 5-10 campos
-- `dim_frota` com 5.800+ registros inclui campos como `UltimoEnderecoTelemetria` (strings longas) que inflam o payload
-- Sem compressao gzip explicita nos responses
+### 3. Carregamento Priorizado (dados criticos primeiro)
+Separar os dados em "essenciais" (mostrados nos KPIs no topo) e "secundarios" (tabelas detalhadas, graficos). Carregar os essenciais primeiro e os secundarios sob demanda (quando o usuario clicar na aba).
 
-### Gargalo 4: Processamento pesado no frontend
+- **Frota**: Carregar `dim_frota` primeiro (KPIs), depois as tabelas de fato por aba
+- **Contratos**: Carregar lista basica primeiro, detalhes sob scroll
 
-- `ContractsDashboard` reconstroi um `frotaMap` no cliente para fazer lookup por placa -- trabalho que a API ja faz via LEFT JOIN
-- Funcoes `parseNum`, `getStr` sao chamadas milhares de vezes em loop `.map()` sem necessidade (dados ja vem tipados da API)
+### 4. Lazy Loading por Aba
+No FleetDashboard (que tem 5+ abas), carregar os dados secundarios apenas quando o usuario navegar para a aba correspondente, em vez de tudo no mount.
 
----
+- Aba "Visao Geral": carregar `dim_frota` + `dim_contratos_locacao`
+- Aba "Timeline": carregar timeline somente ao clicar
+- Aba "Sinistros/Multas": carregar sob demanda
 
-## Solucao Proposta
-
-### Etapa 1: Otimizar a Query SQL (impacto: -70% no tempo de resposta da API)
-
-Reescrever a query de `dim_contratos_locacao` para usar acesso direto a colunas em vez de `to_jsonb()`:
-
-```text
-ANTES: to_jsonb(c)->>'NomeCliente' AS "NomeCliente"  (converte linha inteira para JSON)
-DEPOIS: c."NomeCliente"  (acesso direto, indice-friendly)
-```
-
-Tambem selecionar apenas as colunas necessarias em vez de `SELECT *` para as demais tabelas.
-
-### Etapa 2: Criar endpoint batch (`/api/bi-data-batch`)
-
-Novo endpoint que aceita multiplas tabelas em uma unica requisicao:
-
-```text
-GET /api/bi-data-batch?tables=dim_frota,fat_sinistros,fat_multas&fields=dim_frota:Placa,Modelo,Status,ValorCompra
-```
-
-Beneficios:
-- 1 roundtrip HTTP em vez de 10+
-- 1 cold start em vez de possiveis multiplos
-- Conexao ao PostgreSQL reutilizada para todas as queries
-
-### Etapa 3: Suporte a selecao de campos (`fields` parameter)
-
-Permitir que o frontend especifique apenas os campos necessarios:
-
-```text
-GET /api/bi-data?table=dim_frota&fields=Placa,Modelo,Status,ValorCompra,ValorFipeAtual,KmInformado
-```
-
-Reduz o payload de ~2MB para ~400KB para `dim_frota`.
-
-### Etapa 4: Eliminar fetch redundante no ContractsDashboard
-
-O `ContractsDashboard` atualmente faz:
-1. `useBIData('dim_contratos_locacao')` -- que ja faz LEFT JOIN com dim_frota na API
-2. `useBIData('dim_frota')` -- busca dim_frota novamente, so para construir `frotaMap`
-
-Solucao: Remover o segundo fetch e simplificar o `useMemo` que transforma os dados, ja que a API retorna os campos enriquecidos (Montadora, Modelo, Categoria, currentKm, etc).
-
-### Etapa 5: Otimizar FleetDashboard com batch loading
-
-Agrupar os 10+ fetches do FleetDashboard em 2-3 chamadas batch:
-
-```text
-Batch 1 (dados primarios): dim_frota + dim_contratos_locacao + dim_movimentacao_patios
-Batch 2 (dados secundarios): fat_sinistros + fat_multas + fat_carro_reserva + fat_movimentacao_ocorrencias
-Batch 3 (manutencao): fat_manutencao_unificado
-```
-
-### Etapa 6: Cache HTTP com stale-while-revalidate
-
-Adicionar headers de cache mais agressivos para dados que mudam apenas 3x/dia:
-
-```text
-Cache-Control: public, s-maxage=300, stale-while-revalidate=600
-```
+### 5. Correcao do Erro de Build
+Remover o import nao utilizado de `CashFlowProjectionPage` no `App.tsx`.
 
 ---
 
-## Resumo do Impacto Esperado
+## Detalhes Tecnicos
 
+### Skeleton Loading
+Substituir o bloco de loading atual (spinner centralizado) por um layout com componentes `<Skeleton />` ja existentes no projeto (`src/components/ui/skeleton.tsx`), mostrando a estrutura da pagina enquanto os dados carregam.
+
+### Selecao de Campos no Batch
 ```text
-                         ANTES           DEPOIS
-Query contratos          ~3-5s           ~0.5-1s     (remover to_jsonb)
-Requisicoes HTTP Fleet   12 chamadas     2-3 batch   (batch endpoint)
-Payload dim_frota        ~2MB            ~400KB      (field selection)
-Fetch redundante         2x dim_frota    1x          (eliminar duplicata)
-Cold start impact        12 funcoes      2-3         (menos invocacoes)
-Tempo total dashboard    8-15s           2-4s
+// Antes (carrega TUDO)
+useBIDataBatch(['dim_frota', 'fat_sinistros', ...])
+
+// Depois (carrega so o necessario)
+useBIDataBatch(
+  ['dim_frota', 'fat_sinistros'],
+  {
+    dim_frota: ['Placa','Modelo','Status','ValorCompra','ValorFipeAtual','KmInformado','IdadeVeiculo','Categoria','Filial'],
+    fat_sinistros: ['Placa','DataSinistro','ValorTotal']
+  }
+)
 ```
 
----
+### Lazy Loading por Aba
+Usar `enabled: false` no hook ate que a aba seja selecionada:
+```text
+const [activeTab, setActiveTab] = useState('overview');
+const { results } = useBIDataBatch(
+  ['fat_sinistros', 'fat_multas'],
+  undefined,
+  { enabled: activeTab === 'sinistros' }
+);
+```
 
-## Detalhes Tecnicos de Implementacao
+## Ordem de Implementacao
+1. Corrigir erro de build (CashFlowProjectionPage)
+2. Skeleton loading progressivo (melhoria visual imediata)
+3. Selecao de campos nas queries batch (reducao de payload)
+4. Lazy loading por aba no FleetDashboard (reducao de chamadas iniciais)
+5. Carregamento priorizado no ContractsDashboard
 
-### Arquivo: `api/bi-data.ts`
-- Reescrever query de `dim_contratos_locacao` sem `to_jsonb()`
-- Adicionar parametro `fields` para selecao de colunas
-- Aumentar `s-maxage` para 300s
-
-### Novo arquivo: `api/bi-data-batch.ts`
-- Aceitar `tables` como lista separada por virgula
-- Executar queries em paralelo (`Promise.all`) dentro de uma unica conexao
-- Retornar objeto com resultados por tabela
-
-### Arquivo: `src/hooks/useBIData.ts`
-- Criar variante `useBIDataBatch` para carregar multiplas tabelas de uma vez
-- Manter `useBIData` para compatibilidade com paginas que carregam 1-2 tabelas
-
-### Arquivo: `src/pages/analytics/ContractsDashboard.tsx`
-- Remover `useBIData('dim_frota')`
-- Simplificar `useMemo` removendo construcao de `frotaMap` (dados ja vem do JOIN)
-
-### Arquivo: `src/pages/analytics/FleetDashboard.tsx`
-- Substituir 10+ `useBIData` individuais por 2-3 chamadas batch
-- Manter mesma logica de processamento, apenas mudar a fonte de dados
-
-### Arquivo: `src/hooks/useTimelineData.ts`
-- Remover fetch adicional a `dim_frota` (linhas 106-138) que augmenta dados -- mover essa logica para o backend
+## Resultado Esperado
+- Tempo percebido de carregamento reduzido de ~10s para ~2-3s (skeleton aparece imediatamente)
+- Payload total reduzido em 50-70% com selecao de campos
+- Menos chamadas HTTP no carregamento inicial com lazy loading por aba
 
