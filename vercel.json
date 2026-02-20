@@ -1,12 +1,14 @@
 {
   "version": 2,
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     },
     {
-      "source": "/((?!api|assets|@vite|@react-refresh|src|node_modules|favicon.ico).*)",
+      "source": "/((?!api|assets|favicon\\.ico|robots\\.txt|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
