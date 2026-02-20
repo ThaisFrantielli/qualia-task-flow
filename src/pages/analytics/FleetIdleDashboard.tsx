@@ -7,6 +7,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
+import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 
 type AnyObject = { [k: string]: any };
 
@@ -69,7 +70,7 @@ const getCategory = (status: string) => {
 
 export default function FleetIdleDashboard(): JSX.Element {
   // Batch load primary tables (frota + movimentacoes) to reduce HTTP requests
-  const { results: primaryResults } = useBIDataBatch([
+  const { results: primaryResults, loading: loadingPrimary } = useBIDataBatch([
     'dim_frota', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
   ]);
   // Timeline via Edge Function otimizada
@@ -400,6 +401,10 @@ export default function FleetIdleDashboard(): JSX.Element {
   };
 
   // Análises de pátio removidas (cálculos anteriormente usados na seção eliminada)
+
+  if (loadingPrimary && frota.length === 0) {
+    return <AnalyticsLoading message="Carregando dados de frota improdutiva..." kpiCount={4} chartCount={1} />;
+  }
 
   return (
     <div className="bg-slate-50 min-h-screen p-6 space-y-6">

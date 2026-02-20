@@ -25,7 +25,7 @@ import FleetDashboard from '@/pages/analytics/FleetDashboard';
 import FleetIdleDashboard from '@/pages/analytics/FleetIdleDashboard';
 import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
-import CashFlowProjectionPage from '@/pages/analytics/CashFlowProjectionPage';
+// CashFlowProjectionPage removed (unused)
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
