@@ -62,6 +62,7 @@ interface FleetTableItem {
     NomeCliente?: string;
     TipoLocacao?: string;
     ValorLocacao?: number;
+    Chassi?: string;
 };
 
 // Using shared MultiSelect component with built-in search
@@ -1826,7 +1827,8 @@ export default function FleetDashboard() {
                 NomeCondutor: r.NomeCondutor,
                 CPFCondutor: r.CPFCondutor,
                 TelefoneCondutor: r.TelefoneCondutor,
-                ValorLocacao: r.ValorLocacao || 0
+                ValorLocacao: r.ValorLocacao || 0,
+                Chassi: String(r.Chassi || r.chassi || '')
             };
         });
         if (sortConfig !== null) {
@@ -2156,6 +2158,7 @@ export default function FleetDashboard() {
                                     </span>
                                 </div>
                             </th>
+                            <th className="px-6 py-3 text-xs">Chassi</th>
                             <th className="px-6 py-3">
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('NomeCliente')}>Cliente</span>
@@ -2259,7 +2262,7 @@ export default function FleetDashboard() {
                         </tr></thead><tbody className="divide-y divide-slate-100">
                             {pageItems.length === 0 ? (
                                 <tr className="bg-transparent">
-                                    <td colSpan={12} className="px-6 py-8 text-center text-sm text-slate-600">
+                                    <td colSpan={13} className="px-6 py-8 text-center text-sm text-slate-600">
                                         {appliedPlateSearch ? (
                                             <div>
                                                 Nenhum resultado para <strong>{appliedPlateSearch}</strong>.
@@ -2276,6 +2279,7 @@ export default function FleetDashboard() {
                                 <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-6 py-3 font-medium font-mono">{r.Placa}</td>
                                 <td className="px-6 py-3">{r.Modelo}</td>
+                                <td className="px-6 py-3 font-mono text-xs text-slate-500">{r.Chassi || '-'}</td>
                                 <td className="px-6 py-3 text-xs max-w-[150px] truncate" title={r.NomeCliente}>{r.NomeCliente}</td>
                                 <td className="px-6 py-3 text-xs">{r.TipoLocacao}</td>
                                 <td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td>
