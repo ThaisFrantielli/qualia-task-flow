@@ -68,18 +68,23 @@ interface FleetTableItem {
 
 export default function FleetDashboard() {
 
+    // Tab state (declared early for lazy loading logic)
+    const [activeTab, setActiveTab] = useState<string>('visao-geral');
+
     // Batch 1: Primary data (single HTTP request)
-    const { results: primaryData } = useBIDataBatch([
+    const { results: primaryData, loading: loadingPrimary } = useBIDataBatch([
         'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
     ]);
-    // Batch 2: Secondary/fact tables (single HTTP request)
+    // Batch 2: Secondary/fact tables — lazy loaded only when relevant tab is active
+    const needsSecondary = activeTab === 'visao-geral' || activeTab === 'patio' || activeTab === 'carro-reserva';
     const { results: secondaryData } = useBIDataBatch([
         'fat_sinistros', 'fat_multas', 'fat_carro_reserva', 'fat_movimentacao_ocorrencias', 'fat_manutencao_unificado'
-    ]);
+    ], undefined, { enabled: needsSecondary });
 
-    // Timeline agregada via API
-    const { data: timelineAggregated } = useTimelineData('aggregated');
-    const { data: timelineRecent } = useTimelineData('recent');
+    // Timeline — lazy loaded only when timeline tab is active
+    const needsTimeline = activeTab === 'timeline';
+    const { data: timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline });
+    const { data: timelineRecent } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 
     // Extract individual datasets from batch results
     const frotaData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_frota'), [primaryData]);
@@ -397,7 +402,7 @@ export default function FleetDashboard() {
     // note: use `getFilterValues(key)` to read current selections, e.g. getFilterValues('status')
 
     const [selectedLocation, setSelectedLocation] = useState<{ city: string, uf: string } | null>(null);
-    const [activeTab, setActiveTab] = useState<string>('visao-geral');
+    // activeTab already declared at top of component for lazy loading
 
     // Helper centralizado para extração de localização
     const extractLocation = (address: string): { uf: string, city: string } => {
@@ -1893,6 +1898,7 @@ export default function FleetDashboard() {
                 <div><Title className="text-slate-900">Gestão de Frota</Title><Text className="text-slate-500">Análise de ativos, produtividade e localização.</Text></div>
                 <div className="flex items-center gap-3">
                     <DataUpdateBadge metadata={frotaMetadata} compact />
+                    {loadingPrimary && <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
                     <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex gap-2 font-medium"><Car className="w-4 h-4" /> Hub Ativos</div>
                 </div>
             </div>

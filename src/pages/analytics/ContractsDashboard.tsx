@@ -2,8 +2,8 @@ import { useMemo, useCallback } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { Contracts } from '@/components/analytics/Contracts';
 import { Contract, RenewalStrategyLabel } from '@/types/contracts';
-import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 
 type AnyObject = { [k: string]: any };
 
@@ -227,12 +227,11 @@ export default function ContractsDashboard(): JSX.Element {
 
   if (loadingContracts) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-          <p className="text-slate-600">Carregando contratos...</p>
-        </div>
-      </div>
+      <AnalyticsLoading 
+        message="Carregando contratos..." 
+        kpiCount={5} 
+        chartCount={2} 
+      />
     );
   }
 
