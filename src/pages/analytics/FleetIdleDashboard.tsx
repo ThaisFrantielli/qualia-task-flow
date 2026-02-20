@@ -129,10 +129,30 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   // Resolve o status de uma placa em uma data (snapshot). Retorna { status, lastChangeDate, usedHistorico, usedFallback }
   const resolveStatusForDate = (placa: string, checkDate: Date) => {
-    const dateKey = checkDate.toISOString().split('T')[0];
-    const cacheKey = `${placa}|${dateKey}`;
+    // Comparação de dia usando data LOCAL para evitar shift UTC
+    const toLocalDateStr = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    const todayStr = toLocalDateStr(new Date());
+    const checkDateStr = toLocalDateStr(checkDate);
+    const cacheKey = `${placa}|${checkDateStr}`;
     const cached = statusCacheRef.current.get(cacheKey);
     if (cached) return { ...cached };
+
+    // BUG FIX 1: Para o dia ATUAL, sempre usar dim_frota como fonte de verdade.
+    // O histórico pode estar desatualizado (último ETL pode ter dias de atraso),
+    // enquanto dim_frota.SituacaoVeiculo sempre reflete o estado atual do ERP.
+    if (checkDateStr === todayStr) {
+      const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
+      const status = v?.Status || v?.status || v?.SituacaoVeiculo || v?.situacaoveiculo || null;
+      const result = { status, usedHistorico: false, lastChangeDate: null };
+      try { statusCacheRef.current.set(cacheKey, result); } catch (e) { /* ignore */ }
+      return result;
+    }
+
     const events = (historicoMap.get(String(placa).trim().toUpperCase()) || []);
     let status: string | null = null;
     let usedHistorico = false;
@@ -144,7 +164,13 @@ export default function FleetIdleDashboard(): JSX.Element {
           events[j]?.UltimaAtualizacao || events[j]?.ultimaatualizacao || events[j]?.DataEvento || events[j]?.dataevento
         );
         if (evDate.getTime() <= checkDate.getTime()) {
-          status = events[j]?.SituacaoVeiculo || events[j]?.situacaoveiculo || events[j]?.Situacao || events[j]?.situacao || null;
+          const evStatus = events[j]?.SituacaoVeiculo || events[j]?.situacaoveiculo || events[j]?.Situacao || events[j]?.situacao || null;
+          // BUG FIX 2: Ignorar eventos sem SituacaoVeiculo (ex: "CONDUTOR DESVINCULADO",
+          // "ODÔMETRO FORÇADO", mudanças de localização sem mudança de status, etc.).
+          // Antes, o código parava no primeiro evento ≤ checkDate mesmo com status null,
+          // impedindo o fallback para dim_frota e excluindo o veículo do count silenciosamente.
+          if (!evStatus) continue;
+          status = evStatus;
           usedHistorico = true;
           lastChangeDate = evDate.toISOString();
           break;
@@ -152,6 +178,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       }
     }
 
+    // Fallback para dim_frota quando não há histórico válido para a data
     if (!status) {
       const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
       if (v) {
