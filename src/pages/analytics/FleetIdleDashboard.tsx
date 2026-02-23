@@ -179,13 +179,25 @@ export default function FleetIdleDashboard(): JSX.Element {
       }
     }
 
-    // Fallback para dim_frota quando não há histórico válido para a data
-    if (!status) {
-      const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
-      if (v) {
-        status = v.Status || v.status || v.SituacaoVeiculo || v.situacaoveiculo || null;
+    // Fallback para datas passadas sem histórico:
+    // Usar o PRIMEIRO evento histórico disponível (projeção retroativa estável).
+    // NÃO usar dim_frota (status atual) para não contaminar datas passadas com
+    // mudanças de status do dia de hoje — isso causava o índice mudar a cada hora do ETL.
+    if (!status && events.length > 0) {
+      // Pega o evento mais antigo disponível como melhor estimativa retroativa
+      const earliest = events[0];
+      const evStatus = earliest?.SituacaoVeiculo || earliest?.situacaoveiculo || earliest?.Situacao || earliest?.situacao || null;
+      if (evStatus) {
+        status = evStatus;
+        usedHistorico = true;
+        const evDate = parseDateSafe(
+          earliest?.UltimaAtualizacao || earliest?.ultimaatualizacao || earliest?.DataEvento || earliest?.dataevento
+        );
+        lastChangeDate = evDate.getTime() ? evDate.toISOString() : null;
       }
     }
+    // Se ainda não há status (veículo sem NENHUM histórico), excluir da contagem para
+    // não distorcer com o status atual: os contadores simplesmente não incrementam.
     const result = { status, usedHistorico, lastChangeDate };
     try { statusCacheRef.current.set(cacheKey, result); } catch (e) { /* ignore */ }
     return result;
