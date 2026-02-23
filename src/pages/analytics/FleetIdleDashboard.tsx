@@ -282,7 +282,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   // Gerar histórico diário de % improdutiva (90 dias ou todo histórico disponível)
   const dailyIdleHistory = useMemo(() => {
     const today = new Date();
-    const data: { date: string; dateLocal: string; pct: number; improdutiva: number; total: number; displayDate: string }[] = [];
+    const data: { date: string; dateLocal: string; pct: number; improdutiva: number; total: number; displayDate: string; statusBreakdown: Record<string, number> }[] = [];
 
     // OTIMIZAÇÃO: Filtrar apenas terceiros ANTES do loop pesado. A exclusão de veículos
     // Inativa é aplicada por data mais abaixo (a partir do dia em que ficaram inativos).
@@ -379,7 +379,18 @@ export default function FleetIdleDashboard(): JSX.Element {
       }
 
       const pct = activeCount > 0 ? (improdutivaCount / activeCount) * 100 : 0;
-      data.push({ date: dateISO, dateLocal: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate });
+
+      // Montar breakdown de status para os improdutivos deste dia
+      const statusBreakdown: Record<string, number> = {};
+      Object.entries(statusCounts).forEach(([s, info]) => {
+        if (getCategory(s) === 'Improdutiva') {
+          // Usar label mais legível (Title Case)
+          const label = s.charAt(0) + s.slice(1).toLowerCase();
+          statusBreakdown[label] = info.count;
+        }
+      });
+
+      data.push({ date: dateISO, dateLocal: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate, statusBreakdown });
 
     }
     return data;
@@ -612,12 +623,25 @@ export default function FleetIdleDashboard(): JSX.Element {
                 content={({ active, payload }) => {
                   if (active && payload && payload[0]) {
                     const data = payload[0].payload;
+                    const breakdown: [string, number][] = Object.entries(
+                      (data.statusBreakdown || {}) as Record<string, number>
+                    ).sort((a, b) => b[1] - a[1]);
                     return (
-                      <div className="bg-white p-3 border border-slate-200 rounded shadow-lg">
-                        <p className="font-semibold text-slate-700">{new Date(data.date).toLocaleDateString('pt-BR')}</p>
+                      <div className="bg-white p-3 border border-slate-200 rounded shadow-lg min-w-[200px]">
+                        <p className="font-semibold text-slate-700 mb-1">{new Date(data.date).toLocaleDateString('pt-BR')}</p>
                         <p className="text-rose-600 font-bold">{data.pct}% Improdutiva</p>
-                        <p className="text-xs text-slate-500">{data.improdutiva} de {data.total} veículos</p>
-                        <p className="text-xs text-blue-600 mt-1">Clique para detalhes</p>
+                        <p className="text-xs text-slate-500 mb-2">{data.improdutiva} de {data.total} veículos</p>
+                        {breakdown.length > 0 && (
+                          <div className="border-t border-slate-100 pt-2 space-y-0.5">
+                            {breakdown.map(([status, count]) => (
+                              <div key={status} className="flex justify-between text-xs">
+                                <span className="text-slate-600">{status}</span>
+                                <span className="font-medium text-slate-800 ml-4">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-blue-600 mt-2">Clique para detalhes</p>
                       </div>
                     );
                   }
