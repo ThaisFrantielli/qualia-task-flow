@@ -6,10 +6,13 @@ import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend, LabelList } from 'recharts';
 import ActionPicker from './ActionPicker';
+import DataUpdateBadge from '@/components/DataUpdateBadge';
+import type { BIMetadata } from '@/types/analytics';
 
 interface ContractsProps {
   contracts: Contract[];
   onUpdateContract: (c: Contract) => void;
+  metadata?: BIMetadata | null;
 }
 
 interface ChartEntry {
@@ -151,7 +154,7 @@ const renderPieLabel = (props: any) => {
   );
 };
 
-const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContract }) => {
+const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContract, metadata }) => {
   // removed virtualized ROW_HEIGHT (no longer used)
   const [viewMode, setViewMode] = useState<'analysis' | 'list' | 'fluxo'>(() => {
     try {
@@ -927,13 +930,14 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
           <h2 className="text-2xl font-bold text-slate-800">Contratos & Ativos</h2>
           <p className="text-sm text-slate-500">Gestão estratégica de contratos e ativos.</p>
         </div>
-          <div className="flex items-center gap-2">
-          <div className="text-xs text-slate-500 mr-2">Zoom:</div>
-          <button type="button" onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
-          <button type="button" onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
-          <button type="button" onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
-          <div className="text-xs text-slate-500 ml-2">{Math.round(zoom * 100)}%</div>
-        </div>
+          <div className="flex items-center gap-3">
+            <DataUpdateBadge metadata={metadata} compact />
+            <div className="text-xs text-slate-500 mr-2">Zoom:</div>
+            <button type="button" onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
+            <button type="button" onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
+            <button type="button" onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
+            <div className="text-xs text-slate-500 ml-2">{Math.round(zoom * 100)}%</div>
+          </div>
       </div>
       <div className="flex gap-4">
             {hasActiveFilters && (

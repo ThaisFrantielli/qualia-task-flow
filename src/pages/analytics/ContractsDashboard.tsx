@@ -9,7 +9,7 @@ type AnyObject = { [k: string]: any };
 
 export default function ContractsDashboard(): JSX.Element {
   // API already JOINs dim_contratos_locacao with dim_frota — no need for separate dim_frota fetch
-  const { data: contractsData, loading: loadingContracts, refetch } = useBIData<AnyObject[]>('dim_contratos_locacao');
+  const { data: contractsData, metadata: contractsMetadata, loading: loadingContracts, refetch } = useBIData<AnyObject[]>('dim_contratos_locacao');
   
   const { toast } = useToast();
 
@@ -246,5 +246,5 @@ export default function ContractsDashboard(): JSX.Element {
     );
   }
 
-  return <Contracts contracts={contracts} onUpdateContract={handleUpdateContract} />;
+  return <Contracts contracts={contracts} onUpdateContract={handleUpdateContract} metadata={contractsMetadata} />;
 }

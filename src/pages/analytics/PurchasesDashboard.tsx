@@ -162,13 +162,9 @@ function FilterSelect({
 
 // ═══════════════════════════════════════════════════════════════════
 export default function PurchasesDashboard() {
-  const { results, loading } = useBIDataBatch(['dim_compras']);
+  const { results, metadata, loading } = useBIDataBatch(['dim_compras']);
 
   const rawData = useMemo(() => getBatchTable<AnyObject>(results, 'dim_compras'), [results]);
-  const metadata = useMemo(() => {
-    const r = results['dim_compras'] as any;
-    return r?.metadata ?? r?.meta ?? null;
-  }, [results]);
 
   const data = useMemo(
     () => (Array.isArray(rawData) ? rawData : []).map(enrichRecord),
