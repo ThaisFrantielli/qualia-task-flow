@@ -235,10 +235,15 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     // Fallback: distinguir dois casos distintos
     if (!status) {
-      if (events.length === 0) {
-        // CASO 3: veículo sem NENHUM evento histórico → status nunca mudou desde o início.
-        // Usar dim_frota é seguro aqui pois não há mudanças registradas.
-        // NÃO é afetado pelo ETL horário: se o status mudasse, geraria um evento no histórico.
+      // Filtrar apenas eventos que realmente têm uma situação registrada
+      // (excluir eventos de localização, condutor vinculado, etc. que têm situacaoveiculo = null)
+      const eventsWithStatus = events.filter((e: any) =>
+        !!(e?.SituacaoVeiculo || e?.situacaoveiculo || e?.Situacao || e?.situacao)
+      );
+
+      if (eventsWithStatus.length === 0) {
+        // CASO 3: veículo existe na frota mas NUNCA teve mudança de situação registrada.
+        // Usar dim_frota é seguro — se houvesse mudança, geraria um evento com status.
         const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
         const fallbackStatus = v?.Status || v?.status || v?.SituacaoVeiculo || v?.situacaoveiculo || null;
         if (fallbackStatus) {
@@ -246,9 +251,14 @@ export default function FleetIdleDashboard(): JSX.Element {
           usedHistorico = false;
           lastChangeDate = null;
         }
+      } else {
+        // Tem eventos com status, mas nenhum é ≤ checkDate.
+        // CASO 4a: o evento de status mais antigo é posterior à checkDate
+        //          → veículo entrou na frota depois dessa data → excluir.
+        // CASO 4b: todos os eventos com status são posteriores (nunca entrou antes)
+        //          → idem, excluir.
+        // status permanece null → veículo não contabilizado nessa data.
       }
-      // CASO 4: tem eventos mas TODOS são posteriores à checkDate → veículo entrou na frota
-      // depois dessa data → não contabilizar (status = null, não incrementa contadores).
     }
     // status === null → veículo não estava na frota nessa data → excluído dos contadores.
     const result = { status, usedHistorico, lastChangeDate };
