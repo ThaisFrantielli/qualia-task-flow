@@ -243,14 +243,20 @@ export default function FleetIdleDashboard(): JSX.Element {
 
       if (eventsWithStatus.length === 0) {
         // CASO 3: veículo existe na frota mas NUNCA teve mudança de situação registrada.
-        // Usar dim_frota é seguro — se houvesse mudança, geraria um evento com status.
-        const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
-        const fallbackStatus = v?.Status || v?.status || v?.SituacaoVeiculo || v?.situacaoveiculo || null;
-        if (fallbackStatus) {
-          status = fallbackStatus;
-          usedHistorico = false;
-          lastChangeDate = null;
+        // IMPORTANTE: o fallback para dim_frota só é aplicado para o dia ATUAL.
+        // Para datas passadas, usá-lo projetaria retroativamente o status ATUAL (pós-ETL)
+        // para todo o histórico, fazendo o % mudar sempre que o ETL atualizar dim_frota.
+        // Para dias passados sem evento, o veículo é excluído dos contadores (status desconhecido).
+        if (checkDateStr === todayStr) {
+          const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
+          const fallbackStatus = v?.Status || v?.status || v?.SituacaoVeiculo || v?.situacaoveiculo || null;
+          if (fallbackStatus) {
+            status = fallbackStatus;
+            usedHistorico = false;
+            lastChangeDate = null;
+          }
         }
+        // else: status permanece null → veículo excluído dos contadores históricos
       } else {
         // Tem eventos com status, mas nenhum é ≤ checkDate.
         // CASO 4a: o evento de status mais antigo é posterior à checkDate
