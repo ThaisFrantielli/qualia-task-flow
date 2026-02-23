@@ -16,10 +16,10 @@ const __dirname = path.dirname(__filename)
 export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const devPort = Number(env.VITE_DEV_SERVER_PORT || 8080)
-  // Allow forcing WSS (useful when running behind HTTPS reverse proxies)
-  // Por padrão, preferimos WSS para evitar 'Mixed Content' em previews HTTPS.
-  // Pode ser desativado explicitamente definindo VITE_FORCE_WSS=false no .env.
-  const forceWss = String(env.VITE_FORCE_WSS ?? 'true').toLowerCase() === 'true'
+  // Allow forcing WSS (useful when running behind HTTPS reverse proxies).
+  // Padrão false: localmente o HMR usa ws:// na porta do dev server.
+  // Para deploys com proxy HTTPS defina VITE_FORCE_WSS=true no .env.
+  const forceWss = String(env.VITE_FORCE_WSS ?? 'false').toLowerCase() === 'true'
   const hmrProtocol = forceWss ? 'wss' : 'ws'
   const hmrClientPort = forceWss ? 443 : devPort
 
@@ -85,9 +85,12 @@ export default defineConfig(async ({ mode }) => {
     host: "::",
     port: devPort,
     cors: true,
-    // Use plain websocket (ws) and the dev server port for HMR in local dev.
+    // HMR: apontar explicitamente para o host/porta do Vite (8080) para
+    // evitar que o cliente herde a porta do proxy (ex.: vercel dev na 8081).
     hmr: {
       protocol: hmrProtocol,
+      host: 'localhost',
+      port: devPort,
       clientPort: hmrClientPort,
     },
     // Prevent external services or build artifacts from triggering Vite's watcher

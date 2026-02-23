@@ -1,7 +1,9 @@
 {
   "version": 2,
+  "framework": "vite",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "devCommand": "vite --port $PORT",
   "rewrites": [
     {
       "source": "/api/:path*",

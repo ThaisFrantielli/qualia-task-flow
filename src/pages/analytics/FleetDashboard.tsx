@@ -77,7 +77,7 @@ export default function FleetDashboard() {
         'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
     ]);
     // Batch 2: Secondary/fact tables — lazy loaded only when relevant tab is active
-    const needsSecondary = activeTab === 'visao-geral' || activeTab === 'patio' || activeTab === 'carro-reserva';
+    const needsSecondary = activeTab === 'visao-geral' || activeTab === 'patio' || activeTab === 'carro-reserva' || activeTab === 'timeline';
     const { results: secondaryData } = useBIDataBatch([
         'fat_sinistros', 'fat_multas', 'fat_carro_reserva', 'fat_movimentacao_ocorrencias', 'fat_manutencao_unificado'
     ], undefined, { enabled: needsSecondary });
@@ -85,7 +85,7 @@ export default function FleetDashboard() {
     // Timeline — lazy loaded only when timeline tab is active
     const needsTimeline = activeTab === 'timeline';
     const { data: timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline });
-    const { data: timelineRecent } = useTimelineData('recent', undefined, { enabled: needsTimeline });
+    const { data: timelineRecent, loading: timelineLoading } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 
     // Extract individual datasets from batch results
     const frotaData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_frota'), [primaryData]);
@@ -98,7 +98,7 @@ export default function FleetDashboard() {
     const movimentacoesData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_movimentacao_ocorrencias'), [secondaryData]);
     const manutencaoData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_manutencao_unificado'), [secondaryData]);
 
-    const frotaMetadata = primaryMeta;
+    const frotaMetadata = null; // batch doesn't return per-table metadata
 
     const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
     const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);
@@ -2975,7 +2975,7 @@ export default function FleetDashboard() {
                 {/* Aba 'Eficiência' removida */}
 
                 <TabsContent value="timeline">
-                    <TimelineTab timeline={timeline} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} movimentacoes={movimentacoes} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
+                    <TimelineTab timeline={timeline} timelineLoading={timelineLoading} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} movimentacoes={movimentacoes} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
                 </TabsContent>
 
                 <TabsContent value="carro-reserva" className="space-y-6">

@@ -78,7 +78,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   const frotaData = getBatchTable<AnyObject>(primaryResults, 'dim_frota');
   const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
   const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
-  const frotaMetadata = primaryMeta;
+  const frotaMetadata = useMemo(() => (primaryResults['dim_frota'] as any)?.metadata || primaryMeta || null, [primaryResults, primaryMeta]);
   const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   // Normalizar dados da frota para nomes de propriedades consistentes

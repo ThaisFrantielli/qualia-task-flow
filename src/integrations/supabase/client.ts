@@ -35,5 +35,11 @@ export const supabase = createClient<any>(supabaseUrl, supabaseAnonKey, {
     storage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  realtime: {
+    // Timeout por tentativa (ms)
+    timeout: 10_000,
+    // Backoff exponencial com cap em 60 s para evitar loop agressivo de reconexão
+    reconnectAfterMs: (tries: number) => Math.min(1000 * 2 ** tries, 60_000),
+  },
 });

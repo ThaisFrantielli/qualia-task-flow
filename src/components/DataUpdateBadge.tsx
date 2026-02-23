@@ -7,9 +7,12 @@ interface DataUpdateBadgeProps {
     generated_at_local?: string;
     dw_last_update?: string;
     dw_last_update_local?: string;
+    etl_executed_at?: string;
+    etl_executed_at_local?: string;
     table?: string;
     record_count?: number;
     etl_version?: string;
+    source?: string;
   } | null;
   compact?: boolean;
 }
@@ -17,13 +20,15 @@ interface DataUpdateBadgeProps {
 export default function DataUpdateBadge({ metadata, compact = false }: DataUpdateBadgeProps) {
   const [showDetails, setShowDetails] = useState(false);
 
-  if (!metadata?.dw_last_update && !metadata?.generated_at) return null;
+  if (!metadata?.dw_last_update && !metadata?.generated_at && !metadata?.etl_executed_at) return null;
 
   // Datas explicitamente separadas
   const dwDate = metadata.dw_last_update ? new Date(metadata.dw_last_update) : null;
-  const etlDate = metadata.generated_at ? new Date(metadata.generated_at) : null;
-  // Usar etlDate como prioridade (quando os JSONs foram gerados), cair para dwDate se não houver
-  const referenceDate = etlDate || dwDate!;
+  const etlDate = metadata.etl_executed_at ? new Date(metadata.etl_executed_at) : null;
+  const generatedAtDate = metadata.generated_at ? new Date(metadata.generated_at) : null;
+  // A atualização de dados deve refletir a origem (DW); só cair para ETL/API quando necessário
+  const referenceDate = dwDate || etlDate || generatedAtDate;
+  if (!referenceDate) return null;
   const updateDate = new Date(referenceDate);
   const now = new Date();
   const diffMs = now.getTime() - updateDate.getTime();
@@ -43,8 +48,14 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
   };
 
   if (compact) {
-    // Preferir campos locais já formatados quando presentes no metadata
-    const displayDateStr = metadata?.generated_at_local || metadata?.dw_last_update_local || (etlDate || dwDate ? `${(etlDate || dwDate)!.toLocaleDateString('pt-BR')} ${(etlDate || dwDate)!.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '');
+    // Priorizar data real de atualização dos dados (DW/origem)
+    const displayDateObj = dwDate || etlDate || generatedAtDate;
+    const displayDateStr = metadata?.dw_last_update_local
+      || (dwDate ? `${dwDate.toLocaleDateString('pt-BR')} ${dwDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
+      || metadata?.etl_executed_at_local
+      || (etlDate ? `${etlDate.toLocaleDateString('pt-BR')} ${etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
+      || metadata?.generated_at_local
+      || (displayDateObj ? `${displayDateObj.toLocaleDateString('pt-BR')} ${displayDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '');
     
     return (
       <button
@@ -74,12 +85,14 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
                         <span className="text-slate-500">Dados atualizados há:</span>
                           <span className="font-medium text-slate-900">{getTimeAgo(diffHours, diffDays)}</span>
                       </div>
-                      {etlDate && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">ETL executado em:</span>
-                          <span className="font-medium text-slate-900">{metadata?.generated_at_local || `${etlDate.toLocaleDateString('pt-BR')} às ${etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>
-                        </div>
-                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">ETL executado em:</span>
+                        <span className="font-medium text-slate-900">
+                          {etlDate
+                            ? (metadata?.etl_executed_at_local || `${etlDate.toLocaleDateString('pt-BR')} às ${etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)
+                            : 'Não informado pela fonte'}
+                        </span>
+                      </div>
                 {metadata?.record_count && (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Registros:</span>
@@ -92,9 +105,6 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
                     <span className="font-medium text-slate-900">{metadata.etl_version}</span>
                   </div>
                 )}
-              </div>
-              <div className="pt-2 border-t text-[10px] text-slate-400">
-                ETL automático: 00:30, 10:30 e 15:30 (horário local)
               </div>
             </div>
           </div>

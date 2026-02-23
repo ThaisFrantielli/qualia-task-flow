@@ -37,6 +37,90 @@ const FIELD_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+const DW_UPDATE_PREFERRED_COLUMNS = [
+  'DataAtualizacaoDados',
+  'dataatualizacaodados',
+];
+
+const DW_UPDATE_FALLBACK_COLUMNS = [
+  'DataAtualizacao',
+  'dataatualizacao',
+  'UltimaAtualizacao',
+  'ultimaatualizacao',
+  'updated_at',
+  'UpdatedAt',
+  'DataCarga',
+  'datacarga',
+];
+
+const ETL_EXECUTION_COLUMNS = [
+  'DataExecucaoETL',
+  'DataExecucaoEtl',
+  'dataexecucaoetl',
+  'DataExecucao',
+  'dataexecucao',
+  'etl_executed_at',
+  'ETLExecutedAt',
+  'DataCargaDW',
+  'datacargadw',
+];
+
+function parseDateLike(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(' ', 'T');
+    if (!normalized) return null;
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function getMaxTimestampFromColumns(
+  rows: Record<string, unknown>[],
+  columnCandidates: string[]
+): string | undefined {
+  if (!rows.length) return undefined;
+
+  const candidateSet = new Set(columnCandidates.map(c => c.toLowerCase()));
+  let maxTs: number | null = null;
+
+  for (const row of rows) {
+    for (const [key, raw] of Object.entries(row)) {
+      if (!candidateSet.has(key.toLowerCase())) continue;
+      const parsed = parseDateLike(raw);
+      if (!parsed) continue;
+      const ts = parsed.getTime();
+      if (maxTs == null || ts > maxTs) {
+        maxTs = ts;
+      }
+    }
+  }
+
+  return maxTs != null ? new Date(maxTs).toISOString() : undefined;
+}
+
+function extractDwLastUpdate(rows: Record<string, unknown>[]): string | undefined {
+  return (
+    getMaxTimestampFromColumns(rows, DW_UPDATE_PREFERRED_COLUMNS) ||
+    getMaxTimestampFromColumns(rows, DW_UPDATE_FALLBACK_COLUMNS)
+  );
+}
+
+function formatPtBrDateTime(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 // Special query for dim_contratos_locacao with direct column access + JOIN
 function buildContratosQuery(fields?: string[]): string {
   // Direct column access — no to_jsonb overhead
@@ -403,12 +487,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { rows } = await queryTable(table, limit, fields);
 
+    const dwLastUpdate = extractDwLastUpdate(rows);
+    const etlExecutedAt = getMaxTimestampFromColumns(rows, ETL_EXECUTION_COLUMNS);
+
     const payload = {
       metadata: {
         generated_at: new Date().toISOString(),
         source: 'live' as const,
         table,
         record_count: rows.length,
+        dw_last_update: dwLastUpdate,
+        dw_last_update_local: formatPtBrDateTime(dwLastUpdate),
+        etl_executed_at: etlExecutedAt,
+        etl_executed_at_local: formatPtBrDateTime(etlExecutedAt),
         cached: false,
       },
       data: rows,

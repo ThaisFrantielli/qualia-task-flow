@@ -1,7 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { BIMetadata } from '@/types/analytics';
 
-type BatchResult = Record<string, { data: unknown[]; record_count: number }>;
+export interface BatchTableResult {
+  data: unknown[];
+  record_count: number;
+  metadata?: Record<string, unknown> | null;
+}
+
+type BatchResult = Record<string, BatchTableResult>;
 
 interface UseBIDataBatchResult {
   results: BatchResult;

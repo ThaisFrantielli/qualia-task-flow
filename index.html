@@ -9,6 +9,14 @@
     <script>
       // Impede o erro "__WS_TOKEN__ is not defined" em ambientes de desenvolvimento na nuvem.
       window.__WS_TOKEN__ = 'dummy_token';
+
+      // Desregistra automaticamente qualquer Service Worker residual para evitar
+      // páginas em cache ("Atualização necessária") em ambiente de desenvolvimento.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        });
+      }
     </script>
     
   </head>

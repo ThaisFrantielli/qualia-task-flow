@@ -38,6 +38,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const [currentEntity, setCurrentEntityState] = useState<{ type: string; id: string } | undefined>();
   const channelRef = useRef<RealtimeChannel | null>(null);
   const subscribingRef = useRef(false);
+  const realtimeErrorCountRef = useRef(0);
+  const MAX_REALTIME_ERRORS = 3;
 
   // Track presence
   const trackPresence = useCallback(async () => {
@@ -103,9 +105,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
+          realtimeErrorCountRef.current = 0;
           channelRef.current = channel;
           subscribingRef.current = false;
-          // Initial track
           const presenceData: UserPresence = {
             userId: user.id,
             fullName: user.full_name || null,
@@ -117,6 +119,16 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
             lastActivity: new Date().toISOString()
           };
           await channel.track(presenceData);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          realtimeErrorCountRef.current += 1;
+          subscribingRef.current = false;
+          if (realtimeErrorCountRef.current >= MAX_REALTIME_ERRORS) {
+            console.warn(
+              `[Presence] Realtime indisponível após ${realtimeErrorCountRef.current} tentativas (${status}). Presença desativada.`
+            );
+            try { channel.unsubscribe(); } catch (_) { /* ignore */ }
+            channelRef.current = null;
+          }
         }
       });
 

@@ -32,6 +32,90 @@ const FIELD_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
+const DW_UPDATE_PREFERRED_COLUMNS = [
+  'DataAtualizacaoDados',
+  'dataatualizacaodados',
+];
+
+const DW_UPDATE_FALLBACK_COLUMNS = [
+  'DataAtualizacao',
+  'dataatualizacao',
+  'UltimaAtualizacao',
+  'ultimaatualizacao',
+  'updated_at',
+  'UpdatedAt',
+  'DataCarga',
+  'datacarga',
+];
+
+const ETL_EXECUTION_COLUMNS = [
+  'DataExecucaoETL',
+  'DataExecucaoEtl',
+  'dataexecucaoetl',
+  'DataExecucao',
+  'dataexecucao',
+  'etl_executed_at',
+  'ETLExecutedAt',
+  'DataCargaDW',
+  'datacargadw',
+];
+
+function parseDateLike(value: unknown): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(' ', 'T');
+    if (!normalized) return null;
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function getMaxTimestampFromColumns(
+  rows: Record<string, unknown>[],
+  columnCandidates: string[]
+): string | undefined {
+  if (!rows.length) return undefined;
+
+  const candidateSet = new Set(columnCandidates.map(c => c.toLowerCase()));
+  let maxTs: number | null = null;
+
+  for (const row of rows) {
+    for (const [key, raw] of Object.entries(row)) {
+      if (!candidateSet.has(key.toLowerCase())) continue;
+      const parsed = parseDateLike(raw);
+      if (!parsed) continue;
+      const ts = parsed.getTime();
+      if (maxTs == null || ts > maxTs) {
+        maxTs = ts;
+      }
+    }
+  }
+
+  return maxTs != null ? new Date(maxTs).toISOString() : undefined;
+}
+
+function extractDwLastUpdate(rows: Record<string, unknown>[]): string | undefined {
+  return (
+    getMaxTimestampFromColumns(rows, DW_UPDATE_PREFERRED_COLUMNS) ||
+    getMaxTimestampFromColumns(rows, DW_UPDATE_FALLBACK_COLUMNS)
+  );
+}
+
+function formatPtBrDateTime(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function buildContratosQuery(): string {
   return `
     SELECT
@@ -164,7 +248,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return converted;
         });
 
-        const tablePayload = { record_count: rows.length, data: rows };
+        const dwLastUpdate = extractDwLastUpdate(rows);
+        const etlExecutedAt = getMaxTimestampFromColumns(rows, ETL_EXECUTION_COLUMNS);
+
+        const tablePayload = {
+          record_count: rows.length,
+          metadata: {
+            generated_at: new Date().toISOString(),
+            source: 'live' as const,
+            table: r.table,
+            record_count: rows.length,
+            dw_last_update: dwLastUpdate,
+            dw_last_update_local: formatPtBrDateTime(dwLastUpdate),
+            etl_executed_at: etlExecutedAt,
+            etl_executed_at_local: formatPtBrDateTime(etlExecutedAt),
+          },
+          data: rows,
+        };
         cache.set(tableCacheKey, { data: tablePayload, timestamp: Date.now() });
         return { table: r.table, ...tablePayload };
       })
@@ -177,7 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tables: requests.map(r => r.table),
         cached: false,
       },
-      results: Object.fromEntries(results.map(r => [r.table, { record_count: r.record_count, data: r.data }])),
+      results: Object.fromEntries(results.map(r => [r.table, { record_count: r.record_count, metadata: r.metadata, data: r.data }])) ,
     };
 
     cache.set(batchCacheKey, { data: payload, timestamp: Date.now() });
