@@ -70,7 +70,7 @@ const getCategory = (status: string) => {
 
 export default function FleetIdleDashboard(): JSX.Element {
   // Batch load primary tables (frota + movimentacoes) to reduce HTTP requests
-  const { results: primaryResults, loading: loadingPrimary } = useBIDataBatch([
+  const { results: primaryResults, metadata: primaryMeta, loading: loadingPrimary } = useBIDataBatch([
     'dim_frota', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
   ]);
   // Timeline via Edge Function otimizada
@@ -78,7 +78,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   const frotaData = getBatchTable<AnyObject>(primaryResults, 'dim_frota');
   const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
   const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
-  const frotaMetadata = null;
+  const frotaMetadata = primaryMeta;
   const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   // Normalizar dados da frota para nomes de propriedades consistentes

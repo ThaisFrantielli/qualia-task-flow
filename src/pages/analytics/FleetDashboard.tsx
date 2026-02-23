@@ -73,7 +73,7 @@ export default function FleetDashboard() {
     const [activeTab, setActiveTab] = useState<string>('visao-geral');
 
     // Batch 1: Primary data (single HTTP request)
-    const { results: primaryData, loading: loadingPrimary } = useBIDataBatch([
+    const { results: primaryData, metadata: primaryMeta, loading: loadingPrimary } = useBIDataBatch([
         'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
     ]);
     // Batch 2: Secondary/fact tables — lazy loaded only when relevant tab is active
@@ -98,7 +98,7 @@ export default function FleetDashboard() {
     const movimentacoesData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_movimentacao_ocorrencias'), [secondaryData]);
     const manutencaoData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_manutencao_unificado'), [secondaryData]);
 
-    const frotaMetadata = null; // batch doesn't return per-table metadata
+    const frotaMetadata = primaryMeta;
 
     const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
     const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);

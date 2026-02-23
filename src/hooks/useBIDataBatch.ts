@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import type { BIMetadata } from '@/types/analytics';
 
 type BatchResult = Record<string, { data: unknown[]; record_count: number }>;
 
 interface UseBIDataBatchResult {
   results: BatchResult;
+  metadata: BIMetadata | null;
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -26,6 +28,7 @@ export default function useBIDataBatch(
   options?: { enabled?: boolean; staleTime?: number }
 ): UseBIDataBatchResult {
   const [results, setResults] = useState<BatchResult>({});
+  const [metadata, setMetadata] = useState<BIMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchIdRef = useRef(0);
@@ -75,9 +78,11 @@ export default function useBIDataBatch(
 
       const body = await resp.json();
       const batchResults: BatchResult = body.results || {};
+      const batchMeta: BIMetadata = body.metadata || { generated_at: new Date().toISOString(), source: 'live' };
 
       batchCache.set(cacheKey, { data: batchResults, timestamp: Date.now() });
       setResults(batchResults);
+      setMetadata(batchMeta);
       setError(null);
 
       const totalRows = Object.values(batchResults).reduce((sum, r) => sum + (r.record_count || 0), 0);
@@ -103,7 +108,7 @@ export default function useBIDataBatch(
     return () => { fetchIdRef.current++; };
   }, [load]);
 
-  return { results, loading, error, refetch };
+  return { results, metadata, loading, error, refetch };
 }
 
 /** Get typed data from batch results */
