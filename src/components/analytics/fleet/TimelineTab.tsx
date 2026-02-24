@@ -4,7 +4,7 @@ import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Ba
 import {
   Clock, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search,
   FileSpreadsheet, MapPin, AlertTriangle, DollarSign, ShoppingCart, FileWarning,
-  RotateCcw, Archive, Store, User, UserCheck
+  RotateCcw, Archive, Store, User, UserCheck, ShieldAlert
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { normalizeEventName, aggregateFleetMetrics } from '@/lib/analytics/fleetTimeline';
@@ -652,7 +652,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   'LOCACAO': <Play size={14} className="text-emerald-500" />,
   'DEVOLUCAO': <RotateCcw size={14} className="text-blue-500" />,
   'MANUTENCAO': <Wrench size={14} className="text-amber-500" />,
-  'SINISTRO': <AlertTriangle size={14} className="text-red-500" />,
+  'SINISTRO': <ShieldAlert size={14} className="text-rose-600" />,
   'MOVIMENTACAO': <MapPin size={14} className="text-slate-500" />,
   'MULTA': <FileWarning size={14} className="text-yellow-600" />,
   'MULTAS': <FileWarning size={14} className="text-yellow-600" />,
@@ -1941,6 +1941,10 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                     <div className="flex items-center gap-2">
                                       <span className="font-bold text-sm text-slate-700">MULTAS</span>
                                       <Badge color="red" className="shrink-0">{placaMultas.length} Multas</Badge>
+                                      {(() => {
+                                        const totalValor = placaMultas.reduce((s: number, m: any) => s + (Number(m.ValorMulta || m.Valor || 0)), 0);
+                                        return totalValor > 0 ? <span className="text-red-600 font-bold text-xs">{fmtMoney(totalValor)}</span> : null;
+                                      })()}
                                     </div>
                                     <div className="text-xs text-blue-500 font-medium font-mono">
                                       {isListOpen ? '▼ Ocultar' : '▶ Expandir Detalhes'}
@@ -1965,7 +1969,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                 <div className="flex-1">
                                                   <div className="flex items-center gap-2 mb-1">
                                                     <span className="text-xs text-slate-500 font-mono">
-                                                      {fmtDateTimeBR(dataMulta)}
+                                                      {fmtDateTimeBR(parseDateAny(dataMulta))}
                                                     </span>
                                                     {status && (
                                                       <Badge color={status.toLowerCase().includes('pag') ? 'green' : 'amber'} className="text-xs">
@@ -1978,8 +1982,8 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                   {condutor && <div className="text-xs text-slate-500">👤 {condutor}</div>}
                                                 </div>
                                                 <div className="text-right">
-                                                  <div className="text-sm font-bold text-red-600">
-                                                    {fmtMoney(valor)}
+                                                  <div className={`text-sm font-bold ${Number(valor) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                                                    {Number(valor) > 0 ? fmtMoney(valor) : 'Valor não informado'}
                                                   </div>
                                                 </div>
                                               </div>
@@ -2084,7 +2088,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                               if (matchedManut) {
                                 const row = matchedManut;
-                                const iconMan = EVENT_ICONS['MANUTENCAO'] || <Wrench size={14} className="text-amber-500" />;
+                                // iconMan not needed - sinistro uses ShieldAlert directly
                                 const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
                                 const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0,10)}`);
                                 const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
@@ -2097,11 +2101,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                                 return (
                                   <div key={sin.key} className="relative pl-6">
-                                    <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
-                                      {iconMan}
+                                    <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-rose-300 flex items-center justify-center">
+                                      <ShieldAlert size={14} className="text-rose-600" />
                                     </div>
                                     <div
-                                      className="bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all"
+                                      className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all"
                                       onClick={() => toggleRow(row.key)}
                                     >
                                       <div className="flex items-center justify-between gap-3">
@@ -2159,40 +2163,28 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                 <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
                                               ) : null;
                                             })()}
-                                            {/* Se hà um registro de sinistro associado, mostrar campos vindos do registro bruto */}
+                                            {/* Campos complementares do sinistro (sem duplicar datas já exibidas acima) */}
                                             {sin.items?.[0] && (
                                               (() => {
                                                 const itm = sin.items[0];
-                                                const dataCriacao = fmtDateTimeBR(parseDateAny(itm?.DataCriacao ?? itm?.DataCriacaoSinistro ?? itm?.DataCriacaoOcorrencia ?? itm?.Data))
-                                                const dataSin = fmtDateTimeBR(parseDateAny(itm?.DataSinistro ?? itm?.DataOcorrencia ?? itm?.Data))
-                                                const dataConclusaoOc = fmtDateTimeBR(parseDateAny(itm?.DataConclusaoOcorrer ?? itm?.DataConclusaoOcorrencia ?? itm?.DataConclusao ?? itm?.DataFimReal))
-                                                const dataAgendamento = fmtDateTimeBR(parseDateAny(itm?.DataAgendamento ?? itm?.DataAgendamentoOcorrencia ?? itm?.DataAgendado))
-                                                const dataRetirada = fmtDateTimeBR(parseDateAny(itm?.DataRetirada ?? itm?.DataRetiradaVeiculo ?? itm?.DataSaida))
-                                                const dataRetiradaVeic = fmtDateTimeBR(parseDateAny(itm?.DataRetiradaVeiculo ?? itm?.DataSaida ?? itm?.DataRetirada))
-                                                const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? row.situacao ?? '')
-                                                const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '')
-                                                const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '')
-                                                const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '')
-                                                const placaIt = String(itm?.Placa ?? itm?.PlacaVeiculo ?? itm?.PlacaVeiculoCorrida ?? '')
+                                                const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? row.situacao ?? '').trim();
+                                                const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '').trim();
+                                                const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '').trim();
+                                                const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '').trim();
+                                                const hasExtra = situ || etapa || motivoIt || fornecedorIt;
+                                                if (!hasExtra) return null;
                                                 return (
                                                   <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
-                                                    {dataCriacao && <div><b>DataCriação:</b> {dataCriacao}</div>}
-                                                    {dataSin && <div><b>DataSinistro:</b> {dataSin}</div>}
-                                                    {dataConclusaoOc && <div><b>DataConclusão:</b> {dataConclusaoOc}</div>}
-                                                    {dataAgendamento && <div><b>DataAgendamento:</b> {dataAgendamento}</div>}
-                                                    {dataRetirada && <div><b>DataRetirada:</b> {dataRetirada}</div>}
-                                                    {dataRetiradaVeic && <div><b>DataRetiradaVeículo:</b> {dataRetiradaVeic}</div>}
                                                     {situ && <div><b>Situação:</b> {situ}</div>}
                                                     {etapa && <div><b>Etapa:</b> {etapa}</div>}
                                                     {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
                                                     {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
-                                                    {placaIt && <div><b>Placa:</b> {placaIt}</div>}
                                                   </div>
                                                 )
                                               })()
                                             )}
                                             </div>
-                                            <div className="text-xs text-amber-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                            <div className="text-xs text-rose-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                         </div>
                                       </div>
 
@@ -2218,18 +2210,18 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                               return (
                                 <div key={sin.key} className="relative pl-6">
-                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-amber-300 flex items-center justify-center">
+                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-rose-300 flex items-center justify-center">
                                     {icon}
                                   </div>
                                   <div
-                                    className="bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all"
+                                    className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all"
                                     onClick={() => toggleRow(sin.key)}
                                   >
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="font-bold text-sm text-amber-800">{title}</span>
-                                          <Badge color="amber" className="shrink-0">{sin.items?.length ?? 1} item(s)</Badge>
+                                          <span className="font-bold text-sm text-rose-800">{title}</span>
+                                          <Badge color="rose" className="shrink-0">{sin.items?.length ?? 1} item(s)</Badge>
                                           {tipoSin && (
                                             <Badge color="slate" className="shrink-0 text-[10px]">{tipoSin}</Badge>
                                           )}
@@ -2242,7 +2234,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                             </Badge>
                                           )}
                                           {valor != null && Number(valor) > 0 && (
-                                            <span className="text-amber-700 font-bold text-xs ml-auto">{fmtMoney(valor)}</span>
+                                            <span className="text-rose-700 font-bold text-xs ml-auto">{fmtMoney(valor)}</span>
                                           )}
                                         </div>
                                         <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
@@ -2270,46 +2262,35 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                               <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
                                             ) : null;
                                           })()}
+                                          {/* Campos complementares do sinistro (sem duplicar datas já exibidas acima) */}
                                           {sin.items?.[0] && (
                                             (() => {
                                               const itm = sin.items[0];
-                                              const dataCriacao = fmtDateTimeBR(parseDateAny(itm?.DataCriacao ?? itm?.DataCriacaoSinistro ?? itm?.DataCriacaoOcorrencia ?? itm?.Data))
-                                              const dataSin = fmtDateTimeBR(parseDateAny(itm?.DataSinistro ?? itm?.DataOcorrencia ?? itm?.Data))
-                                              const dataConclusaoOc = fmtDateTimeBR(parseDateAny(itm?.DataConclusaoOcorrer ?? itm?.DataConclusaoOcorrencia ?? itm?.DataConclusao ?? itm?.DataFimReal))
-                                              const dataAgendamento = fmtDateTimeBR(parseDateAny(itm?.DataAgendamento ?? itm?.DataAgendamentoOcorrencia ?? itm?.DataAgendado))
-                                              const dataRetirada = fmtDateTimeBR(parseDateAny(itm?.DataRetirada ?? itm?.DataRetiradaVeiculo ?? itm?.DataSaida))
-                                              const dataRetiradaVeic = fmtDateTimeBR(parseDateAny(itm?.DataRetiradaVeiculo ?? itm?.DataSaida ?? itm?.DataRetirada))
-                                              const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? sin.situacao ?? '')
-                                              const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '')
-                                              const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '')
-                                              const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '')
-                                              const placaIt = String(itm?.Placa ?? itm?.PlacaVeiculo ?? itm?.PlacaVeiculoCorrida ?? '')
+                                              const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? sin.situacao ?? '').trim();
+                                              const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '').trim();
+                                              const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '').trim();
+                                              const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '').trim();
+                                              const hasExtra = situ || etapa || motivoIt || fornecedorIt;
+                                              if (!hasExtra) return null;
                                               return (
                                                 <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
-                                                  {dataCriacao && <div><b>DataCriação:</b> {dataCriacao}</div>}
-                                                  {dataSin && <div><b>DataSinistro:</b> {dataSin}</div>}
-                                                  {dataConclusaoOc && <div><b>DataConclusão:</b> {dataConclusaoOc}</div>}
-                                                  {dataAgendamento && <div><b>DataAgendamento:</b> {dataAgendamento}</div>}
-                                                  {dataRetirada && <div><b>DataRetirada:</b> {dataRetirada}</div>}
-                                                  {dataRetiradaVeic && <div><b>DataRetiradaVeículo:</b> {dataRetiradaVeic}</div>}
                                                   {situ && <div><b>Situação:</b> {situ}</div>}
                                                   {etapa && <div><b>Etapa:</b> {etapa}</div>}
                                                   {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
                                                   {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
-                                                  {placaIt && <div><b>Placa:</b> {placaIt}</div>}
                                                 </div>
                                               )
                                             })()
                                           )}
                                         </div>
-                                        <div className="text-xs text-amber-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                        <div className="text-xs text-rose-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                       </div>
                                     </div>
 
                                     {isSinExpanded && (
                                       <div className="mt-3 space-y-2">
                                         {sin.items.map((it: any, idx: number) => (
-                                          <div key={`sin-item-${idx}`} className="text-xs bg-white p-3 border-l-4 border-amber-400 rounded shadow-sm">
+                                          <div key={`sin-item-${idx}`} className="text-xs bg-white p-3 border-l-4 border-rose-400 rounded shadow-sm">
                                             <div className="flex justify-between">
                                               <div className="flex-1">
                                                 <div className="font-medium text-slate-700">{it?.Observacao || it?.Descricao || it?.Motivo || `Item ${idx + 1}`}</div>
