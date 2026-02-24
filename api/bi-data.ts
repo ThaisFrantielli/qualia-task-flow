@@ -28,6 +28,7 @@ const ALLOWED_TABLES = new Set([
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
   'agg_dre_mensal', 'dim_compras',
   'fluxo_caixa_projetado',
+  'fat_faturamentos', 'fat_faturamento_itens',
 ]);
 
 // Allowed fields per table (whitelist to prevent injection via fields param)

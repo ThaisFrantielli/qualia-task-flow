@@ -5,6 +5,7 @@ import {
   Car,
   ArrowRight,
   ShoppingCart,
+  DollarSign,
 } from 'lucide-react';
 
 export default function AnalyticsIndex() {
@@ -23,7 +24,7 @@ export default function AnalyticsIndex() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
           {/* HUB 1: ATIVOS - FROTA */}
           <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
@@ -99,6 +100,33 @@ export default function AnalyticsIndex() {
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-indigo-600 transition-colors" />
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* HUB 3: FINANCEIRO */}
+          <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <DollarSign className="w-6 h-6 text-emerald-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-800">Hub Financeiro</h2>
+              </div>
+
+              <div className="space-y-3">
+                <Link to="/analytics/faturamento" className="block p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 transition-all group/item">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="w-5 h-5 text-slate-500 group-hover/item:text-emerald-600 transition-colors" />
+                      <div>
+                        <div className="font-medium text-slate-700 group-hover/item:text-emerald-900">Faturamento</div>
+                        <div className="text-xs text-slate-500 group-hover/item:text-emerald-700">KPIs, Evolução Mensal, Ranking de Clientes e Detalhamento de Faturas</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-emerald-600 transition-colors" />
                   </div>
                 </Link>
               </div>
