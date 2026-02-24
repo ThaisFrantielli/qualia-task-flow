@@ -27,6 +27,7 @@ import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 // CashFlowProjectionPage removed (unused)
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
+import FaturamentoDashboard from '@/pages/analytics/FaturamentoDashboard';
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -117,6 +118,7 @@ function App() {
                 <Route path="frota-metodologia" element={<FleetMethodologyPage />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
+                <Route path="faturamento" element={<FaturamentoDashboard />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />
