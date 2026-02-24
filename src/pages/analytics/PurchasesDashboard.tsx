@@ -43,35 +43,57 @@ function parseObs(obs: string | null | undefined, key: string): string {
 }
 
 function enrichRecord(r: AnyObject): AnyObject {
-  const obs: string = r.observacoes || r.Observacoes || '';
+  // InformacoesAdicionais é o nome real da coluna no banco (não observacoes)
+  const obs: string = r.InformacoesAdicionais || r.informacoes_adicionais || r.observacoes || r.Observacoes || '';
 
-  // Normalização de campos (suportar variações de nomes vindas do DW/API)
-  const placa = (r.placa || r.Placa || r.PLA || r.plac || '').trim() || undefined;
-  const modelo = (r.modelo || r.Modelo || r.Model || '').trim() || undefined;
-  const montadora = (r.montadora || r.marca || r.Marca || '').trim() || undefined;
+  // Normalização de campos — nomes verificados com information_schema.columns:
+  // IdVeiculo, Placa, Chassi, Renavam, Montadora, Modelo, AnoModelo, AnoFabricacao,
+  // CodigoFIPE, ValorAtualFIPE, DataCompra, NumeroNotaFiscal, NomeFornecedorNotaFiscal,
+  // ValorNotaFiscal, ValorAcessorios, ValorCompra, ValorProjetadoVenda, DataProjetadaVenda,
+  // Instituicao, Tipo, QuantidadeParcelas, ValorAlienado, SituacaoVeiculo,
+  // SituacaoFinanceiraVeiculo, InformacoesAdicionais, Patio, Filial
+  const placa = (r.Placa || r.placa || '').trim() || undefined;
+  const modelo = (r.Modelo || r.modelo || '').trim() || undefined;
+  // Montadora (com M maiúsculo — nome real da coluna)
+  const montadora = (r.Montadora || r.montadora || r.marca || r.Marca || '').trim() || undefined;
 
-  const valorCompra = parseCurrency(r.valorcompra ?? r.valor_compra ?? r.ValorCompra ?? r.valor ?? r.Valor ?? 0);
-  const valorFipe = parseCurrency(r.valorfipe ?? r.valor_fipe ?? r.ValorFIPE ?? r.ValorFipe ?? r.ValorFipeAtual ?? 0);
+  const valorCompra = parseCurrency(r.ValorCompra ?? r.valorcompra ?? r.valor_compra ?? 0);
+  // ValorAtualFIPE é o nome real da coluna no banco
+  const valorFipe = parseCurrency(r.ValorAtualFIPE ?? r.ValorFipeAtual ?? r.valorfipe ?? r.valor_fipe ?? r.ValorFIPE ?? 0);
 
-  // Data compra: aceitar vários formatos e armazenar como ISO string
-  const rawDataCompra = r.data_compra ?? r.datacompra ?? r.DataCompra ?? r.Data_compra ?? null;
+  // Data compra
+  const rawDataCompra = r.DataCompra ?? r.data_compra ?? r.datacompra ?? null;
   let dataCompraIso: string | null = null;
   if (rawDataCompra) {
     const d = new Date(rawDataCompra);
     if (!isNaN(d.getTime())) dataCompraIso = d.toISOString();
   }
 
+  // Tentar inferir ano do modelo caso AnoModelo/AnoFabricacao venham vazios
+  const tryExtractYear = (s: string | undefined | null) => {
+    if (!s) return null;
+    const m = String(s).match(/\b(19|20)\d{2}\b/);
+    return m ? Number(m[0]) : null;
+  };
+  const inferredAnoModelo = tryExtractYear(modelo) || (r.AnoModelo ? Number(r.AnoModelo) : null);
+  const inferredAnoFab = tryExtractYear(r.AnoFabricacao ?? (r.ano_fabricacao || '')) || null;
+
   const percentualFipe = (() => {
     const pct = parseFloat(r.percentual_fipe ?? r.percentualfipe ?? r.percentualFIPE ?? r.percentual ?? 0) || 0;
     if (pct > 0) return pct;
     if (valorFipe > 0 && valorCompra > 0) return (valorCompra / valorFipe) * 100;
+    // fallback: if both zero, try derive from ValorProjetadoVenda when available
+    const vp = parseCurrency(r.ValorProjetadoVenda ?? r.valorProjetadoVenda ?? 0);
+    if (vp > 0) return (valorCompra / vp) * 100;
     return 0;
   })();
 
-  const bancoField = (r.instituicao || r.Instituicao || r.nomefornecedornotafiscal || r.Fornecedor || r.fornecedor || parseObs(obs, 'INSTITUIÇÃO FINANCEIRA')) || undefined;
-  const filialField = (r.filial || parseObs(obs, 'FILIAL')) || undefined;
-  // prefer explicit Tipo field when present
-  const tipoField = r.Tipo || r.tipo || parseObs(obs, 'AQUISIÇÃO');
+  // "Instituicao" é o nome real da coluna (al.Instituicao no ETL)
+  const bancoField = (r.Instituicao || r.instituicao || r.Banco || r.banco || r.NomeFornecedorNotaFiscal || r.fornecedor) || undefined;
+  // "Filial" existe como coluna real
+  const filialField = (r.Filial || r.filial) || undefined;
+  // "Tipo" existe como coluna real (tipo de aquisição)
+  const tipoField = r.Tipo || r.tipo || parseObs(r.InformacoesAdicionais || obs, 'AQUISIÇÃO');
 
   return {
     ...r,
@@ -91,41 +113,50 @@ function enrichRecord(r: AnyObject): AnyObject {
     DataCompra: dataCompraIso || r.DataCompra || r.data_compra || null,
     ano_compra: dataCompraIso ? new Date(dataCompraIso).getFullYear() : (r.ano_compra ?? r.anoCompra ?? null),
     mes_compra: dataCompraIso ? (new Date(dataCompraIso).getMonth() + 1) : (r.mes_compra ?? null),
+    // preencher ano_modelo / ano_fabricacao quando faltarem com inferência
+    AnoModelo: r.AnoModelo ?? r.ano_modelo ?? inferredAnoModelo ?? null,
+    ano_modelo: r.AnoModelo ?? r.ano_modelo ?? inferredAnoModelo ?? null,
+    AnoFabricacao: r.AnoFabricacao ?? r.ano_fabricacao ?? inferredAnoFab ?? null,
+    ano_fabricacao: r.AnoFabricacao ?? r.ano_fabricacao ?? inferredAnoFab ?? null,
     banco: bancoField,
     filial: filialField,
     tipoAquisicao: tipoField,
-    // mapeamentos adicionais (dados vindos do arquivo de amostra)
-    IdVeiculo: r.IdVeiculo ?? r.idVeiculo ?? r.id_veiculo,
+    // mapeamentos — nomes verificados com information_schema.columns
+    IdVeiculo: r.IdVeiculo ?? r.idVeiculo,
     Chassi: r.Chassi ?? r.chassi,
     chassi: r.Chassi ?? r.chassi,
     Renavam: r.Renavam ?? r.renavam,
     renavam: r.Renavam ?? r.renavam,
-    IdMontadora: r.IdMontadora ?? r.idMontadora ?? r.id_montadora,
-    IdModelo: r.IdModelo ?? r.idModelo ?? r.id_modelo,
-    AnoModelo: r.AnoModelo ?? r.ano_modelo,
-    ano_modelo: r.AnoModelo ?? r.ano_modelo,
-    AnoFabricacao: r.AnoFabricacao ?? r.ano_fabricacao ?? r.anoFabricacao,
-    ano_fabricacao: r.AnoFabricacao ?? r.ano_fabricacao ?? r.anoFabricacao,
+    IdMontadora: r.IdMontadora ?? r.idMontadora,
+    IdModelo: r.IdModelo ?? r.idModelo,
     CodigoFIPE: r.CodigoFIPE ?? r.codigo_fipe,
     codigo_fipe: r.CodigoFIPE ?? r.codigo_fipe,
-    ValorAtualFIPE: parseCurrency(r.ValorAtualFIPE ?? r.valor_atual_fipe ?? r.valorAtualFIPE ?? r.ValorFIPE ?? valorFipe),
-    valor_atual_fipe: parseCurrency(r.ValorAtualFIPE ?? r.valor_atual_fipe ?? r.valorAtualFIPE ?? r.ValorFIPE ?? valorFipe),
-    NumeroNotaFiscal: r.NumeroNotaFiscal ?? r.numeroNotaFiscal ?? r.numero_nota_fiscal,
-    SerieNotaFiscal: r.SerieNotaFiscal ?? r.serieNotaFiscal ?? r.serie_nota_fiscal,
-    NomeFornecedorNotaFiscal: r.NomeFornecedorNotaFiscal ?? r.nomeFornecedorNotaFiscal ?? r.Fornecedor ?? r.fornecedor,
-    DocumentoFornecedorNotaFiscal: r.DocumentoFornecedorNotaFiscal ?? r.documentoFornecedorNotaFiscal,
-    DataEmissaoNotaFiscal: r.DataEmissaoNotaFiscal ?? r.dataEmissaoNotaFiscal,
-    ValorNotaFiscal: parseCurrency(r.ValorNotaFiscal ?? r.valorNotaFiscal ?? r.valor_nota_fiscal),
-    valor_acessorios: parseCurrency(r.ValorAcessorios ?? r.valor_acessorios ?? r.valorAcessorios),
-    ValorProjetadoVenda: parseCurrency(r.ValorProjetadoVenda ?? r.valorProjetadoVenda ?? r.valor_projetado_venda),
-    valor_projetado_venda: parseCurrency(r.ValorProjetadoVenda ?? r.valorProjetadoVenda ?? r.valor_projetado_venda),
-    DataProjetadaVenda: r.DataProjetadaVenda ?? r.dataProjetadaVenda ?? r.data_projetada_venda,
-    situacao_veiculo: r.SituacaoVeiculo ?? r.situacao_veiculo ?? r.situacao_atual,
-    situacao_atual: r.situacao_atual ?? r.SituacaoVeiculo ?? r.situacao_veiculo ?? r.Situacao ?? 'Não informado',
+    // ValorAtualFIPE é o nome exato da coluna no banco
+    ValorAtualFIPE: valorFipe,
+    valor_atual_fipe: valorFipe,
+    ValorFipeAtual: valorFipe,
+    NumeroNotaFiscal: r.NumeroNotaFiscal,
+    SerieNotaFiscal: r.SerieNotaFiscal,
+    NomeFornecedorNotaFiscal: r.NomeFornecedorNotaFiscal,
+    DocumentoFornecedorNotaFiscal: r.DocumentoFornecedorNotaFiscal,
+    DataEmissaoNotaFiscal: r.DataEmissaoNotaFiscal,
+    ValorNotaFiscal: parseCurrency(r.ValorNotaFiscal),
+    valor_acessorios: parseCurrency(r.ValorAcessorios),
+    ValorProjetadoVenda: parseCurrency(r.ValorProjetadoVenda),
+    valor_projetado_venda: parseCurrency(r.ValorProjetadoVenda),
+    DataProjetadaVenda: r.DataProjetadaVenda,
+    // SituacaoVeiculo é o nome exato da coluna no banco
+    situacao_veiculo: r.SituacaoVeiculo ?? r.situacao_veiculo,
+    situacao_atual: r.SituacaoVeiculo ?? r.situacao_atual ?? r.SituacaoVeiculo ?? 'Não informado',
     situacao_financeira_veiculo: r.SituacaoFinanceiraVeiculo ?? r.situacao_financeira_veiculo,
+    // InformacoesAdicionais é o nome exato da coluna (não observacoes)
     informacoes_adicionais: r.InformacoesAdicionais ?? r.informacoes_adicionais ?? obs,
-    Patio: r.Patio ?? r.patio,
-    patio: r.Patio ?? r.patio,
+    Patio: r.Patio ?? r.patio ?? (parseObs(obs, 'PATIO') === 'Não informado' ? undefined : parseObs(obs, 'PATIO')),
+    patio: r.Patio ?? r.patio ?? (parseObs(obs, 'PATIO') === 'Não informado' ? undefined : parseObs(obs, 'PATIO')),
+    // Financiamento (colunas da aliensão em JOIN)
+    ValorFinanciado: parseCurrency(r.ValorAlienado ?? r.ValorFinanciado ?? 0),
+    TotalParcelas: r.QuantidadeParcelas ?? r.TotalParcelas,
+    ValorParcela: parseCurrency(r.ValorPrimeiraParcela ?? r.ValorParcela ?? 0),
   };
 }
 
@@ -164,19 +195,19 @@ function FilterSelect({
 
 // ═══════════════════════════════════════════════════════════════════
 export default function PurchasesDashboard() {
+  // Campos verificados diretamente no banco (SELECT column_name FROM information_schema.columns WHERE table_name = 'dim_compras')
   const { results, metadata, loading } = useBIDataBatch(['dim_compras'], {
     dim_compras: [
-      'Placa', 'Modelo', 'Chassi', 'Renavam',
-      'ValorCompra', 'ValorFIPE', 'ValorAtualFIPE',
-      'DataCompra', 'AnoModelo', 'AnoFabricacao',
-      'SituacaoVeiculo', 'CodigoFIPE',
-      'NumeroNotaFiscal', 'NomeFornecedorNotaFiscal',
-      'ValorNotaFiscal', 'ValorAcessorios',
+      'DataAtualizacaoDados',
+      'IdVeiculo', 'Placa', 'Chassi', 'Renavam',
+      'Montadora', 'IdModelo', 'Modelo', 'AnoModelo', 'AnoFabricacao',
+      'CodigoFIPE', 'ValorAtualFIPE', 'DataCompra',
+      'NumeroNotaFiscal', 'NomeFornecedorNotaFiscal', 'ValorNotaFiscal',
+      'ValorAcessorios', 'ValorCompra',
       'ValorProjetadoVenda', 'DataProjetadaVenda',
-      'Patio', 'observacoes', 'montadora',
-      'SituacaoFinanceiraVeiculo', 'InformacoesAdicionais',
-      'percentual_fipe', 'percentualFIPE',
-      'situacao_atual', 'Situacao', 'filial', 'instituicao',
+      'Instituicao', 'Tipo', 'QuantidadeParcelas', 'ValorAlienado',
+      'SituacaoVeiculo', 'SituacaoFinanceiraVeiculo',
+      'InformacoesAdicionais', 'Patio', 'Filial',
     ],
   });
 

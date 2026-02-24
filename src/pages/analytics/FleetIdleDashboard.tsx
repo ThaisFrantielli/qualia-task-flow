@@ -416,7 +416,7 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     }
     return data;
-  }, [frota, historicoSituacao, periodoSelecionado, customFrom, customTo, patioMov, veiculoMov, inactivationDateMap]);
+  }, [frota, historicoSituacao, periodoSelecionado, customFrom, customTo]);
 
   // Veículos improdutivos na data selecionada
   const vehiclesOnSelectedDate = useMemo(() => {
