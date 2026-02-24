@@ -4,7 +4,7 @@ import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle } from 'lucide-react';
+import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
@@ -280,9 +280,13 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
-  const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d'>('90d');
-  // Debug: log quando periodoSelecionado mudar
-  // Removido useEffect vazio que causava re-renders potenciais
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d' | 'custom'>('90d');
+  // Estados para período personalizado
+  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 89); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const [customFrom, setCustomFrom] = useState<string>(defaultFrom);
+  const [customTo, setCustomTo] = useState<string>(todayStr);
+  const [showHistoricoInfo, setShowHistoricoInfo] = useState<boolean>(false);
   
   const pageSize = 10;
 
@@ -299,20 +303,31 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     // (usar `veiculoAtualMap` memoizado acima para fallback de status)
 
-    // Determinar quantidade de dias a gerar com base no filtro de período
-    let daysToGenerate = 90;
-    if (periodoSelecionado === '30d') {
-      daysToGenerate = 30;
-    } else if (periodoSelecionado === '90d') {
-      daysToGenerate = 90;
-    } else if (periodoSelecionado === '180d') {
-      daysToGenerate = 180;
+    // Determinar o intervalo de datas a gerar
+    let startDate: Date;
+    let endDate: Date = new Date(today);
+    endDate.setHours(23, 59, 59, 999);
+
+    if (periodoSelecionado === 'custom') {
+      const [fy, fm, fd] = customFrom.split('-').map(Number);
+      const [ty, tm, td] = customTo.split('-').map(Number);
+      startDate = new Date(fy, fm - 1, fd);
+      endDate = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+    } else {
+      let daysToGenerate = 90;
+      if (periodoSelecionado === '30d') daysToGenerate = 30;
+      else if (periodoSelecionado === '90d') daysToGenerate = 90;
+      else if (periodoSelecionado === '180d') daysToGenerate = 180;
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - (daysToGenerate - 1));
     }
 
-    // Gerar últimos `daysToGenerate` dias
-    for (let i = daysToGenerate - 1; i >= 0; i--) {
-      const checkDate = new Date(today);
-      checkDate.setDate(today.getDate() - i);
+    // Gerar cada dia no intervalo
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
+    for (let i = 0; i < totalDays; i++) {
+      const checkDate = new Date(startDate);
+      checkDate.setDate(startDate.getDate() + i);
       checkDate.setHours(23, 59, 59, 999); // considerar até o fim do dia
 
       // Gerar `dateStr` no formato YYYY-MM-DD usando a data local (evita shift UTC)
@@ -401,7 +416,7 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     }
     return data;
-  }, [frota, historicoSituacao, periodoSelecionado, patioMov, veiculoMov, inactivationDateMap]);
+  }, [frota, historicoSituacao, periodoSelecionado, customFrom, customTo, patioMov, veiculoMov, inactivationDateMap]);
 
   // Veículos improdutivos na data selecionada
   const vehiclesOnSelectedDate = useMemo(() => {
@@ -566,40 +581,87 @@ export default function FleetIdleDashboard(): JSX.Element {
 
       {/* Gráfico de Tendência Histórica */}
       <Card>
-        <div className="flex justify-between items-center mb-4">
-            <div>
-              <Title>Evolução Diária - % Frota Improdutiva</Title>
-              <Text className="text-xs text-slate-500 mt-1">
-                Clique em um ponto do gráfico para ver detalhamento dos veículos naquele dia
-              </Text>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="inline-flex rounded-md shadow-sm bg-white p-1 border">
-                <button
-                  onClick={() => setPeriodoSelecionado('30d')}
-                  className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '30d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
-                  title="Últimos 30 dias"
-                >
-                  Últimos 30 dias
-                </button>
-                <button
-                  onClick={() => setPeriodoSelecionado('90d')}
-                  className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '90d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
-                  title="Últimos 90 dias"
-                >
-                  Últimos 90 dias
-                </button>
-                <button
-                  onClick={() => setPeriodoSelecionado('180d')}
-                  className={`text-sm px-3 py-1 rounded ${periodoSelecionado === '180d' ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
-                  title="Últimos 6 meses"
-                >
-                  Últimos 6 meses
-                </button>
+        <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
+            {/* Título + ícone de informação */}
+            <div className="flex items-start gap-2">
+              <div>
+                <Title>Evolução Diária - % Frota Improdutiva</Title>
+                <Text className="text-xs text-slate-500 mt-1">
+                  Clique em um ponto do gráfico para ver detalhamento dos veículos naquele dia
+                </Text>
               </div>
-              <Badge color="rose" icon={TrendingDown}>
-                {(dailyIdleHistory[dailyIdleHistory.length - 1]?.pct ?? 0).toFixed(1)}% hoje
-              </Badge>
+              {/* Ícone discreto de metodologia */}
+              <div className="relative mt-0.5">
+                <button
+                  onClick={() => setShowHistoricoInfo(v => !v)}
+                  className="text-slate-300 hover:text-slate-500 transition-colors"
+                  title="Como os dados históricos são calculados"
+                >
+                  <Info size={15} />
+                </button>
+                {showHistoricoInfo && (
+                  <div className="absolute left-0 top-6 z-50 w-80 bg-white border border-slate-200 rounded-lg shadow-xl p-4 text-xs text-slate-600 space-y-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-slate-700">Como o histórico é calculado</span>
+                      <button onClick={() => setShowHistoricoInfo(false)} className="text-slate-400 hover:text-slate-600 ml-2 text-base leading-none">×</button>
+                    </div>
+                    <p>Para cada dia D, o status de cada veículo é determinado assim:</p>
+                    <ul className="space-y-1.5 list-none">
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">1.</span><span><strong>D = hoje:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> diretamente.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">2.</span><span><strong>D = dia passado com eventos:</strong> usa o evento mais recente em <code className="bg-slate-100 px-1 rounded">historico_situacao_veiculos</code> com data ≤ D.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">3.</span><span><strong>Sem nenhum evento registrado:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> para todas as datas (veículo nunca mudou de situação).</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">4.</span><span><strong>Eventos apenas posteriores a D:</strong> veículo excluído (ainda não estava na frota).</span></li>
+                    </ul>
+                    <p className="border-t border-slate-100 pt-2">Veículos <strong>Inativos</strong> (vendido, baixado, sinistro) são excluídos retroativamente a partir da data de inativação. <strong>Terceiros</strong> não são contabilizados.</p>
+                    <p className="text-slate-500">% = Improdutivos ÷ (Produtivos + Improdutivos) × 100</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Seletor de período + badge */}
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="inline-flex rounded-md shadow-sm bg-white p-1 border">
+                  {(['30d', '90d', '180d', 'custom'] as const).map((op) => {
+                    const labels: Record<string, string> = { '30d': 'Últimos 30 dias', '90d': 'Últimos 90 dias', '180d': 'Últimos 6 meses', 'custom': 'Personalizado' };
+                    return (
+                      <button
+                        key={op}
+                        onClick={() => setPeriodoSelecionado(op)}
+                        className={`text-sm px-3 py-1 rounded ${periodoSelecionado === op ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
+                      >
+                        {labels[op]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Badge color="rose" icon={TrendingDown}>
+                  {(dailyIdleHistory[dailyIdleHistory.length - 1]?.pct ?? 0).toFixed(1)}% hoje
+                </Badge>
+              </div>
+              {/* Date pickers para período personalizado */}
+              {periodoSelecionado === 'custom' && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <span className="text-xs text-slate-400">De</span>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    max={customTo}
+                    onChange={e => setCustomFrom(e.target.value)}
+                    className="border border-slate-200 rounded px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-300"
+                  />
+                  <span className="text-xs text-slate-400">até</span>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom}
+                    max={todayStr}
+                    onChange={e => setCustomTo(e.target.value)}
+                    className="border border-slate-200 rounded px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-300"
+                  />
+                  <span className="text-xs text-slate-400">({dailyIdleHistory.length} dias)</span>
+                </div>
+              )}
             </div>
           </div>
         <div className="h-96 mt-4">

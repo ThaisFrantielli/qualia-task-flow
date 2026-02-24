@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
   CartesianGrid, Cell, LabelList, ComposedChart, Line,
@@ -120,6 +121,7 @@ function enrichRecord(r: AnyObject): AnyObject {
     valor_projetado_venda: parseCurrency(r.ValorProjetadoVenda ?? r.valorProjetadoVenda ?? r.valor_projetado_venda),
     DataProjetadaVenda: r.DataProjetadaVenda ?? r.dataProjetadaVenda ?? r.data_projetada_venda,
     situacao_veiculo: r.SituacaoVeiculo ?? r.situacao_veiculo ?? r.situacao_atual,
+    situacao_atual: r.situacao_atual ?? r.SituacaoVeiculo ?? r.situacao_veiculo ?? r.Situacao ?? 'Não informado',
     situacao_financeira_veiculo: r.SituacaoFinanceiraVeiculo ?? r.situacao_financeira_veiculo,
     informacoes_adicionais: r.InformacoesAdicionais ?? r.informacoes_adicionais ?? obs,
     Patio: r.Patio ?? r.patio,
@@ -162,7 +164,21 @@ function FilterSelect({
 
 // ═══════════════════════════════════════════════════════════════════
 export default function PurchasesDashboard() {
-  const { results, metadata, loading } = useBIDataBatch(['dim_compras']);
+  const { results, metadata, loading } = useBIDataBatch(['dim_compras'], {
+    dim_compras: [
+      'Placa', 'Modelo', 'Chassi', 'Renavam',
+      'ValorCompra', 'ValorFIPE', 'ValorAtualFIPE',
+      'DataCompra', 'AnoModelo', 'AnoFabricacao',
+      'SituacaoVeiculo', 'CodigoFIPE',
+      'NumeroNotaFiscal', 'NomeFornecedorNotaFiscal',
+      'ValorNotaFiscal', 'ValorAcessorios',
+      'ValorProjetadoVenda', 'DataProjetadaVenda',
+      'Patio', 'observacoes', 'montadora',
+      'SituacaoFinanceiraVeiculo', 'InformacoesAdicionais',
+      'percentual_fipe', 'percentualFIPE',
+      'situacao_atual', 'Situacao', 'filial', 'instituicao',
+    ],
+  });
 
   const rawData = useMemo(() => getBatchTable<AnyObject>(results, 'dim_compras'), [results]);
 
@@ -202,15 +218,13 @@ export default function PurchasesDashboard() {
     const arr = Array.from(setM).sort((a, b) => a - b);
     return ['Todos', ...arr.map(m => `${m} - ${monthNames[m - 1]}`)];
   }, [data, filterAno]);
-  // definir ano padrão: preferir o último ano completo disponível (ano < ano atual),
-  // caso não exista, usar o maior ano disponível.
+  // definir ano padrão: preferir o ano atual se houver dados, senão o último ano com dados
   const defaultAno = useMemo(() => {
     const years = Array.from(new Set(data.map(d => Number(d.ano_compra)).filter(y => Number.isFinite(y) && y > 0)));
     if (years.length === 0) return null;
     years.sort((a, b) => a - b);
-    // prefer 2026 explicitly when available (project default), otherwise prefer last complete year
-    if (years.includes(2026)) return '2026';
     const currentYear = new Date().getFullYear();
+    if (years.includes(currentYear)) return String(currentYear);
     const past = years.filter(y => y < currentYear);
     const chosen = past.length ? Math.max(...past) : Math.max(...years);
     return String(chosen);
@@ -232,6 +246,17 @@ export default function PurchasesDashboard() {
     () => ['Todos', ...Array.from(new Set(data.map(d => d.tipoAquisicao).filter((v: string) => v && v !== 'Não informado'))).sort()],
     [data],
   );
+  const modelos = useMemo(
+    () => ['Todos', ...Array.from(new Set(
+      data.map(d => (d.Modelo || d.modelo || '').split(' ').slice(0, 6).join(' ').trim()).filter(Boolean)
+    )).sort().slice(0, 20)],
+    [data],
+  );
+  const bancos = useMemo(
+    () => ['Todos', ...Array.from(new Set(data.map(d => (d.banco || '').trim()).filter(Boolean))).sort()],
+    [data],
+  );
+  const fipeBuckets = ['Todos', '< 80%', '80–90%', '90–100%', '100–110%', '110–120%', '> 120%'];
 
   const filtered = useMemo(() => data.filter(r => {
     if (filterAno !== 'Todos' && String(r.ano_compra || '') !== filterAno) return false;
@@ -472,13 +497,98 @@ export default function PurchasesDashboard() {
     XLSX.writeFile(wb, `veiculos_comprados_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
-  // ── Loading ───────────────────────────────────────────────────────
+  // ── Loading — skeleton progressivo ──────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4" />
-          <p className="text-slate-600 font-medium">Carregando dados de compras...</p>
+      <div className="min-h-screen bg-slate-50 font-sans">
+        {/* Header skeleton */}
+        <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+          <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-9 w-9 rounded-lg" />
+              <Skeleton className="h-9 w-9 rounded-xl" />
+              <div>
+                <Skeleton className="h-5 w-48 mb-1" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-7 w-32 rounded-full" />
+              <Skeleton className="h-9 w-32 rounded-lg" />
+            </div>
+          </div>
+        </div>
+        <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-5">
+          {/* Filtros skeleton */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <Skeleton className="h-4 w-24 mb-3" />
+            <div className="flex flex-wrap gap-4">
+              {[140, 120, 140, 160, 160, 150, 150, 130].map((w, i) => (
+                <div key={i} className="flex flex-col gap-1">
+                  <Skeleton className="h-3 w-20 mb-1" />
+                  <Skeleton className="h-9 rounded-lg" style={{ width: w }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* KPI cards skeleton */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
+                <Skeleton className="h-12 w-12 rounded-xl shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="h-3 w-20 mb-2" />
+                  <Skeleton className="h-6 w-24 mb-1" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Gráficos linha 1 skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <Skeleton className="h-4 w-52 mb-4" />
+              <Skeleton className="w-full rounded-lg" style={{ height: 260 }} />
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <Skeleton className="h-4 w-40 mb-4" />
+              <Skeleton className="w-full rounded-lg" style={{ height: 260 }} />
+            </div>
+          </div>
+          {/* Gráficos linha 2 skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {[0, 1].map(i => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <Skeleton className="h-4 w-44 mb-4" />
+                <Skeleton className="w-full rounded-lg" style={{ height: 240 }} />
+              </div>
+            ))}
+          </div>
+          {/* Gráficos linha 3 skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <Skeleton className="h-4 w-36 mb-4" />
+                <Skeleton className="w-full rounded-lg" style={{ height: 220 }} />
+              </div>
+            ))}
+          </div>
+          {/* Tabela skeleton */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <Skeleton className="h-4 w-36 mb-1" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              <Skeleton className="h-9 w-64 rounded-lg" />
+            </div>
+            <Skeleton className="h-10 w-full rounded mb-1" />
+            <div className="space-y-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -525,7 +635,7 @@ export default function PurchasesDashboard() {
             <span className="text-sm font-semibold text-slate-700">Filtros</span>
             {hasActiveFilters && (
               <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                {[filterAno, filterMarca, filterSituacao, filterTipoAq, filterModelo, filterBanco, filterFipe].filter(f => f !== 'Todos').length} ativo(s)
+                {[filterAno, filterMes, filterMarca, filterSituacao, filterTipoAq, filterModelo, filterBanco, filterFipe].filter(f => f !== 'Todos').length} ativo(s)
               </span>
             )}
           </div>
@@ -535,6 +645,9 @@ export default function PurchasesDashboard() {
             <FilterSelect label="Montadora" value={filterMarca} options={marcas} onChange={v => { setFilterMarca(v); setPage(0); }} />
             <FilterSelect label="Situação Atual" value={filterSituacao} options={situacoes} onChange={v => { setFilterSituacao(v); setPage(0); }} />
             <FilterSelect label="Tipo Aquisição" value={filterTipoAq} options={tiposAq} onChange={v => { setFilterTipoAq(v); setPage(0); }} />
+            <FilterSelect label="Modelo" value={filterModelo} options={modelos} onChange={v => { setFilterModelo(v); setPage(0); }} />
+            <FilterSelect label="Banco / Inst." value={filterBanco} options={bancos} onChange={v => { setFilterBanco(v); setPage(0); }} />
+            <FilterSelect label="Faixa % FIPE" value={filterFipe} options={fipeBuckets} onChange={v => { setFilterFipe(v); setPage(0); }} />
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
@@ -545,6 +658,15 @@ export default function PurchasesDashboard() {
             )}
           </div>
         </div>
+
+        {/* ── ESTADO VAZIO ─────────────────────────────────────────── */}
+        {data.length === 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+            <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 font-semibold text-base mb-1">Nenhum dado disponível</p>
+            <p className="text-slate-400 text-sm">A tabela dim_compras não retornou registros. Verifique a conexão com o banco de dados ou aguarde a próxima atualização.</p>
+          </div>
+        )}
 
         {/* ── KPI CARDS ────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
