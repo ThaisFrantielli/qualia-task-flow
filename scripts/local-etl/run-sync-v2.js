@@ -28,6 +28,14 @@ const TABLES = [
         query: `SELECT * FROM Veiculos WITH (NOLOCK)`
     },
     { table: 'dim_compras', query: `SELECT * FROM VeiculosComprados WITH (NOLOCK)` },
+    {
+        table: 'fat_faturamentos',
+        query: `SELECT * FROM Faturamentos WITH (NOLOCK)`
+    },
+    {
+        table: 'fat_faturamento_itens',
+        query: `SELECT * FROM FaturamentoItems WITH (NOLOCK)`
+    },
         {
         table: 'dim_contratos_locacao',
         query: `
