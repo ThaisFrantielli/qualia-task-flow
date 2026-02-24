@@ -459,7 +459,7 @@ export default function FleetDashboard() {
             'Jardim Goiás': 'Goiânia', 'Setor Leste': 'Goiânia', 'Setor Norte': 'Brasília',
             'Sol Nascente/pôr Do Sol': 'Brasília',
 
-            // Mapeamentos adicionais solicitados ÔÇö forçar para Brasília
+            // Mapeamentos adicionais solicitados — forçar para Brasília
             'Brasília': 'Brasília',
             'Riacho Fundo Ii': 'Brasília',
             'Riacho Fundo II': 'Brasília',
@@ -471,8 +471,6 @@ export default function FleetDashboard() {
             'Itapoa': 'Brasília',
             'Brazlândia': 'Brasília',
             'Rua Dos Ipês': 'Brasília',
-            'Valparaíso De Goiás': 'Brasília',
-            'Valparaíso de Goiás': 'Brasília',
             'Setor Tradicional': 'Brasília',
             'Cidade De Lucia Costa': 'Brasília',
             'Quadra 35 Conjunto D': 'Brasília',
@@ -486,12 +484,10 @@ export default function FleetDashboard() {
             'Edf Smdb Shis Km 274': 'Brasília',
             'Avenida São Sebastião': 'Brasília',
             'Avenida Sao Sebastiao': 'Brasília',
-            'Novo Gama': 'Brasília',
             'Avenida Dom Bosco': 'Brasília',
             'Avenida Rio Tocantins': 'Brasília',
             'Federal District': 'Brasília',
-            'Parque E Jardim Paineiras Conjunto 7': 'Brasília',
-            'Cristalina': 'Brasília'
+            'Parque E Jardim Paineiras Conjunto 7': 'Brasília'
         };
 
         if (city.toUpperCase() === 'SÃO PAULO' || city.toUpperCase() === 'OSASCO' || city.toUpperCase() === 'BARUERI') {
@@ -499,6 +495,19 @@ export default function FleetDashboard() {
         }
         if (city.toUpperCase() === 'RIO DE JANEIRO') if (uf !== 'RJ') uf = 'RJ';
         if (city.toUpperCase() === 'BELO HORIZONTE') if (uf !== 'MG') uf = 'MG';
+        // Correções explícitas para municípios do entorno que podem aparecer com referência ao DF
+        const upFull = fullAddr.toUpperCase();
+        if (upFull.includes('VALPARA') || upFull.includes('VALPARAÍSO')) {
+            uf = 'GO';
+            city = 'Valparaíso de Goiás';
+        } else if (upFull.includes('NOVO GAMA')) {
+            uf = 'GO';
+            city = 'Novo Gama';
+        } else if (upFull.includes('CRISTALINA')) {
+            uf = 'GO';
+            city = 'Cristalina';
+        }
+
         if (city.toUpperCase() === 'BRASÍLIA' || city.toUpperCase().includes('DISTRITO FEDERAL')) {
             uf = 'DF';
             city = 'Brasília';
