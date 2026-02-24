@@ -1,0 +1,721 @@
+{
+  "file": "C:\\Users\\frant\\.antigravity\\qualia-task-flow\\scripts\\local-etl\\public\\data\\dim_compras.json",
+  "total_rows": 5757,
+  "scanned": 5757,
+  "columns_with_most_empty": [
+    {
+      "col": "nota_fiscal",
+      "present": 2530,
+      "empty": 3227,
+      "dash": 0
+    },
+    {
+      "col": "observacoes",
+      "present": 3386,
+      "empty": 2371,
+      "dash": 0
+    },
+    {
+      "col": "Placa",
+      "present": 5753,
+      "empty": 4,
+      "dash": 0
+    },
+    {
+      "col": "placa",
+      "present": 5753,
+      "empty": 4,
+      "dash": 0
+    },
+    {
+      "col": "renavam",
+      "present": 5756,
+      "empty": 1,
+      "dash": 0
+    },
+    {
+      "col": "IdVeiculo",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "id_veiculo",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "Modelo",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "modelo",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "marca",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "ano_fabricacao",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "ano_modelo",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "DataCompra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "data_compra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "ano_compra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "mes_compra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "ValorCompra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "valor_compra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "ValorFIPE",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "valor_fipe",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "percentual_fipe",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "Fornecedor",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "fornecedor",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "chassi",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "valor_acessorios",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "valor_total_compra",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    },
+    {
+      "col": "situacao_atual",
+      "present": 5757,
+      "empty": 0,
+      "dash": 0
+    }
+  ],
+  "samples": [
+    {
+      "index": 0,
+      "pick": {
+        "Placa": "QSG-2617",
+        "Chassi": "9BGKS69V0KG399962",
+        "AnoModelo": 2019,
+        "AnoFabricacao": 2019,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 1,
+      "pick": {
+        "Placa": "RCK-4F09",
+        "Chassi": "9BGEB69H0NG191992",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 2,
+      "pick": {
+        "Placa": "RCK-4E59",
+        "Chassi": "9BGEA69H0NG192781",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 3,
+      "pick": {
+        "Placa": "RCK-4E39",
+        "Chassi": "9BGEA69H0NG193242",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 4,
+      "pick": {
+        "Placa": "RCJ-8A19",
+        "Chassi": "9BGEA69H0NG184931",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 5,
+      "pick": {
+        "Placa": "RCK-4E29",
+        "Chassi": "9BGEA69H0NG185076",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 6,
+      "pick": {
+        "Placa": "RCK-8I19",
+        "Chassi": "9BGEA69H0NG184486",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 7,
+      "pick": {
+        "Placa": "RCJ-7I69",
+        "Chassi": "9BGEA69H0NG185818",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 8,
+      "pick": {
+        "Placa": "RCJ-7I09",
+        "Chassi": "9BGEA69H0NG191514",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 9,
+      "pick": {
+        "Placa": "RCK-4D69",
+        "Chassi": "9BGEB69H0NG191491",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 10,
+      "pick": {
+        "Placa": "RCJ-7H49",
+        "Chassi": "9BGEB69H0NG193935",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 11,
+      "pick": {
+        "Placa": "RCJ-7H69",
+        "Chassi": "9BGEA69H0NG193659",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 12,
+      "pick": {
+        "Placa": "FPS-2935",
+        "Chassi": "95PJ3812GLB012136",
+        "AnoModelo": 2020,
+        "AnoFabricacao": 2019,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 13,
+      "pick": {
+        "Placa": "FFL-0C97",
+        "Chassi": "9C2ND1120NR003239",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 14,
+      "pick": {
+        "Placa": "FST-0E67",
+        "Chassi": "9C2ND1120NR003566",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 15,
+      "pick": {
+        "Placa": "FGW-3G03",
+        "Chassi": "9BRB33BE8N2086575",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 16,
+      "pick": {
+        "Placa": "CUK-6C67",
+        "Chassi": "9BRB33BE6N2086106",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 17,
+      "pick": {
+        "Placa": "FPB-3D41",
+        "Chassi": "9BRB33BE1N2086157",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 18,
+      "pick": {
+        "Placa": "BZB-2G47",
+        "Chassi": "9BRB33BE4N2086881",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 19,
+      "pick": {
+        "Placa": "GHQ-8A57",
+        "Chassi": "9BRB33BE6N2087482",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 20,
+      "pick": {
+        "Placa": "GJE-6E15",
+        "Chassi": "9BRB33BE5N2087425",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 21,
+      "pick": {
+        "Placa": "GDJ-5J81",
+        "Chassi": "9BRB33BE4N2087965",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 22,
+      "pick": {
+        "Placa": "FZG-5C73",
+        "Chassi": "9BRB33BE7N2087913",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 23,
+      "pick": {
+        "Placa": "GGL-1B71",
+        "Chassi": "9BRB33BE0N2087168",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 24,
+      "pick": {
+        "Placa": "FDX-2H04",
+        "Chassi": "9BRB33BE0N2087459",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 25,
+      "pick": {
+        "Placa": "FPX-0B73",
+        "Chassi": "9BRB33BE3N2087620",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 26,
+      "pick": {
+        "Placa": "GBM-9A83",
+        "Chassi": "9BRB33BE5N2087909",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 27,
+      "pick": {
+        "Placa": "EKX-1E24",
+        "Chassi": "9BRB33BE0N2086859",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 28,
+      "pick": {
+        "Placa": "EEO-3I51",
+        "Chassi": "9BRB33BEXN2085962",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 29,
+      "pick": {
+        "Placa": "GHU-3F21",
+        "Chassi": "9BRB33BE1N2085672",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 30,
+      "pick": {
+        "Placa": "FLW-9J81",
+        "Chassi": "9BRB33BEXN2085704",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 31,
+      "pick": {
+        "Placa": "EQQ-9C41",
+        "Chassi": "9BRB33BE3N2086130",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 32,
+      "pick": {
+        "Placa": "ENN-1J53",
+        "Chassi": "9BRB33BE0N2086151",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 33,
+      "pick": {
+        "Placa": "FXB-8C91",
+        "Chassi": "9BRB33BE4N2085651",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 34,
+      "pick": {
+        "Placa": "FKK-2C31",
+        "Chassi": "9BRB33BE5N2087960",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 35,
+      "pick": {
+        "Placa": "FUH-9A11",
+        "Chassi": "9BRB33BE2N2089424",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 36,
+      "pick": {
+        "Placa": "ELY-6C49",
+        "Chassi": "9BRBY3BE7N4030276",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 37,
+      "pick": {
+        "Placa": "FVY-2C81",
+        "Chassi": "9BD281A22NYW91412",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 38,
+      "pick": {
+        "Placa": "BZL-5D31",
+        "Chassi": "9BD281A22NYW91357",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2021,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 39,
+      "pick": {
+        "Placa": "RET-4A24",
+        "Chassi": "9BRBY3BEXP4032266",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 40,
+      "pick": {
+        "Placa": "RET-4A20",
+        "Chassi": "9BRBY3BE1P4032110",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 41,
+      "pick": {
+        "Placa": "RES-2G88",
+        "Chassi": "9BRBY3BE0P4032518",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 42,
+      "pick": {
+        "Placa": "RET-4A04",
+        "Chassi": "9BRBY3BE9P4032825",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 43,
+      "pick": {
+        "Placa": "RET-6A03",
+        "Chassi": "9BRBY3BEXP4033028",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 44,
+      "pick": {
+        "Placa": "RET-4B55",
+        "Chassi": "9BRBY3BE6P4033074",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 45,
+      "pick": {
+        "Placa": "RET-4A13",
+        "Chassi": "9BRBY3BE2P4032603",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 46,
+      "pick": {
+        "Placa": "RET-4A28",
+        "Chassi": "9BRBY3BE7P4032788",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 47,
+      "pick": {
+        "Placa": "RET-7I54",
+        "Chassi": "9BRBY3BE8P4032136",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 48,
+      "pick": {
+        "Placa": "RET-3J80",
+        "Chassi": "9BRBY3BE6P4032751",
+        "AnoModelo": 2023,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    },
+    {
+      "index": 49,
+      "pick": {
+        "Placa": "FQS-2E84",
+        "Chassi": "9BGEB48H0NG169195",
+        "AnoModelo": 2022,
+        "AnoFabricacao": 2022,
+        "ValorAcessorios": 0,
+        "Banco": "Não Informado"
+      }
+    }
+  ]
+}
