@@ -73,7 +73,7 @@ export default function FleetDashboard() {
     const [activeTab, setActiveTab] = useState<string>('visao-geral');
 
     // Batch 1: Primary data (single HTTP request)
-    const { results: primaryData, metadata: primaryMeta, loading: loadingPrimary } = useBIDataBatch([
+    const { results: primaryData, metadata: _primaryMeta, loading: loadingPrimary } = useBIDataBatch([
         'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
     ]);
     // Batch 2: Secondary/fact tables — lazy loaded only when relevant tab is active
