@@ -1,4 +1,29 @@
-# Logs
+### Node
+node_modules/
+dist/
+build/
+
+### Env / secrets
+.env
+.env.*
+/.env
+
+### Temp and editor
+temp_*
+tmp_*
+*.tmp
+*.log
+etl-output.log
+tmp_*.tsx
+
+### OS
+.DS_Store
+Thumbs.db
+
+### Misc
+bun.lockb
+/.idea/
+/.vscode/# Logs
 logs
 *.log
 npm-debug.log*
