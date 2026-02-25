@@ -79,7 +79,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
   const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
   const frotaMetadata = useMemo(() => (primaryResults['dim_frota'] as any)?.metadata || primaryMeta || null, [primaryResults, primaryMeta]);
-  const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos');
+  const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos', { limit: 300000 });
 
   // Normalizar dados da frota para nomes de propriedades consistentes
   const frota = useMemo(() => {
@@ -119,60 +119,6 @@ export default function FleetIdleDashboard(): JSX.Element {
     frota.forEach(v => { if (v.Placa) m.set(String(v.Placa).trim().toUpperCase(), v); });
     return m;
   }, [frota]);
-
-  // Mapa: placa → data de início da ÚLTIMA sequência Inativa contínua.
-  // Apenas para veículos ATUALMENTE Inativa no dim_frota.
-  // Veículos reincorporados (ex: recomprados) têm nova inativação mais recente, não a antiga.
-  const inactivationDateMap = useMemo(() => {
-    const map = new Map<string, Date | null>();
-    const todayStart = new Date();
-    todayStart.setHours(0,0,0,0);
-
-    frota.forEach((v: any) => {
-      const placa = String(v.Placa || '').trim().toUpperCase();
-      if (!placa) return;
-      const currentStatus = v?.Status || v?.status || v?.SituacaoVeiculo || v?.situacaoveiculo || null;
-
-      // Só calcular data de inativação para veículos que HOJE são Inativa
-      if (!currentStatus || getCategory(currentStatus) !== 'Inativa') {
-        map.set(placa, null);
-        return;
-      }
-
-      const events = historicoMap.get(placa) || [];
-      // Percorrer do mais recente para o mais antigo para achar o início da ÚLTIMA sequência Inativa
-      // (interrompida quando encontrar um evento com status não-Inativa)
-      let inactiveSince: Date = todayStart;
-      for (let i = events.length - 1; i >= 0; i--) {
-        const ev = events[i];
-        const evStatus = ev?.SituacaoVeiculo || ev?.situacaoveiculo || ev?.Situacao || ev?.situacao || null;
-        if (!evStatus) continue;
-        if (getCategory(evStatus) !== 'Inativa') {
-          // Encontrou um evento anterior ao período Inativa atual
-          // O início da inativação é o próximo evento Inativa após este
-          for (let j = i + 1; j < events.length; j++) {
-            const sj = events[j]?.SituacaoVeiculo || events[j]?.situacaoveiculo || events[j]?.Situacao || events[j]?.situacao || null;
-            if (sj && getCategory(sj) === 'Inativa') {
-              const d = parseDateSafe(events[j]?.UltimaAtualizacao || events[j]?.ultimaatualizacao || events[j]?.DataEvento || events[j]?.dataevento);
-              d.setHours(0,0,0,0);
-              inactiveSince = d;
-              break;
-            }
-          }
-          break; // interrompe a iteração principal
-        }
-        // ev é Inativa — atualiza inactiveSince com data deste evento (vai recuando)
-        const d = parseDateSafe(ev?.UltimaAtualizacao || ev?.ultimaatualizacao || ev?.DataEvento || ev?.dataevento);
-        if (d.getTime() > 0) {
-          d.setHours(0,0,0,0);
-          inactiveSince = d;
-        }
-      }
-      map.set(placa, inactiveSince);
-    });
-
-    return map;
-  }, [frota, historicoMap]);
 
   // Cache de status por placa+data (evita recalcular historico repetidamente)
   const statusCacheRef = useRef<Map<string, { status: string | null; usedHistorico: boolean; lastChangeDate: string | null }>>(new Map());
@@ -244,16 +190,27 @@ export default function FleetIdleDashboard(): JSX.Element {
       if (eventsWithStatus.length === 0) {
         // CASO 3: veículo existe na frota mas NUNCA teve mudança de situação registrada.
         // Como não há nenhum evento histórico, usar dim_frota como melhor aproximação
-        // disponível para TODAS as datas — inclusive passadas.
+        // disponível — MAS apenas a partir da DataCompra do veículo.
         // Justificativa: se o veículo nunca gerou evento, assumimos que seu status atual
-        // é o mesmo de sempre (ex: "Em Mobilização" desde que entrou na frota).
-        // Quando ele eventualmente mudar de status, o ETL passará a gerar eventos e
-        // o histórico a partir dali usará os eventos reais (não este fallback).
-        // NOTA: isto é diferente do CASO onde há eventos mas o status atual mudou após
-        // o último evento — nesse caso o código NUNCA chega aqui (eventsWithStatus.length > 0).
+        // é o mesmo desde que foi comprado. Veículos comprados APÓS a checkDate não devem
+        // aparecer em datas anteriores à compra (evita inflação retroativa quando ETL
+        // adiciona novos veículos à frota).
         const v = veiculoAtualMap.get(String(placa).trim().toUpperCase());
         const fallbackStatus = v?.Status || v?.status || v?.SituacaoVeiculo || v?.situacaoveiculo || null;
         if (fallbackStatus) {
+          // Verificar DataCompra: se o veículo foi comprado DEPOIS da checkDate,
+          // ele não existia na frota naquele momento → excluir desta data.
+          const dataCompraRaw = v?.DataCompra || v?.datacompra || null;
+          if (dataCompraRaw) {
+            const dataCompra = parseDateSafe(dataCompraRaw);
+            dataCompra.setHours(0, 0, 0, 0);
+            if (dataCompra.getTime() > checkDate.getTime()) {
+              // Veículo comprado após checkDate — não contabilizar nesta data histórica
+              const result = { status: null, usedHistorico: false, lastChangeDate: null };
+              try { statusCacheRef.current.set(cacheKey, result); } catch (e) { /* ignore */ }
+              return result;
+            }
+          }
           status = fallbackStatus;
           usedHistorico = false;
           lastChangeDate = null;
@@ -348,16 +305,12 @@ export default function FleetIdleDashboard(): JSX.Element {
 
       for (let idx = 0; idx < placas.length; idx++) {
         const placa = placas[idx];
-        // Excluir veículos a partir do dia em que ficaram Inativa
-        const inactDate = inactivationDateMap.get(placa) || null;
-        if (inactDate) {
-          const inactEnd = new Date(inactDate);
-          inactEnd.setHours(23,59,59,999);
-          if (checkDate.getTime() >= inactEnd.getTime()) {
-            // vehicle is inactive on or after inact date -> do not consider
-            continue;
-          }
-        }
+        // NOTA: não pré-excluímos via inactivationDateMap aqui.
+        // resolveStatusForDate retorna o status correto para o dia D via historico_situacao_veiculos,
+        // e getCategory filtra Inativos com 'continue' abaixo.
+        // O pré-filtro por inactivationDateMap causava mutação retroativa: quando ETL adicionava
+        // um evento Inativa com data no passado, a data calculada mudava e excluía o veículo
+        // retroativamente de todos os dias anteriores, alterando o gráfico histórico.
         const { status, usedHistorico } = resolveStatusForDate(placa, checkDate);
         if (usedHistorico) usandoHistoricoCount++;
         else usandoFallbackCount++;
@@ -380,7 +333,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       }
 
       // If this is the target date, emit detailed debug info to help diagnose discrepancies
-      if (dateStr === '2026-02-12') {
+      if (dateStr === '2026-01-31' || dateStr === '2026-02-12') {
         const improdutivaStatuses: Record<string, number> = {};
         const produtivaStatuses: Record<string, number> = {};
         Object.entries(statusCounts).forEach(([s, info]) => {
@@ -438,15 +391,9 @@ export default function FleetIdleDashboard(): JSX.Element {
     placas.forEach((placa: string) => {
       const v = veiculoAtualMap.get(placa) || {} as any;
 
-      // Excluir veículos a partir do dia em que ficaram Inativa
-      const inactDate = inactivationDateMap.get(placa) || null;
-      if (inactDate) {
-        const inactEnd = new Date(inactDate);
-        inactEnd.setHours(23,59,59,999);
-        if (checkDate.getTime() >= inactEnd.getTime()) return;
-      }
-
       // Reconstruir status até checkDate usando a função centralizada
+      // (inactivationDateMap não é usado aqui — resolveStatusForDate já retorna o status
+      // correto baseado nos eventos históricos; getCategory filtra Inativos abaixo)
       const { status: currentStatus, lastChangeDate } = resolveStatusForDate(placa, checkDate);
       // Ignorar veículos sem status histórico encontrado — getCategory('') retornaria 'Improdutiva'
       // incorretamente, causando veículos Locado/Vendido aparecerem com status errado.
@@ -491,7 +438,7 @@ export default function FleetIdleDashboard(): JSX.Element {
     });
 
     return improdutivos;
-  }, [frota, patioMov, veiculoMov, selectedDate, historicoSituacao, inactivationDateMap]);
+  }, [frota, patioMov, veiculoMov, selectedDate, historicoSituacao]);
 
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 

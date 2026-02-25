@@ -17,7 +17,7 @@ const ALLOWED_TABLES = new Set([
   'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios',
   'dim_movimentacao_veiculos', 'historico_situacao_veiculos',
   'hist_vida_veiculo_timeline', 'fat_carro_reserva', 'fat_manutencao_unificado',
-  'fat_sinistros', 'fat_multas', 'agg_custos_detalhados',
+  'fat_sinistros', 'fat_multas', 'fat_faturamentos', 'fat_faturamento_itens', 'agg_custos_detalhados',
   'fat_movimentacao_ocorrencias', 'fat_precos_locacao',
   'agg_lead_time_etapas', 'agg_funil_conversao', 'agg_performance_usuarios',
   'fat_detalhe_itens_os_2022', 'fat_detalhe_itens_os_2023',

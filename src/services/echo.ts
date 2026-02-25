@@ -25,7 +25,7 @@ if (!isWebSocketEnabled) {
 } else {
     // Create and configure Echo instance only if enabled and configured
     try {
-        window.Echo = new Echo({
+        const echoInstance = new Echo({
             broadcaster: 'pusher',
             key: key,
             cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER ?? 'mt1',
@@ -36,6 +36,9 @@ if (!isWebSocketEnabled) {
             encrypted: false,
             enabledTransports: ['ws'],
             disableStats: true,
+            // Limita tentativas de reconexão para não spammar o console
+            activityTimeout: 30000,
+            pongTimeout: 15000,
             authorizer: (channel: any) => ({
                 authorize: async (socketId: string, callback: Function) => {
                     try {
@@ -60,6 +63,25 @@ if (!isWebSocketEnabled) {
                 },
             }),
         });
+
+        window.Echo = echoInstance;
+
+        // Quando o Pusher ficar "unavailable" (servidor não encontrado), desconecta
+        // e zera window.Echo para evitar spam de reconexão no console.
+        try {
+            const pusherConn = (echoInstance.connector as any)?.pusher?.connection;
+            if (pusherConn) {
+                pusherConn.bind('state_change', ({ current }: { current: string }) => {
+                    if (current === 'unavailable' || current === 'failed') {
+                        console.info('[Echo] WebSocket server unreachable — desabilitando Echo para esta sessão.');
+                        (echoInstance.connector as any)?.pusher?.disconnect();
+                        window.Echo = null;
+                    }
+                });
+            }
+        } catch (_) {
+            // Ignorar se a introspection do connector falhar
+        }
     } catch (err) {
         // If Pusher/Echo initialization fails (e.g. host unreachable), disable Echo to avoid noisy console errors
         // and keep the app functional.

@@ -57,6 +57,11 @@ const baseMenuGroups: MenuGroup[] = [
           { label: 'Frota Improdutiva', url: '/analytics/frota-idle', icon: AlertTriangle },
         ]
       },
+      {
+        label: 'Faturamento',
+        url: '/analytics/faturamento',
+        icon: DollarSign,
+      },
     ]
   },
   {
