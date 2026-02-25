@@ -179,6 +179,9 @@ export async function queryTable(
         const cols = safeFields.map(f => `"${f}"`).join(', ');
         result = await client.query(`SELECT ${cols} FROM public."${table}" LIMIT $1`, [limit]);
       }
+    } else if (table === 'historico_situacao_veiculos') {
+      // Ordenar por data ASC para que a iteração do frontend (do mais recente para o mais antigo) funcione corretamente
+      result = await client.query(`SELECT * FROM public."${table}" ORDER BY "UltimaAtualizacao" ASC LIMIT $1`, [limit]);
     } else {
       result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
     }
@@ -465,8 +468,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: `Table "${table}" is not allowed` });
   }
 
+  // Tabelas com muitos registros precisam de limite maior
+  const TABLE_LIMIT_OVERRIDES: Record<string, number> = {
+    'historico_situacao_veiculos': 300000,
+    'fat_manutencao_unificado': 150000,
+  };
   const limitParam = req.query.limit;
-  const limit = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
+  const defaultLimit = TABLE_LIMIT_OVERRIDES[table] ?? 50000;
+  const limit = limitParam ? Math.min(parseInt(String(limitParam), 10), 300000) : defaultLimit;
   const fields = parseFields(req.query.fields as string | undefined);
 
   // Check cache (allow bust param to force refresh)

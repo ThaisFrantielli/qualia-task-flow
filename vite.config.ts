@@ -108,9 +108,17 @@ export default defineConfig(async ({ mode }) => {
     },
     proxy: {
       '/api': {
-        target: 'https://qualityconecta.vercel.app',
+        // Em dev, rode `npm run dev:api` e defina VITE_API_TARGET=http://localhost:3001 no .env.local
+        // Sem VITE_API_TARGET, as requisições vão para produção Vercel.
+        target: env.VITE_API_TARGET || 'https://qualityconecta.vercel.app',
         changeOrigin: true,
-        secure: true,
+        secure: !(env.VITE_API_TARGET),
+        ws: false,
+        configure: (proxy) => {
+          proxy.on('error', (err: Error) => {
+            console.error('[vite-proxy] /api error:', err.message);
+          });
+        },
       },
     },
     },

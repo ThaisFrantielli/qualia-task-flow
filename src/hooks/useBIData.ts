@@ -27,10 +27,11 @@ function normalizeTableName(identifier: string): string {
 /**
  * Busca dados da API Serverless (/api/bi-data) que consulta o PostgreSQL na Oracle Cloud.
  */
-async function fetchFromAPI(tableName: string, bustServer = false): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
+async function fetchFromAPI(tableName: string, bustServer = false, limit?: number): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
   try {
     const bust = bustServer ? `&refresh=${Date.now()}` : '';
-    const url = `/api/bi-data?table=${encodeURIComponent(tableName)}${bust}`;
+    const limitParam = limit ? `&limit=${limit}` : '';
+    const url = `/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
     const resp = await fetch(url);
     console.debug(`[useBIData] fetch ${url} -> status=${resp.status} content-type=${resp.headers.get('content-type')}`);
 
@@ -78,7 +79,7 @@ async function fetchFromAPI(tableName: string, bustServer = false): Promise<{ da
 
 export default function useBIData<T = unknown>(
   identifier: string,
-  options?: { staleTime?: number; enabled?: boolean }
+  options?: { staleTime?: number; enabled?: boolean; limit?: number }
 ): BIResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [metadata, setMetadata] = useState<BIMetadata | null>(null);
@@ -90,6 +91,7 @@ export default function useBIData<T = unknown>(
 
   const staleTime = options?.staleTime ?? CACHE_TTL;
   const enabled = options?.enabled ?? true;
+  const limit = options?.limit;
   const tableName = normalizeTableName(identifier);
 
   const load = useCallback(async (forceRefresh = false) => {
@@ -101,7 +103,8 @@ export default function useBIData<T = unknown>(
     const fetchId = ++fetchIdRef.current;
 
     // Serve from cache when fresh
-    const cached = dataCache.get(tableName);
+    const cacheKey = limit ? `${tableName}_limit${limit}` : tableName;
+    const cached = dataCache.get(cacheKey);
     if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime) {
       setData(cached.data as T);
       setMetadata(cached.metadata);
@@ -115,12 +118,12 @@ export default function useBIData<T = unknown>(
     setLoading(true);
     setError(null);
 
-    const result = await fetchFromAPI(tableName, forceRefresh);
+    const result = await fetchFromAPI(tableName, forceRefresh, limit);
     if (fetchId !== fetchIdRef.current) return;
 
     if (result.success && result.data != null) {
       const now = Date.now();
-      dataCache.set(tableName, { data: result.data, metadata: result.metadata, timestamp: now });
+      dataCache.set(cacheKey, { data: result.data, metadata: result.metadata, timestamp: now });
       setData(result.data as T);
       setMetadata(result.metadata);
       setSource('live');
