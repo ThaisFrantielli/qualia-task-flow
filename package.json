@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:vercel": "vercel dev --listen 8081",
     "dev:api": "node scripts/local-api-server.mjs",
     "dev:all": "concurrently \"npm run dev:api\" \"npm run dev\" --names api,vite --prefix-colors cyan,green",
     "dev:wa": "concurrently \"npm run dev\" \"cd whatsapp-service && npm start\"",

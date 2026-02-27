@@ -4,7 +4,7 @@ import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle, Info } from 'lucide-react';
+import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle, Info, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
@@ -79,7 +79,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
   const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
   const frotaMetadata = useMemo(() => (primaryResults['dim_frota'] as any)?.metadata || primaryMeta || null, [primaryResults, primaryMeta]);
-  const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos', { limit: 300000 });
+  const { data: historicoSituacaoRaw, loading: loadingHistorico } = useBIData<AnyObject[]>('historico_situacao_veiculos', { limit: 300000 });
 
   // Normalizar dados da frota para nomes de propriedades consistentes
   const frota = useMemo(() => {
@@ -332,27 +332,6 @@ export default function FleetIdleDashboard(): JSX.Element {
         if (cat === 'Improdutiva') improdutivaCount += 1;
       }
 
-      // If this is the target date, emit detailed debug info to help diagnose discrepancies
-      if (dateStr === '2026-01-31' || dateStr === '2026-02-12') {
-        const improdutivaStatuses: Record<string, number> = {};
-        const produtivaStatuses: Record<string, number> = {};
-        Object.entries(statusCounts).forEach(([s, info]) => {
-          const cat = getCategory(s);
-          if (cat === 'Improdutiva') improdutivaStatuses[s] = info.count;
-          if (cat === 'Produtiva') produtivaStatuses[s] = info.count;
-        });
-
-        console.debug('🔍 [FleetIdleDebug] Date:', dateStr);
-        console.debug('🔍 totals -> improdutivaCount:', improdutivaCount, 'activeCount:', activeCount, 'pct:', (activeCount>0?((improdutivaCount/activeCount)*100).toFixed(2):'0'));
-        console.debug('🔍 usingHistoric:', usandoHistoricoCount, 'usingFallback:', usandoFallbackCount, 'totalPlacasConsidered:', placas.length);
-        console.debug('🔍 improdutiva breakdown (status -> count):', improdutivaStatuses);
-        console.debug('🔍 produtiva breakdown (status -> count):', produtivaStatuses);
-        // Print sample placas per status for quick inspection (max 10 per status)
-        Object.entries(statusCounts).forEach(([s, info]) => {
-          console.debug(`🔍 status sample: ${s} -> count=${info.count} placas=${info.placas.join(', ')}`);
-        });
-      }
-
       const pct = activeCount > 0 ? (improdutivaCount / activeCount) * 100 : 0;
 
       // Montar breakdown de status para os improdutivos deste dia
@@ -479,8 +458,15 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   // Análises de pátio removidas (cálculos anteriormente usados na seção eliminada)
 
+  // Aguarda o carregamento primário (frota + movimentações) — exibe skeleton completo
   if (loadingPrimary && frota.length === 0) {
     return <AnalyticsLoading message="Carregando dados de frota improdutiva..." kpiCount={4} chartCount={1} />;
+  }
+
+  // Aguarda o histórico de situações quando o dashboard ainda não tem nenhum dado histórico
+  // (primeiros segundos da primeira visita antes do cache ser populado)
+  if (loadingHistorico && historicoSituacao.length === 0) {
+    return <AnalyticsLoading message="Carregando histórico de situações (300 mil registros, pode levar alguns segundos)..." kpiCount={4} chartCount={1} />;
   }
 
   return (
@@ -498,30 +484,48 @@ export default function FleetIdleDashboard(): JSX.Element {
         </div>
       </div>
 
+      {/* Banner: histórico ainda carregando (atualização em background após cache expirar) */}
+      {loadingHistorico && historicoSituacao.length > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+          <span>
+            <strong>Atualizando histórico de situações</strong> — os KPIs de tendência e improdutividade histórica podem estar desatualizados até o carregamento concluir (300 mil registros).
+          </span>
+        </div>
+      )}
+
       {/* KPIs Atuais */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card decoration="top" decorationColor="rose">
           <Text>Veículos Improdutivos Agora</Text>
-          <Metric>{currentIdleKPIs.qtd}</Metric>
+          {loadingHistorico && historicoSituacao.length === 0
+            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-rose-400" /><span className="text-slate-400 text-sm">Calculando...</span></div>
+            : <Metric>{currentIdleKPIs.qtd}</Metric>}
           <Text className="text-xs text-slate-500 mt-1">{currentIdleKPIs.pct.toFixed(1)}% da frota ativa</Text>
         </Card>
         <Card decoration="top" decorationColor={currentIdleKPIs.trend > 0 ? 'rose' : 'emerald'}>
           <Text>Tendência (7 dias)</Text>
-          <Metric className={currentIdleKPIs.trend > 0 ? 'text-rose-600' : 'text-emerald-600'}>
-            {currentIdleKPIs.trend > 0 ? '+' : ''}{currentIdleKPIs.trend.toFixed(1)}%
-          </Metric>
-          <Text className="text-xs text-slate-500 mt-1">
+          {loadingHistorico
+            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /><span className="text-slate-400 text-sm">Aguardando histórico...</span></div>
+            : <Metric className={currentIdleKPIs.trend > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                {currentIdleKPIs.trend > 0 ? '+' : ''}{currentIdleKPIs.trend.toFixed(1)}%
+              </Metric>}
+          {!loadingHistorico && <Text className="text-xs text-slate-500 mt-1">
             {currentIdleKPIs.trend > 0 ? 'Aumentando' : 'Diminuindo'}
-          </Text>
+          </Text>}
         </Card>
         <Card decoration="top" decorationColor="amber">
           <Text>Tempo Médio Parado</Text>
-          <Metric>{currentIdleKPIs.mediaDias.toFixed(0)} dias</Metric>
+          {loadingHistorico && historicoSituacao.length === 0
+            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-amber-400" /><span className="text-slate-400 text-sm">Calculando...</span></div>
+            : <Metric>{currentIdleKPIs.mediaDias.toFixed(0)} dias</Metric>}
           <Text className="text-xs text-slate-500 mt-1">Média da frota improdutiva</Text>
         </Card>
         <Card decoration="top" decorationColor="blue">
           <Text>Período Analisado</Text>
-          <Metric className="text-xl">{dailyIdleHistory.length} dias</Metric>
+          {loadingHistorico
+            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-blue-400" /><span className="text-slate-400 text-sm">Carregando...</span></div>
+            : <Metric className="text-xl">{dailyIdleHistory.length} dias</Metric>}
           <Text className="text-xs text-slate-500 mt-1">Histórico diário</Text>
         </Card>
       </div>

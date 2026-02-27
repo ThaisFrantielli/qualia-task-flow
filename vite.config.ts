@@ -16,9 +16,11 @@ const __dirname = path.dirname(__filename)
 export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const devPort = Number(env.VITE_DEV_SERVER_PORT || 8080)
+  // Quando rodando sob `vercel dev`, $PORT é injetado pelo CLI e o Vite recebe
+  // a porta dele. Não devemos sobrescrever o HMR nesse caso — o vercel dev tem
+  // seu próprio mecanismo de refresh (refresh.js) e conflita com o HMR fixado.
+  const underVercelDev = !!process.env.PORT
   // Allow forcing WSS (useful when running behind HTTPS reverse proxies).
-  // Padrão false: localmente o HMR usa ws:// na porta do dev server.
-  // Para deploys com proxy HTTPS defina VITE_FORCE_WSS=true no .env.
   const forceWss = String(env.VITE_FORCE_WSS ?? 'false').toLowerCase() === 'true'
   const hmrProtocol = forceWss ? 'wss' : 'ws'
   const hmrClientPort = forceWss ? 443 : devPort
@@ -85,9 +87,10 @@ export default defineConfig(async ({ mode }) => {
     host: "::",
     port: devPort,
     cors: true,
-    // HMR: apontar explicitamente para o host/porta do Vite (8080) para
-    // evitar que o cliente herde a porta do proxy (ex.: vercel dev na 8081).
-    hmr: {
+    // HMR: só configurar explicitamente quando rodando standalone (npm run dev).
+    // Sob `vercel dev` ($PORT definido), deixar o Vite auto-detectar a porta
+    // para evitar conflito com o refresh.js injetado pelo CLI do Vercel.
+    hmr: underVercelDev ? true : {
       protocol: hmrProtocol,
       host: 'localhost',
       port: devPort,

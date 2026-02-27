@@ -33,7 +33,6 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
     const limitParam = limit ? `&limit=${limit}` : '';
     const url = `/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
     const resp = await fetch(url);
-    console.debug(`[useBIData] fetch ${url} -> status=${resp.status} content-type=${resp.headers.get('content-type')}`);
 
     if (!resp.ok) {
       // Try to parse JSON error body, but if it's not JSON log raw text for debugging
@@ -68,7 +67,6 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
     };
 
     const data = body.data ?? body;
-    console.log(`[useBIData] ✅ Loaded ${Array.isArray(data) ? data.length : '1'} rows from API (table: ${tableName})`);
     return { data, metadata, success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

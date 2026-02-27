@@ -110,9 +110,6 @@ export default function useBIDataBatch(
 
       const batchResults = await promise;
       if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
-
-      const totalRows = Object.values(batchResults).reduce((sum, r) => sum + (r.record_count || 0), 0);
-      console.log(`[useBIDataBatch] ✅ Loaded, total ${totalRows} rows`);
       setResults(batchResults);
       setMetadata({ generated_at: new Date().toISOString(), source: 'live' });
       setError(null);

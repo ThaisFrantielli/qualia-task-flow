@@ -13,6 +13,7 @@ import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges, FloatingClearButton } from '@/components/analytics/ChartFilterBadges';
 import TimelineTab from '@/components/analytics/fleet/TimelineTab';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
+import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import { Input } from '@/components/ui/input';
 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -110,11 +111,11 @@ export default function FleetDashboard() {
             Placa: item.Placa || item.placa || item.plate || '',
             Modelo: item.Modelo || item.modelo || item.modelo_veiculo || 'N/A',
             Status: item.Status || item.status || item.SituacaoVeiculo || item.situacaoveiculo || 'N/A',
-            ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.valor_compra || 0),
-            ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorFipe || item.valorfipe || 0),
-            KmInformado: parseNum(item.KmInformado || item.kminformado || item.currentkm || 0),
-            KmConfirmado: parseNum(item.KmConfirmado || item.kmconfirmado || 0),
-            IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.agemonths || 0),
+            ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.ValorCompraVeiculo || item.valor_compra || 0),
+            ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorAtualFIPE || item.valoratualfipe || item.ValorFipe || item.valorfipe || 0),
+            KmInformado: parseNum(item.KmInformado || item.kminformado || item.KM || item.km || item.currentkm || 0),
+            KmConfirmado: parseNum(item.KmConfirmado || item.kmconfirmado || item.OdometroConfirmado || item.odometroconfirmado || 0),
+            IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.IdadeEmMeses || item.idadeemmeses || item.agemonths || 0),
             Categoria: item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros',
             Filial: item.Filial || item.filial || 'N/A',
             UltimoEnderecoTelemetria: item.UltimoEnderecoTelemetria || item.ultimoenderecotelemetria || '',
@@ -135,7 +136,6 @@ export default function FleetDashboard() {
     // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
     const timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
     // Log para debug - usar timelineStats em cálculos futuros
-    console.log(`[FleetDashboard] Timeline stats: ${timelineStats.length} veículos agregados`);
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
@@ -781,15 +781,6 @@ export default function FleetDashboard() {
             tcoTotal, tcoMedio, roiEstimado, healthScoreMedio, custoOciosidade
         };
     }, [filteredData, manutencaoMap]);
-
-        // Debug: log KPIs counts to compare with FleetIdleDashboard
-        console.log('🔎 [FleetDashboard] KPIs:', {
-            total: kpis?.total,
-            produtiva: kpis?.produtivaQtd,
-            improdutiva: kpis?.improdutivaQtd,
-            taxaProdutividade: kpis?.taxaProdutividade,
-            taxaImprodutiva: kpis?.taxaImprodutiva
-        });
 
     // Breakdown of 'Improdutiva' sub-statuses (counts and percentage of the improdutiva group)
     const improdutivaBreakdown = useMemo(() => {
@@ -1902,6 +1893,11 @@ export default function FleetDashboard() {
         Produtiva: Number(kpis.taxaProdutividade.toFixed(1)),
         Improdutiva: Number(kpis.taxaImprodutiva.toFixed(1)),
     }]), [kpis.taxaProdutividade, kpis.taxaImprodutiva]);
+
+    // Guard de loading: exibe skeleton até os dados primários chegarem
+    if (loadingPrimary && frota.length === 0) {
+        return <AnalyticsLoading message="Carregando dados da frota..." kpiCount={5} chartCount={2} />;
+    }
 
     return (
         <div className="bg-slate-50 min-h-screen p-6 space-y-6">
