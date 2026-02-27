@@ -5,12 +5,12 @@ const pool = new Pool({
   host: process.env.ORACLE_PG_HOST || '137.131.163.167',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
-  password: process.env.ORACLE_PG_PASSWORD || '',
+  password: process.env.ORACLE_PG_PASSWORD || 'F4tu5xy3',
   database: process.env.ORACLE_PG_DATABASE || 'bluconecta_dw',
   max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  ssl: false,
+  connectionTimeoutMillis: 7000,
+  ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false },
 });
 
 const ALLOWED_TABLES = new Set([

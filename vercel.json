@@ -4,6 +4,12 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "devCommand": "vite --port $PORT",
+  "functions": {
+    "api/bi-data.ts": { "maxDuration": 60 },
+    "api/bi-data-batch.ts": { "maxDuration": 60 },
+    "api/get-metadata.ts": { "maxDuration": 30 },
+    "api/save-metadata.ts": { "maxDuration": 30 }
+  },
   "rewrites": [
     {
       "source": "/api/:path*",
