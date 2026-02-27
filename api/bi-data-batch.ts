@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
 const pool = new Pool({
   host: process.env.ORACLE_PG_HOST || '137.131.163.167',
@@ -217,7 +217,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(cached.data);
   }
 
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
+  try {
+    client = await pool.connect();
+  } catch (connErr: unknown) {
+    const connMsg = connErr instanceof Error ? connErr.message : String(connErr);
+    console.error('[bi-data-batch] Connection failed:', connMsg);
+    return res.status(500).json({ error: 'Database connection failed', details: connMsg });
+  }
+
   try {
     const results = await Promise.all(
       requests.map(async (r) => {
@@ -288,6 +296,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error(`[bi-data-batch] Error:`, message);
     return res.status(500).json({ error: 'Database query failed', details: message });
   } finally {
-    client.release();
+    client?.release();
   }
 }
