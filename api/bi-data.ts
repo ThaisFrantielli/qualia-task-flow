@@ -11,7 +11,7 @@ const pool = new Pool({
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 7000,
-  ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false },
+  ssl: false,
 });
 
 // Whitelist of allowed tables

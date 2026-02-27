@@ -39,7 +39,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
   query_timeout: 60000,         // 60s timeout por query
   allowExitOnIdle: true,
-  ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false },
+  ssl: false,
 });
 
 const ALLOWED_TABLES = new Set([
