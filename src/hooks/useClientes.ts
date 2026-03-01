@@ -45,8 +45,16 @@ export const useClientes = (): UseClientesReturn => {
         offset += pageSize;
       }
 
-      console.log('[useClientes] Clientes total agregados:', all.length);
-      setClientes(all);
+      // CORREÇÃO: deduplica por id para evitar entradas repetidas em caso de concorrência na paginação
+      const seenIds = new Set<string>();
+      const deduped = all.filter(c => {
+        if (seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      });
+
+      console.log('[useClientes] Clientes total bruto:', all.length, '| após dedup:', deduped.length);
+      setClientes(deduped);
     } catch (err: any) {
       console.error('ERRO NO HOOK useClientes:', err?.message || err);
       setError(new Error(err?.message || 'Erro ao buscar clientes'));

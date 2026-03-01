@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import useBIData from '@/hooks/useBIData';
 import { toast } from 'sonner';
 
 type AnyObject = { [k: string]: any };
@@ -12,33 +11,81 @@ interface SyncResult {
   total: number;
 }
 
+/**
+ * dim_clientes.json é gerado pelo ETL como JSON_ONLY e está em public/data/.
+ * O Vite (dev) e o Vercel (prod) servem a pasta public/ como arquivos estáticos.
+ * Uso simples: fetch('/data/dim_clientes.json') — sem Oracle PG, sem Storage.
+ */
+async function fetchDimClientesFromPublic(): Promise<AnyObject[]> {
+  try {
+    const resp = await fetch('/data/dim_clientes.json');
+    if (!resp.ok) {
+      console.error('[useSyncClientesFromBI] Erro ao buscar /data/dim_clientes.json:', resp.status, resp.statusText);
+      return [];
+    }
+    const parsed = await resp.json();
+    // Suporta estrutura { metadata, data: [...] } OU array direto
+    const rows = parsed?.data ?? parsed;
+    return Array.isArray(rows) ? rows : [];
+  } catch (err) {
+    console.error('[useSyncClientesFromBI] Falha ao carregar dim_clientes.json:', err);
+    return [];
+  }
+}
+
+/**
+ * Gera um codigo_cliente DETERMINÍSTICO baseado nos dados disponíveis.
+ * Nunca usa valores aleatórios/timestamp para evitar duplicação a cada sync.
+ */
+function gerarCodigoDeterministico(cnpj: string, razaoSocial: string | null): string | null {
+  if (cnpj && cnpj.length >= 8) {
+    return `bi_cnpj_${cnpj}`;
+  }
+  if (razaoSocial && razaoSocial.trim().length >= 3) {
+    const slug = razaoSocial
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 30);
+    if (slug.length >= 3) return `bi_nome_${slug}`;
+  }
+  return null; // Não identificável — deve ser pulado
+}
+
 export function useSyncClientesFromBI() {
   const [syncing, setSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
-  const { data: rawClientes, loading: loadingBI, refetch } = useBIData<AnyObject[]>('dim_clientes.json');
+  const [clientesBICount, setClientesBICount] = useState<number | null>(null);
+  const [loadingBI, setLoadingBI] = useState(false);
 
-  const getClientes = (): AnyObject[] => {
-    const raw = (rawClientes as any)?.data || rawClientes || [];
-    return Array.isArray(raw) ? raw : [];
-  };
+  // Pré-carrega contagem para exibição no dialog (não bloqueia a UI)
+  useEffect(() => {
+    setLoadingBI(true);
+    fetchDimClientesFromPublic()
+      .then(rows => setClientesBICount(rows.length))
+      .catch(() => setClientesBICount(null))
+      .finally(() => setLoadingBI(false));
+  }, []);
 
   const syncClientes = async (): Promise<SyncResult> => {
     setSyncing(true);
     const result: SyncResult = { added: 0, skipped: 0, errors: 0, total: 0 };
 
     try {
-      const biClientes = getClientes();
+      const biClientes = await fetchDimClientesFromPublic();
       result.total = biClientes.length;
 
       if (biClientes.length === 0) {
         toast.warning('Nenhum cliente encontrado no arquivo dim_clientes.json');
+        setLastResult(result);
         return result;
       }
 
-      // Buscar clientes existentes para evitar duplicação
+      // CORREÇÃO: incluir 'id' no select para poder associar contatos depois
       const { data: existingClientes, error: fetchError } = await supabase
         .from('clientes')
-        .select('codigo_cliente, cpf_cnpj');
+        .select('id, codigo_cliente, cpf_cnpj');
 
       if (fetchError) {
         console.error('Erro ao buscar clientes existentes:', fetchError);
@@ -56,59 +103,78 @@ export function useSyncClientesFromBI() {
 
       // Filtrar apenas clientes novos
       const novosClientes: AnyObject[] = [];
-      
+      // Mapa do codigo_cliente final → registro BI original (para lookup de contatos)
+      const biMapByCodigo: Record<string, AnyObject> = {};
+
       for (const cliente of biClientes) {
-        const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
-        const cnpj = String(cliente.cpf_cnpj || cliente.CNPJ || cliente.CpfCnpj || cliente.CPF_CNPJ || '').replace(/\D/g, '').trim();
-        
-        // Verificar se já existe
-        const codigoExiste = codigo && existingCodigos.has(codigo);
-        const cnpjExiste = cnpj && existingCnpjs.has(cnpj);
-        
-        if (codigoExiste || cnpjExiste) {
+        // IdCliente é o identificador primário do BI (ex: "271181", "29980")
+        const codigoOriginal = String(
+          cliente.IdCliente || cliente.id_cliente ||
+          cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || ''
+        ).toLowerCase().trim();
+
+        // CPF (Pessoa Física) fica em campo separado `CPF` no JSON do BI
+        const cnpj = String(
+          cliente.cpf_cnpj || cliente.CNPJ || cliente.CPF ||
+          cliente.CpfCnpj || cliente.CPF_CNPJ || ''
+        ).replace(/\D/g, '').trim();
+
+        const razaoSocial = (cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || '') as string;
+
+        // Com IdCliente mapeado, codigoOriginal nunca será vazio — fallback apenas para segurança
+        const codigo = codigoOriginal || gerarCodigoDeterministico(cnpj, razaoSocial);
+
+        // Sem identificador confiável → pular (conta separado)
+        if (!codigo) {
           result.skipped++;
           continue;
         }
 
-        // Mapear campos do dim_clientes para a tabela clientes (APENAS campos que existem na tabela)
+        // Verificar se já existe
+        const codigoExiste = existingCodigos.has(codigo);
+        const cnpjExiste = cnpj && existingCnpjs.has(cnpj);
+
+        if (codigoExiste || cnpjExiste) {
+          result.skipped++;
+          biMapByCodigo[codigo] = cliente; // preservar para upsert de contatos
+          continue;
+        }
+
+        // Mapear campos do dim_clientes para a tabela clientes
         const novoCliente = {
-          codigo_cliente: (codigo || `bi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`).toLowerCase(),
-          razao_social: cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || null,
-          nome_fantasia: cliente.nome_fantasia || cliente.NomeFantasia || cliente.Nome || cliente.Fantasia || null,
+          codigo_cliente: codigo,
+          razao_social: razaoSocial || null,
+          nome_fantasia: (cliente.NomeFantasia || cliente.nome_fantasia || cliente.Fantasia || razaoSocial || null) as string | null,
           cpf_cnpj: cnpj || null,
-          email: cliente.email || cliente.Email || null,
-          telefone: cliente.telefone || cliente.Telefone || cliente.Fone || null,
-          whatsapp_number: formatWhatsapp(cliente.celular || cliente.Celular || cliente.WhatsApp || cliente.telefone || null),
-          endereco: cliente.endereco || cliente.Endereco || cliente.Logradouro || null,
-          numero: cliente.numero || cliente.Numero || cliente.NumeroEndereco || null,
-          bairro: cliente.bairro || cliente.Bairro || null,
-          cidade: cliente.cidade || cliente.Cidade || cliente.Municipio || null,
-          estado: cliente.estado || cliente.Estado || cliente.UF || null,
+          email: cliente.EmailGestorFrota || cliente.email || cliente.Email || null,
+          telefone: cliente.TelefoneGestorFrota || cliente.telefone || cliente.Telefone || cliente.Fone || null,
+          whatsapp_number: formatWhatsapp(cliente.TelefoneGestorFrota || cliente.celular || cliente.Celular || cliente.WhatsApp || cliente.telefone || null),
+          endereco: cliente.Endereco || cliente.endereco || cliente.Logradouro || null,
+          numero: cliente.NumeroEndereco || cliente.numero || cliente.Numero || null,
+          bairro: cliente.Bairro || cliente.bairro || null,
+          cidade: cliente.Cidade || cliente.cidade || cliente.Municipio || null,
+          estado: cliente.Estado || cliente.estado || cliente.UF || null,
           cep: cliente.cep || cliente.CEP || null,
-          situacao: cliente.situacao || cliente.status || cliente.Status || cliente.Situacao || 'Ativo',
-          status: (cliente.situacao || cliente.status || cliente.Status || '').toLowerCase() === 'ativo' ? 'ativo' : 'inativo',
-          tipo_cliente: cliente.tipo_cliente || cliente.TipoCliente || cliente.Segmento || null,
-          natureza_cliente: cliente.natureza_cliente || cliente.NaturezaCliente || null,
-          nome_contratante: cliente.nome_contratante || cliente.NomeContratante || cliente.GestorFrota || cliente.Gestor || null,
+          situacao: cliente.Situacao || cliente.situacao || cliente.Status || cliente.status || 'Ativo',
+          // Situacao (capital S) é o campo correto no dim_clientes.json
+          status: (cliente.Situacao || cliente.situacao || cliente.Status || cliente.status || '').toLowerCase() === 'ativo' ? 'ativo' : 'inativo',
+          tipo_cliente: cliente.Segmento || cliente.tipo_cliente || cliente.TipoCliente || null,
+          natureza_cliente: cliente.NaturezaCliente || cliente.natureza_cliente || null,
+          nome_contratante: cliente.GestorFrota || cliente.nome_contratante || cliente.NomeContratante || cliente.Gestor || null,
           origem: 'dim_clientes_bi',
         };
 
         novosClientes.push(novoCliente);
+        biMapByCodigo[codigo] = cliente;
       }
 
       if (novosClientes.length === 0) {
         toast.info('Todos os clientes do BI já estão cadastrados');
+        setLastResult(result);
         return result;
       }
 
-      // Criar mapa de clientes BI por codigo para lookup posterior
-      const biMapByCodigo: Record<string, AnyObject> = {};
-      for (const cliente of biClientes) {
-        const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
-        if (codigo) biMapByCodigo[codigo] = cliente;
-      }
-
-      // Criar mapas de clientes existentes para lookup
+      // Criar mapas de clientes existentes pelo id para lookup de contatos
       const existingByCodigo: Record<string, AnyObject> = {};
       const existingByCnpj: Record<string, AnyObject> = {};
       for (const c of existingClientes || []) {
@@ -121,8 +187,17 @@ export function useSyncClientesFromBI() {
       // Rastrear clientes que foram 'skipped' para verificar contatos depois
       const existingMatches: Array<{ codigo: string; cnpj: string; cliente: AnyObject }> = [];
       for (const cliente of biClientes) {
-        const codigo = String(cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || '').toLowerCase().trim();
-        const cnpj = String(cliente.cpf_cnpj || cliente.CNPJ || cliente.CpfCnpj || cliente.CPF_CNPJ || '').replace(/\D/g, '').trim();
+        // Mesmo mapeamento do loop principal (IdCliente + CPF mapeados)
+        const codigoOriginal = String(
+          cliente.IdCliente || cliente.id_cliente ||
+          cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || ''
+        ).toLowerCase().trim();
+        const cnpj = String(
+          cliente.cpf_cnpj || cliente.CNPJ || cliente.CPF ||
+          cliente.CpfCnpj || cliente.CPF_CNPJ || ''
+        ).replace(/\D/g, '').trim();
+        const razaoSocial = (cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || '') as string;
+        const codigo = codigoOriginal || gerarCodigoDeterministico(cnpj, razaoSocial) || '';
         const codigoExiste = codigo && existingCodigos.has(codigo);
         const cnpjExiste = cnpj && existingCnpjs.has(cnpj);
         if (codigoExiste || cnpjExiste) {
@@ -130,14 +205,15 @@ export function useSyncClientesFromBI() {
         }
       }
 
-      // Inserir em lotes de 50 para evitar timeout e capturar os ids inseridos
+      // CORREÇÃO: usar upsert com ignoreDuplicates para garantir idempotência total
+      // caso o check acima falhe por race condition, o banco não cria duplicatas
       const batchSize = 50;
       for (let i = 0; i < novosClientes.length; i += batchSize) {
         const batch = novosClientes.slice(i, i + batchSize);
-        
+
         const { data: insertedClients, error: insertError } = await supabase
           .from('clientes')
-          .insert(batch)
+          .upsert(batch, { onConflict: 'codigo_cliente', ignoreDuplicates: true })
           .select('id, codigo_cliente');
 
         if (insertError || !insertedClients) {
@@ -326,8 +402,7 @@ export function useSyncClientesFromBI() {
     syncing,
     loadingBI,
     lastResult,
-    clientesBICount: getClientes().length,
-    refetchBI: refetch,
+    clientesBICount: clientesBICount ?? 0,
   };
 }
 

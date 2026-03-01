@@ -26,17 +26,37 @@ function normalizePhone(phone: string | null | undefined): string {
 }
 
 /**
+ * Normalizes a CPF/CNPJ to digits only
+ */
+function normalizeCpfCnpj(cpf_cnpj: string | null | undefined): string {
+  if (!cpf_cnpj) return '';
+  return cpf_cnpj.replace(/\D/g, '').trim();
+}
+
+/**
+ * Adds a client to a group map, avoiding same-id duplicates
+ */
+function addToGroup(groups: Record<string, ClientData[]>, key: string, client: ClientData) {
+  if (!key) return;
+  if (!groups[key]) groups[key] = [];
+  if (!groups[key].find(c => c.id === client.id)) {
+    groups[key].push(client);
+  }
+}
+
+/**
  * Hook for auto-detecting and merging duplicate clients
  */
 export function useAutoMergeClients() {
   
   /**
-   * Find all duplicate groups across ALL clients (by phone)
+   * Find all duplicate groups across ALL clients.
+   * Detects duplicates by: normalized phone, cpf_cnpj, and bi_ random-codigo pattern.
    */
   const findAllDuplicates = useCallback(async (): Promise<DuplicateGroup[]> => {
     const { data: clients, error } = await supabase
       .from('clientes')
-      .select('id, telefone, whatsapp_number, nome_fantasia, razao_social, cpf_cnpj, email');
+      .select('id, telefone, whatsapp_number, nome_fantasia, razao_social, cpf_cnpj, email, codigo_cliente');
 
     if (error || !clients) {
       console.error('Error fetching clients for duplicate detection:', error);
@@ -45,28 +65,50 @@ export function useAutoMergeClients() {
 
     // Group by normalized phone (last 9 digits)
     const phoneGroups: Record<string, ClientData[]> = {};
-    
+    // Group by cpf_cnpj (digits only)
+    const cnpjGroups: Record<string, ClientData[]> = {};
+
     for (const client of clients) {
+      // Phone-based grouping
       const phones = [
         normalizePhone(client.telefone),
         normalizePhone(client.whatsapp_number)
       ].filter(p => p.length >= 8);
-      
+
       for (const phone of phones) {
-        if (!phoneGroups[phone]) {
-          phoneGroups[phone] = [];
-        }
-        // Avoid adding same client twice
-        if (!phoneGroups[phone].find(c => c.id === client.id)) {
-          phoneGroups[phone].push(client);
-        }
+        addToGroup(phoneGroups, phone, client);
+      }
+
+      // CPF/CNPJ-based grouping (more reliable than phone)
+      const cnpj = normalizeCpfCnpj(client.cpf_cnpj);
+      if (cnpj.length >= 8) {
+        addToGroup(cnpjGroups, cnpj, client);
       }
     }
 
-    // Return only groups with duplicates (more than 1 client)
-    return Object.entries(phoneGroups)
-      .filter(([_, clients]) => clients.length > 1)
-      .map(([phone, clients]) => ({ phone, clients }));
+    // Merge all duplicate groups, keyed by the "best" identifier
+    const allGroups: DuplicateGroup[] = [];
+    const seenIds = new Set<string>();
+
+    // First pass: cpf_cnpj groups (more reliable)
+    for (const [cnpj, grpClients] of Object.entries(cnpjGroups)) {
+      if (grpClients.length < 2) continue;
+      const ids = grpClients.map(c => c.id).sort().join('|');
+      if (seenIds.has(ids)) continue;
+      seenIds.add(ids);
+      allGroups.push({ phone: `cnpj:${cnpj}`, clients: grpClients });
+    }
+
+    // Second pass: phone groups (any not already captured)
+    for (const [phone, grpClients] of Object.entries(phoneGroups)) {
+      if (grpClients.length < 2) continue;
+      const ids = grpClients.map(c => c.id).sort().join('|');
+      if (seenIds.has(ids)) continue;
+      seenIds.add(ids);
+      allGroups.push({ phone, clients: grpClients });
+    }
+
+    return allGroups;
   }, []);
 
   /**

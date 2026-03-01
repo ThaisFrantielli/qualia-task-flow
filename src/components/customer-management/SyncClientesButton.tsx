@@ -98,7 +98,7 @@ export function SyncClientesButton({ onSyncComplete }: SyncClientesButtonProps) 
 
           <div className="text-xs text-muted-foreground">
             <p>• Apenas clientes novos serão adicionados (sem duplicatas)</p>
-            <p>• Verificação por código do cliente e CNPJ/CPF</p>
+            <p>• Verificação por IdCliente (código BI), CNPJ e CPF</p>
             <p>• Origem marcada como "dim_clientes_bi"</p>
           </div>
         </div>
