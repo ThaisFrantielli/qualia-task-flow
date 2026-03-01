@@ -95,7 +95,7 @@ export default function useBIDataBatch(
       let promise = !forceRefresh ? inFlight.get(key) : undefined;
       if (!promise) {
         let url = `/api/bi-data-batch?tables=${encodeURIComponent(tables_)}${fieldsKey ? `&fields=${encodeURIComponent(fieldsKey)}` : ''}`;
-        if (paramsKey) url += `&${encodeURIComponent(paramsKey)}`;
+        if (paramsKey) url += `&${paramsKey}`;
         promise = fetch(url).then(async (resp) => {
           if (!resp.ok) {
             const bodyText = await resp.text();

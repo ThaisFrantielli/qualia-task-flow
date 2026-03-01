@@ -1,12 +1,13 @@
-import React, { useMemo, useState, type ReactNode } from 'react';
+import React, { useMemo, useState, useEffect, useRef, type ReactNode } from 'react';
 import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import {
   ResponsiveContainer, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList,
+  PieChart, Pie,
 } from 'recharts';
-import { DollarSign, FileText, TrendingUp, AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { DollarSign, FileText, TrendingUp, AlertCircle, ChevronDown, ChevronRight, X, Search, Filter } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
@@ -115,6 +116,160 @@ const STATUS_ABERTO = new Set(['aberto', 'pendente', 'a vencer', 'em aberto', 'o
 function isStatusPago(s: string) { return STATUS_PAGO.has(s.toLowerCase().trim()); }
 function isStatusAberto(s: string) { return STATUS_ABERTO.has(s.toLowerCase().trim()) || s === ''; }
 
+// ─── YearMonthPicker ─────────────────────────────────────────────────────────
+
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+interface YearMonthPickerProps {
+  selectedYear: number;
+  selectedMonth: string | null; // 'YYYY-MM' ou null
+  availableMonthKeys: string[]; // 'YYYY-MM'
+  knownYears: number[];
+  onYearChange: (year: number) => void;
+  onMonthChange: (key: string | null) => void;
+}
+
+function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, knownYears, onYearChange, onMonthChange }: YearMonthPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [expandedYears, setExpandedYears] = useState<Set<number>>(new Set([selectedYear]));
+  const ref = useRef<HTMLDivElement>(null);
+
+  // fechar ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const label = selectedMonth
+    ? (() => { const [y,m] = selectedMonth.split('-'); return `${MESES_PT[parseInt(m)-1]} ${y}`; })()
+    : selectedYear === 0 ? 'Todos os períodos' : String(selectedYear);
+
+  const allYears = useMemo(() => {
+    const s = new Set<number>(knownYears);
+    return Array.from(s).sort((a,b) => b - a);
+  }, [knownYears]);
+
+  const monthsByYear = useMemo(() => {
+    const m = new Map<number, number[]>();
+    for (const k of availableMonthKeys) {
+      const [y, mo] = k.split('-').map(Number);
+      if (!m.has(y)) m.set(y, []);
+      m.get(y)!.push(mo);
+    }
+    for (const [y, months] of m) m.set(y, months.sort((a,b)=>a-b));
+    return m;
+  }, [availableMonthKeys]);
+
+  const toggleYear = (y: number) => {
+    setExpandedYears(prev => {
+      const next = new Set(prev);
+      if (next.has(y)) next.delete(y); else next.add(y);
+      return next;
+    });
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-xs font-semibold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-50 shadow-sm min-w-[140px] justify-between"
+      >
+        <span>📅 {label}</span>
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[200px] py-1 max-h-80 overflow-y-auto">
+          {/* Opção Todos */}
+          <button
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 ${
+              selectedYear === 0 && !selectedMonth ? 'text-indigo-700 font-bold' : 'text-slate-700'
+            }`}
+            onClick={() => { onYearChange(0); onMonthChange(null); setOpen(false); }}
+          >
+            <span className={`w-3 h-3 rounded border flex items-center justify-center ${
+              selectedYear === 0 ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+            }`}>
+              {selectedYear === 0 && <span className="text-white text-[8px] font-bold">✓</span>}
+            </span>
+            Todos os períodos
+          </button>
+
+          <div className="border-t border-slate-100 my-1" />
+
+          {allYears.map(y => {
+            const isYearSel = selectedYear === y && !selectedMonth;
+            const months = monthsByYear.get(y) || [];
+            const isExpanded = expandedYears.has(y);
+
+            return (
+              <div key={y}>
+                {/* Linha do ano */}
+                <div className="flex items-center">
+                  <button
+                    className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 text-left"
+                    onClick={() => { onYearChange(y); onMonthChange(null); }}
+                  >
+                    <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${
+                      isYearSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                    }`}>
+                      {isYearSel && <span className="text-white text-[8px] font-bold">✓</span>}
+                      {selectedMonth?.startsWith(`${y}-`) && !isYearSel && (
+                        <span className="text-indigo-600 text-[8px] font-bold">─</span>
+                      )}
+                    </span>
+                    <span className={`font-bold ${selectedYear === y ? 'text-indigo-700' : 'text-slate-800'}`}>{y}</span>
+                  </button>
+                  {months.length > 0 && (
+                    <button
+                      onClick={() => toggleYear(y)}
+                      className="px-2 py-1.5 text-slate-400 hover:text-slate-700"
+                    >
+                      {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    </button>
+                  )}
+                </div>
+
+                {/* Meses */}
+                {isExpanded && months.map(m => {
+                  const key = `${y}-${String(m).padStart(2,'0')}`;
+                  const isMonthSel = selectedMonth === key;
+                  return (
+                    <button
+                      key={key}
+                      className={`w-full flex items-center gap-2 pl-8 pr-3 py-1 text-xs hover:bg-slate-50 ${
+                        isMonthSel ? 'text-indigo-700 font-semibold' : 'text-slate-600'
+                      }`}
+                      onClick={() => {
+                        // trocar de ano se necessário
+                        if (selectedYear !== y) onYearChange(y);
+                        onMonthChange(isMonthSel ? null : key);
+                        setOpen(false);
+                      }}
+                    >
+                      <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${
+                        isMonthSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                      }`}>
+                        {isMonthSel && <span className="text-white text-[8px] font-bold">✓</span>}
+                      </span>
+                      {MESES_PT[m-1]}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function KpiCard({ icon, label, value, sub, color }:
@@ -170,8 +325,8 @@ export function FaturamentoDashboardInner(): JSX.Element {
   // ── Filtros ativos (ano padrão 2026)
   const [filtroAno, setFiltroAno] = useState<number>(2026);
   const [filtroStatus, setFiltroStatus] = useState('Todos');
-  const [filtroTipoFaturamento, setFiltroTipoFaturamento] = useState('Locação');
-  const [tabTipoSelecionada, setTabTipoSelecionada] = useState<string>('Locação');
+  const [filtroTipoFaturamento, setFiltroTipoFaturamento] = useState<string>('__init__');
+  const [tabTipoSelecionada, setTabTipoSelecionada] = useState<string>('__init__');
   const [filtroCliente, setFiltroCliente] = useState('Todos');
   const [filtroContratoLoc, setFiltroContratoLoc] = useState('Todos');
   const [filtroContratoComercial, setFiltroContratoComercial] = useState('Todos');
@@ -182,7 +337,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
-  const { results, loading, metadata, refetch } = useBIDataBatch(
+  const { results, loading, metadata } = useBIDataBatch(
     ['fat_faturamentos', 'fat_faturamento_itens', 'dim_contratos_locacao'],
     undefined,
     { params: { year: filtroAno } }
@@ -391,7 +546,23 @@ export function FaturamentoDashboardInner(): JSX.Element {
     return ['Todos', ...Array.from(s).sort()];
   }, [contratosLocacao]);
 
-  
+  // ── Sincronizar tipo de faturamento com valor real dos dados (resolve compat de acento/case)
+  useEffect(() => {
+    if (faturas.length === 0) return;
+    if (filtroTipoFaturamento !== '__init__') return;
+    // encontrar o tipo que bate com /loca/i (preferência)
+    const found = tipoFaturamentoOptions.find(t => /loca/i.test(t) && t !== 'Todos');
+    const first = tipoFaturamentoOptions.find(t => t !== 'Todos');
+    const chosen = found || first || 'Todos';
+    setFiltroTipoFaturamento(chosen);
+    setTabTipoSelecionada(chosen);
+  }, [faturas, tipoFaturamentoOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Chaves de meses disponíveis para o YearMonthPicker
+  const availableMonthKeys = useMemo(
+    () => monthOptions.filter(m => m.key !== 'Todos').map(m => m.key),
+    [monthOptions]
+  );
 
   // Resolve nome do cliente da fatura priorizando dim_contratos_locacao
   const resolveCliente = (f: AnyObject): string => {
@@ -415,7 +586,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
         const s = getStr(f, ...FSTATUS_KEYS);
         if (s !== filtroStatus) return false;
       }
-      if (filtroTipoFaturamento !== 'Todos') {
+      if (filtroTipoFaturamento !== 'Todos' && filtroTipoFaturamento !== '__init__') {
         const tf = getStr(f, ...FTIPO_KEYS);
         if (tf !== filtroTipoFaturamento) return false;
       }
@@ -474,7 +645,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
         const s = getStr(f, ...FSTATUS_KEYS);
         if (s !== filtroStatus) return false;
       }
-      if (filtroTipoFaturamento !== 'Todos') {
+      if (filtroTipoFaturamento !== 'Todos' && filtroTipoFaturamento !== '__init__') {
         const tf = getStr(f, ...FTIPO_KEYS);
         if (tf !== filtroTipoFaturamento) return false;
       }
@@ -558,6 +729,27 @@ export function FaturamentoDashboardInner(): JSX.Element {
       .map(([cliente, valor]) => ({ cliente: cliente.length > 30 ? cliente.slice(0, 28) + '…' : cliente, valor }));
   }, [faturasFiltradas]);
 
+  // ── Faturamento por Tipo (donut)
+  const PIE_COLORS = ['#4472c4','#ed7d31','#a5b4fc','#34d399','#f59e0b','#f87171','#60a5fa','#c084fc'];
+  const faturamentoPorTipo = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const f of faturasFiltradas) {
+      const t = getStr(f, ...FTIPO_KEYS) || 'Outros';
+      map.set(t, (map.get(t) ?? 0) + getNum(f, ...FVALOR_KEYS));
+    }
+    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).map(([name, value]) => ({ name, value }));
+  }, [faturasFiltradas]);
+
+  // ── Faturamento por Status (donut)
+  const faturamentoPorStatus = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const f of faturasFiltradas) {
+      const s = getStr(f, ...FSTATUS_KEYS) || 'Sem status';
+      map.set(s, (map.get(s) ?? 0) + getNum(f, ...FVALOR_KEYS));
+    }
+    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).map(([name, value]) => ({ name, value }));
+  }, [faturasFiltradas]);
+
   // ── Paginação
   const totalPages = Math.max(1, Math.ceil(faturasFiltradas.length / PAGE_SIZE));
   const faturasPagina = faturasFiltradas.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -588,117 +780,123 @@ export function FaturamentoDashboardInner(): JSX.Element {
           <DataUpdateBadge metadata={metadata} />
         </div>
 
-        {/* ── Filtros ────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-          {/* Linha 1: Ano, Status, Cliente, busca */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filtros</span>
+        {/* ── Filtros — Power BI style ────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
-            {/* Ano */}
-            <select
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              value={filtroAno}
-              onChange={(e) => { setFiltroAno(Number(e.target.value)); setPage(1); }}
-            >
-              <option value={0}>Todos os anos</option>
-              {anoOptions.filter(a => a !== 0).map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-
-            {/* Mês */}
-            <select
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              value={filtroMes ?? 'Todos'}
-              onChange={(e) => { setFiltroMes(e.target.value === 'Todos' ? null : e.target.value); setPage(1); }}
-            >
-              {monthOptions.map(m => (
-                <option key={m.key} value={m.key}>{m.label}</option>
-              ))}
-            </select>
-
-            {/* Status */}
-            <select
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              value={filtroStatus}
-              onChange={(e) => { setFiltroStatus(e.target.value); setPage(1); }}
-            >
-              {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-
-            {/* Tipo de Faturamento */}
-            <select
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              value={filtroTipoFaturamento}
-              onChange={(e) => { setFiltroTipoFaturamento(e.target.value); setPage(1); }}
-            >
-              {tipoFaturamentoOptions.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-
-            {/* Cliente */}
-            <select
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 max-w-[220px]"
-              value={filtroCliente}
-              onChange={(e) => { setFiltroCliente(e.target.value); setPage(1); }}
-            >
-              {clienteOptions.map(c => (
-                <option key={c} value={c}>{c.length > 40 ? c.slice(0, 38) + '…' : c}</option>
-              ))}
-            </select>
-
-            {/* Busca textual */}
-            <input
-              type="text"
-              placeholder="Buscar cliente, contrato, NF, ID…"
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-56"
-              value={searchText}
-              onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
-            />
-          </div>
-
-          {/* Abas por Tipo de Faturamento */}
-          <div className="pt-2">
-            <div className="flex items-center gap-2">
+          {/* ── Linha 1: Tipo (tabs) + Busca ── */}
+          <div className="flex flex-wrap items-center gap-3 px-4 pt-3 pb-3 border-b border-slate-100">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {/* Tabs tipo de faturamento */}
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-none divide-x divide-slate-200">
               {tabsTipoFaturamento.map(t => {
-                const isActive = t === tabTipoSelecionada || (t === 'Todos' && tabTipoSelecionada === 'Todos');
+                const isActive = t === tabTipoSelecionada;
                 return (
                   <button
                     key={t}
                     onClick={() => { setTabTipoSelecionada(t); setFiltroTipoFaturamento(t === 'Todos' ? 'Todos' : t); setPage(1); }}
-                    className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${isActive ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'}`}
+                    className={`text-xs font-semibold px-3.5 py-1.5 transition-colors whitespace-nowrap ${
+                      isActive ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
                   >
                     {t}
                   </button>
                 );
               })}
             </div>
+            <div className="flex-1" />
+            {/* Busca textual */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar cliente, NF, contrato…"
+                className="text-xs border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 w-52"
+                value={searchText}
+                onChange={(e) => { setSearchText(e.target.value); setPage(1); }}
+              />
+            </div>
           </div>
 
-          {/* Linha 2: Contrato Locação, Contrato Comercial, Tipo de Contrato */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Contratos</span>
+          {/* ── Linha 2: Ano/Mês hierárquico + Status ── */}
+          <div className="flex flex-wrap items-center gap-4 px-4 py-2.5 border-b border-slate-100">
+            {/* Picker Ano/Mês hierárquico estilo Power BI */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Período</span>
+              <YearMonthPicker
+                selectedYear={filtroAno}
+                selectedMonth={filtroMes}
+                availableMonthKeys={availableMonthKeys}
+                knownYears={anoOptions.filter(a => a !== 0)}
+                onYearChange={(y) => { setFiltroAno(y); setFiltroMes(null); setPage(1); }}
+                onMonthChange={(k) => { setFiltroMes(k); setPage(1); }}
+              />
+            </div>
 
-            {/* Tipo de Contrato */}
+            <div className="w-px h-4 bg-slate-200" />
+
+            {/* Status — pills */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</span>
+              <div className="flex flex-wrap gap-1">
+                {statusOptions.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setFiltroStatus(s); setPage(1); }}
+                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition-colors ${
+                      filtroStatus === s
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Linha 3: Contratos ── */}
+          <div className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contratos</span>
+
+            {/* Tipo Contrato — pills */}
+            <div className="flex flex-wrap gap-1">
+              {tipoContratoOptions.map(t => (
+                <button
+                  key={t}
+                  onClick={() => { setFiltroTipoContrato(t); setPage(1); }}
+                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition-colors ${
+                    filtroTipoContrato === t
+                      ? 'bg-violet-600 text-white border-violet-600'
+                      : 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100'
+                  }`}
+                >
+                  {t === 'Todos' ? 'Todos' : t}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-px h-4 bg-slate-200" />
+
+            {/* Cliente */}
             <select
-              className="text-sm border border-violet-200 rounded-lg px-3 py-1.5 bg-violet-50 text-violet-800 focus:outline-none focus:ring-2 focus:ring-violet-300"
-              value={filtroTipoContrato}
-              onChange={(e) => { setFiltroTipoContrato(e.target.value); setPage(1); }}
+              className="text-xs border border-slate-200 rounded-lg px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300 max-w-[200px]"
+              value={filtroCliente}
+              onChange={(e) => { setFiltroCliente(e.target.value); setPage(1); }}
             >
-              <option value="Todos">Todos os tipos</option>
-              {tipoContratoOptions.filter(t => t !== 'Todos').map(t => (
-                <option key={t} value={t}>{t}</option>
+              <option value="Todos">Cliente: Todos</option>
+              {clienteOptions.filter(c => c !== 'Todos').map(c => (
+                <option key={c} value={c}>{c.length > 40 ? c.slice(0, 38) + '…' : c}</option>
               ))}
             </select>
 
             {/* Contrato Locação */}
             <select
-              className="text-sm border border-sky-200 rounded-lg px-3 py-1.5 bg-sky-50 text-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 max-w-[200px]"
+              className="text-xs border border-sky-200 rounded-lg px-2 py-0.5 bg-sky-50 text-sky-800 focus:outline-none focus:ring-1 focus:ring-sky-300 max-w-[180px]"
               value={filtroContratoLoc}
               onChange={(e) => { setFiltroContratoLoc(e.target.value); setPage(1); }}
             >
-              <option value="Todos">Todos — Locação</option>
+              <option value="Todos">Locação: Todos</option>
               {contratoLocOptions.filter(c => c !== 'Todos').map(c => (
                 <option key={c} value={c}>{c.length > 35 ? c.slice(0, 33) + '…' : c}</option>
               ))}
@@ -706,11 +904,11 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
             {/* Contrato Comercial */}
             <select
-              className="text-sm border border-emerald-200 rounded-lg px-3 py-1.5 bg-emerald-50 text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-300 max-w-[200px]"
+              className="text-xs border border-emerald-200 rounded-lg px-2 py-0.5 bg-emerald-50 text-emerald-800 focus:outline-none focus:ring-1 focus:ring-emerald-300 max-w-[180px]"
               value={filtroContratoComercial}
               onChange={(e) => { setFiltroContratoComercial(e.target.value); setPage(1); }}
             >
-              <option value="Todos">Todos — Comercial</option>
+              <option value="Todos">Comercial: Todos</option>
               {contratoComOptions.filter(c => c !== 'Todos').map(c => (
                 <option key={c} value={c}>{c.length > 35 ? c.slice(0, 33) + '…' : c}</option>
               ))}
@@ -721,18 +919,18 @@ export function FaturamentoDashboardInner(): JSX.Element {
               filtroContratoLoc !== 'Todos' || filtroContratoComercial !== 'Todos' ||
               filtroTipoContrato !== 'Todos' || searchText || filtroMes) && (
               <button
-                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-lg px-2.5 py-1.5 bg-red-50 hover:bg-red-100 transition-colors"
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 bg-red-50 hover:bg-red-100 transition-colors font-semibold"
                 onClick={() => {
                   setFiltroAno(2026); setFiltroStatus('Todos'); setFiltroCliente('Todos');
                   setFiltroContratoLoc('Todos'); setFiltroContratoComercial('Todos');
                   setFiltroTipoContrato('Todos'); setSearchText(''); setFiltroMes(null); setPage(1);
                 }}
               >
-                <X className="w-3 h-3" /> Limpar todos
+                <X className="w-3 h-3" /> Limpar
               </button>
             )}
 
-            <span className="ml-auto text-xs text-slate-400">{faturasFiltradas.length.toLocaleString('pt-BR')} faturas</span>
+            <span className="ml-auto text-xs text-slate-400 font-medium">{faturasFiltradas.length.toLocaleString('pt-BR')} faturas</span>
           </div>
         </div>
 
@@ -879,6 +1077,74 @@ export function FaturamentoDashboardInner(): JSX.Element {
               );
             })()
           )}
+        </div>
+
+        {/* Top Clientes */}
+        {/* ── Donuts: Tipo + Status ──────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Donut — Tipo de Faturamento */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Distribuição por Tipo</h2>
+            <p className="text-xs text-slate-400 mb-4">% do valor faturado por categoria</p>
+            {faturamentoPorTipo.length === 0 ? (
+              <div className="flex items-center justify-center h-52 text-slate-400 text-sm">Sem dados</div>
+            ) : (
+              <div className="flex gap-4 items-center">
+                <PieChart width={180} height={180}>
+                  <Pie data={faturamentoPorTipo} cx={86} cy={86} innerRadius={52} outerRadius={80} paddingAngle={2} dataKey="value">
+                    {faturamentoPorTipo.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [fmtBRL(v), '']} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
+                </PieChart>
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  {faturamentoPorTipo.map((entry, i) => {
+                    const pct = faturamentoPorTipo.reduce((s,x) => s+x.value,0);
+                    return (
+                      <div key={entry.name} className="flex items-center gap-2 min-w-0">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className="text-xs text-slate-600 truncate flex-1" title={entry.name}>{entry.name}</span>
+                        <span className="text-xs font-semibold text-slate-800 shrink-0">{pct > 0 ? ((entry.value/pct)*100).toFixed(1) : 0}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Donut — Status */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Distribuição por Status</h2>
+            <p className="text-xs text-slate-400 mb-4">% do valor faturado por situação</p>
+            {faturamentoPorStatus.length === 0 ? (
+              <div className="flex items-center justify-center h-52 text-slate-400 text-sm">Sem dados</div>
+            ) : (
+              <div className="flex gap-4 items-center">
+                <PieChart width={180} height={180}>
+                  <Pie data={faturamentoPorStatus} cx={86} cy={86} innerRadius={52} outerRadius={80} paddingAngle={2} dataKey="value">
+                    {faturamentoPorStatus.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [fmtBRL(v), '']} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
+                </PieChart>
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  {faturamentoPorStatus.map((entry, i) => {
+                    const pct = faturamentoPorStatus.reduce((s,x) => s+x.value,0);
+                    return (
+                      <div key={entry.name} className="flex items-center gap-2 min-w-0">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className="text-xs text-slate-600 truncate flex-1" title={entry.name}>{entry.name}</span>
+                        <span className="text-xs font-semibold text-slate-800 shrink-0">{pct > 0 ? ((entry.value/pct)*100).toFixed(1) : 0}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Top Clientes */}
