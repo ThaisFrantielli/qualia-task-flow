@@ -34,7 +34,7 @@ const inFlight = new Map<string, Promise<BatchResult>>();
 export default function useBIDataBatch(
   tables: string[],
   fields?: Record<string, string[]>,
-  options?: { enabled?: boolean; staleTime?: number }
+  options?: { enabled?: boolean; staleTime?: number; params?: Record<string, string | number> }
 ): UseBIDataBatchResult {
   const [results, setResults] = useState<BatchResult>({});
   const [metadata, setMetadata] = useState<BIMetadata | null>(null);
@@ -45,6 +45,7 @@ export default function useBIDataBatch(
 
   const enabled = options?.enabled ?? true;
   const staleTime = options?.staleTime ?? CACHE_TTL;
+  const params = options?.params;
 
   // Stable key — não muta o array original
   const tablesKey = useMemo(() => [...tables].sort().join(','), [tables.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,7 +54,9 @@ export default function useBIDataBatch(
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(fields)]
   );
-  const cacheKey = `${tablesKey}|${fieldsKey}`;
+  const paramsKey = useMemo(() => params ? Object.entries(params).map(([k, v]) => `${k}=${v}`).sort().join('&') : '', [JSON.stringify(params || {})]);
+  const cacheKeyBase = `${tablesKey}|${fieldsKey}`;
+  const cacheKey = paramsKey ? `${cacheKeyBase}|${paramsKey}` : cacheKeyBase;
 
   // Guarda valores estáveis em refs para evitar recriar load/useEffect
   const cacheKeyRef = useRef(cacheKey);
@@ -91,7 +94,8 @@ export default function useBIDataBatch(
       // Deduplicação: reutiliza promise in-flight para a mesma chave
       let promise = !forceRefresh ? inFlight.get(key) : undefined;
       if (!promise) {
-        const url = `/api/bi-data-batch?tables=${encodeURIComponent(tables_)}${fieldsKey ? `&fields=${encodeURIComponent(fieldsKey)}` : ''}`;
+        let url = `/api/bi-data-batch?tables=${encodeURIComponent(tables_)}${fieldsKey ? `&fields=${encodeURIComponent(fieldsKey)}` : ''}`;
+        if (paramsKey) url += `&${encodeURIComponent(paramsKey)}`;
         promise = fetch(url).then(async (resp) => {
           if (!resp.ok) {
             const bodyText = await resp.text();

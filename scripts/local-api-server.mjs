@@ -79,6 +79,7 @@ function getUpdateMetadata(rows) {
 async function handleBatch(req, res) {
   const url = new URL(req.url, `http://localhost`);
   const tablesParam = url.searchParams.get('tables') || '';
+  const yearParam = url.searchParams.get('year');
   const tables = tablesParam.split(',').map(t => t.trim()).filter(Boolean);
 
   if (!tables.length) {
@@ -96,14 +97,47 @@ async function handleBatch(req, res) {
   // pool.query() libera a conexão automaticamente após cada query
   for (const table of tables) {
     const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
-    const { rows } = await pool.query(`SELECT * FROM "${safeTable}"`);
-    const meta = getUpdateMetadata(rows);
-    results[table] = {
-      data: rows,
-      record_count: rows.length,
-      metadata: meta,
-    };
-    console.log(`  [OK] ${table}: ${rows.length} rows`);
+    // Protege cada query para que uma falha não derrube toda a rota
+    try {
+      let rows;
+      if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
+        // Detectar colunas de data disponíveis e aplicar filtro por ano
+        const colRes = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = $1`, [safeTable]);
+        const cols = colRes.rows.map(r => String(r.column_name));
+        const candidateDateCols = ['DataEmissao','dataemissao','DataFaturamento','datafaturamento','DataCompetencia','datacompetencia','Data','data'];
+        const found = candidateDateCols.filter(c => cols.includes(c));
+        if (found.length) {
+          const whereParts = found.map((c, i) => `EXTRACT(YEAR FROM "${c}") = $1`);
+          const query = `SELECT * FROM "${safeTable}" WHERE (${whereParts.join(' OR ')})`;
+          const resp = await pool.query(query, [Number(yearParam)]);
+          rows = resp.rows;
+        } else {
+          const resp = await pool.query(`SELECT * FROM "${safeTable}" LIMIT 10000`);
+          rows = resp.rows;
+        }
+      } else {
+        const resp = await pool.query(`SELECT * FROM "${safeTable}"`);
+        rows = resp.rows;
+      }
+      const meta = getUpdateMetadata(rows);
+      results[table] = {
+        data: rows,
+        record_count: rows.length,
+        metadata: meta,
+      };
+      console.log(`  [OK] ${table}: ${rows.length} rows`);
+    } catch (err) {
+      // Em caso de erro (p.ex. ECONNRESET), logamos e retornamos erro por tabela
+      console.error(`[local-api] Error querying ${table}:`, err.message);
+      results[table] = {
+        error: String(err.message),
+        data: [],
+        record_count: 0,
+        metadata: null,
+      };
+      // tentar liberar a conexão e continuar com próximas tabelas
+      try { await pool.query('SELECT 1'); } catch (_) { /* swallow */ }
+    }
   }
 
   res.writeHead(200, {
@@ -119,6 +153,7 @@ async function handleBatch(req, res) {
 async function handleSingle(req, res) {
   const url = new URL(req.url, `http://localhost`);
   const table = url.searchParams.get('table') || '';
+  const yearParam = url.searchParams.get('year');
 
   if (!table || !ALLOWED_TABLES.has(table)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -126,14 +161,29 @@ async function handleSingle(req, res) {
   }
 
   const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
-  let query = `SELECT * FROM "${safeTable}"`;
-  // Garantir ordenação cronológica para tabelas de histórico —
-  // resolveStatusForDate no frontend itera do fim do array para o início
-  // assumindo que índices maiores = eventos mais recentes.
-  if (table === 'historico_situacao_veiculos') {
-    query += ` ORDER BY "UltimaAtualizacao" ASC`;
+  let rows;
+  if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
+    const colRes = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = $1`, [safeTable]);
+    const cols = colRes.rows.map(r => String(r.column_name));
+    const candidateDateCols = ['DataEmissao','dataemissao','DataFaturamento','datafaturamento','DataCompetencia','datacompetencia','Data','data'];
+    const found = candidateDateCols.filter(c => cols.includes(c));
+    if (found.length) {
+      const whereParts = found.map((c, i) => `EXTRACT(YEAR FROM "${c}") = $1`);
+      const q = `SELECT * FROM "${safeTable}" WHERE (${whereParts.join(' OR ')})`;
+      const resp = await pool.query(q, [Number(yearParam)]);
+      rows = resp.rows;
+    } else {
+      const resp = await pool.query(`SELECT * FROM "${safeTable}" LIMIT 10000`);
+      rows = resp.rows;
+    }
+  } else {
+    let query = `SELECT * FROM "${safeTable}"`;
+    if (table === 'historico_situacao_veiculos') {
+      query += ` ORDER BY "UltimaAtualizacao" ASC`;
+    }
+    const resp = await pool.query(query);
+    rows = resp.rows;
   }
-  const { rows } = await pool.query(query);
   res.writeHead(200, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
