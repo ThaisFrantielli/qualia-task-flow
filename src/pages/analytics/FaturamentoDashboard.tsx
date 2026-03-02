@@ -131,6 +131,7 @@ function isStatusPago(s: string) { return STATUS_PAGO.has(s.toLowerCase().trim()
 function isStatusAberto(s: string) { return STATUS_ABERTO.has(s.toLowerCase().trim()) || s === ''; }
 
 const MESES_PT_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const MESES_PT_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 // Mapeia TipoDeContrato (vindo da coluna dim_contratos_locacao.TipoDeContrato,
 // que o ETL classifica como: 'Assinatura'=PF, 'Terceirização de Frota'=PJ,
@@ -850,7 +851,6 @@ export function FaturamentoDashboardInner(): JSX.Element {
   //   Demais tipos:  SUM(itens.ValorTotal) onde TipoNota='Nota de débito' e IdSituacaoNota IN (1,2)
   //   Fallback:      se não há itens carregados, usa fatura.ValorTotal (evita gráfico vazio)
   //   QtdVeiculos:   COUNT(itens.IdVeiculo) mesmos filtros
-  const MESES_PT_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const evolucaoMensal = useMemo(() => {
     // '__init__' = ainda carregando filtro, assume Locação (padrão)
     const isLocacao = filtroTipoFaturamento === '__init__' || /loca/i.test(filtroTipoFaturamento);
