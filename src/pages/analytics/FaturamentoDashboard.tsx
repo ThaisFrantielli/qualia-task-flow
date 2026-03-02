@@ -3,7 +3,7 @@ import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import {
-  ResponsiveContainer, BarChart, Bar,
+  ResponsiveContainer, ComposedChart, BarChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList,
   PieChart, Pie,
 } from 'recharts';
@@ -77,7 +77,7 @@ function getNum(obj: AnyObject, ...keys: string[]): number {
 // ── fat_faturamentos
 const FID_KEYS   = ['IdNota', 'idnota', 'IdFaturamento', 'idfaturamento', 'id_faturamento', 'Id', 'id'];
 const FNOTA_KEYS  = ['Nota', 'nota', 'NumeroNota', 'numeronota', 'NF', 'nf'];
-const FDATA_KEYS  = ['DataEmissao', 'dataemissao', 'DataFaturamento', 'datafaturamento', 'DataCompetencia', 'datacompetencia', 'Data', 'data'];
+const FDATA_KEYS  = ['DataCompetencia', 'datacompetencia', 'DataEmissao', 'dataemissao', 'DataFaturamento', 'datafaturamento', 'Data', 'data'];
 const FCOMP_KEYS  = ['DataCompetencia', 'datacompetencia', 'DataEmissao', 'dataemissao'];
 const FCLIENTE_KEYS = ['Cliente', 'NomeCliente', 'nomecliente', 'ClienteNome', 'clientenome', 'RazaoSocial', 'razaosocial'];
 const FCONTRATO_KEYS = ['ContratoLocacao', 'contratolocacao', 'Contrato', 'NumeroContrato', 'numerocontrato'];
@@ -115,6 +115,19 @@ const STATUS_ABERTO = new Set(['aberto', 'pendente', 'a vencer', 'em aberto', 'o
 
 function isStatusPago(s: string) { return STATUS_PAGO.has(s.toLowerCase().trim()); }
 function isStatusAberto(s: string) { return STATUS_ABERTO.has(s.toLowerCase().trim()) || s === ''; }
+
+const MESES_PT_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+// Mapeia TipoDeContrato (vindo da coluna dim_contratos_locacao.TipoDeContrato,
+// que o ETL classifica como: 'Assinatura'=PF, 'Terceirização de Frota'=PJ,
+// 'Contrato Público'=Público)
+function resolveSegmento(tipoContrato: string): 'PF' | 'PJ' | 'Público' | 'Outros' {
+  const t = tipoContrato.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (/assinatura|\bpf\b|pessoa.*fis|fis.*pess/.test(t)) return 'PF';
+  if (/tercei|frota|\bpj\b|pessoa.*jur.*priv|priv.*jur|jur.*priv/.test(t)) return 'PJ';
+  if (/publi|governo|contrato.*pub|pub.*cont/.test(t)) return 'Público';
+  return 'Outros';
+}
 
 // ─── YearMonthPicker ─────────────────────────────────────────────────────────
 
@@ -270,6 +283,103 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
   );
 }
 
+// ─── DropdownFilter ──────────────────────────────────────────────────────────
+
+interface DropdownFilterProps {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  color?: 'indigo' | 'sky' | 'emerald' | 'violet';
+}
+
+function DropdownFilter({ label, options, value, onChange, color = 'indigo' }: DropdownFilterProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const displayLabel = value === 'Todos'
+    ? `${label}: Todos`
+    : `${label}: ${value.length > 22 ? value.slice(0, 20) + '\u2026' : value}`;
+
+  const colorMap = {
+    indigo: { btn: 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50', active: 'text-indigo-700 font-bold', check: 'bg-indigo-600 border-indigo-600' },
+    sky:    { btn: 'bg-sky-50 border-sky-200 text-sky-800 hover:bg-sky-100',       active: 'text-sky-700 font-bold',    check: 'bg-sky-600 border-sky-600' },
+    emerald:{ btn: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100', active: 'text-emerald-700 font-bold', check: 'bg-emerald-600 border-emerald-600' },
+    violet: { btn: 'bg-violet-50 border-violet-200 text-violet-800 hover:bg-violet-100',    active: 'text-violet-700 font-bold',  check: 'bg-violet-600 border-violet-600' },
+  } as const;
+
+  const c = colorMap[color];
+  const hasSelection = value !== 'Todos';
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-2 text-xs font-semibold border rounded-lg px-3 py-1.5 shadow-sm min-w-[140px] justify-between transition-colors ${
+          hasSelection ? c.btn + ' ring-1 ring-offset-0 ring-indigo-400' : c.btn
+        }`}
+      >
+        <span className="truncate max-w-[160px]">{displayLabel}</span>
+        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[220px] py-1 flex flex-col max-h-72">
+          {options.length > 8 && (
+            <div className="px-3 py-1.5 border-b border-slate-100">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Buscar\u2026"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full text-xs pl-6 pr-2 py-1 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-200 bg-slate-50"
+                />
+              </div>
+            </div>
+          )}
+          <div className="overflow-y-auto flex-1 min-h-0">
+            {filtered.length === 0 && (
+              <div className="px-4 py-3 text-xs text-slate-400">Nenhum resultado</div>
+            )}
+            {filtered.map(opt => {
+              const isSel = value === opt;
+              return (
+                <button
+                  key={opt}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 text-left ${
+                    isSel ? c.active : 'text-slate-700'
+                  }`}
+                  onClick={() => { onChange(opt); setOpen(false); setSearch(''); }}
+                >
+                  <span className={`w-3 h-3 rounded-full border flex items-center justify-center shrink-0 ${
+                    isSel ? c.check : 'border-slate-300'
+                  }`}>
+                    {isSel && <span className="text-white" style={{ fontSize: 7 }}>●</span>}
+                  </span>
+                  <span className="truncate">{opt}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function KpiCard({ icon, label, value, sub, color }:
@@ -338,7 +448,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const PAGE_SIZE = 20;
 
   const { results, loading, metadata } = useBIDataBatch(
-    ['fat_faturamentos', 'fat_faturamento_itens', 'dim_contratos_locacao'],
+    ['fat_faturamentos', 'fat_faturamento_itens', 'dim_contratos_locacao', 'dim_frota'],
     undefined,
     { params: { year: filtroAno } }
   );
@@ -354,6 +464,20 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const contratosLocacao = useMemo<AnyObject[]>(() => {
     return getBatchTable<AnyObject>(results, 'dim_contratos_locacao');
   }, [results]);
+
+  const dimFrota = useMemo<AnyObject[]>(() => {
+    return getBatchTable<AnyObject>(results, 'dim_frota');
+  }, [results]);
+
+  // Mapa: IdVeiculo → objeto dim_frota (para ValorCompra)
+  const frotaByIdVeiculo = useMemo(() => {
+    const m = new Map<string, AnyObject>();
+    for (const v of dimFrota) {
+      const id = String(v.IdVeiculo ?? v.idveiculo ?? '').trim();
+      if (id) m.set(id, v);
+    }
+    return m;
+  }, [dimFrota]);
 
   // Mapa: ContratoLocacao (número, uppercase) → objeto do contrato
   const contratoLocByNum = useMemo(() => {
@@ -627,7 +751,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
       }
       return true;
     });
-  }, [faturas, filtroAno, filtroStatus, filtroCliente, filtroContratoLoc, filtroContratoComercial, filtroTipoContrato, searchText, filtroMes, faturaToContrato]);
+  }, [faturas, filtroAno, filtroStatus, filtroCliente, filtroContratoLoc, filtroContratoComercial, filtroTipoContrato, filtroTipoFaturamento, searchText, filtroMes, faturaToContrato]);
 
   // Faturas sem filtro de mês — base para o gráfico (mantém todos os meses visíveis)
   const faturasSemFiltroMes = useMemo(() => {
@@ -678,7 +802,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
       }
       return true;
     });
-  }, [faturas, filtroAno, filtroStatus, filtroCliente, filtroContratoLoc, filtroContratoComercial, filtroTipoContrato, searchText, filtroMes, faturaToContrato, faturasFiltradas]);
+  }, [faturas, filtroAno, filtroStatus, filtroCliente, filtroContratoLoc, filtroContratoComercial, filtroTipoContrato, filtroTipoFaturamento, searchText, filtroMes, faturaToContrato, faturasFiltradas]);
 
   // ── KPIs
   const kpis = useMemo(() => {
@@ -696,25 +820,130 @@ export function FaturamentoDashboardInner(): JSX.Element {
     return { total, qtd, ticket, valorAberto, inadimplencia, qtdAbertas: abertas.length };
   }, [faturasFiltradas]);
 
+  // ── Itens por fatura — Map pré-computado para lookup O(1)
+  const itensByFaturaId = useMemo(() => {
+    const m = new Map<string, AnyObject[]>();
+    for (const item of itensBrutos) {
+      const idFat = getStr(item, ...IFAT_ID_KEYS);
+      if (!idFat) continue;
+      if (!m.has(idFat)) m.set(idFat, []);
+      m.get(idFat)!.push(item);
+    }
+    return m;
+  }, [itensBrutos]);
+
   // ── Evolução mensal
+  // Lógica Power BI:
+  //   Locação:       SUM(itens.ValorTotal) onde TipoNota='Fatura'   e IdSituacaoNota IN (1,2)
+  //   Demais tipos:  SUM(itens.ValorTotal) onde TipoNota='Nota de débito' e IdSituacaoNota IN (1,2)
+  //   Fallback:      se não há itens carregados, usa fatura.ValorTotal (evita gráfico vazio)
+  //   QtdVeiculos:   COUNT(itens.IdVeiculo) mesmos filtros
   const MESES_PT_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const evolucaoMensal = useMemo(() => {
-    const map = new Map<string, number>();
+    // TipoNota esperado para o tab atual
+    // '__init__' = ainda carregando, assume Locação (padrão)
+    const isLocacao = filtroTipoFaturamento === '__init__' || /loca/i.test(filtroTipoFaturamento);
+    const tipoNotaEsperado = isLocacao ? 'Fatura' : 'Nota de débito';
+
+    const valorMap       = new Map<string, number>();
+    const veiculosMap    = new Map<string, number>();
+    const veiculosDistMap = new Map<string, Set<string>>();
+
     for (const f of faturasSemFiltroMes) {
+      // Excluir cancelados (situação 3) — sempre, independente do tab
+      const situacao = String(f.IdSituacaoNota ?? f.idsituacaonota ?? '').trim();
+      if (situacao !== '1' && situacao !== '2') continue;
+
+      // Filtro TipoNota condicional por tab
+      const tipoNota = String(f.TipoNota ?? f.tiponota ?? '').trim();
+      if (tipoNota && tipoNota !== tipoNotaEsperado) continue;
+
       const d = getStr(f, ...FDATA_KEYS);
       if (!d) continue;
       const dt = new Date(d);
       if (!isFinite(dt.getTime())) continue;
       const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-      map.set(key, (map.get(key) ?? 0) + getNum(f, ...FVALOR_KEYS));
+      const id  = getStr(f, ...FID_KEYS);
+      const itens = id ? (itensByFaturaId.get(id) ?? []) : [];
+
+      if (itens.length > 0) {
+        // Caminho principal: soma dos itens (igual Power BI)
+        for (const item of itens) {
+          valorMap.set(key, (valorMap.get(key) ?? 0) + parseCurrency(item.ValorTotal ?? item.valortotal ?? 0));
+          const idVeiculo = String(item.IdVeiculo ?? item.idveiculo ?? '').trim();
+          if (idVeiculo && idVeiculo !== 'null' && idVeiculo !== '0') {
+            veiculosMap.set(key, (veiculosMap.get(key) ?? 0) + 1);
+            if (!veiculosDistMap.has(key)) veiculosDistMap.set(key, new Set());
+            veiculosDistMap.get(key)!.add(idVeiculo);
+          }
+        }
+      } else {
+        // Fallback: itens ainda não carregados — usa ValorTotal do header
+        // (garante que o gráfico nunca fica vazio enquanto itens carregam)
+        valorMap.set(key, (valorMap.get(key) ?? 0) + getNum(f, ...FVALOR_KEYS));
+      }
     }
-    return Array.from(map.entries())
+
+    return Array.from(valorMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([key, valor]) => {
         const month = parseInt(key.split('-')[1], 10) - 1;
-        return { mesKey: key, mes: MESES_PT_SHORT[month] ?? key, valor };
+        let valorCompra = 0;
+        const veiculosDistSet = veiculosDistMap.get(key);
+        if (veiculosDistSet) {
+          for (const idV of veiculosDistSet) {
+            const v = frotaByIdVeiculo.get(idV);
+            if (v) valorCompra += parseCurrency(v.ValorCompra ?? v.valorcompra ?? v.valor_compra ?? 0);
+          }
+        }
+        return {
+          mesKey: key,
+          mes: MESES_PT_SHORT[month] ?? key,
+          valor,
+          qtdVeiculos: veiculosMap.get(key) ?? 0,
+          valorCompra,
+        };
       });
-  }, [faturasSemFiltroMes]);
+  }, [faturasSemFiltroMes, itensByFaturaId, frotaByIdVeiculo, filtroTipoFaturamento]);
+
+  // ── Faturamento por Segmento (PF / PJ / Público) mensal
+  const segmentoMensal = useMemo(() => {
+    const map = new Map<string, { PF:[number,number]; PJ:[number,number]; Público:[number,number]; Outros:[number,number] }>();
+    for (const f of faturasFiltradas) {
+      const d = getStr(f, ...FDATA_KEYS);
+      if (!d) continue;
+      const dt = new Date(d);
+      if (!isFinite(dt.getTime())) continue;
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      const id = getStr(f, ...FID_KEYS);
+      const contrato = id ? faturaToContrato.get(id) : undefined;
+      // usar TipoLocacao diretamente (não DTIPO_CONT_KEYS que retorna TipoDeContrato)
+      const tipoLoc = contrato
+        ? String(getField(contrato, 'TipoLocacao', 'tipolocacao', 'TipoDeContrato', 'tipodecontrato') ?? '').trim()
+        : '';
+      const seg = resolveSegmento(tipoLoc);
+      const valor = getNum(f, ...FVALOR_KEYS);
+      if (!map.has(key)) map.set(key, { PF:[0,0], PJ:[0,0], Público:[0,0], Outros:[0,0] });
+      const row = map.get(key)!;
+      row[seg][0] += valor;
+      row[seg][1] += 1;
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, s]) => {
+        const month = parseInt(key.split('-')[1], 10) - 1;
+        const mes = `${key.split('-')[0]} ${MESES_PT_FULL[month] ?? key}`;
+        return {
+          mesKey: key, mes,
+          PF: s.PF[0],     qtdPF: s.PF[1],
+          PJ: s.PJ[0],     qtdPJ: s.PJ[1],
+          Publico: s.Público[0], qtdPublico: s.Público[1],
+          ticketPF:     s.PF[1]     > 0 ? s.PF[0]     / s.PF[1]     : 0,
+          ticketPJ:     s.PJ[1]     > 0 ? s.PJ[0]     / s.PJ[1]     : 0,
+          ticketPublico:s.Público[1] > 0 ? s.Público[0] / s.Público[1] : 0,
+        };
+      });
+  }, [faturasFiltradas, faturaToContrato]);
 
   // ── Top clientes
   const topClientes = useMemo(() => {
@@ -725,8 +954,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
     }
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([cliente, valor]) => ({ cliente: cliente.length > 30 ? cliente.slice(0, 28) + '…' : cliente, valor }));
+      .map(([cliente, valor]) => ({ cliente: cliente.length > 35 ? cliente.slice(0, 33) + '…' : cliente, valor }));
   }, [faturasFiltradas]);
 
   // ── Faturamento por Tipo (donut)
@@ -754,10 +982,6 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const totalPages = Math.max(1, Math.ceil(faturasFiltradas.length / PAGE_SIZE));
   const faturasPagina = faturasFiltradas.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // ── Itens de uma fatura
-  const itensDaFatura = (idFatura: string) =>
-    itensBrutos.filter(i => getStr(i, ...IFAT_ID_KEYS) === idFatura);
-
   // ── Metadados já vêm do hook diretamente via `metadata`
 
   if (loading) return <AnalyticsLoading message="Carregando dados de faturamento…" />;
@@ -781,7 +1005,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
         </div>
 
         {/* ── Filtros — Power BI style ────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
 
           {/* ── Linha 1: Tipo (tabs) + Busca ── */}
           <div className="flex flex-wrap items-center gap-3 px-4 pt-3 pb-3 border-b border-slate-100">
@@ -834,24 +1058,16 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
             <div className="w-px h-4 bg-slate-200" />
 
-            {/* Status — pills */}
+            {/* Status — dropdown */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</span>
-              <div className="flex flex-wrap gap-1">
-                {statusOptions.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => { setFiltroStatus(s); setPage(1); }}
-                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition-colors ${
-                      filtroStatus === s
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+              <DropdownFilter
+                label="Status"
+                options={statusOptions}
+                value={filtroStatus}
+                onChange={(v) => { setFiltroStatus(v); setPage(1); }}
+                color="indigo"
+              />
             </div>
           </div>
 
@@ -977,7 +1193,9 @@ export function FaturamentoDashboardInner(): JSX.Element {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           {/* Cabeçalho */}
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">FATURAMENTO LOCAÇÃO</h2>
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+              FATURAMENTO {(tabTipoSelecionada && tabTipoSelecionada !== '__init__' ? tabTipoSelecionada : 'Geral').toUpperCase()}
+            </h2>
             {filtroMes && (
               <button
                 onClick={() => { setFiltroMes(null); setPage(1); }}
@@ -991,8 +1209,18 @@ export function FaturamentoDashboardInner(): JSX.Element {
           <div className="flex flex-wrap gap-5 mb-4">
             <div className="flex items-center gap-1.5 text-xs text-slate-600">
               <div className="w-3 h-3 rounded-sm" style={{ background: '#4472c4' }} />
-              FaturamentoLocacaoEmitido
+              Faturamento{tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g,'') : 'Total'}Emitido
             </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <div className="w-3 h-0.5 rounded-sm" style={{ background: '#f59e0b' }} />
+              Qtd. Veículos Faturados
+            </div>
+            {evolucaoMensal.some(m => m.valorCompra > 0) && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <div className="w-3 h-0.5 rounded-sm" style={{ background: '#10b981' }} />
+                Valor Compra Veículos
+              </div>
+            )}
           </div>
           {/* Instrução interativa */}
           <p className="text-[10px] text-slate-400 mb-3 italic">
@@ -1009,15 +1237,16 @@ export function FaturamentoDashboardInner(): JSX.Element {
               const GAP = 12; // espaçamento estimado
               const chartWidth = Math.max(evolucaoMensal.length * (BAR_SIZE + GAP), VISIBLE_BARS * (BAR_SIZE + GAP));
               const viewportWidth = VISIBLE_BARS * (BAR_SIZE + GAP);
+              const hasValorCompra = evolucaoMensal.some(m => m.valorCompra > 0);
               return (
                 <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                   <div style={{ width: viewportWidth, minWidth: viewportWidth }}>
                     <div style={{ width: chartWidth }}>
-                      <BarChart
+                      <ComposedChart
                         width={chartWidth}
-                        height={300}
+                        height={320}
                         data={evolucaoMensal}
-                        margin={{ top: 28, right: 16, left: 0, bottom: 5 }}
+                        margin={{ top: 28, right: 56, left: 0, bottom: 5 }}
                         onClick={(data) => {
                           if (data?.activePayload?.[0]) {
                             const mesKey = (data.activePayload[0].payload as { mesKey: string }).mesKey;
@@ -1034,15 +1263,31 @@ export function FaturamentoDashboardInner(): JSX.Element {
                           tickLine={false}
                           axisLine={{ stroke: '#cbd5e1' }}
                         />
+                        {/* Eixo esquerdo — valores monetários */}
                         <YAxis
+                          yAxisId="left"
                           tickFormatter={(v) => fmtCompact(v)}
                           tick={{ fontSize: 10, fill: '#94a3b8' }}
                           tickLine={false}
                           axisLine={false}
                           width={72}
                         />
+                        {/* Eixo direito — quantidade de veículos */}
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          tick={{ fontSize: 10, fill: '#f59e0b' }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={36}
+                          allowDecimals={false}
+                        />
                         <Tooltip
-                          formatter={(v: number) => [fmtBRL(v), 'FaturamentoLocacaoEmitido']}
+                          formatter={(v: number | string, name: string) => {
+                            if (name === 'qtdVeiculos') return [v, 'Qtd. Veículos'];
+                            if (name === 'valorCompra') return [fmtBRL(Number(v)), 'Valor Compra'];
+                            return [fmtBRL(Number(v)), `Faturamento${tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g,'') : 'Total'}Emitido`];
+                          }}
                           contentStyle={{
                             borderRadius: '0.5rem',
                             border: '1px solid #e2e8f0',
@@ -1052,8 +1297,9 @@ export function FaturamentoDashboardInner(): JSX.Element {
                           cursor={{ fill: 'rgba(68,114,196,0.07)' }}
                         />
                         <Bar
+                          yAxisId="left"
                           dataKey="valor"
-                          name="FaturamentoLocacaoEmitido"
+                          name={`Faturamento${tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g,'') : 'Total'}Emitido`}
                           radius={[2, 2, 0, 0]}
                           barSize={BAR_SIZE}
                         >
@@ -1070,7 +1316,39 @@ export function FaturamentoDashboardInner(): JSX.Element {
                             style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }}
                           />
                         </Bar>
-                      </BarChart>
+                        {/* Linha: quantidade de veículos faturados */}
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="qtdVeiculos"
+                          name="qtdVeiculos"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }}
+                          activeDot={{ r: 5 }}
+                        >
+                          <LabelList
+                            dataKey="qtdVeiculos"
+                            position="top"
+                            formatter={(v: number) => v > 0 ? v : ''}
+                            style={{ fontSize: 8, fill: '#b45309', fontWeight: 600 }}
+                          />
+                        </Line>
+                        {/* Linha: valor de compra — só se houver dados */}
+                        {hasValorCompra && (
+                          <Line
+                            yAxisId="left"
+                            type="monotone"
+                            dataKey="valorCompra"
+                            name="valorCompra"
+                            stroke="#10b981"
+                            strokeWidth={2}
+                            strokeDasharray="4 3"
+                            dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }}
+                            activeDot={{ r: 5 }}
+                          />
+                        )}
+                      </ComposedChart>
                     </div>
                   </div>
                 </div>
@@ -1080,7 +1358,59 @@ export function FaturamentoDashboardInner(): JSX.Element {
         </div>
 
         {/* Top Clientes */}
-        {/* ── Donuts: Tipo + Status ──────────────────────────────────── */}
+        {/* Gráficos de Segmento */}
+        {segmentoMensal.length > 0 && (() => {
+          const SEG_COLORS = { PF: '#4ade80', PJ: '#fb923c', Publico: '#a78bfa' };
+          return (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {/* Faturamento por Segmento */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Faturamento Locação por Segmento</h2>
+                <div className="flex gap-5 mb-4">
+                  {(['PF','PJ','Público'] as const).map(seg => (
+                    <div key={seg} className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <div className="w-3 h-3 rounded-sm" style={{ background: SEG_COLORS[seg === 'Público' ? 'Publico' : seg] }} />{seg}
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={segmentoMensal} margin={{ top: 22, right: 16, left: 0, bottom: 4 }} barCategoryGap="30%" barGap={3}>
+                    <CartesianGrid stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+                    <YAxis tickFormatter={(v) => fmtCompact(v)} tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={68} />
+                    <Tooltip formatter={(v: number, n: string) => [fmtBRL(v), n === 'Publico' ? 'Público' : n]} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
+                    <Bar dataKey="PF" fill={SEG_COLORS.PF} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="PF" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="PJ" fill={SEG_COLORS.PJ} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="PJ" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="Publico" name="Público" fill={SEG_COLORS.Publico} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="Publico" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Ticket Médio por Segmento */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Ticket Médio de Faturamento</h2>
+                <div className="flex gap-5 mb-4">
+                  {(['PF','PJ','Público'] as const).map(seg => (
+                    <div key={seg} className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <div className="w-3 h-3 rounded-sm" style={{ background: SEG_COLORS[seg === 'Público' ? 'Publico' : seg] }} />{seg}
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={segmentoMensal} margin={{ top: 22, right: 16, left: 0, bottom: 4 }} barCategoryGap="30%" barGap={3}>
+                    <CartesianGrid stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+                    <YAxis tickFormatter={(v) => fmtCompact(v)} tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={68} />
+                    <Tooltip formatter={(v: number, n: string) => [fmtBRL(v), n === 'ticketPublico' ? 'Público' : n === 'ticketPF' ? 'PF' : 'PJ']} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
+                    <Bar dataKey="ticketPF" name="PF" fill={SEG_COLORS.PF} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="ticketPF" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="ticketPJ" name="PJ" fill={SEG_COLORS.PJ} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="ticketPJ" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="ticketPublico" name="Público" fill={SEG_COLORS.Publico} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="ticketPublico" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          );
+        })()}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Donut — Tipo de Faturamento */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -1150,24 +1480,26 @@ export function FaturamentoDashboardInner(): JSX.Element {
         {/* Top Clientes */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="text-base font-semibold text-slate-800 mb-1">Ranking de Clientes</h2>
-          <p className="text-xs text-slate-400 mb-5">Top 10 clientes por valor total faturado</p>
+          <p className="text-xs text-slate-400 mb-5">{topClientes.length} clientes · por valor total faturado</p>
           {topClientes.length === 0 ? (
             <div className="flex items-center justify-center h-24 text-slate-400 text-sm">Sem dados para exibir</div>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={topClientes} layout="vertical" margin={{ top: 0, right: 80, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                <XAxis type="number" tickFormatter={(v) => fmtCompact(v)} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                <YAxis dataKey="cliente" type="category" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} width={160} />
-                <Tooltip
-                  formatter={(v: number) => [fmtBRL(v), 'Faturado']}
-                  contentStyle={{ borderRadius: '0.75rem', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                />
-                <Bar dataKey="valor" fill="#6366f1" radius={[0, 6, 6, 0]}>
-                  <LabelList dataKey="valor" position="right" formatter={(v: number) => fmtCompact(v)} style={{ fontSize: 10, fill: '#64748b' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
+              <ResponsiveContainer width="100%" height={Math.max(200, topClientes.length * 28 + 20)}>
+                <BarChart data={topClientes} layout="vertical" margin={{ top: 0, right: 80, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => fmtCompact(v)} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="cliente" type="category" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false} width={160} />
+                  <Tooltip
+                    formatter={(v: number) => [fmtBRL(v), 'Faturado']}
+                    contentStyle={{ borderRadius: '0.75rem', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                  />
+                  <Bar dataKey="valor" fill="#6366f1" radius={[0, 6, 6, 0]}>
+                    <LabelList dataKey="valor" position="right" formatter={(v: number) => fmtCompact(v)} style={{ fontSize: 10, fill: '#64748b' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
 
@@ -1218,7 +1550,6 @@ export function FaturamentoDashboardInner(): JSX.Element {
                       : isStatusAberto(status)
                         ? 'bg-amber-100 text-amber-700'
                         : 'bg-slate-100 text-slate-600';
-                    const itens = itensDaFatura(id);
                     const contrato = faturaToContrato.get(id);
                     const clienteNome = resolveCliente(f);
                     const contratoLocNum = contrato
@@ -1292,13 +1623,15 @@ export function FaturamentoDashboardInner(): JSX.Element {
                         </tr>
 
                         {/* ── Drill-down ─────────────────────────────────────────────── */}
-                        {isExpanded && (
+                        {isExpanded && (() => {
+                          const itens = itensByFaturaId.get(id) ?? [];
+                          return (
                           <tr key={`items-${id}`} className="bg-indigo-50/60">
                             <td colSpan={12} className="px-6 py-4">
                               <div className="rounded-xl border border-indigo-100 bg-white overflow-hidden">
 
-                                {/* Cabeçalho do drill-down com info do contrato */}
-                                <div className="px-4 py-3 border-b border-indigo-100 bg-indigo-50 flex flex-wrap items-start gap-6">
+                                {/* Cabeçalho resumo da fatura */}
+                                <div className="px-4 py-3 border-b border-indigo-100 bg-indigo-50 flex flex-wrap items-center gap-x-6 gap-y-2">
                                   <div>
                                     <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-0.5">NF / Fatura</p>
                                     <p className="text-sm font-bold text-indigo-700">#{nfNum}</p>
@@ -1309,25 +1642,25 @@ export function FaturamentoDashboardInner(): JSX.Element {
                                   </div>
                                   {contratoLocNum && (
                                     <div>
-                                      <p className="text-[10px] font-semibold text-sky-400 uppercase tracking-wider mb-0.5">Contrato Locação</p>
+                                      <p className="text-[10px] font-semibold text-sky-400 uppercase tracking-wider mb-0.5">Cont. Locação</p>
                                       <p className="text-sm font-mono text-sky-700">{contratoLocNum}</p>
                                     </div>
                                   )}
                                   {contratoComNum && (
                                     <div>
-                                      <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-0.5">Contrato Comercial</p>
+                                      <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-0.5">Cont. Comercial</p>
                                       <p className="text-sm font-mono text-emerald-700">{contratoComNum}</p>
                                     </div>
                                   )}
                                   {tipoContrato && (
                                     <div>
                                       <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-0.5">Tipo</p>
-                                      <p className="text-sm text-violet-700">{tipoContrato}</p>
+                                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">{tipoContrato}</span>
                                     </div>
                                   )}
                                   {situacaoCont && (
                                     <div>
-                                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Situação Contrato</p>
+                                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Situação</p>
                                       <p className="text-sm text-slate-600">{situacaoCont}</p>
                                     </div>
                                   )}
@@ -1417,7 +1750,8 @@ export function FaturamentoDashboardInner(): JSX.Element {
                               </div>
                             </td>
                           </tr>
-                        )}
+                          );
+                        })()}
                       </React.Fragment>
                     );
                   })

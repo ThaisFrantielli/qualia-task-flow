@@ -164,6 +164,7 @@ interface TableRequest {
   table: string;
   fields?: string[];
   limit: number;
+  year?: number;
 }
 
 function parseTableRequests(tablesStr: string, fieldsStr?: string, limitDefault = 50000): TableRequest[] {
@@ -204,13 +205,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const limitParam = req.query.limit;
   const limitDefault = limitParam ? Math.min(parseInt(String(limitParam), 10), 100000) : 50000;
   const fieldsParam = typeof req.query.fields === 'string' ? req.query.fields : (Array.isArray(req.query.fields) ? String(req.query.fields[0]) : undefined);
+  const yearParam = req.query.year ? parseInt(String(req.query.year), 10) : undefined;
+  const validYear = yearParam && yearParam > 2000 && yearParam < 2100 ? yearParam : undefined;
 
-  const requests = parseTableRequests(rawTables, fieldsParam, limitDefault);
+  const requests = parseTableRequests(rawTables, fieldsParam, limitDefault).map(r => ({ ...r, year: validYear }));
   if (requests.length === 0) {
     return res.status(400).json({ error: 'No valid tables requested' });
   }
 
-  const batchCacheKey = `batch_${rawTables}_${fieldsParam || '*'}_${limitDefault}`;
+  const batchCacheKey = `batch_${rawTables}_${fieldsParam || '*'}_${limitDefault}_y${validYear ?? 'all'}`;
   const cached = cache.get(batchCacheKey);
   if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
@@ -238,6 +241,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let result;
         if (r.table === 'dim_contratos_locacao') {
           result = await client.query(buildContratosQuery(), [r.limit]);
+        } else if (r.table === 'fat_faturamentos') {
+          // Filtrar por ano se fornecido; ORDER BY DataCompetencia DESC para pegar os mais recentes
+          if (r.year) {
+            result = await client.query(
+              `SELECT * FROM public."fat_faturamentos"
+               WHERE EXTRACT(YEAR FROM "DataCompetencia"::timestamp) = $2
+               ORDER BY "DataCompetencia" DESC LIMIT $1`,
+              [r.limit, r.year]
+            );
+          } else {
+            result = await client.query(
+              `SELECT * FROM public."fat_faturamentos" ORDER BY "DataCompetencia" DESC LIMIT $1`,
+              [r.limit]
+            );
+          }
+        } else if (r.table === 'fat_faturamento_itens') {
+          // Filtrar itens pelo ano das faturas correspondentes
+          if (r.year) {
+            result = await client.query(
+              `SELECT i.* FROM public."fat_faturamento_itens" i
+               INNER JOIN public."fat_faturamentos" f ON f."IdNota" = i."IdNota"
+               WHERE EXTRACT(YEAR FROM f."DataCompetencia"::timestamp) = $2
+               ORDER BY i."DataAtualizacaoDados" DESC LIMIT $1`,
+              [r.limit, r.year]
+            );
+          } else {
+            result = await client.query(
+              `SELECT * FROM public."fat_faturamento_itens" ORDER BY "DataAtualizacaoDados" DESC LIMIT $1`,
+              [r.limit]
+            );
+          }
         } else if (r.fields && r.fields.length > 0) {
           const cols = r.fields.filter(f => FIELD_REGEX.test(f)).map(f => `"${f}"`).join(', ');
           result = await client.query(
