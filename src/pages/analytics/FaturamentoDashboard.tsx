@@ -849,7 +849,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
     const veiculosDistMap = new Map<string, Set<string>>();
 
     for (const f of faturasSemFiltroMes) {
-      // Excluir cancelados — IdSituacaoNota 3 = cancelado
+      // Excluir cancelados — IdSituacaoNota '3' = cancelado
       const situacao = String(f.IdSituacaoNota ?? f.idsituacaonota ?? '').trim();
       if (situacao === '3') continue;
 
@@ -859,32 +859,35 @@ export function FaturamentoDashboardInner(): JSX.Element {
       if (!isFinite(dt.getTime())) continue;
       const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
 
-      // Valor: usa campo específico do header (não depende de itens para o valor)
-      // - Locação → ValorLocacao (equivale ao SUM(itens.ValorTotal) power BI)
-      // - Reembolsáveis → ValorReembolsaveis
-      // - Demais (total) → ValorTotal
-      let valor = 0;
-      if (isLocacao) {
-        valor = getNum(f, ...FVALLOC_KEYS);
-        if (valor === 0) valor = getNum(f, ...FVALOR_KEYS); // fallback se campo não existir
-      } else if (isReemb) {
-        valor = getNum(f, ...FVALREEMB_KEYS);
-        if (valor === 0) valor = getNum(f, ...FVALOR_KEYS);
-      } else {
-        valor = getNum(f, ...FVALOR_KEYS);
-      }
-      valorMap.set(key, (valorMap.get(key) ?? 0) + valor);
-
-      // Qtd Veículos: usa itens quando disponíveis (COUNT, não distinto — igual Power BI)
       const id    = getStr(f, ...FID_KEYS);
       const itens = id ? (itensByFaturaId.get(id) ?? []) : [];
-      for (const item of itens) {
-        const idVeiculo = String(item.IdVeiculo ?? item.idveiculo ?? '').trim();
-        if (idVeiculo && idVeiculo !== 'null' && idVeiculo !== '0') {
-          veiculosMap.set(key, (veiculosMap.get(key) ?? 0) + 1);
-          if (!veiculosDistMap.has(key)) veiculosDistMap.set(key, new Set());
-          veiculosDistMap.get(key)!.add(idVeiculo);
+
+      if (itens.length > 0) {
+        // Caminho principal (Power BI): SUM(itens.ValorTotal)
+        let valorItens = 0;
+        for (const item of itens) {
+          valorItens += parseCurrency(item.ValorTotal ?? item.valortotal ?? 0);
+          const idVeiculo = String(item.IdVeiculo ?? item.idveiculo ?? '').trim();
+          if (idVeiculo && idVeiculo !== 'null' && idVeiculo !== '0') {
+            veiculosMap.set(key, (veiculosMap.get(key) ?? 0) + 1);
+            if (!veiculosDistMap.has(key)) veiculosDistMap.set(key, new Set());
+            veiculosDistMap.get(key)!.add(idVeiculo);
+          }
         }
+        valorMap.set(key, (valorMap.get(key) ?? 0) + valorItens);
+      } else {
+        // Fallback enquanto itens não carregam: usa campo específico do header
+        let valor = 0;
+        if (isLocacao) {
+          valor = getNum(f, ...FVALLOC_KEYS);
+          if (valor === 0) valor = getNum(f, ...FVALOR_KEYS);
+        } else if (isReemb) {
+          valor = getNum(f, ...FVALREEMB_KEYS);
+          if (valor === 0) valor = getNum(f, ...FVALOR_KEYS);
+        } else {
+          valor = getNum(f, ...FVALOR_KEYS);
+        }
+        valorMap.set(key, (valorMap.get(key) ?? 0) + valor);
       }
     }
 

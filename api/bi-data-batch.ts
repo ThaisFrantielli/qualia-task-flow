@@ -242,11 +242,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (r.table === 'dim_contratos_locacao') {
           result = await client.query(buildContratosQuery(), [r.limit]);
         } else if (r.table === 'fat_faturamentos') {
-          // Filtrar por ano se fornecido; ORDER BY DataCompetencia DESC para pegar os mais recentes
+          // DataCompetencia é TEXT no formato ISO '2026-01-01T...' — usar LEFT() para filtrar por ano
           if (r.year) {
             result = await client.query(
               `SELECT * FROM public."fat_faturamentos"
-               WHERE EXTRACT(YEAR FROM "DataCompetencia"::timestamp) = $2
+               WHERE LEFT("DataCompetencia", 4) = CAST($2 AS TEXT)
                ORDER BY "DataCompetencia" DESC LIMIT $1`,
               [r.limit, r.year]
             );
@@ -257,18 +257,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             );
           }
         } else if (r.table === 'fat_faturamento_itens') {
-          // Filtrar itens pelo ano das faturas correspondentes
+          // Filtrar itens pelo ano da fatura via JOIN — DataCompetencia é TEXT
           if (r.year) {
             result = await client.query(
               `SELECT i.* FROM public."fat_faturamento_itens" i
                INNER JOIN public."fat_faturamentos" f ON f."IdNota" = i."IdNota"
-               WHERE EXTRACT(YEAR FROM f."DataCompetencia"::timestamp) = $2
-               ORDER BY i."DataAtualizacaoDados" DESC LIMIT $1`,
+               WHERE LEFT(f."DataCompetencia", 4) = CAST($2 AS TEXT)
+               ORDER BY i."IdItemNota" ASC LIMIT $1`,
               [r.limit, r.year]
             );
           } else {
             result = await client.query(
-              `SELECT * FROM public."fat_faturamento_itens" ORDER BY "DataAtualizacaoDados" DESC LIMIT $1`,
+              `SELECT i.* FROM public."fat_faturamento_itens" i
+               INNER JOIN public."fat_faturamentos" f ON f."IdNota" = i."IdNota"
+               ORDER BY f."DataCompetencia" DESC, i."IdItemNota" ASC LIMIT $1`,
               [r.limit]
             );
           }

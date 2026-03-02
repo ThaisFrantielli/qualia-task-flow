@@ -101,18 +101,22 @@ async function handleBatch(req, res) {
     try {
       let rows;
       if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
-        // Detectar colunas de data disponíveis e aplicar filtro por ano
-        const colRes = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = $1`, [safeTable]);
-        const cols = colRes.rows.map(r => String(r.column_name));
-        const candidateDateCols = ['DataEmissao','dataemissao','DataFaturamento','datafaturamento','DataCompetencia','datacompetencia','Data','data'];
-        const found = candidateDateCols.filter(c => cols.includes(c));
-        if (found.length) {
-          const whereParts = found.map((c, i) => `EXTRACT(YEAR FROM "${c}") = $1`);
-          const query = `SELECT * FROM "${safeTable}" WHERE (${whereParts.join(' OR ')})`;
-          const resp = await pool.query(query, [Number(yearParam)]);
+        if (table === 'fat_faturamentos') {
+          // DataCompetencia é TEXT formato '2026-01-01T...' — filtrar por LEFT(col,4)
+          const resp = await pool.query(
+            `SELECT * FROM "${safeTable}" WHERE LEFT("DataCompetencia", 4) = $1 ORDER BY "DataCompetencia" DESC`,
+            [String(yearParam)]
+          );
           rows = resp.rows;
         } else {
-          const resp = await pool.query(`SELECT * FROM "${safeTable}" LIMIT 10000`);
+          // fat_faturamento_itens: JOIN para filtrar pelo ano da fatura
+          const resp = await pool.query(
+            `SELECT i.* FROM "${safeTable}" i
+             INNER JOIN public.fat_faturamentos f ON f."IdNota" = i."IdNota"
+             WHERE LEFT(f."DataCompetencia", 4) = $1
+             ORDER BY i."IdItemNota" ASC`,
+            [String(yearParam)]
+          );
           rows = resp.rows;
         }
       } else {
@@ -163,17 +167,20 @@ async function handleSingle(req, res) {
   const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
   let rows;
   if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
-    const colRes = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = $1`, [safeTable]);
-    const cols = colRes.rows.map(r => String(r.column_name));
-    const candidateDateCols = ['DataEmissao','dataemissao','DataFaturamento','datafaturamento','DataCompetencia','datacompetencia','Data','data'];
-    const found = candidateDateCols.filter(c => cols.includes(c));
-    if (found.length) {
-      const whereParts = found.map((c, i) => `EXTRACT(YEAR FROM "${c}") = $1`);
-      const q = `SELECT * FROM "${safeTable}" WHERE (${whereParts.join(' OR ')})`;
-      const resp = await pool.query(q, [Number(yearParam)]);
+    if (table === 'fat_faturamentos') {
+      const resp = await pool.query(
+        `SELECT * FROM "${safeTable}" WHERE LEFT("DataCompetencia", 4) = $1 ORDER BY "DataCompetencia" DESC`,
+        [String(yearParam)]
+      );
       rows = resp.rows;
     } else {
-      const resp = await pool.query(`SELECT * FROM "${safeTable}" LIMIT 10000`);
+      const resp = await pool.query(
+        `SELECT i.* FROM "${safeTable}" i
+         INNER JOIN public.fat_faturamentos f ON f."IdNota" = i."IdNota"
+         WHERE LEFT(f."DataCompetencia", 4) = $1
+         ORDER BY i."IdItemNota" ASC`,
+        [String(yearParam)]
+      );
       rows = resp.rows;
     }
   } else {
