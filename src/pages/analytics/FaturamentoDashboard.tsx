@@ -840,47 +840,51 @@ export function FaturamentoDashboardInner(): JSX.Element {
   //   QtdVeiculos:   COUNT(itens.IdVeiculo) mesmos filtros
   const MESES_PT_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const evolucaoMensal = useMemo(() => {
-    // TipoNota esperado para o tab atual
-    // '__init__' = ainda carregando, assume Locação (padrão)
+    // '__init__' = ainda carregando filtro, assume Locação (padrão)
     const isLocacao = filtroTipoFaturamento === '__init__' || /loca/i.test(filtroTipoFaturamento);
-    const tipoNotaEsperado = isLocacao ? 'Fatura' : 'Nota de débito';
+    const isReemb   = /reembol/i.test(filtroTipoFaturamento);
 
-    const valorMap       = new Map<string, number>();
-    const veiculosMap    = new Map<string, number>();
+    const valorMap        = new Map<string, number>();
+    const veiculosMap     = new Map<string, number>();
     const veiculosDistMap = new Map<string, Set<string>>();
 
     for (const f of faturasSemFiltroMes) {
-      // Excluir cancelados (situação 3) — sempre, independente do tab
+      // Excluir cancelados — IdSituacaoNota 3 = cancelado
       const situacao = String(f.IdSituacaoNota ?? f.idsituacaonota ?? '').trim();
-      if (situacao !== '1' && situacao !== '2') continue;
-
-      // Filtro TipoNota condicional por tab
-      const tipoNota = String(f.TipoNota ?? f.tiponota ?? '').trim();
-      if (tipoNota && tipoNota !== tipoNotaEsperado) continue;
+      if (situacao === '3') continue;
 
       const d = getStr(f, ...FDATA_KEYS);
       if (!d) continue;
       const dt = new Date(d);
       if (!isFinite(dt.getTime())) continue;
       const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-      const id  = getStr(f, ...FID_KEYS);
-      const itens = id ? (itensByFaturaId.get(id) ?? []) : [];
 
-      if (itens.length > 0) {
-        // Caminho principal: soma dos itens (igual Power BI)
-        for (const item of itens) {
-          valorMap.set(key, (valorMap.get(key) ?? 0) + parseCurrency(item.ValorTotal ?? item.valortotal ?? 0));
-          const idVeiculo = String(item.IdVeiculo ?? item.idveiculo ?? '').trim();
-          if (idVeiculo && idVeiculo !== 'null' && idVeiculo !== '0') {
-            veiculosMap.set(key, (veiculosMap.get(key) ?? 0) + 1);
-            if (!veiculosDistMap.has(key)) veiculosDistMap.set(key, new Set());
-            veiculosDistMap.get(key)!.add(idVeiculo);
-          }
-        }
+      // Valor: usa campo específico do header (não depende de itens para o valor)
+      // - Locação → ValorLocacao (equivale ao SUM(itens.ValorTotal) power BI)
+      // - Reembolsáveis → ValorReembolsaveis
+      // - Demais (total) → ValorTotal
+      let valor = 0;
+      if (isLocacao) {
+        valor = getNum(f, ...FVALLOC_KEYS);
+        if (valor === 0) valor = getNum(f, ...FVALOR_KEYS); // fallback se campo não existir
+      } else if (isReemb) {
+        valor = getNum(f, ...FVALREEMB_KEYS);
+        if (valor === 0) valor = getNum(f, ...FVALOR_KEYS);
       } else {
-        // Fallback: itens ainda não carregados — usa ValorTotal do header
-        // (garante que o gráfico nunca fica vazio enquanto itens carregam)
-        valorMap.set(key, (valorMap.get(key) ?? 0) + getNum(f, ...FVALOR_KEYS));
+        valor = getNum(f, ...FVALOR_KEYS);
+      }
+      valorMap.set(key, (valorMap.get(key) ?? 0) + valor);
+
+      // Qtd Veículos: usa itens quando disponíveis (COUNT, não distinto — igual Power BI)
+      const id    = getStr(f, ...FID_KEYS);
+      const itens = id ? (itensByFaturaId.get(id) ?? []) : [];
+      for (const item of itens) {
+        const idVeiculo = String(item.IdVeiculo ?? item.idveiculo ?? '').trim();
+        if (idVeiculo && idVeiculo !== 'null' && idVeiculo !== '0') {
+          veiculosMap.set(key, (veiculosMap.get(key) ?? 0) + 1);
+          if (!veiculosDistMap.has(key)) veiculosDistMap.set(key, new Set());
+          veiculosDistMap.get(key)!.add(idVeiculo);
+        }
       }
     }
 
