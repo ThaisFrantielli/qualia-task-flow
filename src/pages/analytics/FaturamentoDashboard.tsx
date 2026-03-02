@@ -53,6 +53,20 @@ function fmtDate(v: any): string {
   } catch { return String(v); }
 }
 
+/**
+ * Extrai 'YYYY-MM' de uma string de data ISO sem conversão de fuso horário.
+ * DataCompetencia vem como '2026-01-01T00:00:00.000+00:00' (UTC).
+ * Usar new Date() em UTC-3 deslocaria o mês para -1 (bug timezone).
+ */
+function isoYearMonth(d: string): string | null {
+  const m = d.match(/^(\d{4})-(\d{2})/);
+  return m ? `${m[1]}-${m[2]}` : null;
+}
+function isoYear(d: string): number {
+  const m = d.match(/^(\d{4})/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
 /** Resolve campo de um objeto ignorando case e variações de nome */
 function getField(obj: AnyObject, ...keys: string[]): any {
   const lowerMap: AnyObject = {};
@@ -616,7 +630,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
     const s = new Set<number>();
     for (const f of faturas) {
       const d = getStr(f, ...FDATA_KEYS) || getStr(f, ...FCOMP_KEYS);
-      if (d) { const y = new Date(d).getFullYear(); if (isFinite(y) && y > 2000) s.add(y); }
+      if (d) { const y = isoYear(d); if (y > 2000) s.add(y); }
     }
     return [0, ...Array.from(s).sort((a, b) => b - a)];
   }, [faturas]);
@@ -627,10 +641,10 @@ export function FaturamentoDashboardInner(): JSX.Element {
     for (const f of faturas) {
       const d = getStr(f, ...FDATA_KEYS) || getStr(f, ...FCOMP_KEYS);
       if (!d) continue;
-      const dt = new Date(d);
-      if (!isFinite(dt.getTime())) continue;
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-      const label = `${dt.toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}/${dt.getFullYear()}`;
+      const key = isoYearMonth(d);
+      if (!key) continue;
+      const [yr, mo] = key.split('-');
+      const label = `${MESES_PT_SHORT[parseInt(mo, 10) - 1] ?? mo}/${yr}`;
       s.add(`${key}|${label}`);
     }
     const arr = Array.from(s).map(x => {
@@ -704,7 +718,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
       if (filtroAno !== 0) {
         const d = getStr(f, ...FDATA_KEYS) || getStr(f, ...FCOMP_KEYS);
-        if (!d || new Date(d).getFullYear() !== filtroAno) return false;
+        if (!d || isoYear(d) !== filtroAno) return false;
       }
       if (filtroStatus !== 'Todos') {
         const s = getStr(f, ...FSTATUS_KEYS);
@@ -734,10 +748,8 @@ export function FaturamentoDashboardInner(): JSX.Element {
       if (filtroMes) {
         const d = getStr(f, ...FDATA_KEYS) || getStr(f, ...FCOMP_KEYS);
         if (!d) return false;
-        const dt = new Date(d);
-        if (!isFinite(dt.getTime())) return false;
-        const mk = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-        if (mk !== filtroMes) return false;
+        const mk = isoYearMonth(d);
+        if (!mk || mk !== filtroMes) return false;
       }
       if (searchText.trim()) {
         const q = searchText.toLowerCase();
@@ -763,7 +775,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
       if (filtroAno !== 0) {
         const d = getStr(f, ...FDATA_KEYS) || getStr(f, ...FCOMP_KEYS);
-        if (!d || new Date(d).getFullYear() !== filtroAno) return false;
+        if (!d || isoYear(d) !== filtroAno) return false;
       }
       if (filtroStatus !== 'Todos') {
         const s = getStr(f, ...FSTATUS_KEYS);
@@ -855,9 +867,8 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
       const d = getStr(f, ...FDATA_KEYS);
       if (!d) continue;
-      const dt = new Date(d);
-      if (!isFinite(dt.getTime())) continue;
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      const key = isoYearMonth(d);
+      if (!key) continue;
 
       const id    = getStr(f, ...FID_KEYS);
       const itens = id ? (itensByFaturaId.get(id) ?? []) : [];
@@ -919,9 +930,8 @@ export function FaturamentoDashboardInner(): JSX.Element {
     for (const f of faturasFiltradas) {
       const d = getStr(f, ...FDATA_KEYS);
       if (!d) continue;
-      const dt = new Date(d);
-      if (!isFinite(dt.getTime())) continue;
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      const key = isoYearMonth(d);
+      if (!key) continue;
       const id = getStr(f, ...FID_KEYS);
       const contrato = id ? faturaToContrato.get(id) : undefined;
       // usar TipoLocacao diretamente (não DTIPO_CONT_KEYS que retorna TipoDeContrato)
