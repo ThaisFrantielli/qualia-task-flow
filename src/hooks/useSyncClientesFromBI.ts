@@ -93,31 +93,38 @@ export function useSyncClientesFromBI() {
         throw fetchError;
       }
 
+      // Normalização consistente — mesma lógica usada no loop abaixo
+      const normCod = (s?: string | null) => (s ?? '').toLowerCase().trim();
+      const normDoc = (s?: string | null) => (s ?? '').replace(/\D/g, '').trim();
+
       // Criar sets para verificação rápida
       const existingCodigos = new Set(
-        existingClientes?.map(c => c.codigo_cliente?.toLowerCase().trim()).filter(Boolean) || []
+        existingClientes?.map(c => normCod(c.codigo_cliente)).filter(Boolean) || []
       );
       const existingCnpjs = new Set(
-        existingClientes?.map(c => c.cpf_cnpj?.replace(/\D/g, '').trim()).filter(Boolean) || []
+        existingClientes?.map(c => normDoc(c.cpf_cnpj)).filter(Boolean) || []
       );
 
       // Filtrar apenas clientes novos
       const novosClientes: AnyObject[] = [];
       // Mapa do codigo_cliente final → registro BI original (para lookup de contatos)
       const biMapByCodigo: Record<string, AnyObject> = {};
+      // Set in-memory p/ evitar duplicatas dentro do próprio lote do BI
+      const batchCodigos = new Set<string>();
+      const batchCnpjs = new Set<string>();
 
       for (const cliente of biClientes) {
         // IdCliente é o identificador primário do BI (ex: "271181", "29980")
-        const codigoOriginal = String(
+        const codigoOriginal = normCod(
           cliente.IdCliente || cliente.id_cliente ||
           cliente.codigo_cliente || cliente.CodigoCliente || cliente.Codigo || cliente.Id || ''
-        ).toLowerCase().trim();
+        );
 
         // CPF (Pessoa Física) fica em campo separado `CPF` no JSON do BI
-        const cnpj = String(
+        const cnpj = normDoc(
           cliente.cpf_cnpj || cliente.CNPJ || cliente.CPF ||
           cliente.CpfCnpj || cliente.CPF_CNPJ || ''
-        ).replace(/\D/g, '').trim();
+        );
 
         const razaoSocial = (cliente.razao_social || cliente.RazaoSocial || cliente.Nome || cliente.NomeCliente || '') as string;
 
@@ -130,9 +137,9 @@ export function useSyncClientesFromBI() {
           continue;
         }
 
-        // Verificar se já existe
-        const codigoExiste = existingCodigos.has(codigo);
-        const cnpjExiste = cnpj && existingCnpjs.has(cnpj);
+        // Verificar se já existe no banco OU já está no lote atual (duplicata interna do BI)
+        const codigoExiste = existingCodigos.has(codigo) || batchCodigos.has(codigo);
+        const cnpjExiste = cnpj.length > 0 && (existingCnpjs.has(cnpj) || batchCnpjs.has(cnpj));
 
         if (codigoExiste || cnpjExiste) {
           result.skipped++;
@@ -166,6 +173,8 @@ export function useSyncClientesFromBI() {
 
         novosClientes.push(novoCliente);
         biMapByCodigo[codigo] = cliente;
+        batchCodigos.add(codigo);
+        if (cnpj) batchCnpjs.add(cnpj);
       }
 
       if (novosClientes.length === 0) {

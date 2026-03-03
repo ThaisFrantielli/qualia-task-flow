@@ -13,5 +13,5 @@ export const WHATSAPP = {
   STATUS_POLL_INTERVAL_MS: Number((import.meta as any).env?.VITE_WHATSAPP_STATUS_POLL_MS ?? 10000),
 
   // Toggle verbose console logs
-  DEBUG_LOGS: true, // Temporarily enabled for debugging
+  DEBUG_LOGS: false,
 };

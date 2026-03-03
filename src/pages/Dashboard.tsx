@@ -16,6 +16,8 @@ const Dashboard = () => {
   const { tasks, loading: tasksLoading } = useTasks({});
   const { users, loading: usersLoading } = useUsers();
   const { user } = useAuth();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
 
   // Verifica se o usuário é gestor/supervisor
   const isManager = user?.nivelAcesso && ['Supervisão', 'Gestão', 'Admin'].includes(user.nivelAcesso);
@@ -162,9 +164,9 @@ const Dashboard = () => {
         <TabsContent value="fluxo" className="pt-6">
           {/* Passa filtros via query string: cliente, categoria, filial (se presentes) */}
           <FluxoCaixaProjetado
-            cliente={new URLSearchParams(useLocation().search).get('cliente') ?? undefined}
-            categoria={new URLSearchParams(useLocation().search).get('categoria') ?? undefined}
-            filial={new URLSearchParams(useLocation().search).get('filial') ?? undefined}
+            cliente={searchParams.get('cliente') ?? undefined}
+            categoria={searchParams.get('categoria') ?? undefined}
+            filial={searchParams.get('filial') ?? undefined}
           />
         </TabsContent>
       </Tabs>

@@ -37,10 +37,10 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
     const [timeLeft, setTimeLeft] = useState(40);
     const { toast } = useToast();
 
-    // Poll for QR code when instance is not connected
+    // Poll for QR code when instance is not connected and sem QR ainda
     useEffect(() => {
         if (instance.status === 'connected' || instance.qr_code) {
-            return;
+            return; // já tem QR ou está conectado — sem poll
         }
 
         const pollQRCode = async () => {
@@ -49,20 +49,18 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                 if (response.ok) {
                     const data = await response.json();
                     if (data.qrCode) {
-                        // QR code found, trigger refresh to update UI
                         onRefresh();
                     }
                 }
-            } catch (error) {
-                console.error('Error polling QR code:', error);
+            } catch {
+                // serviço indisponível — silencioso, não logar a cada poll
             }
         };
 
-        // Poll immediately
         pollQRCode();
 
-        // Then poll every 2 seconds
-        const interval = setInterval(pollQRCode, 2000);
+        // 5 segundos é suficiente (QR dura 40s) e reduz ruído no console
+        const interval = setInterval(pollQRCode, 5000);
 
         return () => clearInterval(interval);
     }, [instance.id, instance.status, instance.qr_code, onRefresh]);
