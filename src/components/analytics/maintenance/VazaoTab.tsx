@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Card, Text, Metric } from '@tremor/react';
-import { 
-  ResponsiveContainer, ComposedChart, Bar, Line, Area, XAxis, YAxis, 
-  CartesianGrid, Tooltip, Legend, ReferenceLine 
+import {
+  ResponsiveContainer, ComposedChart, Bar, Line, Area, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend, ReferenceLine
 } from 'recharts';
 import { ArrowDown, ArrowUp, Scale, TrendingUp } from 'lucide-react';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
@@ -69,139 +69,130 @@ function formatLabel(dateObj: Date, dimension: 'year' | 'month' | 'day'): string
 }
 
 function aggregateByPeriod(
-  data: ManutencaoUnificadoData[], 
+  data: ManutencaoUnificadoData[],
   dimension: 'year' | 'month' | 'day',
   dateRange?: { from?: Date; to?: Date }
 ): any[] {
   const todayEnd = getTodayEnd();
-  
+
   // Determinar data mínima para filtro (se não houver dateRange, usar 90 dias para 'day', 24 meses para 'month')
   let minDate: Date | null = null;
   if (dateRange?.from) {
     minDate = new Date(dateRange.from);
     minDate.setHours(0, 0, 0, 0);
   } else {
-    // Padrões baseados na granularidade
-    if (dimension === 'day') {
-      minDate = new Date();
-      minDate.setDate(minDate.getDate() - 90);
-      minDate.setHours(0, 0, 0, 0);
-    } else if (dimension === 'month') {
-      minDate = new Date();
-      minDate.setMonth(minDate.getMonth() - 24);
-      minDate.setHours(0, 0, 0, 0);
-    }
     // Para 'year' não limitamos por padrão
   }
-  
-  let maxDate: Date = todayEnd;
-  if (dateRange?.to) {
-    const toDate = new Date(dateRange.to);
-    toDate.setHours(23, 59, 59, 999);
-    // Usar o menor entre dateRange.to e hoje (nunca permitir datas futuras)
-    maxDate = toDate < todayEnd ? toDate : todayEnd;
+}
+
+let maxDate: Date = todayEnd;
+if (dateRange?.to) {
+  const toDate = new Date(dateRange.to);
+  toDate.setHours(23, 59, 59, 999);
+  // Usar o menor entre dateRange.to e hoje (nunca permitir datas futuras)
+  maxDate = toDate < todayEnd ? toDate : todayEnd;
+}
+
+// Filtra dados: usa flags/keys do ETL quando disponíveis, exclui datas futuras e aplica range
+const validData = data.filter(d => {
+  // Se ETL marcou como futuro, ignorar
+  if ((d as any).IsFuture === 1 || (d as any).IsFuture === '1') return false;
+
+  // Tentar obter uma data a partir de DayKey / DataEvento / DataEventoTs
+  let eventDate: Date | null = null;
+  if ((d as any).DayKey) {
+    const parts = String((d as any).DayKey).split('-').map(Number);
+    if (parts.length >= 3) eventDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+  } else if (d.DataEvento) {
+    try { eventDate = parseLocalDate(String(d.DataEvento)); } catch (e) { eventDate = null; }
+  } else if ((d as any).DataEventoTs) {
+    const ts = Number((d as any).DataEventoTs);
+    if (!Number.isNaN(ts)) eventDate = new Date(ts * 1000);
   }
-  
-  // Filtra dados: usa flags/keys do ETL quando disponíveis, exclui datas futuras e aplica range
-  const validData = data.filter(d => {
-    // Se ETL marcou como futuro, ignorar
-    if ((d as any).IsFuture === 1 || (d as any).IsFuture === '1') return false;
 
-    // Tentar obter uma data a partir de DayKey / DataEvento / DataEventoTs
-    let eventDate: Date | null = null;
-    if ((d as any).DayKey) {
-      const parts = String((d as any).DayKey).split('-').map(Number);
-      if (parts.length >= 3) eventDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
-    } else if (d.DataEvento) {
-      try { eventDate = parseLocalDate(String(d.DataEvento)); } catch (e) { eventDate = null; }
-    } else if ((d as any).DataEventoTs) {
-      const ts = Number((d as any).DataEventoTs);
-      if (!Number.isNaN(ts)) eventDate = new Date(ts * 1000);
-    }
+  if (!eventDate) return false;
 
-    if (!eventDate) return false;
+  // CRÍTICO: Nunca permitir datas futuras
+  if (eventDate > todayEnd) return false;
 
-    // CRÍTICO: Nunca permitir datas futuras
-    if (eventDate > todayEnd) return false;
+  // Aplicar filtro de data mínima
+  if (minDate && eventDate < minDate) return false;
 
-    // Aplicar filtro de data mínima
-    if (minDate && eventDate < minDate) return false;
+  // Aplicar filtro de data máxima
+  if (eventDate > maxDate) return false;
 
-    // Aplicar filtro de data máxima
-    if (eventDate > maxDate) return false;
+  return true;
+});
 
-    return true;
-  });
-  
-  const grouped: Record<string, { 
-    Chegadas: number; 
-    Conclusoes: number; 
-    SaldoPeriodo: number;
-    date: string;
-  }> = {};
-  
-  validData.forEach(d => {
-    // Prefer keys fornecidas pelo ETL
-    const dayKey = (d as any).DayKey || (d.DataEvento ? String(d.DataEvento).split('T')[0] : undefined);
-    const monthKey = (d as any).MonthKey || (dayKey ? String(dayKey).substring(0, 7) : undefined);
-    const yearKey = (d as any).YearKey || (monthKey ? String(monthKey).substring(0, 4) : undefined);
+const grouped: Record<string, {
+  Chegadas: number;
+  Conclusoes: number;
+  SaldoPeriodo: number;
+  date: string;
+}> = {};
 
-    let key: string;
+validData.forEach(d => {
+  // Prefer keys fornecidas pelo ETL
+  const dayKey = (d as any).DayKey || (d.DataEvento ? String(d.DataEvento).split('T')[0] : undefined);
+  const monthKey = (d as any).MonthKey || (dayKey ? String(dayKey).substring(0, 7) : undefined);
+  const yearKey = (d as any).YearKey || (monthKey ? String(monthKey).substring(0, 4) : undefined);
+
+  let key: string;
+  if (dimension === 'year') {
+    key = String(yearKey || (dayKey ? dayKey.substring(0, 4) : ''));
+  } else if (dimension === 'month') {
+    key = String(monthKey || (dayKey ? dayKey.substring(0, 7) : ''));
+  } else {
+    key = String(dayKey || '');
+  }
+
+  if (!key) return;
+
+  if (!grouped[key]) {
+    grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0, date: key };
+  }
+
+  grouped[key].Chegadas += d.Chegadas || 0;
+  grouped[key].Conclusoes += d.Conclusoes || 0;
+});
+
+// Calculate saldo (chegadas - conclusoes)
+Object.values(grouped).forEach(item => {
+  item.SaldoPeriodo = item.Chegadas - item.Conclusoes;
+});
+
+// Sort by date
+const sorted = Object.entries(grouped)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([key, values]) => {
+    // Construir Date local a partir da chave
+    let dateObj: Date;
     if (dimension === 'year') {
-      key = String(yearKey || (dayKey ? dayKey.substring(0, 4) : ''));
+      const year = Number(key);
+      dateObj = new Date(year, 0, 1);
     } else if (dimension === 'month') {
-      key = String(monthKey || (dayKey ? dayKey.substring(0, 7) : ''));
+      const [y, m] = key.split('-');
+      dateObj = new Date(Number(y), Number(m) - 1, 1);
     } else {
-      key = String(dayKey || '');
+      const [y, m, d] = key.split('-');
+      dateObj = new Date(Number(y), Number(m) - 1, Number(d));
     }
 
-    if (!key) return;
+    return {
+      ...values,
+      label: formatLabel(dateObj, dimension),
+      _dateObj: dateObj,
+    };
+  })
+  // Filtro final de segurança: remover qualquer data futura que tenha passado
+  .filter(item => item._dateObj <= todayEnd);
 
-    if (!grouped[key]) {
-      grouped[key] = { Chegadas: 0, Conclusoes: 0, SaldoPeriodo: 0, date: key };
-    }
-
-    grouped[key].Chegadas += d.Chegadas || 0;
-    grouped[key].Conclusoes += d.Conclusoes || 0;
-  });
-  
-  // Calculate saldo (chegadas - conclusoes)
-  Object.values(grouped).forEach(item => {
-    item.SaldoPeriodo = item.Chegadas - item.Conclusoes;
-  });
-  
-  // Sort by date
-  const sorted = Object.entries(grouped)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, values]) => {
-      // Construir Date local a partir da chave
-      let dateObj: Date;
-      if (dimension === 'year') {
-        const year = Number(key);
-        dateObj = new Date(year, 0, 1);
-      } else if (dimension === 'month') {
-        const [y, m] = key.split('-');
-        dateObj = new Date(Number(y), Number(m) - 1, 1);
-      } else {
-        const [y, m, d] = key.split('-');
-        dateObj = new Date(Number(y), Number(m) - 1, Number(d));
-      }
-
-      return {
-        ...values,
-        label: formatLabel(dateObj, dimension),
-        _dateObj: dateObj,
-      };
-    })
-    // Filtro final de segurança: remover qualquer data futura que tenha passado
-    .filter(item => item._dateObj <= todayEnd);
-  
-  return sorted;
+return sorted;
 }
 
 export default function VazaoTab({ vazaoData }: Props) {
   const { filters, setTimeGranularity } = useMaintenanceFilters();
-  
+
   // Apply global filters to vazaoData
   const filteredData = useMemo(() => {
     const todayEnd = getTodayEnd();
@@ -236,21 +227,21 @@ export default function VazaoTab({ vazaoData }: Props) {
           if (eventDate > toDate) return false;
         }
       }
-      
+
       // Apply all global filters
       if (filters.fornecedores.length > 0 && r.Fornecedor && !filters.fornecedores.includes(r.Fornecedor)) return false;
       if (filters.modelos.length > 0 && r.Modelo && !filters.modelos.includes(r.Modelo)) return false;
       if (filters.tiposOcorrencia.length > 0 && r.TipoOcorrencia && !filters.tiposOcorrencia.includes(r.TipoOcorrencia)) return false;
       if (filters.clientes.length > 0 && r.Cliente && !filters.clientes.includes(r.Cliente)) return false;
       if (filters.placas.length > 0 && r.Placa && !filters.placas.includes(r.Placa)) return false;
-      
+
       return true;
     });
   }, [vazaoData, filters]);
-  
+
   const chartData = useMemo(() => {
     const aggregated = aggregateByPeriod(filteredData, filters.timeGranularity, filters.dateRange);
-    
+
     // Calculate accumulated balance
     let accumulated = 0;
     return aggregated.map(d => {
@@ -258,20 +249,20 @@ export default function VazaoTab({ vazaoData }: Props) {
       return { ...d, SaldoAcumulado: accumulated };
     });
   }, [filteredData, filters.timeGranularity, filters.dateRange]);
-  
+
   const kpis = useMemo(() => {
     const totalChegadas = chartData.reduce((s, d) => s + (d.Chegadas || 0), 0);
     const totalConclusoes = chartData.reduce((s, d) => s + (d.Conclusoes || 0), 0);
     const saldoPeriodo = totalChegadas - totalConclusoes;
     const saldoAcumulado = chartData.length > 0 ? (chartData[chartData.length - 1].SaldoAcumulado || 0) : 0;
-    
+
     return { totalChegadas, totalConclusoes, saldoPeriodo, saldoAcumulado };
   }, [chartData]);
 
   const handleLevelChange = (level: GranularityLevel) => {
     setTimeGranularity(level);
   };
-  
+
   return (
     <div className="space-y-6">
       {/* KPIs */}
@@ -283,7 +274,7 @@ export default function VazaoTab({ vazaoData }: Props) {
           </div>
           <Metric className="text-blue-600">{fmtNum(kpis.totalChegadas)}</Metric>
         </Card>
-        
+
         <Card decoration="top" decorationColor="emerald" className="bg-gradient-to-br from-emerald-50 to-white">
           <div className="flex items-center gap-2">
             <ArrowUp className="w-5 h-5 text-emerald-600" />
@@ -291,7 +282,7 @@ export default function VazaoTab({ vazaoData }: Props) {
           </div>
           <Metric className="text-emerald-600">{fmtNum(kpis.totalConclusoes)}</Metric>
         </Card>
-        
+
         <Card decoration="top" decorationColor={kpis.saldoPeriodo > 0 ? 'rose' : 'emerald'} className={`bg-gradient-to-br ${kpis.saldoPeriodo > 0 ? 'from-rose-50' : 'from-emerald-50'} to-white`}>
           <div className="flex items-center gap-2">
             <Scale className="w-5 h-5 text-slate-600" />
@@ -301,7 +292,7 @@ export default function VazaoTab({ vazaoData }: Props) {
             {kpis.saldoPeriodo > 0 ? '+' : ''}{fmtNum(kpis.saldoPeriodo)}
           </Metric>
         </Card>
-        
+
         <Card decoration="top" decorationColor={kpis.saldoAcumulado > 0 ? 'amber' : 'emerald'} className={`bg-gradient-to-br ${kpis.saldoAcumulado > 0 ? 'from-amber-50' : 'from-emerald-50'} to-white`}>
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-slate-600" />
@@ -312,7 +303,7 @@ export default function VazaoTab({ vazaoData }: Props) {
           </Metric>
         </Card>
       </div>
-      
+
       {/* Chart 1: Arrivals vs Completions */}
       <Card>
         <ChartDrillDownHeader
@@ -321,24 +312,26 @@ export default function VazaoTab({ vazaoData }: Props) {
           currentLevel={filters.timeGranularity}
           onLevelChange={handleLevelChange}
         />
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
-              <YAxis fontSize={11} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                formatter={(v: any, name: string) => [fmtNum(v), name === 'Chegadas' ? '↓ Chegadas' : '↑ Conclusões']}
-              />
-              <Legend />
-              <Bar dataKey="Chegadas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={filters.timeGranularity === 'day' ? 12 : 24} />
-              <Bar dataKey="Conclusoes" fill="#10b981" radius={[4, 4, 0, 0]} barSize={filters.timeGranularity === 'day' ? 12 : 24} />
-            </ComposedChart>
-          </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, chartData.length * 40), height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
+                <YAxis fontSize={11} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  formatter={(v: any, name: string) => [fmtNum(v), name === 'Chegadas' ? '↓ Chegadas' : '↑ Conclusões']}
+                />
+                <Legend />
+                <Bar dataKey="Chegadas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={filters.timeGranularity === 'day' ? 12 : 24} />
+                <Bar dataKey="Conclusoes" fill="#10b981" radius={[4, 4, 0, 0]} barSize={filters.timeGranularity === 'day' ? 12 : 24} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </Card>
-      
+
       {/* Chart 2: Period Balance */}
       <Card>
         <ChartDrillDownHeader
@@ -347,35 +340,37 @@ export default function VazaoTab({ vazaoData }: Props) {
           currentLevel={filters.timeGranularity}
           onLevelChange={handleLevelChange}
         />
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
-              <YAxis fontSize={11} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                formatter={(v: any) => [fmtNum(v), 'Saldo']}
-              />
-              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-              <Bar 
-                dataKey="SaldoPeriodo" 
-                fill="#6366f1"
-                radius={[4, 4, 4, 4]} 
-                barSize={filters.timeGranularity === 'day' ? 10 : 20}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="SaldoPeriodo" 
-                stroke="#6366f1" 
-                strokeWidth={2} 
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, chartData.length * 40), height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
+                <YAxis fontSize={11} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  formatter={(v: any) => [fmtNum(v), 'Saldo']}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+                <Bar
+                  dataKey="SaldoPeriodo"
+                  fill="#6366f1"
+                  radius={[4, 4, 4, 4]}
+                  barSize={filters.timeGranularity === 'day' ? 10 : 20}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="SaldoPeriodo"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </Card>
-      
+
       {/* Chart 3: Accumulated Balance */}
       <Card>
         <ChartDrillDownHeader
@@ -384,39 +379,41 @@ export default function VazaoTab({ vazaoData }: Props) {
           currentLevel={filters.timeGranularity}
           onLevelChange={handleLevelChange}
         />
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <defs>
-                <linearGradient id="colorAcumulado" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
-              <YAxis fontSize={11} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                formatter={(v: any) => [fmtNum(v), 'Acumulado']}
-              />
-              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-              <Area 
-                type="monotone" 
-                dataKey="SaldoAcumulado" 
-                stroke="#f59e0b" 
-                strokeWidth={2}
-                fill="url(#colorAcumulado)"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="SaldoAcumulado" 
-                stroke="#f59e0b" 
-                strokeWidth={3} 
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, chartData.length * 40), height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorAcumulado" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" type="category" fontSize={11} tickMargin={8} />
+                <YAxis fontSize={11} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  formatter={(v: any) => [fmtNum(v), 'Acumulado']}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+                <Area
+                  type="monotone"
+                  dataKey="SaldoAcumulado"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  fill="url(#colorAcumulado)"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="SaldoAcumulado"
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </Card>
     </div>

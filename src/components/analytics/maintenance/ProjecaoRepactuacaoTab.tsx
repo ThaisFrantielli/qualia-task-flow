@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { 
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, 
-  CartesianGrid, Tooltip, Legend 
+import {
+  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import { TrendingUp, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
@@ -55,15 +55,30 @@ function getClassificacao(percentual: number): { label: string; color: 'emerald'
 
 export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData, sinistrosData }: Props) {
   const [filtroGrupo, setFiltroGrupo] = useState<string>('todos');
-  
+
   const yearlyData = useMemo(() => {
-    const years = [2023, 2024, 2025];
-    
+    const allYears = new Set<number>();
+    faturamentoData.forEach(f => {
+      const y = getYear(f.DataEmissao);
+      if (y) allYears.add(y);
+    });
+    manutencaoData.forEach(m => {
+      const y = getYear(m.DataEntrada);
+      if (y) allYears.add(y);
+    });
+    sinistrosData.forEach(s => {
+      const y = getYear(s.DataSinistro);
+      if (y) allYears.add(y);
+    });
+
+    let years = Array.from(allYears).sort((a, b) => a - b);
+    if (years.length === 0) years = [2023, 2024, 2025];
+
     return years.map(year => {
       const fatAno = faturamentoData.filter(f => getYear(f.DataEmissao) === year);
       const manAno = manutencaoData.filter(m => getYear(m.DataEntrada) === year);
       const sinAno = sinistrosData.filter(s => getYear(s.DataSinistro) === year);
-      
+
       const faturamento = fatAno.reduce((s, f) => s + (f.ValorTotal || 0), 0);
       const qtdVeiculos = new Set(manAno.map(m => m.Placa)).size || new Set(fatAno.map(f => f.Cliente)).size;
       const gastoManutencao = manAno.reduce((s, m) => s + (m.ValorTotal || 0), 0);
@@ -71,7 +86,7 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
       const reembolsoSinistro = sinAno.reduce((s, si) => s + (si.ValorRecuperado || 0), 0);
       const gastoLiquido = gastoManutencao + gastoSinistro - reembolsoSinistro;
       const percentual = faturamento > 0 ? (gastoLiquido / faturamento) * 100 : 0;
-      
+
       return {
         ano: year,
         faturamento,
@@ -85,12 +100,12 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
       };
     });
   }, [faturamentoData, manutencaoData, sinistrosData]);
-  
+
   const totais = useMemo(() => {
     const faturamento = yearlyData.reduce((s, y) => s + y.faturamento, 0);
     const gastoLiquido = yearlyData.reduce((s, y) => s + y.gastoLiquido, 0);
     const percentual = faturamento > 0 ? (gastoLiquido / faturamento) * 100 : 0;
-    
+
     return {
       faturamento,
       qtdVeiculos: yearlyData.reduce((s, y) => s + y.qtdVeiculos, 0),
@@ -102,22 +117,22 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
       classificacao: getClassificacao(percentual),
     };
   }, [yearlyData]);
-  
+
   // Projeção simples baseada na média dos últimos 2 anos
   const projecao = useMemo(() => {
     const lastTwo = yearlyData.slice(-2);
-    const avgGrowth = lastTwo.length > 1 
-      ? (lastTwo[1].faturamento - lastTwo[0].faturamento) / lastTwo[0].faturamento 
+    const avgGrowth = lastTwo.length > 1
+      ? (lastTwo[1].faturamento - lastTwo[0].faturamento) / lastTwo[0].faturamento
       : 0.05;
     const avgPercent = lastTwo.reduce((s, y) => s + y.percentual, 0) / lastTwo.length;
-    
+
     const base = yearlyData[yearlyData.length - 1];
-    
+
     return [2026, 2027].map((year, idx) => {
       const growth = Math.pow(1 + avgGrowth, idx + 1);
       const faturamento = base.faturamento * growth;
       const gastoLiquido = faturamento * (avgPercent / 100);
-      
+
       return {
         ano: year,
         faturamento,
@@ -127,7 +142,7 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
       };
     });
   }, [yearlyData]);
-  
+
   const chartData = useMemo(() => {
     return [...yearlyData, ...projecao].map(d => ({
       ano: d.ano.toString(),
@@ -142,31 +157,29 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
     <div className="space-y-6">
       {/* Filter chips */}
       <div className="flex gap-2 flex-wrap">
-        <button 
+        <button
           onClick={() => setFiltroGrupo('todos')}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-            filtroGrupo === 'todos' 
-              ? 'bg-indigo-600 text-white' 
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${filtroGrupo === 'todos'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
         >
           Todos Grupos
         </button>
         {['Hatch', 'Sedan', 'SUV', 'Pick-up', 'VUC'].map(grupo => (
-          <button 
+          <button
             key={grupo}
             onClick={() => setFiltroGrupo(grupo)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-              filtroGrupo === grupo 
-                ? 'bg-indigo-600 text-white' 
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${filtroGrupo === grupo
+              ? 'bg-indigo-600 text-white'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {grupo}
           </button>
         ))}
       </div>
-      
+
       {/* Summary KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card decoration="top" decorationColor="blue">
@@ -174,13 +187,13 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
           <Metric className="text-blue-600">{fmtCompact(totais.faturamento)}</Metric>
           <Text className="text-xs text-slate-500 mt-1">Últimos 3 anos</Text>
         </Card>
-        
+
         <Card decoration="top" decorationColor="amber">
           <Text>Gasto Líquido</Text>
           <Metric className="text-amber-600">{fmtCompact(totais.gastoLiquido)}</Metric>
           <Text className="text-xs text-slate-500 mt-1">Manutenção + Sinistros - Reembolsos</Text>
         </Card>
-        
+
         <Card decoration="top" decorationColor={totais.classificacao.color}>
           <Text>% Gasto / Faturamento</Text>
           <Metric className={`text-${totais.classificacao.color}-600`}>{totais.percentual.toFixed(1)}%</Metric>
@@ -189,14 +202,14 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
             <span className="ml-1">{totais.classificacao.label}</span>
           </Badge>
         </Card>
-        
+
         <Card decoration="top" decorationColor="violet">
           <Text>Veículos Atendidos</Text>
           <Metric className="text-violet-600">{totais.qtdVeiculos}</Metric>
           <Text className="text-xs text-slate-500 mt-1">Únicos no período</Text>
         </Card>
       </div>
-      
+
       {/* Chart */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -209,7 +222,7 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
             Projeção ativa
           </Badge>
         </div>
-        
+
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
@@ -217,32 +230,32 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
               <XAxis dataKey="ano" fontSize={12} />
               <YAxis yAxisId="left" fontSize={12} tickFormatter={fmtCompact} />
               <YAxis yAxisId="right" orientation="right" fontSize={12} domain={[0, 30]} tickFormatter={v => `${v}%`} />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: any, name: string) => [
                   name === '% Custo' ? `${value.toFixed(1)}%` : fmtBRL(value),
                   name
                 ]}
               />
               <Legend />
-              <Bar 
-                yAxisId="left" 
-                dataKey="Faturamento" 
-                fill="#3b82f6" 
+              <Bar
+                yAxisId="left"
+                dataKey="Faturamento"
+                fill="#3b82f6"
                 radius={[4, 4, 0, 0]}
                 opacity={0.9}
               />
-              <Bar 
-                yAxisId="left" 
-                dataKey="Gasto Líquido" 
-                fill="#f59e0b" 
+              <Bar
+                yAxisId="left"
+                dataKey="Gasto Líquido"
+                fill="#f59e0b"
                 radius={[4, 4, 0, 0]}
                 opacity={0.9}
               />
-              <Line 
+              <Line
                 yAxisId="right"
-                type="monotone" 
-                dataKey="% Custo" 
-                stroke="#ef4444" 
+                type="monotone"
+                dataKey="% Custo"
+                stroke="#ef4444"
                 strokeWidth={3}
                 dot={{ fill: '#ef4444', r: 4 }}
               />
@@ -250,7 +263,7 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
           </ResponsiveContainer>
         </div>
       </Card>
-      
+
       {/* Historical Table */}
       <Card>
         <Title>Resumo por Ano</Title>
@@ -306,7 +319,7 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
           </table>
         </div>
       </Card>
-      
+
       {/* Projection Table */}
       <Card>
         <div className="flex items-center gap-2 mb-4">
@@ -314,7 +327,7 @@ export default function ProjecaoRepactuacaoTab({ faturamentoData, manutencaoData
           <Title>Projeção 2026-2027</Title>
         </div>
         <Text className="text-slate-500 mb-4">Baseada na tendência dos últimos 2 anos</Text>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-indigo-50">

@@ -6,7 +6,56 @@ import {
   ArrowRight,
   ShoppingCart,
   DollarSign,
+  Wrench,
+  AlertTriangle,
+  ShieldAlert,
+  FileText,
 } from 'lucide-react';
+
+interface HubCardProps {
+  title: string;
+  icon: React.ReactNode;
+  color: string;
+  links: { to: string; icon: React.ReactNode; title: string; desc: string }[];
+}
+
+function HubCard({ title, icon, color, links }: HubCardProps) {
+  const hoverBg = `hover:bg-${color}-50`;
+  const hoverBorder = `hover:border-${color}-200`;
+  const hoverIcon = `group-hover/item:text-${color}-600`;
+  const hoverTitle = `group-hover/item:text-${color}-900`;
+  const hoverDesc = `group-hover/item:text-${color}-700`;
+  const hoverArrow = `group-hover/item:text-${color}-600`;
+
+  return (
+    <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
+      <div className="relative z-10">
+        <div className="flex items-center gap-3 mb-6">
+          {icon}
+          <h2 className="text-xl font-semibold text-slate-800">{title}</h2>
+        </div>
+
+        <div className="space-y-3">
+          {links.map(link => (
+            <Link key={link.to} to={link.to}
+              className={`block p-4 rounded-xl bg-slate-50 ${hoverBg} border border-slate-100 ${hoverBorder} transition-all group/item`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`text-slate-500 ${hoverIcon} transition-colors`}>{link.icon}</span>
+                  <div>
+                    <div className={`font-medium text-slate-700 ${hoverTitle}`}>{link.title}</div>
+                    <div className={`text-xs text-slate-500 ${hoverDesc}`}>{link.desc}</div>
+                  </div>
+                </div>
+                <ArrowRight className={`w-4 h-4 text-slate-400 ${hoverArrow} transition-colors`} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AnalyticsIndex() {
   return (
@@ -27,111 +76,94 @@ export default function AnalyticsIndex() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
           {/* HUB 1: ATIVOS - FROTA */}
-          <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-emerald-100 rounded-lg">
-                  <Car className="w-6 h-6 text-emerald-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-slate-800">Hub de Ativos - Frota</h2>
-              </div>
-
-              <div className="space-y-3">
-                <Link to="/analytics/frota" className="block p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Car className="w-5 h-5 text-slate-500 group-hover/item:text-emerald-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-emerald-900">Frota Ativa</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-emerald-700">Gestão de Frota, Disponibilidade e Valorização</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-emerald-600 transition-colors" />
-                  </div>
-                </Link>
-
-                <Link to="/analytics/frota-idle" className="block p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Car className="w-5 h-5 text-slate-500 group-hover/item:text-emerald-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-emerald-900">Frota Improdutiva</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-emerald-700">Análise de Veículos Ociosos e Parados</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-emerald-600 transition-colors" />
-                  </div>
-                </Link>
-
-                <Link to="/analytics/frota-metodologia" className="block p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <LayoutDashboard className="w-5 h-5 text-slate-500 group-hover/item:text-emerald-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-emerald-900">Metodologia</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-emerald-700">Documentação de Cálculos e KPIs</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-emerald-600 transition-colors" />
-                  </div>
-                </Link>
-              </div>
-            </div>
-          </div>
+          <HubCard
+            title="Hub de Ativos - Frota"
+            icon={<div className="p-2 bg-emerald-100 rounded-lg"><Car className="w-6 h-6 text-emerald-600" /></div>}
+            color="emerald"
+            links={[
+              {
+                to: '/analytics/frota',
+                icon: <Car className="w-5 h-5" />,
+                title: 'Frota Ativa',
+                desc: 'Gestão de Frota, Disponibilidade e Valorização',
+              },
+              {
+                to: '/analytics/frota-idle',
+                icon: <Car className="w-5 h-5" />,
+                title: 'Frota Improdutiva',
+                desc: 'Análise de Veículos Ociosos e Parados',
+              },
+              {
+                to: '/analytics/contratos',
+                icon: <FileText className="w-5 h-5" />,
+                title: 'Contratos',
+                desc: 'Contratos de Locação, Estratégias e Projeções',
+              },
+              {
+                to: '/analytics/frota-metodologia',
+                icon: <LayoutDashboard className="w-5 h-5" />,
+                title: 'Metodologia',
+                desc: 'Documentação de Cálculos e KPIs',
+              },
+            ]}
+          />
 
           {/* HUB 2: AQUISIÇÕES */}
-          <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-indigo-100 rounded-lg">
-                  <ShoppingCart className="w-6 h-6 text-indigo-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-slate-800">Hub de Aquisições</h2>
-              </div>
+          <HubCard
+            title="Hub de Aquisições"
+            icon={<div className="p-2 bg-indigo-100 rounded-lg"><ShoppingCart className="w-6 h-6 text-indigo-600" /></div>}
+            color="indigo"
+            links={[
+              {
+                to: '/analytics/compras',
+                icon: <ShoppingCart className="w-5 h-5" />,
+                title: 'Veículos Comprados',
+                desc: 'Aquisições, Valor FIPE, Financiamento e Histórico',
+              },
+            ]}
+          />
 
-              <div className="space-y-3">
-                <Link to="/analytics/compras" className="block p-4 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <ShoppingCart className="w-5 h-5 text-slate-500 group-hover/item:text-indigo-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-indigo-900">Veículos Comprados</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-indigo-700">Aquisições, Valor FIPE, Financiamento e Histórico</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-indigo-600 transition-colors" />
-                  </div>
-                </Link>
-              </div>
-            </div>
-          </div>
+          {/* HUB 3: OPERACIONAL */}
+          <HubCard
+            title="Hub Operacional"
+            icon={<div className="p-2 bg-amber-100 rounded-lg"><Wrench className="w-6 h-6 text-amber-600" /></div>}
+            color="amber"
+            links={[
+              {
+                to: '/analytics/manutencao',
+                icon: <Wrench className="w-5 h-5" />,
+                title: 'Manutenção',
+                desc: 'OS, Custos, Lead Time, Peças e Fornecedores',
+              },
+              {
+                to: '/analytics/multas',
+                icon: <AlertTriangle className="w-5 h-5" />,
+                title: 'Multas',
+                desc: 'Infrações, Condutores, Reembolso e Mapa de Calor',
+              },
+              {
+                to: '/analytics/sinistros',
+                icon: <ShieldAlert className="w-5 h-5" />,
+                title: 'Sinistros',
+                desc: 'Ocorrências, Culpabilidade e Recuperação',
+              },
+            ]}
+          />
 
-          {/* HUB 3: FINANCEIRO */}
-          <div className="group relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-emerald-100 rounded-lg">
-                  <DollarSign className="w-6 h-6 text-emerald-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-slate-800">Hub Financeiro</h2>
-              </div>
-
-              <div className="space-y-3">
-                <Link to="/analytics/faturamento" className="block p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-100 hover:border-emerald-200 transition-all group/item">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <DollarSign className="w-5 h-5 text-slate-500 group-hover/item:text-emerald-600 transition-colors" />
-                      <div>
-                        <div className="font-medium text-slate-700 group-hover/item:text-emerald-900">Faturamento</div>
-                        <div className="text-xs text-slate-500 group-hover/item:text-emerald-700">KPIs, Evolução Mensal, Ranking de Clientes e Detalhamento de Faturas</div>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover/item:text-emerald-600 transition-colors" />
-                  </div>
-                </Link>
-              </div>
-            </div>
-          </div>
+          {/* HUB 4: FINANCEIRO */}
+          <HubCard
+            title="Hub Financeiro"
+            icon={<div className="p-2 bg-emerald-100 rounded-lg"><DollarSign className="w-6 h-6 text-emerald-600" /></div>}
+            color="emerald"
+            links={[
+              {
+                to: '/analytics/faturamento',
+                icon: <DollarSign className="w-5 h-5" />,
+                title: 'Faturamento',
+                desc: 'KPIs, Evolução Mensal, Ranking de Clientes e Detalhamento de Faturas',
+              },
+            ]}
+          />
 
         </div>
       </div>

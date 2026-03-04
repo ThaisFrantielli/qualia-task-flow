@@ -70,8 +70,7 @@ export default function CustosDetalhadosTab({ manutencaoData }: CustosDetalhados
 
     return Object.keys(map)
       .sort()
-      .slice(-12)
-      .map(k => ({ mes: monthLabel(k), ...map[k] }));
+      .map(k => ({ mes: monthLabel(k), ...map[k] })); // Todos os meses disponíveis
   }, [filteredData]);
 
   const topVeiculosPecas = useMemo(() => {
@@ -83,8 +82,7 @@ export default function CustosDetalhadosTab({ manutencaoData }: CustosDetalhados
 
     return Object.entries(map)
       .map(([placa, valor]) => ({ placa, valor }))
-      .sort((a, b) => b.valor - a.valor)
-      .slice(0, 10);
+      .sort((a, b) => b.valor - a.valor);
   }, [filteredData]);
 
   const topVeiculosServicos = useMemo(() => {
@@ -96,8 +94,7 @@ export default function CustosDetalhadosTab({ manutencaoData }: CustosDetalhados
 
     return Object.entries(map)
       .map(([placa, valor]) => ({ placa, valor }))
-      .sort((a, b) => b.valor - a.valor)
-      .slice(0, 10);
+      .sort((a, b) => b.valor - a.valor);
   }, [filteredData]);
 
   return (
@@ -182,8 +179,8 @@ export default function CustosDetalhadosTab({ manutencaoData }: CustosDetalhados
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <Title>Top 10 Veículos - Custo em Peças</Title>
-          <div className="mt-4 space-y-2">
+          <Title>Ranking de Veículos - Custo em Peças</Title>
+          <div className="mt-4 space-y-2 overflow-y-auto max-h-80">
             {topVeiculosPecas.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between p-2 bg-blue-50 rounded">
                 <div className="flex items-center gap-2">
@@ -199,8 +196,8 @@ export default function CustosDetalhadosTab({ manutencaoData }: CustosDetalhados
         </Card>
 
         <Card>
-          <Title>Top 10 Veículos - Custo em Serviços</Title>
-          <div className="mt-4 space-y-2">
+          <Title>Ranking de Veículos - Custo em Serviços</Title>
+          <div className="mt-4 space-y-2 overflow-y-auto max-h-80">
             {topVeiculosServicos.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between p-2 bg-amber-50 rounded">
                 <div className="flex items-center gap-2">

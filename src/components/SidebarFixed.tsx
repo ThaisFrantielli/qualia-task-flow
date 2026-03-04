@@ -6,7 +6,7 @@ import {
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
   PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Mail, Send, DollarSign, Headphones,
-  ShoppingCart
+  ShoppingCart, Wrench, ShieldAlert, FileWarning
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -61,6 +61,21 @@ const baseMenuGroups: MenuGroup[] = [
         label: 'Faturamento',
         url: '/analytics/faturamento',
         icon: DollarSign,
+      },
+      {
+        label: 'Manutenção',
+        url: '/analytics/manutencao',
+        icon: Wrench,
+      },
+      {
+        label: 'Sinistros',
+        url: '/analytics/sinistros',
+        icon: ShieldAlert,
+      },
+      {
+        label: 'Multas',
+        url: '/analytics/multas',
+        icon: FileWarning,
       },
     ]
   },

@@ -44,7 +44,7 @@ function fmtDate(dateStr: string | undefined): string {
 export default function DetailTab() {
   const { data: manutencoes, loading } = useBIData<ManutencaoUnificado[]>('fat_manutencao_unificado.json');
   const { filters: globalFilters } = useMaintenanceFilters();
-  
+
   const [page, setPage] = useState(0);
   const pageSize = 20;
   const [tipoFilter, setTipoFilter] = useState<string>('Todos');
@@ -55,7 +55,7 @@ export default function DetailTab() {
   // Aplicar filtros globais
   const filteredManutencoes = useMemo(() => {
     if (!manutencoes?.length) return [];
-    
+
     return manutencoes.filter((m: ManutencaoUnificado) => {
       // Filtro de data range
       if (globalFilters.dateRange?.from && m.DataEntrada) {
@@ -66,36 +66,36 @@ export default function DetailTab() {
         const dataEntrada = new Date(m.DataEntrada);
         if (dataEntrada > new Date(globalFilters.dateRange.to)) return false;
       }
-      
+
       // Filtros globais
       if (globalFilters.fornecedores?.length && m.Fornecedor) {
-        if (!globalFilters.fornecedores.includes(m.Fornecedor) && 
-            !globalFilters.fornecedores.includes(m.FornecedorOcorrencia || '')) {
+        if (!globalFilters.fornecedores.includes(m.Fornecedor) &&
+          !globalFilters.fornecedores.includes(m.FornecedorOcorrencia || '')) {
           return false;
         }
       }
-      
+
       if (globalFilters.modelos?.length && m.Modelo) {
         if (!globalFilters.modelos.includes(m.Modelo)) return false;
       }
-      
+
       if (globalFilters.placas?.length && m.Placa) {
         if (!globalFilters.placas.includes(m.Placa)) return false;
       }
-      
+
       if (globalFilters.tiposOcorrencia?.length) {
         const tipo = m.Tipo || m.TipoOcorrencia;
         if (tipo && !globalFilters.tiposOcorrencia.includes(tipo)) return false;
       }
-      
+
       if (globalFilters.status?.length) {
         const status = m.SituacaoOcorrencia || m.StatusSimplificado || m.StatusOS || m.SituacaoOrdemServico || '';
         if (!globalFilters.status.includes(status)) return false;
       }
-      
+
       // Filtros rápidos
       if (tipoFilter !== 'Todos' && m.TipoManutencao !== tipoFilter) return false;
-      
+
       if (statusFilter !== 'Todos') {
         const status = m.SituacaoOcorrencia || m.StatusSimplificado || m.StatusOS || m.SituacaoOrdemServico || '';
         const isAberta = !status.toLowerCase().includes('conclu') && !status.toLowerCase().includes('cancel');
@@ -103,19 +103,19 @@ export default function DetailTab() {
         if (statusFilter === 'Concluída' && status.toLowerCase() !== 'concluída' && !status.toLowerCase().includes('conclu')) return false;
         if (statusFilter === 'Cancelada' && !status.toLowerCase().includes('cancel')) return false;
       }
-      
+
       const custo = m.CustoTotalOS || m.ValorTotal || 0;
       if (custoFilter === '<R$500' && custo >= 500) return false;
       if (custoFilter === 'R$500-1k' && (custo < 500 || custo >= 1000)) return false;
       if (custoFilter === 'R$1k-3k' && (custo < 1000 || custo >= 3000)) return false;
       if (custoFilter === '>R$3k' && custo < 3000) return false;
-      
+
       const leadTime = m.LeadTimeTotalDias || m.DiasParado || 0;
       if (leadTimeFilter === '<3d' && leadTime >= 3) return false;
       if (leadTimeFilter === '3-7d' && (leadTime < 3 || leadTime >= 7)) return false;
       if (leadTimeFilter === '7-15d' && (leadTime < 7 || leadTime >= 15)) return false;
       if (leadTimeFilter === '>15d' && leadTime < 15) return false;
-      
+
       return true;
     });
   }, [manutencoes, globalFilters, tipoFilter, statusFilter, custoFilter, leadTimeFilter]);
@@ -130,13 +130,13 @@ export default function DetailTab() {
         custoTotal: 0
       };
     }
-    
+
     const custoTotal = filteredManutencoes.reduce((sum, m) => sum + (m.CustoTotalOS || m.ValorTotal || 0), 0);
     const custoMedio = custoTotal / filteredManutencoes.length;
-    
+
     const comLeadTime = filteredManutencoes.filter(m => (m.LeadTimeTotalDias || m.DiasParado || 0) > 0);
     const leadTimeMedio = comLeadTime.reduce((sum, m) => sum + (m.LeadTimeTotalDias || m.DiasParado || 0), 0) / (comLeadTime.length || 1);
-    
+
     return {
       totalOS: filteredManutencoes.length,
       custoMedio: Math.round(custoMedio),
@@ -148,21 +148,21 @@ export default function DetailTab() {
   // Evolução temporal (agrupado por mês)
   const evolucaoTemporal = useMemo(() => {
     if (!filteredManutencoes.length) return [];
-    
+
     const porMes = new Map<string, { os: number; custo: number }>();
-    
+
     filteredManutencoes.forEach((m: ManutencaoUnificado) => {
       if (!m.DataEntrada) return;
-      
+
       const mes = m.DataEntrada.substring(0, 7); // YYYY-MM
       const atual = porMes.get(mes) || { os: 0, custo: 0 };
-      
+
       porMes.set(mes, {
         os: atual.os + 1,
         custo: atual.custo + (m.CustoTotalOS || m.ValorTotal || 0)
       });
     });
-    
+
     return Array.from(porMes.entries())
       .map(([mes, dados]) => ({
         mes,
@@ -170,38 +170,36 @@ export default function DetailTab() {
         osAbertas: dados.os,
         custoTotal: Math.round(dados.custo)
       }))
-      .sort((a, b) => a.mes.localeCompare(b.mes))
-      .slice(-12); // Últimos 12 meses
+      .sort((a, b) => a.mes.localeCompare(b.mes)); // Todos os meses disponíveis
   }, [filteredManutencoes]);
 
   // Distribuição por fornecedor (top 10)
   const porFornecedor = useMemo(() => {
     if (!filteredManutencoes.length) return [];
-    
+
     const map = new Map<string, number>();
-    
+
     filteredManutencoes.forEach((m: ManutencaoUnificado) => {
       const fornecedor = m.Fornecedor || m.FornecedorOcorrencia || 'N/D';
       map.set(fornecedor, (map.get(fornecedor) || 0) + 1);
     });
-    
+
     return Array.from(map.entries())
       .map(([fornecedor, quantidade]) => ({ fornecedor, quantidade }))
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 10);
+      .sort((a, b) => b.quantidade - a.quantidade);
   }, [filteredManutencoes]);
 
   // Distribuição por tipo
   const porTipo = useMemo(() => {
     if (!filteredManutencoes.length) return [];
-    
+
     const map = new Map<string, number>();
-    
+
     filteredManutencoes.forEach((m: ManutencaoUnificado) => {
       const tipo = m.TipoManutencao || 'Outros';
       map.set(tipo, (map.get(tipo) || 0) + 1);
     });
-    
+
     return Array.from(map.entries())
       .map(([tipo, quantidade]) => ({ tipo, quantidade }))
       .sort((a, b) => b.quantidade - a.quantidade);
@@ -210,25 +208,21 @@ export default function DetailTab() {
   // Distribuição por modelo (top 10)
   const porModelo = useMemo(() => {
     if (!filteredManutencoes.length) return [];
-    
+
     const map = new Map<string, number>();
-    
+
     filteredManutencoes.forEach((m: ManutencaoUnificado) => {
       const modelo = m.Modelo || 'N/D';
       map.set(modelo, (map.get(modelo) || 0) + 1);
     });
-    
+
     return Array.from(map.entries())
       .map(([modelo, quantidade]) => ({ modelo, quantidade }))
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 10);
+      .sort((a, b) => b.quantidade - a.quantidade);
   }, [filteredManutencoes]);
 
-  const pageItems = useMemo(() => 
-    filteredManutencoes.slice(page * pageSize, (page + 1) * pageSize), 
-    [filteredManutencoes, page]
-  );
-  
+  const pageItems = useMemo(() => filteredManutencoes, [filteredManutencoes]);
+
   const totalPages = Math.ceil(filteredManutencoes.length / pageSize);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
@@ -256,7 +250,7 @@ export default function DetailTab() {
             </div>
           </div>
         </Card>
-        
+
         <Card decoration="top" decorationColor="green">
           <div className="flex items-center justify-between">
             <div>
@@ -268,7 +262,7 @@ export default function DetailTab() {
             </div>
           </div>
         </Card>
-        
+
         <Card decoration="top" decorationColor="orange">
           <div className="flex items-center justify-between">
             <div>
@@ -280,7 +274,7 @@ export default function DetailTab() {
             </div>
           </div>
         </Card>
-        
+
         <Card decoration="top" decorationColor="purple">
           <div className="flex items-center justify-between">
             <div>
@@ -300,13 +294,13 @@ export default function DetailTab() {
           <Filter className="w-5 h-5 text-gray-600" />
           <Title>Filtros Rápidos</Title>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Tipo Manutenção */}
           <div>
             <Text className="mb-2">Tipo Manutenção</Text>
-            <select 
-              value={tipoFilter} 
+            <select
+              value={tipoFilter}
               onChange={(e) => { setTipoFilter(e.target.value); setPage(0); }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -317,12 +311,12 @@ export default function DetailTab() {
               <option value="Outros">Outros</option>
             </select>
           </div>
-          
+
           {/* Status OS */}
           <div>
             <Text className="mb-2">Status OS</Text>
-            <select 
-              value={statusFilter} 
+            <select
+              value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -332,12 +326,12 @@ export default function DetailTab() {
               <option value="Cancelada">Cancelada</option>
             </select>
           </div>
-          
+
           {/* Faixa de Custo */}
           <div>
             <Text className="mb-2">Faixa de Custo</Text>
-            <select 
-              value={custoFilter} 
+            <select
+              value={custoFilter}
               onChange={(e) => { setCustoFilter(e.target.value); setPage(0); }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -348,12 +342,12 @@ export default function DetailTab() {
               <option value=">R$3k">&gt; R$ 3k</option>
             </select>
           </div>
-          
+
           {/* Faixa de Lead Time */}
           <div>
             <Text className="mb-2">Faixa de Lead Time</Text>
-            <select 
-              value={leadTimeFilter} 
+            <select
+              value={leadTimeFilter}
               onChange={(e) => { setLeadTimeFilter(e.target.value); setPage(0); }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -369,63 +363,71 @@ export default function DetailTab() {
 
       {/* Gráfico de Evolução Temporal */}
       <Card>
-        <Title>Evolução Mensal de OS e Custos</Title>
-        <Text className="mb-4">Últimos 12 meses</Text>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={evolucaoTemporal}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="mesFormatado" tick={{ fontSize: 12 }} />
-            <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '12px'
-              }}
-            />
-            <Line 
-              yAxisId="left"
-              type="monotone" 
-              dataKey="osAbertas" 
-              stroke="#3b82f6" 
-              strokeWidth={2}
-              name="OS Abertas"
-              dot={{ fill: '#3b82f6', r: 4 }}
-            />
-            <Line 
-              yAxisId="right"
-              type="monotone" 
-              dataKey="custoTotal" 
-              stroke="#10b981" 
-              strokeWidth={2}
-              name="Custo Total (R$)"
-              dot={{ fill: '#10b981', r: 4 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <Title>Evolução de OS e Custos</Title>
+        <Text className="mb-4">Série histórica completa</Text>
+        <div className="overflow-x-auto pb-4">
+          <div style={{ minWidth: Math.max(800, evolucaoTemporal.length * 50) }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={evolucaoTemporal}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="mesFormatado" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '12px'
+                  }}
+                />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="osAbertas"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  name="OS Abertas"
+                  dot={{ fill: '#3b82f6', r: 4 }}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="custoTotal"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  name="Custo Total (R$)"
+                  dot={{ fill: '#10b981', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </Card>
 
       {/* Distribuições */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Por Fornecedor */}
         <Card>
-          <Title>Top 10 Fornecedores</Title>
+          <Title>Ranking de Fornecedores</Title>
           <Text className="mb-4">Por volume de OS</Text>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={porFornecedor} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis dataKey="fornecedor" type="category" width={120} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="quantidade" name="OS">
-                {porFornecedor.map((_entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="overflow-y-auto" style={{ maxHeight: 300 }}>
+            <div style={{ height: Math.max(300, porFornecedor.length * 30) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={porFornecedor} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis dataKey="fornecedor" type="category" width={120} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="quantidade" name="OS">
+                    {porFornecedor.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </Card>
 
         {/* Por Tipo */}
@@ -449,21 +451,25 @@ export default function DetailTab() {
 
         {/* Por Modelo */}
         <Card className="md:col-span-2">
-          <Title>Top 10 Modelos com Mais Manutenções</Title>
+          <Title>Ranking de Modelos</Title>
           <Text className="mb-4">Identifique os veículos que mais demandam manutenção</Text>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={porModelo} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis dataKey="modelo" type="category" width={150} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="quantidade" name="OS">
-                {porModelo.map((_entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+            <div style={{ height: Math.max(300, porModelo.length * 30) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={porModelo} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis dataKey="modelo" type="category" width={150} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="quantidade" name="OS">
+                    {porModelo.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </Card>
       </div>
 
@@ -473,11 +479,11 @@ export default function DetailTab() {
           <Title>Detalhamento de OS</Title>
           <Text className="text-gray-500">{filteredManutencoes.length} registros</Text>
         </div>
-        
-        <div className="overflow-x-auto">
+
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b-2 border-gray-200">
+              <tr className="border-b-2 border-gray-200 sticky top-0 bg-white z-10">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Data Entrada</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Placa</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Modelo</th>
@@ -493,9 +499,9 @@ export default function DetailTab() {
                 const leadTime = m.LeadTimeTotalDias || m.DiasParado || 0;
                 const custo = m.CustoTotalOS || m.ValorTotal || 0;
                 const status = m.SituacaoOcorrencia || m.StatusSimplificado || m.StatusOS || m.SituacaoOrdemServico || '';
-                
+
                 return (
-                  <tr 
+                  <tr
                     key={`${m.Ocorrencia}-${idx}`}
                     className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                   >
@@ -506,9 +512,9 @@ export default function DetailTab() {
                     <td className="px-4 py-3 text-sm">
                       <Badge color={
                         m.TipoManutencao === 'Preventiva' ? 'green' :
-                        m.TipoManutencao === 'Corretiva' ? 'orange' :
-                        m.TipoManutencao === 'Preditiva' ? 'blue' :
-                        'gray'
+                          m.TipoManutencao === 'Corretiva' ? 'orange' :
+                            m.TipoManutencao === 'Preditiva' ? 'blue' :
+                              'gray'
                       }>
                         {m.TipoManutencao || 'Outros'}
                       </Badge>
@@ -516,8 +522,8 @@ export default function DetailTab() {
                     <td className="px-4 py-3 text-sm">
                       <Badge color={
                         status.toLowerCase().includes('conclu') ? 'green' :
-                        status.toLowerCase().includes('cancel') ? 'red' :
-                        'yellow'
+                          status.toLowerCase().includes('cancel') ? 'red' :
+                            'yellow'
                       }>
                         {status || '—'}
                       </Badge>
@@ -525,9 +531,9 @@ export default function DetailTab() {
                     <td className="px-4 py-3 text-sm text-center">
                       <Badge color={
                         leadTime > 15 ? 'red' :
-                        leadTime > 7 ? 'orange' :
-                        leadTime > 3 ? 'yellow' :
-                        'green'
+                          leadTime > 7 ? 'orange' :
+                            leadTime > 3 ? 'yellow' :
+                              'green'
                       }>
                         {leadTime} dias
                       </Badge>
@@ -548,30 +554,12 @@ export default function DetailTab() {
           </div>
         )}
 
-        {/* Paginação */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <Text className="text-gray-500">
-              Página {page + 1} de {totalPages} • {filteredManutencoes.length} registros
-            </Text>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Anterior
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Próxima
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Registros info */}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t">
+          <Text className="text-gray-500">
+            Mostrando todos os {filteredManutencoes.length} registros (sem paginação)
+          </Text>
+        </div>
       </Card>
     </div>
   );

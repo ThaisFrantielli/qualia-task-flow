@@ -90,9 +90,9 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
       critical: vehicleMetrics.filter(m => m.utilization < 40).length
     };
 
-    return { 
-      avgUtilization, 
-      avgManutenction, 
+    return {
+      avgUtilization,
+      avgManutenction,
       totalVehicles: vehicleMetrics.length,
       ...ranges
     };
@@ -107,23 +107,23 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
   ].filter(d => d.value > 0), [kpis]);
 
   // Top/Bottom performers
-  const topPerformers = useMemo(() => 
-    [...vehicleMetrics].sort((a, b) => b.utilization - a.utilization).slice(0, 8)
-  , [vehicleMetrics]);
+  const topPerformers = useMemo(() =>
+    [...vehicleMetrics].sort((a, b) => b.utilization - a.utilization)
+    , [vehicleMetrics]);
 
-  const bottomPerformers = useMemo(() => 
-    [...vehicleMetrics].sort((a, b) => a.utilization - b.utilization).slice(0, 8)
-  , [vehicleMetrics]);
+  const bottomPerformers = useMemo(() =>
+    [...vehicleMetrics].sort((a, b) => a.utilization - b.utilization)
+    , [vehicleMetrics]);
 
   // Ve├¡culos mais tempo em manuten├º├úo
-  const topMaintenance = useMemo(() => 
-    [...vehicleMetrics].sort((a, b) => b.manutencaoDays - a.manutencaoDays).slice(0, 10)
-  , [vehicleMetrics]);
+  const topMaintenance = useMemo(() =>
+    [...vehicleMetrics].sort((a, b) => b.manutencaoDays - a.manutencaoDays)
+    , [vehicleMetrics]);
 
   // Filtrar por range selecionado
   const filteredVehicles = useMemo(() => {
     if (!selectedRange) return vehicleMetrics;
-    switch(selectedRange) {
+    switch (selectedRange) {
       case 'excellent': return vehicleMetrics.filter(m => m.utilization >= 80);
       case 'good': return vehicleMetrics.filter(m => m.utilization >= 60 && m.utilization < 80);
       case 'warning': return vehicleMetrics.filter(m => m.utilization >= 40 && m.utilization < 60);
@@ -153,7 +153,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
 
       {/* KPIs em cards modernos */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card 
+        <Card
           className={`cursor-pointer transition-all hover:shadow-lg border-2 ${selectedRange === 'excellent' ? 'border-emerald-500 bg-emerald-50' : 'border-transparent'}`}
           onClick={() => setSelectedRange(selectedRange === 'excellent' ? null : 'excellent')}
         >
@@ -169,7 +169,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
           </div>
         </Card>
 
-        <Card 
+        <Card
           className={`cursor-pointer transition-all hover:shadow-lg border-2 ${selectedRange === 'good' ? 'border-blue-500 bg-blue-50' : 'border-transparent'}`}
           onClick={() => setSelectedRange(selectedRange === 'good' ? null : 'good')}
         >
@@ -185,7 +185,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
           </div>
         </Card>
 
-        <Card 
+        <Card
           className={`cursor-pointer transition-all hover:shadow-lg border-2 ${selectedRange === 'warning' ? 'border-amber-500 bg-amber-50' : 'border-transparent'}`}
           onClick={() => setSelectedRange(selectedRange === 'warning' ? null : 'warning')}
         >
@@ -201,7 +201,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
           </div>
         </Card>
 
-        <Card 
+        <Card
           className={`cursor-pointer transition-all hover:shadow-lg border-2 ${selectedRange === 'critical' ? 'border-rose-500 bg-rose-50' : 'border-transparent'}`}
           onClick={() => setSelectedRange(selectedRange === 'critical' ? null : 'critical')}
         >
@@ -241,9 +241,9 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                   paddingAngle={2}
                   dataKey="value"
                   onClick={(data) => {
-                    const range = data.name.includes('Excelente') ? 'excellent' 
+                    const range = data.name.includes('Excelente') ? 'excellent'
                       : data.name.includes('Bom') ? 'good'
-                      : data.name.includes('Regular') ? 'warning' : 'critical';
+                        : data.name.includes('Regular') ? 'warning' : 'critical';
                     setSelectedRange(selectedRange === range ? null : range);
                   }}
                   cursor="pointer"
@@ -269,26 +269,30 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
             <Text className="text-xs text-slate-500">M├®dia: {kpis.avgManutenction.toFixed(0)} dias</Text>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topMaintenance} layout="vertical" margin={{ left: 10, right: 50 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
-                <Tooltip 
-                  formatter={(value: number) => [`${value} dias`, 'Em Manuten├º├úo']}
-                  labelFormatter={(label) => `Placa: ${label}`}
-                />
-                <Bar dataKey="manutencaoDays" radius={[0, 6, 6, 0]} barSize={16}>
-                  {topMaintenance.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.manutencaoDays > kpis.avgManutenction * 2 ? COLORS.critical : COLORS.warning} 
+            <div className="overflow-y-auto" style={{ maxHeight: 288 }}>
+              <div style={{ height: Math.max(288, topMaintenance.length * 30) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topMaintenance} layout="vertical" margin={{ left: 10, right: 50 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(value: number) => [`${value} dias`, 'Em Manuten├º├úo']}
+                      labelFormatter={(label) => `Placa: ${label}`}
                     />
-                  ))}
-                  <LabelList dataKey="manutencaoDays" position="right" formatter={(v: number) => `${v}d`} fontSize={10} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                    <Bar dataKey="manutencaoDays" radius={[0, 6, 6, 0]} barSize={16}>
+                      {topMaintenance.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.manutencaoDays > kpis.avgManutenction * 2 ? COLORS.critical : COLORS.warning}
+                        />
+                      ))}
+                      <LabelList dataKey="manutencaoDays" position="right" formatter={(v: number) => `${v}d`} fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
@@ -303,20 +307,24 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
             </Title>
           </div>
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topPerformers} layout="vertical" margin={{ left: 10, right: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#d1fae5" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-                <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
-                <Tooltip 
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utiliza├º├úo']}
-                  labelFormatter={(label) => `Placa: ${label}`}
-                />
-                <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={18} fill={COLORS.excellent}>
-                  <LabelList dataKey="utilization" position="right" formatter={(v: number) => `${v.toFixed(0)}%`} fontSize={10} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
+              <div style={{ height: Math.max(320, topPerformers.length * 30) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topPerformers} layout="vertical" margin={{ left: 10, right: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#d1fae5" />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utiliza├º├úo']}
+                      labelFormatter={(label) => `Placa: ${label}`}
+                    />
+                    <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={18} fill={COLORS.excellent}>
+                      <LabelList dataKey="utilization" position="right" formatter={(v: number) => `${v.toFixed(0)}%`} fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -328,26 +336,30 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
             </Title>
           </div>
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={bottomPerformers} layout="vertical" margin={{ left: 10, right: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fee2e2" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-                <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
-                <Tooltip 
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utiliza├º├úo']}
-                  labelFormatter={(label) => `Placa: ${label}`}
-                />
-                <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={18}>
-                  {bottomPerformers.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.utilization < 40 ? COLORS.critical : COLORS.warning} 
+            <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
+              <div style={{ height: Math.max(320, bottomPerformers.length * 30) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={bottomPerformers} layout="vertical" margin={{ left: 10, right: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#fee2e2" />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="placa" type="category" width={85} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'Utiliza├º├úo']}
+                      labelFormatter={(label) => `Placa: ${label}`}
                     />
-                  ))}
-                  <LabelList dataKey="utilization" position="right" formatter={(v: number) => `${v.toFixed(0)}%`} fontSize={10} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                    <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={18}>
+                      {bottomPerformers.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.utilization < 40 ? COLORS.critical : COLORS.warning}
+                        />
+                      ))}
+                      <LabelList dataKey="utilization" position="right" formatter={(v: number) => `${v.toFixed(0)}%`} fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
@@ -362,7 +374,7 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                 {filteredVehicles.length} ve├¡culos
               </Badge>
             </div>
-            <button 
+            <button
               onClick={() => setSelectedRange(null)}
               className="text-sm text-slate-500 hover:text-slate-700"
             >
@@ -382,17 +394,16 @@ export default function EfficiencyTab({ timeline, filteredData, frota }: Efficie
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredVehicles.slice(0, 50).map((v, i) => (
+                {filteredVehicles.map((v, i) => (
                   <tr key={i} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono font-medium text-blue-600">{v.placa}</td>
                     <td className="px-4 py-3 text-slate-700">{v.modelo}</td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                        v.utilization >= 80 ? 'bg-emerald-100 text-emerald-700' :
-                        v.utilization >= 60 ? 'bg-blue-100 text-blue-700' :
-                        v.utilization >= 40 ? 'bg-amber-100 text-amber-700' :
-                        'bg-rose-100 text-rose-700'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${v.utilization >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                          v.utilization >= 60 ? 'bg-blue-100 text-blue-700' :
+                            v.utilization >= 40 ? 'bg-amber-100 text-amber-700' :
+                              'bg-rose-100 text-rose-700'
+                        }`}>
                         {v.utilization.toFixed(1)}%
                       </span>
                     </td>

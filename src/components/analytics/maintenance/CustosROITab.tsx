@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { 
+import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ScatterChart, Scatter, Cell, PieChart, Pie
 } from 'recharts';
@@ -62,7 +62,7 @@ function monthLabel(ym: string): string {
 
 export default function CustosROITab() {
   const [periodo, setPeriodo] = useState<'3m' | '6m' | '12m' | 'all'>('6m');
-  
+
   // Carregar dados
   const { data: custosDetalhados, loading } = useBIData<CustosDetalhados[]>('agg_custos_detalhados.json');
   const { data: manutencoes } = useBIData<ManutencaoUnificado[]>('fat_manutencao_unificado.json');
@@ -105,7 +105,7 @@ export default function CustosROITab() {
     const custoPecas = dadosFiltrados.reduce((sum, c) => sum + (c.CustoPecas || 0), 0);
     const custoServicos = dadosFiltrados.reduce((sum, c) => sum + (c.CustoServicos || 0), 0);
     const custoTotal = dadosFiltrados.reduce((sum, c) => sum + (c.CustoTotal || 0), 0);
-    
+
     const comKm = dadosFiltrados.filter(c => c.KmPercorrido > 0);
     const custoKmMedio = comKm.length > 0
       ? comKm.reduce((sum, c) => sum + c.CustoPorKm, 0) / comKm.length
@@ -164,8 +164,7 @@ export default function CustosROITab() {
         y: m.CustoTotalOS,
         categoria: m.CategoriaVeiculo || 'Outros',
         placa: m.Placa,
-      }))
-      .slice(0, 200); // Limitar para performance
+      })); // Todos os pontos do scatter
   }, [manutencoes]);
 
   // Categorias únicas para scatter
@@ -205,15 +204,13 @@ export default function CustosROITab() {
         totalOS: f.totalOS,
         taxaReembolso: f.countReembolso > 0 ? f.taxaReembolsoMedia / f.countReembolso : 0,
       }))
-      .sort((a, b) => b.custoTotal - a.custoTotal)
-      .slice(0, 10);
+      .sort((a, b) => b.custoTotal - a.custoTotal);
   }, [dadosFiltrados]);
 
   // Top 20 OS mais caras
   const top20OSCaras = useMemo(() => {
     return [...dadosFiltrados]
-      .sort((a, b) => b.CustoTotal - a.CustoTotal)
-      .slice(0, 20);
+      .sort((a, b) => b.CustoTotal - a.CustoTotal);
   }, [dadosFiltrados]);
 
   // Exportar para Excel
@@ -271,11 +268,10 @@ export default function CustosROITab() {
               <button
                 key={p.value}
                 onClick={() => setPeriodo(p.value as any)}
-                className={`px-3 py-1 rounded text-sm font-medium transition-all ${
-                  periodo === p.value
+                className={`px-3 py-1 rounded text-sm font-medium transition-all ${periodo === p.value
                     ? 'bg-white shadow text-blue-600'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 {p.label}
               </button>
@@ -310,70 +306,70 @@ export default function CustosROITab() {
               </Tooltip>
             </div>
             <Metric>{fmtBRL(kpis.custoPecas)}</Metric>
-          <Text className="text-xs text-gray-500 mt-1">
-            {fmtNum((kpis.custoPecas / kpis.custoTotal) * 100)}% do total
-          </Text>
-        </Card>
+            <Text className="text-xs text-gray-500 mt-1">
+              {fmtNum((kpis.custoPecas / kpis.custoTotal) * 100)}% do total
+            </Text>
+          </Card>
 
-        <Card decoration="top" decorationColor="green">
-          <div className="flex items-center gap-1">
-            <Text>Custo Serviços</Text>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3 h-3 text-slate-400 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="font-semibold">Custo Total de Mão de Obra</p>
-                <p className="text-xs mt-1">Soma de todos os valores gastos com serviços de mão de obra (mecânicos, técnicos, etc) nas ordens de serviço.</p>
-                <p className="text-xs mt-1 font-mono">Cálculo: Custo de Serviços de todas as OS</p>
-                <p className="text-xs mt-1 text-amber-600">Objetivo: Saber quanto está sendo gasto com trabalho das oficinas além das peças</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <Metric>{fmtBRL(kpis.custoServicos)}</Metric>
-          <Text className="text-xs text-gray-500 mt-1">
-            {fmtNum((kpis.custoServicos / kpis.custoTotal) * 100)}% do total
-          </Text>
-        </Card>
+          <Card decoration="top" decorationColor="green">
+            <div className="flex items-center gap-1">
+              <Text>Custo Serviços</Text>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold">Custo Total de Mão de Obra</p>
+                  <p className="text-xs mt-1">Soma de todos os valores gastos com serviços de mão de obra (mecânicos, técnicos, etc) nas ordens de serviço.</p>
+                  <p className="text-xs mt-1 font-mono">Cálculo: Custo de Serviços de todas as OS</p>
+                  <p className="text-xs mt-1 text-amber-600">Objetivo: Saber quanto está sendo gasto com trabalho das oficinas além das peças</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Metric>{fmtBRL(kpis.custoServicos)}</Metric>
+            <Text className="text-xs text-gray-500 mt-1">
+              {fmtNum((kpis.custoServicos / kpis.custoTotal) * 100)}% do total
+            </Text>
+          </Card>
 
-        <Card decoration="top" decorationColor="amber">
-          <div className="flex items-center gap-1">
-            <Text>Custo/KM Médio</Text>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3 h-3 text-slate-400 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="font-semibold">Custo Médio por Quilômetro</p>
-                <p className="text-xs mt-1">Quanto está sendo gasto em manutenção para cada quilômetro que os veículos rodam. Serve para comparar eficiência de modelos.</p>
-                <p className="text-xs mt-1 font-mono">Cálculo: Custo Total de Manutenção ÷ KM Rodados</p>
-                <p className="text-xs mt-1 text-amber-600">Objetivo: Saber o custo real de manutenção por uso do veículo</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <Metric>{fmtBRL(kpis.custoKmMedio)}</Metric>
-          <Text className="text-xs text-gray-500 mt-1">Por quilômetro rodado</Text>
-        </Card>
+          <Card decoration="top" decorationColor="amber">
+            <div className="flex items-center gap-1">
+              <Text>Custo/KM Médio</Text>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold">Custo Médio por Quilômetro</p>
+                  <p className="text-xs mt-1">Quanto está sendo gasto em manutenção para cada quilômetro que os veículos rodam. Serve para comparar eficiência de modelos.</p>
+                  <p className="text-xs mt-1 font-mono">Cálculo: Custo Total de Manutenção ÷ KM Rodados</p>
+                  <p className="text-xs mt-1 text-amber-600">Objetivo: Saber o custo real de manutenção por uso do veículo</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Metric>{fmtBRL(kpis.custoKmMedio)}</Metric>
+            <Text className="text-xs text-gray-500 mt-1">Por quilômetro rodado</Text>
+          </Card>
 
-        <Card decoration="top" decorationColor="purple">
-          <div className="flex items-center gap-1">
-            <Text>Taxa Reembolso Média</Text>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3 h-3 text-slate-400 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="font-semibold">Percentual Médio de Reembolso</p>
-                <p className="text-xs mt-1">Quanto em média a empresa consegue recuperar dos clientes do valor gasto em manutenção. Exemplo: 80% significa que para cada R$ 100 gastos, R$ 80 são reembolsados.</p>
-                <p className="text-xs mt-1 font-mono">Cálculo: (Valor Reembolsável ÷ Custo Total) × 100</p>
-                <p className="text-xs mt-1 text-amber-600">Objetivo: Monitorar quanto do custo está sendo recuperado dos contratos</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <Metric>{fmtNum(kpis.taxaReembolsoMedia)}%</Metric>
-          <Text className="text-xs text-gray-500 mt-1">Reembolso/Total</Text>
-        </Card>
-      </div>
+          <Card decoration="top" decorationColor="purple">
+            <div className="flex items-center gap-1">
+              <Text>Taxa Reembolso Média</Text>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold">Percentual Médio de Reembolso</p>
+                  <p className="text-xs mt-1">Quanto em média a empresa consegue recuperar dos clientes do valor gasto em manutenção. Exemplo: 80% significa que para cada R$ 100 gastos, R$ 80 são reembolsados.</p>
+                  <p className="text-xs mt-1 font-mono">Cálculo: (Valor Reembolsável ÷ Custo Total) × 100</p>
+                  <p className="text-xs mt-1 text-amber-600">Objetivo: Monitorar quanto do custo está sendo recuperado dos contratos</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Metric>{fmtNum(kpis.taxaReembolsoMedia)}%</Metric>
+            <Text className="text-xs text-gray-500 mt-1">Reembolso/Total</Text>
+          </Card>
+        </div>
       </TooltipProvider>
 
       {/* Row 1: Evolução Mensal + Distribuição Preventiva/Corretiva */}
@@ -474,7 +470,7 @@ export default function CustosROITab() {
 
       {/* Row 3: Ranking Fornecedores */}
       <Card>
-        <Title>Ranking de Fornecedores - Top 10</Title>
+        <Title>Ranking de Fornecedores</Title>
         <Text className="mb-4">Custo total, ticket médio e taxa de reembolso</Text>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -513,7 +509,7 @@ export default function CustosROITab() {
       {/* Row 4: Top 20 OS Mais Caras */}
       <Card>
         <div className="flex items-center justify-between mb-4">
-          <Title>Top 20 OS Mais Caras - Drill-down Detalhado</Title>
+          <Title>Top OS Mais Caras - Drill-down Detalhado</Title>
           <Badge color="blue" size="lg">{top20OSCaras.length} OS</Badge>
         </div>
         <div className="overflow-x-auto max-h-[500px] overflow-y-auto">

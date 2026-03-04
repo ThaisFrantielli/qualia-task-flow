@@ -69,7 +69,7 @@ export default function OperacionalTab() {
   // Filtrar apenas ocorrências de manutenção
   const movimentacoes = useMemo(() => {
     if (!movimentacoesRaw?.length) return [];
-    return movimentacoesRaw.filter(m => 
+    return movimentacoesRaw.filter(m =>
       m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
     );
   }, [movimentacoesRaw]);
@@ -102,7 +102,7 @@ export default function OperacionalTab() {
     return osAbertas.map(os => {
       const dataEtapa = new Date(os.DataEtapa);
       const diasNaEtapa = Math.floor((now.getTime() - dataEtapa.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       return {
         ...os,
         DiasNaEtapa: diasNaEtapa,
@@ -138,7 +138,7 @@ export default function OperacionalTab() {
 
     if (busca) {
       const buscaLower = busca.toLowerCase();
-      filtradas = filtradas.filter(os => 
+      filtradas = filtradas.filter(os =>
         os.Placa.toLowerCase().includes(buscaLower) ||
         os.Ocorrencia.toString().includes(busca) ||
         os.ModeloVeiculo?.toLowerCase().includes(buscaLower)
@@ -155,13 +155,13 @@ export default function OperacionalTab() {
 
   // Alertas críticos (top 5)
   const alertasCriticosTop = useMemo(() => {
-    return alertas.filter(a => a.severidade === 'critico').slice(0, 5);
+    return alertas.filter(a => a.severidade === 'critico');
   }, [alertas]);
 
   // OS Travadas (sem movimentação > 72h)
   const osTravadas = useMemo(() => {
     if (!osComDias.length) return [];
-    
+
     const LIMITE_72H = 3; // dias
     return osComDias.filter(os => os.DiasNaEtapa > LIMITE_72H);
   }, [osComDias]);
@@ -274,7 +274,7 @@ export default function OperacionalTab() {
                 </tr>
               </thead>
               <tbody>
-                {osTravadas.slice(0, 10).map(os => (
+                {osTravadas.map(os => (
                   <tr key={os.Ocorrencia} className="border-t hover:bg-orange-50">
                     <td className="p-2 font-mono text-orange-600 font-bold">{os.Ocorrencia}</td>
                     <td className="p-2 font-medium">{os.Placa}</td>
@@ -291,11 +291,6 @@ export default function OperacionalTab() {
               </tbody>
             </table>
           </div>
-          {osTravadas.length > 10 && (
-            <Text className="text-xs text-gray-500 mt-2">
-              Mostrando 10 de {osTravadas.length} OS travadas
-            </Text>
-          )}
         </Card>
       )}
 
@@ -399,7 +394,7 @@ export default function OperacionalTab() {
             <tbody>
               {osFiltradas.map(os => {
                 const sla = getBadgeSLA(os.LeadTimeTotal);
-                
+
                 return (
                   <tr key={os.Ocorrencia} className="border-t hover:bg-gray-50">
                     <td className="p-2 font-mono text-blue-600">{os.Ocorrencia}</td>

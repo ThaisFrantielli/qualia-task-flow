@@ -56,9 +56,9 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
   const [busca, setBusca] = useState('');
   const [sortField, setSortField] = useState<string>('placa');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [page, setPage] = useState(0);
-  const pageSize = 25;
-  
+  // const [page, setPage] = useState(0); // Removido para mostrar todos os dados
+  // const pageSize = 25;
+
   const tableData = useMemo(() => {
     // Create map of maintenance costs per plate
     const manutencaoMap: Record<string, { total: number; count: number }> = {};
@@ -68,13 +68,13 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
       manutencaoMap[placa].total += m.ValorTotal || 0;
       manutencaoMap[placa].count += 1;
     });
-    
+
     // Create map of contracts per plate
     const contratoMap: Record<string, ContratoItem> = {};
     contratosData.forEach(c => {
       if (c.Placa) contratoMap[c.Placa] = c;
     });
-    
+
     return frotaData
       .filter(v => v.Placa && v.Status !== 'Vendido')
       .map(v => {
@@ -86,7 +86,7 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
         const indiceKm = getIndiceKm(km, idade);
         const custoKm = km > 0 ? man.total / km : 0;
         const diasVencimento = getDiasParaVencimento(contrato?.FimContrato);
-        
+
         return {
           placa,
           grupo: v.Categoria || 'N/I',
@@ -105,20 +105,20 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
         };
       });
   }, [frotaData, contratosData, manutencaoData]);
-  
+
   const filteredData = useMemo(() => {
     let data = tableData;
-    
+
     if (busca) {
       const term = busca.toLowerCase();
-      data = data.filter(d => 
+      data = data.filter(d =>
         d.placa.toLowerCase().includes(term) ||
         d.modelo.toLowerCase().includes(term) ||
         d.grupo.toLowerCase().includes(term) ||
         d.cliente.toLowerCase().includes(term)
       );
     }
-    
+
     return data.sort((a, b) => {
       const aVal = a[sortField as keyof typeof a] ?? '';
       const bVal = b[sortField as keyof typeof b] ?? '';
@@ -138,10 +138,10 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
       return sortDir === 'asc' ? (Number(aVal) - Number(bVal)) : (Number(bVal) - Number(aVal));
     });
   }, [tableData, busca, sortField, sortDir]);
-  
-  const pagedData = filteredData.slice(page * pageSize, (page + 1) * pageSize);
-  const totalPages = Math.ceil(filteredData.length / pageSize);
-  
+
+  const pagedData = filteredData; // Mostra todos os registros
+  // const totalPages = Math.ceil(filteredData.length / pageSize);
+
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -150,7 +150,7 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
       setSortDir('asc');
     }
   };
-  
+
   const exportCSV = () => {
     const headers = ['Placa', 'Grupo', 'Modelo', 'KM', 'Idade (meses)', 'Passagens', 'Ticket Médio', 'Custo/KM', 'Índice KM', 'Vencimento', 'Valor Locação', 'Cliente'];
     const rows = filteredData.map(r => [
@@ -174,9 +174,9 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
     link.download = 'analise_veiculos.csv';
     link.click();
   };
-  
+
   const SortHeader = ({ field, label, align = 'left' }: { field: string; label: string; align?: 'left' | 'center' | 'right' }) => (
-    <th 
+    <th
       className={`p-2 font-semibold cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap ${align === 'left' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'}`}
       onClick={() => handleSort(field)}
     >
@@ -198,14 +198,14 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
             <Text className="text-slate-500">{filteredData.length} veículos encontrados</Text>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input 
-              placeholder="Buscar placa, modelo..." 
+            <Input
+              placeholder="Buscar placa, modelo..."
               value={busca}
-              onChange={e => { setBusca(e.target.value); setPage(0); }}
+              onChange={e => { setBusca(e.target.value); /* setPage(0); */ }}
               className="pl-9 w-64"
             />
           </div>
@@ -215,10 +215,10 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
           </Button>
         </div>
       </div>
-      
+
       {/* Table */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-xs">
             <thead className="bg-slate-50 sticky top-0">
               <tr>
@@ -249,17 +249,15 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
                   <td className={`p-2 text-right ${row.custoKm > 0.5 ? 'bg-rose-100 text-rose-700' : ''}`}>
                     {fmtBRL(row.custoKm)}
                   </td>
-                  <td className={`p-2 text-right font-medium ${
-                    row.indiceKm > 120 ? 'bg-rose-100 text-rose-700' : 
-                    row.indiceKm > 100 ? 'bg-amber-100 text-amber-700' : 
-                    'text-emerald-600'
-                  }`}>
+                  <td className={`p-2 text-right font-medium ${row.indiceKm > 120 ? 'bg-rose-100 text-rose-700' :
+                    row.indiceKm > 100 ? 'bg-amber-100 text-amber-700' :
+                      'text-emerald-600'
+                    }`}>
                     {row.indiceKm.toFixed(0)}%
                   </td>
-                  <td className={`p-2 text-center ${
-                    row.diasVencimento !== null && row.diasVencimento < 0 ? 'bg-rose-100 text-rose-700' :
+                  <td className={`p-2 text-center ${row.diasVencimento !== null && row.diasVencimento < 0 ? 'bg-rose-100 text-rose-700' :
                     row.diasVencimento !== null && row.diasVencimento < 90 ? 'bg-amber-100 text-amber-700' : ''
-                  }`}>
+                    }`}>
                     <div className="flex items-center justify-center gap-2">
                       <span>
                         {row.vencimento ? new Date(row.vencimento).toLocaleDateString('pt-BR') : '-'}
@@ -278,35 +276,10 @@ export default function AnaliseVeiculoTab({ frotaData, contratosData, manutencao
             </tbody>
           </table>
         </div>
-        
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between p-3 border-t bg-slate-50">
-            <Text className="text-slate-500">
-              Mostrando {page * pageSize + 1}-{Math.min((page + 1) * pageSize, filteredData.length)} de {filteredData.length}
-            </Text>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-              >
-                Anterior
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-              >
-                Próxima
-              </Button>
-            </div>
-          </div>
-        )}
+
+        {/* Pagination Removida */}
       </Card>
-      
+
       {/* Legend */}
       <div className="flex items-center gap-6 text-xs text-slate-500">
         <div className="flex items-center gap-2">

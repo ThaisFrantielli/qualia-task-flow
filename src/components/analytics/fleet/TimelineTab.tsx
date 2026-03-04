@@ -37,12 +37,12 @@ function fmtMoney(v: any) {
   } else {
     num = Number(v);
   }
-  
+
   if (!num || isNaN(num)) return 'R$ 0,00';
-  
+
   // Formata com vírgula para decimal e ponto para milhares
-  return new Intl.NumberFormat('pt-BR', { 
-    style: 'currency', 
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -1663,7 +1663,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                       // Eventos prioritàrios que SEMPRE devem aparecer (ciclo de vida do veículo)
                       const PRIORITY_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO'];
-                      
+
                       // Helper para extrair data de qualquer tipo de row
                       const getRowDate = (r: TimelineRow): Date => {
                         if (r.kind === 'MANUTENCAO_OCORRENCIA') return r.ocorrenciaDate;
@@ -1673,25 +1673,25 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                         // fallback seguro
                         return new Date(0);
                       };
-                      
+
                       const allRows: TimelineRow[] = [...manutOccurrences, ...sinistroOccurrences, ...eventRows]
                         .sort((a, b) => {
                           const ad = getRowDate(a);
                           const bd = getRowDate(b);
                           return bd.getTime() - ad.getTime();
                         });
-                      
+
                       // Separar eventos prioritàrios dos demais
-                      const priorityRows = allRows.filter(r => 
+                      const priorityRows = allRows.filter(r =>
                         r.kind === 'EVENTO_DIA_TIPO' && PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt))
                       );
-                      const otherRows = allRows.filter(r => 
-                        r.kind === 'MANUTENCAO_OCORRENCIA' || 
+                      const otherRows = allRows.filter(r =>
+                        r.kind === 'MANUTENCAO_OCORRENCIA' ||
                         r.kind === 'MANUTENCAO_PERIODO' ||
                         r.kind === 'SINISTRO_OCORRENCIA' ||
                         (r.kind === 'EVENTO_DIA_TIPO' && !PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt)))
                       );
-                      
+
                       // Combinar: todos os prioritàrios + até 25 outros
                       const rows: TimelineRow[] = [
                         ...priorityRows,
@@ -1704,7 +1704,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                       // Separar eventos de ciclo de vida para destaque
                       const LIFECYCLE_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA'];
-                      const lifecycleEvents = priorityRows.filter(r => 
+                      const lifecycleEvents = priorityRows.filter(r =>
                         r.kind === 'EVENTO_DIA_TIPO' && LIFECYCLE_TYPES.some(lt => (r as EventGroupRow).tipo.includes(lt))
                       ) as EventGroupRow[];
 
@@ -1726,7 +1726,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                   const icon = EVENT_ICONS[ev.tipo] || <ShoppingCart size={14} className="text-purple-500" />;
                                   const valor = item?.ValorCompra ?? item?.ValorVenda ?? item?.CustoTotal ?? item?.ValorAquisicao;
                                   const fornecedor = item?.Fornecedor || item?.Proprietario || item?.Comprador || '';
-                                  
+
                                   return (
                                     <div key={`lifecycle-${idx}`} className="flex items-center justify-between bg-white rounded p-2 border border-purple-100">
                                       <div className="flex items-center gap-2">
@@ -1778,99 +1778,99 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 </div>
                                 <div className="space-y-2">
                                   {useContratos
-                                    ? contratosDoVeiculo.slice(0, 10).map((c, idx) => {
-                                        const inicio = c.__inicio as Date | null;
-                                        const fimPrev = c.__fimPrevisto as Date | null;
-                                        const fimReal = c.__fimEncerramento as Date | null;
-                                        const fim = fimReal || fimPrev;
-                                        const hoje = new Date();
-                                        const isAtivo = !fim || fim.getTime() >= hoje.getTime();
+                                    ? contratosDoVeiculo.map((c, idx) => {
+                                      const inicio = c.__inicio as Date | null;
+                                      const fimPrev = c.__fimPrevisto as Date | null;
+                                      const fimReal = c.__fimEncerramento as Date | null;
+                                      const fim = fimReal || fimPrev;
+                                      const hoje = new Date();
+                                      const isAtivo = !fim || fim.getTime() >= hoje.getTime();
 
-                                        let duracaoMeses = 0;
-                                        if (inicio) {
-                                          const end2 = fim || hoje;
-                                          duracaoMeses = Math.max(0, Math.floor((end2.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24 * 30)));
-                                        }
+                                      let duracaoMeses = 0;
+                                      if (inicio) {
+                                        const end2 = fim || hoje;
+                                        duracaoMeses = Math.max(0, Math.floor((end2.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+                                      }
 
-                                        const clienteNm = c.NomeCliente || c.nomecliente || c.Cliente || c.cliente || '—';
-                                        const numero = c.NumeroContratoLocacao || c.NumeroContrato || c.ContratoId || '';
-                                        const situacao = c.SituacaoLocacao || c.StatusLocacao || c.Situacao || '';
-                                        const tipo = c.TipoLocacao || c.tipolocacao || '';
-                                        const valorM = c.ValorLocacao || c.ValorMensal || c.valormensal || 0;
+                                      const clienteNm = c.NomeCliente || c.nomecliente || c.Cliente || c.cliente || '—';
+                                      const numero = c.NumeroContratoLocacao || c.NumeroContrato || c.ContratoId || '';
+                                      const situacao = c.SituacaoLocacao || c.StatusLocacao || c.Situacao || '';
+                                      const tipo = c.TipoLocacao || c.tipolocacao || '';
+                                      const valorM = c.ValorLocacao || c.ValorMensal || c.valormensal || 0;
 
-                                        return (
-                                          <div key={`contrato-${idx}`} className="bg-white rounded p-2 border border-emerald-100 space-y-1">
-                                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                                              <div className="flex items-center gap-2">
-                                                <Play size={13} className={isAtivo ? 'text-emerald-500' : 'text-slate-400'} />
-                                                <span className="font-semibold text-sm text-slate-700 truncate max-w-[200px]" title={clienteNm}>{clienteNm}</span>
-                                                {numero && <Badge color="emerald" size="xs">{numero}</Badge>}
-                                              </div>
-                                              <div className="flex items-center gap-2">
-                                                {situacao && (
-                                                  <Badge color={isAtivo ? 'green' : 'slate'} size="xs">{situacao}</Badge>
-                                                )}
-                                                {Number(valorM) > 0 && (
-                                                  <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorM)}/mês</span>
-                                                )}
-                                              </div>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                                              {inicio && (
-                                                <span>Início: <b className="text-slate-700">{fmtDateBR(inicio)}</b></span>
-                                              )}
-                                              {fim && (
-                                                <span>{fimReal ? 'Encerrado' : 'Prev. Término'}: <b className="text-slate-700">{fmtDateBR(fim)}</b></span>
-                                              )}
-                                              {duracaoMeses > 0 && (
-                                                <Badge color="blue" size="xs">{duracaoMeses} meses</Badge>
-                                              )}
-                                              {tipo && <span className="text-slate-400">{tipo}</span>}
-                                            </div>
-                                          </div>
-                                        );
-                                      })
-                                    : locacaoEventsStream.slice(0, 8).map((ev, idx) => {
-                                        const item = ev.items[0];
-                                        const isLocacao = ev.tipo.includes('LOCACAO');
-                                        const clienteNm = item?.Cliente || item?.NomeCliente || item?.NomeFantasia || '—';
-                                        const contrato = item?.ContratoLocacao || item?.NumeroContrato || '';
-                                        const situacao = item?.Situacao || item?.StatusLocacao || '';
-                                        const valorMensal = item?.ValorMensal || item?.ValorMensalAtual;
-                                        const dataInicio = parseDateAny(item?.DataInicio || item?.DataInicioContrato);
-                                        const dataFim2 = parseDateAny(item?.DataFimReal || item?.DataEncerramento) || new Date();
-                                        let duracaoMeses = 0;
-                                        if (dataInicio) {
-                                          duracaoMeses = Math.max(0, Math.floor((dataFim2.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30)));
-                                        }
-                                        return (
-                                          <div key={`loc-${idx}`} className="flex items-center justify-between bg-white rounded p-2 border border-emerald-100">
+                                      return (
+                                        <div key={`contrato-${idx}`} className="bg-white rounded p-2 border border-emerald-100 space-y-1">
+                                          <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <div className="flex items-center gap-2">
-                                              {isLocacao
-                                                ? <Play size={14} className="text-emerald-500" />
-                                                : <RotateCcw size={14} className="text-blue-500" />
-                                              }
-                                              <span className="font-medium text-sm text-slate-700">
-                                                {isLocacao ? 'LOCAÇÃO' : 'DEVOLUÇÃO'}
-                                              </span>
-                                              <span className="text-xs text-slate-500">{fmtDateBR(ev.date)}</span>
-                                              {duracaoMeses > 0 && <Badge color="blue" size="xs">{duracaoMeses} meses</Badge>}
+                                              <Play size={13} className={isAtivo ? 'text-emerald-500' : 'text-slate-400'} />
+                                              <span className="font-semibold text-sm text-slate-700 truncate max-w-[200px]" title={clienteNm}>{clienteNm}</span>
+                                              {numero && <Badge color="emerald" size="xs">{numero}</Badge>}
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                              <span className="text-xs text-slate-600 max-w-[200px] truncate" title={clienteNm}>{clienteNm}</span>
-                                              {contrato && <Badge color="emerald" size="xs">{contrato}</Badge>}
+                                            <div className="flex items-center gap-2">
                                               {situacao && (
-                                                <Badge color={situacao.toLowerCase().includes('ativo') || situacao.toLowerCase().includes('andamento') ? 'green' : 'slate'} size="xs">
-                                                  {situacao}
-                                                </Badge>
+                                                <Badge color={isAtivo ? 'green' : 'slate'} size="xs">{situacao}</Badge>
                                               )}
-                                              {valorMensal != null && Number(valorMensal) > 0 && (
-                                                <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorMensal)}/mês</span>
+                                              {Number(valorM) > 0 && (
+                                                <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorM)}/mês</span>
                                               )}
                                             </div>
                                           </div>
-                                        );
-                                      })
+                                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                                            {inicio && (
+                                              <span>Início: <b className="text-slate-700">{fmtDateBR(inicio)}</b></span>
+                                            )}
+                                            {fim && (
+                                              <span>{fimReal ? 'Encerrado' : 'Prev. Término'}: <b className="text-slate-700">{fmtDateBR(fim)}</b></span>
+                                            )}
+                                            {duracaoMeses > 0 && (
+                                              <Badge color="blue" size="xs">{duracaoMeses} meses</Badge>
+                                            )}
+                                            {tipo && <span className="text-slate-400">{tipo}</span>}
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                    : locacaoEventsStream.slice(0, 8).map((ev, idx) => {
+                                      const item = ev.items[0];
+                                      const isLocacao = ev.tipo.includes('LOCACAO');
+                                      const clienteNm = item?.Cliente || item?.NomeCliente || item?.NomeFantasia || '—';
+                                      const contrato = item?.ContratoLocacao || item?.NumeroContrato || '';
+                                      const situacao = item?.Situacao || item?.StatusLocacao || '';
+                                      const valorMensal = item?.ValorMensal || item?.ValorMensalAtual;
+                                      const dataInicio = parseDateAny(item?.DataInicio || item?.DataInicioContrato);
+                                      const dataFim2 = parseDateAny(item?.DataFimReal || item?.DataEncerramento) || new Date();
+                                      let duracaoMeses = 0;
+                                      if (dataInicio) {
+                                        duracaoMeses = Math.max(0, Math.floor((dataFim2.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+                                      }
+                                      return (
+                                        <div key={`loc-${idx}`} className="flex items-center justify-between bg-white rounded p-2 border border-emerald-100">
+                                          <div className="flex items-center gap-2">
+                                            {isLocacao
+                                              ? <Play size={14} className="text-emerald-500" />
+                                              : <RotateCcw size={14} className="text-blue-500" />
+                                            }
+                                            <span className="font-medium text-sm text-slate-700">
+                                              {isLocacao ? 'LOCAÇÃO' : 'DEVOLUÇÃO'}
+                                            </span>
+                                            <span className="text-xs text-slate-500">{fmtDateBR(ev.date)}</span>
+                                            {duracaoMeses > 0 && <Badge color="blue" size="xs">{duracaoMeses} meses</Badge>}
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            <span className="text-xs text-slate-600 max-w-[200px] truncate" title={clienteNm}>{clienteNm}</span>
+                                            {contrato && <Badge color="emerald" size="xs">{contrato}</Badge>}
+                                            {situacao && (
+                                              <Badge color={situacao.toLowerCase().includes('ativo') || situacao.toLowerCase().includes('andamento') ? 'green' : 'slate'} size="xs">
+                                                {situacao}
+                                              </Badge>
+                                            )}
+                                            {valorMensal != null && Number(valorMensal) > 0 && (
+                                              <span className="font-bold text-xs text-emerald-700">{fmtMoney(valorMensal)}/mês</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })
                                   }
                                   {useContratos && contratosDoVeiculo.length > 10 && (
                                     <div className="text-xs text-emerald-600 text-center">+{contratosDoVeiculo.length - 10} contratos...</div>
@@ -2090,7 +2090,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 const row = matchedManut;
                                 // iconMan not needed - sinistro uses ShieldAlert directly
                                 const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
-                                const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0,10)}`);
+                                const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0, 10)}`);
                                 const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                                 const firstRec = row.osRecords[0];
                                 const motivo = firstRec?.Motivo ?? '';
@@ -2183,8 +2183,8 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                 )
                                               })()
                                             )}
-                                            </div>
-                                            <div className="text-xs text-rose-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                          </div>
+                                          <div className="text-xs text-rose-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                         </div>
                                       </div>
 
@@ -2317,8 +2317,8 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                               const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
                               const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
                               // Melhorar exibição: se for só número, adicionar prefixo "OCORRÊNCIA #"
-                              const title = /^\d+$/.test(String(ocorrenciaRaw)) 
-                                ? `OCORRÊNCIA #${ocorrenciaRaw}` 
+                              const title = /^\d+$/.test(String(ocorrenciaRaw))
+                                ? `OCORRÊNCIA #${ocorrenciaRaw}`
                                 : String(ocorrenciaRaw);
                               const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                               const firstRec = row.osRecords[0];
@@ -2552,7 +2552,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                               );
                             }
 
-                            
+
 
                             if (row.kind === 'MANUTENCAO_PERIODO') {
                               const endLabel = row.end ? fmtDateBR(row.end) : 'Em aberto';
@@ -2773,7 +2773,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 {/* Detalhes expandidos - FORA do card clicàvel */}
                                 {isExpandable && expandedRows.has(row.key) && (
                                   <div className="mt-2 ml-3 space-y-2 border-l-2 border-blue-200 pl-3">
-                                    {row.items.slice(0, 10).map((it, i) => {
+                                    {row.items.map((it, i) => {
                                       const dd = parseDateAny(it.DataEvento || it.Data);
                                       // Melhorar busca de descrição com fallback garantido
                                       const detail = it.Detalhe1 || it.Descricao || it.DescricaoInfracao ||

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { 
-  ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid, 
+import {
+  ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid,
   ReferenceLine, AreaChart, Area, Cell
 } from 'recharts';
 import { Clock, Target, AlertCircle, Info } from 'lucide-react';
@@ -67,7 +67,7 @@ export default function LeadTimeTabNew() {
       filtered = filtered.filter(m => filters.tiposOcorrencia.includes(m.Tipo));
     }
     if (filters.modelos?.length > 0) {
-      filtered = filtered.filter(m => filters.modelos.some(modelo => 
+      filtered = filtered.filter(m => filters.modelos.some(modelo =>
         m.Modelo.toLowerCase().includes(modelo.toLowerCase())
       ));
     }
@@ -189,7 +189,7 @@ export default function LeadTimeTabNew() {
         const outliers = sorted.filter(v => isOutlier(v, q1, q3));
 
         return {
-          fornecedor: fornecedor.substring(0, 20), // Limitar nome
+          fornecedor: fornecedor, // Mostrar nome completo
           min,
           q1,
           median,
@@ -199,8 +199,7 @@ export default function LeadTimeTabNew() {
           count: values.length,
         };
       })
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10); // Top 10 fornecedores
+      .sort((a, b) => b.count - a.count); // Todos os fornecedores
   }, [dadosFiltrados]);
 
   // ========================================================================
@@ -285,117 +284,117 @@ export default function LeadTimeTabNew() {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-              <Metric className="mt-2">{fmtNum(kpis.leadTimeTotal)}d</Metric>
-              <div className="flex items-center gap-2 mt-1">
-                <Text className="text-xs text-gray-500">Meta: {METAS.leadTimeTotalDias}d</Text>
-                {kpis.desvioMetaTotal > 0 ? (
-                  <Badge color="red" size="xs">+{fmtNum(kpis.desvioMetaTotal)}d</Badge>
-                ) : (
-                  <Badge color="green" size="xs">{fmtNum(kpis.desvioMetaTotal)}d</Badge>
-                )}
+                <Metric className="mt-2">{fmtNum(kpis.leadTimeTotal)}d</Metric>
+                <div className="flex items-center gap-2 mt-1">
+                  <Text className="text-xs text-gray-500">Meta: {METAS.leadTimeTotalDias}d</Text>
+                  {kpis.desvioMetaTotal > 0 ? (
+                    <Badge color="red" size="xs">+{fmtNum(kpis.desvioMetaTotal)}d</Badge>
+                  ) : (
+                    <Badge color="green" size="xs">{fmtNum(kpis.desvioMetaTotal)}d</Badge>
+                  )}
+                </div>
               </div>
+              <Clock className={`w-8 h-8 ${kpis.desvioMetaTotal > 0 ? 'text-red-500' : 'text-green-500'}`} />
             </div>
-            <Clock className={`w-8 h-8 ${kpis.desvioMetaTotal > 0 ? 'text-red-500' : 'text-green-500'}`} />
-          </div>
-        </Card>
+          </Card>
 
-        {/* Agendamento */}
-        <Card decoration="top" decorationColor={kpis.desvioMetaAgendamento > 0 ? "yellow" : "green"}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-1">
-                <Text>Agendamento</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Tempo Médio de Agendamento</p>
-                    <p className="text-xs mt-1">Média de dias entre abertura da OS e agendamento com fornecedor.</p>
-                    <p className="text-xs mt-1 font-mono">Fórmula: AVG(LeadTimeAgendamentoDias)</p>
-                    <p className="text-xs mt-1 text-amber-600">Meta: 1 dia</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Agilizar início do processo de reparo</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <Metric className="mt-2">{fmtNum(kpis.leadTimeAgendamento)}d</Metric>
-              <div className="flex items-center gap-2 mt-1">
-                <Text className="text-xs text-gray-500">Meta: {METAS.leadTimeAgendamentoDias}d</Text>
-                {kpis.desvioMetaAgendamento > 0 ? (
-                  <Badge color="yellow" size="xs">+{fmtNum(kpis.desvioMetaAgendamento)}d</Badge>
-                ) : (
-                  <Badge color="green" size="xs">{fmtNum(kpis.desvioMetaAgendamento)}d</Badge>
-                )}
+          {/* Agendamento */}
+          <Card decoration="top" decorationColor={kpis.desvioMetaAgendamento > 0 ? "yellow" : "green"}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-1">
+                  <Text>Agendamento</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Tempo Médio de Agendamento</p>
+                      <p className="text-xs mt-1">Média de dias entre abertura da OS e agendamento com fornecedor.</p>
+                      <p className="text-xs mt-1 font-mono">Fórmula: AVG(LeadTimeAgendamentoDias)</p>
+                      <p className="text-xs mt-1 text-amber-600">Meta: 1 dia</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Agilizar início do processo de reparo</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2">{fmtNum(kpis.leadTimeAgendamento)}d</Metric>
+                <div className="flex items-center gap-2 mt-1">
+                  <Text className="text-xs text-gray-500">Meta: {METAS.leadTimeAgendamentoDias}d</Text>
+                  {kpis.desvioMetaAgendamento > 0 ? (
+                    <Badge color="yellow" size="xs">+{fmtNum(kpis.desvioMetaAgendamento)}d</Badge>
+                  ) : (
+                    <Badge color="green" size="xs">{fmtNum(kpis.desvioMetaAgendamento)}d</Badge>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Oficina */}
-        <Card decoration="top" decorationColor={kpis.desvioMetaOficina > 0 ? "yellow" : "green"}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-1">
-                <Text>Oficina</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Tempo Médio na Oficina</p>
-                    <p className="text-xs mt-1">Média de dias que o veículo permanece na oficina até conclusão.</p>
-                    <p className="text-xs mt-1 font-mono">Fórmula: AVG(LeadTimeOficinaDias)</p>
-                    <p className="text-xs mt-1 text-amber-600">Meta: 3 dias</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Eficiência do fornecedor no reparo</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <Metric className="mt-2">{fmtNum(kpis.leadTimeOficina)}d</Metric>
-              <div className="flex items-center gap-2 mt-1">
-                <Text className="text-xs text-gray-500">Meta: {METAS.leadTimeOficinaDias}d</Text>
-                {kpis.desvioMetaOficina > 0 ? (
-                  <Badge color="yellow" size="xs">+{fmtNum(kpis.desvioMetaOficina)}d</Badge>
-                ) : (
-                  <Badge color="green" size="xs">{fmtNum(kpis.desvioMetaOficina)}d</Badge>
-                )}
+          {/* Oficina */}
+          <Card decoration="top" decorationColor={kpis.desvioMetaOficina > 0 ? "yellow" : "green"}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-1">
+                  <Text>Oficina</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Tempo Médio na Oficina</p>
+                      <p className="text-xs mt-1">Média de dias que o veículo permanece na oficina até conclusão.</p>
+                      <p className="text-xs mt-1 font-mono">Fórmula: AVG(LeadTimeOficinaDias)</p>
+                      <p className="text-xs mt-1 text-amber-600">Meta: 3 dias</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Eficiência do fornecedor no reparo</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2">{fmtNum(kpis.leadTimeOficina)}d</Metric>
+                <div className="flex items-center gap-2 mt-1">
+                  <Text className="text-xs text-gray-500">Meta: {METAS.leadTimeOficinaDias}d</Text>
+                  {kpis.desvioMetaOficina > 0 ? (
+                    <Badge color="yellow" size="xs">+{fmtNum(kpis.desvioMetaOficina)}d</Badge>
+                  ) : (
+                    <Badge color="green" size="xs">{fmtNum(kpis.desvioMetaOficina)}d</Badge>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* % SLA Cumprido */}
-        <Card decoration="top" decorationColor={kpis.desvioSLA < 0 ? "red" : "green"}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-1">
-                <Text>% SLA Cumprido</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Percentual Dentro do SLA</p>
-                    <p className="text-xs mt-1">Proporção de OS concluídas dentro do prazo estabelecido (5 dias).</p>
-                    <p className="text-xs mt-1 font-mono">Fórmula: (COUNT(LeadTime ≤ 5d) / COUNT(Total)) × 100</p>
-                    <p className="text-xs mt-1 text-amber-600">Meta: 85%</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Manter qualidade e previsibilidade do serviço</p>
-                  </TooltipContent>
-                </Tooltip>
+          {/* % SLA Cumprido */}
+          <Card decoration="top" decorationColor={kpis.desvioSLA < 0 ? "red" : "green"}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-1">
+                  <Text>% SLA Cumprido</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Percentual Dentro do SLA</p>
+                      <p className="text-xs mt-1">Proporção de OS concluídas dentro do prazo estabelecido (5 dias).</p>
+                      <p className="text-xs mt-1 font-mono">Fórmula: (COUNT(LeadTime ≤ 5d) / COUNT(Total)) × 100</p>
+                      <p className="text-xs mt-1 text-amber-600">Meta: 85%</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Manter qualidade e previsibilidade do serviço</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2">{fmtNum(kpis.slaCumpridoPct)}%</Metric>
+                <div className="flex items-center gap-2 mt-1">
+                  <Text className="text-xs text-gray-500">Meta: {METAS.slaCumpridoPct}%</Text>
+                  {kpis.desvioSLA < 0 ? (
+                    <Badge color="red" size="xs">{fmtNum(kpis.desvioSLA)}%</Badge>
+                  ) : (
+                    <Badge color="green" size="xs">+{fmtNum(kpis.desvioSLA)}%</Badge>
+                  )}
+                </div>
               </div>
-              <Metric className="mt-2">{fmtNum(kpis.slaCumpridoPct)}%</Metric>
-              <div className="flex items-center gap-2 mt-1">
-                <Text className="text-xs text-gray-500">Meta: {METAS.slaCumpridoPct}%</Text>
-                {kpis.desvioSLA < 0 ? (
-                  <Badge color="red" size="xs">{fmtNum(kpis.desvioSLA)}%</Badge>
-                ) : (
-                  <Badge color="green" size="xs">+{fmtNum(kpis.desvioSLA)}%</Badge>
-                )}
-              </div>
+              <Target className={`w-8 h-8 ${kpis.desvioSLA < 0 ? 'text-red-500' : 'text-green-500'}`} />
             </div>
-            <Target className={`w-8 h-8 ${kpis.desvioSLA < 0 ? 'text-red-500' : 'text-green-500'}`} />
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
       </TooltipProvider>
 
       {/* Distribuição com Percentiles */}
@@ -457,45 +456,45 @@ export default function LeadTimeTabNew() {
                   <div className="flex-1 relative h-12">
                     <svg width="100%" height="48" className="overflow-visible">
                       {/* Linha min-max */}
-                      <line 
-                        x1={`${(forn.min / 30) * 100}%`} 
-                        y1="24" 
-                        x2={`${(forn.max / 30) * 100}%`} 
-                        y2="24" 
-                        stroke="#94a3b8" 
-                        strokeWidth="2" 
+                      <line
+                        x1={`${(forn.min / 30) * 100}%`}
+                        y1="24"
+                        x2={`${(forn.max / 30) * 100}%`}
+                        y2="24"
+                        stroke="#94a3b8"
+                        strokeWidth="2"
                       />
 
                       {/* Box Q1-Q3 */}
-                      <rect 
-                        x={`${(forn.q1 / 30) * 100}%`} 
-                        y="12" 
-                        width={`${((forn.q3 - forn.q1) / 30) * 100}%`} 
-                        height="24" 
-                        fill="#3b82f6" 
-                        opacity="0.6" 
-                        stroke="#1e40af" 
-                        strokeWidth="2" 
+                      <rect
+                        x={`${(forn.q1 / 30) * 100}%`}
+                        y="12"
+                        width={`${((forn.q3 - forn.q1) / 30) * 100}%`}
+                        height="24"
+                        fill="#3b82f6"
+                        opacity="0.6"
+                        stroke="#1e40af"
+                        strokeWidth="2"
                       />
 
                       {/* Mediana */}
-                      <line 
-                        x1={`${(forn.median / 30) * 100}%`} 
-                        y1="12" 
-                        x2={`${(forn.median / 30) * 100}%`} 
-                        y2="36" 
-                        stroke="#1e40af" 
-                        strokeWidth="3" 
+                      <line
+                        x1={`${(forn.median / 30) * 100}%`}
+                        y1="12"
+                        x2={`${(forn.median / 30) * 100}%`}
+                        y2="36"
+                        stroke="#1e40af"
+                        strokeWidth="3"
                       />
 
                       {/* Outliers */}
                       {forn.outliers.map((outlier, idx) => (
-                        <circle 
-                          key={idx} 
-                          cx={`${(outlier / 30) * 100}%`} 
-                          cy="24" 
-                          r="3" 
-                          fill="#ef4444" 
+                        <circle
+                          key={idx}
+                          cx={`${(outlier / 30) * 100}%`}
+                          cy="24"
+                          r="3"
+                          fill="#ef4444"
                         />
                       ))}
                     </svg>
@@ -527,29 +526,33 @@ export default function LeadTimeTabNew() {
         <Title>Evolução do Cumprimento de SLA</Title>
         <Text className="mb-4">Tendência mensal de % de OS concluídas dentro do prazo (meta: {METAS.leadTimeTotalDias} dias)</Text>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={evolucaoSLA}>
-            <defs>
-              <linearGradient id="colorSLA" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="mes" fontSize={11} />
-            <YAxis domain={[0, 100]} label={{ value: '%', position: 'insideLeft' }} />
-            <RechartsTooltip formatter={(value: number) => [`${fmtNum(value)}%`, '% SLA']} />
-            <ReferenceLine y={METAS.slaCumpridoPct} stroke="#ef4444" strokeDasharray="5 5" label="Meta 85%" />
-            <Area 
-              type="monotone" 
-              dataKey="pctSLA" 
-              stroke="#10b981" 
-              strokeWidth={3}
-              fillOpacity={1} 
-              fill="url(#colorSLA)" 
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, evolucaoSLA.length * 60), height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={evolucaoSLA}>
+                <defs>
+                  <linearGradient id="colorSLA" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mes" fontSize={11} />
+                <YAxis domain={[0, 100]} label={{ value: '%', position: 'insideLeft' }} />
+                <RechartsTooltip formatter={(value: number) => [`${fmtNum(value)}%`, '% SLA']} />
+                <ReferenceLine y={METAS.slaCumpridoPct} stroke="#ef4444" strokeDasharray="5 5" label="Meta 85%" />
+                <Area
+                  type="monotone"
+                  dataKey="pctSLA"
+                  stroke="#10b981"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorSLA)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </Card>
     </div>
   );

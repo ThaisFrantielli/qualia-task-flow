@@ -28,6 +28,9 @@ import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 // CashFlowProjectionPage removed (unused)
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import FaturamentoDashboard from '@/pages/analytics/FaturamentoDashboard';
+import MaintenanceDashboard from '@/pages/analytics/MaintenanceDashboard';
+import InfractionsDashboard from '@/pages/analytics/InfractionsDashboard';
+import ClaimsDashboard from '@/pages/analytics/ClaimsDashboard';
 import SurveyAdminPage from '@/pages/SurveyAdminPage';
 import SurveyResponsePage from '@/pages/SurveyResponsePage';
 import SurveyThankYouPage from '@/pages/SurveyThankYouPage';
@@ -119,6 +122,9 @@ function App() {
                 <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="faturamento" element={<FaturamentoDashboard />} />
+                <Route path="manutencao" element={<MaintenanceDashboard />} />
+                <Route path="multas" element={<InfractionsDashboard />} />
+                <Route path="sinistros" element={<ClaimsDashboard />} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />

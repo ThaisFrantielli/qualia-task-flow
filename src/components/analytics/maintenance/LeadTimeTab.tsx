@@ -7,7 +7,7 @@ import { EmptyDataState } from '@/components/analytics/EmptyDataState';
 
 type AnyObject = { [k: string]: any };
 
-function parseNum(v: any): number { 
+function parseNum(v: any): number {
   if (typeof v === 'number') return v;
   if (typeof v === 'string') return parseFloat(v.replace(/[^0-9.-]/g, '')) || 0;
   return 0;
@@ -24,23 +24,23 @@ function calcDias(start?: string, end?: string): number {
 
 // Extrai lead time com fallbacks robustos
 function getLeadTimeTotal(r: AnyObject): number {
-  return parseNum(r.LeadTimeTotaldias) || 
-         parseNum(r.LeadTimeTotal) || 
-         parseNum(r.TempoTotal) ||
-         calcDias(r.DataSolicitacao || r.DataAbertura, r.DataConclusao || r.DataSaida);
+  return parseNum(r.LeadTimeTotaldias) ||
+    parseNum(r.LeadTimeTotal) ||
+    parseNum(r.TempoTotal) ||
+    calcDias(r.DataSolicitacao || r.DataAbertura, r.DataConclusao || r.DataSaida);
 }
 
 function getLeadTimeOficina(r: AnyObject): number {
-  return parseNum(r.LeadTimeOficina) || 
-         parseNum(r.TempoOficina) ||
-         parseNum(r.DiasOficina) ||
-         calcDias(r.DataEntradaOficina || r.DataEntrada, r.DataConclusao || r.DataSaida);
+  return parseNum(r.LeadTimeOficina) ||
+    parseNum(r.TempoOficina) ||
+    parseNum(r.DiasOficina) ||
+    calcDias(r.DataEntradaOficina || r.DataEntrada, r.DataConclusao || r.DataSaida);
 }
 
 function getLeadTimeAgendamento(r: AnyObject): number {
-  return parseNum(r.LeadTimeAgendamento) || 
-         parseNum(r.TempoAgendamento) ||
-         calcDias(r.DataSolicitacao || r.DataAbertura, r.DataEntradaOficina || r.DataEntrada);
+  return parseNum(r.LeadTimeAgendamento) ||
+    parseNum(r.TempoAgendamento) ||
+    calcDias(r.DataSolicitacao || r.DataAbertura, r.DataEntradaOficina || r.DataEntrada);
 }
 
 interface LeadTimeTabProps {
@@ -74,7 +74,7 @@ export default function LeadTimeTab({ manutencaoData }: LeadTimeTabProps) {
     const totalAgendamento = validData.reduce((s, r) => s + getLeadTimeAgendamento(r), 0);
     const totalOficina = validData.reduce((s, r) => s + getLeadTimeOficina(r), 0);
     const totalTotal = validData.reduce((s, r) => s + getLeadTimeTotal(r), 0);
-    
+
     // SLA: % de OS concluídas em até 5 dias
     const dentroDeSLA = validData.filter(r => getLeadTimeTotal(r) <= 5).length;
 
@@ -128,13 +128,13 @@ export default function LeadTimeTab({ manutencaoData }: LeadTimeTabProps) {
       .map(([placa, data]) => ({ placa, avgLeadTime: data.leadTime / data.count, count: data.count }))
       .filter(v => v.avgLeadTime > 0)
       .sort((a, b) => b.avgLeadTime - a.avgLeadTime)
-      .slice(0, 10);
+      .sort((a, b) => b.avgLeadTime - a.avgLeadTime);
   }, [filteredData]);
 
   // Se não há dados
   if (filteredData.length === 0) {
     return (
-      <EmptyDataState 
+      <EmptyDataState
         variant="filter-empty"
         title="Sem dados de manutenção"
         description="Não há ordens de serviço para o período e filtros selecionados."
@@ -224,7 +224,7 @@ export default function LeadTimeTab({ manutencaoData }: LeadTimeTabProps) {
       </div>
 
       <Card>
-        <Title>Top 10 Veículos com Maior Lead Time</Title>
+        <Title>Ranking de Veículos por Lead Time</Title>
         <Text className="text-xs text-slate-500 mb-4">Placas que demoram mais para concluir manutenção</Text>
         {topVeiculos.length === 0 ? (
           <div className="py-8 text-center text-slate-400">
@@ -232,18 +232,17 @@ export default function LeadTimeTab({ manutencaoData }: LeadTimeTabProps) {
             <p className="text-sm">Sem dados de lead time para exibir ranking</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 overflow-y-auto max-h-[400px] pr-2">
             {topVeiculos.map((item, idx) => (
               <div
                 key={idx}
                 className="flex items-center justify-between p-3 bg-slate-50 rounded hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <span className={`w-8 h-8 rounded-full text-sm flex items-center justify-center font-bold ${
-                    item.avgLeadTime > 15 ? 'bg-rose-100 text-rose-600' : 
-                    item.avgLeadTime > 10 ? 'bg-amber-100 text-amber-600' : 
-                    'bg-emerald-100 text-emerald-600'
-                  }`}>
+                  <span className={`w-8 h-8 rounded-full text-sm flex items-center justify-center font-bold ${item.avgLeadTime > 15 ? 'bg-rose-100 text-rose-600' :
+                      item.avgLeadTime > 10 ? 'bg-amber-100 text-amber-600' :
+                        'bg-emerald-100 text-emerald-600'
+                    }`}>
                     {idx + 1}
                   </span>
                   <div>
@@ -252,11 +251,10 @@ export default function LeadTimeTab({ manutencaoData }: LeadTimeTabProps) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className={`font-bold ${
-                    item.avgLeadTime > 15 ? 'text-rose-600' : 
-                    item.avgLeadTime > 10 ? 'text-amber-600' : 
-                    'text-emerald-600'
-                  }`}>{item.avgLeadTime.toFixed(1)} dias</div>
+                  <div className={`font-bold ${item.avgLeadTime > 15 ? 'text-rose-600' :
+                      item.avgLeadTime > 10 ? 'text-amber-600' :
+                        'text-emerald-600'
+                    }`}>{item.avgLeadTime.toFixed(1)} dias</div>
                   <div className="text-xs text-slate-500">média</div>
                 </div>
               </div>

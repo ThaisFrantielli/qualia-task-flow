@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { 
+import {
   ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   AreaChart, Area, ReferenceLine
 } from 'recharts';
@@ -103,8 +103,7 @@ export default function FluxoTab() {
         concluidas: valores.concluidas,
         saldo: valores.chegadas - valores.concluidas,
       }))
-      .sort((a, b) => a.mesKey.localeCompare(b.mesKey))
-      .slice(-24); // Últimos 24 meses
+      .sort((a, b) => a.mesKey.localeCompare(b.mesKey)); // Todos os meses disponíveis
   }, [dadosFiltrados]);
 
   // Saldo Acumulado (Running Total)
@@ -122,9 +121,9 @@ export default function FluxoTab() {
   // KPIs
   const kpis = useMemo(() => {
     if (!dadosAcumulados.length) {
-      return { 
-        saldoAtual: 0, 
-        saldoMesAnterior: 0, 
+      return {
+        saldoAtual: 0,
+        saldoMesAnterior: 0,
         variacao: 0,
         chegadasMes: 0,
         concluidasMes: 0,
@@ -229,22 +228,26 @@ export default function FluxoTab() {
         <Title>Chegadas vs Concluídas por Mês</Title>
         <Text className="mb-4">Comparação entre o volume de OS abertas e concluídas mensalmente</Text>
 
-        <ResponsiveContainer width="100%" height={350}>
-          <ComposedChart data={dadosMensais}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="mes" fontSize={11} />
-            <YAxis fontSize={11} />
-            <Tooltip 
-              formatter={(value: number, name: string) => {
-                if (name === 'chegadas') return [value, 'Chegadas'];
-                if (name === 'concluidas') return [value, 'Concluídas'];
-                return [value, name];
-              }}
-            />
-            <Bar dataKey="chegadas" fill="#3b82f6" name="Chegadas" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="concluidas" fill="#10b981" name="Concluídas" radius={[4, 4, 0, 0]} />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, dadosMensais.length * 50), height: 350 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dadosMensais}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mes" fontSize={11} />
+                <YAxis fontSize={11} />
+                <Tooltip
+                  formatter={(value: number, name: string) => {
+                    if (name === 'chegadas') return [value, 'Chegadas'];
+                    if (name === 'concluidas') return [value, 'Concluídas'];
+                    return [value, name];
+                  }}
+                />
+                <Bar dataKey="chegadas" fill="#3b82f6" name="Chegadas" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="concluidas" fill="#10b981" name="Concluídas" radius={[4, 4, 0, 0]} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </Card>
 
       {/* Gráfico: Saldo do Período */}
@@ -252,22 +255,26 @@ export default function FluxoTab() {
         <Title>Saldo do Período (Chegadas - Concluídas)</Title>
         <Text className="mb-4">Diferença mensal entre entrada e saída de OS. Valores positivos indicam acúmulo de pendências</Text>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={dadosMensais}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="mes" fontSize={11} />
-            <YAxis fontSize={11} />
-            <Tooltip 
-              formatter={(value: number) => [value > 0 ? `+${value}` : value, 'Saldo']}
-            />
-            <ReferenceLine y={0} stroke="#64748b" strokeWidth={2} />
-            <Bar dataKey="saldo" radius={[4, 4, 0, 0]}>
-              {dadosMensais.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.saldo > 0 ? '#ef4444' : '#10b981'} />
-              ))}
-            </Bar>
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, dadosMensais.length * 50), height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={dadosMensais}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mes" fontSize={11} />
+                <YAxis fontSize={11} />
+                <Tooltip
+                  formatter={(value: number) => [value > 0 ? `+${value}` : value, 'Saldo']}
+                />
+                <ReferenceLine y={0} stroke="#64748b" strokeWidth={2} />
+                <Bar dataKey="saldo" radius={[4, 4, 0, 0]}>
+                  {dadosMensais.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.saldo > 0 ? '#ef4444' : '#10b981'} />
+                  ))}
+                </Bar>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </Card>
 
       {/* Gráfico: Saldo Acumulado (Running Total) */}
@@ -275,35 +282,39 @@ export default function FluxoTab() {
         <Title>Saldo Acumulado - Running Total</Title>
         <Text className="mb-4">Evolução do acúmulo de OS abertas menos concluídas ao longo do tempo</Text>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={dadosAcumulados}>
-            <defs>
-              <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="mes" fontSize={11} />
-            <YAxis fontSize={11} />
-            <Tooltip 
-              formatter={(value: number) => [value, 'Saldo Acumulado']}
-            />
-            <ReferenceLine y={0} stroke="#64748b" strokeWidth={2} strokeDasharray="5 5" />
-            <Area 
-              type="monotone" 
-              dataKey="saldoAcumulado" 
-              stroke="#f59e0b" 
-              strokeWidth={3}
-              fillOpacity={1} 
-              fill="url(#colorSaldo)" 
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(800, dadosAcumulados.length * 50), height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dadosAcumulados}>
+                <defs>
+                  <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="mes" fontSize={11} />
+                <YAxis fontSize={11} />
+                <Tooltip
+                  formatter={(value: number) => [value, 'Saldo Acumulado']}
+                />
+                <ReferenceLine y={0} stroke="#64748b" strokeWidth={2} strokeDasharray="5 5" />
+                <Area
+                  type="monotone"
+                  dataKey="saldoAcumulado"
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorSaldo)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
         <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <Text className="text-sm font-medium text-yellow-800">
-            💡 <strong>Como interpretar:</strong> Se a linha está subindo, significa que estão entrando mais OS do que sendo concluídas. 
+            💡 <strong>Como interpretar:</strong> Se a linha está subindo, significa que estão entrando mais OS do que sendo concluídas.
             Se está descendo, a equipe está reduzindo o backlog de pendências.
           </Text>
         </div>

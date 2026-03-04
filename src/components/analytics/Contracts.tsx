@@ -105,20 +105,22 @@ const MontadoraSection = React.memo(function MontadoraSection({ montadora, model
         <button type="button" onClick={() => setExpanded(e => !e)} className="text-xs text-slate-500">{expanded ? 'Ocultar' : 'Mostrar'}</button>
       </div>
       {expanded && (
-        <div className="mt-2" style={{ height: 120 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={models.slice(0, 10)} layout="vertical" margin={{ left: 0, right: 10 }}>
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 10 }} />
-              <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
-              <Bar dataKey="value" fill="#10B981" barSize={12}>
-                {models.slice(0, 10).map((_entry, i) => (
-                  <Cell key={i} />
-                ))}
-                <LabelList dataKey="value" position="right" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="mt-2 overflow-y-auto" style={{ maxHeight: 200 }}>
+          <div style={{ height: Math.max(120, models.length * 25) }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={models} layout="vertical" margin={{ left: 0, right: 10 }}>
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 10 }} />
+                <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
+                <Bar dataKey="value" fill="#10B981" barSize={12}>
+                  {models.map((_entry, i) => (
+                    <Cell key={i} />
+                  ))}
+                  <LabelList dataKey="value" position="right" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
     </div>
@@ -160,7 +162,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     try {
       const v = localStorage.getItem('contracts:viewMode');
       if (v === 'analysis' || v === 'list' || v === 'fluxo') return v;
-    } catch (e) {}
+    } catch (e) { }
     return 'analysis';
   });
   const lastPointerTarget = React.useRef<HTMLElement | null>(null);
@@ -174,10 +176,10 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
             console.debug('[Contracts] blocked viewMode change to analysis due to select interaction', t.tagName, t.className);
             return;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
     }
-    try { localStorage.setItem('contracts:viewMode', mode); } catch (e) {}
+    try { localStorage.setItem('contracts:viewMode', mode); } catch (e) { }
     setViewMode(mode);
   }, []);
   const [expandAllModels, setExpandAllModels] = useState(false);
@@ -201,11 +203,11 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         const v = Number(raw);
         if (Number.isFinite(v) && v > 0) setZoom(v);
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   React.useEffect(() => {
-    try { localStorage.setItem('contracts:zoom', String(zoom)); } catch (e) {}
+    try { localStorage.setItem('contracts:zoom', String(zoom)); } catch (e) { }
   }, [zoom]);
 
   const increaseZoom = () => setZoom(z => Math.min(1.2, +(z + 0.03).toFixed(2)));
@@ -217,7 +219,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const [pendingStrategyChange, setPendingStrategyChange] = useState<{ id: string; newStrategy: RenewalStrategy } | null>(null);
   const [purchaseModalContractId, setPurchaseModalContractId] = useState<string | null>(null);
   const [tempPurchasePrice, setTempPurchasePrice] = useState<string>('');
-  
+
   // Observation Modal
   const [observationModalOpen, setObservationModalOpen] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
@@ -233,7 +235,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const parseFiltersFromUrl = () => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const keys = ['strategy','type','year','month','group','kmRange','ageRange','situation','client','commercialContract','contractNumber','plate','model','periodStart','periodEnd'];
+      const keys = ['strategy', 'type', 'year', 'month', 'group', 'kmRange', 'ageRange', 'situation', 'client', 'commercialContract', 'contractNumber', 'plate', 'model', 'periodStart', 'periodEnd'];
       const out: Record<string, string[]> = {};
       keys.forEach(k => {
         const v = params.get(k);
@@ -314,7 +316,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       if (current.includes(value)) {
         return { ...prev, [key]: current.filter(v => v !== value) };
       } else {
-        return { ...prev, [key]: [...current, value] }; 
+        return { ...prev, [key]: [...current, value] };
       }
     });
   }, []);
@@ -340,7 +342,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       // ignore
     }
   }, [filters]);
-  
+
   // --- DATA PREPARATION ---
   const enrichedContracts = useMemo(() => {
     return contracts.map(c => ({
@@ -362,7 +364,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   const situationsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.contractStatus || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
   const yearsList = useMemo(() => Array.from(new Set(enrichedContracts.map(c => (c.expiryYear || '').toString().trim()))).filter(Boolean).sort(), [enrichedContracts]);
   const yearMonthsMap = useMemo(() => {
-    const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const map: Record<string, Array<{ key: string; label: string }>> = {};
     for (const c of enrichedContracts) {
       const y = c.expiryYear || '';
@@ -385,12 +387,8 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         const next = { ...prev };
         let changed = false;
 
-        // Default year -> current year if available in yearsList and not specified in URL
-        const currentYear = String(new Date().getFullYear());
-        if ((!prev.year || prev.year.length === 0) && yearsList.includes(currentYear)) {
-          next.year = [currentYear];
-          changed = true;
-        }
+        // Remover filtro padrão de ano para mostrar 100% da base por padrão
+
 
         // Default situation -> any situation containing 'andament' (e.g., 'Em Andamento')
         if ((!prev.situation || prev.situation.length === 0) && Array.isArray(situationsList) && situationsList.length > 0) {
@@ -406,7 +404,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     } catch (e) {
       // ignore
     }
-  // Only run when available lists change
+    // Only run when available lists change
   }, [yearsList, situationsList]);
 
   const filteredContracts = useMemo(() => {
@@ -424,7 +422,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
         String(c.clientName || '').toLowerCase().includes(lowerSearch) ||
         String(c.contractNumber || '').toLowerCase().includes(lowerSearch) ||
         String(c.plate || c.mainPlate || '').toLowerCase().includes(lowerSearch);
-      
+
       if (!searchMatch) return false;
       if (filters.strategy.length > 0) {
         const norm = (v: any) => String(v || '').trim().toLowerCase();
@@ -565,38 +563,38 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
     pushChunk();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredContracts, currentPageContracts, pageSize]);
 
   // --- CHART AGGREGATIONS ---
   const analysisData = useMemo(() => {
     const aggregate = (field: string, predefinedOrder?: string[]): ChartEntry[] => {
       const counts: Record<string, ChartEntry> = {};
-      
+
       if (predefinedOrder) {
-          predefinedOrder.forEach(key => counts[key] = { name: key, value: 0, fullKey: key });
+        predefinedOrder.forEach(key => counts[key] = { name: key, value: 0, fullKey: key });
       }
 
       filteredContracts.forEach((c: any) => {
         const rawValue = c[field];
         const key = (rawValue !== undefined && rawValue !== null) ? String(rawValue) : 'N/A';
         const label = field === 'renewalStrategy' ? (RenewalStrategyLabel[key as RenewalStrategy] || key) : key;
-        
+
         if (!counts[key]) counts[key] = { name: label, value: 0, fullKey: key };
         counts[key].value += 1;
         if (field === 'renewalStrategy') counts[key].name = label;
       });
 
       let result = Object.values(counts);
-      
+
       if (predefinedOrder) {
-          result.sort((a, b) => predefinedOrder.indexOf(a.fullKey) - predefinedOrder.indexOf(b.fullKey));
+        result.sort((a, b) => predefinedOrder.indexOf(a.fullKey) - predefinedOrder.indexOf(b.fullKey));
       } else if (field === 'expiryYear') {
-          result.sort((a, b) => a.name.localeCompare(b.name));
+        result.sort((a, b) => a.name.localeCompare(b.name));
       } else {
-          result.sort((a, b) => b.value - a.value);
+        result.sort((a, b) => b.value - a.value);
       }
-      
+
       return result.filter(r => predefinedOrder ? r.value >= 0 : r.value > 0);
     };
 
@@ -619,22 +617,22 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       groups[key] = { count: 0, fipe: 0, retornoFipe: 0, acquisition: 0, acquisition0km: 0, rental: 0, label: RenewalStrategyLabel[key as RenewalStrategy] };
     });
 
-     filteredContracts.forEach(c => {
-       const key = c.renewalStrategy || 'UNDEFINED';
+    filteredContracts.forEach(c => {
+      const key = c.renewalStrategy || 'UNDEFINED';
       if (!groups[key]) groups[key] = { count: 0, fipe: 0, retornoFipe: 0, acquisition: 0, acquisition0km: 0, rental: 0, label: key };
 
-       groups[key].count += 1;
-       // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe` if present
-       const fipeVal = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
-       groups[key].fipe += fipeVal;
-       // RetornoFipe applies only to specific strategies
-       if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) {
-         groups[key].retornoFipe += fipeVal * 0.8;
-       }
-       groups[key].acquisition += (c.ValorCompra as number) || 0;
-       groups[key].acquisition0km += (Number(c.purchasePrice) || 0);
-       groups[key].rental += c.monthlyValue || 0;
-     });
+      groups[key].count += 1;
+      // Prefer new API alias `valorFipeAtual`, fallback to legacy `currentFipe` if present
+      const fipeVal = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
+      groups[key].fipe += fipeVal;
+      // RetornoFipe applies only to specific strategies
+      if (['NO_RENEW', 'RENEW_SWAP_SEMINOVO', 'RENEW_SWAP_ZERO'].includes(key)) {
+        groups[key].retornoFipe += fipeVal * 0.8;
+      }
+      groups[key].acquisition += (c.ValorCompra as number) || 0;
+      groups[key].acquisition0km += (Number(c.purchasePrice) || 0);
+      groups[key].rental += c.monthlyValue || 0;
+    });
 
     // Filter out rows with 0 count to keep table clean, or keep all if desired. 
     // Keeping all gives a complete view as per spreadsheet usually.
@@ -644,17 +642,17 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
   // Hierarchical data for expansion: Strategy -> Clients -> Plates
   const hierarchicalData = useMemo(() => {
     const hierarchy: Record<string, Record<string, Contract[]>> = {};
-    
+
     filteredContracts.forEach(c => {
       const strategy = c.renewalStrategy || 'UNDEFINED';
       const client = c.clientName || 'Sem Cliente';
-      
+
       if (!hierarchy[strategy]) hierarchy[strategy] = {};
       if (!hierarchy[strategy][client]) hierarchy[strategy][client] = [];
-      
+
       hierarchy[strategy][client].push(c);
     });
-    
+
     return hierarchy;
   }, [filteredContracts]);
 
@@ -709,7 +707,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     retornoFipe: filteredContracts.reduce((acc, c) => {
       const key = c.renewalStrategy || 'UNDEFINED';
       const f = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
-      if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return acc + f * RETURN_PERCENTAGE;
+      if (['NO_RENEW', 'RENEW_SWAP_SEMINOVO', 'RENEW_SWAP_ZERO'].includes(key)) return acc + f * RETURN_PERCENTAGE;
       return acc;
     }, 0),
     acquisition: filteredContracts.reduce((acc, c) => acc + ((c.ValorCompra as number) || 0), 0),
@@ -721,7 +719,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
   const hasObservations = filteredContracts.some(c => !!c.observation);
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
-  
+
 
   // Handlers
 
@@ -745,7 +743,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     // Update both the metadata `acao_usuario` and the visible `renewalStrategy`
     onUpdateContract({ ...contract, acao_usuario: newAcao, renewalStrategy: newAcao });
     // Ensure we stay in list view after changing action (avoid accidental view switch)
-    try { safeSetViewMode('list'); } catch (e) {}
+    try { safeSetViewMode('list'); } catch (e) { }
   }, [contracts, onUpdateContract]);
 
   // Exporta contratos filtrados para Excel (.xlsx)
@@ -790,7 +788,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
       'Retorno FIPE (R$)': ((): number => {
         const key = c.renewalStrategy || 'UNDEFINED';
         const f = toNum((c as any).valorFipeAtual ?? c.currentFipe);
-        if (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key)) return Math.round(f * RETURN_PERCENTAGE * 100) / 100;
+        if (['NO_RENEW', 'RENEW_SWAP_SEMINOVO', 'RENEW_SWAP_ZERO'].includes(key)) return Math.round(f * RETURN_PERCENTAGE * 100) / 100;
         return 0;
       })(),
       'Valor Aquisição (R$)': toNum((c as any).purchasePrice),
@@ -815,7 +813,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     XLSX.writeFile(wb, filename);
   };
 
-  
+
 
   const handleSavePurchasePrice = React.useCallback(() => {
     if (!purchaseModalContractId) return;
@@ -836,7 +834,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
     setPurchaseModalContractId(null);
     setTempPurchasePrice('');
   }, [purchaseModalContractId, tempPurchasePrice, contracts, pendingStrategyChange, onUpdateContract]);
-  
+
   const handleOpenObservation = React.useCallback((contract: Contract) => {
     setSelectedContractId(contract.id);
     setTempObservation(contract.observation || '');
@@ -848,12 +846,12 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
   const handleSaveObservation = React.useCallback(() => {
     if (selectedContractId) {
-        const contract = contracts.find(c => c.id === selectedContractId);
-        if (contract) onUpdateContract({ ...contract, observation: tempObservation });
+      const contract = contracts.find(c => c.id === selectedContractId);
+      if (contract) onUpdateContract({ ...contract, observation: tempObservation });
     }
     setObservationModalOpen(false);
     // Keep list view open after saving observation to avoid jumping to charts
-    try { safeSetViewMode('list'); } catch (e) {}
+    try { safeSetViewMode('list'); } catch (e) { }
   }, [selectedContractId, contracts, tempObservation, onUpdateContract]);
 
   // Helper to check if any filters are active
@@ -923,51 +921,51 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
   return (
     <div className="p-6 max-w-[1920px] mx-auto min-h-screen bg-slate-50" style={{ zoom }}>
-      
+
       {/* HEADER */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Contratos & Ativos</h2>
           <p className="text-sm text-slate-500">Gestão estratégica de contratos e ativos.</p>
         </div>
-          <div className="flex items-center gap-3">
-            <DataUpdateBadge metadata={metadata} compact />
-            <div className="text-xs text-slate-500 mr-2">Zoom:</div>
-            <button type="button" onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
-            <button type="button" onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
-            <button type="button" onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
-            <div className="text-xs text-slate-500 ml-2">{Math.round(zoom * 100)}%</div>
-          </div>
+        <div className="flex items-center gap-3">
+          <DataUpdateBadge metadata={metadata} compact />
+          <div className="text-xs text-slate-500 mr-2">Zoom:</div>
+          <button type="button" onClick={decreaseZoom} className="px-2 py-1 border rounded bg-white text-sm">−</button>
+          <button type="button" onClick={resetZoom} className="px-2 py-1 border rounded bg-white text-sm">Reset</button>
+          <button type="button" onClick={increaseZoom} className="px-2 py-1 border rounded bg-white text-sm">+</button>
+          <div className="text-xs text-slate-500 ml-2">{Math.round(zoom * 100)}%</div>
+        </div>
       </div>
       <div className="flex gap-4">
-            {hasActiveFilters && (
-                <button 
-                  type="button"
-                  onClick={clearFilters}
-                  className="px-4 py-1.5 text-xs font-bold rounded bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2"
-                >
-                    <X size={14} /> Limpar Filtros
-                </button>
-            )}
-            <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-              <button type="button" onClick={() => safeSetViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-                <BarChart3 size={14}/> Gráficos
-              </button>
-              <button type="button" onClick={() => safeSetViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-                <ListIcon size={14}/> Lista
-              </button>
-              <button type="button" onClick={() => safeSetViewMode('fluxo')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'fluxo' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
-                <DollarSign size={14}/> Fluxo Prev.
-              </button>
-            </div>
-          </div>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="px-4 py-1.5 text-xs font-bold rounded bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2"
+          >
+            <X size={14} /> Limpar Filtros
+          </button>
+        )}
+        <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+          <button type="button" onClick={() => safeSetViewMode('analysis')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'analysis' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+            <BarChart3 size={14} /> Gráficos
+          </button>
+          <button type="button" onClick={() => safeSetViewMode('list')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+            <ListIcon size={14} /> Lista
+          </button>
+          <button type="button" onClick={() => safeSetViewMode('fluxo')} className={`px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 ${viewMode === 'fluxo' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>
+            <DollarSign size={14} /> Fluxo Prev.
+          </button>
+        </div>
+      </div>
 
       {viewMode === 'analysis' && (
         <>
-        <div className="animate-in fade-in duration-500 space-y-6">
+          <div className="animate-in fade-in duration-500 space-y-6">
 
-          {/* KPIs Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* KPIs Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               {/* VALOR COMPRA */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
                 <div className="bg-blue-500 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
@@ -975,7 +973,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                 </div>
                 <div className="p-4 text-center bg-blue-50/30">
                   <h3 className="text-2xl font-bold text-slate-800">
-                   R$ {totals.acquisition.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                    R$ {totals.acquisition.toLocaleString('pt-BR', { compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1 })}
                   </h3>
                   <p className="text-[10px] text-slate-400 mt-1">Custo Histórico</p>
                 </div>
@@ -983,15 +981,15 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
               {/* FIPE */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-                  <div className="bg-blue-700 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                      Valor FIPE Total
-                  </div>
-                  <div className="p-4 text-center bg-blue-50/50">
-                      <h3 className="text-2xl font-bold text-slate-800">
-                         R$ {totals.fipe.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                      </h3>
-                      <p className="text-[10px] text-slate-400 mt-1">Base Atual de Mercado</p>
-                  </div>
+                <div className="bg-blue-700 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                  Valor FIPE Total
+                </div>
+                <div className="p-4 text-center bg-blue-50/50">
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    R$ {totals.fipe.toLocaleString('pt-BR', { compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1 })}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Base Atual de Mercado</p>
+                </div>
               </div>
 
               {/* VALOR AQUISIÇÃO (ZERO KM) */}
@@ -1001,88 +999,88 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                 </div>
                 <div className="p-4 text-center bg-indigo-50/30">
                   <h3 className="text-2xl font-bold text-slate-800">
-                   R$ {totals.acquisition0km.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
+                    R$ {totals.acquisition0km.toLocaleString('pt-BR', { compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1 })}
                   </h3>
                   <p className="text-[10px] text-slate-400 mt-1">Valor de aquisição informado (0km)</p>
                 </div>
               </div>
 
-                {/* RETORNO ESTIMADO */}
+              {/* RETORNO ESTIMADO */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden relative">
-                  <div className="bg-blue-600 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                      Retorno FIPE Estimado
-                  </div>
-                  <div className="p-4 text-center bg-blue-50/50">
-                       <h3 className="text-2xl font-bold text-slate-800">
-                         R$ {totals.retornoFipe.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                       </h3>
-                      <p className="text-[10px] text-slate-400 mt-1">Projeção de Revenda</p>
-                  </div>
-                  <div className="absolute top-1 right-1 bg-yellow-300 text-yellow-900 text-[10px] font-bold px-1.5 rounded">
-                      {(RETURN_PERCENTAGE * 100).toFixed(0)}%
-                  </div>
+                <div className="bg-blue-600 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                  Retorno FIPE Estimado
+                </div>
+                <div className="p-4 text-center bg-blue-50/50">
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    R$ {totals.retornoFipe.toLocaleString('pt-BR', { compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1 })}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Projeção de Revenda</p>
+                </div>
+                <div className="absolute top-1 right-1 bg-yellow-300 text-yellow-900 text-[10px] font-bold px-1.5 rounded">
+                  {(RETURN_PERCENTAGE * 100).toFixed(0)}%
+                </div>
               </div>
 
-                {/* RETORNO AQUISIÇÃO (0KM) */}
-                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-                  <div className="bg-indigo-600 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                    Retorno FIPE - Aquisição (Zero KM)
-                  </div>
-                  <div className="p-4 text-center bg-indigo-50/50">
-                     <h3 className="text-2xl font-bold text-slate-800">
-                     R$ {(totals as any).retornoAcquisition0km.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                     </h3>
-                    <p className="text-[10px] text-slate-400 mt-1">Projeção de Revenda sobre aquisição (0km)</p>
-                  </div>
+              {/* RETORNO AQUISIÇÃO (0KM) */}
+              <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+                <div className="bg-indigo-600 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                  Retorno FIPE - Aquisição (Zero KM)
                 </div>
+                <div className="p-4 text-center bg-indigo-50/50">
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    R$ {(totals as any).retornoAcquisition0km.toLocaleString('pt-BR', { compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1 })}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Projeção de Revenda sobre aquisição (0km)</p>
+                </div>
+              </div>
 
               {/* LOCAÇÃO */}
               <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-                   <div className="bg-blue-800 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
-                      Receita Mensal (Locação)
-                  </div>
-                  <div className="p-4 text-center bg-blue-50/50">
-                      <h3 className="text-2xl font-bold text-slate-800">
-                         R$ {totals.revenue.toLocaleString('pt-BR', {compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1})}
-                      </h3>
-                      <p className="text-[10px] text-slate-400 mt-1">Faturamento Atual</p>
-                  </div>
+                <div className="bg-blue-800 text-white text-center py-1 text-xs font-bold uppercase tracking-wider">
+                  Receita Mensal (Locação)
+                </div>
+                <div className="p-4 text-center bg-blue-50/50">
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    R$ {totals.revenue.toLocaleString('pt-BR', { compactDisplay: 'short', notation: 'compact', maximumFractionDigits: 1 })}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Faturamento Atual</p>
+                </div>
               </div>
-          </div>
-
-          <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-center">
-            {filterOptions.map(f => (
-              <div key={f.key} className="relative">
-                <button type="button" onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
-                  <span>{f.label}</span>
-                  {((f.key === 'year' ? (filters.year.length + filters.month.length) : (filters[f.key as keyof typeof filters].length)) > 0) && (
-                    <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{f.key === 'year' ? (filters.year.length + filters.month.length) : filters[f.key as keyof typeof filters].length}</span>
-                  )}
-                </button>
-                {openFilterPanel === f.key && (
-                  <div className="filter-panel absolute z-50 top-10 left-0 w-64 bg-white border rounded shadow-lg p-2 max-h-72 overflow-y-auto">
-                    <div className="mb-2">
-                      <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                      <button type="button" className="text-xs text-slate-500" onClick={() => {
-                        const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
-                        setFilters(prev => ({ ...prev, [f.key]: visible }));
-                      }}>Selecionar tudo</button>
-                      <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
-                    </div>
-                    <div className="space-y-1">{renderFilterItems(f)}</div>
-                  </div>
-                )}
-              </div>
-            ))}
-            <div className="flex items-center gap-2 ml-auto">
-              <label className="text-xs">KM:</label>
-              <select value={filters.kmRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, kmRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
-                <option value="">Todos</option>
-                {KM_ORDER.map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
             </div>
+
+            <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-center">
+              {filterOptions.map(f => (
+                <div key={f.key} className="relative">
+                  <button type="button" onClick={() => setOpenFilterPanel(openFilterPanel === f.key ? null : f.key)} className="filter-button px-3 py-1.5 border rounded bg-white text-xs flex items-center gap-2">
+                    <span>{f.label}</span>
+                    {((f.key === 'year' ? (filters.year.length + filters.month.length) : (filters[f.key as keyof typeof filters].length)) > 0) && (
+                      <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{f.key === 'year' ? (filters.year.length + filters.month.length) : filters[f.key as keyof typeof filters].length}</span>
+                    )}
+                  </button>
+                  {openFilterPanel === f.key && (
+                    <div className="filter-panel absolute z-50 top-10 left-0 w-64 bg-white border rounded shadow-lg p-2 max-h-72 overflow-y-auto">
+                      <div className="mb-2">
+                        <input value={filterSearch[f.key] || ''} onChange={(e) => setFilterSearch(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder="Pesquisar..." className="w-full text-xs p-2 border rounded" />
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <button type="button" className="text-xs text-slate-500" onClick={() => {
+                          const visible = (f.list as string[]).filter(opt => String(opt).toLowerCase().includes((filterSearch[f.key] || '').toLowerCase()));
+                          setFilters(prev => ({ ...prev, [f.key]: visible }));
+                        }}>Selecionar tudo</button>
+                        <button type="button" className="text-xs text-slate-500" onClick={() => setFilters(prev => ({ ...prev, [f.key]: [] }))}>Limpar</button>
+                      </div>
+                      <div className="space-y-1">{renderFilterItems(f)}</div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="flex items-center gap-2 ml-auto">
+                <label className="text-xs">KM:</label>
+                <select value={filters.kmRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, kmRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                  <option value="">Todos</option>
+                  {KM_ORDER.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs">Idade:</label>
                 <select value={filters.ageRange[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, ageRange: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
@@ -1118,321 +1116,321 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
                   className="text-sm border rounded px-2 py-1"
                 />
               </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs">Estratégia:</label>
-              <select value={filters.strategy[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, strategy: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
-                <option value="">Todas</option>
-                {Object.keys(RenewalStrategyLabel).map(k => <option key={k} value={k}>{RenewalStrategyLabel[k as RenewalStrategy]}</option>)}
-              </select>
+              <div className="flex items-center gap-2">
+                <label className="text-xs">Estratégia:</label>
+                <select value={filters.strategy[0] || ''} onChange={(e) => setFilters(prev => ({ ...prev, strategy: e.target.value ? [e.target.value] : [] }))} className="text-sm border rounded px-2 py-1">
+                  <option value="">Todas</option>
+                  {Object.keys(RenewalStrategyLabel).map(k => <option key={k} value={k}>{RenewalStrategyLabel[k as RenewalStrategy]}</option>)}
+                </select>
+              </div>
+              <div className="ml-auto">
+                <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
+              </div>
             </div>
-            <div className="ml-auto">
-              <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
-            </div>
-          </div>
 
-          {/* 2. CHARTS GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Strategy */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Layers size={14}/> Estratégia de Renovação</h4>
-               <div className="h-56">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={analysisData.strategy} layout="vertical" margin={{left: 0, right: 30}}>
-                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                     <XAxis type="number" hide />
-                     <YAxis dataKey="name" type="category" width={140} tick={{fontSize: 9, fontWeight: 600}} interval={0} />
-                     <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} />
-                     <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
+            {/* 2. CHARTS GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Strategy */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Layers size={14} /> Estratégia de Renovação</h4>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analysisData.strategy} layout="vertical" margin={{ left: 0, right: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fontWeight: 600 }} interval={0} />
+                      <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                         {analysisData.strategy.map((entry, index) => (
-                           <Cell key={index} fill={COLORS[index % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('strategy', entry.fullKey)} opacity={filters.strategy.length && !filters.strategy.includes(entry.fullKey) ? 0.3 : 1} />
+                          <Cell key={index} fill={COLORS[index % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('strategy', entry.fullKey)} opacity={filters.strategy.length && !filters.strategy.includes(entry.fullKey) ? 0.3 : 1} />
                         ))}
-                       <LabelList dataKey="value" position="right" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-                     </Bar>
-                   </BarChart>
-                 </ResponsiveContainer>
-               </div>
-            </div>
+                        <LabelList dataKey="value" position="right" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-            {/* Year */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Calendar size={14}/> Vencimentos (Ano)</h4>
-               <div className="h-56">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={analysisData.year} margin={{ top: 22, right: 10, left: 10, bottom: 0 }}>
-                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                     <XAxis dataKey="name" tick={{fontSize: 10}} axisLine={false} tickLine={false} />
-                     <YAxis hide />
-                     <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} />
-                     <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={32}>
-                      {analysisData.year.map((entry, index) => (
-                        <Cell key={index} fill={filters.year.includes(entry.fullKey) ? '#1e40af' : '#3B82F6'} cursor="pointer" onClick={() => toggleFilter('year', entry.fullKey)} />
-                      ))}
-                     <LabelList dataKey="value" position="top" offset={6} formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-                    </Bar>
-                   </BarChart>
-                 </ResponsiveContainer>
-               </div>
-            </div>
+              {/* Year */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Calendar size={14} /> Vencimentos (Ano)</h4>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analysisData.year} margin={{ top: 22, right: 10, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
+                      <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={32}>
+                        {analysisData.year.map((entry, index) => (
+                          <Cell key={index} fill={filters.year.includes(entry.fullKey) ? '#1e40af' : '#3B82F6'} cursor="pointer" onClick={() => toggleFilter('year', entry.fullKey)} />
+                        ))}
+                        <LabelList dataKey="value" position="top" offset={6} formatter={(v: any) => (typeof v === 'number' ? v : v)} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-             {/* Type */}
-             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Briefcase size={14}/> Tipo de Contrato</h4>
-               <div className="h-56">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                     <Pie data={analysisData.type} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2} label={renderPieLabel}>
+              {/* Type */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Briefcase size={14} /> Tipo de Contrato</h4>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={analysisData.type} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2} label={renderPieLabel}>
                         {analysisData.type.map((entry, index) => (
                           <Cell key={index} fill={COLORS[(index + 3) % COLORS.length]} cursor="pointer" onClick={() => toggleFilter('type', entry.fullKey)} opacity={filters.type.length && !filters.type.includes(entry.fullKey) ? 0.3 : 1} />
                         ))}
                       </Pie>
-                     <Tooltip contentStyle={{fontSize: '12px'}} />
-                     <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{fontSize: '10px'}} />
-                   </PieChart>
-                 </ResponsiveContainer>
-               </div>
-            </div>
+                      <Tooltip contentStyle={{ fontSize: '12px' }} />
+                      <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-            {/* Modelo por Montadora (scrollable, colapsável) */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <div className="flex items-center justify-between mb-2">
-                 <h4 className="text-xs font-bold text-slate-500 flex items-center gap-2 uppercase tracking-wide"><Truck size={14}/> Modelos (por Montadora)</h4>
-                 <div className="flex gap-2">
-                   <button type="button" onClick={() => setExpandAllModels(true)} className="text-xs text-slate-500 hover:text-slate-700">Expandir tudo</button>
-                   <button type="button" onClick={() => setExpandAllModels(false)} className="text-xs text-slate-500 hover:text-slate-700">Colapsar tudo</button>
-                 </div>
-               </div>
-               <div className="max-h-56 overflow-y-auto pr-2 space-y-2">
-                 {/** Build models grouped by montadora and render collapsible sections with small bar charts */}
-                 {Object.entries(
-                   ((): Record<string, { name: string; value: number; fullKey: string }[]> => {
-                     const map: Record<string, Record<string, number>> = {};
-                     filteredContracts.forEach((c: any) => {
-                       const mont = (c.montadora && c.montadora !== 'N/A') ? String(c.montadora) : 'Sem Montadora';
-                       const mod = (c.modelo && c.modelo !== 'N/A') ? String(c.modelo) : (c.model && c.model !== 'N/A' ? String(c.model) : 'Sem Modelo');
-                       map[mont] = map[mont] || {};
-                       map[mont][mod] = (map[mont][mod] || 0) + 1;
-                     });
-                     const out: Record<string, { name: string; value: number; fullKey: string }[]> = {};
-                     Object.entries(map).forEach(([mont, models]) => {
-                       out[mont] = Object.entries(models).map(([name, value]) => ({ name, value, fullKey: `${mont}__${name}` }));
-                       out[mont].sort((a, b) => b.value - a.value);
-                     });
-                     return out;
-                   })()
-                 ).map(([montadora, models]) => {
-                   return (
-                     <MontadoraSection key={montadora} montadora={montadora} models={models} defaultExpanded={expandAllModels} />
-                   );
-                 })}
-               </div>
-            </div>
+              {/* Modelo por Montadora (scrollable, colapsável) */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-slate-500 flex items-center gap-2 uppercase tracking-wide"><Truck size={14} /> Modelos (por Montadora)</h4>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setExpandAllModels(true)} className="text-xs text-slate-500 hover:text-slate-700">Expandir tudo</button>
+                    <button type="button" onClick={() => setExpandAllModels(false)} className="text-xs text-slate-500 hover:text-slate-700">Colapsar tudo</button>
+                  </div>
+                </div>
+                <div className="max-h-56 overflow-y-auto pr-2 space-y-2">
+                  {/** Build models grouped by montadora and render collapsible sections with small bar charts */}
+                  {Object.entries(
+                    ((): Record<string, { name: string; value: number; fullKey: string }[]> => {
+                      const map: Record<string, Record<string, number>> = {};
+                      filteredContracts.forEach((c: any) => {
+                        const mont = (c.montadora && c.montadora !== 'N/A') ? String(c.montadora) : 'Sem Montadora';
+                        const mod = (c.modelo && c.modelo !== 'N/A') ? String(c.modelo) : (c.model && c.model !== 'N/A' ? String(c.model) : 'Sem Modelo');
+                        map[mont] = map[mont] || {};
+                        map[mont][mod] = (map[mont][mod] || 0) + 1;
+                      });
+                      const out: Record<string, { name: string; value: number; fullKey: string }[]> = {};
+                      Object.entries(map).forEach(([mont, models]) => {
+                        out[mont] = Object.entries(models).map(([name, value]) => ({ name, value, fullKey: `${mont}__${name}` }));
+                        out[mont].sort((a, b) => b.value - a.value);
+                      });
+                      return out;
+                    })()
+                  ).map(([montadora, models]) => {
+                    return (
+                      <MontadoraSection key={montadora} montadora={montadora} models={models} defaultExpanded={expandAllModels} />
+                    );
+                  })}
+                </div>
+              </div>
 
-             {/* KM */}
-             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Activity size={14}/> Distribuição KM</h4>
-               <div className="h-56">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={analysisData.km} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
-                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                     <XAxis dataKey="name" tick={{fontSize: 9}} interval={0} angle={-45} textAnchor="end" height={50} axisLine={false} tickLine={false} />
-                     <YAxis tick={{fontSize: 10}} axisLine={false} tickLine={false} />
-                     <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} />
-                     <Bar dataKey="value" fill="#F59E0B" radius={[4, 4, 0, 0]}>
+              {/* KM */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Activity size={14} /> Distribuição KM</h4>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analysisData.km} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={50} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
+                      <Bar dataKey="value" fill="#F59E0B" radius={[4, 4, 0, 0]}>
                         {analysisData.km.map((entry, index) => (
-                           <Cell key={index} fill={filters.kmRange.includes(entry.fullKey) ? '#b45309' : '#F59E0B'} cursor="pointer" onClick={() => toggleFilter('kmRange', entry.fullKey)} />
+                          <Cell key={index} fill={filters.kmRange.includes(entry.fullKey) ? '#b45309' : '#F59E0B'} cursor="pointer" onClick={() => toggleFilter('kmRange', entry.fullKey)} />
                         ))}
                         <LabelList dataKey="value" position="top" formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-                     </Bar>
-                   </BarChart>
-                 </ResponsiveContainer>
-               </div>
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Age */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Clock size={14} /> Idade da Frota</h4>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analysisData.age} margin={{ top: 22, right: 10, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ fontSize: '12px' }} />
+                      <Bar dataKey="value" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={32}>
+                        {analysisData.age.map((entry, index) => (
+                          <Cell key={index} fill={filters.ageRange.includes(entry.fullKey) ? '#4338ca' : '#6366F1'} cursor="pointer" onClick={() => toggleFilter('ageRange', entry.fullKey)} />
+                        ))}
+                        <LabelList dataKey="value" position="top" offset={6} formatter={(v: any) => (typeof v === 'number' ? v : v)} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
 
-             {/* Age */}
-             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-               <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2 uppercase tracking-wide"><Clock size={14}/> Idade da Frota</h4>
-               <div className="h-56">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={analysisData.age} margin={{ top: 22, right: 10, left: 10, bottom: 0 }}>
-                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                     <XAxis dataKey="name" tick={{fontSize: 10}} axisLine={false} tickLine={false} />
-                     <YAxis hide />
-                     <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} />
-                    <Bar dataKey="value" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={32}>
-                      {analysisData.age.map((entry, index) => (
-                        <Cell key={index} fill={filters.ageRange.includes(entry.fullKey) ? '#4338ca' : '#6366F1'} cursor="pointer" onClick={() => toggleFilter('ageRange', entry.fullKey)} />
-                      ))}
-                      <LabelList dataKey="value" position="top" offset={6} formatter={(v: any) => (typeof v === 'number' ? v : v)} />
-                    </Bar>
-                   </BarChart>
-                 </ResponsiveContainer>
-               </div>
-            </div>
-          </div>
-
-          {/* 3. SUMMARY TABLE (PIVOT) */}
-          <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-             <div className="bg-slate-100 px-6 py-3 border-b border-slate-300 flex items-center gap-2">
-                <Table2 size={16} className="text-slate-500"/>
+            {/* 3. SUMMARY TABLE (PIVOT) */}
+            <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
+              <div className="bg-slate-100 px-6 py-3 border-b border-slate-300 flex items-center gap-2">
+                <Table2 size={16} className="text-slate-500" />
                 <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Resumo por Estratégia (Financeiro)</h4>
-             </div>
-             <div className="overflow-x-auto">
+              </div>
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                   <thead className="bg-white text-slate-600 font-bold border-b border-slate-200 text-xs uppercase">
-                      <tr>
-                         <th className="px-6 py-3">Rótulos de Linha (Estratégia)</th>
-                         <th className="px-6 py-3 text-center">QT</th>
-                         <th className="px-6 py-3 text-right">Valor Fipe</th>
-                         <th className="px-6 py-3 text-right">Retorno FIPE</th>
-                         <th className="px-6 py-3 text-right">Valor Compra</th>
-                         <th className="px-6 py-3 text-right">Valor Aquisição (0km)</th>
-                         <th className="px-6 py-3 text-right">Valor de Locação</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100">
-                      {summaryTableData.map((row) => {
-                        const strategyKey = Object.keys(RenewalStrategyLabel).find(k => RenewalStrategyLabel[k as RenewalStrategy] === row.label) || 'UNDEFINED';
-                        const isExpanded = expandedStrategies.has(strategyKey);
-                        const clients = hierarchicalData[strategyKey] || {};
-                        
-                        return (
-                          <React.Fragment key={row.label}>
-                            {/* Strategy Row */}
-                            <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleStrategy(strategyKey)}>
-                              <td className="px-6 py-3 font-medium text-slate-800">
-                                <div className="flex items-center gap-2">
-                                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                  <span>{row.label}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-3 text-center font-bold">{row.count}</td>
-                              <td className="px-6 py-3 text-right font-mono text-slate-600">
-                                R$ {row.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                              </td>
-                              <td className="px-6 py-3 text-right font-mono text-slate-600">
-                                R$ {row.retornoFipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                              </td>
-                              <td className="px-6 py-3 text-right font-mono text-slate-600">
-                                R$ {row.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                              </td>
-                              <td className="px-6 py-3 text-right font-mono text-slate-600">
-                                R$ {row.acquisition0km.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                              </td>
-                              <td className="px-6 py-3 text-right font-mono text-blue-700 font-bold">
-                                R$ {row.rental.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                              </td>
-                            </tr>
-                            
-                            {/* Client Rows (when strategy is expanded) */}
-                            {isExpanded && Object.entries(clients).map(([clientName, contracts]) => {
-                              const clientKey = `${strategyKey}___${clientName}`;
-                              const isClientExpanded = expandedClients.has(clientKey);
-                              const clientTotals = {
-                                count: contracts.length,
-                                fipe: contracts.reduce((sum, c) => sum + ((c.valorFipeAtual as number) || (c.currentFipe as number) || 0), 0),
-                                retornoFipe: contracts.reduce((sum, c) => {
-                                  const key = c.renewalStrategy || 'UNDEFINED';
-                                  const f = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
-                                  return sum + (['NO_RENEW','RENEW_SWAP_SEMINOVO','RENEW_SWAP_ZERO'].includes(key) ? f * 0.8 : 0);
-                                }, 0),
-                                acquisition: contracts.reduce((sum, c) => sum + ((c.ValorCompra as number) || 0), 0),
-                                acquisition0km: contracts.reduce((sum, c) => sum + (Number(c.purchasePrice) || 0), 0),
-                                rental: contracts.reduce((sum, c) => sum + (c.monthlyValue || 0), 0),
-                              };
-                              
-                              return (
-                                <React.Fragment key={clientKey}>
-                                  {/* Client Row */}
-                                  <tr className="bg-blue-50 hover:bg-blue-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleClient(strategyKey, clientName); }}>
-                                    <td className="px-6 py-2 font-medium text-slate-700">
-                                      <div className="flex items-center gap-2 pl-8">
-                                        {isClientExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                        <span className="text-sm">{clientName}</span>
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-2 text-center font-semibold text-sm">{clientTotals.count}</td>
-                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
-                                      R$ {clientTotals.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                    </td>
-                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
-                                      R$ {clientTotals.retornoFipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                    </td>
-                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
-                                      R$ {clientTotals.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                    </td>
-                                    <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
-                                      R$ {clientTotals.acquisition0km.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                    </td>
-                                    <td className="px-6 py-2 text-right font-mono text-sm text-blue-700 font-semibold">
-                                      R$ {clientTotals.rental.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                    </td>
-                                  </tr>
-                                  
-                                  {/* Plate Rows (when client is expanded) */}
-                                  {isClientExpanded && contracts.map((contract) => (
-                                    <React.Fragment key={contract.id}>
-                                      <tr className="bg-slate-50 hover:bg-slate-100">
-                                        <td className="px-6 py-2 text-slate-600">
-                                          <div className="pl-16 text-xs flex items-center gap-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); togglePlate(contract.id); }}>
-                                            {expandedPlates.has(contract.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                            <span className="font-medium">{contract.plate || 'Sem Placa'}</span>
-                                            {contract.modelo && (
-                                              <span className="text-slate-500">— {contract.modelo}</span>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td className="px-6 py-2 text-center text-xs">1</td>
-                                        <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
-                                          R$ {((contract.valorFipeAtual as number) || (contract.currentFipe as number) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                        </td>
-                                        <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
-                                          R$ {((contract.ValorCompra as number) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                        </td>
-                                        <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
-                                          R$ {(Number(contract.purchasePrice) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                        </td>
-                                        <td className="px-6 py-2 text-right font-mono text-xs text-blue-600">
-                                          R$ {(contract.monthlyValue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                  <thead className="bg-white text-slate-600 font-bold border-b border-slate-200 text-xs uppercase">
+                    <tr>
+                      <th className="px-6 py-3">Rótulos de Linha (Estratégia)</th>
+                      <th className="px-6 py-3 text-center">QT</th>
+                      <th className="px-6 py-3 text-right">Valor Fipe</th>
+                      <th className="px-6 py-3 text-right">Retorno FIPE</th>
+                      <th className="px-6 py-3 text-right">Valor Compra</th>
+                      <th className="px-6 py-3 text-right">Valor Aquisição (0km)</th>
+                      <th className="px-6 py-3 text-right">Valor de Locação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {summaryTableData.map((row) => {
+                      const strategyKey = Object.keys(RenewalStrategyLabel).find(k => RenewalStrategyLabel[k as RenewalStrategy] === row.label) || 'UNDEFINED';
+                      const isExpanded = expandedStrategies.has(strategyKey);
+                      const clients = hierarchicalData[strategyKey] || {};
+
+                      return (
+                        <React.Fragment key={row.label}>
+                          {/* Strategy Row */}
+                          <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleStrategy(strategyKey)}>
+                            <td className="px-6 py-3 font-medium text-slate-800">
+                              <div className="flex items-center gap-2">
+                                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                <span>{row.label}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 text-center font-bold">{row.count}</td>
+                            <td className="px-6 py-3 text-right font-mono text-slate-600">
+                              R$ {row.fipe.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-slate-600">
+                              R$ {row.retornoFipe.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-slate-600">
+                              R$ {row.acquisition.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-slate-600">
+                              R$ {row.acquisition0km.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-blue-700 font-bold">
+                              R$ {row.rental.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                          </tr>
+
+                          {/* Client Rows (when strategy is expanded) */}
+                          {isExpanded && Object.entries(clients).map(([clientName, contracts]) => {
+                            const clientKey = `${strategyKey}___${clientName}`;
+                            const isClientExpanded = expandedClients.has(clientKey);
+                            const clientTotals = {
+                              count: contracts.length,
+                              fipe: contracts.reduce((sum, c) => sum + ((c.valorFipeAtual as number) || (c.currentFipe as number) || 0), 0),
+                              retornoFipe: contracts.reduce((sum, c) => {
+                                const key = c.renewalStrategy || 'UNDEFINED';
+                                const f = (c.valorFipeAtual as number) || (c.currentFipe as number) || 0;
+                                return sum + (['NO_RENEW', 'RENEW_SWAP_SEMINOVO', 'RENEW_SWAP_ZERO'].includes(key) ? f * 0.8 : 0);
+                              }, 0),
+                              acquisition: contracts.reduce((sum, c) => sum + ((c.ValorCompra as number) || 0), 0),
+                              acquisition0km: contracts.reduce((sum, c) => sum + (Number(c.purchasePrice) || 0), 0),
+                              rental: contracts.reduce((sum, c) => sum + (c.monthlyValue || 0), 0),
+                            };
+
+                            return (
+                              <React.Fragment key={clientKey}>
+                                {/* Client Row */}
+                                <tr className="bg-blue-50 hover:bg-blue-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleClient(strategyKey, clientName); }}>
+                                  <td className="px-6 py-2 font-medium text-slate-700">
+                                    <div className="flex items-center gap-2 pl-8">
+                                      {isClientExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                      <span className="text-sm">{clientName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-center font-semibold text-sm">{clientTotals.count}</td>
+                                  <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                    R$ {clientTotals.fipe.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </td>
+                                  <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                    R$ {clientTotals.retornoFipe.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </td>
+                                  <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                    R$ {clientTotals.acquisition.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </td>
+                                  <td className="px-6 py-2 text-right font-mono text-sm text-slate-600">
+                                    R$ {clientTotals.acquisition0km.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="px-6 py-2 text-right font-mono text-sm text-blue-700 font-semibold">
+                                    R$ {clientTotals.rental.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </td>
+                                </tr>
+
+                                {/* Plate Rows (when client is expanded) */}
+                                {isClientExpanded && contracts.map((contract) => (
+                                  <React.Fragment key={contract.id}>
+                                    <tr className="bg-slate-50 hover:bg-slate-100">
+                                      <td className="px-6 py-2 text-slate-600">
+                                        <div className="pl-16 text-xs flex items-center gap-2 cursor-pointer" onClick={(e) => { e.stopPropagation(); togglePlate(contract.id); }}>
+                                          {expandedPlates.has(contract.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                          <span className="font-medium">{contract.plate || 'Sem Placa'}</span>
+                                          {contract.modelo && (
+                                            <span className="text-slate-500">— {contract.modelo}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-6 py-2 text-center text-xs">1</td>
+                                      <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
+                                        R$ {((contract.valorFipeAtual as number) || (contract.currentFipe as number) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                      </td>
+                                      <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
+                                        R$ {((contract.ValorCompra as number) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                      </td>
+                                      <td className="px-6 py-2 text-right font-mono text-xs text-slate-600">
+                                        R$ {(Number(contract.purchasePrice) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="px-6 py-2 text-right font-mono text-xs text-blue-600">
+                                        R$ {(contract.monthlyValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                      </td>
+                                    </tr>
+                                    {expandedPlates.has(contract.id) && (
+                                      <tr>
+                                        <td colSpan={18} className="px-6 py-2 bg-white">
+                                          <div className="pl-20 text-sm text-slate-700">Odômetro informado: {
+                                            (() => {
+                                              const v = (contract as any).KmInformado ?? contract.currentKm ?? (contract as any).km;
+                                              if (v === null || v === undefined || v === '') return '—';
+                                              const n = Number(v);
+                                              return isNaN(n) ? String(v) : `${n.toLocaleString('pt-BR')} km`;
+                                            })()
+                                          }</div>
                                         </td>
                                       </tr>
-                                      {expandedPlates.has(contract.id) && (
-                                        <tr>
-                                          <td colSpan={18} className="px-6 py-2 bg-white">
-                                            <div className="pl-20 text-sm text-slate-700">Odômetro informado: {
-                                              (() => {
-                                                const v = (contract as any).KmInformado ?? contract.currentKm ?? (contract as any).km;
-                                                if (v === null || v === undefined || v === '') return '—';
-                                                const n = Number(v);
-                                                return isNaN(n) ? String(v) : `${n.toLocaleString('pt-BR')} km`;
-                                              })()
-                                            }</div>
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </React.Fragment>
-                                  ))}
-                                </React.Fragment>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      })}
-                      {/* Total Row */}
-                      <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
-                         <td className="px-6 py-3 uppercase text-slate-700">Total Geral</td>
-                         <td className="px-6 py-3 text-center text-slate-800">{totals.count}</td>
-                         <td className="px-6 py-3 text-right text-slate-800">R$ {totals.fipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                         <td className="px-6 py-3 text-right text-slate-800">R$ {totals.retornoFipe.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                         <td className="px-6 py-3 text-right text-slate-800">R$ {totals.acquisition.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                         <td className="px-6 py-3 text-right text-slate-800">R$ {totals.acquisition0km.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                         <td className="px-6 py-3 text-right text-blue-800">R$ {totals.revenue.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                      </tr>
-                   </tbody>
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                    {/* Total Row */}
+                    <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
+                      <td className="px-6 py-3 uppercase text-slate-700">Total Geral</td>
+                      <td className="px-6 py-3 text-center text-slate-800">{totals.count}</td>
+                      <td className="px-6 py-3 text-right text-slate-800">R$ {totals.fipe.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                      <td className="px-6 py-3 text-right text-slate-800">R$ {totals.retornoFipe.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                      <td className="px-6 py-3 text-right text-slate-800">R$ {totals.acquisition.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                      <td className="px-6 py-3 text-right text-slate-800">R$ {totals.acquisition0km.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                      <td className="px-6 py-3 text-right text-blue-800">R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</td>
+                    </tr>
+                  </tbody>
                 </table>
-             </div>
-          </div>
+              </div>
+            </div>
 
-        </div>
+          </div>
         </>
       )}
 
@@ -1520,34 +1518,34 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
 
       {viewMode === 'list' && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-300">
-           <div className="p-4 border-b border-slate-200 flex gap-4 bg-slate-50">
-               <div className="relative w-96">
-                <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
-                <input type="text" placeholder="Buscar contrato..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+          <div className="p-4 border-b border-slate-200 flex gap-4 bg-slate-50">
+            <div className="relative w-96">
+              <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+              <input type="text" placeholder="Buscar contrato..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div className="flex-1 flex justify-end items-center gap-4 text-xs text-slate-500">
+              <div className="whitespace-nowrap">{filteredContracts.length} contratos encontrados.</div>
+              <button type="button" onClick={() => exportToExcel(filteredContracts)} title="Exportar Excel" className="ml-2 px-2 py-1 rounded border bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 text-xs">
+                <Download size={14} /> Exportar
+              </button>
+              <div className="flex items-center gap-2">
+                <label className="text-xs">Linhas:</label>
+                <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                  <option value={999999}>Todos</option>
+                </select>
               </div>
-              <div className="flex-1 flex justify-end items-center gap-4 text-xs text-slate-500">
-                 <div className="whitespace-nowrap">{filteredContracts.length} contratos encontrados.</div>
-                     <button type="button" onClick={() => exportToExcel(filteredContracts)} title="Exportar Excel" className="ml-2 px-2 py-1 rounded border bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 text-xs">
-                       <Download size={14} /> Exportar
-                     </button>
-                 <div className="flex items-center gap-2">
-                   <label className="text-xs">Linhas:</label>
-                   <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPageSize(Number(e.target.value)); setPage(1); }} className="text-xs border rounded px-2 py-1 bg-white">
-                     <option value={10}>10</option>
-                     <option value={25}>25</option>
-                     <option value={50}>50</option>
-                     <option value={100}>100</option>
-                     <option value={250}>250</option>
-                     <option value={999999}>Todos</option>
-                   </select>
-                 </div>
-                 <div className="flex items-center gap-2">
-                   <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} className="px-2 py-1 rounded border bg-white text-xs">Anterior</button>
-                   <div className="text-xs">{page} / {pageCount}</div>
-                   <button type="button" onClick={() => setPage(p => Math.min(pageCount, p + 1))} className="px-2 py-1 rounded border bg-white text-xs">Próx.</button>
-                 </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} className="px-2 py-1 rounded border bg-white text-xs">Anterior</button>
+                <div className="text-xs">{page} / {pageCount}</div>
+                <button type="button" onClick={() => setPage(p => Math.min(pageCount, p + 1))} className="px-2 py-1 rounded border bg-white text-xs">Próx.</button>
               </div>
-           </div>
+            </div>
+          </div>
           {/* Filters (List view) - dropdown style panels */}
           <div className="p-3 border-b border-slate-100 bg-white flex flex-wrap gap-3 items-start">
             {/** small helper to render a dropdown button + panel */}
@@ -1608,425 +1606,425 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
             </div>
           </div>
-           <div
-             className="overflow-x-auto min-h-[400px]"
-             onClick={(e) => { e.stopPropagation(); }}
-             onMouseDown={(e) => { e.stopPropagation(); }}
-             onPointerDown={(e) => { e.stopPropagation(); }}
-           >
-              <table className="w-full text-sm text-left">
-                 <thead className="bg-white text-slate-500 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
-                    <tr>
-                       <th className="px-4 py-4">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('contractNumber')}>Contrato</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('plate')}>Veículo</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('montadora')}>Montadora</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('modelo_veiculo')}>Modelo</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('grupoVeiculo')}>Grupo Veículo</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-center">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('periodMonths')}>Período</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-center">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('contractStatus')}>Situação Contrato</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-center">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('ageMonths')}>Idade Veículo</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-center">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('currentKm')}>KM Confirmado</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-right">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('valorFipeAtual')}>FIPE</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-right"> 
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('ValorCompra')}>Valor Compra</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-right">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('modelo_aquisicao')}>Modelo de Aquisição</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-right">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('purchasePrice')}>Valor Aquisição (Zero KM)</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-right">
-                         <div className="flex items-center justify-between">
-                           <span className="cursor-pointer" onClick={() => handleSort('monthlyValue')}>Último Valor de Locação</span>
-                           <span className="flex items-center gap-1">
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                             <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
-                           </span>
-                         </div>
-                       </th>
-                       <th className="px-4 py-4 text-center">Estratégia</th>
-                       <th className="px-4 py-4 text-center">Ação</th>
-                       {hasObservations && <th className="px-4 py-4">Obs.</th>}
-                       <th className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-30"><span className="sr-only">Ações</span></th>
-                    </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-100">
-                    {visibleContracts.map((contract: any) => {
-                       const formatDate = (dateStr?: string) => {
-                         if (!dateStr) return '-';
-                         try {
-                           return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                         } catch {
-                           return '-';
-                         }
-                       };
-                       
-                       return (
-                       <tr
-                         key={contract.id}
-                         className="hover:bg-blue-50/30 transition-colors"
-                         onClick={(e) => {
-                           const t = e.target as HTMLElement;
-                           if (!t) return;
-                           const tag = t.tagName || '';
-                           // If the click originated from a select/option (or inside one), don't let it bubble
-                           if (tag === 'SELECT' || tag === 'OPTION' || !!t.closest('select')) {
-                             e.stopPropagation();
-                             return;
-                           }
-                         }}
-                         onMouseDown={(e) => {
-                           const t = e.target as HTMLElement;
-                           if (!t) return;
-                           if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest('select')) {
-                             e.stopPropagation();
-                           }
-                         }}
-                         onPointerDown={(e) => {
-                           const t = e.target as HTMLElement;
-                           if (!t) return;
-                             if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest('select')) {
-                             e.stopPropagation();
-                           }
-                         }}
-                       >
-                          <td className="px-4 py-4">
-                            {/* Mostrar no padrão: Comercial | Contrato (remover N/A) */}
-                            {(() => {
-                              const parts = [] as string[];
-                              if (contract.commercialContract && contract.commercialContract !== 'N/A') parts.push(contract.commercialContract);
-                              if (contract.contractNumber && contract.contractNumber !== 'N/A') parts.push(contract.contractNumber);
-                              const header = parts.length > 0 ? parts.join(' | ') : '-';
-                              return (
-                                <div className="text-xs text-slate-700 font-bold flex items-center gap-2">
-                                  <span>{header}</span>
-                                  {contract.migratedFrom && (
-                                    <button type="button" onClick={() => setOpenMigrationId(openMigrationId === contract.id ? null : contract.id)} className="text-yellow-700 hover:text-yellow-900" title="Contrato migrado">
-                                      <AlertCircle size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          {openMigrationId === contract.id && contract.migratedFrom && (
-                            <div className="mt-1 p-2 bg-yellow-50 border border-yellow-100 rounded text-xs text-yellow-900">
-                              {`Este contrato foi migrado de: ${contract.migratedFrom} `}
-                              {contract.migrationDate ? `em ${new Date(contract.migrationDate).toLocaleDateString('pt-BR')}` : ''}
-                              {contract.migrationSource ? ` via ${contract.migrationSource}` : ''}
-                            </div>
-                          )}
-                            <div className="text-xs text-slate-500 mt-0.5">{contract.clientName && contract.clientName !== 'N/A' ? contract.clientName : ''}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                             {/* Display plate directly from API */}
-                             {(() => {
-                               const p = contract.plate || contract.mainPlate || '';
-                               return <div className="font-bold text-slate-800 text-xs">{p || '-'}</div>;
-                             })()}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="text-xs text-slate-700">{contract.montadora && contract.montadora !== 'N/A' ? contract.montadora : '-'}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="text-xs text-slate-700">{contract.modelo_veiculo && contract.modelo_veiculo !== 'N/A' ? contract.modelo_veiculo : (contract.modelo && contract.modelo !== 'N/A' ? contract.modelo : (contract.model && contract.model !== 'N/A' ? contract.model : '-'))}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="text-xs text-slate-700">{(contract.grupoVeiculo || contract.categoria) && (contract.grupoVeiculo || contract.categoria) !== 'N/A' ? (contract.grupoVeiculo || contract.categoria) : '-'}</div>
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="text-[10px] text-slate-500">Início: {formatDate(contract.initialDate)}</div>
-                            <div className="text-[10px] text-slate-500">Fim: {formatDate(contract.finalDate)}</div>
-                            {contract.periodMonths && <div className="text-xs font-bold text-blue-600 mt-0.5">{contract.periodMonths} meses</div>}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            {(() => {
-                              const s = (contract.contractStatus || '').toString();
-                              const lower = s.toLowerCase();
-                              if (!s) return <div className="text-xs font-semibold text-slate-700">-</div>;
-                              if (lower.includes('encerr')) {
-                                return <div className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-red-600 bg-red-50">{s}</div>;
-                              }
-                              if (lower.includes('andament') || lower.includes('andamento')) {
-                                return <div className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-emerald-600 bg-emerald-50">{s}</div>;
-                              }
-                              return <div className="text-xs font-semibold text-slate-700">{s}</div>;
-                            })()}
-                            {contract.closingDate && <div className="text-[10px] text-slate-400 mt-0.5">{formatDate(contract.closingDate)}</div>}
-                            {contract.localizacaoVeiculo && <div className="text-[10px] text-slate-400 mt-0.5">{contract.localizacaoVeiculo}</div>}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="text-xs font-bold text-slate-700">{typeof contract.ageMonths !== 'undefined' && contract.ageMonths !== null ? `${Number(contract.ageMonths)}m` : '-'}</div>
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            {(() => {
-                              const km = contract.currentKm || contract.KmInformado;
-                              if (typeof km === 'number' && km >= 0) {
-                                return <div className="text-[10px] text-slate-500">{km.toLocaleString('pt-BR')} km</div>;
-                              }
-                              return <div className="text-[10px] text-slate-500">-</div>;
-                            })()}
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            {(() => {
-                              const fipeVal = (typeof contract.valorFipeAtual === 'number' && Number.isFinite(contract.valorFipeAtual) && contract.valorFipeAtual > 0)
-                                ? contract.valorFipeAtual
-                                : (typeof contract.currentFipe === 'number' && Number.isFinite(contract.currentFipe) && contract.currentFipe > 0) ? contract.currentFipe : undefined;
-                              return (
-                                <div className="text-xs font-mono text-slate-600">{typeof fipeVal === 'number' ? `R$ ${fipeVal.toLocaleString('pt-BR')}` : '-'}</div>
-                              );
-                            })()}
-                          </td>
-                            <td className="px-4 py-4 text-right">
-                              {typeof contract.ValorCompra === 'number' && contract.ValorCompra > 0 ? (
-                                <div className="text-xs font-mono text-slate-600">R$ {contract.ValorCompra.toLocaleString('pt-BR')}</div>
-                              ) : (
-                                <div className="text-xs font-mono text-slate-600">-</div>
+          <div
+            className="overflow-x-auto min-h-[400px]"
+            onClick={(e) => { e.stopPropagation(); }}
+            onMouseDown={(e) => { e.stopPropagation(); }}
+            onPointerDown={(e) => { e.stopPropagation(); }}
+          >
+            <table className="w-full text-sm text-left">
+              <thead className="bg-white text-slate-500 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('contractNumber')}>Contrato</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractNumber', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('plate')}>Veículo</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'plate', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('montadora')}>Montadora</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'montadora', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('modelo_veiculo')}>Modelo</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_veiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('grupoVeiculo')}>Grupo Veículo</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'grupoVeiculo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('periodMonths')}>Período</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'periodMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('contractStatus')}>Situação Contrato</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'contractStatus', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('ageMonths')}>Idade Veículo</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ageMonths', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-center">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('currentKm')}>KM Confirmado</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'currentKm', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('valorFipeAtual')}>FIPE</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'valorFipeAtual', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('ValorCompra')}>Valor Compra</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorCompra', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('modelo_aquisicao')}>Modelo de Aquisição</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'modelo_aquisicao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('purchasePrice')}>Valor Aquisição (Zero KM)</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'purchasePrice', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-between">
+                      <span className="cursor-pointer" onClick={() => handleSort('monthlyValue')}>Último Valor de Locação</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'monthlyValue', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
+                      </span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-4 text-center">Estratégia</th>
+                  <th className="px-4 py-4 text-center">Ação</th>
+                  {hasObservations && <th className="px-4 py-4">Obs.</th>}
+                  <th className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-30"><span className="sr-only">Ações</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleContracts.map((contract: any) => {
+                  const formatDate = (dateStr?: string) => {
+                    if (!dateStr) return '-';
+                    try {
+                      return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    } catch {
+                      return '-';
+                    }
+                  };
+
+                  return (
+                    <tr
+                      key={contract.id}
+                      className="hover:bg-blue-50/30 transition-colors"
+                      onClick={(e) => {
+                        const t = e.target as HTMLElement;
+                        if (!t) return;
+                        const tag = t.tagName || '';
+                        // If the click originated from a select/option (or inside one), don't let it bubble
+                        if (tag === 'SELECT' || tag === 'OPTION' || !!t.closest('select')) {
+                          e.stopPropagation();
+                          return;
+                        }
+                      }}
+                      onMouseDown={(e) => {
+                        const t = e.target as HTMLElement;
+                        if (!t) return;
+                        if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest('select')) {
+                          e.stopPropagation();
+                        }
+                      }}
+                      onPointerDown={(e) => {
+                        const t = e.target as HTMLElement;
+                        if (!t) return;
+                        if (t.tagName === 'SELECT' || t.tagName === 'OPTION' || !!t.closest('select')) {
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      <td className="px-4 py-4">
+                        {/* Mostrar no padrão: Comercial | Contrato (remover N/A) */}
+                        {(() => {
+                          const parts = [] as string[];
+                          if (contract.commercialContract && contract.commercialContract !== 'N/A') parts.push(contract.commercialContract);
+                          if (contract.contractNumber && contract.contractNumber !== 'N/A') parts.push(contract.contractNumber);
+                          const header = parts.length > 0 ? parts.join(' | ') : '-';
+                          return (
+                            <div className="text-xs text-slate-700 font-bold flex items-center gap-2">
+                              <span>{header}</span>
+                              {contract.migratedFrom && (
+                                <button type="button" onClick={() => setOpenMigrationId(openMigrationId === contract.id ? null : contract.id)} className="text-yellow-700 hover:text-yellow-900" title="Contrato migrado">
+                                  <AlertCircle size={14} />
+                                </button>
                               )}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              {/* Modelo de Aquisição: input when strategy or ação is RENEW_SWAP_ZERO, otherwise dash */}
-                                {((contract as any).acao_usuario === 'RENEW_SWAP_ZERO' || contract.renewalStrategy === 'RENEW_SWAP_ZERO') ? (
-                                  <div
-                                    onDoubleClick={(e) => {
-                                      e.stopPropagation();
-                                      // initialize draft if missing
-                                      if (!drafts[contract.id] || typeof drafts[contract.id].modelo_aquisicao === 'undefined') {
-                                        setDraftValue(contract.id, 'modelo_aquisicao', String((contract as any).modelo_aquisicao ?? ''));
-                                      }
-                                      setEditingRows(prev => ({ ...prev, [contract.id]: true }));
-                                      setTimeout(() => {
-                                        const el = document.getElementById(`modelo-${contract.id}`) as HTMLInputElement | null;
-                                        if (el) el.focus();
-                                      }, 50);
-                                    }}
-                                  >
-                                    {editingRows[contract.id] ? (
-                                      <div className="flex flex-col gap-2">
-                                        <input
-                                          id={`modelo-${contract.id}`}
-                                          value={drafts[contract.id]?.modelo_aquisicao ?? ((contract as any).modelo_aquisicao ?? '')}
-                                          onChange={(e) => setDraftValue(contract.id, 'modelo_aquisicao', e.currentTarget.value)}
-                                          className="w-full text-xs border rounded px-2 py-1"
-                                          placeholder="Modelo de Aquisição"
-                                        />
-                                        {hasDraftChanges(contract.id, contract) && (
-                                          <div className="flex gap-2">
-                                            <button type="button" onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
-                                            <button type="button" onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700 truncate">{(contract as any).modelo_aquisicao || '-'}</div>
-                                    )}
+                            </div>
+                          );
+                        })()}
+                        {openMigrationId === contract.id && contract.migratedFrom && (
+                          <div className="mt-1 p-2 bg-yellow-50 border border-yellow-100 rounded text-xs text-yellow-900">
+                            {`Este contrato foi migrado de: ${contract.migratedFrom} `}
+                            {contract.migrationDate ? `em ${new Date(contract.migrationDate).toLocaleDateString('pt-BR')}` : ''}
+                            {contract.migrationSource ? ` via ${contract.migrationSource}` : ''}
+                          </div>
+                        )}
+                        <div className="text-xs text-slate-500 mt-0.5">{contract.clientName && contract.clientName !== 'N/A' ? contract.clientName : ''}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {/* Display plate directly from API */}
+                        {(() => {
+                          const p = contract.plate || contract.mainPlate || '';
+                          return <div className="font-bold text-slate-800 text-xs">{p || '-'}</div>;
+                        })()}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-xs text-slate-700">{contract.montadora && contract.montadora !== 'N/A' ? contract.montadora : '-'}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-xs text-slate-700">{contract.modelo_veiculo && contract.modelo_veiculo !== 'N/A' ? contract.modelo_veiculo : (contract.modelo && contract.modelo !== 'N/A' ? contract.modelo : (contract.model && contract.model !== 'N/A' ? contract.model : '-'))}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-xs text-slate-700">{(contract.grupoVeiculo || contract.categoria) && (contract.grupoVeiculo || contract.categoria) !== 'N/A' ? (contract.grupoVeiculo || contract.categoria) : '-'}</div>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <div className="text-[10px] text-slate-500">Início: {formatDate(contract.initialDate)}</div>
+                        <div className="text-[10px] text-slate-500">Fim: {formatDate(contract.finalDate)}</div>
+                        {contract.periodMonths && <div className="text-xs font-bold text-blue-600 mt-0.5">{contract.periodMonths} meses</div>}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {(() => {
+                          const s = (contract.contractStatus || '').toString();
+                          const lower = s.toLowerCase();
+                          if (!s) return <div className="text-xs font-semibold text-slate-700">-</div>;
+                          if (lower.includes('encerr')) {
+                            return <div className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-red-600 bg-red-50">{s}</div>;
+                          }
+                          if (lower.includes('andament') || lower.includes('andamento')) {
+                            return <div className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-emerald-600 bg-emerald-50">{s}</div>;
+                          }
+                          return <div className="text-xs font-semibold text-slate-700">{s}</div>;
+                        })()}
+                        {contract.closingDate && <div className="text-[10px] text-slate-400 mt-0.5">{formatDate(contract.closingDate)}</div>}
+                        {contract.localizacaoVeiculo && <div className="text-[10px] text-slate-400 mt-0.5">{contract.localizacaoVeiculo}</div>}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <div className="text-xs font-bold text-slate-700">{typeof contract.ageMonths !== 'undefined' && contract.ageMonths !== null ? `${Number(contract.ageMonths)}m` : '-'}</div>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {(() => {
+                          const km = contract.currentKm || contract.KmInformado;
+                          if (typeof km === 'number' && km >= 0) {
+                            return <div className="text-[10px] text-slate-500">{km.toLocaleString('pt-BR')} km</div>;
+                          }
+                          return <div className="text-[10px] text-slate-500">-</div>;
+                        })()}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {(() => {
+                          const fipeVal = (typeof contract.valorFipeAtual === 'number' && Number.isFinite(contract.valorFipeAtual) && contract.valorFipeAtual > 0)
+                            ? contract.valorFipeAtual
+                            : (typeof contract.currentFipe === 'number' && Number.isFinite(contract.currentFipe) && contract.currentFipe > 0) ? contract.currentFipe : undefined;
+                          return (
+                            <div className="text-xs font-mono text-slate-600">{typeof fipeVal === 'number' ? `R$ ${fipeVal.toLocaleString('pt-BR')}` : '-'}</div>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {typeof contract.ValorCompra === 'number' && contract.ValorCompra > 0 ? (
+                          <div className="text-xs font-mono text-slate-600">R$ {contract.ValorCompra.toLocaleString('pt-BR')}</div>
+                        ) : (
+                          <div className="text-xs font-mono text-slate-600">-</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {/* Modelo de Aquisição: input when strategy or ação is RENEW_SWAP_ZERO, otherwise dash */}
+                        {((contract as any).acao_usuario === 'RENEW_SWAP_ZERO' || contract.renewalStrategy === 'RENEW_SWAP_ZERO') ? (
+                          <div
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              // initialize draft if missing
+                              if (!drafts[contract.id] || typeof drafts[contract.id].modelo_aquisicao === 'undefined') {
+                                setDraftValue(contract.id, 'modelo_aquisicao', String((contract as any).modelo_aquisicao ?? ''));
+                              }
+                              setEditingRows(prev => ({ ...prev, [contract.id]: true }));
+                              setTimeout(() => {
+                                const el = document.getElementById(`modelo-${contract.id}`) as HTMLInputElement | null;
+                                if (el) el.focus();
+                              }, 50);
+                            }}
+                          >
+                            {editingRows[contract.id] ? (
+                              <div className="flex flex-col gap-2">
+                                <input
+                                  id={`modelo-${contract.id}`}
+                                  value={drafts[contract.id]?.modelo_aquisicao ?? ((contract as any).modelo_aquisicao ?? '')}
+                                  onChange={(e) => setDraftValue(contract.id, 'modelo_aquisicao', e.currentTarget.value)}
+                                  className="w-full text-xs border rounded px-2 py-1"
+                                  placeholder="Modelo de Aquisição"
+                                />
+                                {hasDraftChanges(contract.id, contract) && (
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
+                                    <button type="button" onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
                                   </div>
-                                ) : (
-                                  <div className="text-xs font-mono text-slate-600">-</div>
                                 )}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              {/* Valor Aquisição (Zero KM): input when strategy or ação is RENEW_SWAP_ZERO */}
-                              {((contract as any).acao_usuario === 'RENEW_SWAP_ZERO' || contract.renewalStrategy === 'RENEW_SWAP_ZERO') ? (
-                                <div
-                                  onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!drafts[contract.id] || typeof drafts[contract.id].purchasePrice === 'undefined') {
-                                      setDraftValue(contract.id, 'purchasePrice', (Number(contract.purchasePrice) || 0) > 0 ? String(contract.purchasePrice) : '');
-                                    }
-                                    setEditingRows(prev => ({ ...prev, [contract.id]: true }));
-                                    setTimeout(() => {
-                                      const el = document.getElementById(`price-${contract.id}`) as HTMLInputElement | null;
-                                      if (el) el.focus();
-                                    }, 50);
-                                  }}
-                                >
-                                  {editingRows[contract.id] ? (
-                                    <div className="flex flex-col gap-2">
-                                      <input
-                                        id={`price-${contract.id}`}
-                                        value={drafts[contract.id]?.purchasePrice ?? (Number(contract.purchasePrice || 0) > 0 ? String(contract.purchasePrice) : '')}
-                                        onChange={(e) => setDraftValue(contract.id, 'purchasePrice', e.currentTarget.value)}
-                                        className="w-full text-xs border rounded px-2 py-1 text-right"
-                                        placeholder="R$ 0,00"
-                                      />
-                                      {hasDraftChanges(contract.id, contract) && (
-                                        <div className="flex gap-2 justify-end">
-                                          <button type="button" onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
-                                          <button type="button" onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700">{(Number(contract.purchasePrice) || 0) > 0 ? `R$ ${Number(contract.purchasePrice).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-xs font-mono text-slate-600">-</div>
-                              )}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
-                            </td>
-                          <td className="px-4 py-4">
-                            <div className="text-xs text-slate-700 font-medium">
-                              {contract.renewalStrategy ? (RenewalStrategyLabel[contract.renewalStrategy as keyof typeof RenewalStrategyLabel] || contract.renewalStrategy) : '-'}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <ActionPicker
-                              value={(contract as any).acao_usuario || null}
-                              onChange={(val) => handleAcaoChange(contract.id, val)}
-                              disabled={observationModalOpen || purchaseModalOpen}
-                            />
-                          </td>
-                          {hasObservations && <td className="px-4 py-4">
-                            {contract.observation ? (
-                              <div className="text-xs text-slate-700 truncate" title={String(contract.observation)} aria-label={String(contract.observation)}>
-                                {String(contract.observation)}
                               </div>
                             ) : (
-                              <div className="text-xs text-slate-400">-</div>
+                              <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700 truncate">{(contract as any).modelo_aquisicao || '-'}</div>
                             )}
-                          </td>}
-                              <td className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-20">
-                                <div className="flex items-center justify-center gap-2">
-                                 <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16}/></button>
-                                {/* Ações: apenas botões (observação). Removido select duplicado de estratégia */}
-                                </div>
-                              </td>
-                       </tr>
-                       );
-                      })}
-                    </tbody>
-                  </table>
-           </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs font-mono text-slate-600">-</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {/* Valor Aquisição (Zero KM): input when strategy or ação is RENEW_SWAP_ZERO */}
+                        {((contract as any).acao_usuario === 'RENEW_SWAP_ZERO' || contract.renewalStrategy === 'RENEW_SWAP_ZERO') ? (
+                          <div
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              if (!drafts[contract.id] || typeof drafts[contract.id].purchasePrice === 'undefined') {
+                                setDraftValue(contract.id, 'purchasePrice', (Number(contract.purchasePrice) || 0) > 0 ? String(contract.purchasePrice) : '');
+                              }
+                              setEditingRows(prev => ({ ...prev, [contract.id]: true }));
+                              setTimeout(() => {
+                                const el = document.getElementById(`price-${contract.id}`) as HTMLInputElement | null;
+                                if (el) el.focus();
+                              }, 50);
+                            }}
+                          >
+                            {editingRows[contract.id] ? (
+                              <div className="flex flex-col gap-2">
+                                <input
+                                  id={`price-${contract.id}`}
+                                  value={drafts[contract.id]?.purchasePrice ?? (Number(contract.purchasePrice || 0) > 0 ? String(contract.purchasePrice) : '')}
+                                  onChange={(e) => setDraftValue(contract.id, 'purchasePrice', e.currentTarget.value)}
+                                  className="w-full text-xs border rounded px-2 py-1 text-right"
+                                  placeholder="R$ 0,00"
+                                />
+                                {hasDraftChanges(contract.id, contract) && (
+                                  <div className="flex gap-2 justify-end">
+                                    <button type="button" onClick={() => saveDraft(contract.id)} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Salvar</button>
+                                    <button type="button" onClick={() => { clearDraft(contract.id); setEditingRows(prev => ({ ...prev, [contract.id]: false })); }} className="px-3 py-1 text-xs border rounded">Cancelar</button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div title="Duplo-clique para editar" className="text-xs font-mono text-slate-700">{(Number(contract.purchasePrice) || 0) > 0 ? `R$ ${Number(contract.purchasePrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-xs font-mono text-slate-600">-</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="font-bold text-blue-700 text-xs">R$ {(Number(contract.monthlyValue) || 0).toLocaleString('pt-BR')}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-xs text-slate-700 font-medium">
+                          {contract.renewalStrategy ? (RenewalStrategyLabel[contract.renewalStrategy as keyof typeof RenewalStrategyLabel] || contract.renewalStrategy) : '-'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <ActionPicker
+                          value={(contract as any).acao_usuario || null}
+                          onChange={(val) => handleAcaoChange(contract.id, val)}
+                          disabled={observationModalOpen || purchaseModalOpen}
+                        />
+                      </td>
+                      {hasObservations && <td className="px-4 py-4">
+                        {contract.observation ? (
+                          <div className="text-xs text-slate-700 truncate" title={String(contract.observation)} aria-label={String(contract.observation)}>
+                            {String(contract.observation)}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-400">-</div>
+                        )}
+                      </td>}
+                      <td className="px-4 py-4 text-center min-w-[120px] sticky right-0 bg-white z-20">
+                        <div className="flex items-center justify-center gap-2">
+                          <button className="text-slate-400 hover:text-blue-600" onClick={() => handleOpenObservation(contract)}><MessageSquarePlus size={16} /></button>
+                          {/* Ações: apenas botões (observação). Removido select duplicado de estratégia */}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* Observation Modal */}
       {observationModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
-              <div className="flex justify-between items-center p-6 border-b border-slate-100">
-                 <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <MessageSquarePlus className="text-blue-600" size={20}/> Observação
-                 </h3>
-                 <button type="button" onClick={() => setObservationModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                    <X size={24} />
-                 </button>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <MessageSquarePlus className="text-blue-600" size={20} /> Observação
+              </h3>
+              <button type="button" onClick={() => setObservationModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6">
+              <textarea
+                className="w-full h-32 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm text-slate-700"
+                placeholder="Digite observações..."
+                value={tempObservation}
+                onChange={(e) => setTempObservation(e.target.value)}
+              ></textarea>
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" onClick={() => setObservationModalOpen(false)} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
+                <button type="button" onClick={handleSaveObservation} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
               </div>
-              <div className="p-6">
-                 <textarea 
-                    className="w-full h-32 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm text-slate-700"
-                    placeholder="Digite observações..."
-                    value={tempObservation}
-                    onChange={(e) => setTempObservation(e.target.value)}
-                 ></textarea>
-                 <div className="mt-6 flex justify-end gap-3">
-                    <button type="button" onClick={() => setObservationModalOpen(false)} className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200">Cancelar</button>
-                    <button type="button" onClick={handleSaveObservation} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Salvar</button>
-                 </div>
-              </div>
-           </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2036,7 +2034,7 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Briefcase className="text-blue-600" size={20}/> Valor Aquisição
+                <Briefcase className="text-blue-600" size={20} /> Valor Aquisição
               </h3>
               <button type="button" onClick={() => setPurchaseModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={24} />

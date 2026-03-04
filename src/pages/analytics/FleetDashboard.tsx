@@ -544,11 +544,11 @@ export default function FleetDashboard() {
         const clienteFilters = getFilterValues('cliente');
         const tipoLocacaoFilters = getFilterValues('tipoLocacao');
         const categoriaFilters = getFilterValues('categoria');
-        
+
         // Filtros para gráficos da aba Visão Geral
         const odometroFilters = getFilterValues('odometro');
         const idadeFilters = getFilterValues('idade');
-        
+
         // Filtros para gráficos da aba Telemetria
         const telemetriaFilters = getFilterValues('telemetria');
         const seguroFilters = getFilterValues('seguro');
@@ -591,7 +591,7 @@ export default function FleetDashboard() {
             if (filialFilters.length > 0 && !filialFilters.includes(r.Filial)) return false;
             if (clienteFilters.length > 0 && !clienteFilters.includes(r.NomeCliente)) return false;
             if (tipoLocacaoFilters.length > 0 && !tipoLocacaoFilters.includes(r.TipoLocacao)) return false;
-            
+
             // Filtro de categoria
             if (categoriaFilters.length > 0) {
                 const categoria = r.Categoria || r.GrupoVeiculo || 'Outros';
@@ -616,7 +616,7 @@ export default function FleetDashboard() {
                 });
                 if (!ok) return false;
             }
-            
+
             // Filtro de odômetro (clique no gráfico de classificação por odômetro)
             if (odometroFilters.length > 0) {
                 const km = parseNum(r.KmInformado);
@@ -638,7 +638,7 @@ export default function FleetDashboard() {
                 });
                 if (!ok) return false;
             }
-            
+
             // Filtro de idade (clique no gráfico de classificação por idade)
             if (idadeFilters.length > 0) {
                 const idade = parseNum(r.IdadeVeiculo);
@@ -653,13 +653,13 @@ export default function FleetDashboard() {
                 });
                 if (!ok) return false;
             }
-            
+
             // Filtro de provedor de telemetria
             if (telemetriaFilters.length > 0) {
                 const provedor = r.ProvedorTelemetria || 'Não Definido';
                 if (!telemetriaFilters.includes(provedor)) return false;
             }
-            
+
             // Filtro de seguro
             if (seguroFilters.length > 0) {
                 const seguro = r.ComSeguroVigente === true || r.ComSeguroVigente === 'true' || r.ComSeguroVigente === 1
@@ -669,19 +669,19 @@ export default function FleetDashboard() {
                         : 'Não Informado';
                 if (!seguroFilters.includes(seguro)) return false;
             }
-            
+
             // Filtro de proprietário
             if (proprietarioFilters.length > 0) {
                 const prop = r.Proprietario || 'Não Definido';
                 if (!proprietarioFilters.includes(prop)) return false;
             }
-            
+
             // Filtro de finalidade de uso
             if (finalidadeFilters.length > 0) {
                 const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
                 if (!finalidadeFilters.includes(finalidade)) return false;
             }
-            
+
             // Filtro de diferença de KM
             if (kmDiffFilters.length > 0) {
                 const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
@@ -896,8 +896,8 @@ export default function FleetDashboard() {
             return mapped.filter(r => (
                 r.ProvedorTelemetria && r.ProvedorTelemetria !== 'NÃO DEFINIDO' && r.ProvedorTelemetria !== 'Não Definido'
             ) && (
-                !r.UltimoEnderecoTelemetria || (r._uf && r._uf === 'ND')
-            ));
+                    !r.UltimoEnderecoTelemetria || (r._uf && r._uf === 'ND')
+                ));
         }
 
         return coordsValid.filter(r => r._city === selectedLocation.city && r._uf === selectedLocation.uf);
@@ -1127,8 +1127,7 @@ export default function FleetDashboard() {
         });
         return Object.entries(map)
             .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 15);
+            .sort((a, b) => b.value - a.value);
     }, [filteredData]);
 
     const localizacaoHierarquica = useMemo(() => {
@@ -1326,7 +1325,7 @@ export default function FleetDashboard() {
             const patio = v.Patio;
             map[patio] = (map[patio] || 0) + 1;
         });
-        return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
+        return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [vehiclesDetailed]);
 
     const statusImprodutivoData = useMemo(() => {
@@ -1443,13 +1442,13 @@ export default function FleetDashboard() {
             if (motivos.length > 0 && !motivos.includes(r.Motivo)) return false;
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
-            
+
             // Filtro de tipo de veículo (clique no gráfico Tipo Veículo)
             if (tiposVeiculo.length > 0) {
                 const tipo = String(r.TipoVeiculoTemporario || r.Tipo || 'Não Definido');
                 if (!tiposVeiculo.includes(tipo)) return false;
             }
-            
+
             // Filtro de localização (clique no gráfico Diárias por Local)
             if (locais.length > 0) {
                 const city = (r.Cidade || 'Não Identificado').trim();
@@ -1457,7 +1456,7 @@ export default function FleetDashboard() {
                 const key = uf ? `${city} / ${uf}` : city;
                 if (!locais.includes(key)) return false;
             }
-            
+
             if (search) {
                 const term = search.toLowerCase();
                 if (!r.PlacaReserva?.toLowerCase().includes(term) && !r.Cliente?.toLowerCase().includes(term) && !r.IdOcorrencia?.toLowerCase().includes(term)) return false;
@@ -1933,11 +1932,11 @@ export default function FleetDashboard() {
                         <CompactMultiSelect label="Filial" options={uniqueOptions.filiais} selected={selectedFilial} onSelectedChange={(v) => applyFilterValues('filial', v)} />
                         <CompactMultiSelect label="Cliente" options={uniqueOptions.clientes} selected={selectedCliente} onSelectedChange={(v) => applyFilterValues('cliente', v)} />
                         <CompactMultiSelect label="Tipo Contrato" options={uniqueOptions.tiposLocacao} selected={selectedTipoLocacao} onSelectedChange={(v) => applyFilterValues('tipoLocacao', v)} />
-                            <div className="flex items-center gap-2">
-                                <CompactMultiSelect label="Placas" options={uniqueOptions.plates} selected={selectedPlates} onSelectedChange={(v) => applyFilterValues('search', v)} />
-                                <button onClick={() => { clearFilter('search'); }} className="px-3 py-1 text-sm bg-rose-50 text-rose-600 rounded">Limpar</button>
-                                <button onClick={selectAllFilters} className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded">Selecionar tudo</button>
-                            </div>
+                        <div className="flex items-center gap-2">
+                            <CompactMultiSelect label="Placas" options={uniqueOptions.plates} selected={selectedPlates} onSelectedChange={(v) => applyFilterValues('search', v)} />
+                            <button onClick={() => { clearFilter('search'); }} className="px-3 py-1 text-sm bg-rose-50 text-rose-600 rounded">Limpar</button>
+                            <button onClick={selectAllFilters} className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded">Selecionar tudo</button>
+                        </div>
                     </div>
                 </div>
             </Card>
@@ -2265,37 +2264,37 @@ export default function FleetDashboard() {
                                 </div>
                             </th>
                         </tr></thead><tbody className="divide-y divide-slate-100">
-                            {pageItems.length === 0 ? (
-                                <tr className="bg-transparent">
-                                    <td colSpan={13} className="px-6 py-8 text-center text-sm text-slate-600">
-                                        {appliedPlateSearch ? (
-                                            <div>
-                                                Nenhum resultado para <strong>{appliedPlateSearch}</strong>.
-                                                <div className="mt-2">
-                                                    <button onClick={() => { setPlateSearch(''); setAppliedPlateSearch(''); }} className="px-3 py-1 bg-blue-50 text-blue-700 rounded text-sm">Limpar pesquisa</button>
+                                {pageItems.length === 0 ? (
+                                    <tr className="bg-transparent">
+                                        <td colSpan={13} className="px-6 py-8 text-center text-sm text-slate-600">
+                                            {appliedPlateSearch ? (
+                                                <div>
+                                                    Nenhum resultado para <strong>{appliedPlateSearch}</strong>.
+                                                    <div className="mt-2">
+                                                        <button onClick={() => { setPlateSearch(''); setAppliedPlateSearch(''); }} className="px-3 py-1 bg-blue-50 text-blue-700 rounded text-sm">Limpar pesquisa</button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div>Nenhum registro.</div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ) : pageItems.map((r, i) => (
-                                <tr key={i} className="hover:bg-slate-50">
-                                <td className="px-6 py-3 font-medium font-mono">{r.Placa}</td>
-                                <td className="px-6 py-3">{r.Modelo}</td>
-                                <td className="px-6 py-3 font-mono text-xs text-slate-500">{r.Chassi || '-'}</td>
-                                <td className="px-6 py-3 text-xs max-w-[150px] truncate" title={r.NomeCliente}>{r.NomeCliente}</td>
-                                <td className="px-6 py-3 text-xs">{r.TipoLocacao}</td>
-                                <td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td>
-                                <td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td>
-                                <td className="px-6 py-3 text-right font-medium text-blue-600">{r.ValorLocacao ? fmtBRL(r.ValorLocacao) : '-'}</td>
-                                <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
-                                <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
-                                <td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td>
-                                <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
-                                <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
-                            </tr>))}</tbody></table></div>
+                                            ) : (
+                                                <div>Nenhum registro.</div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ) : pageItems.map((r, i) => (
+                                    <tr key={i} className="hover:bg-slate-50">
+                                        <td className="px-6 py-3 font-medium font-mono">{r.Placa}</td>
+                                        <td className="px-6 py-3">{r.Modelo}</td>
+                                        <td className="px-6 py-3 font-mono text-xs text-slate-500">{r.Chassi || '-'}</td>
+                                        <td className="px-6 py-3 text-xs max-w-[150px] truncate" title={r.NomeCliente}>{r.NomeCliente}</td>
+                                        <td className="px-6 py-3 text-xs">{r.TipoLocacao}</td>
+                                        <td className="px-6 py-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' : r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{r.Status}</span></td>
+                                        <td className="px-6 py-3 text-center font-bold text-xs">{r.tipo}</td>
+                                        <td className="px-6 py-3 text-right font-medium text-blue-600">{r.ValorLocacao ? fmtBRL(r.ValorLocacao) : '-'}</td>
+                                        <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
+                                        <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
+                                        <td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
+                                        <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
+                                    </tr>))}</tbody></table></div>
                         <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
                             <div className="flex gap-2">
                                 <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
@@ -2327,38 +2326,42 @@ export default function FleetDashboard() {
                         </Card>
                         <Card>
                             <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Veículos por Pátio (Improdutivos)</Title></div>
-                            <div className="h-64 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={patioData} layout="vertical" margin={{ left: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" fontSize={12} />
-                                        <YAxis dataKey="name" type="category" width={100} fontSize={10} />
-                                        <Tooltip />
-                                        <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
-                                            cursor="pointer">
-                                            <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="overflow-y-auto" style={{ maxHeight: 256 }}>
+                                <div style={{ height: Math.max(256, patioData.length * 35) }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={patioData} layout="vertical" margin={{ left: 20 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                            <XAxis type="number" fontSize={12} />
+                                            <YAxis dataKey="name" type="category" width={100} fontSize={10} />
+                                            <Tooltip />
+                                            <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}
+                                                onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
+                                                cursor="pointer">
+                                                <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </Card>
                         <Card>
                             <div className="flex items-center gap-2 mb-4"><Info size={16} className="text-rose-600" /><Title>Veículos por Status (Improdutivos)</Title></div>
-                            <div className="h-64 mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={statusImprodutivoData} layout="vertical" margin={{ left: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" fontSize={12} />
-                                        <YAxis dataKey="name" type="category" width={120} fontSize={10} />
-                                        <Tooltip />
-                                        <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
-                                            cursor="pointer">
-                                            <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="overflow-y-auto" style={{ maxHeight: 256 }}>
+                                <div style={{ height: Math.max(256, statusImprodutivoData.length * 35) }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={statusImprodutivoData} layout="vertical" margin={{ left: 20 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                            <XAxis type="number" fontSize={12} />
+                                            <YAxis dataKey="name" type="category" width={120} fontSize={10} />
+                                            <Tooltip />
+                                            <Bar dataKey="value" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20}
+                                                onClick={(data: any, _index: number, event: any) => { handleChartClick('status_improdutivo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
+                                                cursor="pointer">
+                                                <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </Card>
                     </div>
@@ -2658,7 +2661,7 @@ export default function FleetDashboard() {
                                                                     <span className="text-slate-600 font-medium">{city.value} veículos</span>
                                                                     {item.uf === 'ND' && city.name === 'Não classificados' && naoClassificadosPlacas.length > 0 && (
                                                                         <div className="mt-2 flex gap-2 flex-wrap max-w-[360px] justify-end">
-                                                                            {naoClassificadosPlacas.slice(0, 30).map(p => (
+                                                                            {naoClassificadosPlacas.map(p => (
                                                                                 <button
                                                                                     key={p}
                                                                                     onClick={() => {
@@ -2783,7 +2786,7 @@ export default function FleetDashboard() {
 
                     {/* Tabela Detalhada de Telemetria */}
                     <Card className="p-0 overflow-hidden" id="telemetria-table">
-                            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                             <div className="flex items-center gap-2">
                                 <Info className="w-5 h-5 text-blue-600" />
                                 <Title>Detalhamento: Telemetria e Rastreamento</Title>
@@ -2791,58 +2794,58 @@ export default function FleetDashboard() {
                                     {fmtDecimal(filteredData.length)} veículos
                                 </span>
                             </div>
-                                <div className="flex items-center gap-2">
-                                    <Input
-                                        placeholder="Pesquisar placa"
-                                        value={plateSearch}
-                                        onChange={(e) => {
-                                            const v = (e.target.value || '');
-                                            setPlateSearch(v);
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                const v = (plateSearch || '').trim();
-                                                if (plateDebounceRef.current) { window.clearTimeout(plateDebounceRef.current); plateDebounceRef.current = null; }
-                                                setAppliedPlateSearch(v);
-                                            }
-                                        }}
-                                        className="w-44 md:w-56 mr-2"
-                                    />
-                                    {plateSearch && (
-                                        <button
-                                            className="px-2 py-1 bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100 text-xs"
-                                            onClick={() => { setPlateSearch(''); setAppliedPlateSearch(''); }}
-                                        >
-                                            Limpar
-                                        </button>
-                                    )}
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    placeholder="Pesquisar placa"
+                                    value={plateSearch}
+                                    onChange={(e) => {
+                                        const v = (e.target.value || '');
+                                        setPlateSearch(v);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const v = (plateSearch || '').trim();
+                                            if (plateDebounceRef.current) { window.clearTimeout(plateDebounceRef.current); plateDebounceRef.current = null; }
+                                            setAppliedPlateSearch(v);
+                                        }
+                                    }}
+                                    className="w-44 md:w-56 mr-2"
+                                />
+                                {plateSearch && (
                                     <button
-                                        onClick={() => {
-                                            const detailData = filteredData.map(r => ({
-                                                Placa: r.Placa,
-                                                Modelo: r.Modelo,
-                                                Status: r.Status,
-                                                'Provedor Telemetria': r.ProvedorTelemetria || 'N/A',
-                                                'Última Atualização': r.UltimaAtualizacaoTelemetria || 'N/A',
-                                                Latitude: r.Latitude || 0,
-                                                Longitude: r.Longitude || 0,
-                                                'Último Endereço': r.UltimoEnderecoTelemetria || 'N/A',
-                                                'Com Seguro': r.ComSeguroVigente ? 'Sim' : 'Não',
-                                                'Proprietário': r.Proprietario || 'N/A',
-                                                'Finalidade': r.FinalidadeUso || 'N/A',
-                                                'KM Informado': r.KmInformado || 0,
-                                                'KM Confirmado': r.KmConfirmado || 0,
-                                                'Condutor': r.NomeCondutor || 'N/A',
-                                                'CPF Condutor': r.CPFCondutor || 'N/A',
-                                                'Telefone Condutor': r.TelefoneCondutor || 'N/A'
-                                            }));
-                                            exportToExcel(detailData, 'frota_telemetria_detalhado');
-                                        }}
-                                        className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"
+                                        className="px-2 py-1 bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100 text-xs"
+                                        onClick={() => { setPlateSearch(''); setAppliedPlateSearch(''); }}
                                     >
-                                        <FileSpreadsheet size={16} /> Exportar
+                                        Limpar
                                     </button>
-                                </div>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        const detailData = filteredData.map(r => ({
+                                            Placa: r.Placa,
+                                            Modelo: r.Modelo,
+                                            Status: r.Status,
+                                            'Provedor Telemetria': r.ProvedorTelemetria || 'N/A',
+                                            'Última Atualização': r.UltimaAtualizacaoTelemetria || 'N/A',
+                                            Latitude: r.Latitude || 0,
+                                            Longitude: r.Longitude || 0,
+                                            'Último Endereço': r.UltimoEnderecoTelemetria || 'N/A',
+                                            'Com Seguro': r.ComSeguroVigente ? 'Sim' : 'Não',
+                                            'Proprietário': r.Proprietario || 'N/A',
+                                            'Finalidade': r.FinalidadeUso || 'N/A',
+                                            'KM Informado': r.KmInformado || 0,
+                                            'KM Confirmado': r.KmConfirmado || 0,
+                                            'Condutor': r.NomeCondutor || 'N/A',
+                                            'CPF Condutor': r.CPFCondutor || 'N/A',
+                                            'Telefone Condutor': r.TelefoneCondutor || 'N/A'
+                                        }));
+                                        exportToExcel(detailData, 'frota_telemetria_detalhado');
+                                    }}
+                                    className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"
+                                >
+                                    <FileSpreadsheet size={16} /> Exportar
+                                </button>
+                            </div>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
@@ -2881,8 +2884,8 @@ export default function FleetDashboard() {
                                                 <td className="px-4 py-3 text-slate-700 text-xs">{r.NomeCliente}</td>
                                                 <td className="px-4 py-3">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' :
-                                                            r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' :
-                                                                'bg-slate-200 text-slate-600'
+                                                        r.tipo === 'Improdutiva' ? 'bg-rose-100 text-rose-700' :
+                                                            'bg-slate-200 text-slate-600'
                                                         }`}>
                                                         {r.Status}
                                                     </span>
@@ -3040,7 +3043,7 @@ export default function FleetDashboard() {
                                     </div>
                                     <Text className="text-xs text-slate-400 mt-2">Em andamento</Text>
                                 </Card>
-                                
+
                                 <Card decoration="top" decorationColor="violet">
                                     <Text className="text-xs font-medium uppercase tracking-wider text-slate-500">Tempo Médio (Geral)</Text>
                                     <Metric className="mt-1">{reservaKPIs.tempoMedio.toFixed(1)} <span className="text-sm font-normal text-slate-500">dias</span></Metric>
@@ -3162,8 +3165,8 @@ export default function FleetDashboard() {
                                 <Text className="text-xs text-slate-500 mb-2">Evolução da quantidade de veículos reserva em uso simultâneo por dia <span className="text-cyan-600 font-medium">(clique em um ponto para ver detalhamento)</span></Text>
                                 <div className="h-80 mt-4">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart 
-                                            data={ocupacaoSimultaneaData} 
+                                        <AreaChart
+                                            data={ocupacaoSimultaneaData}
                                             margin={{ left: 10, right: 30, top: 10, bottom: 20 }}
                                             onClick={(e: any) => {
                                                 if (e && e.activePayload && e.activePayload[0]) {
@@ -3260,11 +3263,10 @@ export default function FleetDashboard() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-3 py-2">
-                                                                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                                        (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
-                                                                            ? 'bg-emerald-100 text-emerald-700'
-                                                                            : 'bg-slate-100 text-slate-600'
-                                                                    }`}>
+                                                                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
+                                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                                        : 'bg-slate-100 text-slate-600'
+                                                                        }`}>
                                                                         {r.StatusOcorrencia || r.SituacaoOcorrencia || 'ÔÇö'}
                                                                     </span>
                                                                 </td>
@@ -3424,8 +3426,8 @@ export default function FleetDashboard() {
                                                                                 {isMonthExpanded ? 'Ôû╝' : 'ÔûÂ'}
                                                                             </button>
                                                                             <span className={`text-sm font-medium ${selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month
-                                                                                    ? 'text-blue-700 font-bold'
-                                                                                    : 'text-slate-700'
+                                                                                ? 'text-blue-700 font-bold'
+                                                                                : 'text-slate-700'
                                                                                 }`}>{monthNames[parseInt(monthData.month) - 1]}</span>
                                                                             <Badge size="xs" className={selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-600 text-white' : 'bg-slate-600 text-white'}>{monthData.monthTotal}</Badge>
                                                                             {monthData.prevMonthTotal > 0 && (
@@ -3551,45 +3553,57 @@ export default function FleetDashboard() {
                                     )}
 
                                     {selectedResumoChart === 'modelo' && (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={reservaModelData.slice(0, 10)} layout="vertical" margin={{ left: 0, right: 80 }}>
-                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                                                <XAxis type="number" hide />
-                                                <YAxis dataKey="name" type="category" width={180} tick={{ fontSize: 11 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Vezes Usado']} />
-                                                <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16} fill="#8b5cf6" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_modelo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                        <div className="overflow-y-auto" style={{ maxHeight: 256 }}>
+                                            <div style={{ height: Math.max(256, reservaModelData.length * 35) }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={reservaModelData} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                                        <XAxis type="number" hide />
+                                                        <YAxis dataKey="name" type="category" width={180} tick={{ fontSize: 11 }} />
+                                                        <Tooltip formatter={(value: any) => [`${value}`, 'Vezes Usado']} />
+                                                        <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16} fill="#8b5cf6" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_modelo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
                                     )}
 
                                     {selectedResumoChart === 'cliente' && (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={diariasByCliente.slice(0, 15)} layout="vertical" margin={{ left: 0, right: 80 }}>
-                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                                                <XAxis type="number" hide />
-                                                <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
-                                                <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                        <div className="overflow-y-auto" style={{ maxHeight: 256 }}>
+                                            <div style={{ height: Math.max(256, diariasByCliente.length * 35) }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={diariasByCliente} layout="vertical" margin={{ left: 0, right: 80 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                                        <XAxis type="number" hide />
+                                                        <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
+                                                        <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
+                                                        <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#10b981" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
                                     )}
 
                                     {selectedResumoChart === 'local' && (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={diariasByLocation.slice(0, 15)} layout="vertical" margin={{ left: 0, right: 50 }}>
-                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                                                <XAxis type="number" hide />
-                                                <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
-                                                <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
-                                                <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#2563eb" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_local', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                                    <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                        <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+                                            <div style={{ height: Math.max(300, diariasByLocation.length * 25) }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart data={diariasByLocation} layout="vertical" margin={{ left: 0, right: 50 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                                                        <XAxis type="number" hide />
+                                                        <YAxis dataKey="name" type="category" width={200} tick={{ fontSize: 10 }} />
+                                                        <Tooltip formatter={(value: any) => [`${value}`, 'Diárias']} />
+                                                        <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={14} fill="#2563eb" onClick={(data: any, _index: number, event: any) => { handleChartClick('reserva_local', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('reserva-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
+                                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             </Card>
@@ -3637,38 +3651,38 @@ export default function FleetDashboard() {
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {reservaPageItems.map((r, i) => {
-                                                    const statusLow = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
-                                                    const isCancelled = statusLow.includes('cancel');
-                                                    const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-                                                    const isAtiva = !isCancelled && !concluded;
-                                                    const badgeColor = isAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600';
-                                                    return (
-                                                        <tr key={i} className="hover:bg-slate-50">
-                                                            <td className="px-6 py-3">{r.DataCriacao ? new Date(r.DataCriacao).toLocaleDateString('pt-BR') : '-'}</td>
-                                                            <td className="px-6 py-3 font-mono text-xs">{r.Ocorrencia || r.IdOcorrencia || '-'}</td>
-                                                            <td className="px-6 py-3 font-medium font-mono">{r.PlacaReserva || '-'}</td>
-                                                            <td className="px-6 py-3">{r.ModeloReserva || '-'}</td>
-                                                            <td className="px-6 py-3">{r.DataDevolucao ? new Date(r.DataDevolucao).toLocaleDateString('pt-BR') : '-'}</td>
-                                                            <td className="px-6 py-3">{(r.DiariasEfetivas !== undefined && r.DiariasEfetivas !== null) ? String(r.DiariasEfetivas) : ((r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-')}</td>
-                                                            <td className="px-6 py-3">{r.ContratoLocacao || r.NumeroContratoLocacao || r.IdContratoLocacao || '-'}</td>
-                                                            <td className="px-6 py-3 max-w-xs truncate">{r.Cliente || '-'}</td>
-                                                            <td className="px-6 py-3">{r.TipoVeiculoTemporario || r.Tipo || '-'}</td>
-                                                            <td className="px-6 py-3">{r.FornecedorReservaOriginal || r.FornecedorReserva || '-'}</td>
-                                                            <td className="px-6 py-3">{r.Motivo ? <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">{r.Motivo}</span> : '-'}</td>
-                                                            <td className="px-6 py-3 font-mono">{r.NumeroReserva || '-'}</td>
-                                                            <td className="px-6 py-3">{r.NomeRequisitante || '-'}</td>
-                                                            <td className="px-6 py-3">{r.TelefoneRequisitante || '-'}</td>
-                                                            <td className="px-6 py-3">{r.Origem || '-'}</td>
-                                                            <td className="px-6 py-3">{(r.Cidade || '-') + (r.Estado ? ' / ' + r.Estado : '')}</td>
-                                                            <td className="px-6 py-3">{r.OdometroInicial !== undefined && r.OdometroInicial !== null ? r.OdometroInicial : '-'}</td>
-                                                            <td className="px-6 py-3">{r.OdometroFinal !== undefined && r.OdometroFinal !== null ? r.OdometroFinal : '-'}</td>
-                                                            <td className="px-6 py-3">{r.CanceladoEm ? new Date(r.CanceladoEm).toLocaleDateString('pt-BR') : '-'}</td>
-                                                            <td className="px-6 py-3">{r.MotivoCancelamento || '-'}</td>
-                                                            <td className="px-6 py-3 max-w-xl truncate">{r.Observacoes ? String(r.Observacoes).slice(0, 140) : '-'}</td>
-                                                            <td className="px-6 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${badgeColor}`}>{r.StatusOcorrencia || 'Sem status'}</span></td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                                const statusLow = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
+                                                const isCancelled = statusLow.includes('cancel');
+                                                const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+                                                const isAtiva = !isCancelled && !concluded;
+                                                const badgeColor = isAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600';
+                                                return (
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="px-6 py-3">{r.DataCriacao ? new Date(r.DataCriacao).toLocaleDateString('pt-BR') : '-'}</td>
+                                                        <td className="px-6 py-3 font-mono text-xs">{r.Ocorrencia || r.IdOcorrencia || '-'}</td>
+                                                        <td className="px-6 py-3 font-medium font-mono">{r.PlacaReserva || '-'}</td>
+                                                        <td className="px-6 py-3">{r.ModeloReserva || '-'}</td>
+                                                        <td className="px-6 py-3">{r.DataDevolucao ? new Date(r.DataDevolucao).toLocaleDateString('pt-BR') : '-'}</td>
+                                                        <td className="px-6 py-3">{(r.DiariasEfetivas !== undefined && r.DiariasEfetivas !== null) ? String(r.DiariasEfetivas) : ((r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-')}</td>
+                                                        <td className="px-6 py-3">{r.ContratoLocacao || r.NumeroContratoLocacao || r.IdContratoLocacao || '-'}</td>
+                                                        <td className="px-6 py-3 max-w-xs truncate">{r.Cliente || '-'}</td>
+                                                        <td className="px-6 py-3">{r.TipoVeiculoTemporario || r.Tipo || '-'}</td>
+                                                        <td className="px-6 py-3">{r.FornecedorReservaOriginal || r.FornecedorReserva || '-'}</td>
+                                                        <td className="px-6 py-3">{r.Motivo ? <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">{r.Motivo}</span> : '-'}</td>
+                                                        <td className="px-6 py-3 font-mono">{r.NumeroReserva || '-'}</td>
+                                                        <td className="px-6 py-3">{r.NomeRequisitante || '-'}</td>
+                                                        <td className="px-6 py-3">{r.TelefoneRequisitante || '-'}</td>
+                                                        <td className="px-6 py-3">{r.Origem || '-'}</td>
+                                                        <td className="px-6 py-3">{(r.Cidade || '-') + (r.Estado ? ' / ' + r.Estado : '')}</td>
+                                                        <td className="px-6 py-3">{r.OdometroInicial !== undefined && r.OdometroInicial !== null ? r.OdometroInicial : '-'}</td>
+                                                        <td className="px-6 py-3">{r.OdometroFinal !== undefined && r.OdometroFinal !== null ? r.OdometroFinal : '-'}</td>
+                                                        <td className="px-6 py-3">{r.CanceladoEm ? new Date(r.CanceladoEm).toLocaleDateString('pt-BR') : '-'}</td>
+                                                        <td className="px-6 py-3">{r.MotivoCancelamento || '-'}</td>
+                                                        <td className="px-6 py-3 max-w-xl truncate">{r.Observacoes ? String(r.Observacoes).slice(0, 140) : '-'}</td>
+                                                        <td className="px-6 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${badgeColor}`}>{r.StatusOcorrencia || 'Sem status'}</span></td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

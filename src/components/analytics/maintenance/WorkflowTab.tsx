@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, Text, Metric, Title, Badge } from '@tremor/react';
-import { 
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, Cell, PieChart, Pie, Line,
   ComposedChart, LineChart
 } from 'recharts';
@@ -108,7 +108,7 @@ export default function WorkflowTab() {
   // Filtrar apenas ocorrências de manutenção
   const movimentacoes = useMemo(() => {
     if (!movimentacoesRaw?.length) return [];
-    return movimentacoesRaw.filter(m => 
+    return movimentacoesRaw.filter(m =>
       m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
     );
   }, [movimentacoesRaw]);
@@ -129,7 +129,7 @@ export default function WorkflowTab() {
 
     // Lead time médio total (última etapa - primeira etapa)
     const ocorrencoesConcluidas = movimentacoes.filter(m => m.IsConcluida);
-    const leadTimeTotal = ocorrencoesConcluidas.reduce((sum, m) => sum + (m.DiasAteConclusaoEtapa || 0), 0) / 
+    const leadTimeTotal = ocorrencoesConcluidas.reduce((sum, m) => sum + (m.DiasAteConclusaoEtapa || 0), 0) /
       (ocorrencoesConcluidas.length || 1);
 
     // Taxa de conclusão
@@ -165,9 +165,9 @@ export default function WorkflowTab() {
   // Dados do funil com filtro de tipo
   const funilData = useMemo(() => {
     if (!funil?.length) return [];
-    
+
     const filtered = tipoFiltro === 'Todos' ? funil : funil.filter(f => f.Tipo === tipoFiltro);
-    
+
     // Agrupar por etapa (somar tipos)
     const grouped = filtered.reduce((acc, item) => {
       const existing = acc.find(a => a.Etapa === item.Etapa);
@@ -205,7 +205,7 @@ export default function WorkflowTab() {
 
     const grouped = filtered.reduce((acc, item) => {
       if (!item.EtapaAnterior) return acc; // Pular primeira etapa
-      
+
       const key = `${item.EtapaAnterior} → ${item.Etapa}`;
       if (!acc[key]) {
         acc[key] = { total: 0, count: 0, etapaOrigem: item.EtapaAnterior, etapaDestino: item.Etapa };
@@ -220,8 +220,7 @@ export default function WorkflowTab() {
         transicao,
         tempoMedio: total / count,
       }))
-      .sort((a, b) => b.tempoMedio - a.tempoMedio)
-      .slice(0, 10); // Top 10 transições mais lentas
+      .sort((a, b) => b.tempoMedio - a.tempoMedio); // Todas as transições
   }, [leadTimes, tipoFiltro]);
 
   // Distribuição por tipo de manutenção
@@ -251,10 +250,10 @@ export default function WorkflowTab() {
     // Agrupar por usuário (somar todas etapas)
     const grouped = filtered.reduce((acc, u) => {
       if (!acc[u.Usuario]) {
-        acc[u.Usuario] = { 
-          total: 0, 
-          count: 0, 
-          totalProcessadas: 0, 
+        acc[u.Usuario] = {
+          total: 0,
+          count: 0,
+          totalProcessadas: 0,
           totalConcluidas: 0,
           taxaConclusao: 0,
         };
@@ -274,8 +273,7 @@ export default function WorkflowTab() {
         taxaConclusao: (totalConcluidas / (totalProcessadas || 1)) * 100,
       }))
       .filter(u => u.totalProcessadas >= 5) // Mínimo 5 ocorrências
-      .sort((a, b) => a.tempoMedio - b.tempoMedio)
-      .slice(0, 10);
+      .sort((a, b) => a.tempoMedio - b.tempoMedio);
   }, [usuarios, tipoFiltro]);
 
   // Filtros de tipo disponíveis
@@ -440,11 +438,10 @@ export default function WorkflowTab() {
               <button
                 key={tipo}
                 onClick={() => setTipoFiltro(tipo)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  tipoFiltro === tipo
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tipoFiltro === tipo
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {tipo}
               </button>
@@ -508,7 +505,7 @@ export default function WorkflowTab() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" />
               <YAxis dataKey="Etapa" type="category" width={180} fontSize={12} />
-              <RechartsTooltip 
+              <RechartsTooltip
                 formatter={(value: number, name: string) => {
                   if (name === 'TaxaConversao') return [`${fmtNum(value)}%`, 'Taxa de Conversão'];
                   return [fmtNum(value), name];
@@ -554,22 +551,26 @@ export default function WorkflowTab() {
         <Card>
           <Title>Top 10 Transições Mais Lentas</Title>
           <Text className="mb-4">Tempo médio entre etapas consecutivas</Text>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={leadTimeEtapaData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" label={{ value: 'Horas', position: 'insideBottom', offset: -5 }} />
-              <YAxis dataKey="transicao" type="category" width={200} fontSize={11} />
-              <RechartsTooltip formatter={(value: number) => fmtHoras(value)} />
-              <Bar dataKey="tempoMedio" fill="#f59e0b" name="Tempo Médio">
-                {leadTimeEtapaData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.tempoMedio > 48 ? '#ef4444' : entry.tempoMedio > 24 ? '#f59e0b' : '#10b981'} 
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+            <div style={{ height: Math.max(400, leadTimeEtapaData.length * 35) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={leadTimeEtapaData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" label={{ value: 'Horas', position: 'insideBottom', offset: -5 }} />
+                  <YAxis dataKey="transicao" type="category" width={200} fontSize={11} />
+                  <RechartsTooltip formatter={(value: number) => fmtHoras(value)} />
+                  <Bar dataKey="tempoMedio" fill="#f59e0b" name="Tempo Médio">
+                    {leadTimeEtapaData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.tempoMedio > 48 ? '#ef4444' : entry.tempoMedio > 24 ? '#f59e0b' : '#10b981'}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </Card>
 
         {/* Top 10 Usuários Mais Rápidos */}
@@ -585,7 +586,7 @@ export default function WorkflowTab() {
             {topUsuarios.map((u, idx) => (
               <div key={u.usuario} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3 flex-1">
-                  <div 
+                  <div
                     className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-sm"
                   >
                     {idx + 1}
@@ -611,11 +612,11 @@ export default function WorkflowTab() {
         <Title>Tempo Médio de Permanência por Etapa</Title>
         <Text className="mb-4">Quanto tempo as ocorrências ficam em cada etapa até avançar</Text>
         <ResponsiveContainer width="100%" height={400}>
-          <BarChart 
-            data={funilData.map(f => ({ 
-              Etapa: f.Etapa, 
-              TempoMedio: f.TempoMedio 
-            }))} 
+          <BarChart
+            data={funilData.map(f => ({
+              Etapa: f.Etapa,
+              TempoMedio: f.TempoMedio
+            }))}
             layout="vertical"
           >
             <CartesianGrid strokeDasharray="3 3" />
@@ -659,7 +660,7 @@ export default function WorkflowTab() {
               <tbody>
                 {ETAPAS_ORDEM.map(origem => {
                   const transicoesOrigem = heatmapData.filter(h => h.origem === origem);
-                  
+
                   return (
                     <tr key={origem}>
                       <td className="sticky left-0 bg-white z-10 p-2 border font-medium text-left">
@@ -667,14 +668,14 @@ export default function WorkflowTab() {
                       </td>
                       {ETAPAS_ORDEM.map(destino => {
                         const transicao = transicoesOrigem.find(t => t.destino === destino);
-                        
+
                         if (!transicao || transicao.count === 0) {
                           return <td key={destino} className="p-2 border bg-gray-50"></td>;
                         }
 
                         return (
-                          <td 
-                            key={destino} 
+                          <td
+                            key={destino}
                             className="p-2 border text-center cursor-help"
                             style={{ backgroundColor: transicao.color + '30' }}
                             title={`${transicao.count} transições\nTempo médio: ${fmtHoras(transicao.tempoMedio)}`}
@@ -718,7 +719,7 @@ export default function WorkflowTab() {
         <Card>
           <Title>Motivos de Cancelamento</Title>
           <Text className="mb-4">Distribuição por motivo informado</Text>
-          
+
           {cancelamentosData.porMotivo.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={300}>
@@ -771,11 +772,11 @@ export default function WorkflowTab() {
                 <YAxis />
                 <RechartsTooltip formatter={(value: number) => [`${value} OS`, 'Canceladas']} />
                 <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="total" 
-                  name="OS Canceladas" 
-                  stroke="#ef4444" 
+                <Line
+                  type="monotone"
+                  dataKey="total"
+                  name="OS Canceladas"
+                  stroke="#ef4444"
                   strokeWidth={2}
                   dot={{ fill: '#ef4444', r: 4 }}
                 />

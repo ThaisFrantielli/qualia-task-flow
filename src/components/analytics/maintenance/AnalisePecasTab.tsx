@@ -64,8 +64,8 @@ export default function AnalisePecasTab() {
         return { totalValor, totalItens, valorMedio, totalQuantidade };
     }, [filteredItens]);
 
-    // Top 10 peças mais caras
-    const top10Pecas = useMemo(() => {
+    // Ranking peças
+    const rankingPecas = useMemo(() => {
         const map: Record<string, { valor: number; quantidade: number; count: number }> = {};
 
         filteredItens.forEach((item: AnyObject) => {
@@ -78,8 +78,7 @@ export default function AnalisePecasTab() {
 
         return Object.entries(map)
             .map(([name, data]) => ({ name, ...data }))
-            .sort((a, b) => b.valor - a.valor)
-            .slice(0, 10);
+            .sort((a, b) => b.valor - a.valor);
     }, [filteredItens]);
 
     // Distribuição por grupo de despesa
@@ -96,8 +95,8 @@ export default function AnalisePecasTab() {
             .sort((a, b) => b.value - a.value);
     }, [filteredItens]);
 
-    // Top 10 veículos com mais gastos em peças
-    const top10Veiculos = useMemo(() => {
+    // Ranking veículos
+    const rankingVeiculos = useMemo(() => {
         const map: Record<string, { valor: number; count: number }> = {};
 
         filteredItens.forEach((item: AnyObject) => {
@@ -109,8 +108,7 @@ export default function AnalisePecasTab() {
 
         return Object.entries(map)
             .map(([name, data]) => ({ name, ...data }))
-            .sort((a, b) => b.valor - a.valor)
-            .slice(0, 10);
+            .sort((a, b) => b.valor - a.valor);
     }, [filteredItens]);
 
     const COLORS = ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f97316', '#14b8a6', '#f43f5e', '#06b6d4'];
@@ -122,7 +120,7 @@ export default function AnalisePecasTab() {
                 <Package className="h-6 w-6 text-blue-600" />
                 <div>
                     <Title>Análise de Peças e Serviços</Title>
-                    <Text className="text-slate-500">Detalhamento de itens utilizados nas ordens de serviço</Text>
+                    <Text className="text-slate-500">Detalhamento de itens utilizados nas ordens de serviço ({filteredItens.length} itens encontrados)</Text>
                 </div>
             </div>
 
@@ -143,48 +141,50 @@ export default function AnalisePecasTab() {
                     <Metric>{fmtBRL(kpis.valorMedio)}</Metric>
                     <Text className="text-xs text-slate-400">Por item</Text>
                 </Card>
-                <Card decoration="top" decorationColor="cyan">
-                    <Text>Quantidade Total</Text>
+                <Card decoration="top" decorationColor="violet">
+                    <Text>Qtd Peças</Text>
                     <Metric>{kpis.totalQuantidade.toLocaleString('pt-BR')}</Metric>
-                    <Text className="text-xs text-slate-400">Unidades</Text>
+                    <Text className="text-xs text-slate-400">Volume físico</Text>
                 </Card>
             </div>
 
             {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top 10 Peças Mais Caras */}
+                {/* Ranking Peças */}
                 <Card>
                     <div className="flex items-center gap-2 mb-4">
                         <TrendingUp className="h-5 w-5 text-blue-600" />
-                        <Title>Top 10 Peças/Serviços Mais Caros</Title>
+                        <Title>Ranking de Peças/Serviços Mais Caros</Title>
                     </div>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={top10Pecas} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                <XAxis type="number" fontSize={10} tickFormatter={fmtCompact} />
-                                <YAxis
-                                    dataKey="name"
-                                    type="category"
-                                    width={150}
-                                    fontSize={9}
-                                    tick={{ fill: '#64748b' }}
-                                />
-                                <Tooltip
-                                    formatter={(v: any, name: string) => {
-                                        if (name === 'valor') return [fmtBRL(v), 'Valor'];
-                                        if (name === 'count') return [v, 'Ocorrências'];
-                                        if (name === 'quantidade') return [v, 'Quantidade'];
-                                        return [v, name];
-                                    }}
-                                />
-                                <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={20}>
-                                    {top10Pecas.map((_entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+                        <div style={{ height: Math.max(400, rankingPecas.length * 35) }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={rankingPecas} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                    <XAxis type="number" fontSize={10} tickFormatter={fmtCompact} />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={150}
+                                        fontSize={9}
+                                        tick={{ fill: '#64748b' }}
+                                    />
+                                    <Tooltip
+                                        formatter={(v: any, name: string) => {
+                                            if (name === 'valor') return [fmtBRL(v), 'Valor'];
+                                            if (name === 'count') return [v, 'Ocorrências'];
+                                            if (name === 'quantidade') return [v, 'Quantidade'];
+                                            return [v, name];
+                                        }}
+                                    />
+                                    <Bar dataKey="valor" radius={[0, 4, 4, 0]} barSize={20}>
+                                        {rankingPecas.map((_entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </Card>
 
@@ -218,49 +218,53 @@ export default function AnalisePecasTab() {
                 </Card>
             </div>
 
-            {/* Top 10 Veículos */}
+            {/* Ranking Veículos */}
             <Card>
-                <Title className="mb-4">Top 10 Veículos com Maior Gasto em Peças</Title>
-                <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={top10Veiculos}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" fontSize={11} angle={-45} textAnchor="end" height={80} />
-                            <YAxis fontSize={11} tickFormatter={fmtCompact} />
-                            <Tooltip
-                                formatter={(v: any, name: string) => {
-                                    if (name === 'valor') return [fmtBRL(v), 'Valor'];
-                                    if (name === 'count') return [v, 'Itens'];
-                                    return [v, name];
-                                }}
-                            />
-                            <Bar dataKey="valor" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                                {top10Veiculos.map((_entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+                <Title className="mb-4">Ranking de Veículos por Gasto em Peças</Title>
+                <div className="overflow-x-auto pb-4">
+                    <div style={{ minWidth: Math.max(800, rankingVeiculos.length * 60) }}>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={rankingVeiculos}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" fontSize={11} angle={-45} textAnchor="end" height={80} />
+                                    <YAxis fontSize={11} tickFormatter={fmtCompact} />
+                                    <Tooltip
+                                        formatter={(v: any, name: string) => {
+                                            if (name === 'valor') return [fmtBRL(v), 'Valor'];
+                                            if (name === 'count') return [v, 'Itens'];
+                                            return [v, name];
+                                        }}
+                                    />
+                                    <Bar dataKey="valor" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                                        {rankingVeiculos.map((_entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
                 </div>
             </Card>
 
             {/* Tabela de Detalhes */}
             <Card>
-                <Title className="mb-4">Detalhamento de Itens (Últimos 50)</Title>
+                <Title className="mb-4">Detalhamento de Itens</Title>
                 <div className="overflow-x-auto max-h-96 overflow-y-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-100 sticky top-0">
                             <tr>
-                                <th className="p-2">OS</th>
-                                <th className="p-2">Placa</th>
-                                <th className="p-2">Grupo</th>
-                                <th className="p-2">Descrição</th>
-                                <th className="p-2 text-right">Qtd</th>
-                                <th className="p-2 text-right">Valor</th>
+                                <th className="p-2 border-b border-slate-200">OS</th>
+                                <th className="p-2 border-b border-slate-200">Placa</th>
+                                <th className="p-2 border-b border-slate-200">Grupo</th>
+                                <th className="p-2 border-b border-slate-200">Descrição</th>
+                                <th className="p-2 text-right border-b border-slate-200">Qtd</th>
+                                <th className="p-2 text-right border-b border-slate-200">Valor</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredItens.slice(0, 50).map((item: AnyObject, idx: number) => (
+                            {filteredItens.map((item: AnyObject, idx: number) => (
                                 <tr key={idx} className="border-t hover:bg-slate-50">
                                     <td className="p-2 text-xs font-mono">{item.OS || '-'}</td>
                                     <td className="p-2 text-xs font-mono font-bold">{item.Placa || '-'}</td>
@@ -279,11 +283,6 @@ export default function AnalisePecasTab() {
                         </tbody>
                     </table>
                 </div>
-                {filteredItens.length > 50 && (
-                    <Text className="text-xs text-slate-500 mt-2">
-                        Mostrando 50 de {filteredItens.length.toLocaleString('pt-BR')} itens. Use os filtros para refinar a busca.
-                    </Text>
-                )}
             </Card>
         </div>
     );

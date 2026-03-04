@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Card, Title, Text, Metric, Badge, ProgressBar } from '@tremor/react';
-import { 
+import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, DollarSign,
   Wrench, Calendar, Target, Info
 } from 'lucide-react';
@@ -47,7 +47,7 @@ export default function VisaoGeralTab() {
   // Filtrar apenas ocorrências de manutenção
   const movimentacoes = useMemo(() => {
     if (!movimentacoesRaw?.length) return [];
-    return movimentacoesRaw.filter(m => 
+    return movimentacoesRaw.filter(m =>
       m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
     );
   }, [movimentacoesRaw]);
@@ -55,7 +55,7 @@ export default function VisaoGeralTab() {
   // Handler para click interativo com Ctrl (estilo Power BI)
   const handleChartElementClick = (tipo: 'modelos' | 'fornecedores', valor: string, event?: React.MouseEvent) => {
     const isCtrlPressed = event?.ctrlKey || event?.metaKey;
-    
+
     if (tipo === 'modelos') {
       const currentModelos = filters.modelos || [];
       if (isCtrlPressed) {
@@ -143,22 +143,22 @@ export default function VisaoGeralTab() {
       return data >= mesAnterior && data < mesAtual;
     });
 
-    const variacaoOS = osMesAnterior.length > 0 
-      ? ((osMesAtual.length - osMesAnterior.length) / osMesAnterior.length) * 100 
+    const variacaoOS = osMesAnterior.length > 0
+      ? ((osMesAtual.length - osMesAnterior.length) / osMesAnterior.length) * 100
       : 0;
 
     const custoMesAtual = osMesAtual.reduce((s, m) => s + (m.CustoTotalOS || 0), 0);
     const custoMesAnterior = osMesAnterior.reduce((s, m) => s + (m.CustoTotalOS || 0), 0);
-    const variacaoCusto = custoMesAnterior > 0 
-      ? ((custoMesAtual - custoMesAnterior) / custoMesAnterior) * 100 
+    const variacaoCusto = custoMesAnterior > 0
+      ? ((custoMesAtual - custoMesAnterior) / custoMesAnterior) * 100
       : 0;
 
     const leadTimeMesAtual = osMesAtual.filter(m => m.LeadTimeTotalDias > 0)
       .reduce((s, m) => s + m.LeadTimeTotalDias, 0) / (osMesAtual.filter(m => m.LeadTimeTotalDias > 0).length || 1);
     const leadTimeMesAnterior = osMesAnterior.filter(m => m.LeadTimeTotalDias > 0)
       .reduce((s, m) => s + m.LeadTimeTotalDias, 0) / (osMesAnterior.filter(m => m.LeadTimeTotalDias > 0).length || 1);
-    const variacaoLeadTime = leadTimeMesAnterior > 0 
-      ? ((leadTimeMesAtual - leadTimeMesAnterior) / leadTimeMesAnterior) * 100 
+    const variacaoLeadTime = leadTimeMesAnterior > 0
+      ? ((leadTimeMesAtual - leadTimeMesAnterior) / leadTimeMesAnterior) * 100
       : 0;
 
     return {
@@ -187,12 +187,12 @@ export default function VisaoGeralTab() {
     const porFornecedor = manutencoes.reduce((acc, m) => {
       const fornecedor = m.Fornecedor || 'Não informado';
       if (!acc[fornecedor]) {
-        acc[fornecedor] = { 
-          fornecedor, 
-          totalOS: 0, 
-          custoTotal: 0, 
-          leadTimeMedia: 0, 
-          somLeadTime: 0 
+        acc[fornecedor] = {
+          fornecedor,
+          totalOS: 0,
+          custoTotal: 0,
+          leadTimeMedia: 0,
+          somLeadTime: 0
         };
       }
       acc[fornecedor].totalOS++;
@@ -210,8 +210,7 @@ export default function VisaoGeralTab() {
         leadTimeMedia: f.somLeadTime / f.totalOS,
         ticketMedio: f.custoTotal / f.totalOS,
       }))
-      .sort((a, b) => b.totalOS - a.totalOS)
-      .slice(0, 15);
+      .sort((a, b) => b.totalOS - a.totalOS);
   }, [manutencoes]);
 
   // Determinar cor do heatmap (verde = bom, amarelo = médio, vermelho = ruim)
@@ -242,8 +241,7 @@ export default function VisaoGeralTab() {
     }, {} as Record<string, { modelo: string; custoTotal: number; totalOS: number }>);
 
     const sorted = Object.values(porModelo)
-      .sort((a, b) => b.custoTotal - a.custoTotal)
-      .slice(0, 10);
+      .sort((a, b) => b.custoTotal - a.custoTotal);
 
     // Calcular % acumulado
     const totalGeral = sorted.reduce((s, m) => s + m.custoTotal, 0);
@@ -310,229 +308,229 @@ export default function VisaoGeralTab() {
                   </Tooltip>
                 </div>
                 <Metric className="mt-2">{kpis.totalOS.toLocaleString('pt-BR')}</Metric>
-              <div className="flex items-center gap-2 mt-2">
-                {kpis.variacaoMes.os >= 0 ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
-                ) : (
-                  <TrendingDown className="w-4 h-4 text-red-500" />
-                )}
-                <Text className={`text-xs ${kpis.variacaoMes.os >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {fmtNum(Math.abs(kpis.variacaoMes.os))}% vs mês anterior
-                </Text>
+                <div className="flex items-center gap-2 mt-2">
+                  {kpis.variacaoMes.os >= 0 ? (
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 text-red-500" />
+                  )}
+                  <Text className={`text-xs ${kpis.variacaoMes.os >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {fmtNum(Math.abs(kpis.variacaoMes.os))}% vs mês anterior
+                  </Text>
+                </div>
               </div>
+              <Wrench className="w-8 h-8 text-blue-500" />
             </div>
-            <Wrench className="w-8 h-8 text-blue-500" />
-          </div>
-        </Card>
+          </Card>
 
-        {/* OS Abertas */}
-        <Card decoration="top" decorationColor={kpis.osAbertas > 100 ? "yellow" : "green"}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <Text>OS Abertas</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Ordens de Serviço em Andamento</p>
-                    <p className="text-xs mt-1">OS que ainda não foram concluídas (sem data de conclusão).</p>
-                    <p className="text-xs mt-1 font-mono">Fórmula: COUNT(OS) WHERE DataConclusao IS NULL</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Monitorar quantidade de OS pendentes e carga de trabalho atual</p>
-                  </TooltipContent>
-                </Tooltip>
+          {/* OS Abertas */}
+          <Card decoration="top" decorationColor={kpis.osAbertas > 100 ? "yellow" : "green"}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-1">
+                  <Text>OS Abertas</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Ordens de Serviço em Andamento</p>
+                      <p className="text-xs mt-1">OS que ainda não foram concluídas (sem data de conclusão).</p>
+                      <p className="text-xs mt-1 font-mono">Fórmula: COUNT(OS) WHERE DataConclusao IS NULL</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Monitorar quantidade de OS pendentes e carga de trabalho atual</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2">{kpis.osAbertas}</Metric>
+                <ProgressBar
+                  percentageValue={(kpis.osConcluidas / kpis.totalOS) * 100}
+                  color="green"
+                  className="mt-2"
+                />
+                <Text className="text-xs mt-1">{fmtNum((kpis.osConcluidas / kpis.totalOS) * 100)}% concluídas</Text>
               </div>
-              <Metric className="mt-2">{kpis.osAbertas}</Metric>
-              <ProgressBar 
-                percentageValue={(kpis.osConcluidas / kpis.totalOS) * 100} 
-                color="green" 
-                className="mt-2" 
-              />
-              <Text className="text-xs mt-1">{fmtNum((kpis.osConcluidas / kpis.totalOS) * 100)}% concluídas</Text>
+              <Calendar className="w-8 h-8 text-yellow-500" />
             </div>
-            <Calendar className="w-8 h-8 text-yellow-500" />
-          </div>
-        </Card>
+          </Card>
 
-        {/* Lead Time Médio */}
-        <Card decoration="top" decorationColor={kpis.leadTimeMedia > 5 ? "red" : "green"}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <Text>Lead Time Médio</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Tempo Médio de Reparo</p>
-                    <p className="text-xs mt-1">Quantidade média de dias que os veículos ficam parados desde a abertura até a conclusão da manutenção.</p>
-                    <p className="text-xs mt-1 font-mono">Cálculo: Média dos dias entre entrada e saída</p>
-                    <p className="text-xs mt-1 text-amber-600">Meta: 5 dias ou menos</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Quanto menor, menos tempo os veículos ficam parados</p>
-                  </TooltipContent>
-                </Tooltip>
+          {/* Lead Time Médio */}
+          <Card decoration="top" decorationColor={kpis.leadTimeMedia > 5 ? "red" : "green"}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-1">
+                  <Text>Lead Time Médio</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Tempo Médio de Reparo</p>
+                      <p className="text-xs mt-1">Quantidade média de dias que os veículos ficam parados desde a abertura até a conclusão da manutenção.</p>
+                      <p className="text-xs mt-1 font-mono">Cálculo: Média dos dias entre entrada e saída</p>
+                      <p className="text-xs mt-1 text-amber-600">Meta: 5 dias ou menos</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Quanto menor, menos tempo os veículos ficam parados</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2">{fmtNum(kpis.leadTimeMedia)}d</Metric>
+                <div className="flex items-center gap-2 mt-2">
+                  {kpis.variacaoMes.leadTime <= 0 ? (
+                    <TrendingDown className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <TrendingUp className="w-4 h-4 text-red-500" />
+                  )}
+                  <Text className={`text-xs ${kpis.variacaoMes.leadTime <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {fmtNum(Math.abs(kpis.variacaoMes.leadTime))}% vs mês anterior
+                  </Text>
+                </div>
               </div>
-              <Metric className="mt-2">{fmtNum(kpis.leadTimeMedia)}d</Metric>
-              <div className="flex items-center gap-2 mt-2">
-                {kpis.variacaoMes.leadTime <= 0 ? (
-                  <TrendingDown className="w-4 h-4 text-green-500" />
-                ) : (
-                  <TrendingUp className="w-4 h-4 text-red-500" />
-                )}
-                <Text className={`text-xs ${kpis.variacaoMes.leadTime <= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {fmtNum(Math.abs(kpis.variacaoMes.leadTime))}% vs mês anterior
-                </Text>
-              </div>
+              <Clock className={`w-8 h-8 ${kpis.leadTimeMedia > 5 ? 'text-red-500' : 'text-green-500'}`} />
             </div>
-            <Clock className={`w-8 h-8 ${kpis.leadTimeMedia > 5 ? 'text-red-500' : 'text-green-500'}`} />
-          </div>
-        </Card>
+          </Card>
 
-        {/* Custo Total */}
-        <Card decoration="top" decorationColor="purple">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <Text>Custo Total</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Custo Total de Manutenção</p>
-                    <p className="text-xs mt-1">Soma de todos os valores gastos em manutenção no período, incluindo peças, serviços e outros custos.</p>
-                    <p className="text-xs mt-1 font-mono">Cálculo: Soma de todos os valores das OS</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Acompanhar quanto está sendo gasto com manutenção da frota</p>
-                  </TooltipContent>
-                </Tooltip>
+          {/* Custo Total */}
+          <Card decoration="top" decorationColor="purple">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-1">
+                  <Text>Custo Total</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Custo Total de Manutenção</p>
+                      <p className="text-xs mt-1">Soma de todos os valores gastos em manutenção no período, incluindo peças, serviços e outros custos.</p>
+                      <p className="text-xs mt-1 font-mono">Cálculo: Soma de todos os valores das OS</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Acompanhar quanto está sendo gasto com manutenção da frota</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2 text-lg">{fmtBRL(kpis.custoTotal)}</Metric>
+                <div className="flex items-center gap-2 mt-2">
+                  {kpis.variacaoMes.custo >= 0 ? (
+                    <TrendingUp className="w-4 h-4 text-red-500" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 text-green-500" />
+                  )}
+                  <Text className={`text-xs ${kpis.variacaoMes.custo >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {fmtNum(Math.abs(kpis.variacaoMes.custo))}% vs mês anterior
+                  </Text>
+                </div>
               </div>
-              <Metric className="mt-2 text-lg">{fmtBRL(kpis.custoTotal)}</Metric>
-              <div className="flex items-center gap-2 mt-2">
-                {kpis.variacaoMes.custo >= 0 ? (
-                  <TrendingUp className="w-4 h-4 text-red-500" />
-                ) : (
-                  <TrendingDown className="w-4 h-4 text-green-500" />
-                )}
-                <Text className={`text-xs ${kpis.variacaoMes.custo >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {fmtNum(Math.abs(kpis.variacaoMes.custo))}% vs mês anterior
-                </Text>
-              </div>
+              <DollarSign className="w-8 h-8 text-purple-500" />
             </div>
-            <DollarSign className="w-8 h-8 text-purple-500" />
-          </div>
-        </Card>
+          </Card>
 
-        {/* Ticket Médio */}
-        <Card decoration="top" decorationColor="indigo">
-          <div className="flex items-center gap-1">
-            <Text>Ticket Médio</Text>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3 h-3 text-slate-400 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="font-semibold">Custo Médio por Ordem de Serviço</p>
+          {/* Ticket Médio */}
+          <Card decoration="top" decorationColor="indigo">
+            <div className="flex items-center gap-1">
+              <Text>Ticket Médio</Text>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold">Custo Médio por Ordem de Serviço</p>
                   <p className="text-xs mt-1">Soma do valor total de todas as Ordens de Serviço dividido pela quantidade total de OS.</p>
                   <p className="text-xs mt-1 font-mono">Cálculo: Valor Total ÷ Quantidade de OS</p>
                   <p className="text-xs mt-1 text-amber-600">Objetivo: Identificar se os custos estão aumentando ou diminuindo ao longo do tempo</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <Metric className="mt-2">{fmtBRL(kpis.ticketMedio)}</Metric>
-          <Text className="text-xs mt-2 text-gray-500">Por ordem de serviço</Text>
-        </Card>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Metric className="mt-2">{fmtBRL(kpis.ticketMedio)}</Metric>
+            <Text className="text-xs mt-2 text-gray-500">Por ordem de serviço</Text>
+          </Card>
 
-        {/* Taxa Preventiva */}
-        <Card decoration="top" decorationColor={kpis.taxaPreventiva >= 60 ? "green" : "orange"}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <Text>Taxa Preventiva</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Percentual de Manutenção Preventiva</p>
-                    <p className="text-xs mt-1">Mostra quantos % das manutenções foram feitas de forma planejada (preventiva) ao invés de emergencial (corretiva).</p>
-                    <p className="text-xs mt-1 font-mono">Cálculo: (Quantidade de OS Preventivas ÷ Total de OS) × 100</p>
-                    <p className="text-xs mt-1 text-amber-600">Meta: 60% ou mais</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Quanto maior, menos quebras inesperadas acontecem</p>
-                  </TooltipContent>
-                </Tooltip>
+          {/* Taxa Preventiva */}
+          <Card decoration="top" decorationColor={kpis.taxaPreventiva >= 60 ? "green" : "orange"}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-1">
+                  <Text>Taxa Preventiva</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Percentual de Manutenção Preventiva</p>
+                      <p className="text-xs mt-1">Mostra quantos % das manutenções foram feitas de forma planejada (preventiva) ao invés de emergencial (corretiva).</p>
+                      <p className="text-xs mt-1 font-mono">Cálculo: (Quantidade de OS Preventivas ÷ Total de OS) × 100</p>
+                      <p className="text-xs mt-1 text-amber-600">Meta: 60% ou mais</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Quanto maior, menos quebras inesperadas acontecem</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2">{fmtNum(kpis.taxaPreventiva)}%</Metric>
+                <ProgressBar
+                  percentageValue={kpis.taxaPreventiva}
+                  color={kpis.taxaPreventiva >= 60 ? "green" : "orange"}
+                  className="mt-2"
+                />
+                <Text className="text-xs mt-1">Meta: 60%</Text>
               </div>
-              <Metric className="mt-2">{fmtNum(kpis.taxaPreventiva)}%</Metric>
-              <ProgressBar 
-                percentageValue={kpis.taxaPreventiva} 
-                color={kpis.taxaPreventiva >= 60 ? "green" : "orange"}
-                className="mt-2" 
-              />
-              <Text className="text-xs mt-1">Meta: 60%</Text>
+              <Target className={`w-8 h-8 ${kpis.taxaPreventiva >= 60 ? 'text-green-500' : 'text-orange-500'}`} />
             </div>
-            <Target className={`w-8 h-8 ${kpis.taxaPreventiva >= 60 ? 'text-green-500' : 'text-orange-500'}`} />
-          </div>
-        </Card>
+          </Card>
 
-        {/* Alertas */}
-        <Card decoration="top" decorationColor={kpis.alertasCriticos > 0 ? "red" : "green"}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <Text>Alertas Críticos</Text>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3 h-3 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-semibold">Alertas de Alta Prioridade</p>
-                    <p className="text-xs mt-1">Identifica OS com problemas graves que precisam de atenção urgente: mais de 10 dias parada, travada na mesma etapa por mais de 7 dias, custos muito acima da média.</p>
-                    <p className="text-xs mt-1 text-amber-600">Objetivo: Saber quais OS precisam de ação imediata para não atrasar ainda mais</p>
-                  </TooltipContent>
-                </Tooltip>
+          {/* Alertas */}
+          <Card decoration="top" decorationColor={kpis.alertasCriticos > 0 ? "red" : "green"}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-1">
+                  <Text>Alertas Críticos</Text>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold">Alertas de Alta Prioridade</p>
+                      <p className="text-xs mt-1">Identifica OS com problemas graves que precisam de atenção urgente: mais de 10 dias parada, travada na mesma etapa por mais de 7 dias, custos muito acima da média.</p>
+                      <p className="text-xs mt-1 text-amber-600">Objetivo: Saber quais OS precisam de ação imediata para não atrasar ainda mais</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Metric className="mt-2 text-red-600">{kpis.alertasCriticos}</Metric>
+                <Text className="text-xs mt-2 text-gray-500">
+                  {resumo.total} total ({resumo.atencao} atenção)
+                </Text>
               </div>
-              <Metric className="mt-2 text-red-600">{kpis.alertasCriticos}</Metric>
-              <Text className="text-xs mt-2 text-gray-500">
-                {resumo.total} total ({resumo.atencao} atenção)
-              </Text>
+              {kpis.alertasCriticos > 0 ? (
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+              ) : (
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              )}
             </div>
-            {kpis.alertasCriticos > 0 ? (
-              <AlertTriangle className="w-8 h-8 text-red-500" />
-            ) : (
-              <CheckCircle className="w-8 h-8 text-green-500" />
-            )}
-          </div>
-        </Card>
+          </Card>
 
-        {/* Status Geral */}
-        <Card decoration="top" decorationColor="slate">
-          <div className="flex items-center gap-1">
-            <Text>Status Sistema</Text>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="w-3 h-3 text-slate-400 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="font-semibold">Saúde Geral do Sistema</p>
-                <p className="text-xs mt-1">Avaliação baseada em: alertas críticos, taxa SLA, taxa preventiva.</p>
-                <p className="text-xs mt-1 font-mono">Saudável: 0 críticos + SLA &gt;85% + Preventiva &gt;60%</p>
-                <p className="text-xs mt-1 text-amber-600">Objetivo: Visão rápida da operação de manutenção</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <Text>Concluídas</Text>
-              <Badge color="green">{kpis.osConcluidas}</Badge>
+          {/* Status Geral */}
+          <Card decoration="top" decorationColor="slate">
+            <div className="flex items-center gap-1">
+              <Text>Status Sistema</Text>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-slate-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold">Saúde Geral do Sistema</p>
+                  <p className="text-xs mt-1">Avaliação baseada em: alertas críticos, taxa SLA, taxa preventiva.</p>
+                  <p className="text-xs mt-1 font-mono">Saudável: 0 críticos + SLA &gt;85% + Preventiva &gt;60%</p>
+                  <p className="text-xs mt-1 text-amber-600">Objetivo: Visão rápida da operação de manutenção</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <Text>Em Andamento</Text>
-              <Badge color="yellow">{kpis.osAbertas}</Badge>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <Text>Concluídas</Text>
+                <Badge color="green">{kpis.osConcluidas}</Badge>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <Text>Em Andamento</Text>
+                <Badge color="yellow">{kpis.osAbertas}</Badge>
+              </div>
             </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
       </TooltipProvider>
 
       {/* CAMADA 2: Mapa de Calor - Fornecedores */}
@@ -540,24 +538,23 @@ export default function VisaoGeralTab() {
         <Title>Mapa de Calor - Performance de Fornecedores</Title>
         <Text className="mb-4">Top 15 fornecedores por volume • Cor indica performance (verde=ótimo, amarelo=atenção, vermelho=crítico)</Text>
 
-        <div className="overflow-x-auto">
-          <div className="grid grid-cols-5 gap-2 min-w-[800px]">
+        <div className="overflow-x-auto pb-4">
+          <div className="flex gap-2 min-w-max">
             {heatmapFornecedores.map((forn) => {
               const cor = getHeatColor(forn.leadTimeMedia, forn.ticketMedio, maxLeadTime, maxCusto);
               const isSelected = isFornecedorSelected(forn.fornecedor);
-              
+
               return (
-                <Card 
-                  key={forn.fornecedor} 
-                  className={`p-4 cursor-pointer hover:ring-2 transition-all ${
-                    isSelected ? 'ring-2 ring-blue-500 shadow-lg' : 'hover:ring-blue-300'
-                  }`}
+                <Card
+                  key={forn.fornecedor}
+                  className={`p-4 cursor-pointer hover:ring-2 transition-all w-48 shrink-0 ${isSelected ? 'ring-2 ring-blue-500 shadow-lg' : 'hover:ring-blue-300'
+                    }`}
                   style={{ backgroundColor: cor + '20', borderLeft: `4px solid ${cor}` }}
                   onClick={(e) => handleChartElementClick('fornecedores', forn.fornecedor, e)}
                   title="Clique para filtrar • Ctrl+Clique para múltipla seleção"
                 >
                   <Text className="font-bold text-xs truncate" title={forn.fornecedor || ''}>
-                    {(forn.fornecedor || 'N/A').substring(0, 20)}
+                    {forn.fornecedor}
                   </Text>
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center justify-between">
@@ -605,48 +602,52 @@ export default function VisaoGeralTab() {
           </span>
         </Text>
 
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart 
-            data={paretoModelos}
-            onClick={(data) => {
-              if (data?.activePayload?.[0]?.payload) {
-                const modelo = data.activePayload[0].payload.modelo;
-                // Criar evento sintético para passar o Ctrl
-                const syntheticEvent = {
-                  ctrlKey: false,
-                  metaKey: false,
-                } as React.MouseEvent;
-                handleChartElementClick('modelos', modelo, syntheticEvent);
-              }
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="modelo" angle={-45} textAnchor="end" height={120} fontSize={11} />
-            <YAxis yAxisId="left" label={{ value: 'Custo (R$)', angle: -90, position: 'insideLeft' }} />
-            <YAxis yAxisId="right" orientation="right" label={{ value: '% Acumulado', angle: 90, position: 'insideRight' }} />
-            <RechartsTooltip 
-              formatter={(value: number, name: string) => {
-                if (name === 'custoTotal') return [fmtBRL(value), 'Custo Total'];
-                return [`${fmtNum(value)}%`, name === 'acumulado' ? '% Acumulado' : '% Individual'];
-              }}
-            />
-            <Bar yAxisId="left" dataKey="custoTotal" name="Custo Total" className="cursor-pointer">
-              {paretoModelos.map((entry, index) => {
-                const isSelected = isModeloSelected(entry.modelo);
-                let baseColor = entry.acumulado <= 80 ? '#3b82f6' : '#94a3b8';
-                
-                return (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={isSelected ? '#f59e0b' : baseColor}
-                    stroke={isSelected ? '#d97706' : 'none'}
-                    strokeWidth={isSelected ? 3 : 0}
-                  />
-                );
-              })}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto pb-4">
+          <div style={{ minWidth: Math.max(800, paretoModelos.length * 80) }}>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart
+                data={paretoModelos}
+                onClick={(data) => {
+                  if (data?.activePayload?.[0]?.payload) {
+                    const modelo = data.activePayload[0].payload.modelo;
+                    // Criar evento sintético para passar o Ctrl
+                    const syntheticEvent = {
+                      ctrlKey: false,
+                      metaKey: false,
+                    } as React.MouseEvent;
+                    handleChartElementClick('modelos', modelo, syntheticEvent);
+                  }
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="modelo" angle={-45} textAnchor="end" height={120} fontSize={11} />
+                <YAxis yAxisId="left" label={{ value: 'Custo (R$)', angle: -90, position: 'insideLeft' }} />
+                <YAxis yAxisId="right" orientation="right" label={{ value: '% Acumulado', angle: 90, position: 'insideRight' }} />
+                <RechartsTooltip
+                  formatter={(value: number, name: string) => {
+                    if (name === 'custoTotal') return [fmtBRL(value), 'Custo Total'];
+                    return [`${fmtNum(value)}%`, name === 'acumulado' ? '% Acumulado' : '% Individual'];
+                  }}
+                />
+                <Bar yAxisId="left" dataKey="custoTotal" name="Custo Total" className="cursor-pointer">
+                  {paretoModelos.map((entry, index) => {
+                    const isSelected = isModeloSelected(entry.modelo);
+                    let baseColor = entry.acumulado <= 80 ? '#3b82f6' : '#94a3b8';
+
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={isSelected ? '#f59e0b' : baseColor}
+                        stroke={isSelected ? '#d97706' : 'none'}
+                        strokeWidth={isSelected ? 3 : 0}
+                      />
+                    );
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
@@ -665,28 +666,27 @@ export default function VisaoGeralTab() {
               {paretoModelos.map((modelo, idx) => {
                 const isSelected = isModeloSelected(modelo.modelo);
                 return (
-                  <tr 
-                    key={modelo.modelo} 
-                    className={`border-t cursor-pointer transition-colors ${
-                      isSelected ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'
-                    }`}
+                  <tr
+                    key={modelo.modelo}
+                    className={`border-t cursor-pointer transition-colors ${isSelected ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'
+                      }`}
                     onClick={(e) => handleChartElementClick('modelos', modelo.modelo, e)}
                     title="Clique para filtrar • Ctrl+Clique para múltipla seleção"
                   >
-                  <td className="p-2 font-bold text-center">{idx + 1}</td>
-                  <td className="p-2 font-medium">{modelo.modelo}</td>
-                  <td className="p-2 text-right">{modelo.totalOS}</td>
-                  <td className="p-2 text-right font-bold text-blue-600">{fmtBRL(modelo.custoTotal)}</td>
-                  <td className="p-2 text-right">{fmtNum(modelo.percentual)}%</td>
-                  <td className="p-2 text-right font-bold">{fmtNum(modelo.acumulado)}%</td>
-                  <td className="p-2 text-center">
-                    {modelo.acumulado <= 80 ? (
-                      <Badge color="blue">80%</Badge>
-                    ) : (
-                      <Badge color="gray">20%</Badge>
-                    )}
-                  </td>
-                </tr>
+                    <td className="p-2 font-bold text-center">{idx + 1}</td>
+                    <td className="p-2 font-medium">{modelo.modelo}</td>
+                    <td className="p-2 text-right">{modelo.totalOS}</td>
+                    <td className="p-2 text-right font-bold text-blue-600">{fmtBRL(modelo.custoTotal)}</td>
+                    <td className="p-2 text-right">{fmtNum(modelo.percentual)}%</td>
+                    <td className="p-2 text-right font-bold">{fmtNum(modelo.acumulado)}%</td>
+                    <td className="p-2 text-center">
+                      {modelo.acumulado <= 80 ? (
+                        <Badge color="blue">80%</Badge>
+                      ) : (
+                        <Badge color="gray">20%</Badge>
+                      )}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>

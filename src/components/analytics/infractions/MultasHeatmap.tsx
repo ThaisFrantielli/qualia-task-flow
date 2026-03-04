@@ -76,8 +76,7 @@ const MultasHeatmap: React.FC<MultasHeatmapProps> = ({
 
     return Object.entries(porCidade)
       .map(([cidade, stats]) => ({ cidade, ...stats }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+      .sort((a, b) => b.count - a.count);
   }, [multasComGPS]);
 
   // Estatísticas gerais
@@ -181,14 +180,13 @@ const MultasHeatmap: React.FC<MultasHeatmapProps> = ({
             </MapContainer>
           </div>
 
-          {/* Top 5 Regiões com Mais Infrações */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              <h3 className="font-semibold text-sm">Top 5 Regiões Críticas</h3>
+              <h3 className="font-semibold text-sm">Regiões Críticas</h3>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
               {estatisticasRegiao.map((regiao, index) => (
                 <div
                   key={index}

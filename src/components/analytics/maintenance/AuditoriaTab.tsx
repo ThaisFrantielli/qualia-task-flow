@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
-import { 
+import {
   AlertTriangle, Search, CheckCircle2, XCircle, Clock, TrendingUp
 } from 'lucide-react';
 import useBIData from '@/hooks/useBIData';
@@ -59,7 +59,7 @@ export default function AuditoriaTab() {
   // Filtrar apenas ocorrências de manutenção
   const movimentacoes = useMemo(() => {
     if (!movimentacoesRaw?.length) return [];
-    return movimentacoesRaw.filter(m => 
+    return movimentacoesRaw.filter(m =>
       m.Tipo === 'Manutenção Preventiva' || m.Tipo === 'Manutenção Corretiva'
     );
   }, [movimentacoesRaw]);
@@ -103,7 +103,7 @@ export default function AuditoriaTab() {
     const custoAnomalo = manutencoes.filter(m => m.CustoTotalOS > ticketMedio * 3);
 
     // 3. KM inválido (entrada > saída)
-    const kmInvalido = manutencoes.filter(m => 
+    const kmInvalido = manutencoes.filter(m =>
       m.KmEntrada > 0 && m.KmSaida > 0 && m.KmEntrada > m.KmSaida
     );
 
@@ -142,7 +142,7 @@ export default function AuditoriaTab() {
     }
 
     // OS canceladas sem motivo
-    const osSemMotivoCancelamento = movimentacoes.filter(mov => 
+    const osSemMotivoCancelamento = movimentacoes.filter(mov =>
       mov.IsCancelada && (!mov.MotivoCancelamento || mov.MotivoCancelamento.trim() === '')
     );
 
@@ -174,12 +174,12 @@ export default function AuditoriaTab() {
       .sort((a, b) => b.taxaRetrabalho - a.taxaRetrabalho);
 
     // Percentual de conformidade geral
-    const totalProblemas = 
+    const totalProblemas =
       anomalias.semMovimentacao.length +
       anomalias.custoAnomalo.length +
       anomalias.kmInvalido.length +
       osSemMotivoCancelamento.length;
-    
+
     const totalOS = manutencoes.length;
     const percentualConformidade = ((totalOS - totalProblemas) / totalOS) * 100;
 
@@ -292,7 +292,7 @@ export default function AuditoriaTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {anomalias.semMovimentacao.slice(0, 10).map(os => (
+                  {anomalias.semMovimentacao.map(os => (
                     <tr key={os.Ocorrencia} className="border-t hover:bg-gray-50">
                       <td className="p-2 font-mono text-blue-600">{os.Ocorrencia}</td>
                       <td className="p-2 font-medium">{os.Placa}</td>
@@ -332,7 +332,7 @@ export default function AuditoriaTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {anomalias.custoAnomalo.slice(0, 10).map(os => (
+                  {anomalias.custoAnomalo.map(os => (
                     <tr key={os.Ocorrencia} className="border-t hover:bg-gray-50">
                       <td className="p-2 font-mono text-blue-600">{os.Ocorrencia}</td>
                       <td className="p-2 font-medium">{os.Placa}</td>

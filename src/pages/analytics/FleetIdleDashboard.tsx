@@ -11,8 +11,8 @@ import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 
 type AnyObject = { [k: string]: any };
 
-function parseNum(v: any): number { 
-  return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; 
+function parseNum(v: any): number {
+  return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0;
 }
 
 function fmtDate(d: string | Date | null): string {
@@ -79,7 +79,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
   const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
   const frotaMetadata = useMemo(() => (primaryResults['dim_frota'] as any)?.metadata || primaryMeta || null, [primaryResults, primaryMeta]);
-  const { data: historicoSituacaoRaw, loading: loadingHistorico } = useBIData<AnyObject[]>('historico_situacao_veiculos', { limit: 300000 });
+  const { data: historicoSituacaoRaw, loading: loadingHistorico } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   // Normalizar dados da frota para nomes de propriedades consistentes
   const frota = useMemo(() => {
@@ -124,9 +124,9 @@ export default function FleetIdleDashboard(): JSX.Element {
   const statusCacheRef = useRef<Map<string, { status: string | null; usedHistorico: boolean; lastChangeDate: string | null }>>(new Map());
 
   // Menor timestamp entre todas as fontes (usado para o modo 'all')
-  
 
-  
+
+
 
   // Resolve o status de uma placa em uma data (snapshot). Retorna { status, lastChangeDate, usedHistorico, usedFallback }
   const resolveStatusForDate = (placa: string, checkDate: Date) => {
@@ -239,12 +239,12 @@ export default function FleetIdleDashboard(): JSX.Element {
   const [showHelp, setShowHelp] = useState<boolean>(false);
   const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d' | 'custom'>('90d');
   // Estados para período personalizado
-  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 89); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 89); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
   const [customFrom, setCustomFrom] = useState<string>(defaultFrom);
   const [customTo, setCustomTo] = useState<string>(todayStr);
   const [showHistoricoInfo, setShowHistoricoInfo] = useState<boolean>(false);
-  
+
   const pageSize = 10;
 
   // Gerar histórico diário de % improdutiva (90 dias ou todo histórico disponível)
@@ -380,9 +380,9 @@ export default function FleetIdleDashboard(): JSX.Element {
       const cat = getCategory(currentStatus);
       if (cat === 'Improdutiva') {
         // Movimentações de pátio
-          const movPatio = patioMov
-            .filter((m: any) => m.Placa === placa)
-            .sort((a: any, b: any) => parseDateSafe(b.DataMovimentacao).getTime() - parseDateSafe(a.DataMovimentacao).getTime());
+        const movPatio = patioMov
+          .filter((m: any) => m.Placa === placa)
+          .sort((a: any, b: any) => parseDateSafe(b.DataMovimentacao).getTime() - parseDateSafe(a.DataMovimentacao).getTime());
         const ultimoMovPatio = movPatio[0];
 
         const movVeiculo = veiculoMov
@@ -479,7 +479,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         <div className="flex items-center gap-3">
           <DataUpdateBadge metadata={frotaMetadata} compact />
           <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full flex gap-2 font-medium">
-            <AlertTriangle className="w-4 h-4"/> Controle de Ociosidade
+            <AlertTriangle className="w-4 h-4" /> Controle de Ociosidade
           </div>
         </div>
       </div>
@@ -508,8 +508,8 @@ export default function FleetIdleDashboard(): JSX.Element {
           {loadingHistorico
             ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /><span className="text-slate-400 text-sm">Aguardando histórico...</span></div>
             : <Metric className={currentIdleKPIs.trend > 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                {currentIdleKPIs.trend > 0 ? '+' : ''}{currentIdleKPIs.trend.toFixed(1)}%
-              </Metric>}
+              {currentIdleKPIs.trend > 0 ? '+' : ''}{currentIdleKPIs.trend.toFixed(1)}%
+            </Metric>}
           {!loadingHistorico && <Text className="text-xs text-slate-500 mt-1">
             {currentIdleKPIs.trend > 0 ? 'Aumentando' : 'Diminuindo'}
           </Text>}
@@ -533,153 +533,157 @@ export default function FleetIdleDashboard(): JSX.Element {
       {/* Gráfico de Tendência Histórica */}
       <Card>
         <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
-            {/* Título + ícone de informação */}
-            <div className="flex items-start gap-2">
-              <div>
-                <Title>Evolução Diária - % Frota Improdutiva</Title>
-                <Text className="text-xs text-slate-500 mt-1">
-                  Clique em um ponto do gráfico para ver detalhamento dos veículos naquele dia
-                </Text>
-              </div>
-              {/* Ícone discreto de metodologia */}
-              <div className="relative mt-0.5">
-                <button
-                  onClick={() => setShowHistoricoInfo(v => !v)}
-                  className="text-slate-300 hover:text-slate-500 transition-colors"
-                  title="Como os dados históricos são calculados"
-                >
-                  <Info size={15} />
-                </button>
-                {showHistoricoInfo && (
-                  <div className="absolute left-0 top-6 z-50 w-80 bg-white border border-slate-200 rounded-lg shadow-xl p-4 text-xs text-slate-600 space-y-2">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-semibold text-slate-700">Como o histórico é calculado</span>
-                      <button onClick={() => setShowHistoricoInfo(false)} className="text-slate-400 hover:text-slate-600 ml-2 text-base leading-none">×</button>
-                    </div>
-                    <p>Para cada dia D, o status de cada veículo é determinado assim:</p>
-                    <ul className="space-y-1.5 list-none">
-                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">1.</span><span><strong>D = hoje:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> diretamente.</span></li>
-                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">2.</span><span><strong>D = dia passado com eventos:</strong> usa o evento mais recente em <code className="bg-slate-100 px-1 rounded">historico_situacao_veiculos</code> com data ≤ D.</span></li>
-                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">3.</span><span><strong>Sem nenhum evento registrado:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> para todas as datas (veículo nunca mudou de situação).</span></li>
-                      <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">4.</span><span><strong>Eventos apenas posteriores a D:</strong> veículo excluído (ainda não estava na frota).</span></li>
-                    </ul>
-                    <p className="border-t border-slate-100 pt-2">Veículos <strong>Inativos</strong> (vendido, baixado, sinistro) são excluídos retroativamente a partir da data de inativação. <strong>Terceiros</strong> não são contabilizados.</p>
-                    <p className="text-slate-500">% = Improdutivos ÷ (Produtivos + Improdutivos) × 100</p>
-                  </div>
-                )}
-              </div>
+          {/* Título + ícone de informação */}
+          <div className="flex items-start gap-2">
+            <div>
+              <Title>Evolução Diária - % Frota Improdutiva</Title>
+              <Text className="text-xs text-slate-500 mt-1">
+                Clique em um ponto do gráfico para ver detalhamento dos veículos naquele dia
+              </Text>
             </div>
-            {/* Seletor de período + badge */}
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                <div className="inline-flex rounded-md shadow-sm bg-white p-1 border">
-                  {(['30d', '90d', '180d', 'custom'] as const).map((op) => {
-                    const labels: Record<string, string> = { '30d': 'Últimos 30 dias', '90d': 'Últimos 90 dias', '180d': 'Últimos 6 meses', 'custom': 'Personalizado' };
-                    return (
-                      <button
-                        key={op}
-                        onClick={() => setPeriodoSelecionado(op)}
-                        className={`text-sm px-3 py-1 rounded ${periodoSelecionado === op ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
-                      >
-                        {labels[op]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <Badge color="rose" icon={TrendingDown}>
-                  {(dailyIdleHistory[dailyIdleHistory.length - 1]?.pct ?? 0).toFixed(1)}% hoje
-                </Badge>
-              </div>
-              {/* Date pickers para período personalizado */}
-              {periodoSelecionado === 'custom' && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <span className="text-xs text-slate-400">De</span>
-                  <input
-                    type="date"
-                    value={customFrom}
-                    max={customTo}
-                    onChange={e => setCustomFrom(e.target.value)}
-                    className="border border-slate-200 rounded px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-300"
-                  />
-                  <span className="text-xs text-slate-400">até</span>
-                  <input
-                    type="date"
-                    value={customTo}
-                    min={customFrom}
-                    max={todayStr}
-                    onChange={e => setCustomTo(e.target.value)}
-                    className="border border-slate-200 rounded px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-300"
-                  />
-                  <span className="text-xs text-slate-400">({dailyIdleHistory.length} dias)</span>
+            {/* Ícone discreto de metodologia */}
+            <div className="relative mt-0.5">
+              <button
+                onClick={() => setShowHistoricoInfo(v => !v)}
+                className="text-slate-300 hover:text-slate-500 transition-colors"
+                title="Como os dados históricos são calculados"
+              >
+                <Info size={15} />
+              </button>
+              {showHistoricoInfo && (
+                <div className="absolute left-0 top-6 z-50 w-80 bg-white border border-slate-200 rounded-lg shadow-xl p-4 text-xs text-slate-600 space-y-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-semibold text-slate-700">Como o histórico é calculado</span>
+                    <button onClick={() => setShowHistoricoInfo(false)} className="text-slate-400 hover:text-slate-600 ml-2 text-base leading-none">×</button>
+                  </div>
+                  <p>Para cada dia D, o status de cada veículo é determinado assim:</p>
+                  <ul className="space-y-1.5 list-none">
+                    <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">1.</span><span><strong>D = hoje:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> diretamente.</span></li>
+                    <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">2.</span><span><strong>D = dia passado com eventos:</strong> usa o evento mais recente em <code className="bg-slate-100 px-1 rounded">historico_situacao_veiculos</code> com data ≤ D.</span></li>
+                    <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">3.</span><span><strong>Sem nenhum evento registrado:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> para todas as datas (veículo nunca mudou de situação).</span></li>
+                    <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">4.</span><span><strong>Eventos apenas posteriores a D:</strong> veículo excluído (ainda não estava na frota).</span></li>
+                  </ul>
+                  <p className="border-t border-slate-100 pt-2">Veículos <strong>Inativos</strong> (vendido, baixado, sinistro) são excluídos retroativamente a partir da data de inativação. <strong>Terceiros</strong> não são contabilizados.</p>
+                  <p className="text-slate-500">% = Improdutivos ÷ (Produtivos + Improdutivos) × 100</p>
                 </div>
               )}
             </div>
           </div>
-        <div className="h-96 mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart 
-              data={dailyIdleHistory}
-              onClick={(data) => {
-                  if (data && data.activePayload && data.activePayload[0]) {
-                    const payload = data.activePayload[0].payload;
-                    // preferir dateLocal (YYYY-MM-DD) para evitar shift UTC
-                    const local = payload.dateLocal || (payload.date ? new Date(payload.date).toISOString().split('T')[0] : null);
-                    if (local) setSelectedDate(local);
-                  }
-                }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis 
-                dataKey="displayDate" 
-                tick={{ fontSize: 10 }} 
-                interval={Math.floor(dailyIdleHistory.length / 15)}
-              />
-              <YAxis 
-                tick={{ fontSize: 12 }} 
-                domain={[0, 'auto']}
-                label={{ value: '% Improdutiva', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
-              />
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload[0]) {
-                    const data = payload[0].payload;
-                    const breakdown: [string, number][] = Object.entries(
-                      (data.statusBreakdown || {}) as Record<string, number>
-                    ).sort((a, b) => b[1] - a[1]);
-                    return (
-                      <div className="bg-white p-3 border border-slate-200 rounded shadow-lg min-w-[200px]">
-                        <p className="font-semibold text-slate-700 mb-1">{new Date(data.date).toLocaleDateString('pt-BR')}</p>
-                        <p className="text-rose-600 font-bold">{data.pct}% Improdutiva</p>
-                        <p className="text-xs text-slate-500 mb-2">{data.improdutiva} de {data.total} veículos</p>
-                        {breakdown.length > 0 && (
-                          <div className="border-t border-slate-100 pt-2 space-y-0.5">
-                            {breakdown.map(([status, count]) => (
-                              <div key={status} className="flex justify-between text-xs">
-                                <span className="text-slate-600">{status}</span>
-                                <span className="font-medium text-slate-800 ml-4">{count}</span>
+          {/* Seletor de período + badge */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <div className="inline-flex rounded-md shadow-sm bg-white p-1 border">
+                {(['30d', '90d', '180d', 'custom'] as const).map((op) => {
+                  const labels: Record<string, string> = { '30d': 'Últimos 30 dias', '90d': 'Últimos 90 dias', '180d': 'Últimos 6 meses', 'custom': 'Personalizado' };
+                  return (
+                    <button
+                      key={op}
+                      onClick={() => setPeriodoSelecionado(op)}
+                      className={`text-sm px-3 py-1 rounded ${periodoSelecionado === op ? 'bg-rose-100 text-rose-700 font-medium' : 'text-slate-600'}`}
+                    >
+                      {labels[op]}
+                    </button>
+                  );
+                })}
+              </div>
+              <Badge color="rose" icon={TrendingDown}>
+                {(dailyIdleHistory[dailyIdleHistory.length - 1]?.pct ?? 0).toFixed(1)}% hoje
+              </Badge>
+            </div>
+            {/* Date pickers para período personalizado */}
+            {periodoSelecionado === 'custom' && (
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <span className="text-xs text-slate-400">De</span>
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo}
+                  onChange={e => setCustomFrom(e.target.value)}
+                  className="border border-slate-200 rounded px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-300"
+                />
+                <span className="text-xs text-slate-400">até</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom}
+                  max={todayStr}
+                  onChange={e => setCustomTo(e.target.value)}
+                  className="border border-slate-200 rounded px-2 py-1 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-300"
+                />
+                <span className="text-xs text-slate-400">({dailyIdleHistory.length} dias)</span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="overflow-x-auto pb-4 mt-4">
+          <div style={{ minWidth: dailyIdleHistory.length * 40 }}>
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={dailyIdleHistory}
+                  onClick={(data) => {
+                    if (data && data.activePayload && data.activePayload[0]) {
+                      const payload = data.activePayload[0].payload;
+                      // preferir dateLocal (YYYY-MM-DD) para evitar shift UTC
+                      const local = payload.dateLocal || (payload.date ? new Date(payload.date).toISOString().split('T')[0] : null);
+                      if (local) setSelectedDate(local);
+                    }
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="displayDate"
+                    tick={{ fontSize: 10 }}
+                    interval={Math.floor(dailyIdleHistory.length / 20)}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    domain={[0, 'auto']}
+                    label={{ value: '% Improdutiva', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload[0]) {
+                        const data = payload[0].payload;
+                        const breakdown: [string, number][] = Object.entries(
+                          (data.statusBreakdown || {}) as Record<string, number>
+                        ).sort((a, b) => b[1] - a[1]);
+                        return (
+                          <div className="bg-white p-3 border border-slate-200 rounded shadow-lg min-w-[200px]">
+                            <p className="font-semibold text-slate-700 mb-1">{new Date(data.date).toLocaleDateString('pt-BR')}</p>
+                            <p className="text-rose-600 font-bold">{data.pct}% Improdutiva</p>
+                            <p className="text-xs text-slate-500 mb-2">{data.improdutiva} de {data.total} veículos</p>
+                            {breakdown.length > 0 && (
+                              <div className="border-t border-slate-100 pt-2 space-y-0.5">
+                                {breakdown.map(([status, count]) => (
+                                  <div key={status} className="flex justify-between text-xs">
+                                    <span className="text-slate-600">{status}</span>
+                                    <span className="font-medium text-slate-800 ml-4">{count}</span>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            )}
+                            <p className="text-xs text-blue-600 mt-2">Clique para detalhes</p>
                           </div>
-                        )}
-                        <p className="text-xs text-blue-600 mt-2">Clique para detalhes</p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="pct" 
-                name="% Improdutiva" 
-                stroke="#ef4444" 
-                strokeWidth={2}
-                dot={{ fill: '#ef4444', r: 3 }}
-                activeDot={{ r: 6, cursor: 'pointer' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="pct"
+                    name="% Improdutiva"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    dot={{ fill: '#ef4444', r: 3 }}
+                    activeDot={{ r: 6, cursor: 'pointer' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -690,10 +694,10 @@ export default function FleetIdleDashboard(): JSX.Element {
             <div className="flex items-center gap-3">
               <Calendar className="w-5 h-5 text-rose-600" />
               <div>
-                <Title>Detalhamento - {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', { 
-                  day: '2-digit', 
-                  month: 'long', 
-                  year: 'numeric' 
+                <Title>Detalhamento - {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric'
                 })}</Title>
                 <Text className="text-sm">
                   {vehiclesOnSelectedDate.length} veículos improdutivos neste dia
@@ -706,13 +710,13 @@ export default function FleetIdleDashboard(): JSX.Element {
                 className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 transition-colors border px-2 py-1 rounded bg-white"
                 title="Como os dados são calculados?"
               >
-                <HelpCircle size={18}/>
+                <HelpCircle size={18} />
               </button>
               <button
                 onClick={() => exportToExcel(vehiclesOnSelectedDate, `improdutivos_${selectedDate}`)}
                 className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded bg-white"
               >
-                <FileSpreadsheet size={16}/> Exportar
+                <FileSpreadsheet size={16} /> Exportar
               </button>
               <button
                 onClick={() => setSelectedDate(null)}
@@ -794,7 +798,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-600 ml-8">Identificador único do veículo no sistema.</p>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">2</span>
@@ -802,7 +806,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-600 ml-8">Nome do modelo conforme o cadastro da frota.</p>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">3</span>
@@ -810,7 +814,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Lista apenas status considerados improdutivos (ex.: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>). Veículos locados (produtivos) ou inativos (vendidos/baixados/sinistro total) não são exibidos.</p>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">4</span>
@@ -818,7 +822,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-600 ml-8">Localização física do veículo, baseada na última movimentação de pátio registrada. Se não houver movimentação, utiliza o campo "Localização" do cadastro da frota.</p>
               </div>
-              
+
               <div className="bg-amber-50 p-4 rounded border-l-4 border-amber-400">
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs">5</span>
@@ -832,7 +836,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <li>Exemplo: última movimentação em 06/10/2025 → hoje (05/01/2026) = <strong>91 dias</strong></li>
                 </ul>
               </div>
-              
+
               <div className="bg-blue-50 p-4 rounded border-l-4 border-blue-400">
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">6</span>
@@ -846,7 +850,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <li>Essa data representa o início do status improdutivo atual.</li>
                 </ol>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">7</span>
@@ -854,7 +858,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-600 ml-8">Data e hora da última movimentação entre pátios ou devolução de locação. Essa data é utilizada no cálculo de "Dias Parado".</p>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">8</span>
@@ -862,7 +866,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-600 ml-8">Nome do usuário que registrou a última movimentação. Importante para rastreabilidade e auditoria.</p>
               </div>
-              
+
               <div className="bg-emerald-50 p-4 rounded border border-emerald-200 mt-6">
                 <h3 className="font-semibold text-emerald-900 mb-2">📊 Cálculo do % Improdutiva (Gráfico)</h3>
                 <p className="text-sm text-emerald-700">
