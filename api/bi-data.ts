@@ -123,7 +123,7 @@ function formatPtBrDateTime(iso?: string): string | undefined {
 }
 
 // Special query for dim_contratos_locacao with direct column access + JOIN
-function buildContratosQuery(fields?: string[]): string {
+function buildContratosQuery(_fields?: string[]): string {
   // Direct column access — no to_jsonb overhead
   return `
     SELECT 
