@@ -226,7 +226,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (connErr: unknown) {
     const connMsg = connErr instanceof Error ? connErr.message : String(connErr);
     console.error('[bi-data-batch] Connection failed:', connMsg);
-    return res.status(500).json({ error: 'Database connection failed', details: connMsg });
+    // Return 200 with empty per-table payloads so the UI degrades gracefully
+    const emptyResults = Object.fromEntries(
+      requests.map(r => [
+        r.table,
+        {
+          record_count: 0,
+          metadata: {
+            generated_at: new Date().toISOString(),
+            source: 'live' as const,
+            table: r.table,
+            record_count: 0,
+            error: `DB connection failed: ${connMsg}`,
+          },
+          data: [] as Record<string, unknown>[],
+        },
+      ])
+    );
+    return res.status(200).json({
+      metadata: {
+        generated_at: new Date().toISOString(),
+        source: 'live' as const,
+        tables: requests.map(r => r.table),
+        cached: false,
+        error: `DB connection failed: ${connMsg}`,
+      },
+      results: emptyResults,
+    });
   }
 
   try {
@@ -239,8 +265,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         let result;
+        try {
         if (r.table === 'dim_contratos_locacao') {
-          result = await client.query(buildContratosQuery(), [r.limit]);
+          try {
+            result = await client.query(buildContratosQuery(), [r.limit]);
+          } catch (metaErr: unknown) {
+            // Fallback: metadata table may not exist yet — run without it
+            console.warn('[bi-data-batch] dim_contratos_locacao with metadata failed, falling back:', metaErr instanceof Error ? metaErr.message : metaErr);
+            result = await client.query(
+              `SELECT c.*, f.*,
+                 f."GrupoVeiculo" AS "Categoria",
+                 f."OdometroConfirmado" AS "KmConfirmado",
+                 f."IdadeEmMeses" AS "IdadeVeiculo",
+                 f."ValorAtualFIPE" AS "ValorFipe"
+               FROM public."dim_contratos_locacao" c
+               LEFT JOIN public."dim_frota" f
+                 ON UPPER(TRIM(COALESCE(c."PlacaPrincipal", ''))) = UPPER(TRIM(COALESCE(f."Placa", '')))
+               LIMIT $1`,
+              [r.limit]
+            );
+          }
         } else if (r.table === 'fat_faturamentos') {
           // DataCompetencia é TEXT no formato ISO '2026-01-01T...' — usar LEFT() para filtrar por ano
           if (r.year) {
@@ -311,6 +355,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
         cache.set(tableCacheKey, { data: tablePayload, timestamp: Date.now() });
         return { table: r.table, ...tablePayload };
+        } catch (tableErr: unknown) {
+          const msg = tableErr instanceof Error ? tableErr.message : String(tableErr);
+          console.error(`[bi-data-batch] Table "${r.table}" query failed:`, msg);
+          const emptyPayload = {
+            record_count: 0,
+            metadata: {
+              generated_at: new Date().toISOString(),
+              source: 'live' as const,
+              table: r.table,
+              record_count: 0,
+              error: msg,
+            },
+            data: [] as Record<string, unknown>[],
+          };
+          return { table: r.table, ...emptyPayload };
+        }
       })
     );
 
@@ -330,7 +390,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[bi-data-batch] Error:`, message);
-    return res.status(500).json({ error: 'Database query failed', details: message });
+    // Return 200 with empty results so the UI degrades gracefully
+    const emptyResults = Object.fromEntries(
+      requests.map(r => [
+        r.table,
+        {
+          record_count: 0,
+          metadata: {
+            generated_at: new Date().toISOString(),
+            source: 'live' as const,
+            table: r.table,
+            record_count: 0,
+            error: message,
+          },
+          data: [] as Record<string, unknown>[],
+        },
+      ])
+    );
+    return res.status(200).json({
+      metadata: {
+        generated_at: new Date().toISOString(),
+        source: 'live' as const,
+        tables: requests.map(r => r.table),
+        cached: false,
+        error: message,
+      },
+      results: emptyResults,
+    });
   } finally {
     client?.release();
   }

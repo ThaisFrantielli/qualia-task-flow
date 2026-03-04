@@ -83,9 +83,8 @@ function aggregateByPeriod(
   } else {
     // Para 'year' não limitamos por padrão
   }
-}
 
-let maxDate: Date = todayEnd;
+  let maxDate: Date = todayEnd;
 if (dateRange?.to) {
   const toDate = new Date(dateRange.to);
   toDate.setHours(23, 59, 59, 999);

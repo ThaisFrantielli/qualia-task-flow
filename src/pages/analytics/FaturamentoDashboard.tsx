@@ -7,7 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList,
   PieChart, Pie,
 } from 'recharts';
-import { DollarSign, FileText, TrendingUp, AlertCircle, ChevronDown, ChevronRight, X, Search, Filter } from 'lucide-react';
+import { DollarSign, FileText, TrendingUp, AlertCircle, ChevronDown, ChevronRight, X, Search, Filter, FileSpreadsheet } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 
@@ -31,10 +31,6 @@ function parseCurrency(v: any): number {
 
 function fmtBRL(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-}
-
-function fmtDecimal(v: number) {
-  return new Intl.NumberFormat('pt-BR').format(v);
 }
 
 function fmtCompact(v: number) {
@@ -93,38 +89,38 @@ function getNum(obj: AnyObject, ...keys: string[]): number {
 }
 
 // ── fat_faturamentos
-const FID_KEYS = ['IdNota', 'idnota', 'IdFaturamento', 'idfaturamento', 'id_faturamento', 'Id', 'id'];
-const FNOTA_KEYS = ['Nota', 'nota', 'NumeroNota', 'numeronota', 'NF', 'nf'];
-const FDATA_KEYS = ['DataCompetencia', 'datacompetencia', 'DataEmissao', 'dataemissao', 'DataFaturamento', 'datafaturamento', 'Data', 'data'];
-const FCOMP_KEYS = ['DataCompetencia', 'datacompetencia', 'DataEmissao', 'dataemissao'];
+const FID_KEYS   = ['IdNota', 'idnota', 'IdFaturamento', 'idfaturamento', 'id_faturamento', 'Id', 'id'];
+const FNOTA_KEYS  = ['Nota', 'nota', 'NumeroNota', 'numeronota', 'NF', 'nf'];
+const FDATA_KEYS  = ['DataCompetencia', 'datacompetencia', 'DataEmissao', 'dataemissao', 'DataFaturamento', 'datafaturamento', 'Data', 'data'];
+const FCOMP_KEYS  = ['DataCompetencia', 'datacompetencia', 'DataEmissao', 'dataemissao'];
 const FCLIENTE_KEYS = ['Cliente', 'NomeCliente', 'nomecliente', 'ClienteNome', 'clientenome', 'RazaoSocial', 'razaosocial'];
 const FCONTRATO_KEYS = ['ContratoLocacao', 'contratolocacao', 'Contrato', 'NumeroContrato', 'numerocontrato'];
 const FVALOR_KEYS = ['ValorTotal', 'valortotal', 'Valor', 'ValorFaturado', 'valorfaturado', 'ValorBruto', 'valorbruto'];
 const FVALLOC_KEYS = ['ValorLocacao', 'valorlocacao'];
 const FVALREEMB_KEYS = ['ValorReembolsaveis', 'valorreembolsaveis', 'ValorReembolso', 'valorreembolso'];
 const FSTATUS_KEYS = ['SituacaoNota', 'situacaonota', 'Status', 'SituacaoFaturamento', 'situacaofaturamento', 'Situacao', 'situacao'];
-const FVENC_KEYS = ['Vencimento', 'vencimento', 'DataVencimento', 'datavencimento'];
+const FVENC_KEYS  = ['Vencimento', 'vencimento', 'DataVencimento', 'datavencimento'];
 const FPAGTO_KEYS = ['DataPagamento', 'datapagamento', 'DataPago', 'datapago'];
 const FTIPO_KEYS = ['TipoFaturamento', 'tipofaturamento', 'Tipo', 'tipo', 'Natureza', 'natureza'];
 
 // ── fat_faturamento_itens
 const IITEM_ID_KEYS = ['IdItem', 'iditem', 'Id', 'id'];
-const IFAT_ID_KEYS = ['IdNota', 'idnota', 'IdFaturamento', 'idfaturamento', 'id_faturamento'];
-const IDESC_KEYS = ['Descricao', 'descricao', 'Produto', 'produto', 'Servico', 'servico', 'Item', 'item'];
-const IQTD_KEYS = ['Quantidade', 'quantidade', 'Qtd', 'qtd'];
-const IVUNIT_KEYS = ['ValorUnitario', 'valorunitario', 'PrecoUnitario', 'precounitario'];
-const IVALOR_KEYS = ['ValorTotal', 'valortotal', 'Valor', 'ValorItem', 'valoritem'];
-const ITIPO_KEYS = ['TipoItem', 'tipoitem', 'Tipo', 'tipo', 'TipoReceita', 'tiporeceita'];
-const IPLACA_KEYS = ['Placa', 'placa', 'PlacaVeiculo', 'placaveiculo'];
+const IFAT_ID_KEYS  = ['IdNota', 'idnota', 'IdFaturamento', 'idfaturamento', 'id_faturamento'];
+const IDESC_KEYS    = ['Descricao', 'descricao', 'Produto', 'produto', 'Servico', 'servico', 'Item', 'item'];
+const IQTD_KEYS     = ['Quantidade', 'quantidade', 'Qtd', 'qtd'];
+const IVUNIT_KEYS   = ['ValorUnitario', 'valorunitario', 'PrecoUnitario', 'precounitario'];
+const IVALOR_KEYS   = ['ValorTotal', 'valortotal', 'Valor', 'ValorItem', 'valoritem'];
+const ITIPO_KEYS    = ['TipoItem', 'tipoitem', 'Tipo', 'tipo', 'TipoReceita', 'tiporeceita'];
+const IPLACA_KEYS   = ['Placa', 'placa', 'PlacaVeiculo', 'placaveiculo'];
 const ICONT_LOC_KEYS = ['ContratoLocacao', 'contratolocacao', 'contrato_locacao', 'IdContratoLocacao', 'idcontratolocacao', 'IdContrato', 'idcontrato'];
 
 // ── dim_contratos_locacao
 const DCONT_LOC_KEYS = ['ContratoLocacao', 'contratolocacao', 'NumeroContratoLocacao', 'numerocontratolocacao', 'NumeroContrato', 'numerocontrato'];
 const DCONT_COM_KEYS = ['ContratoComercial', 'contratocomercial', 'NumeroContratoComercial', 'numerocontratocomercial'];
-const DCLIENTE_KEYS = ['NomeCliente', 'nomecliente', 'Cliente', 'cliente'];
+const DCLIENTE_KEYS  = ['NomeCliente', 'nomecliente', 'Cliente', 'cliente'];
 const DTIPO_CONT_KEYS = ['TipoDeContrato', 'tipodecontrato', 'TipoLocacao', 'tipolocacao', 'Tipo', 'tipo'];
 const DSITUACAO_KEYS = ['SituacaoContratoLocacao', 'situacaocontratolocacao', 'SituacaoContrato', 'situacaocontrato'];
-const DPLACA_KEYS = ['PlacaPrincipal', 'placaprincipal', 'Placa', 'placa'];
+const DPLACA_KEYS    = ['PlacaPrincipal', 'placaprincipal', 'Placa', 'placa'];
 
 // status considerados pagos/quitados
 const STATUS_PAGO = new Set(['pago', 'quitado', 'liquidado', 'recebido', 'paid', 'ok']);
@@ -134,7 +130,7 @@ const STATUS_ABERTO = new Set(['aberto', 'pendente', 'a vencer', 'em aberto', 'o
 function isStatusPago(s: string) { return STATUS_PAGO.has(s.toLowerCase().trim()); }
 function isStatusAberto(s: string) { return STATUS_ABERTO.has(s.toLowerCase().trim()) || s === ''; }
 
-const MESES_PT_FULL = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const MESES_PT_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const MESES_PT_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 // Mapeia TipoDeContrato (vindo da coluna dim_contratos_locacao.TipoDeContrato,
@@ -150,7 +146,7 @@ function resolveSegmento(tipoContrato: string): 'PF' | 'PJ' | 'Público' | 'Outr
 
 // ─── YearMonthPicker ─────────────────────────────────────────────────────────
 
-const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 interface YearMonthPickerProps {
   selectedYear: number;
@@ -176,12 +172,12 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
   }, []);
 
   const label = selectedMonth
-    ? (() => { const [y, m] = selectedMonth.split('-'); return `${MESES_PT[parseInt(m) - 1]} ${y}`; })()
+    ? (() => { const [y,m] = selectedMonth.split('-'); return `${MESES_PT[parseInt(m)-1]} ${y}`; })()
     : selectedYear === 0 ? 'Todos os períodos' : String(selectedYear);
 
   const allYears = useMemo(() => {
     const s = new Set<number>(knownYears);
-    return Array.from(s).sort((a, b) => b - a);
+    return Array.from(s).sort((a,b) => b - a);
   }, [knownYears]);
 
   const monthsByYear = useMemo(() => {
@@ -191,7 +187,7 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
       if (!m.has(y)) m.set(y, []);
       m.get(y)!.push(mo);
     }
-    for (const [y, months] of m) m.set(y, months.sort((a, b) => a - b));
+    for (const [y, months] of m) m.set(y, months.sort((a,b)=>a-b));
     return m;
   }, [availableMonthKeys]);
 
@@ -219,12 +215,14 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
         <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[200px] py-1 max-h-80 overflow-y-auto">
           {/* Opção Todos */}
           <button
-            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 ${selectedYear === 0 && !selectedMonth ? 'text-indigo-700 font-bold' : 'text-slate-700'
-              }`}
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 ${
+              selectedYear === 0 && !selectedMonth ? 'text-indigo-700 font-bold' : 'text-slate-700'
+            }`}
             onClick={() => { onYearChange(0); onMonthChange(null); setOpen(false); }}
           >
-            <span className={`w-3 h-3 rounded border flex items-center justify-center ${selectedYear === 0 ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
-              }`}>
+            <span className={`w-3 h-3 rounded border flex items-center justify-center ${
+              selectedYear === 0 ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+            }`}>
               {selectedYear === 0 && <span className="text-white text-[8px] font-bold">✓</span>}
             </span>
             Todos os períodos
@@ -245,8 +243,9 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
                     className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 text-left"
                     onClick={() => { onYearChange(y); onMonthChange(null); }}
                   >
-                    <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${isYearSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
-                      }`}>
+                    <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${
+                      isYearSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                    }`}>
                       {isYearSel && <span className="text-white text-[8px] font-bold">✓</span>}
                       {selectedMonth?.startsWith(`${y}-`) && !isYearSel && (
                         <span className="text-indigo-600 text-[8px] font-bold">─</span>
@@ -266,13 +265,14 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
 
                 {/* Meses */}
                 {isExpanded && months.map(m => {
-                  const key = `${y}-${String(m).padStart(2, '0')}`;
+                  const key = `${y}-${String(m).padStart(2,'0')}`;
                   const isMonthSel = selectedMonth === key;
                   return (
                     <button
                       key={key}
-                      className={`w-full flex items-center gap-2 pl-8 pr-3 py-1 text-xs hover:bg-slate-50 ${isMonthSel ? 'text-indigo-700 font-semibold' : 'text-slate-600'
-                        }`}
+                      className={`w-full flex items-center gap-2 pl-8 pr-3 py-1 text-xs hover:bg-slate-50 ${
+                        isMonthSel ? 'text-indigo-700 font-semibold' : 'text-slate-600'
+                      }`}
                       onClick={() => {
                         // trocar de ano se necessário
                         if (selectedYear !== y) onYearChange(y);
@@ -280,11 +280,12 @@ function YearMonthPicker({ selectedYear, selectedMonth, availableMonthKeys, know
                         setOpen(false);
                       }}
                     >
-                      <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${isMonthSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
-                        }`}>
+                      <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${
+                        isMonthSel ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                      }`}>
                         {isMonthSel && <span className="text-white text-[8px] font-bold">✓</span>}
                       </span>
-                      {MESES_PT[m - 1]}
+                      {MESES_PT[m-1]}
                     </button>
                   );
                 })}
@@ -326,9 +327,9 @@ function DropdownFilter({ label, options, value, onChange, color = 'indigo' }: D
 
   const colorMap = {
     indigo: { btn: 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50', active: 'text-indigo-700 font-bold', check: 'bg-indigo-600 border-indigo-600' },
-    sky: { btn: 'bg-sky-50 border-sky-200 text-sky-800 hover:bg-sky-100', active: 'text-sky-700 font-bold', check: 'bg-sky-600 border-sky-600' },
-    emerald: { btn: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100', active: 'text-emerald-700 font-bold', check: 'bg-emerald-600 border-emerald-600' },
-    violet: { btn: 'bg-violet-50 border-violet-200 text-violet-800 hover:bg-violet-100', active: 'text-violet-700 font-bold', check: 'bg-violet-600 border-violet-600' },
+    sky:    { btn: 'bg-sky-50 border-sky-200 text-sky-800 hover:bg-sky-100',       active: 'text-sky-700 font-bold',    check: 'bg-sky-600 border-sky-600' },
+    emerald:{ btn: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100', active: 'text-emerald-700 font-bold', check: 'bg-emerald-600 border-emerald-600' },
+    violet: { btn: 'bg-violet-50 border-violet-200 text-violet-800 hover:bg-violet-100',    active: 'text-violet-700 font-bold',  check: 'bg-violet-600 border-violet-600' },
   } as const;
 
   const c = colorMap[color];
@@ -339,8 +340,9 @@ function DropdownFilter({ label, options, value, onChange, color = 'indigo' }: D
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-2 text-xs font-semibold border rounded-lg px-3 py-1.5 shadow-sm min-w-[140px] justify-between transition-colors ${hasSelection ? c.btn + ' ring-1 ring-offset-0 ring-indigo-400' : c.btn
-          }`}
+        className={`flex items-center gap-2 text-xs font-semibold border rounded-lg px-3 py-1.5 shadow-sm min-w-[140px] justify-between transition-colors ${
+          hasSelection ? c.btn + ' ring-1 ring-offset-0 ring-indigo-400' : c.btn
+        }`}
       >
         <span className="truncate max-w-[160px]">{displayLabel}</span>
         <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -372,12 +374,14 @@ function DropdownFilter({ label, options, value, onChange, color = 'indigo' }: D
               return (
                 <button
                   key={opt}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 text-left ${isSel ? c.active : 'text-slate-700'
-                    }`}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 text-left ${
+                    isSel ? c.active : 'text-slate-700'
+                  }`}
                   onClick={() => { onChange(opt); setOpen(false); setSearch(''); }}
                 >
-                  <span className={`w-3 h-3 rounded-full border flex items-center justify-center shrink-0 ${isSel ? c.check : 'border-slate-300'
-                    }`}>
+                  <span className={`w-3 h-3 rounded-full border flex items-center justify-center shrink-0 ${
+                    isSel ? c.check : 'border-slate-300'
+                  }`}>
                     {isSel && <span className="text-white" style={{ fontSize: 7 }}>●</span>}
                   </span>
                   <span className="truncate">{opt}</span>
@@ -443,8 +447,8 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, { error: an
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function FaturamentoDashboardInner(): JSX.Element {
-  // ── Filtros ativos (ano padrão: Todos)
-  const [filtroAno, setFiltroAno] = useState<number>(0);
+  // ── Filtros ativos (ano padrão 2026)
+  const [filtroAno, setFiltroAno] = useState<number>(2026);
   const [filtroStatus, setFiltroStatus] = useState('Todos');
   const [filtroTipoFaturamento, setFiltroTipoFaturamento] = useState<string>('__init__');
   const [tabTipoSelecionada, setTabTipoSelecionada] = useState<string>('__init__');
@@ -461,7 +465,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const { results, loading, metadata } = useBIDataBatch(
     ['fat_faturamentos', 'fat_faturamento_itens', 'dim_contratos_locacao', 'dim_frota'],
     undefined,
-    { params: { year: filtroAno > 0 ? filtroAno : undefined } }
+    { params: { year: filtroAno } }
   );
 
   const faturas = useMemo<AnyObject[]>(() => {
@@ -505,7 +509,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
     const m = new Map<string, AnyObject>();
     for (const c of contratosLocacao) {
       // procurar possíveis chaves de id
-      const idCandidates = ['IdContratoLocacao', 'IdContrato', 'Id', 'idcontratolocacao', 'idcontrato', 'id'];
+      const idCandidates = ['IdContratoLocacao','IdContrato','Id','idcontratolocacao','idcontrato','id'];
       for (const k of idCandidates) {
         const v = getField(c, k);
         if (v != null && String(v).trim() !== '') {
@@ -531,9 +535,9 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const faturaToContrato = useMemo(() => {
     const m = new Map<string, AnyObject>();
     for (const item of itensBrutos) {
-      const idFat = getStr(item, ...IFAT_ID_KEYS);
+      const idFat  = getStr(item, ...IFAT_ID_KEYS);
       if (!idFat || m.has(idFat)) continue;
-      const cLoc = getStr(item, ...ICONT_LOC_KEYS);
+      const cLoc   = getStr(item, ...ICONT_LOC_KEYS);
       let contrato: AnyObject | undefined;
       if (cLoc) {
         // tentar por número normalizado
@@ -850,10 +854,10 @@ export function FaturamentoDashboardInner(): JSX.Element {
   const evolucaoMensal = useMemo(() => {
     // '__init__' = ainda carregando filtro, assume Locação (padrão)
     const isLocacao = filtroTipoFaturamento === '__init__' || /loca/i.test(filtroTipoFaturamento);
-    const isReemb = /reembol/i.test(filtroTipoFaturamento);
+    const isReemb   = /reembol/i.test(filtroTipoFaturamento);
 
-    const valorMap = new Map<string, number>();
-    const veiculosMap = new Map<string, number>();
+    const valorMap        = new Map<string, number>();
+    const veiculosMap     = new Map<string, number>();
     const veiculosDistMap = new Map<string, Set<string>>();
 
     for (const f of faturasSemFiltroMes) {
@@ -866,7 +870,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
       const key = isoYearMonth(d);
       if (!key) continue;
 
-      const id = getStr(f, ...FID_KEYS);
+      const id    = getStr(f, ...FID_KEYS);
       const itens = id ? (itensByFaturaId.get(id) ?? []) : [];
 
       if (itens.length > 0) {
@@ -922,7 +926,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
   // ── Faturamento por Segmento (PF / PJ / Público) mensal
   const segmentoMensal = useMemo(() => {
-    const map = new Map<string, { PF: [number, number]; PJ: [number, number]; Público: [number, number]; Outros: [number, number] }>();
+    const map = new Map<string, { PF:[number,number]; PJ:[number,number]; Público:[number,number]; Outros:[number,number] }>();
     for (const f of faturasFiltradas) {
       const d = getStr(f, ...FDATA_KEYS);
       if (!d) continue;
@@ -936,7 +940,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
         : '';
       const seg = resolveSegmento(tipoLoc);
       const valor = getNum(f, ...FVALOR_KEYS);
-      if (!map.has(key)) map.set(key, { PF: [0, 0], PJ: [0, 0], Público: [0, 0], Outros: [0, 0] });
+      if (!map.has(key)) map.set(key, { PF:[0,0], PJ:[0,0], Público:[0,0], Outros:[0,0] });
       const row = map.get(key)!;
       row[seg][0] += valor;
       row[seg][1] += 1;
@@ -948,12 +952,12 @@ export function FaturamentoDashboardInner(): JSX.Element {
         const mes = `${key.split('-')[0]} ${MESES_PT_FULL[month] ?? key}`;
         return {
           mesKey: key, mes,
-          PF: s.PF[0], qtdPF: s.PF[1],
-          PJ: s.PJ[0], qtdPJ: s.PJ[1],
+          PF: s.PF[0],     qtdPF: s.PF[1],
+          PJ: s.PJ[0],     qtdPJ: s.PJ[1],
           Publico: s.Público[0], qtdPublico: s.Público[1],
-          ticketPF: s.PF[1] > 0 ? s.PF[0] / s.PF[1] : 0,
-          ticketPJ: s.PJ[1] > 0 ? s.PJ[0] / s.PJ[1] : 0,
-          ticketPublico: s.Público[1] > 0 ? s.Público[0] / s.Público[1] : 0,
+          ticketPF:     s.PF[1]     > 0 ? s.PF[0]     / s.PF[1]     : 0,
+          ticketPJ:     s.PJ[1]     > 0 ? s.PJ[0]     / s.PJ[1]     : 0,
+          ticketPublico:s.Público[1] > 0 ? s.Público[0] / s.Público[1] : 0,
         };
       });
   }, [faturasFiltradas, faturaToContrato]);
@@ -971,14 +975,14 @@ export function FaturamentoDashboardInner(): JSX.Element {
   }, [faturasFiltradas]);
 
   // ── Faturamento por Tipo (donut)
-  const PIE_COLORS = ['#4472c4', '#ed7d31', '#a5b4fc', '#34d399', '#f59e0b', '#f87171', '#60a5fa', '#c084fc'];
+  const PIE_COLORS = ['#4472c4','#ed7d31','#a5b4fc','#34d399','#f59e0b','#f87171','#60a5fa','#c084fc'];
   const faturamentoPorTipo = useMemo(() => {
     const map = new Map<string, number>();
     for (const f of faturasFiltradas) {
       const t = getStr(f, ...FTIPO_KEYS) || 'Outros';
       map.set(t, (map.get(t) ?? 0) + getNum(f, ...FVALOR_KEYS));
     }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).map(([name, value]) => ({ name, value }));
   }, [faturasFiltradas]);
 
   // ── Faturamento por Status (donut)
@@ -988,12 +992,12 @@ export function FaturamentoDashboardInner(): JSX.Element {
       const s = getStr(f, ...FSTATUS_KEYS) || 'Sem status';
       map.set(s, (map.get(s) ?? 0) + getNum(f, ...FVALOR_KEYS));
     }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).map(([name, value]) => ({ name, value }));
   }, [faturasFiltradas]);
 
-  // ── Paginação removida para mostrar 100% da base com scroll
-  const faturasPagina = faturasFiltradas;
-
+  // ── Paginação
+  const totalPages = Math.max(1, Math.ceil(faturasFiltradas.length / PAGE_SIZE));
+  const faturasPagina = faturasFiltradas.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Metadados já vêm do hook diretamente via `metadata`
 
@@ -1031,8 +1035,9 @@ export function FaturamentoDashboardInner(): JSX.Element {
                   <button
                     key={t}
                     onClick={() => { setTabTipoSelecionada(t); setFiltroTipoFaturamento(t === 'Todos' ? 'Todos' : t); setPage(1); }}
-                    className={`text-xs font-semibold px-3.5 py-1.5 transition-colors whitespace-nowrap ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
+                    className={`text-xs font-semibold px-3.5 py-1.5 transition-colors whitespace-nowrap ${
+                      isActive ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
                   >
                     {t}
                   </button>
@@ -1093,10 +1098,11 @@ export function FaturamentoDashboardInner(): JSX.Element {
                 <button
                   key={t}
                   onClick={() => { setFiltroTipoContrato(t); setPage(1); }}
-                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition-colors ${filtroTipoContrato === t
-                    ? 'bg-violet-600 text-white border-violet-600'
-                    : 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100'
-                    }`}
+                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition-colors ${
+                    filtroTipoContrato === t
+                      ? 'bg-violet-600 text-white border-violet-600'
+                      : 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100'
+                  }`}
                 >
                   {t === 'Todos' ? 'Todos' : t}
                 </button>
@@ -1142,20 +1148,20 @@ export function FaturamentoDashboardInner(): JSX.Element {
             </select>
 
             {/* Limpar */}
-            {(filtroAno !== 0 || filtroStatus !== 'Todos' || filtroCliente !== 'Todos' ||
+            {(filtroAno !== 2026 || filtroStatus !== 'Todos' || filtroCliente !== 'Todos' ||
               filtroContratoLoc !== 'Todos' || filtroContratoComercial !== 'Todos' ||
               filtroTipoContrato !== 'Todos' || searchText || filtroMes) && (
-                <button
-                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 bg-red-50 hover:bg-red-100 transition-colors font-semibold"
-                  onClick={() => {
-                    setFiltroAno(0); setFiltroStatus('Todos'); setFiltroCliente('Todos');
-                    setFiltroContratoLoc('Todos'); setFiltroContratoComercial('Todos');
-                    setFiltroTipoContrato('Todos'); setSearchText(''); setFiltroMes(null); setPage(1);
-                  }}
-                >
-                  <X className="w-3 h-3" /> Limpar
-                </button>
-              )}
+              <button
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 bg-red-50 hover:bg-red-100 transition-colors font-semibold"
+                onClick={() => {
+                  setFiltroAno(2026); setFiltroStatus('Todos'); setFiltroCliente('Todos');
+                  setFiltroContratoLoc('Todos'); setFiltroContratoComercial('Todos');
+                  setFiltroTipoContrato('Todos'); setSearchText(''); setFiltroMes(null); setPage(1);
+                }}
+              >
+                <X className="w-3 h-3" /> Limpar
+              </button>
+            )}
 
             <span className="ml-auto text-xs text-slate-400 font-medium">{faturasFiltradas.length.toLocaleString('pt-BR')} faturas</span>
           </div>
@@ -1220,7 +1226,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
           <div className="flex flex-wrap gap-5 mb-4">
             <div className="flex items-center gap-1.5 text-xs text-slate-600">
               <div className="w-3 h-3 rounded-sm" style={{ background: '#4472c4' }} />
-              Faturamento{tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g, '') : 'Total'}Emitido
+              Faturamento{tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g,'') : 'Total'}Emitido
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-600">
               <div className="w-3 h-0.5 rounded-sm" style={{ background: '#f59e0b' }} />
@@ -1241,113 +1247,130 @@ export function FaturamentoDashboardInner(): JSX.Element {
           {evolucaoMensal.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-slate-400 text-sm">Sem dados para exibir</div>
           ) : (
-            <div className="overflow-x-auto pb-4">
-              <div style={{ minWidth: Math.max(800, evolucaoMensal.length * 70) }}>
-                <ResponsiveContainer width="100%" height={320}>
-                  <ComposedChart
-                    data={evolucaoMensal}
-                    margin={{ top: 28, right: 20, left: 0, bottom: 5 }}
-                    onClick={(data) => {
-                      if (data?.activePayload?.[0]) {
-                        const mesKey = (data.activePayload[0].payload as { mesKey: string }).mesKey;
-                        setFiltroMes(prev => prev === mesKey ? null : mesKey);
-                        setPage(1);
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <CartesianGrid stroke="#e8ecf0" vertical={false} />
-                    <XAxis
-                      dataKey="mes"
-                      tick={{ fontSize: 11, fill: '#475569' }}
-                      tickLine={false}
-                      axisLine={{ stroke: '#cbd5e1' }}
-                    />
-                    <YAxis
-                      yAxisId="left"
-                      tickFormatter={(v) => fmtCompact(v)}
-                      tick={{ fontSize: 10, fill: '#94a3b8' }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={72}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 10, fill: '#f59e0b' }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={36}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      formatter={(v: number | string, name: string) => {
-                        if (name === 'qtdVeiculos') return [v, 'Qtd. Veículos'];
-                        if (name === 'valorCompra') return [fmtBRL(Number(v)), 'Valor Compra'];
-                        return [fmtBRL(Number(v)), `FaturamentoEmitido`];
-                      }}
-                      contentStyle={{
-                        borderRadius: '0.5rem',
-                        border: '1px solid #e2e8f0',
-                        fontSize: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                      }}
-                      cursor={{ fill: 'rgba(68,114,196,0.07)' }}
-                    />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="valor"
-                      name="valor"
-                      radius={[2, 2, 0, 0]}
-                      barSize={40}
-                    >
-                      {evolucaoMensal.map((entry, i) => (
-                        <Cell
-                          key={i}
-                          fill={!filtroMes || filtroMes === entry.mesKey ? '#4472c4' : '#b0c4e8'}
+            // Wrapper that forces a horizontal scroll and shows 12 barras por vez
+            (() => {
+              const VISIBLE_BARS = 12;
+              const BAR_SIZE = 60; // largura aproximada de cada barra em px
+              const GAP = 12; // espaçamento estimado
+              const chartWidth = Math.max(evolucaoMensal.length * (BAR_SIZE + GAP), VISIBLE_BARS * (BAR_SIZE + GAP));
+              const viewportWidth = VISIBLE_BARS * (BAR_SIZE + GAP);
+              const hasValorCompra = evolucaoMensal.some(m => m.valorCompra > 0);
+              return (
+                <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <div style={{ width: viewportWidth, minWidth: viewportWidth }}>
+                    <div style={{ width: chartWidth }}>
+                      <ComposedChart
+                        width={chartWidth}
+                        height={320}
+                        data={evolucaoMensal}
+                        margin={{ top: 28, right: 56, left: 0, bottom: 5 }}
+                        onClick={(data) => {
+                          if (data?.activePayload?.[0]) {
+                            const mesKey = (data.activePayload[0].payload as { mesKey: string }).mesKey;
+                            setFiltroMes(prev => prev === mesKey ? null : mesKey);
+                            setPage(1);
+                          }
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <CartesianGrid stroke="#e8ecf0" vertical={false} />
+                        <XAxis
+                          dataKey="mes"
+                          tick={{ fontSize: 11, fill: '#475569' }}
+                          tickLine={false}
+                          axisLine={{ stroke: '#cbd5e1' }}
                         />
-                      ))}
-                      <LabelList
-                        dataKey="valor"
-                        position="top"
-                        formatter={(v: number) => fmtCompact(v)}
-                        style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }}
-                      />
-                    </Bar>
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="qtdVeiculos"
-                      name="qtdVeiculos"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }}
-                      activeDot={{ r: 5 }}
-                    >
-                      <LabelList
-                        dataKey="qtdVeiculos"
-                        position="top"
-                        formatter={(v: number) => v > 0 ? v : ''}
-                        style={{ fontSize: 8, fill: '#b45308', fontWeight: 600 }}
-                      />
-                    </Line>
-                    {evolucaoMensal.some(m => m.valorCompra > 0) && (
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="valorCompra"
-                        name="valorCompra"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        strokeDasharray="4 3"
-                        dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }}
-                        activeDot={{ r: 5 }}
-                      />
-                    )}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+                        {/* Eixo esquerdo — valores monetários */}
+                        <YAxis
+                          yAxisId="left"
+                          tickFormatter={(v) => fmtCompact(v)}
+                          tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={72}
+                        />
+                        {/* Eixo direito — quantidade de veículos */}
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          tick={{ fontSize: 10, fill: '#f59e0b' }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={36}
+                          allowDecimals={false}
+                        />
+                        <Tooltip
+                          formatter={(v: number | string, name: string) => {
+                            if (name === 'qtdVeiculos') return [v, 'Qtd. Veículos'];
+                            if (name === 'valorCompra') return [fmtBRL(Number(v)), 'Valor Compra'];
+                            return [fmtBRL(Number(v)), `Faturamento${tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g,'') : 'Total'}Emitido`];
+                          }}
+                          contentStyle={{
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e2e8f0',
+                            fontSize: '12px',
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                          }}
+                          cursor={{ fill: 'rgba(68,114,196,0.07)' }}
+                        />
+                        <Bar
+                          yAxisId="left"
+                          dataKey="valor"
+                          name={`Faturamento${tabTipoSelecionada && tabTipoSelecionada !== '__init__' && tabTipoSelecionada !== 'Todos' ? tabTipoSelecionada.replace(/\s/g,'') : 'Total'}Emitido`}
+                          radius={[2, 2, 0, 0]}
+                          barSize={BAR_SIZE}
+                        >
+                          {evolucaoMensal.map((entry, i) => (
+                            <Cell
+                              key={i}
+                              fill={!filtroMes || filtroMes === entry.mesKey ? '#4472c4' : '#b0c4e8'}
+                            />
+                          ))}
+                          <LabelList
+                            dataKey="valor"
+                            position="top"
+                            formatter={(v: number) => fmtCompact(v)}
+                            style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }}
+                          />
+                        </Bar>
+                        {/* Linha: quantidade de veículos faturados */}
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="qtdVeiculos"
+                          name="qtdVeiculos"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }}
+                          activeDot={{ r: 5 }}
+                        >
+                          <LabelList
+                            dataKey="qtdVeiculos"
+                            position="top"
+                            formatter={(v: number) => v > 0 ? v : ''}
+                            style={{ fontSize: 8, fill: '#b45309', fontWeight: 600 }}
+                          />
+                        </Line>
+                        {/* Linha: valor de compra — só se houver dados */}
+                        {hasValorCompra && (
+                          <Line
+                            yAxisId="left"
+                            type="monotone"
+                            dataKey="valorCompra"
+                            name="valorCompra"
+                            stroke="#10b981"
+                            strokeWidth={2}
+                            strokeDasharray="4 3"
+                            dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }}
+                            activeDot={{ r: 5 }}
+                          />
+                        )}
+                      </ComposedChart>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
 
@@ -1361,7 +1384,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Faturamento Locação por Segmento</h2>
                 <div className="flex gap-5 mb-4">
-                  {(['PF', 'PJ', 'Público'] as const).map(seg => (
+                  {(['PF','PJ','Público'] as const).map(seg => (
                     <div key={seg} className="flex items-center gap-1.5 text-xs text-slate-600">
                       <div className="w-3 h-3 rounded-sm" style={{ background: SEG_COLORS[seg === 'Público' ? 'Publico' : seg] }} />{seg}
                     </div>
@@ -1372,10 +1395,10 @@ export function FaturamentoDashboardInner(): JSX.Element {
                     <CartesianGrid stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="mes" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
                     <YAxis tickFormatter={(v) => fmtCompact(v)} tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={68} />
-                    <Tooltip formatter={(v: number, n: string) => [fmtBRL(v), n === 'Publico' ? 'Público' : n === 'PF' ? 'PF' : 'PJ']} contentStyle={{ borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                    <Bar dataKey="PF" fill={SEG_COLORS.PF} radius={[2, 2, 0, 0]} maxBarSize={48}><LabelList dataKey="PF" position="top" formatter={(v: number) => v > 0 ? fmtCompact(v) : ''} style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} /></Bar>
-                    <Bar dataKey="PJ" fill={SEG_COLORS.PJ} radius={[2, 2, 0, 0]} maxBarSize={48}><LabelList dataKey="PJ" position="top" formatter={(v: number) => v > 0 ? fmtCompact(v) : ''} style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} /></Bar>
-                    <Bar dataKey="Publico" name="Público" fill={SEG_COLORS.Publico} radius={[2, 2, 0, 0]} maxBarSize={48}><LabelList dataKey="Publico" position="top" formatter={(v: number) => v > 0 ? fmtCompact(v) : ''} style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} /></Bar>
+                    <Tooltip formatter={(v: number, n: string) => [fmtBRL(v), n === 'Publico' ? 'Público' : n]} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
+                    <Bar dataKey="PF" fill={SEG_COLORS.PF} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="PF" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="PJ" fill={SEG_COLORS.PJ} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="PJ" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="Publico" name="Público" fill={SEG_COLORS.Publico} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="Publico" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1384,7 +1407,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-1">Ticket Médio de Faturamento</h2>
                 <div className="flex gap-5 mb-4">
-                  {(['PF', 'PJ', 'Público'] as const).map(seg => (
+                  {(['PF','PJ','Público'] as const).map(seg => (
                     <div key={seg} className="flex items-center gap-1.5 text-xs text-slate-600">
                       <div className="w-3 h-3 rounded-sm" style={{ background: SEG_COLORS[seg === 'Público' ? 'Publico' : seg] }} />{seg}
                     </div>
@@ -1395,10 +1418,10 @@ export function FaturamentoDashboardInner(): JSX.Element {
                     <CartesianGrid stroke="#f1f5f9" vertical={false} />
                     <XAxis dataKey="mes" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
                     <YAxis tickFormatter={(v) => fmtCompact(v)} tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={68} />
-                    <Tooltip formatter={(v: number, n: string) => [fmtBRL(v), n === 'ticketPublico' ? 'Público' : n === 'ticketPF' ? 'PF' : 'PJ']} contentStyle={{ borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                    <Bar dataKey="ticketPF" name="PF" fill={SEG_COLORS.PF} radius={[2, 2, 0, 0]} maxBarSize={48}><LabelList dataKey="ticketPF" position="top" formatter={(v: number) => v > 0 ? fmtCompact(v) : ''} style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} /></Bar>
-                    <Bar dataKey="ticketPJ" name="PJ" fill={SEG_COLORS.PJ} radius={[2, 2, 0, 0]} maxBarSize={48}><LabelList dataKey="ticketPJ" position="top" formatter={(v: number) => v > 0 ? fmtCompact(v) : ''} style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} /></Bar>
-                    <Bar dataKey="ticketPublico" name="Público" fill={SEG_COLORS.Publico} radius={[2, 2, 0, 0]} maxBarSize={48}><LabelList dataKey="ticketPublico" position="top" formatter={(v: number) => v > 0 ? fmtCompact(v) : ''} style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} /></Bar>
+                    <Tooltip formatter={(v: number, n: string) => [fmtBRL(v), n === 'ticketPublico' ? 'Público' : n === 'ticketPF' ? 'PF' : 'PJ']} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
+                    <Bar dataKey="ticketPF" name="PF" fill={SEG_COLORS.PF} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="ticketPF" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="ticketPJ" name="PJ" fill={SEG_COLORS.PJ} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="ticketPJ" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
+                    <Bar dataKey="ticketPublico" name="Público" fill={SEG_COLORS.Publico} radius={[2,2,0,0]} maxBarSize={48}><LabelList dataKey="ticketPublico" position="top" formatter={(v:number)=>v>0?fmtCompact(v):''} style={{fontSize:9,fill:'#334155',fontWeight:600}}/></Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1420,16 +1443,16 @@ export function FaturamentoDashboardInner(): JSX.Element {
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => [fmtBRL(v), '']} contentStyle={{ borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                  <Tooltip formatter={(v: number) => [fmtBRL(v), '']} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
                 </PieChart>
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                   {faturamentoPorTipo.map((entry, i) => {
-                    const pct = faturamentoPorTipo.reduce((s, x) => s + x.value, 0);
+                    const pct = faturamentoPorTipo.reduce((s,x) => s+x.value,0);
                     return (
                       <div key={entry.name} className="flex items-center gap-2 min-w-0">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                         <span className="text-xs text-slate-600 truncate flex-1" title={entry.name}>{entry.name}</span>
-                        <span className="text-xs font-semibold text-slate-800 shrink-0">{pct > 0 ? ((entry.value / pct) * 100).toFixed(1) : 0}%</span>
+                        <span className="text-xs font-semibold text-slate-800 shrink-0">{pct > 0 ? ((entry.value/pct)*100).toFixed(1) : 0}%</span>
                       </div>
                     );
                   })}
@@ -1452,16 +1475,16 @@ export function FaturamentoDashboardInner(): JSX.Element {
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => [fmtBRL(v), '']} contentStyle={{ borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                  <Tooltip formatter={(v: number) => [fmtBRL(v), '']} contentStyle={{ borderRadius:'0.5rem', border:'1px solid #e2e8f0', fontSize:'12px' }} />
                 </PieChart>
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                   {faturamentoPorStatus.map((entry, i) => {
-                    const pct = faturamentoPorStatus.reduce((s, x) => s + x.value, 0);
+                    const pct = faturamentoPorStatus.reduce((s,x) => s+x.value,0);
                     return (
                       <div key={entry.name} className="flex items-center gap-2 min-w-0">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                         <span className="text-xs text-slate-600 truncate flex-1" title={entry.name}>{entry.name}</span>
-                        <span className="text-xs font-semibold text-slate-800 shrink-0">{pct > 0 ? ((entry.value / pct) * 100).toFixed(1) : 0}%</span>
+                        <span className="text-xs font-semibold text-slate-800 shrink-0">{pct > 0 ? ((entry.value/pct)*100).toFixed(1) : 0}%</span>
                       </div>
                     );
                   })}
@@ -1499,134 +1522,169 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
         {/* ── Tabela de faturas com drill-down ───────────────────────────── */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-800">Detalhamento de Faturas</h2>
-              <p className="text-xs text-slate-400">Total de {fmtDecimal(faturasFiltradas.length)} registros (sem paginação)</p>
+              <h2 className="text-base font-semibold text-slate-800">Faturas</h2>
+              <p className="text-xs text-slate-400">Clique em uma linha para ver os itens da fatura</p>
             </div>
-            <button
-              onClick={() => exportToExcel(faturasFiltradas)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-100"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              Exportar XLSX
-            </button>
+            <span className="text-xs text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+              {faturasFiltradas.length.toLocaleString('pt-BR')} registros
+            </span>
           </div>
-          <div className="overflow-x-auto max-h-[800px] overflow-y-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 transition-all z-10">
-                <tr>
-                  <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cliente / Fatura</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Período</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Valor Líquido</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Vencimento</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Competência</th>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left w-8"></th>
+                  <th className="px-4 py-3 text-left">Nº NF</th>
+                  <th className="px-4 py-3 text-left">Emissão</th>
+                  <th className="px-4 py-3 text-left">Cliente</th>
+                  <th className="px-4 py-3 text-left">Cont. Locação</th>
+                  <th className="px-4 py-3 text-left">Cont. Comercial</th>
+                  <th className="px-4 py-3 text-left">Tipo Contrato</th>
+                  <th className="px-4 py-3 text-left">Placa(s)</th>
+                  <th className="px-4 py-3 text-right">Valor Total</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-left">Vencimento</th>
+                  <th className="px-4 py-3 text-left">Pgto</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {faturasPagina.map((f, i) => {
-                  const cliente = getStr(f, ...FCLIENTE_KEYS);
-                  const nf = getStr(f, 'NumeroNotaFiscal', 'NotaFiscal', 'NF');
-                  const dIni = fmtDataBR(getStr(f, 'DataInicioFaturamento', 'Inicio'));
-                  const dFim = fmtDataBR(getStr(f, 'DataFimFaturamento', 'Fim'));
-                  const liq = getNum(f, ...FVALOR_KEYS);
-                  const venc = fmtDataBR(getStr(f, 'DataVencimento', 'Vencimento'));
-                  const status = getStr(f, ...FSTATUS_KEYS);
-                  const statusColor = isStatusPago(status)
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : isStatusAberto(status)
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-slate-100 text-slate-600';
-                  const comp = getStr(f, 'MesAnoReferencia', 'MesReferencia', 'Referencia') || '-';
+                {faturasPagina.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="px-4 py-12 text-center text-slate-400 text-sm">
+                      Nenhuma fatura encontrada com os filtros aplicados.
+                    </td>
+                  </tr>
+                ) : (
+                  faturasPagina.map((f, idx) => {
+                    const id = getStr(f, ...FID_KEYS) || String(idx);
+                    const isExpanded = expandedId === id;
+                    const status = getStr(f, ...FSTATUS_KEYS);
+                    const statusColor = isStatusPago(status)
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : isStatusAberto(status)
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-600';
+                    const contrato = faturaToContrato.get(id);
+                    const clienteNome = resolveCliente(f);
+                    const contratoLocNum = contrato
+                      ? getStr(contrato, ...DCONT_LOC_KEYS)
+                      : getStr(f, ...FCONTRATO_KEYS);
+                    const contratoComNum = contrato ? getStr(contrato, ...DCONT_COM_KEYS) : '';
+                    const tipoContrato   = contrato ? getStr(contrato, ...DTIPO_CONT_KEYS) : '';
+                    const situacaoCont   = contrato ? getStr(contrato, ...DSITUACAO_KEYS) : '';
+                    const placasSet      = faturaToPlacas.get(id);
+                    const placasStr      = placasSet && placasSet.size > 0
+                      ? Array.from(placasSet).join(', ')
+                      : (contrato ? getStr(contrato, ...DPLACA_KEYS) : '') || '—';
+                    const nfNum = getStr(f, ...FNOTA_KEYS) || id;
 
-                  const isExpanded = expandedId === f.id;
-                  const drillId = getStr(f, ...FID_KEYS) || String(i);
-                  const drillItens = isExpanded ? (itensByFaturaId.get(drillId) ?? []) : [];
-                  const drillContrato = isExpanded && drillId ? faturaToContrato.get(drillId) : undefined;
-                  const drillClienteNome = isExpanded ? resolveCliente(f) : '';
-                  const drillContratoLocNum = isExpanded ? (drillContrato ? getStr(drillContrato, ...DCONT_LOC_KEYS) : getStr(f, ...FCONTRATO_KEYS)) : '';
-                  const drillContratoComNum = isExpanded && drillContrato ? getStr(drillContrato, ...DCONT_COM_KEYS) : '';
-                  const drillTipoContrato = isExpanded && drillContrato ? getStr(drillContrato, ...DTIPO_CONT_KEYS) : '';
-                  const drillSituacaoCont = isExpanded && drillContrato ? getStr(drillContrato, ...DSITUACAO_KEYS) : '';
-                  const drillNfNum = isExpanded ? (getStr(f, ...FNOTA_KEYS) || drillId) : '';
+                    return (
+                      <React.Fragment key={`group-${id}`}>
+                        <tr
+                          key={`fat-${id}`}
+                          className={`hover:bg-slate-50 cursor-pointer transition-colors ${isExpanded ? 'bg-indigo-50' : ''}`}
+                          onClick={() => setExpandedId(isExpanded ? null : id)}
+                        >
+                          <td className="px-4 py-3 text-slate-400">
+                            {isExpanded
+                              ? <ChevronDown className="w-4 h-4 text-indigo-500" />
+                              : <ChevronRight className="w-4 h-4" />
+                            }
+                          </td>
+                          {/* Nº NF */}
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600">{nfNum || '—'}</td>
+                          {/* Emissão */}
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                            {fmtDate(getStr(f, ...FDATA_KEYS) || getStr(f, ...FCOMP_KEYS))}
+                          </td>
+                          {/* Cliente */}
+                          <td className="px-4 py-3 text-slate-800 font-medium max-w-[180px] truncate" title={clienteNome}>
+                            {clienteNome || '—'}
+                          </td>
+                          {/* Contrato Locação */}
+                          <td className="px-4 py-3 text-sky-700 text-xs font-mono max-w-[120px] truncate" title={contratoLocNum}>
+                            {contratoLocNum || '—'}
+                          </td>
+                          {/* Contrato Comercial */}
+                          <td className="px-4 py-3 text-emerald-700 text-xs font-mono max-w-[120px] truncate" title={contratoComNum}>
+                            {contratoComNum || '—'}
+                          </td>
+                          {/* Tipo de Contrato */}
+                          <td className="px-4 py-3">
+                            {tipoContrato
+                              ? <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">{tipoContrato}</span>
+                              : '—'
+                            }
+                          </td>
+                          {/* Placa(s) */}
+                          <td className="px-4 py-3 font-mono text-xs text-slate-500 max-w-[110px] truncate" title={placasStr}>
+                            {placasStr}
+                          </td>
+                          {/* Valor Total */}
+                          <td className="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
+                            {fmtBRL(getNum(f, ...FVALOR_KEYS))}
+                          </td>
+                          {/* Status */}
+                          <td className="px-4 py-3">
+                            {status ? (
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>{status}</span>
+                            ) : '—'}
+                          </td>
+                          {/* Vencimento */}
+                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(getStr(f, ...FVENC_KEYS))}</td>
+                          {/* Pagamento */}
+                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmtDate(getStr(f, ...FPAGTO_KEYS))}</td>
+                        </tr>
 
-                  return (
-                    <React.Fragment key={`${f.id || i}`}>
-                      <tr
-                        className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
-                        onClick={() => setExpandedId(expandedId === f.id ? null : f.id)}
-                      >
-                        <td className="px-6 py-4 min-w-[300px]">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-800 line-clamp-1">{cliente}</span>
-                            <span className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase">ID: {getStr(f, ...FID_KEYS) || '-'} · NF: {nf || '-'}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-xs text-slate-600 font-medium">{dIni} — {dFim}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <span className="text-sm font-bold text-slate-900">{fmtBRL(liq)}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`text-xs font-semibold ${venc.includes('2026') ? 'text-indigo-600' : 'text-slate-600'}`}>{venc}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusColor}`}>
-                            {status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-medium">
-                          {comp}
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="bg-slate-50/50">
-                          <td colSpan={6} className="px-6 py-4">
-                            <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                              {/* Cabeçalho resumo da fatura */}
+                        {/* ── Drill-down ─────────────────────────────────────────────── */}
+                        {isExpanded && (() => {
+                          const itens = itensByFaturaId.get(id) ?? [];
+                          return (
+                          <tr key={`items-${id}`} className="bg-indigo-50/60">
+                            <td colSpan={12} className="px-6 py-4">
                               <div className="rounded-xl border border-indigo-100 bg-white overflow-hidden">
+
+                                {/* Cabeçalho resumo da fatura */}
                                 <div className="px-4 py-3 border-b border-indigo-100 bg-indigo-50 flex flex-wrap items-center gap-x-6 gap-y-2">
                                   <div>
                                     <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-0.5">NF / Fatura</p>
-                                    <p className="text-sm font-bold text-indigo-700">#{drillNfNum}</p>
+                                    <p className="text-sm font-bold text-indigo-700">#{nfNum}</p>
                                   </div>
                                   <div>
                                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Cliente</p>
-                                    <p className="text-sm font-medium text-slate-700">{drillClienteNome || '—'}</p>
+                                    <p className="text-sm font-medium text-slate-700">{clienteNome || '—'}</p>
                                   </div>
-                                  {drillContratoLocNum && (
+                                  {contratoLocNum && (
                                     <div>
                                       <p className="text-[10px] font-semibold text-sky-400 uppercase tracking-wider mb-0.5">Cont. Locação</p>
-                                      <p className="text-sm font-mono text-sky-700">{drillContratoLocNum}</p>
+                                      <p className="text-sm font-mono text-sky-700">{contratoLocNum}</p>
                                     </div>
                                   )}
-                                  {drillContratoComNum && (
+                                  {contratoComNum && (
                                     <div>
                                       <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-0.5">Cont. Comercial</p>
-                                      <p className="text-sm font-mono text-emerald-700">{drillContratoComNum}</p>
+                                      <p className="text-sm font-mono text-emerald-700">{contratoComNum}</p>
                                     </div>
                                   )}
-                                  {drillTipoContrato && (
+                                  {tipoContrato && (
                                     <div>
                                       <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-0.5">Tipo</p>
-                                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">{drillTipoContrato}</span>
+                                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">{tipoContrato}</span>
                                     </div>
                                   )}
-                                  {drillSituacaoCont && (
+                                  {situacaoCont && (
                                     <div>
                                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Situação</p>
-                                      <p className="text-sm text-slate-600">{drillSituacaoCont}</p>
+                                      <p className="text-sm text-slate-600">{situacaoCont}</p>
                                     </div>
                                   )}
-                                  {drillContrato && getStr(drillContrato, ...DPLACA_KEYS) && (
+                                  {contrato && getStr(contrato, ...DPLACA_KEYS) && (
                                     <div>
                                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Placa Principal</p>
-                                      <p className="text-sm font-mono text-slate-700">{getStr(drillContrato, ...DPLACA_KEYS)}</p>
+                                      <p className="text-sm font-mono text-slate-700">{getStr(contrato, ...DPLACA_KEYS)}</p>
                                     </div>
                                   )}
                                   <div className="ml-auto text-right">
@@ -1643,9 +1701,9 @@ export function FaturamentoDashboardInner(): JSX.Element {
 
                                 {/* Itens da fatura */}
                                 <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                                  <span className="text-xs font-semibold text-slate-500">Itens ({drillItens.length})</span>
+                                  <span className="text-xs font-semibold text-slate-500">Itens ({itens.length})</span>
                                 </div>
-                                {drillItens.length === 0 ? (
+                                {itens.length === 0 ? (
                                   <p className="px-4 py-6 text-center text-sm text-slate-400">
                                     Nenhum item encontrado para esta fatura em fat_faturamento_itens.
                                   </p>
@@ -1664,7 +1722,7 @@ export function FaturamentoDashboardInner(): JSX.Element {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                      {drillItens.map((item: any, iIdx: number) => {
+                                      {itens.map((item, iIdx) => {
                                         const itemPlaca = getStr(item, ...IPLACA_KEYS);
                                         const itemContLoc = getStr(item, ...ICONT_LOC_KEYS);
                                         const itemContrato = itemContLoc
@@ -1687,8 +1745,8 @@ export function FaturamentoDashboardInner(): JSX.Element {
                                             <td className="px-4 py-2 font-mono text-sky-600" title={itemContLoc}>
                                               {itemContLoc
                                                 ? <span title={itemContrato ? `${getStr(itemContrato, ...DCLIENTE_KEYS)} · ${getStr(itemContrato, ...DTIPO_CONT_KEYS)}` : itemContLoc}>
-                                                  {itemContLoc.length > 20 ? itemContLoc.slice(0, 18) + '…' : itemContLoc}
-                                                </span>
+                                                    {itemContLoc.length > 20 ? itemContLoc.slice(0, 18) + '…' : itemContLoc}
+                                                  </span>
                                                 : '—'}
                                             </td>
                                             <td className="px-4 py-2 text-right text-slate-600">
@@ -1707,16 +1765,67 @@ export function FaturamentoDashboardInner(): JSX.Element {
                                   </table>
                                 )}
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                            </td>
+                          </tr>
+                          );
+                        })()}
+                      </React.Fragment>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
+
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Página {page} de {totalPages} · {faturasFiltradas.length.toLocaleString('pt-BR')} faturas
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Anterior
+                </button>
+                {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 7) {
+                    pageNum = i + 1;
+                  } else if (page <= 4) {
+                    pageNum = i + 1;
+                  } else if (page >= totalPages - 3) {
+                    pageNum = totalPages - 6 + i;
+                  } else {
+                    pageNum = page - 3 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                        page === pageNum
+                          ? 'bg-indigo-600 border-indigo-600 text-white'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Próxima →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

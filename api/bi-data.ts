@@ -521,6 +521,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[bi-data] Error querying table "${table}":`, err);
-    return res.status(500).json({ error: 'Database query failed', details: message });
+    // Return 200 with empty data so the UI degrades gracefully instead of showing error state
+    return res.status(200).json({
+      metadata: {
+        generated_at: new Date().toISOString(),
+        source: 'live' as const,
+        table,
+        record_count: 0,
+        cached: false,
+        error: message,
+      },
+      data: [],
+    });
   }
 }
