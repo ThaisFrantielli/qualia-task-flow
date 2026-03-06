@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MaintenanceFiltersProvider, useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
+import { MaintenanceFiltersProvider } from '@/contexts/MaintenanceFiltersContext';
 import { FiltersBar } from '@/components/analytics/maintenance/FiltersBar';
 import VisaoGeralTab from '@/components/analytics/maintenance/VisaoGeralTab';
 import FornecedoresTab from '@/components/analytics/maintenance/FornecedoresTab';

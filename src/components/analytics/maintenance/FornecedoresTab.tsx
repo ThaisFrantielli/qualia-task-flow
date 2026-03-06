@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Trophy, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { Trophy, TrendingUp, Clock } from 'lucide-react';
 import useBIData from '@/hooks/useBIData';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
 import { Skeleton } from '@/components/ui/skeleton';

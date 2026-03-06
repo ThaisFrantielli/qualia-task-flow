@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Wrench, CheckCircle, Clock, XCircle, TrendingUp, AlertTriangle, MapPin, BarChart3 } from 'lucide-react';
+import { Wrench, CheckCircle, Clock, XCircle, TrendingUp, BarChart3 } from 'lucide-react';
 import useBIData from '@/hooks/useBIData';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
 import { Skeleton } from '@/components/ui/skeleton';
