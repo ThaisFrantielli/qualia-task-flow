@@ -29,19 +29,19 @@ export function FiltersBar({ fornecedoresList, tiposList, clientesList, etapasLi
   ].reduce((a, b) => a + b, 0);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-3">
+    <div className="bg-card border border-border rounded-xl p-3 shadow-sm space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-          <span className="text-sm font-semibold text-slate-700">Filtros</span>
+          <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">Filtros</span>
           {activeCount > 0 && (
-            <Badge variant="secondary" className="text-xs bg-indigo-100 text-indigo-700">
+            <Badge variant="secondary" className="text-xs">
               {activeCount} ativo{activeCount > 1 ? 's' : ''}
             </Badge>
           )}
         </div>
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-xs text-slate-500 h-7">
+          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-xs text-muted-foreground h-7">
             <X className="w-3 h-3 mr-1" /> Limpar
           </Button>
         )}
@@ -57,7 +57,7 @@ export function FiltersBar({ fornecedoresList, tiposList, clientesList, etapasLi
 
         <div className="min-w-[140px]">
           <select
-            className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
             value={filters.status}
             onChange={(e) => updateFilters({ status: e.target.value })}
           >
@@ -66,41 +66,41 @@ export function FiltersBar({ fornecedoresList, tiposList, clientesList, etapasLi
         </div>
 
         <MultiSelect
-          options={fornecedoresList.map(f => ({ label: f, value: f }))}
+          options={fornecedoresList}
           selected={filters.fornecedores}
-          onChange={(v) => updateFilters({ fornecedores: v })}
+          onSelectedChange={(v: string[]) => updateFilters({ fornecedores: v })}
           placeholder="Fornecedor"
           className="min-w-[160px]"
         />
 
         <MultiSelect
-          options={tiposList.map(t => ({ label: t, value: t }))}
+          options={tiposList}
           selected={filters.tipos}
-          onChange={(v) => updateFilters({ tipos: v })}
+          onSelectedChange={(v: string[]) => updateFilters({ tipos: v })}
           placeholder="Tipo"
           className="min-w-[140px]"
         />
 
         <MultiSelect
-          options={clientesList.map(c => ({ label: c, value: c }))}
+          options={clientesList}
           selected={filters.clientes}
-          onChange={(v) => updateFilters({ clientes: v })}
+          onSelectedChange={(v: string[]) => updateFilters({ clientes: v })}
           placeholder="Cliente"
           className="min-w-[140px]"
         />
 
         <MultiSelect
-          options={etapasList.map(e => ({ label: e, value: e }))}
+          options={etapasList}
           selected={filters.etapas}
-          onChange={(v) => updateFilters({ etapas: v })}
+          onSelectedChange={(v: string[]) => updateFilters({ etapas: v })}
           placeholder="Etapa"
           className="min-w-[120px]"
         />
 
         <MultiSelect
-          options={placasList.map(p => ({ label: p, value: p }))}
+          options={placasList}
           selected={filters.placas}
-          onChange={(v) => updateFilters({ placas: v })}
+          onSelectedChange={(v: string[]) => updateFilters({ placas: v })}
           placeholder="Placa"
           className="min-w-[120px]"
         />
