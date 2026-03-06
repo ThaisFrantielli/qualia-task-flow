@@ -3921,8 +3921,8 @@ export type Database = {
           sla_resolucao: string | null
           solucao_aplicada: string | null
           status: string | null
-          tempo_primeira_resposta: unknown
-          tempo_total_resolucao: unknown
+          tempo_primeira_resposta: string | null
+          tempo_total_resolucao: string | null
           tipo: string | null
           tipo_reclamacao: string | null
           titulo: string
@@ -3967,8 +3967,8 @@ export type Database = {
           sla_resolucao?: string | null
           solucao_aplicada?: string | null
           status?: string | null
-          tempo_primeira_resposta?: unknown
-          tempo_total_resolucao?: unknown
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
           tipo?: string | null
           tipo_reclamacao?: string | null
           titulo: string
@@ -4013,8 +4013,8 @@ export type Database = {
           sla_resolucao?: string | null
           solucao_aplicada?: string | null
           status?: string | null
-          tempo_primeira_resposta?: unknown
-          tempo_total_resolucao?: unknown
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
           tipo?: string | null
           tipo_reclamacao?: string | null
           titulo?: string
@@ -4934,8 +4934,8 @@ export type Database = {
           status: string | null
           status_sla_primeira_resposta: string | null
           status_sla_resolucao: string | null
-          tempo_primeira_resposta: unknown
-          tempo_total_resolucao: unknown
+          tempo_primeira_resposta: string | null
+          tempo_total_resolucao: string | null
           titulo: string | null
           total_departamentos: number | null
         }
@@ -5002,7 +5002,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: string
       }
-      calcular_tempo_ticket: { Args: { ticket_id: string }; Returns: unknown }
+      calcular_tempo_ticket: { Args: { ticket_id: string }; Returns: string }
       can_view_team_members: {
         Args: { _team_id: string; _user_id?: string }
         Returns: boolean
