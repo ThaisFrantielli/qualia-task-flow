@@ -29,6 +29,7 @@ const ALLOWED_TABLES = new Set([
   'agg_dre_mensal', 'dim_compras',
   'fluxo_caixa_projetado',
   'fat_faturamentos', 'fat_faturamento_itens',
+  'fat_itens_ordem_servico',
 ]);
 
 // Allowed fields per table (whitelist to prevent injection via fields param)
