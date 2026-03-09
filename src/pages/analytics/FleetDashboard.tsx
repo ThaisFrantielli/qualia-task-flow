@@ -133,9 +133,7 @@ export default function FleetDashboard() {
     const movimentacoes = useMemo(() => (movimentacoesData as any)?.data || movimentacoesData || [], [movimentacoesData]);
     // Usar timeline recente para compatibilidade com componentes existentes
     const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
-    // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
+    // Timeline agregada disponível via timelineAggregated quando necessário
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
