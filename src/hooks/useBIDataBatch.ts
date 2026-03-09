@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { BIMetadata } from '@/types/analytics';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 export interface BatchTableResult {
   data: unknown[];
