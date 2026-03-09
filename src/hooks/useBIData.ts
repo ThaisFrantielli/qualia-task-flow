@@ -32,7 +32,7 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
   try {
     const bust = bustServer ? `&refresh=${Date.now()}` : '';
     const limitParam = limit ? `&limit=${limit}` : '';
-    const url = `/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
+    const url = `${getApiBaseUrl()}/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
     const resp = await fetch(url);
 
     if (!resp.ok) {
