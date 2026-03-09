@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { BIMetadata } from '@/types/analytics';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 type BIResult<T = unknown> = {
   data: T | null;
