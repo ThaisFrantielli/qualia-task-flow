@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 export interface TimelineAggregated {
   Placa: string;
