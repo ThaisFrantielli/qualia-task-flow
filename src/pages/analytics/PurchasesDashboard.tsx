@@ -109,11 +109,11 @@ function enrichRecord(r: AnyObject, alienacao?: AnyObject): AnyObject {
 }
 
 // ── Cores & Constantes ───────────────────────────────────────────
-const _PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
+// @ts-ignore unused but kept for future use
+const _PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6']; // eslint-disable-line
 const FUNDING_PALETTE = ['#0ea5e9', '#0284c7', '#0369a1', '#075985', '#082f49'];
-const _SITUACAO_COLOR: Record<string, string> = {
-  Vendido: '#6366f1', Locado: '#10b981', 'Em Estoque': '#f59e0b', Desativado: '#ef4444',
-};
+// @ts-ignore unused but kept for future use  
+const _SITUACAO_COLOR: Record<string, string> = { Vendido: '#6366f1', Locado: '#10b981', 'Em Estoque': '#f59e0b', Desativado: '#ef4444' }; // eslint-disable-line
 
 // ── SelectBox ────────────────────────────────────────────────────
 function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void; }) {
