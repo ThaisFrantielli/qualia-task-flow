@@ -565,7 +565,7 @@ export default function PurchasesDashboard() {
                         <YAxis dataKey="banco" type="category" width={100} tick={{ fontSize: 10 }} />
                         <Tooltip formatter={(v: any) => fmtBRL(Number(v))} />
                         <Bar dataKey="valor" fill="#0ea5e9" radius={[0, 4, 4, 0]}>
-                          {topBancos.map((e, i) => <Cell key={i} fill={FUNDING_PALETTE[i % FUNDING_PALETTE.length]} />)}
+                          {topBancos.map((_e, i) => <Cell key={i} fill={FUNDING_PALETTE[i % FUNDING_PALETTE.length]} />)}
                           <LabelList dataKey="valor" position="right" formatter={fmtCompact} style={{ fontSize: 10 }} />
                         </Bar>
                       </BarChart>

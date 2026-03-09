@@ -66,12 +66,12 @@ if (!isWebSocketEnabled) {
         // Quando o Pusher ficar "unavailable" (servidor não encontrado), desconecta
         // e zera window.Echo para evitar spam de reconexão no console.
         try {
-            const pusherConn = (echoInstance.connector as any)?.pusher?.connection;
+            const pusherConn = (echoInstance as any).connector?.pusher?.connection;
             if (pusherConn) {
                 pusherConn.bind('state_change', ({ current }: { current: string }) => {
                     if (current === 'unavailable' || current === 'failed') {
                         console.info('[Echo] WebSocket server unreachable — desabilitando Echo para esta sessão.');
-                        (echoInstance.connector as any)?.pusher?.disconnect();
+                        (echoInstance as any).connector?.pusher?.disconnect();
                         window.Echo = null;
                     }
                 });
