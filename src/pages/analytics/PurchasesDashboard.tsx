@@ -7,8 +7,8 @@ import {
 } from 'recharts';
 import {
   ShoppingCart, ArrowLeft, Filter, FileSpreadsheet,
-  Car, Building2, Calendar, TrendingUp, Percent,
-  PiggyBank, ShieldAlert, CheckCircle, Search, Landmark, DollarSign
+  Car, TrendingUp, Percent,
+  PiggyBank, ShieldAlert, Search, Landmark, DollarSign
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
