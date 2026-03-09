@@ -109,9 +109,9 @@ function enrichRecord(r: AnyObject, alienacao?: AnyObject): AnyObject {
 }
 
 // ── Cores & Constantes ───────────────────────────────────────────
-const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
+const _PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
 const FUNDING_PALETTE = ['#0ea5e9', '#0284c7', '#0369a1', '#075985', '#082f49'];
-const SITUACAO_COLOR: Record<string, string> = {
+const _SITUACAO_COLOR: Record<string, string> = {
   Vendido: '#6366f1', Locado: '#10b981', 'Em Estoque': '#f59e0b', Desativado: '#ef4444',
 };
 
