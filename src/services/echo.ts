@@ -36,9 +36,6 @@ if (!isWebSocketEnabled) {
             encrypted: false,
             enabledTransports: ['ws'],
             disableStats: true,
-            // Limita tentativas de reconexão para não spammar o console
-            activityTimeout: 30000,
-            pongTimeout: 15000,
             authorizer: (channel: any) => ({
                 authorize: async (socketId: string, callback: Function) => {
                     try {
@@ -62,19 +59,19 @@ if (!isWebSocketEnabled) {
                     }
                 },
             }),
-        });
+        } as any);
 
         window.Echo = echoInstance;
 
         // Quando o Pusher ficar "unavailable" (servidor não encontrado), desconecta
         // e zera window.Echo para evitar spam de reconexão no console.
         try {
-            const pusherConn = (echoInstance.connector as any)?.pusher?.connection;
+            const pusherConn = (echoInstance as any).connector?.pusher?.connection;
             if (pusherConn) {
                 pusherConn.bind('state_change', ({ current }: { current: string }) => {
                     if (current === 'unavailable' || current === 'failed') {
                         console.info('[Echo] WebSocket server unreachable — desabilitando Echo para esta sessão.');
-                        (echoInstance.connector as any)?.pusher?.disconnect();
+                        (echoInstance as any).connector?.pusher?.disconnect();
                         window.Echo = null;
                     }
                 });

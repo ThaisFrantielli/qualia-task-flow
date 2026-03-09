@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -7,8 +7,8 @@ import {
 } from 'recharts';
 import {
   ShoppingCart, ArrowLeft, Filter, FileSpreadsheet,
-  Car, Building2, Calendar, TrendingUp, Percent,
-  PiggyBank, ShieldAlert, CheckCircle, Search, Landmark, DollarSign
+  Car, TrendingUp, Percent,
+  PiggyBank, ShieldAlert, Search, Landmark, DollarSign
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
@@ -109,11 +109,11 @@ function enrichRecord(r: AnyObject, alienacao?: AnyObject): AnyObject {
 }
 
 // ── Cores & Constantes ───────────────────────────────────────────
-const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
+// @ts-ignore unused but kept for future use
+const _PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6']; // eslint-disable-line
 const FUNDING_PALETTE = ['#0ea5e9', '#0284c7', '#0369a1', '#075985', '#082f49'];
-const SITUACAO_COLOR: Record<string, string> = {
-  Vendido: '#6366f1', Locado: '#10b981', 'Em Estoque': '#f59e0b', Desativado: '#ef4444',
-};
+// @ts-ignore unused but kept for future use  
+const _SITUACAO_COLOR: Record<string, string> = { Vendido: '#6366f1', Locado: '#10b981', 'Em Estoque': '#f59e0b', Desativado: '#ef4444' }; // eslint-disable-line
 
 // ── SelectBox ────────────────────────────────────────────────────
 function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void; }) {
@@ -209,7 +209,6 @@ export default function PurchasesDashboard() {
 
   const marcas = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => (d.marca || '').split(' - ')[0].trim()).filter(Boolean))).sort()], [data]);
   const situacoes = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.situacao_atual).filter(Boolean))).sort()], [data]);
-  const tiposAq = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.tipoAquisicao).filter((v: string) => v && v !== 'Não informado'))).sort()], [data]);
   const fornecedores = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.fornecedor).filter(Boolean))).sort()], [data]);
   const bancos = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => (d.banco || '').trim()).filter(Boolean))).sort()], [data]);
   const fipeBuckets = ['Todos', '< 80%', '80–90%', '90–100%', '100–110%', '110–120%', '> 120%'];
@@ -565,7 +564,7 @@ export default function PurchasesDashboard() {
                         <YAxis dataKey="banco" type="category" width={100} tick={{ fontSize: 10 }} />
                         <Tooltip formatter={(v: any) => fmtBRL(Number(v))} />
                         <Bar dataKey="valor" fill="#0ea5e9" radius={[0, 4, 4, 0]}>
-                          {topBancos.map((e, i) => <Cell key={i} fill={FUNDING_PALETTE[i % FUNDING_PALETTE.length]} />)}
+                          {topBancos.map((_e, i) => <Cell key={i} fill={FUNDING_PALETTE[i % FUNDING_PALETTE.length]} />)}
                           <LabelList dataKey="valor" position="right" formatter={fmtCompact} style={{ fontSize: 10 }} />
                         </Bar>
                       </BarChart>

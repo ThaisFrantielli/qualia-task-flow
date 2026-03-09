@@ -117,7 +117,7 @@ export default defineConfig(async ({ mode }) => {
         changeOrigin: true,
         secure: !(env.VITE_API_TARGET),
         ws: false,
-        configure: (proxy) => {
+        configure: (proxy: any) => {
           proxy.on('error', (err: Error) => {
             console.error('[vite-proxy] /api error:', err.message);
           });

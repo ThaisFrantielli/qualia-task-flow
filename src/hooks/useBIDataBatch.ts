@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { BIMetadata } from '@/types/analytics';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 export interface BatchTableResult {
   data: unknown[];
@@ -94,7 +95,7 @@ export default function useBIDataBatch(
       // Deduplicação: reutiliza promise in-flight para a mesma chave
       let promise = !forceRefresh ? inFlight.get(key) : undefined;
       if (!promise) {
-        let url = `/api/bi-data-batch?tables=${encodeURIComponent(tables_)}${fieldsKey ? `&fields=${encodeURIComponent(fieldsKey)}` : ''}`;
+        let url = `${getApiBaseUrl()}/api/bi-data-batch?tables=${encodeURIComponent(tables_)}${fieldsKey ? `&fields=${encodeURIComponent(fieldsKey)}` : ''}`;
         if (paramsKey) url += `&${paramsKey}`;
         promise = fetch(url).then(async (resp) => {
           if (!resp.ok) {

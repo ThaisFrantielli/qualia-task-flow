@@ -85,7 +85,7 @@ export default function FleetDashboard() {
 
     // Timeline — lazy loaded only when timeline tab is active
     const needsTimeline = activeTab === 'timeline';
-    const { data: timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline });
+    const { data: _timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline }); // eslint-disable-line @typescript-eslint/no-unused-vars
     const { data: timelineRecent, loading: timelineLoading } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 
     // Extract individual datasets from batch results
@@ -133,9 +133,7 @@ export default function FleetDashboard() {
     const movimentacoes = useMemo(() => (movimentacoesData as any)?.data || movimentacoesData || [], [movimentacoesData]);
     // Usar timeline recente para compatibilidade com componentes existentes
     const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
-    // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
-    const timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
-    // Log para debug - usar timelineStats em cálculos futuros
+    // Timeline agregada disponível via timelineAggregated quando necessário
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {

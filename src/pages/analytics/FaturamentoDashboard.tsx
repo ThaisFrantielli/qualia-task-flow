@@ -7,7 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList,
   PieChart, Pie,
 } from 'recharts';
-import { DollarSign, FileText, TrendingUp, AlertCircle, ChevronDown, ChevronRight, X, Search, Filter, FileSpreadsheet } from 'lucide-react';
+import { DollarSign, FileText, TrendingUp, AlertCircle, ChevronDown, ChevronRight, X, Search, Filter } from 'lucide-react';
 
 type AnyObject = { [k: string]: any };
 

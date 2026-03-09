@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 export interface TimelineAggregated {
   Placa: string;
@@ -82,7 +83,7 @@ export function useTimelineData<T = TimelineAggregated>(
         ? 'hist_vida_veiculo_timeline'
         : 'historico_situacao_veiculos';
 
-      const url = `/api/bi-data?table=${encodeURIComponent(tableName)}`;
+      const url = `${getApiBaseUrl()}/api/bi-data?table=${encodeURIComponent(tableName)}`;
       const resp = await fetch(url);
 
       if (!resp.ok) {
