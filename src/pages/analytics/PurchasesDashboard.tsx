@@ -209,7 +209,7 @@ export default function PurchasesDashboard() {
 
   const marcas = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => (d.marca || '').split(' - ')[0].trim()).filter(Boolean))).sort()], [data]);
   const situacoes = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.situacao_atual).filter(Boolean))).sort()], [data]);
-  const tiposAq = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.tipoAquisicao).filter((v: string) => v && v !== 'Não informado'))).sort()], [data]);
+  const _tiposAq = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.tipoAquisicao).filter((v: string) => v && v !== 'Não informado'))).sort()], [data]);
   const fornecedores = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => d.fornecedor).filter(Boolean))).sort()], [data]);
   const bancos = useMemo(() => ['Todos', ...Array.from(new Set(data.map(d => (d.banco || '').trim()).filter(Boolean))).sort()], [data]);
   const fipeBuckets = ['Todos', '< 80%', '80–90%', '90–100%', '100–110%', '110–120%', '> 120%'];
