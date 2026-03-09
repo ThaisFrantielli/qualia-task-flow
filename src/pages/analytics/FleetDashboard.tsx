@@ -85,7 +85,7 @@ export default function FleetDashboard() {
 
     // Timeline — lazy loaded only when timeline tab is active
     const needsTimeline = activeTab === 'timeline';
-    const { data: timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline });
+    const { data: _timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline }); // eslint-disable-line @typescript-eslint/no-unused-vars
     const { data: timelineRecent, loading: timelineLoading } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 
     // Extract individual datasets from batch results
