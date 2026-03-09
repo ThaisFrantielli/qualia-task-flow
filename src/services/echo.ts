@@ -36,9 +36,6 @@ if (!isWebSocketEnabled) {
             encrypted: false,
             enabledTransports: ['ws'],
             disableStats: true,
-            // Limita tentativas de reconexão para não spammar o console
-            activityTimeout: 30000,
-            pongTimeout: 15000,
             authorizer: (channel: any) => ({
                 authorize: async (socketId: string, callback: Function) => {
                     try {
@@ -62,7 +59,7 @@ if (!isWebSocketEnabled) {
                     }
                 },
             }),
-        });
+        } as any);
 
         window.Echo = echoInstance;
 
