@@ -134,8 +134,8 @@ export default function FleetDashboard() {
     // Usar timeline recente para compatibilidade com componentes existentes
     const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
     // Timeline agregada por veículo para KPIs (disponível para componentes filhos)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _timelineStats = useMemo(() => Array.isArray(timelineAggregated) ? timelineAggregated : [], [timelineAggregated]);
-    // Log para debug - usar timelineStats em cálculos futuros
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
