@@ -224,7 +224,7 @@ export function filterProjectsByHierarchy<T extends Project>(
     }
 
     // Verificar se o projeto pertence a uma equipe do usuário (privacidade "team")
-    if (project.team_id && userTeamIds.has(project.team_id)) {
+    if ((project as any).team_id && userTeamIds.has((project as any).team_id)) {
       return true;
     }
 
