@@ -43,6 +43,9 @@ export const useProjects = () => {
       if (membersResult.error) {
         console.error('Erro ao buscar membros:', membersResult.error);
       }
+      if (teamMembersResult.error) {
+        console.error('Erro ao buscar membros de equipe:', teamMembersResult.error);
+      }
       if (projectsResult.error) throw new Error(projectsResult.error.message);
       
       const allProjects: ProjectWithStats[] = (projectsResult.data || []).map((p: any) => ({
