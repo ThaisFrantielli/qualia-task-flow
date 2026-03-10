@@ -29,11 +29,12 @@ export const useProjects = () => {
     setLoading(true);
     setError(null);
     try {
-      // Buscar dados da hierarquia e membros de projeto em paralelo
-      const [hierarchyResult, membersResult, projectsResult] = await Promise.all([
+      // Buscar dados da hierarquia, membros de projeto, e membros de equipe em paralelo
+      const [hierarchyResult, membersResult, projectsResult, teamMembersResult] = await Promise.all([
         supabase.from('user_hierarchy').select('user_id, supervisor_id'),
         supabase.from('project_members').select('project_id, user_id'),
-        supabase.rpc('get_projects_with_stats')
+        supabase.rpc('get_projects_with_stats'),
+        supabase.from('team_members').select('team_id, user_id')
       ]);
       
       if (hierarchyResult.error) {
