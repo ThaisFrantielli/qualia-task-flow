@@ -29,11 +29,12 @@ export const useProjects = () => {
     setLoading(true);
     setError(null);
     try {
-      // Buscar dados da hierarquia e membros de projeto em paralelo
-      const [hierarchyResult, membersResult, projectsResult] = await Promise.all([
+      // Buscar dados da hierarquia, membros de projeto, e membros de equipe em paralelo
+      const [hierarchyResult, membersResult, projectsResult, teamMembersResult] = await Promise.all([
         supabase.from('user_hierarchy').select('user_id, supervisor_id'),
         supabase.from('project_members').select('project_id, user_id'),
-        supabase.rpc('get_projects_with_stats')
+        supabase.rpc('get_projects_with_stats'),
+        supabase.from('team_members').select('team_id, user_id')
       ]);
       
       if (hierarchyResult.error) {
@@ -41,6 +42,9 @@ export const useProjects = () => {
       }
       if (membersResult.error) {
         console.error('Erro ao buscar membros:', membersResult.error);
+      }
+      if (teamMembersResult.error) {
+        console.error('Erro ao buscar membros de equipe:', teamMembersResult.error);
       }
       if (projectsResult.error) throw new Error(projectsResult.error.message);
       
@@ -51,19 +55,19 @@ export const useProjects = () => {
         late_count: p.late_count ?? 0,
       }));
 
-      // Aplicar filtro hierárquico client-side incluindo membros do projeto
+      // Aplicar filtro hierárquico client-side incluindo membros do projeto e equipe
       let filteredProjects = allProjects;
       const hierarchyData = hierarchyResult.data || [];
       const projectMembers = membersResult.data || [];
+      const teamMembers = teamMembersResult.data || [];
       
-      if (hierarchyData.length > 0 || projectMembers.length > 0) {
-        filteredProjects = filterProjectsByHierarchy(
-          allProjects, 
-          user as Profile, 
-          hierarchyData,
-          projectMembers
-        );
-      }
+      filteredProjects = filterProjectsByHierarchy(
+        allProjects, 
+        user as Profile, 
+        hierarchyData,
+        projectMembers,
+        teamMembers
+      );
 
       setProjects(filteredProjects);
 
