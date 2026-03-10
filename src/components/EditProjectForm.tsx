@@ -60,7 +60,11 @@ export const EditProjectForm: React.FC<EditProjectFormProps> = ({ project, onPro
       }).eq('id', project.id);
       if (error) throw error;
       // Atualiza membros (remove todos e insere novamente)
-      await supabase.from('project_members').delete().eq('project_id', project.id);
+      const { error: deleteError } = await supabase.from('project_members').delete().eq('project_id', project.id);
+      if (deleteError) {
+        console.error('Erro ao remover membros antigos:', deleteError);
+        // Continua mesmo com erro para não bloquear
+      }
       if (editMembers.length > 0) {
         const membersToInsert = editMembers.map(m => ({ ...m, project_id: project.id }));
         const { error: memberError } = await supabase.from('project_members').insert(membersToInsert);
