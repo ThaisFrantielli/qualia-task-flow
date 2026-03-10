@@ -52,19 +52,19 @@ export const useProjects = () => {
         late_count: p.late_count ?? 0,
       }));
 
-      // Aplicar filtro hierárquico client-side incluindo membros do projeto
+      // Aplicar filtro hierárquico client-side incluindo membros do projeto e equipe
       let filteredProjects = allProjects;
       const hierarchyData = hierarchyResult.data || [];
       const projectMembers = membersResult.data || [];
+      const teamMembers = teamMembersResult.data || [];
       
-      if (hierarchyData.length > 0 || projectMembers.length > 0) {
-        filteredProjects = filterProjectsByHierarchy(
-          allProjects, 
-          user as Profile, 
-          hierarchyData,
-          projectMembers
-        );
-      }
+      filteredProjects = filterProjectsByHierarchy(
+        allProjects, 
+        user as Profile, 
+        hierarchyData,
+        projectMembers,
+        teamMembers
+      );
 
       setProjects(filteredProjects);
 

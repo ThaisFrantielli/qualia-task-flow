@@ -184,13 +184,21 @@ export function filterProjectsByHierarchy<T extends Project>(
   projects: T[],
   currentUser: Profile,
   hierarchyData: { user_id: string; supervisor_id: string }[],
-  projectMembers?: { project_id: string; user_id: string }[]
+  projectMembers?: { project_id: string; user_id: string }[],
+  teamMembers?: { team_id: string; user_id: string }[]
 ): T[] {
   const isAdmin = ((currentUser as any).isAdmin === true) || (currentUser.nivelAcesso === ACCESS_LEVELS.ADMIN);
   // Admin vê tudo
   if (isAdmin) {
     return projects;
   }
+
+  // IDs das equipes do usuário atual
+  const userTeamIds = new Set(
+    (teamMembers || [])
+      .filter((tm) => tm.user_id === currentUser.id)
+      .map((tm) => tm.team_id)
+  );
 
   const visibleUserIds = getVisibleUserIds(currentUser, hierarchyData);
 
@@ -200,7 +208,12 @@ export function filterProjectsByHierarchy<T extends Project>(
       return true;
     }
 
-    // Verificar se o usuário é membro do projeto
+    // Projeto com privacidade "organization" é visível para todos
+    if (project.privacy === 'organization') {
+      return true;
+    }
+
+    // Verificar se o usuário é membro direto do projeto
     if (projectMembers) {
       const isMember = projectMembers.some(
         (m) => m.project_id === project.id && m.user_id === currentUser.id
@@ -208,6 +221,11 @@ export function filterProjectsByHierarchy<T extends Project>(
       if (isMember) {
         return true;
       }
+    }
+
+    // Verificar se o projeto pertence a uma equipe do usuário (privacidade "team")
+    if (project.team_id && userTeamIds.has(project.team_id)) {
+      return true;
     }
 
     // Verificar se o usuário criou o projeto
