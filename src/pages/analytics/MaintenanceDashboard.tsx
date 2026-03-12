@@ -5,6 +5,7 @@ import VisaoGeralTab from '@/components/analytics/maintenance/VisaoGeralTab';
 import FornecedoresTab from '@/components/analytics/maintenance/FornecedoresTab';
 import TimelineTab from '@/components/analytics/maintenance/TimelineTab';
 import DetalhesTab from '@/components/analytics/maintenance/DetalhesTab';
+import AnaliseContratoClienteTab from '@/components/analytics/maintenance/AnaliseContratoClienteTab';
 import useBIData from '@/hooks/useBIData';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import { ArrowLeft, Wrench } from 'lucide-react';
@@ -12,13 +13,14 @@ import { Link } from 'react-router-dom';
 
 type AnyObject = Record<string, any>;
 
-type TabKey = 'visao-geral' | 'fornecedores' | 'timeline' | 'detalhes';
+type TabKey = 'visao-geral' | 'fornecedores' | 'timeline' | 'detalhes' | 'contrato-cliente';
 
 const TABS: { key: TabKey; label: string; emoji: string }[] = [
   { key: 'visao-geral', label: 'Visão Geral', emoji: '📊' },
   { key: 'fornecedores', label: 'Fornecedores', emoji: '🏢' },
   { key: 'timeline', label: 'Evolução', emoji: '📈' },
   { key: 'detalhes', label: 'Detalhes OS', emoji: '🔍' },
+  { key: 'contrato-cliente', label: 'Por Contrato/Cliente', emoji: '🏗️' },
 ];
 
 function MaintenanceDashboardInner() {
@@ -31,6 +33,7 @@ function MaintenanceDashboardInner() {
       fornecedores: [...new Set(all.map((m: any) => m.Fornecedor).filter(Boolean) as string[])].sort(),
       tipos: [...new Set(all.map((m: any) => m.Tipo).filter(Boolean) as string[])].sort(),
       clientes: [...new Set(all.map((m: any) => m.NomeCliente).filter(Boolean) as string[])].sort(),
+      contratos: [...new Set(all.map((m: any) => m.ContratoLocacao).filter(Boolean) as string[])].sort(),
       etapas: [...new Set(all.map((m: any) => m.Etapa).filter(Boolean) as string[])].sort(),
       placas: [...new Set(all.map((m: any) => m.Placa).filter(Boolean) as string[])].sort(),
     };
@@ -42,6 +45,7 @@ function MaintenanceDashboardInner() {
       case 'fornecedores': return <FornecedoresTab />;
       case 'timeline': return <TimelineTab />;
       case 'detalhes': return <DetalhesTab />;
+      case 'contrato-cliente': return <AnaliseContratoClienteTab />;
       default: return <VisaoGeralTab />;
     }
   };
@@ -72,6 +76,7 @@ function MaintenanceDashboardInner() {
           fornecedoresList={filterLists.fornecedores}
           tiposList={filterLists.tipos}
           clientesList={filterLists.clientes}
+          contratosList={filterLists.contratos}
           etapasList={filterLists.etapas}
           placasList={filterLists.placas}
         />

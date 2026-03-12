@@ -58,22 +58,55 @@ const ALLOWED_TABLES = new Set([
 
 const FIELD_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
-function getUpdateMetadata(rows) {
-  if (!rows?.length) return null;
-  const first = rows[0];
-  const keys = Object.keys(first).map(k => k.toLowerCase());
-  const find = (candidates) => {
-    for (const c of candidates) {
-      if (keys.includes(c.toLowerCase())) {
-        return first[Object.keys(first).find(k => k.toLowerCase() === c.toLowerCase())];
-      }
+const DW_PREFERRED_COLS = ['DataAtualizacaoDados', 'dataatualizacaodados'];
+const DW_FALLBACK_COLS  = ['DataAtualizacao', 'dataatualizacao', 'UltimaAtualizacao', 'ultimaatualizacao', 'updated_at', 'UpdatedAt', 'DataCarga', 'datacarga'];
+const ETL_COLS         = ['DataExecucaoETL', 'DataExecucaoEtl', 'dataexecucaoetl', 'DataExecucao', 'dataexecucao', 'etl_executed_at', 'ETLExecutedAt', 'DataCargaDW', 'datacargadw'];
+
+function parseDateLike(v) {
+  if (v == null) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  const d = new Date(String(v).trim().replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function maxTimestamp(rows, cols) {
+  if (!rows?.length) return undefined;
+  const colSet = new Set(cols.map(c => c.toLowerCase()));
+  let max = null;
+  for (const row of rows) {
+    for (const [k, v] of Object.entries(row)) {
+      if (!colSet.has(k.toLowerCase())) continue;
+      const d = parseDateLike(v);
+      if (d && (max === null || d.getTime() > max)) max = d.getTime();
     }
-    return null;
+  }
+  return max != null ? new Date(max).toISOString() : undefined;
+}
+
+function fmtBrasilia(iso) {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return undefined;
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  }).format(d);
+}
+
+function buildMetadata(rows, tableName) {
+  const dwLastUpdate = maxTimestamp(rows, DW_PREFERRED_COLS) || maxTimestamp(rows, DW_FALLBACK_COLS);
+  const etlExecutedAt = maxTimestamp(rows, ETL_COLS);
+  return {
+    generated_at: new Date().toISOString(),
+    source: 'local-dev',
+    table: tableName,
+    record_count: rows.length,
+    dw_last_update: dwLastUpdate,
+    dw_last_update_local: fmtBrasilia(dwLastUpdate),
+    etl_executed_at: etlExecutedAt,
+    etl_executed_at_local: fmtBrasilia(etlExecutedAt),
   };
-  const dw = find(['DataAtualizacaoDados', 'dataatualizacaodados']);
-  const fallback = find(['DataAtualizacao', 'dataatualizacao', 'UltimaAtualizacao', 'updated_at', 'DataCarga']);
-  const etl = find(['DataExecucaoETL', 'dataexecucaoetl', 'DataCargaDW']);
-  return { dw_data_update: dw, fallback_update: fallback, etl_execution: etl };
 }
 
 async function handleBatch(req, res) {
@@ -123,11 +156,10 @@ async function handleBatch(req, res) {
         const resp = await pool.query(`SELECT * FROM "${safeTable}"`);
         rows = resp.rows;
       }
-      const meta = getUpdateMetadata(rows);
       results[table] = {
         data: rows,
         record_count: rows.length,
-        metadata: meta,
+        metadata: buildMetadata(rows, table),
       };
       console.log(`  [OK] ${table}: ${rows.length} rows`);
     } catch (err) {
@@ -137,7 +169,7 @@ async function handleBatch(req, res) {
         error: String(err.message),
         data: [],
         record_count: 0,
-        metadata: null,
+        metadata: buildMetadata([], table),
       };
       // tentar liberar a conexão e continuar com próximas tabelas
       try { await pool.query('SELECT 1'); } catch (_) { /* swallow */ }

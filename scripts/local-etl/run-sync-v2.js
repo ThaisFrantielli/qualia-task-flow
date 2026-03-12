@@ -102,6 +102,16 @@ async function runSync() {
         const result = await sqlPool.request().query(item.query);
         
         if (result.recordset.length > 0) {
+            // Garantir que a coluna DataAtualizacaoDados seja registrada como UTC puro (ISO string)
+            // para evitar confusão de fusos. Adiciona/atualiza a propriedade em cada linha
+            // antes de criar a tabela/colunas.
+            for (const row of result.recordset) {
+                try {
+                    row['DataAtualizacaoDados'] = new Date().toISOString();
+                } catch (e) {
+                    row['DataAtualizacaoDados'] = (new Date()).toISOString();
+                }
+            }
             await pgClient.query(`DROP TABLE IF EXISTS public.${item.table} CASCADE`);
             const columns = Object.keys(result.recordset[0]).map(key => `"${key}" TEXT`).join(', ');
             await pgClient.query(`CREATE TABLE public.${item.table} (${columns})`);

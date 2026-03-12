@@ -120,7 +120,8 @@ function formatPtBrDateTime(iso?: string): string | undefined {
   if (!iso) return undefined;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return undefined;
-  return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' };
+  return new Intl.DateTimeFormat('pt-BR', opts).format(d);
 }
 
 // Special query for dim_contratos_locacao with direct column access + JOIN

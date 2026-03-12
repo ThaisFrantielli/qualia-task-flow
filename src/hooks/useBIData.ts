@@ -67,6 +67,12 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
       source: 'live',
     };
 
+    // If API returned graceful-degradation (DB error), treat as failure so static fallback kicks in
+    if ((body.metadata as any)?.error && Array.isArray(body.data) && body.data.length === 0) {
+      console.warn(`[useBIData] API returned DB error for "${tableName}", will try static fallback:`, (body.metadata as any).error);
+      return { data: null, metadata, success: false };
+    }
+
     const data = body.data ?? body;
     return { data, metadata, success: true };
   } catch (err) {
@@ -132,7 +138,36 @@ export default function useBIData<T = unknown>(
       return;
     }
 
-    setError(`Erro ao consultar tabela '${tableName}' na API.`);
+    // ── Fallback: try static JSON from /public/data/ ──
+    try {
+      const staticUrl = `/data/${tableName}.json`;
+      const resp = await fetch(staticUrl);
+      if (fetchId !== fetchIdRef.current) return;
+      if (resp.ok) {
+        const contentType = resp.headers.get('content-type') || '';
+        if (contentType.includes('application/json') || contentType.includes('text/')) {
+          const body = await resp.json();
+          const staticData = body.data ?? body;
+          const staticMeta: BIMetadata = body.metadata ?? {
+            generated_at: new Date().toISOString(),
+            source: 'static' as const,
+          };
+          const now = Date.now();
+          dataCache.set(cacheKey, { data: staticData, metadata: staticMeta, timestamp: now });
+          setData(staticData as T);
+          setMetadata(staticMeta);
+          setSource('static');
+          setLastUpdated(new Date(now));
+          setLoading(false);
+          setError(null);
+          return;
+        }
+      }
+    } catch {
+      // static fallback also failed — fall through to error state
+    }
+
+    setError(`Sem dados disponíveis para '${tableName}'. Verifique a conexão com o servidor.`);
     setLoading(false);
   }, [tableName, staleTime, enabled]);
 

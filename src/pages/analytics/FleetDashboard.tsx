@@ -99,7 +99,7 @@ export default function FleetDashboard() {
     const movimentacoesData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_movimentacao_ocorrencias'), [secondaryData]);
     const manutencaoData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_manutencao_unificado'), [secondaryData]);
 
-    const frotaMetadata = null; // batch doesn't return per-table metadata
+    const frotaMetadata = useMemo(() => (primaryData['dim_frota'] as any)?.metadata || _primaryMeta || null, [primaryData, _primaryMeta]);
 
     const sinistrosData = useMemo(() => Array.isArray(sinistrosRaw) ? sinistrosRaw : [], [sinistrosRaw]);
     const multasData = useMemo(() => Array.isArray(multasRaw) ? multasRaw : [], [multasRaw]);
@@ -137,9 +137,7 @@ export default function FleetDashboard() {
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
-        // Se o arquivo já é específico de "carro reserva" (sem campo Tipo/IdTipo),
-        // assume todos os registros pertencem a carro reserva. Caso contrário,
-        // aplica o filtro por Tipo/TipoOcorrencia/IdTipo quando presente.
+        // Se o arquivo já é específico de "carro reserva" (sem campo Tipo/IdTipo), assume todos os registros pertencem a carro reserva. Caso contrário, aplica o filtro por Tipo/TipoOcorrencia/IdTipo quando presente.
         if (!Array.isArray(carroReserva) || carroReserva.length === 0) return [];
 
         const sample = carroReserva[0] || {};
@@ -158,7 +156,7 @@ export default function FleetDashboard() {
     const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
     const sinistros = useMemo(() => sinistrosData || [], [sinistrosData]);
     const multas = useMemo(() => multasData || [], [multasData]);
-
+    
     // Mapa de Contratos por Placa (para enriquecer dim_frota)
     const contratosMap = useMemo(() => {
         const map: Record<string, {

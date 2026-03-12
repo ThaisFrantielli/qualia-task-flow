@@ -10,6 +10,7 @@ export interface MaintenanceFilters {
   fornecedores: string[];
   tipos: string[];
   clientes: string[];
+  contratos: string[];
   etapas: string[];
   placas: string[];
 }
@@ -29,6 +30,7 @@ const initialFilters: MaintenanceFilters = {
   fornecedores: [],
   tipos: [],
   clientes: [],
+  contratos: [],
   etapas: [],
   placas: [],
 };
@@ -49,6 +51,7 @@ export const MaintenanceFiltersProvider: React.FC<{ children: React.ReactNode }>
       filters.fornecedores.length > 0 ||
       filters.tipos.length > 0 ||
       filters.clientes.length > 0 ||
+      filters.contratos.length > 0 ||
       filters.etapas.length > 0 ||
       filters.placas.length > 0
     );

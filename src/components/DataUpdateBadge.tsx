@@ -50,12 +50,13 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
   if (compact) {
     // Priorizar data real de atualização dos dados (DW/origem)
     const displayDateObj = dwDate || etlDate || generatedAtDate;
+    const fmtBrasilia = (d: Date) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(d);
     const displayDateStr = metadata?.dw_last_update_local
-      || (dwDate ? `${dwDate.toLocaleDateString('pt-BR')} ${dwDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
+      || (dwDate ? fmtBrasilia(dwDate) : '')
       || metadata?.etl_executed_at_local
-      || (etlDate ? `${etlDate.toLocaleDateString('pt-BR')} ${etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
+      || (etlDate ? fmtBrasilia(etlDate) : '')
       || metadata?.generated_at_local
-      || (displayDateObj ? `${displayDateObj.toLocaleDateString('pt-BR')} ${displayDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '');
+      || (displayDateObj ? fmtBrasilia(displayDateObj) : '');
     
     return (
       <button
@@ -78,7 +79,7 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
                       <div className="flex justify-between">
                         <span className="text-slate-500">Última atualização (DW):</span>
                         <span className="font-medium text-slate-900">
-                          {metadata?.dw_last_update_local || (dwDate ? `${dwDate.toLocaleDateString('pt-BR')} às ${dwDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '-')}
+                          {metadata?.dw_last_update_local || (dwDate ? fmtBrasilia(dwDate) : '-')}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -89,7 +90,7 @@ export default function DataUpdateBadge({ metadata, compact = false }: DataUpdat
                         <span className="text-slate-500">ETL executado em:</span>
                         <span className="font-medium text-slate-900">
                           {etlDate
-                            ? (metadata?.etl_executed_at_local || `${etlDate.toLocaleDateString('pt-BR')} às ${etlDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)
+                            ? (metadata?.etl_executed_at_local || fmtBrasilia(etlDate))
                             : 'Não informado pela fonte'}
                         </span>
                       </div>

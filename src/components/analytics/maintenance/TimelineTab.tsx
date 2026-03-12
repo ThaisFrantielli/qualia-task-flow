@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { CalendarDays, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar, Legend, LabelList } from 'recharts';
+import { CalendarDays, TrendingUp, ArrowUpRight, ArrowDownRight, BarChart2 } from 'lucide-react';
 import useBIData from '@/hooks/useBIData';
 import { useMaintenanceFilters } from '@/contexts/MaintenanceFiltersContext';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +12,18 @@ function parseDateSafe(v: unknown): Date | null {
   const d = new Date(String(v));
   return isNaN(d.getTime()) ? null : d;
 }
+
+const MONTH_LABELS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+function fmtMonth(iso: string) {
+  const [y, m] = iso.split('-');
+  return `${MONTH_LABELS[parseInt(m) - 1]}/${y.slice(2)}`;
+}
+function fmtBRL(v: number) {
+  if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `R$${Math.round(v / 1_000)}k`;
+  return `R$${Math.round(v)}`;
+}
+function parseV(v: unknown) { return parseFloat(String(v || '0').replace(',', '.')) || 0; }
 
 export default function TimelineTab() {
   const { data: rawData, loading } = useBIData<OS[]>('fat_manutencao_unificado');
@@ -113,94 +125,192 @@ export default function TimelineTab() {
 
   const TIPO_COLORS = ['#6366f1', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'];
 
+  // ── Evolução mensal valores (ValorTotal / Despesa / Reembolsável) ──
+  const monthlyValoresData = useMemo(() => {
+    const map = new Map<string, { valorTotal: number; valorDespesa: number; valorReemb: number }>();
+    data.forEach(r => {
+      const d = parseDateSafe(r.DataCriacao);
+      if (!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!map.has(key)) map.set(key, { valorTotal: 0, valorDespesa: 0, valorReemb: 0 });
+      const e = map.get(key)!;
+      e.valorTotal   += parseV(r.ValorTotal);
+      e.valorDespesa += parseV(r.ValorNaoReembolsavel);
+      e.valorReemb   += parseV(r.ValorReembolsavel);
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-14)
+      .map(([key, v]) => ({
+        month: fmtMonth(key),
+        valorTotal:   Math.round(v.valorTotal),
+        valorDespesa: Math.round(v.valorDespesa),
+        valorReemb:   Math.round(v.valorReemb),
+        taxa: v.valorTotal > 0 ? parseFloat((v.valorReemb / v.valorTotal * 100).toFixed(2)) : 0,
+      }));
+  }, [data]);
+
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-[350px] rounded-xl" />
-        <Skeleton className="h-[300px] rounded-xl" />
+        <Skeleton className="h-[340px] rounded-xl" />
+        <Skeleton className="h-[520px] rounded-xl" />
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      {/* Main Timeline */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-indigo-500" /> Evolução Temporal
-          </h3>
-          <div className="flex items-center gap-2">
-            {trend && (
-              <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trend.diff >= 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                {trend.diff >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                {Math.abs(trend.pct)}% vs anterior
-              </div>
-            )}
-            <div className="flex bg-muted rounded-lg p-0.5">
-              <button
-                onClick={() => setGranularity('month')}
-                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${granularity === 'month' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-              >
-                Mensal
-              </button>
-              <button
-                onClick={() => setGranularity('week')}
-                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${granularity === 'week' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-              >
-                Semanal
-              </button>
-            </div>
-          </div>
-        </div>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={timelineData}>
-            <defs>
-              <linearGradient id="gradAbertas" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gradConcluidas" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
+      {/* ── Gráfico de barras: Evolução Mensal do Valor Total ── */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <BarChart2 className="w-4 h-4 text-indigo-500" /> Evolução Mensal do Valor Total
+        </h3>
+        <ResponsiveContainer width="100%" height={310}>
+          <ComposedChart data={monthlyValoresData} margin={{ top: 28, right: 50, bottom: 0, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Area type="monotone" dataKey="abertas" name="Abertas" stroke="#6366f1" fill="url(#gradAbertas)" strokeWidth={2} />
-            <Area type="monotone" dataKey="concluidas" name="Concluídas" stroke="#10b981" fill="url(#gradConcluidas)" strokeWidth={2} />
-            <Line type="monotone" dataKey="canceladas" name="Canceladas" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
-          </AreaChart>
+            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+            <YAxis
+              yAxisId="left"
+              tick={{ fontSize: 10 }}
+              tickFormatter={v => fmtBRL(v)}
+              width={58}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fontSize: 10 }}
+              tickFormatter={v => `${v}%`}
+              domain={[0, 100]}
+              width={38}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) =>
+                name === 'Taxa Reembolsável %'
+                  ? [`${value.toFixed(2)}%`, name]
+                  : [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value), name]
+              }
+            />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+            <Bar yAxisId="left" dataKey="valorTotal" name="Valor Total Itens" fill="#3730a3" radius={[3, 3, 0, 0]}>
+              <LabelList
+                position="top"
+                formatter={(v: number) => fmtBRL(v)}
+                style={{ fontSize: 8, fill: '#6b7280' }}
+              />
+            </Bar>
+            <Bar yAxisId="left" dataKey="valorDespesa" name="Valor Total Despesa" fill="#7c3aed" radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="left" dataKey="valorReemb" name="Valor Reembolsável Indicado" fill="#a78bfa" radius={[3, 3, 0, 0]} />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="taxa"
+              name="Taxa Reembolsável %"
+              stroke="#f9a8d4"
+              strokeWidth={2}
+              dot={{ r: 3, fill: '#f9a8d4' }}
+            >
+              <LabelList
+                position="top"
+                formatter={(v: number) => `${v.toFixed(2)}%`}
+                style={{ fontSize: 8, fill: '#9ca3af' }}
+              />
+            </Line>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Type Evolution */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-violet-500" /> Evolução por Tipo (Top 5)
-        </h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={typeTimeline.data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            {typeTimeline.types.map((tipo, i) => (
-              <Line key={tipo} type="monotone" dataKey={tipo} stroke={TIPO_COLORS[i]} strokeWidth={2} dot={{ r: 2 }} />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-        <div className="flex flex-wrap gap-3 mt-2 justify-center">
-          {typeTimeline.types.map((tipo, i) => (
-            <div key={tipo} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <div className="w-3 h-1 rounded-full" style={{ backgroundColor: TIPO_COLORS[i] }} />
-              {tipo}
+      {/* ── Card unificado: Evolução Temporal + Evolução por Tipo ── */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+
+        {/* Evolução Temporal (área) */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-indigo-500" /> Evolução Temporal
+            </h3>
+            <div className="flex items-center gap-2">
+              {trend && (
+                <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                  trend.diff >= 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                }`}>
+                  {trend.diff >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                  {Math.abs(trend.pct)}% vs anterior
+                </div>
+              )}
+              <div className="flex bg-muted rounded-lg p-0.5">
+                <button
+                  onClick={() => setGranularity('month')}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                    granularity === 'month' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  Mensal
+                </button>
+                <button
+                  onClick={() => setGranularity('week')}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                    granularity === 'week' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  Semanal
+                </button>
+              </div>
             </div>
-          ))}
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={timelineData}>
+              <defs>
+                <linearGradient id="gradAbertas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradConcluidas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Area type="monotone" dataKey="abertas" name="Abertas" stroke="#6366f1" fill="url(#gradAbertas)" strokeWidth={2} />
+              <Area type="monotone" dataKey="concluidas" name="Concluídas" stroke="#10b981" fill="url(#gradConcluidas)" strokeWidth={2} />
+              <Line type="monotone" dataKey="canceladas" name="Canceladas" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
+
+        {/* Divider */}
+        <div className="border-t border-border" />
+
+        {/* Evolução por Tipo (linhas) */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-violet-500" /> Evolução por Tipo (Top 5)
+          </h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={typeTimeline.data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              {typeTimeline.types.map((tipo, i) => (
+                <Line key={tipo} type="monotone" dataKey={tipo} stroke={TIPO_COLORS[i]} strokeWidth={2} dot={{ r: 2 }} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-3 mt-2 justify-center">
+            {typeTimeline.types.map((tipo, i) => (
+              <div key={tipo} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="w-3 h-1 rounded-full" style={{ backgroundColor: TIPO_COLORS[i] }} />
+                {tipo}
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
