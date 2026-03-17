@@ -1,17 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
-// PostgreSQL connection to Oracle Cloud server
+// PostgreSQL connection to Supabase DW
 const pool = new Pool({
-  host: process.env.ORACLE_PG_HOST || '137.131.163.167',
+  host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
-  password: process.env.ORACLE_PG_PASSWORD || 'F4tu5xy3',
-  database: process.env.ORACLE_PG_DATABASE || 'bluconecta_dw',
+  password: process.env.ORACLE_PG_PASSWORD || '',
+  database: process.env.ORACLE_PG_DATABASE || 'postgres',
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 7000,
-  ssl: false,
+  ssl: { rejectUnauthorized: false },
 });
 
 // Whitelist of allowed tables

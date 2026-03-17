@@ -28,18 +28,18 @@ dotenv.config({ path: path.join(root, '.env') });
 const { Pool } = pg;
 
 const pool = new Pool({
-  host: process.env.ORACLE_PG_HOST || '137.131.163.167',
+  host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
-  password: process.env.ORACLE_PG_PASSWORD || 'F4tu5xy3',
-  database: process.env.ORACLE_PG_DATABASE || 'bluconecta_dw',
+  password: process.env.ORACLE_PG_PASSWORD || '',
+  database: process.env.ORACLE_PG_DATABASE || 'postgres',
   max: 20,                      // mais conexões para suportar React StrictMode (double-invoke)
   min: 2,                       // mantém conexões abertas e prontas
   idleTimeoutMillis: 60000,
   connectionTimeoutMillis: 10000,
   query_timeout: 60000,         // 60s timeout por query
   allowExitOnIdle: true,
-  ssl: false,
+  ssl: { rejectUnauthorized: false },
 });
 
 const ALLOWED_TABLES = new Set([

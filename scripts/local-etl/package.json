@@ -1,6 +1,7 @@
 {
   "name": "local-etl",
   "version": "1.0.0",
+  "type": "module",
   "description": "Script local para extrair dados do SQL Server e enviar JSON para Supabase Storage",
   "main": "run-sync.js",
   "scripts": {
@@ -9,6 +10,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.31.0",
     "dotenv": "^16.6.1",
-    "mssql": "^9.3.2"
+    "mssql": "^9.3.2",
+    "pg": "^8.20.0",
+    "pg-copy-streams": "^7.0.0"
   }
 }

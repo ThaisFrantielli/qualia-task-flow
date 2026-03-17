@@ -2,15 +2,15 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  host: process.env.ORACLE_PG_HOST || '137.131.163.167',
+  host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
   password: process.env.ORACLE_PG_PASSWORD || '',
-  database: process.env.ORACLE_PG_DATABASE || 'bluconecta_dw',
+  database: process.env.ORACLE_PG_DATABASE || 'postgres',
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-  ssl: false,
+  ssl: { rejectUnauthorized: false },
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
