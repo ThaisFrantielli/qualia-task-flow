@@ -95,11 +95,12 @@ export default function FleetDashboard() {
 
     // Timeline — lazy loaded only when timeline tab is active
     const needsTimeline = activeTab === 'timeline';
+    const timelineItensLimit = (typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) ? 100000 : 50000;
 
     // Tabela de itens de OS é usada para complementar valores na timeline (QUAL-*)
     const { results: timelineAuxData, loading: loadingTimelineAux, error: errorTimelineAux } = useBIDataBatch([
         'fat_itens_ordem_servico'
-    ], undefined, { enabled: needsTimeline, params: { limit: 100000 } });
+    ], undefined, { enabled: needsTimeline, params: { limit: timelineItensLimit } });
     const { data: _timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline }); // eslint-disable-line @typescript-eslint/no-unused-vars
     const { data: timelineRecent, loading: timelineLoading } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 

@@ -4,7 +4,7 @@ import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Ba
 import {
   Clock, Car, Wrench, TrendingUp, ChevronRight, Play, History, Search,
   FileSpreadsheet, MapPin, AlertTriangle, DollarSign, ShoppingCart, FileWarning,
-  RotateCcw, Archive, Store, User, UserCheck, ShieldAlert
+  RotateCcw, Archive, Store, User, UserCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { normalizeEventName, aggregateFleetMetrics } from '@/lib/analytics/fleetTimeline';
@@ -55,6 +55,30 @@ function fmtMoney(v: any) {
 function fmtPercent(v: number) {
   if (!isFinite(v)) return '0,0%';
   return `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)}%`;
+}
+
+function getSinistroValorTotal(raw: AnyObject): number {
+  const v = Number(
+    raw?.ValorOrcamento ??
+    raw?.ValorOrcado ??
+    raw?.ValorSinistro ??
+    raw?.ValorTotal ??
+    raw?.CustoTotalOS ??
+    raw?.CustoTotal ??
+    raw?.Valor ??
+    0
+  );
+  return Number.isFinite(v) ? v : 0;
+}
+
+function getSinistroValorReembolsavel(raw: AnyObject): number {
+  const v = Number(
+    raw?.ValorReembolsavel ??
+    raw?.ValorReembolso ??
+    raw?.ValorReembolsado ??
+    0
+  );
+  return Number.isFinite(v) ? v : 0;
 }
 
 function normalizePlacaKey(raw: unknown): string {
@@ -511,7 +535,7 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
     const dataRetirada = items.map(i => parseDateAny(i?.DataRetiradaVeiculo ?? i?.DataRetirada)).find(d => d != null) ?? null;
     const numeroBO = sample?.NumeroBO ?? sample?.BoletimOcorrencia ?? null;
     const tipoSinistro = sample?.TipoSinistro ?? null;
-    const valorOrcamento = sample?.ValorOrcamento ?? sample?.ValorOrcamentoEstimado ?? sample?.Valor ?? null;
+    const valorOrcamento = items.reduce((sum, it) => sum + getSinistroValorTotal(it), 0);
     const situacao = sample?.Situacao ?? sample?.SituacaoOcorrencia ?? null;
 
     // Tentar inferir `Ocorrencia` (QUAL-xxx) a partir de um evento de manutenção próximo
@@ -547,7 +571,7 @@ function groupSinistrosFromEvents(events: AnyObject[]): SinistroOccurrence[] {
       }),
       numeroBO,
       tipoSinistro,
-      valorOrcamento: Number(valorOrcamento) || null,
+      valorOrcamento: valorOrcamento > 0 ? valorOrcamento : null,
       situacao,
       cliente: sample?.Cliente ?? sample?.NomeCliente ?? null,
       fornecedor: sample?.Fornecedor ?? null,
@@ -573,7 +597,7 @@ function groupSinistrosFromFat(records: AnyObject[] | undefined): SinistroOccurr
     if (!date) continue;
     const numeroBO = r?.NumeroBO ?? r?.BoletimOcorrencia ?? null;
     const tipoSinistro = r?.TipoSinistro ?? r?.Tipo ?? null;
-    const valorOrcamento = Number(r?.ValorOrcamento ?? r?.ValorEstimado ?? r?.Valor ?? 0) || null;
+    const valorOrcamento = getSinistroValorTotal(r) || null;
     const situacao = r?.Situacao ?? r?.Status ?? null;
     const cliente = r?.Cliente ?? r?.NomeCliente ?? null;
     const fornecedor = r?.Fornecedor ?? null;
@@ -668,7 +692,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   'LOCACAO': <Play size={14} className="text-emerald-500" />,
   'DEVOLUCAO': <RotateCcw size={14} className="text-blue-500" />,
   'MANUTENCAO': <Wrench size={14} className="text-amber-500" />,
-  'SINISTRO': <ShieldAlert size={14} className="text-rose-600" />,
+  'SINISTRO': <AlertTriangle size={14} className="text-amber-600" />,
   'MOVIMENTACAO': <MapPin size={14} className="text-slate-500" />,
   'MULTA': <FileWarning size={14} className="text-yellow-600" />,
   'MULTAS': <FileWarning size={14} className="text-yellow-600" />,
@@ -2052,7 +2076,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                           {rows.map((row) => {
                             if (row.kind === 'SINISTRO_OCORRENCIA') {
                               const sin = row as SinistroOccurrence;
-                              const icon = EVENT_ICONS['SINISTRO'] || <AlertTriangle size={14} className="text-rose-500" />;
+                              const icon = EVENT_ICONS['SINISTRO'] || <AlertTriangle size={14} className="text-amber-600" />;
                               // Preferir `ocorrencia` (ex: QUAL-440121). Se for numérico, prefixar com QUAL-
                               let title = '';
                               if (sin.ocorrencia) {
@@ -2076,6 +2100,14 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                               const situacao = sin.situacao;
                               const fornecedor = sin.fornecedor ?? sin.items?.[0]?.Fornecedor ?? null;
                               const cliente = sin.cliente ?? sin.items?.[0]?.Cliente ?? null;
+                              const isCancelada = String(situacao ?? '').toLowerCase().includes('cancel');
+                              const containerClasses = isCancelada
+                                ? 'bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all'
+                                : 'bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all';
+                              const iconBorderClasses = isCancelada ? 'border-rose-300' : 'border-amber-300';
+                              const iconColorClasses = isCancelada ? 'text-rose-600' : 'text-amber-600';
+                              const titleColorClasses = isCancelada ? 'text-rose-800' : 'text-amber-800';
+                              const expandColorClasses = isCancelada ? 'text-rose-600' : 'text-amber-600';
 
                               // Se inferimos uma ocorrência QUAL-xxx, tentar reaproveitar a renderização
                               // de `MANUTENCAO_OCORRENCIA` para mostrar as OSs detalhadas.
@@ -2113,7 +2145,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                   ocorrenciaId: String(sin.ocorrencia),
                                   ocorrencia: String(sin.ocorrencia),
                                   ocorrenciaDate: sin.sinistroDate,
-                                  osRecords: sin.items?.map((it: any) => it) || [],
+                                  osRecords: sin.items?.map((it: any) => ({
+                                    ...it,
+                                    CustoTotalOS: Number(it?.CustoTotalOS ?? getSinistroValorTotal(it) ?? 0),
+                                    ValorReembolsavel: Number(it?.ValorReembolsavel ?? getSinistroValorReembolsavel(it) ?? 0),
+                                  })) || [],
                                   situacao: sin.situacao ?? undefined,
                                   tipoOcorrencia: sin.tipoSinistro ?? undefined,
                                   custoTotal: sin.valorOrcamento ?? undefined,
@@ -2130,7 +2166,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                               if (matchedManut) {
                                 const row = matchedManut;
-                                // iconMan not needed - sinistro uses ShieldAlert directly
+                                // iconMan not needed here
                                 const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
                                 const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0, 10)}`);
                                 const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
@@ -2140,20 +2176,36 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 const isRowExpanded = expandedRows.has(row.key);
                                 const fornecedor = firstRec?.FornecedorOcorrencia ?? firstRec?.FornecedorOS ?? firstRec?.Fornecedor ?? '';
                                 const cliente = firstRec?.Cliente ?? firstRec?.NomeCliente ?? '';
+                                const rowCustoTotal = Number(
+                                  row.custoTotal ?? row.osRecords.reduce((sum, it) => sum + getSinistroValorTotal(it), 0)
+                                );
+                                const rowReembTotal = Number(
+                                  row.valorReembolsavelTotal ?? row.osRecords.reduce((sum, it) => sum + getSinistroValorReembolsavel(it), 0)
+                                );
+                                const rowLiquidoTotal = rowCustoTotal - rowReembTotal;
+                                const rowPercentReemb = rowCustoTotal > 0 ? (rowReembTotal / rowCustoTotal) * 100 : 0;
+                                const rowIsCancelada = String(row.situacao ?? situacao ?? '').toLowerCase().includes('cancel');
+                                const rowContainerClasses = rowIsCancelada
+                                  ? 'bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all'
+                                  : 'bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all';
+                                const rowIconBorderClasses = rowIsCancelada ? 'border-rose-300' : 'border-amber-300';
+                                const rowIconColorClasses = rowIsCancelada ? 'text-rose-600' : 'text-amber-600';
+                                const rowTitleColorClasses = rowIsCancelada ? 'text-rose-800' : 'text-amber-800';
+                                const rowExpandColorClasses = rowIsCancelada ? 'text-rose-600' : 'text-amber-600';
 
                                 return (
                                   <div key={sin.key} className="relative pl-6">
-                                    <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-rose-300 flex items-center justify-center">
-                                      <ShieldAlert size={14} className="text-rose-600" />
+                                    <div className={`absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 ${rowIconBorderClasses} flex items-center justify-center`}>
+                                      <AlertTriangle size={14} className={rowIconColorClasses} />
                                     </div>
                                     <div
-                                      className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all"
+                                      className={rowContainerClasses}
                                       onClick={() => toggleRow(row.key)}
                                     >
                                       <div className="flex items-center justify-between gap-3">
                                         <div className="min-w-0 flex-1">
                                           <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-bold text-sm text-amber-800">{titleMan}</span>
+                                            <span className={`font-bold text-sm ${rowTitleColorClasses}`}>{titleMan}</span>
                                             <Badge color="amber" className="shrink-0">{row.osRecords.length} OS</Badge>
                                             {row.tipoOcorrencia && (
                                               <Badge color="slate" className="shrink-0 text-[10px]">{row.tipoOcorrencia}</Badge>
@@ -2166,8 +2218,17 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                 {row.situacao}
                                               </Badge>
                                             )}
-                                            {row.custoTotal != null && row.custoTotal > 0 && (
-                                              <span className="text-amber-700 font-bold text-xs ml-auto">{fmtMoney(row.custoTotal)}</span>
+                                            {rowCustoTotal > 0 && (
+                                              <span className="text-amber-700 font-bold text-xs ml-auto">Total: {fmtMoney(rowCustoTotal)}</span>
+                                            )}
+                                            {rowReembTotal > 0 && (
+                                              <span className="text-green-700 font-bold text-xs">Reemb: {fmtMoney(rowReembTotal)}</span>
+                                            )}
+                                            {rowCustoTotal > 0 && (
+                                              <span className="text-slate-700 font-bold text-xs">Líquido: {fmtMoney(rowLiquidoTotal)}</span>
+                                            )}
+                                            {rowCustoTotal > 0 && (
+                                              <span className="text-emerald-700 font-bold text-xs">% Reemb: {fmtPercent(rowPercentReemb)}</span>
                                             )}
                                           </div>
                                           <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
@@ -2226,7 +2287,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                               })()
                                             )}
                                           </div>
-                                          <div className="text-xs text-rose-600 font-medium">{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                          <div className={`text-xs font-medium ${rowExpandColorClasses}`}>{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                         </div>
                                       </div>
 
@@ -2239,7 +2300,12 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                   <div className="font-medium text-slate-700">{it?.IdOrdemServico ?? it?.OrdemServico ?? it?.OS ?? `OS ${idx + 1}`}</div>
                                                   <div className="text-[11px] text-slate-500">{it?.Fornecedor ?? it?.FornecedorOcorrencia ?? ''}</div>
                                                 </div>
-                                                <div className="text-amber-700 font-bold">{fmtMoney(it?.CustoTotalOS ?? it?.CustoTotal ?? it?.Valor ?? 0)}</div>
+                                                  {(() => {
+                                                    const totalItem = Number(it?.CustoTotalOS ?? getSinistroValorTotal(it) ?? it?.CustoTotal ?? it?.Valor ?? 0);
+                                                    return totalItem > 0
+                                                      ? <div className="text-amber-700 font-bold">{fmtMoney(totalItem)}</div>
+                                                      : <div className="text-slate-400 font-medium">Sem valor informado</div>;
+                                                  })()}
                                               </div>
                                             </div>
                                           ))}
@@ -2252,18 +2318,18 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
 
                               return (
                                 <div key={sin.key} className="relative pl-6">
-                                  <div className="absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 border-rose-300 flex items-center justify-center">
+                                  <div className={`absolute left-0 -translate-x-1/2 w-6 h-6 rounded-full bg-white border-2 ${iconBorderClasses} flex items-center justify-center`}>
                                     {icon}
                                   </div>
                                   <div
-                                    className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all"
+                                    className={containerClasses}
                                     onClick={() => toggleRow(sin.key)}
                                   >
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="font-bold text-sm text-rose-800">{title}</span>
-                                          <Badge color="rose" className="shrink-0">{sin.items?.length ?? 1} item(s)</Badge>
+                                          <span className={`font-bold text-sm ${titleColorClasses}`}>{title}</span>
+                                          <Badge color={isCancelada ? 'rose' : 'amber'} className="shrink-0">{sin.items?.length ?? 1} item(s)</Badge>
                                           {tipoSin && (
                                             <Badge color="slate" className="shrink-0 text-[10px]">{tipoSin}</Badge>
                                           )}
@@ -2276,7 +2342,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                             </Badge>
                                           )}
                                           {valor != null && Number(valor) > 0 && (
-                                            <span className="text-rose-700 font-bold text-xs ml-auto">{fmtMoney(valor)}</span>
+                                            <span className="text-amber-700 font-bold text-xs ml-auto">Total: {fmtMoney(valor)}</span>
                                           )}
                                         </div>
                                         <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
@@ -2325,7 +2391,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                             })()
                                           )}
                                         </div>
-                                        <div className="text-xs text-rose-600 font-medium">{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
+                                        <div className={`text-xs font-medium ${expandColorClasses}`}>{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                       </div>
                                     </div>
 
@@ -2338,7 +2404,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                 <div className="font-medium text-slate-700">{it?.Observacao || it?.Descricao || it?.Motivo || `Item ${idx + 1}`}</div>
                                                 <div className="text-[11px] text-slate-500">{fmtDateTimeBR(parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro))}</div>
                                               </div>
-                                              {it?.ValorOrcamento != null && <div className="text-amber-700 font-bold">{fmtMoney(it.ValorOrcamento)}</div>}
+                                              {getSinistroValorTotal(it) > 0 && <div className="text-amber-700 font-bold">{fmtMoney(getSinistroValorTotal(it))}</div>}
                                             </div>
                                             {it?.Fornecedor && (
                                               <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit mt-2">

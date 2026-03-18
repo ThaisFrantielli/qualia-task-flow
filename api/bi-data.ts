@@ -16,9 +16,9 @@ const primaryPool = new Pool({
 
 // PostgreSQL connection to Supabase DW (Heavy)
 const heavyPool = new Pool({
-  host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
-  port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || '5432'),
-  user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || process.env.ORACLE_PG_USER || 'postgres',
+  host: process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.HEAVY_PG_PORT || '5432'),
+  user: process.env.HEAVY_PG_USER || process.env.ORACLE_PG_USER || 'postgres',
   password: process.env.HEAVY_PG_PASSWORD || process.env.ORACLE_PG_PASSWORD || '',
   database: process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE || 'postgres',
   max: 5,
