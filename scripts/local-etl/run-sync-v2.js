@@ -32,9 +32,9 @@ const pgPrimaryConfig = {
 };
 
 const pgHeavyConfig = {
-    host: process.env.HEAVY_PG_HOST,
-    port: parseInt(process.env.HEAVY_PG_PORT || '5432'),
-    user: process.env.HEAVY_PG_USER || 'postgres',
+    host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST,
+    port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || '5432'),
+    user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || 'postgres',
     password: process.env.HEAVY_PG_PASSWORD,
     database: process.env.HEAVY_PG_DATABASE || 'postgres',
     ssl: { rejectUnauthorized: false },
@@ -269,8 +269,8 @@ async function runSync() {
     const needsHeavySync = tablesToRun.some(t => HEAVY_TABLES.has(t.table));
     if (needsHeavySync) {
         const missing = [
-            !process.env.HEAVY_PG_HOST && 'HEAVY_PG_HOST',
-            !process.env.HEAVY_PG_USER && 'HEAVY_PG_USER',
+            !(process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST) && 'HEAVY_PG_POOLER_HOST/HEAVY_PG_HOST',
+            !(process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER) && 'HEAVY_PG_POOLER_USER/HEAVY_PG_USER',
             !process.env.HEAVY_PG_PASSWORD && 'HEAVY_PG_PASSWORD',
             !process.env.HEAVY_PG_DATABASE && 'HEAVY_PG_DATABASE'
         ].filter(Boolean);
