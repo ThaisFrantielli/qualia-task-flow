@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
-  port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
-  user: process.env.ORACLE_PG_USER || 'postgres',
-  password: process.env.ORACLE_PG_PASSWORD || '',
-  database: process.env.ORACLE_PG_DATABASE || 'postgres',
+  host: process.env.ORACLE_PG_POOLER_HOST || process.env.PG_POOLER_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.ORACLE_PG_POOLER_PORT || process.env.PG_POOLER_PORT || process.env.ORACLE_PG_PORT || '5432'),
+  user: process.env.ORACLE_PG_POOLER_USER || process.env.PG_POOLER_USER || process.env.ORACLE_PG_USER || 'postgres',
+  password: process.env.ORACLE_PG_PASSWORD || process.env.PG_PASSWORD || '',
+  database: process.env.ORACLE_PG_DATABASE || process.env.PG_DATABASE || 'postgres',
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
