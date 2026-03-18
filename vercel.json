@@ -17,7 +17,7 @@
     },
     {
       "source": "/((?!api|assets|favicon\\.ico|robots\\.txt|@vite|@react-refresh|node_modules|.*\\..*).*)",
-      "destination": "/index.html"
+      "destination": "/"
     }
   ]
 }
