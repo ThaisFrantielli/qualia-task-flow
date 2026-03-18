@@ -36,6 +36,9 @@ function normalizeOccurrence(v: any): string {
     const s = String(v ?? '').trim().toUpperCase();
     if (!s) return '';
     const noPrefix = s.replace(/^QUAL-?/, '').trim();
+    // Normaliza nùmeros decimais serializados como string (ex.: "355501.00" -> "355501")
+    const decimalLike = noPrefix.match(/^(\d+)\.0+$/);
+    if (decimalLike) return decimalLike[1];
     const digits = noPrefix.replace(/[^0-9]/g, '');
     return digits || noPrefix;
 }
@@ -141,7 +144,8 @@ export default function FleetDashboard() {
 
         const getIdKey = (r: AnyObject) => String(r?.IdOrdemServico ?? r?.idordemservico ?? '').trim();
         const getOsKey = (r: AnyObject) => String(r?.OrdemServico ?? r?.ordemservico ?? r?.OS ?? r?.os ?? '').trim();
-        const getOccKey = (r: AnyObject) => normalizeOccurrence(r?.IdOcorrencia ?? r?.idocorrencia ?? r?.Ocorrencia ?? r?.ocorrencia);
+        const getOccIdKey = (r: AnyObject) => normalizeOccurrence(r?.IdOcorrencia ?? r?.idocorrencia);
+        const getOccCodeKey = (r: AnyObject) => normalizeOccurrence(r?.Ocorrencia ?? r?.ocorrencia);
         const getPlateKey = (r: AnyObject) => normalizePlate(r?.Placa ?? r?.placa);
         const getValorTotal = (r: AnyObject) => parseCurrency(
             r?.ValorTotal ?? r?.valortotal ?? r?.Valor ?? r?.valor ?? r?.ValorItem ?? r?.valoritem ?? 0
@@ -164,13 +168,16 @@ export default function FleetDashboard() {
             const reemb = getValorReembolsavel(r);
             const idKey = getIdKey(r);
             const osKey = getOsKey(r);
-            const occKey = getOccKey(r);
+            const occIdKey = getOccIdKey(r);
+            const occCodeKey = getOccCodeKey(r);
             const plateKey = getPlateKey(r);
             add(idKey, total, reemb);
             add(osKey, total, reemb);
-            add(`occ:${occKey}`, total, reemb);
+            add(`occ:${occIdKey}`, total, reemb);
+            add(`occ:${occCodeKey}`, total, reemb);
             add(`placa:${plateKey}`, total, reemb);
-            if (occKey && plateKey) add(`occplaca:${occKey}:${plateKey}`, total, reemb);
+            if (occIdKey && plateKey) add(`occplaca:${occIdKey}:${plateKey}`, total, reemb);
+            if (occCodeKey && plateKey) add(`occplaca:${occCodeKey}:${plateKey}`, total, reemb);
         }
 
         return map;
@@ -182,18 +189,21 @@ export default function FleetDashboard() {
             ...(function () {
                 const osId = String(m?.IdOrdemServico ?? m?.idordemservico ?? '').trim();
                 const osNum = String(m?.OrdemServico ?? m?.ordemservico ?? m?.OS ?? m?.os ?? '').trim();
-                const occ = normalizeOccurrence(m?.IdOcorrencia ?? m?.idocorrencia ?? m?.Ocorrencia ?? m?.ocorrencia);
+                const occId = normalizeOccurrence(m?.IdOcorrencia ?? m?.idocorrencia);
+                const occCode = normalizeOccurrence(m?.Ocorrencia ?? m?.ocorrencia);
                 const placa = normalizePlate(m?.Placa ?? m?.placa);
                 const fromItens =
                     itensOsMap.get(osId) ||
                     itensOsMap.get(osNum) ||
-                    itensOsMap.get(`occplaca:${occ}:${placa}`) ||
-                    itensOsMap.get(`occ:${occ}`) ||
+                    itensOsMap.get(`occplaca:${occId}:${placa}`) ||
+                    itensOsMap.get(`occplaca:${occCode}:${placa}`) ||
+                    itensOsMap.get(`occ:${occId}`) ||
+                    itensOsMap.get(`occ:${occCode}`) ||
                     itensOsMap.get(`placa:${placa}`) ||
                     null;
                 return {
-                    ValorTotalFatItens: fromItens?.valorTotal ?? 0,
-                    ValorReembolsavelFatItens: fromItens?.valorReembolsavel ?? 0,
+                    ValorTotalFatItens: fromItens ? fromItens.valorTotal : null,
+                    ValorReembolsavelFatItens: fromItens ? fromItens.valorReembolsavel : null,
                 };
             })(),
             ...m,

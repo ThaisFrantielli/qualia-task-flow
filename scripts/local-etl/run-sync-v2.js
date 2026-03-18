@@ -19,7 +19,7 @@ const sqlConfig = {
 
 // Pooler Session mode (IPv4, porta 5432) — necessário para COPY protocol
 // Host direto (db.*) é IPv6-only; pooler tem IPv4.
-const pgConfig = {
+const pgPrimaryConfig = {
     host: process.env.PG_POOLER_HOST || 'aws-0-us-east-2.pooler.supabase.com',
     port: parseInt(process.env.PG_POOLER_PORT || '5432'),
     user: process.env.PG_POOLER_USER || 'postgres.qcptedntbdsvqplrrqpi',
@@ -30,6 +30,31 @@ const pgConfig = {
     connectionTimeoutMillis: 30000,
     idleTimeoutMillis: 30000
 };
+
+const pgHeavyConfig = {
+    host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST,
+    port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || '5432'),
+    user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || 'postgres',
+    password: process.env.HEAVY_PG_PASSWORD,
+    database: process.env.HEAVY_PG_DATABASE || 'postgres',
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+    connectionTimeoutMillis: 30000,
+    idleTimeoutMillis: 30000
+};
+
+const PRIMARY_TABLES = new Set([
+    'dim_frota',
+    'dim_contratos_locacao',
+    'dim_contratos_metadata'
+]);
+
+const HEAVY_TABLES = new Set([
+    'fat_faturamentos',
+    'fat_faturamento_itens',
+    'fat_itens_ordem_servico',
+    'fat_movimentacao_ocorrencias'
+]);
 
 const TABLES = [
     { table: 'dim_frota', query: `SELECT * FROM Veiculos WITH (NOLOCK)` },
@@ -91,8 +116,60 @@ function toCopyField(v) {
         .replace(/\t/g, '\\t');
 }
 
+function parsePgNumber(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    const s = String(v).trim();
+    if (!s) return null;
+    const normalized = s
+        .replace(/\s+/g, '')
+        .replace(/R\$|r\$/g, '')
+        .replace(/\.(?=\d{3}(\D|$))/g, '')
+        .replace(',', '.');
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+}
+
+function parsePgDate(v) {
+    if (v === null || v === undefined) return null;
+    if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+    const s = String(v).trim();
+    if (!s) return null;
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function inferHeavyColumnType(colName, rows) {
+    const values = rows
+        .map(r => r[colName])
+        .filter(v => v !== null && v !== undefined && String(v).trim() !== '');
+
+    if (values.length === 0) return 'TEXT';
+
+    const looksDate = /(data|date|hora|timestamp|competencia|vencimento|emissao|criacao|atualizacao)/i.test(colName);
+    if (looksDate) {
+        const allDates = values.every(v => parsePgDate(v) !== null);
+        if (allDates) return 'TIMESTAMP';
+    }
+
+    const looksMoney = /(valor|total|preco|preço|custo|reembols|desconto|tarifa|imposto|juros|multa|km|odometro|quantidade|qtd)/i.test(colName);
+    if (looksMoney) {
+        const allNumbers = values.every(v => parsePgNumber(v) !== null);
+        if (allNumbers) return 'NUMERIC(18,2)';
+    }
+
+    return 'TEXT';
+}
+
+function buildColumnDefinitions(colKeys, rows, isHeavyTable) {
+    return colKeys.map((k) => {
+        const type = isHeavyTable ? inferHeavyColumnType(k, rows) : 'TEXT';
+        return { key: k, type };
+    });
+}
+
 // Converte rows para Readable stream no formato COPY TEXT (tab-delimited)
-function rowsToStream(rows, colKeys, now) {
+function rowsToStream(rows, columns, now) {
     let i = 0;
     return new Readable({
         read() {
@@ -100,9 +177,22 @@ function rowsToStream(rows, colKeys, now) {
             let chunk = '';
             while (i < end) {
                 const row = rows[i++];
-                const fields = colKeys.map(k =>
-                    k === 'DataAtualizacaoDados' ? now : toCopyField(row[k])
-                );
+                const fields = columns.map(({ key, type }) => {
+                    const raw = key === 'DataAtualizacaoDados' ? now : row[key];
+                    if (raw === null || raw === undefined || String(raw).trim() === '') return '\\N';
+
+                    if (type === 'NUMERIC(18,2)') {
+                        const n = parsePgNumber(raw);
+                        return n == null ? '\\N' : String(n);
+                    }
+
+                    if (type === 'TIMESTAMP') {
+                        const d = parsePgDate(raw);
+                        return d == null ? '\\N' : d.toISOString();
+                    }
+
+                    return toCopyField(raw);
+                });
                 chunk += fields.join('\t') + '\n';
             }
             if (chunk) this.push(chunk);
@@ -111,7 +201,8 @@ function rowsToStream(rows, colKeys, now) {
     });
 }
 
-async function syncTable(item, sqlPool, pgPool) {
+async function syncTable(item, sqlPool, pgPool, options = {}) {
+    const isHeavyDestination = Boolean(options.isHeavyDestination);
     const t0 = Date.now();
     process.stdout.write(`\n⏳ [${item.table}] Baixando do SQL Server...`);
 
@@ -131,20 +222,21 @@ async function syncTable(item, sqlPool, pgPool) {
         ? baseKeys
         : [...baseKeys, 'DataAtualizacaoDados'];
     const colNames = colKeys.map(c => `"${c}"`).join(', ');
+    const columnDefs = buildColumnDefinitions(colKeys, rows, isHeavyDestination);
     const now = new Date().toISOString();
 
-    process.stdout.write(` ${rows.length.toLocaleString()} linhas. Enviando via COPY...`);
+    process.stdout.write(` ${rows.length.toLocaleString()} linhas. Enviando via COPY para ${isHeavyDestination ? 'HEAVY' : 'PRIMARY'}...`);
 
     const client = await pgPool.connect();
     try {
-        const colDefs = colKeys.map(k => `"${k}" TEXT`).join(', ');
+        const colDefs = columnDefs.map(c => `"${c.key}" ${c.type}`).join(', ');
         await client.query(`DROP TABLE IF EXISTS public.${item.table} CASCADE`);
         await client.query(`CREATE TABLE public.${item.table} (${colDefs})`);
         await client.query(`GRANT ALL ON public.${item.table} TO anon, authenticated, service_role`);
 
         // COPY é o método mais rápido do Postgres: envia dados como stream diretamente nos blocos
         const copyStream = client.query(copyStreamFrom(`COPY public.${item.table} (${colNames}) FROM STDIN`));
-        const dataStream = rowsToStream(rows, colKeys, now);
+        const dataStream = rowsToStream(rows, columnDefs, now);
 
         await new Promise((resolve, reject) => {
             dataStream.on('error', reject);
@@ -169,28 +261,52 @@ async function runSync() {
     if (targetTable) console.log(`🎯 MODO RESTRITO: "${targetTable}"`);
 
     const sqlPool = await sql.connect(sqlConfig);
-    const pgPool = new Pool(pgConfig);
+    const pgPoolPrimary = new Pool(pgPrimaryConfig);
+    const pgPoolHeavy = new Pool(pgHeavyConfig);
 
     const tablesToRun = targetTable ? TABLES.filter(t => t.table === targetTable) : TABLES;
+
+    const needsHeavySync = tablesToRun.some(t => HEAVY_TABLES.has(t.table));
+    if (needsHeavySync) {
+        const missing = [
+            !process.env.HEAVY_PG_HOST && 'HEAVY_PG_HOST',
+            !process.env.HEAVY_PG_USER && 'HEAVY_PG_USER',
+            !process.env.HEAVY_PG_PASSWORD && 'HEAVY_PG_PASSWORD',
+            !process.env.HEAVY_PG_DATABASE && 'HEAVY_PG_DATABASE'
+        ].filter(Boolean);
+
+        if (missing.length > 0) {
+            console.error(`❌ Variáveis do banco HEAVY ausentes: ${missing.join(', ')}`);
+            await sqlPool.close();
+            process.exit(1);
+        }
+    }
 
     if (tablesToRun.length === 0 && targetTable) {
         console.error(`❌ Tabela "${targetTable}" não encontrada!`);
         await sqlPool.close();
-        await pgPool.end();
+        await pgPoolPrimary.end();
+        await pgPoolHeavy.end();
         process.exit(1);
     }
 
     const globalT0 = Date.now();
     try {
         for (const item of tablesToRun) {
-            await syncTable(item, sqlPool, pgPool);
+            const isHeavy = HEAVY_TABLES.has(item.table);
+            const destinationPool = isHeavy ? pgPoolHeavy : pgPoolPrimary;
+            if (!isHeavy && !PRIMARY_TABLES.has(item.table)) {
+                console.log(`ℹ️  [${item.table}] não está mapeada explicitamente; destino padrão: PRIMARY.`);
+            }
+            await syncTable(item, sqlPool, destinationPool, { isHeavyDestination: isHeavy });
         }
     } catch (err) {
         console.error('\n❌ ERRO:', err.message);
         process.exitCode = 1;
     } finally {
         await sqlPool.close();
-        await pgPool.end();
+        await pgPoolPrimary.end();
+        await pgPoolHeavy.end();
         const total = ((Date.now() - globalT0) / 1000).toFixed(1);
         console.log(`\n🏁 PROCESSO FINALIZADO em ${total}s!`);
     }

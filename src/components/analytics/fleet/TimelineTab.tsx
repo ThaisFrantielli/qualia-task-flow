@@ -2622,7 +2622,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                     </div>
                                                   )}
                                                 </div>
-                                              ) : null}
+                                              ) : (
+                                                <div className="text-[10px] bg-slate-50/80 p-2 rounded border border-slate-200 text-slate-600">
+                                                  Sem itens da OS vinculados na tabela fat_itens_ordem_servico para esta ocorrência.
+                                                </div>
+                                              )}
 
                                               {/* Linha 5: Fornecedor da OS */}
                                               {fornecedorOS && (

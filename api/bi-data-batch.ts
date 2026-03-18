@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Pool, type PoolClient } from 'pg';
+import { Pool } from 'pg';
 
-const pool = new Pool({
+const primaryPool = new Pool({
   host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
@@ -12,6 +12,31 @@ const pool = new Pool({
   connectionTimeoutMillis: 7000,
   ssl: { rejectUnauthorized: false },
 });
+
+const heavyPool = new Pool({
+  host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || '5432'),
+  user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || process.env.ORACLE_PG_USER || 'postgres',
+  password: process.env.HEAVY_PG_PASSWORD || process.env.ORACLE_PG_PASSWORD || '',
+  database: process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE || 'postgres',
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 7000,
+  ssl: { rejectUnauthorized: false },
+});
+
+const HEAVY_TABLES = new Set([
+  'fat_faturamentos',
+  'fat_faturamento_itens',
+  'fat_itens_ordem_servico',
+  'fat_movimentacao_ocorrencias',
+]);
+
+function isHeavyTable(table: string): boolean {
+  if (HEAVY_TABLES.has(table)) return true;
+  const t = table.toLowerCase();
+  return t.includes('faturamento') || t.includes('itens_os');
+}
 
 const ALLOWED_TABLES = new Set([
   'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios',
@@ -221,44 +246,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(cached.data);
   }
 
-  let client: PoolClient | undefined;
-  try {
-    client = await pool.connect();
-  } catch (connErr: unknown) {
-    const connMsg = connErr instanceof Error ? connErr.message : String(connErr);
-    console.error('[bi-data-batch] Connection failed:', connMsg);
-    // Return 200 with empty per-table payloads so the UI degrades gracefully
-    const emptyResults = Object.fromEntries(
-      requests.map(r => [
-        r.table,
-        {
-          record_count: 0,
-          metadata: {
-            generated_at: new Date().toISOString(),
-            source: 'live' as const,
-            table: r.table,
-            record_count: 0,
-            error: `DB connection failed: ${connMsg}`,
-          },
-          data: [] as Record<string, unknown>[],
-        },
-      ])
-    );
-    return res.status(200).json({
-      metadata: {
-        generated_at: new Date().toISOString(),
-        source: 'live' as const,
-        tables: requests.map(r => r.table),
-        cached: false,
-        error: `DB connection failed: ${connMsg}`,
-      },
-      results: emptyResults,
-    });
-  }
-
   try {
     const results = await Promise.all(
       requests.map(async (r) => {
+        const pool = isHeavyTable(r.table) ? heavyPool : primaryPool;
         const tableCacheKey = `batch_${r.table}_${r.fields?.join(',') || '*'}`;
         const tableCached = cache.get(tableCacheKey);
         if (tableCached && (Date.now() - tableCached.timestamp) < CACHE_TTL) {
@@ -269,11 +260,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
         if (r.table === 'dim_contratos_locacao') {
           try {
-            result = await client.query(buildContratosQuery(), [r.limit]);
+            result = await primaryPool.query(buildContratosQuery(), [r.limit]);
           } catch (metaErr: unknown) {
             // Fallback: metadata table may not exist yet — run without it
             console.warn('[bi-data-batch] dim_contratos_locacao with metadata failed, falling back:', metaErr instanceof Error ? metaErr.message : metaErr);
-            result = await client.query(
+            result = await primaryPool.query(
               `SELECT c.*, f.*,
                  f."GrupoVeiculo" AS "Categoria",
                  f."OdometroConfirmado" AS "KmConfirmado",
@@ -289,14 +280,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } else if (r.table === 'fat_faturamentos') {
           // DataCompetencia é TEXT no formato ISO '2026-01-01T...' — usar LEFT() para filtrar por ano
           if (r.year) {
-            result = await client.query(
+            result = await pool.query(
               `SELECT * FROM public."fat_faturamentos"
                WHERE LEFT("DataCompetencia", 4) = CAST($2 AS TEXT)
                ORDER BY "DataCompetencia" DESC LIMIT $1`,
               [r.limit, r.year]
             );
           } else {
-            result = await client.query(
+            result = await pool.query(
               `SELECT * FROM public."fat_faturamentos" ORDER BY "DataCompetencia" DESC LIMIT $1`,
               [r.limit]
             );
@@ -304,7 +295,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } else if (r.table === 'fat_faturamento_itens') {
           // Filtrar itens pelo ano da fatura via JOIN — DataCompetencia é TEXT
           if (r.year) {
-            result = await client.query(
+            result = await pool.query(
               `SELECT i.* FROM public."fat_faturamento_itens" i
                INNER JOIN public."fat_faturamentos" f ON f."IdNota" = i."IdNota"
                WHERE LEFT(f."DataCompetencia", 4) = CAST($2 AS TEXT)
@@ -312,7 +303,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               [r.limit, r.year]
             );
           } else {
-            result = await client.query(
+            result = await pool.query(
               `SELECT i.* FROM public."fat_faturamento_itens" i
                INNER JOIN public."fat_faturamentos" f ON f."IdNota" = i."IdNota"
                ORDER BY f."DataCompetencia" DESC, i."IdItemNota" ASC LIMIT $1`,
@@ -322,7 +313,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } else if (r.table === 'fat_itens_ordem_servico') {
           // Importante para timeline: priorizar itens mais recentes para cruzar com ocorrências atuais.
           if (r.year) {
-            result = await client.query(
+            result = await pool.query(
               `SELECT * FROM public."fat_itens_ordem_servico"
                WHERE LEFT(COALESCE("DataCriacaoOcorrencia"::text, "DataAtualizacaoDados"::text, ''), 4) = CAST($2 AS TEXT)
                ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
@@ -330,7 +321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               [r.limit, r.year]
             );
           } else {
-            result = await client.query(
+            result = await pool.query(
               `SELECT * FROM public."fat_itens_ordem_servico"
                ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
                LIMIT $1`,
@@ -339,12 +330,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         } else if (r.fields && r.fields.length > 0) {
           const cols = r.fields.filter(f => FIELD_REGEX.test(f)).map(f => `"${f}"`).join(', ');
-          result = await client.query(
+          result = await pool.query(
             cols ? `SELECT ${cols} FROM public."${r.table}" LIMIT $1` : `SELECT * FROM public."${r.table}" LIMIT $1`,
             [r.limit]
           );
         } else {
-          result = await client.query(`SELECT * FROM public."${r.table}" LIMIT $1`, [r.limit]);
+          result = await pool.query(`SELECT * FROM public."${r.table}" LIMIT $1`, [r.limit]);
         }
 
         const rows = result.rows.map((row: Record<string, unknown>) => {
@@ -436,7 +427,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       results: emptyResults,
     });
-  } finally {
-    client?.release();
   }
 }

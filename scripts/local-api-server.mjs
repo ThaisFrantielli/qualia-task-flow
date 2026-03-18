@@ -27,7 +27,7 @@ dotenv.config({ path: path.join(root, '.env') });
 
 const { Pool } = pg;
 
-const pool = new Pool({
+const primaryPool = new Pool({
   host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
@@ -41,6 +41,38 @@ const pool = new Pool({
   allowExitOnIdle: true,
   ssl: { rejectUnauthorized: false },
 });
+
+const heavyPool = new Pool({
+  host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || '5432'),
+  user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || process.env.ORACLE_PG_USER || 'postgres',
+  password: process.env.HEAVY_PG_PASSWORD || process.env.ORACLE_PG_PASSWORD || '',
+  database: process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE || 'postgres',
+  max: 20,
+  min: 2,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  query_timeout: 60000,
+  allowExitOnIdle: true,
+  ssl: { rejectUnauthorized: false },
+});
+
+const HEAVY_TABLES = new Set([
+  'fat_faturamentos',
+  'fat_faturamento_itens',
+  'fat_itens_ordem_servico',
+  'fat_movimentacao_ocorrencias',
+]);
+
+function isHeavyTable(table) {
+  if (HEAVY_TABLES.has(table)) return true;
+  const t = String(table || '').toLowerCase();
+  return t.includes('faturamento') || t.includes('itens_os');
+}
+
+function getPoolForTable(table) {
+  return isHeavyTable(table) ? heavyPool : primaryPool;
+}
 
 const ALLOWED_TABLES = new Set([
   'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios',
@@ -127,13 +159,13 @@ function normalizeTimelineFallbackRows(rows) {
   });
 }
 
-async function queryWithTimelineFallback(table, sqlText, params = []) {
+async function queryWithTimelineFallback(dbPool, table, sqlText, params = []) {
   try {
-    const resp = await pool.query(sqlText, params);
+    const resp = await dbPool.query(sqlText, params);
     return { rows: resp.rows, usedFallback: false };
   } catch (err) {
     if (table === 'hist_vida_veiculo_timeline' && isUndefinedTableError(err)) {
-      const fallback = await pool.query('SELECT * FROM "historico_situacao_veiculos"');
+      const fallback = await dbPool.query('SELECT * FROM "historico_situacao_veiculos"');
       return { rows: normalizeTimelineFallbackRows(fallback.rows), usedFallback: true };
     }
     throw err;
@@ -163,20 +195,21 @@ async function handleBatch(req, res) {
   // pool.query() libera a conexão automaticamente após cada query
   for (const table of tables) {
     const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    const dbPool = getPoolForTable(table);
     // Protege cada query para que uma falha não derrube toda a rota
     try {
       let rows;
       if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
         if (table === 'fat_faturamentos') {
           // DataCompetencia é TEXT formato '2026-01-01T...' — filtrar por LEFT(col,4)
-          const resp = await pool.query(
+          const resp = await dbPool.query(
             `SELECT * FROM "${safeTable}" WHERE LEFT("DataCompetencia", 4) = $1 ORDER BY "DataCompetencia" DESC`,
             [String(yearParam)]
           );
           rows = resp.rows;
         } else {
           // fat_faturamento_itens: JOIN para filtrar pelo ano da fatura
-          const resp = await pool.query(
+          const resp = await dbPool.query(
             `SELECT i.* FROM "${safeTable}" i
              INNER JOIN public.fat_faturamentos f ON f."IdNota" = i."IdNota"
              WHERE LEFT(f."DataCompetencia", 4) = $1
@@ -187,7 +220,7 @@ async function handleBatch(req, res) {
         }
       } else {
         if (table === 'fat_itens_ordem_servico') {
-          const resp = await pool.query(
+          const resp = await dbPool.query(
             `SELECT *
              FROM "${safeTable}"
              ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
@@ -196,7 +229,7 @@ async function handleBatch(req, res) {
           );
           rows = resp.rows;
         } else {
-          const resp = await queryWithTimelineFallback(table, `SELECT * FROM "${safeTable}" LIMIT ${limitDefault}`);
+          const resp = await queryWithTimelineFallback(dbPool, table, `SELECT * FROM "${safeTable}" LIMIT ${limitDefault}`);
           rows = resp.rows;
           if (resp.usedFallback) {
             console.warn('[local-api] hist_vida_veiculo_timeline ausente; usando fallback historico_situacao_veiculos');
@@ -219,7 +252,7 @@ async function handleBatch(req, res) {
         metadata: buildMetadata([], table),
       };
       // tentar liberar a conexão e continuar com próximas tabelas
-      try { await pool.query('SELECT 1'); } catch (_) { /* swallow */ }
+      try { await dbPool.query('SELECT 1'); } catch (_) { /* swallow */ }
     }
   }
 
@@ -247,16 +280,17 @@ async function handleSingle(req, res) {
 
   try {
     const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    const dbPool = getPoolForTable(table);
     let rows;
     if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
       if (table === 'fat_faturamentos') {
-        const resp = await pool.query(
+        const resp = await dbPool.query(
           `SELECT * FROM "${safeTable}" WHERE LEFT("DataCompetencia", 4) = $1 ORDER BY "DataCompetencia" DESC`,
           [String(yearParam)]
         );
         rows = resp.rows;
       } else {
-        const resp = await pool.query(
+        const resp = await dbPool.query(
           `SELECT i.* FROM "${safeTable}" i
            INNER JOIN public.fat_faturamentos f ON f."IdNota" = i."IdNota"
            WHERE LEFT(f."DataCompetencia", 4) = $1
@@ -267,7 +301,7 @@ async function handleSingle(req, res) {
       }
     } else {
       if (table === 'fat_itens_ordem_servico') {
-        const resp = await pool.query(
+        const resp = await dbPool.query(
           `SELECT *
            FROM "${safeTable}"
            ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
@@ -280,7 +314,7 @@ async function handleSingle(req, res) {
         if (table === 'historico_situacao_veiculos') {
           query = `SELECT * FROM "${safeTable}" ORDER BY "UltimaAtualizacao" ASC LIMIT ${limitDefault}`;
         }
-        const resp = await queryWithTimelineFallback(table, query);
+        const resp = await queryWithTimelineFallback(dbPool, table, query);
         rows = resp.rows;
         if (resp.usedFallback) {
           console.warn('[local-api] /api/bi-data fallback ativo para timeline');
@@ -341,5 +375,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`\n✅ Local API server rodando em http://localhost:${PORT}`);
   console.log(`   Servindo: /api/bi-data-batch e /api/bi-data`);
-  console.log(`   Banco: ${process.env.ORACLE_PG_HOST}:${process.env.ORACLE_PG_PORT}/${process.env.ORACLE_PG_DATABASE}\n`);
+  console.log(`   Banco PRIMARY: ${process.env.ORACLE_PG_HOST}:${process.env.ORACLE_PG_PORT}/${process.env.ORACLE_PG_DATABASE}`);
+  console.log(`   Banco HEAVY:   ${process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST}:${process.env.HEAVY_PG_PORT || process.env.ORACLE_PG_PORT}/${process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE}\n`);
 });

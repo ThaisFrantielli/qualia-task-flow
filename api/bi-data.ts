@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Pool } from 'pg';
 
-// PostgreSQL connection to Supabase DW
-const pool = new Pool({
+// PostgreSQL connection to Supabase DW (Primary)
+const primaryPool = new Pool({
   host: process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
   port: parseInt(process.env.ORACLE_PG_PORT || '5432'),
   user: process.env.ORACLE_PG_USER || 'postgres',
@@ -13,6 +13,32 @@ const pool = new Pool({
   connectionTimeoutMillis: 7000,
   ssl: { rejectUnauthorized: false },
 });
+
+// PostgreSQL connection to Supabase DW (Heavy)
+const heavyPool = new Pool({
+  host: process.env.HEAVY_PG_POOLER_HOST || process.env.HEAVY_PG_HOST || process.env.ORACLE_PG_HOST || 'db.qcptedntbdsvqplrrqpi.supabase.co',
+  port: parseInt(process.env.HEAVY_PG_POOLER_PORT || process.env.HEAVY_PG_PORT || '5432'),
+  user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || process.env.ORACLE_PG_USER || 'postgres',
+  password: process.env.HEAVY_PG_PASSWORD || process.env.ORACLE_PG_PASSWORD || '',
+  database: process.env.HEAVY_PG_DATABASE || process.env.ORACLE_PG_DATABASE || 'postgres',
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 7000,
+  ssl: { rejectUnauthorized: false },
+});
+
+const HEAVY_TABLES = new Set([
+  'fat_faturamentos',
+  'fat_faturamento_itens',
+  'fat_itens_ordem_servico',
+  'fat_movimentacao_ocorrencias',
+]);
+
+function isHeavyTable(table: string): boolean {
+  if (HEAVY_TABLES.has(table)) return true;
+  const t = table.toLowerCase();
+  return t.includes('faturamento') || t.includes('itens_os');
+}
 
 // Whitelist of allowed tables
 const ALLOWED_TABLES = new Set([
@@ -176,6 +202,7 @@ export async function queryTable(
   limit: number,
   fields?: string[]
 ): Promise<{ rows: Record<string, unknown>[]; }> {
+  const pool = isHeavyTable(table) ? heavyPool : primaryPool;
   const client = await pool.connect();
   try {
     let result;
