@@ -23,6 +23,9 @@ interface TimelineTabProps {
   contratosLocacao?: AnyObject[];
   sinistros?: AnyObject[];
   multas?: AnyObject[];
+  qualValuesLoading?: boolean;
+  qualValuesError?: string | null;
+  qualValuesCoverage?: { total: number; withValues: number };
 }
 
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
@@ -47,6 +50,11 @@ function fmtMoney(v: any) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(num);
+}
+
+function fmtPercent(v: number) {
+  if (!isFinite(v)) return '0,0%';
+  return `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)}%`;
 }
 
 function normalizePlacaKey(raw: unknown): string {
@@ -260,6 +268,7 @@ type MaintenanceOccurrence = {
   situacao?: string;
   tipoOcorrencia?: string;
   custoTotal?: number;
+  valorReembolsavelTotal?: number;
   dataAberturaOcorrencia?: Date | null;
   dataConclusaoOcorrencia?: Date | null;
   dataRetiradaVeiculo?: Date | null;
@@ -362,7 +371,12 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
 
     // Calcular custo total da ocorrência
     const custoTotal = osRecords.reduce((sum, r) => {
-      const val = Number(r?.CustoTotalOS ?? r?.ValorTotal ?? 0);
+      const val = Number(r?.ValorTotalFatItens ?? r?.CustoTotalOS ?? r?.ValorTotal ?? 0);
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+
+    const valorReembolsavelTotal = osRecords.reduce((sum, r) => {
+      const val = Number(r?.ValorReembolsavelFatItens ?? r?.ValorReembolsavel ?? r?.ValorReembolso ?? 0);
       return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
@@ -427,6 +441,8 @@ function groupMaintenanceByOccurrence(records: AnyObject[]): MaintenanceOccurren
       situacao: firstRecord?.SituacaoOcorrencia ?? firstRecord?.StatusOcorrencia ?? firstRecord?.Situacao,
       tipoOcorrencia: firstRecord?.Tipo ?? firstRecord?.TipoOcorrencia ?? firstRecord?.TipoManutencao,
       custoTotal
+      ,
+      valorReembolsavelTotal
       ,
       dataAberturaOcorrencia,
       dataConclusaoOcorrencia,
@@ -721,7 +737,7 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
 
 // DEBUG HELPER removed
 
-export default function TimelineTab({ timeline, timelineLoading, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas }: TimelineTabProps) { // Adicionado movimentacoes
+export default function TimelineTab({ timeline, timelineLoading, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas, qualValuesLoading, qualValuesError, qualValuesCoverage }: TimelineTabProps) { // Adicionado movimentacoes
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set()); // Novo controle para sub-seções (ex: lista de multas)
@@ -1360,6 +1376,26 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
         </div>
       </div>
 
+      {(qualValuesLoading || qualValuesError || ((qualValuesCoverage?.total ?? 0) > 0 && (qualValuesCoverage?.withValues ?? 0) === 0)) && (
+        <Card className="border border-amber-200 bg-amber-50">
+          {qualValuesLoading && (
+            <Text className="text-amber-800 text-sm">
+              Carregando valores QUAL (Valor Total e Valor Reembolsável) da tabela fat_itens_ordem_servico. Aguarde a visualização completar.
+            </Text>
+          )}
+          {!qualValuesLoading && qualValuesError && (
+            <Text className="text-rose-700 text-sm">
+              Não foi possível validar os valores QUAL no momento: {qualValuesError}
+            </Text>
+          )}
+          {!qualValuesLoading && !qualValuesError && ((qualValuesCoverage?.total ?? 0) > 0 && (qualValuesCoverage?.withValues ?? 0) === 0) && (
+            <Text className="text-amber-800 text-sm">
+              A timeline carregou, mas ainda não encontrou valores QUAL conciliados para as OS exibidas. Continue navegando ou atualize após o ETL concluir.
+            </Text>
+          )}
+        </Card>
+      )}
+
       {/* KPIs: Média Locado, Média Manutenção, Média Frota Parada, % Utilização */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-white">
@@ -1611,6 +1647,8 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                         // Multas vêm de fat_multas; sinistros serão agrupados separadamente
                         if (tipo.includes('MULTA')) continue;
                         if (tipo.includes('SINIST')) continue;
+                        // Evita poluição visual com eventos administrativos repetitivos
+                        if (tipo.includes('STATUS')) continue;
                         const d = new Date(ev.DataEvento || ev.Data);
                         if (Number.isNaN(d.getTime())) continue;
                         const key = `${tipo}:${toISODateKey(d)}`;
@@ -1685,17 +1723,21 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                       const priorityRows = allRows.filter(r =>
                         r.kind === 'EVENTO_DIA_TIPO' && PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt))
                       );
-                      const otherRows = allRows.filter(r =>
+                      const maintenanceAndSinistroRows = allRows.filter(r =>
                         r.kind === 'MANUTENCAO_OCORRENCIA' ||
                         r.kind === 'MANUTENCAO_PERIODO' ||
-                        r.kind === 'SINISTRO_OCORRENCIA' ||
-                        (r.kind === 'EVENTO_DIA_TIPO' && !PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt)))
+                        r.kind === 'SINISTRO_OCORRENCIA'
                       );
 
-                      // Combinar: todos os prioritàrios + até 25 outros
+                      const nonPriorityEventRows = allRows.filter(r =>
+                        r.kind === 'EVENTO_DIA_TIPO' && !PRIORITY_TYPES.some(pt => (r as EventGroupRow).tipo.includes(pt))
+                      );
+
+                      // Manter cards QUAL visíveis: sempre inclui manutenção/sinistro e só limita eventos genéricos.
                       const rows: TimelineRow[] = [
                         ...priorityRows,
-                        ...otherRows.slice(0, Math.max(25, 40 - priorityRows.length))
+                        ...maintenanceAndSinistroRows,
+                        ...nonPriorityEventRows.slice(0, Math.max(12, 30 - priorityRows.length))
                       ].sort((a, b) => {
                         const ad = getRowDate(a);
                         const bd = getRowDate(b);
@@ -2327,6 +2369,10 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                               const isRowExpanded = expandedRows.has(row.key);
                               const fornecedor = firstRec?.FornecedorOcorrencia ?? firstRec?.FornecedorOS ?? firstRec?.Fornecedor ?? '';
                               const cliente = firstRec?.Cliente ?? firstRec?.NomeCliente ?? '';
+                              const custoTotal = Number(row.custoTotal ?? 0);
+                              const valorReembolsavelTotal = Number(row.valorReembolsavelTotal ?? 0);
+                              const valorLiquidoTotal = custoTotal - valorReembolsavelTotal;
+                              const percentualReembolsavel = custoTotal > 0 ? (valorReembolsavelTotal / custoTotal) * 100 : 0;
 
                               return (
                                 <div key={row.key} className="relative pl-6">
@@ -2355,8 +2401,17 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                               {row.situacao}
                                             </Badge>
                                           )}
-                                          {row.custoTotal != null && row.custoTotal > 0 && (
-                                            <span className="text-amber-700 font-bold text-xs ml-auto">{fmtMoney(row.custoTotal)}</span>
+                                          {custoTotal > 0 && (
+                                            <span className="text-amber-700 font-bold text-xs ml-auto">Total: {fmtMoney(custoTotal)}</span>
+                                          )}
+                                          {valorReembolsavelTotal > 0 && (
+                                            <span className="text-green-700 font-bold text-xs">Reemb: {fmtMoney(valorReembolsavelTotal)}</span>
+                                          )}
+                                          {custoTotal > 0 && (
+                                            <span className="text-slate-700 font-bold text-xs">Líquido: {fmtMoney(valorLiquidoTotal)}</span>
+                                          )}
+                                          {custoTotal > 0 && (
+                                            <span className="text-emerald-700 font-bold text-xs">% Reemb: {fmtPercent(percentualReembolsavel)}</span>
                                           )}
                                         </div>
                                         <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
@@ -2443,8 +2498,14 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                           const categoria = r?.Categoria ?? '';
                                           const despesa = r?.Despesa ?? '';
                                           const custo = r?.CustoTotalOS ?? r?.ValorTotal;
+                                          const valorTotalItens = r?.ValorTotalFatItens;
                                           const valorReembolsavel = r?.ValorReembolsavel;
+                                          const valorReembolsavelItens = r?.ValorReembolsavelFatItens;
                                           const valorNaoReembolsavel = r?.ValorNaoReembolsavel;
+                                          const valorTotalItensNum = Number(valorTotalItens ?? 0);
+                                          const valorReembolsavelItensNum = Number(valorReembolsavelItens ?? 0);
+                                          const valorLiquidoItens = valorTotalItensNum - valorReembolsavelItensNum;
+                                          const percentualReembolsoItens = valorTotalItensNum > 0 ? (valorReembolsavelItensNum / valorTotalItensNum) * 100 : null;
                                           const odometro = r?.OdometroOS ?? r?.Odometro;
                                           const fornecedorOS = r?.FornecedorOS ?? r?.Fornecedor;
                                           const ordemCompra = r?.OrdemCompra;
@@ -2530,6 +2591,34 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                     <div>
                                                       <span className="text-slate-500 font-medium">Não Reembolsàvel:</span>
                                                       <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ) : null}
+
+                                              {/* Linha 4.1: Valores da tabela fat_itens_ordem_servico */}
+                                              {(valorTotalItens != null || valorReembolsavelItens != null) ? (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] bg-blue-50/50 p-2 rounded border border-blue-100">
+                                                  {valorTotalItens != null && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Valor Total (Itens OS):</span>
+                                                      <div className="font-bold text-blue-700">{fmtMoney(valorTotalItens)}</div>
+                                                    </div>
+                                                  )}
+                                                  {valorReembolsavelItens != null && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Valor Reembolsável (Itens OS):</span>
+                                                      <div className="font-bold text-green-700">{fmtMoney(valorReembolsavelItens)}</div>
+                                                    </div>
+                                                  )}
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Valor Líquido (Itens OS):</span>
+                                                    <div className="font-bold text-slate-700">{fmtMoney(valorLiquidoItens)}</div>
+                                                  </div>
+                                                  {percentualReembolsoItens != null && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">% Reembolso (Itens OS):</span>
+                                                      <div className="font-bold text-emerald-700">{fmtPercent(percentualReembolsoItens)}</div>
                                                     </div>
                                                   )}
                                                 </div>

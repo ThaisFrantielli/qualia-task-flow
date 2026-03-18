@@ -51,7 +51,7 @@ const ALLOWED_TABLES = new Set([
   'agg_lead_time_etapas', 'agg_funil_conversao', 'agg_performance_usuarios',
   'fat_detalhe_itens_os_2022', 'fat_detalhe_itens_os_2023',
   'fat_detalhe_itens_os_2024', 'fat_detalhe_itens_os_2025',
-  'fat_detalhe_itens_os_2026', 'fato_financeiro_dre',
+  'fat_detalhe_itens_os_2026', 'fat_itens_ordem_servico', 'fato_financeiro_dre',
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
   'agg_dre_mensal', 'dim_compras',
 ]);
@@ -109,10 +109,43 @@ function buildMetadata(rows, tableName) {
   };
 }
 
+function isUndefinedTableError(err) {
+  const code = err && typeof err === 'object' ? err.code : undefined;
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return code === '42P01' || /relation\s+"?.+"?\s+does not exist/i.test(msg);
+}
+
+function normalizeTimelineFallbackRows(rows) {
+  return rows.map((r) => {
+    const tipo = r.TipoEvento ?? r.Evento ?? r.Status ?? r.status ?? r.Situacao ?? r.situacao ?? 'STATUS';
+    const data = r.DataEvento ?? r.Data ?? r.UltimaAtualizacao ?? r.ultimaatualizacao ?? null;
+    return {
+      ...r,
+      TipoEvento: tipo,
+      DataEvento: data,
+    };
+  });
+}
+
+async function queryWithTimelineFallback(table, sqlText, params = []) {
+  try {
+    const resp = await pool.query(sqlText, params);
+    return { rows: resp.rows, usedFallback: false };
+  } catch (err) {
+    if (table === 'hist_vida_veiculo_timeline' && isUndefinedTableError(err)) {
+      const fallback = await pool.query('SELECT * FROM "historico_situacao_veiculos"');
+      return { rows: normalizeTimelineFallbackRows(fallback.rows), usedFallback: true };
+    }
+    throw err;
+  }
+}
+
 async function handleBatch(req, res) {
   const url = new URL(req.url, `http://localhost`);
   const tablesParam = url.searchParams.get('tables') || '';
   const yearParam = url.searchParams.get('year');
+  const limitParam = parseInt(url.searchParams.get('limit') || '50000', 10);
+  const limitDefault = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100000) : 50000;
   const tables = tablesParam.split(',').map(t => t.trim()).filter(Boolean);
 
   if (!tables.length) {
@@ -153,8 +186,22 @@ async function handleBatch(req, res) {
           rows = resp.rows;
         }
       } else {
-        const resp = await pool.query(`SELECT * FROM "${safeTable}"`);
-        rows = resp.rows;
+        if (table === 'fat_itens_ordem_servico') {
+          const resp = await pool.query(
+            `SELECT *
+             FROM "${safeTable}"
+             ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
+             LIMIT $1`,
+            [limitDefault]
+          );
+          rows = resp.rows;
+        } else {
+          const resp = await queryWithTimelineFallback(table, `SELECT * FROM "${safeTable}" LIMIT ${limitDefault}`);
+          rows = resp.rows;
+          if (resp.usedFallback) {
+            console.warn('[local-api] hist_vida_veiculo_timeline ausente; usando fallback historico_situacao_veiculos');
+          }
+        }
       }
       results[table] = {
         data: rows,
@@ -190,45 +237,80 @@ async function handleSingle(req, res) {
   const url = new URL(req.url, `http://localhost`);
   const table = url.searchParams.get('table') || '';
   const yearParam = url.searchParams.get('year');
+  const limitParam = parseInt(url.searchParams.get('limit') || '50000', 10);
+  const limitDefault = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100000) : 50000;
 
   if (!table || !ALLOWED_TABLES.has(table)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: `Table not allowed: ${table}` }));
   }
 
-  const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
-  let rows;
-  if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
-    if (table === 'fat_faturamentos') {
-      const resp = await pool.query(
-        `SELECT * FROM "${safeTable}" WHERE LEFT("DataCompetencia", 4) = $1 ORDER BY "DataCompetencia" DESC`,
-        [String(yearParam)]
-      );
-      rows = resp.rows;
+  try {
+    const safeTable = table.replace(/[^a-zA-Z0-9_]/g, '');
+    let rows;
+    if (yearParam && (table === 'fat_faturamentos' || table === 'fat_faturamento_itens')) {
+      if (table === 'fat_faturamentos') {
+        const resp = await pool.query(
+          `SELECT * FROM "${safeTable}" WHERE LEFT("DataCompetencia", 4) = $1 ORDER BY "DataCompetencia" DESC`,
+          [String(yearParam)]
+        );
+        rows = resp.rows;
+      } else {
+        const resp = await pool.query(
+          `SELECT i.* FROM "${safeTable}" i
+           INNER JOIN public.fat_faturamentos f ON f."IdNota" = i."IdNota"
+           WHERE LEFT(f."DataCompetencia", 4) = $1
+           ORDER BY i."IdItemNota" ASC`,
+          [String(yearParam)]
+        );
+        rows = resp.rows;
+      }
     } else {
-      const resp = await pool.query(
-        `SELECT i.* FROM "${safeTable}" i
-         INNER JOIN public.fat_faturamentos f ON f."IdNota" = i."IdNota"
-         WHERE LEFT(f."DataCompetencia", 4) = $1
-         ORDER BY i."IdItemNota" ASC`,
-        [String(yearParam)]
-      );
-      rows = resp.rows;
+      if (table === 'fat_itens_ordem_servico') {
+        const resp = await pool.query(
+          `SELECT *
+           FROM "${safeTable}"
+           ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
+           LIMIT $1`,
+          [limitDefault]
+        );
+        rows = resp.rows;
+      } else {
+        let query = `SELECT * FROM "${safeTable}" LIMIT ${limitDefault}`;
+        if (table === 'historico_situacao_veiculos') {
+          query = `SELECT * FROM "${safeTable}" ORDER BY "UltimaAtualizacao" ASC LIMIT ${limitDefault}`;
+        }
+        const resp = await queryWithTimelineFallback(table, query);
+        rows = resp.rows;
+        if (resp.usedFallback) {
+          console.warn('[local-api] /api/bi-data fallback ativo para timeline');
+        }
+      }
     }
-  } else {
-    let query = `SELECT * FROM "${safeTable}"`;
-    if (table === 'historico_situacao_veiculos') {
-      query += ` ORDER BY "UltimaAtualizacao" ASC`;
-    }
-    const resp = await pool.query(query);
-    rows = resp.rows;
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end(JSON.stringify({ data: rows, record_count: rows.length }));
+    console.log(`  [OK] ${table}: ${rows.length} rows`);
+  } catch (err) {
+    console.error(`[local-api] Error querying ${table}:`, err.message);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end(JSON.stringify({
+      data: [],
+      record_count: 0,
+      metadata: {
+        generated_at: new Date().toISOString(),
+        source: 'local-dev',
+        table,
+        error: err.message,
+      },
+    }));
   }
-  res.writeHead(200, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-  });
-  res.end(JSON.stringify({ data: rows, record_count: rows.length }));
-  console.log(`  [OK] ${table}: ${rows.length} rows`);
 }
 
 const PORT = 3001;

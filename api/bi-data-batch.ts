@@ -22,7 +22,7 @@ const ALLOWED_TABLES = new Set([
   'agg_lead_time_etapas', 'agg_funil_conversao', 'agg_performance_usuarios',
   'fat_detalhe_itens_os_2022', 'fat_detalhe_itens_os_2023',
   'fat_detalhe_itens_os_2024', 'fat_detalhe_itens_os_2025',
-  'fat_detalhe_itens_os_2026', 'fato_financeiro_dre',
+  'fat_detalhe_itens_os_2026', 'fat_itens_ordem_servico', 'fato_financeiro_dre',
   'dim_clientes', 'dim_alienacoes', 'dim_condutores', 'dim_fornecedores',
   'agg_dre_mensal', 'dim_compras',
 ]);
@@ -316,6 +316,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               `SELECT i.* FROM public."fat_faturamento_itens" i
                INNER JOIN public."fat_faturamentos" f ON f."IdNota" = i."IdNota"
                ORDER BY f."DataCompetencia" DESC, i."IdItemNota" ASC LIMIT $1`,
+              [r.limit]
+            );
+          }
+        } else if (r.table === 'fat_itens_ordem_servico') {
+          // Importante para timeline: priorizar itens mais recentes para cruzar com ocorrências atuais.
+          if (r.year) {
+            result = await client.query(
+              `SELECT * FROM public."fat_itens_ordem_servico"
+               WHERE LEFT(COALESCE("DataCriacaoOcorrencia"::text, "DataAtualizacaoDados"::text, ''), 4) = CAST($2 AS TEXT)
+               ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
+               LIMIT $1`,
+              [r.limit, r.year]
+            );
+          } else {
+            result = await client.query(
+              `SELECT * FROM public."fat_itens_ordem_servico"
+               ORDER BY COALESCE("DataCriacaoOcorrencia", "DataAtualizacaoDados") DESC
+               LIMIT $1`,
               [r.limit]
             );
           }

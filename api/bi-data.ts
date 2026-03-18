@@ -155,6 +155,22 @@ function buildContratosQuery(_fields?: string[]): string {
   `;
 }
 
+function isUndefinedTableError(err: unknown): boolean {
+  const code = typeof err === 'object' && err !== null && 'code' in err
+    ? String((err as { code?: unknown }).code)
+    : '';
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return code === '42P01' || /relation\s+"?.+"?\s+does not exist/i.test(msg);
+}
+
+function normalizeTimelineFallbackRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return rows.map((r) => ({
+    ...r,
+    TipoEvento: r.TipoEvento ?? r.Evento ?? r.Status ?? r.status ?? r.Situacao ?? r.situacao ?? 'STATUS',
+    DataEvento: r.DataEvento ?? r.Data ?? r.UltimaAtualizacao ?? r.ultimaatualizacao ?? null,
+  }));
+}
+
 export async function queryTable(
   table: string,
   limit: number,
@@ -185,7 +201,18 @@ export async function queryTable(
       // Ordenar por data ASC para que a iteração do frontend (do mais recente para o mais antigo) funcione corretamente
       result = await client.query(`SELECT * FROM public."${table}" ORDER BY "UltimaAtualizacao" ASC LIMIT $1`, [limit]);
     } else {
-      result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
+      try {
+        result = await client.query(`SELECT * FROM public."${table}" LIMIT $1`, [limit]);
+      } catch (err) {
+        if (table === 'hist_vida_veiculo_timeline' && isUndefinedTableError(err)) {
+          const fallback = await client.query(`SELECT * FROM public."historico_situacao_veiculos" LIMIT $1`, [limit]);
+          const rows = normalizeTimelineFallbackRows(
+            fallback.rows as Record<string, unknown>[]
+          );
+          return { rows };
+        }
+        throw err;
+      }
     }
 
     // Convert BigInt to Number

@@ -83,14 +83,26 @@ export function useTimelineData<T = TimelineAggregated>(
         ? 'hist_vida_veiculo_timeline'
         : 'historico_situacao_veiculos';
 
-      const url = `${getApiBaseUrl()}/api/bi-data?table=${encodeURIComponent(tableName)}`;
-      const resp = await fetch(url);
+      const fetchTable = async (name: string) => {
+        const url = `${getApiBaseUrl()}/api/bi-data?table=${encodeURIComponent(name)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          throw new Error(`API returned status ${resp.status}`);
+        }
+        return resp.json();
+      };
 
-      if (!resp.ok) {
-        throw new Error(`API returned status ${resp.status}`);
+      let body: any;
+      try {
+        body = await fetchTable(tableName);
+      } catch (firstErr) {
+        if (tableName === 'hist_vida_veiculo_timeline') {
+          console.warn('[useTimelineData] fallback para historico_situacao_veiculos');
+          body = await fetchTable('historico_situacao_veiculos');
+        } else {
+          throw firstErr;
+        }
       }
-
-      const body = await resp.json();
       if (fetchId !== fetchIdRef.current) return;
 
       let rows: any[] = Array.isArray(body.data) ? body.data : (Array.isArray(body) ? body : []);

@@ -32,6 +32,13 @@ type AnyObject = { [k: string]: any };
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function normalizePlate(v: any): string { return String(v ?? '').trim().toUpperCase(); }
+function normalizeOccurrence(v: any): string {
+    const s = String(v ?? '').trim().toUpperCase();
+    if (!s) return '';
+    const noPrefix = s.replace(/^QUAL-?/, '').trim();
+    const digits = noPrefix.replace(/[^0-9]/g, '');
+    return digits || noPrefix;
+}
 function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
 function fmtCompact(v: number) {
     try {
@@ -85,6 +92,11 @@ export default function FleetDashboard() {
 
     // Timeline — lazy loaded only when timeline tab is active
     const needsTimeline = activeTab === 'timeline';
+
+    // Tabela de itens de OS é usada para complementar valores na timeline (QUAL-*)
+    const { results: timelineAuxData, loading: loadingTimelineAux, error: errorTimelineAux } = useBIDataBatch([
+        'fat_itens_ordem_servico'
+    ], undefined, { enabled: needsTimeline, params: { limit: 100000 } });
     const { data: _timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline }); // eslint-disable-line @typescript-eslint/no-unused-vars
     const { data: timelineRecent, loading: timelineLoading } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 
@@ -98,6 +110,7 @@ export default function FleetDashboard() {
     const carroReservaData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_carro_reserva'), [secondaryData]);
     const movimentacoesData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_movimentacao_ocorrencias'), [secondaryData]);
     const manutencaoData = useMemo(() => getBatchTable<AnyObject>(secondaryData, 'fat_manutencao_unificado'), [secondaryData]);
+    const itensOrdemServicoData = useMemo(() => getBatchTable<AnyObject>(timelineAuxData, 'fat_itens_ordem_servico'), [timelineAuxData]);
 
     const frotaMetadata = useMemo(() => (primaryData['dim_frota'] as any)?.metadata || _primaryMeta || null, [primaryData, _primaryMeta]);
 
@@ -121,15 +134,84 @@ export default function FleetDashboard() {
             UltimoEnderecoTelemetria: item.UltimoEnderecoTelemetria || item.ultimoenderecotelemetria || '',
         }));
     }, [frotaData]);
+
+    const itensOsMap = useMemo(() => {
+        const map = new Map<string, { valorTotal: number; valorReembolsavel: number }>();
+        const list = Array.isArray(itensOrdemServicoData) ? itensOrdemServicoData : [];
+
+        const getIdKey = (r: AnyObject) => String(r?.IdOrdemServico ?? r?.idordemservico ?? '').trim();
+        const getOsKey = (r: AnyObject) => String(r?.OrdemServico ?? r?.ordemservico ?? r?.OS ?? r?.os ?? '').trim();
+        const getOccKey = (r: AnyObject) => normalizeOccurrence(r?.IdOcorrencia ?? r?.idocorrencia ?? r?.Ocorrencia ?? r?.ocorrencia);
+        const getPlateKey = (r: AnyObject) => normalizePlate(r?.Placa ?? r?.placa);
+        const getValorTotal = (r: AnyObject) => parseCurrency(
+            r?.ValorTotal ?? r?.valortotal ?? r?.Valor ?? r?.valor ?? r?.ValorItem ?? r?.valoritem ?? 0
+        );
+        const getValorReembolsavel = (r: AnyObject) => parseCurrency(
+            r?.ValorReembolsavel ?? r?.valorreembolsavel ?? r?.ValorReembolso ?? r?.valorreembolso ?? 0
+        );
+
+        const add = (k: string, total: number, reemb: number) => {
+            if (!k) return;
+            const prev = map.get(k) || { valorTotal: 0, valorReembolsavel: 0 };
+            map.set(k, {
+                valorTotal: prev.valorTotal + total,
+                valorReembolsavel: prev.valorReembolsavel + reemb,
+            });
+        };
+
+        for (const r of list) {
+            const total = getValorTotal(r);
+            const reemb = getValorReembolsavel(r);
+            const idKey = getIdKey(r);
+            const osKey = getOsKey(r);
+            const occKey = getOccKey(r);
+            const plateKey = getPlateKey(r);
+            add(idKey, total, reemb);
+            add(osKey, total, reemb);
+            add(`occ:${occKey}`, total, reemb);
+            add(`placa:${plateKey}`, total, reemb);
+            if (occKey && plateKey) add(`occplaca:${occKey}:${plateKey}`, total, reemb);
+        }
+
+        return map;
+    }, [itensOrdemServicoData]);
+
     const manutencao = useMemo<AnyObject[]>(() => {
         const raw = (manutencaoData as any)?.data || manutencaoData || [];
         return raw.map((m: AnyObject): AnyObject => ({
+            ...(function () {
+                const osId = String(m?.IdOrdemServico ?? m?.idordemservico ?? '').trim();
+                const osNum = String(m?.OrdemServico ?? m?.ordemservico ?? m?.OS ?? m?.os ?? '').trim();
+                const occ = normalizeOccurrence(m?.IdOcorrencia ?? m?.idocorrencia ?? m?.Ocorrencia ?? m?.ocorrencia);
+                const placa = normalizePlate(m?.Placa ?? m?.placa);
+                const fromItens =
+                    itensOsMap.get(osId) ||
+                    itensOsMap.get(osNum) ||
+                    itensOsMap.get(`occplaca:${occ}:${placa}`) ||
+                    itensOsMap.get(`occ:${occ}`) ||
+                    itensOsMap.get(`placa:${placa}`) ||
+                    null;
+                return {
+                    ValorTotalFatItens: fromItens?.valorTotal ?? 0,
+                    ValorReembolsavelFatItens: fromItens?.valorReembolsavel ?? 0,
+                };
+            })(),
             ...m,
             Placa: m.Placa || m.placa || '',
             ValorTotal: parseCurrency(m.ValorTotal || m.valortotal || m.CustoTotalOS || m.custototalos || 0),
             CustoTotalOS: parseCurrency(m.CustoTotalOS || m.custototalos || m.ValorTotal || m.valortotal || 0),
         }));
-    }, [manutencaoData]);
+    }, [manutencaoData, itensOsMap]);
+
+    const qualValuesCoverage = useMemo(() => {
+        const total = Array.isArray(manutencao) ? manutencao.length : 0;
+        const withValues = (Array.isArray(manutencao) ? manutencao : []).filter((m: AnyObject) => {
+            const totalItens = Number(m?.ValorTotalFatItens ?? 0);
+            const reembItens = Number(m?.ValorReembolsavelFatItens ?? 0);
+            return totalItens > 0 || reembItens > 0;
+        }).length;
+        return { total, withValues };
+    }, [manutencao]);
     const movimentacoes = useMemo(() => (movimentacoesData as any)?.data || movimentacoesData || [], [movimentacoesData]);
     // Usar timeline recente para compatibilidade com componentes existentes
     const timeline = useMemo(() => Array.isArray(timelineRecent) ? timelineRecent : [], [timelineRecent]);
@@ -2979,7 +3061,20 @@ export default function FleetDashboard() {
                 {/* Aba 'Eficiência' removida */}
 
                 <TabsContent value="timeline">
-                    <TimelineTab timeline={timeline} timelineLoading={timelineLoading} filteredData={filteredData} frota={frotaEnriched} manutencao={manutencao} movimentacoes={movimentacoes} contratosLocacao={contratosLocacao} sinistros={sinistros} multas={multas} />
+                    <TimelineTab
+                        timeline={timeline}
+                        timelineLoading={timelineLoading}
+                        filteredData={filteredData}
+                        frota={frotaEnriched}
+                        manutencao={manutencao}
+                        movimentacoes={movimentacoes}
+                        contratosLocacao={contratosLocacao}
+                        sinistros={sinistros}
+                        multas={multas}
+                        qualValuesLoading={needsTimeline && loadingTimelineAux}
+                        qualValuesError={needsTimeline ? (errorTimelineAux || null) : null}
+                        qualValuesCoverage={qualValuesCoverage}
+                    />
                 </TabsContent>
 
                 <TabsContent value="carro-reserva" className="space-y-6">

@@ -1,0 +1,42 @@
+name: Supabase DB Sync
+
+on:
+  schedule:
+    # Horarios de Brasilia convertidos para UTC
+    - cron: '30 3 * * *'
+    - cron: '30 13 * * *'
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+
+jobs:
+  db-sync:
+    name: Sincronizar SQL Server -> Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout do codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Executar sincronizacao
+        env:
+          SQL_SERVER: ${{ secrets.SQL_SERVER }}
+          SQL_USER: ${{ secrets.SQL_USER }}
+          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+          SQL_PORT: ${{ secrets.SQL_PORT }}
+          PG_POOLER_HOST: ${{ secrets.PG_POOLER_HOST }}
+          PG_POOLER_PORT: ${{ secrets.PG_POOLER_PORT }}
+          PG_POOLER_USER: ${{ secrets.PG_POOLER_USER }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          PG_DATABASE: ${{ secrets.PG_DATABASE }}
+        run: node --max-old-space-size=4096 scripts/local-etl/run-sync-v2.js
