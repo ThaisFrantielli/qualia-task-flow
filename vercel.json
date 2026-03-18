@@ -1,23 +1,35 @@
 {
   "version": 2,
-  "framework": "vite",
-  "buildCommand": "vite build",
-  "outputDirectory": "dist",
-  "devCommand": "vite --port $PORT",
+  "builds": [
+    {
+      "src": "api/*.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
   "functions": {
     "api/bi-data.ts": { "maxDuration": 60 },
     "api/bi-data-batch.ts": { "maxDuration": 60 },
     "api/get-metadata.ts": { "maxDuration": 30 },
     "api/save-metadata.ts": { "maxDuration": 30 }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
-      "source": "/((?!api|assets|favicon\\.ico|robots\\.txt|@vite|@react-refresh|node_modules|.*\\..*).*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
