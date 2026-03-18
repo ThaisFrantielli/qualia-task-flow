@@ -25,6 +25,27 @@ const CACHE_TTL = 5 * 60 * 1000;
 // In-flight deduplication: same cacheKey → reuse the same promise
 const inFlight = new Map<string, Promise<BatchResult>>();
 
+async function fetchStaticTable(tableName: string): Promise<BatchTableResult | null> {
+  try {
+    const resp = await fetch(`/data/${tableName}.json`);
+    if (!resp.ok) return null;
+    const body = await resp.json();
+    const rows = Array.isArray(body?.data)
+      ? body.data
+      : (Array.isArray(body) ? body : []);
+    return {
+      data: rows,
+      record_count: rows.length,
+      metadata: {
+        ...(body?.metadata || {}),
+        source: 'static',
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Hook to fetch multiple tables in a single HTTP request via /api/bi-data-batch.
  * 
@@ -115,8 +136,44 @@ export default function useBIDataBatch(
 
       const batchResults = await promise;
       if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
-      setResults(batchResults);
-      setMetadata({ generated_at: new Date().toISOString(), source: 'live' });
+
+      const tablesWithApiError = tables.filter((tableName) => {
+        const entry = batchResults[tableName];
+        if (!entry) return true;
+        const hasRows = Array.isArray(entry.data) && entry.data.length > 0;
+        const hasApiError = Boolean((entry.metadata as Record<string, unknown> | undefined)?.error);
+        return !hasRows && hasApiError;
+      });
+
+      let finalResults = batchResults;
+      if (tablesWithApiError.length > 0) {
+        const staticRows = await Promise.all(
+          tablesWithApiError.map(async (tableName) => ({
+            tableName,
+            payload: await fetchStaticTable(tableName),
+          }))
+        );
+
+        const merged: BatchResult = { ...batchResults };
+        let loadedAnyStatic = false;
+
+        for (const item of staticRows) {
+          if (!item.payload) continue;
+          loadedAnyStatic = true;
+          merged[item.tableName] = item.payload;
+        }
+
+        if (loadedAnyStatic) {
+          finalResults = merged;
+        }
+      }
+
+      setResults(finalResults);
+      const loadedFromStatic = tables.some((tableName) => {
+        const source = (finalResults[tableName]?.metadata as Record<string, unknown> | undefined)?.source;
+        return source === 'static';
+      });
+      setMetadata({ generated_at: new Date().toISOString(), source: loadedFromStatic ? 'static' : 'live' });
       setError(null);
     } catch (err) {
       if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
