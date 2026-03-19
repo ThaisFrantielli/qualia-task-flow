@@ -18,7 +18,7 @@ interface UseDREDataResult {
  * Custom hook for loading and processing DRE data
  */
 export default function useDREData(): UseDREDataResult {
-    const { data: rawData, loading, error } = useBIData<DRETransaction[]>('fato_financeiro_dre.json');
+    const { data: rawData, loading, error } = useBIData<DRETransaction[]>('fato_financeiro_dre');
 
     const transactions = useMemo(() => {
         if (!Array.isArray(rawData)) return [];

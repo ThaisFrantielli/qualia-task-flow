@@ -30,12 +30,18 @@ const HEAVY_TABLES = new Set([
   'fat_faturamento_itens',
   'fat_itens_ordem_servico',
   'fat_movimentacao_ocorrencias',
+  'fat_manutencao_unificado',
+  'fat_carro_reserva',
+  'fat_multas',
+  'fat_sinistros',
+  'dim_movimentacao_veiculos',
+  'dim_movimentacao_patios',
 ]);
 
 function isHeavyTable(table: string): boolean {
   if (HEAVY_TABLES.has(table)) return true;
   const t = table.toLowerCase();
-  return t.includes('faturamento') || t.includes('itens_os');
+  return t.includes('faturamento') || t.includes('itens_os') || t.includes('sinistro') || t.includes('multa') || t.includes('movimentacao');
 }
 
 const ALLOWED_TABLES = new Set([

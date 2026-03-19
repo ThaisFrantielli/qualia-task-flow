@@ -53,7 +53,13 @@ const HEAVY_TABLES = new Set([
     'fat_faturamentos',
     'fat_faturamento_itens',
     'fat_itens_ordem_servico',
-    'fat_movimentacao_ocorrencias'
+    'fat_movimentacao_ocorrencias',
+    'fat_manutencao_unificado',
+    'fat_carro_reserva',
+    'fat_multas',
+    'fat_sinistros',
+    'dim_movimentacao_veiculos',
+    'dim_movimentacao_patios'
 ]);
 
 const TABLES = [
@@ -136,7 +142,10 @@ function parsePgDate(v) {
     const s = String(v).trim();
     if (!s) return null;
     const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? null : d;
+    if (Number.isNaN(d.getTime())) return null;
+    const year = d.getUTCFullYear();
+    if (year < 1900 || year > 2100) return null;
+    return d;
 }
 
 function inferHeavyColumnType(colName, rows) {

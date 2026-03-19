@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getApiBaseUrl } from '@/lib/apiBase';
 
 type AnyObject = { [k: string]: any };
 
@@ -11,24 +12,18 @@ interface SyncResult {
   total: number;
 }
 
-/**
- * dim_clientes.json é gerado pelo ETL como JSON_ONLY e está em public/data/.
- * O Vite (dev) e o Vercel (prod) servem a pasta public/ como arquivos estáticos.
- * Uso simples: fetch('/data/dim_clientes.json') — sem Oracle PG, sem Storage.
- */
-async function fetchDimClientesFromPublic(): Promise<AnyObject[]> {
+async function fetchDimClientesFromAPI(): Promise<AnyObject[]> {
   try {
-    const resp = await fetch('/data/dim_clientes.json');
+    const resp = await fetch(`${getApiBaseUrl()}/api/bi-data?table=dim_clientes`);
     if (!resp.ok) {
-      console.error('[useSyncClientesFromBI] Erro ao buscar /data/dim_clientes.json:', resp.status, resp.statusText);
+      console.error('[useSyncClientesFromBI] Erro ao buscar dim_clientes via API:', resp.status, resp.statusText);
       return [];
     }
     const parsed = await resp.json();
-    // Suporta estrutura { metadata, data: [...] } OU array direto
     const rows = parsed?.data ?? parsed;
     return Array.isArray(rows) ? rows : [];
   } catch (err) {
-    console.error('[useSyncClientesFromBI] Falha ao carregar dim_clientes.json:', err);
+    console.error('[useSyncClientesFromBI] Falha ao carregar dim_clientes via API:', err);
     return [];
   }
 }
@@ -62,7 +57,7 @@ export function useSyncClientesFromBI() {
   // Pré-carrega contagem para exibição no dialog (não bloqueia a UI)
   useEffect(() => {
     setLoadingBI(true);
-    fetchDimClientesFromPublic()
+    fetchDimClientesFromAPI()
       .then(rows => setClientesBICount(rows.length))
       .catch(() => setClientesBICount(null))
       .finally(() => setLoadingBI(false));
@@ -73,11 +68,11 @@ export function useSyncClientesFromBI() {
     const result: SyncResult = { added: 0, skipped: 0, errors: 0, total: 0 };
 
     try {
-      const biClientes = await fetchDimClientesFromPublic();
+      const biClientes = await fetchDimClientesFromAPI();
       result.total = biClientes.length;
 
       if (biClientes.length === 0) {
-        toast.warning('Nenhum cliente encontrado no arquivo dim_clientes.json');
+        toast.warning('Nenhum cliente encontrado na tabela dim_clientes');
         setLastResult(result);
         return result;
       }

@@ -254,9 +254,8 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     // OTIMIZAÇÃO: Filtrar apenas terceiros ANTES do loop pesado. A exclusão de veículos
     // Inativa é aplicada por data mais abaixo (a partir do dia em que ficaram inativos).
-    const placas = frota
-      .filter(v => v.Placa && v.FinalidadeUso !== 'TERCEIRO')
-      .map(v => v.Placa);
+    const ativosBase = frota
+      .filter(v => v.FinalidadeUso !== 'TERCEIRO');
 
     // (usar `veiculoAtualMap` memoizado acima para fallback de status)
 
@@ -303,15 +302,19 @@ export default function FleetIdleDashboard(): JSX.Element {
       // Collect breakdown by normalized status (samples kept for inspection)
       const statusCounts: Record<string, { count: number; placas: string[] }> = {};
 
-      for (let idx = 0; idx < placas.length; idx++) {
-        const placa = placas[idx];
+      for (let idx = 0; idx < ativosBase.length; idx++) {
+        const veiculo = ativosBase[idx];
+        const placa = String(veiculo?.Placa || '').trim().toUpperCase();
+        const placaLabel = placa || '(SEM PLACA)';
         // NOTA: não pré-excluímos via inactivationDateMap aqui.
         // resolveStatusForDate retorna o status correto para o dia D via historico_situacao_veiculos,
         // e getCategory filtra Inativos com 'continue' abaixo.
         // O pré-filtro por inactivationDateMap causava mutação retroativa: quando ETL adicionava
         // um evento Inativa com data no passado, a data calculada mudava e excluía o veículo
         // retroativamente de todos os dias anteriores, alterando o gráfico histórico.
-        const { status, usedHistorico } = resolveStatusForDate(placa, checkDate);
+        const { status, usedHistorico } = placa
+          ? resolveStatusForDate(placa, checkDate)
+          : { status: veiculo?.Status || null, usedHistorico: false, lastChangeDate: null };
         if (usedHistorico) usandoHistoricoCount++;
         else usandoFallbackCount++;
         if (!status) continue;
@@ -326,7 +329,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         const sNorm = normalizeStatus(status || '') || 'N/A';
         if (!statusCounts[sNorm]) statusCounts[sNorm] = { count: 0, placas: [] };
         statusCounts[sNorm].count += 1;
-        if (statusCounts[sNorm].placas.length < 10) statusCounts[sNorm].placas.push(placa);
+        if (statusCounts[sNorm].placas.length < 10) statusCounts[sNorm].placas.push(placaLabel);
 
         if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
         if (cat === 'Improdutiva') improdutivaCount += 1;
@@ -359,21 +362,24 @@ export default function FleetIdleDashboard(): JSX.Element {
       ? new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
       : new Date(selectedDate + 'T23:59:59');
     // OTIMIZAÇÃO: Filtrar apenas terceiros antes do processamento (mesma regra usada acima)
-    const placas = frota
-      .filter(v => v.Placa && v.FinalidadeUso !== 'TERCEIRO')
-      .map(v => v.Placa);
+    const ativosBase = frota
+      .filter(v => v.FinalidadeUso !== 'TERCEIRO');
 
     // Usar historicoMap centralizado
 
     const improdutivos: any[] = [];
 
-    placas.forEach((placa: string) => {
-      const v = veiculoAtualMap.get(placa) || {} as any;
+    ativosBase.forEach((v: any, index: number) => {
+      const placaRaw = String(v?.Placa || '').trim().toUpperCase();
+      const placa = placaRaw || `SEM-PLACA-${index + 1}`;
+      const placaLookup = placaRaw;
 
       // Reconstruir status até checkDate usando a função centralizada
       // (inactivationDateMap não é usado aqui — resolveStatusForDate já retorna o status
       // correto baseado nos eventos históricos; getCategory filtra Inativos abaixo)
-      const { status: currentStatus, lastChangeDate } = resolveStatusForDate(placa, checkDate);
+      const { status: currentStatus, lastChangeDate } = placaLookup
+        ? resolveStatusForDate(placaLookup, checkDate)
+        : { status: v?.Status || null, lastChangeDate: null };
       // Ignorar veículos sem status histórico encontrado — getCategory('') retornaria 'Improdutiva'
       // incorretamente, causando veículos Locado/Vendido aparecerem com status errado.
       if (!currentStatus) return;
@@ -381,12 +387,12 @@ export default function FleetIdleDashboard(): JSX.Element {
       if (cat === 'Improdutiva') {
         // Movimentações de pátio
         const movPatio = patioMov
-          .filter((m: any) => m.Placa === placa)
+          .filter((m: any) => placaLookup && m.Placa === placaLookup)
           .sort((a: any, b: any) => parseDateSafe(b.DataMovimentacao).getTime() - parseDateSafe(a.DataMovimentacao).getTime());
         const ultimoMovPatio = movPatio[0];
 
         const movVeiculo = veiculoMov
-          .filter((m: any) => m.Placa === placa)
+          .filter((m: any) => placaLookup && m.Placa === placaLookup)
           .sort((a: any, b: any) => parseDateSafe(b.DataDevolucao || b.DataRetirada).getTime() - parseDateSafe(a.DataDevolucao || a.DataRetirada).getTime());
         const ultimaLocacao = movVeiculo[0];
 
@@ -423,7 +429,7 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   const currentIdleKPIs = useMemo(() => {
     // Calcular os KPIs usando o status atual da frota (mesma origem da Taxa de Produtividade)
-    const ativosList = frota.filter(v => v.Placa && v.FinalidadeUso !== 'TERCEIRO');
+    const ativosList = frota.filter(v => v.FinalidadeUso !== 'TERCEIRO');
 
     const produtivaCount = ativosList.filter(v => getCategory(v.Status) === 'Produtiva').length;
     const improdutivaCount = ativosList.filter(v => getCategory(v.Status) === 'Improdutiva').length;

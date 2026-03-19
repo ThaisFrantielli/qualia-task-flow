@@ -24,16 +24,16 @@ export default function FleetMethodologyPage() {
           </div>
           <div className="space-y-3 text-sm text-slate-600">
             <div className="p-3 bg-slate-50 rounded-lg">
-              <p className="font-medium text-slate-700">dim_frota.json</p>
+              <p className="font-medium text-slate-700">dim_frota (API)</p>
               <p>Cadastro de veículos: Placa, Modelo, Status, ValorCompra, ValorFipeAtual, IdadeVeiculo</p>
             </div>
             <div className="p-3 bg-slate-50 rounded-lg">
-              <p className="font-medium text-slate-700">dim_contratos.json</p>
+              <p className="font-medium text-slate-700">dim_contratos_locacao (API)</p>
               <p>Contratos de locação: Placa, DataInicio, DataFim, ValorMensal, Cliente, StatusContrato</p>
             </div>
             <div className="p-3 bg-slate-50 rounded-lg">
-              <p className="font-medium text-slate-700">fat_manutencao_os_*.json</p>
-              <p>Ordens de serviço: Placa, DataOS, ValorTotal (sharding por ano: 2021-2025)</p>
+              <p className="font-medium text-slate-700">fat_manutencao_unificado (API)</p>
+              <p>Ordens de serviço: Placa, DataOS, ValorTotal</p>
             </div>
           </div>
         </Card>

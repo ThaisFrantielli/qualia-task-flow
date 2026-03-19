@@ -9,7 +9,7 @@ type BIResult<T = unknown> = {
   error: string | null;
   refetch: () => void;
   lastUpdated: Date | null;
-  source: 'live' | 'static' | null;
+  source: 'live' | null;
 };
 
 // In-memory cache to avoid repeated calls
@@ -91,7 +91,7 @@ export default function useBIData<T = unknown>(
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [source, setSource] = useState<'live' | 'static' | null>(null);
+  const [source, setSource] = useState<'live' | null>(null);
   const fetchIdRef = useRef(0);
 
   const staleTime = options?.staleTime ?? CACHE_TTL;
@@ -113,7 +113,7 @@ export default function useBIData<T = unknown>(
     if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime) {
       setData(cached.data as T);
       setMetadata(cached.metadata);
-      setSource((cached.metadata as any)?.source ?? 'live');
+      setSource('live');
       setLastUpdated(new Date(cached.timestamp));
       setLoading(false);
       setError(null);
@@ -136,35 +136,6 @@ export default function useBIData<T = unknown>(
       setLoading(false);
       setError(null);
       return;
-    }
-
-    // ── Fallback: try static JSON from /public/data/ ──
-    try {
-      const staticUrl = `/data/${tableName}.json`;
-      const resp = await fetch(staticUrl);
-      if (fetchId !== fetchIdRef.current) return;
-      if (resp.ok) {
-        const contentType = resp.headers.get('content-type') || '';
-        if (contentType.includes('application/json') || contentType.includes('text/')) {
-          const body = await resp.json();
-          const staticData = body.data ?? body;
-          const staticMeta: BIMetadata = body.metadata ?? {
-            generated_at: new Date().toISOString(),
-            source: 'static' as const,
-          };
-          const now = Date.now();
-          dataCache.set(cacheKey, { data: staticData, metadata: staticMeta, timestamp: now });
-          setData(staticData as T);
-          setMetadata(staticMeta);
-          setSource('static');
-          setLastUpdated(new Date(now));
-          setLoading(false);
-          setError(null);
-          return;
-        }
-      }
-    } catch {
-      // static fallback also failed — fall through to error state
     }
 
     setError(`Sem dados disponíveis para '${tableName}'. Verifique a conexão com o servidor.`);
