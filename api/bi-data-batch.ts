@@ -250,7 +250,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const results = await Promise.all(
       requests.map(async (r) => {
         const pool = isHeavyTable(r.table) ? heavyPool : primaryPool;
-        const tableCacheKey = `batch_${r.table}_${r.fields?.join(',') || '*'}`;
+        const tableCacheKey = `batch_${r.table}_${r.fields?.join(',') || '*'}_l${r.limit}_y${r.year ?? 'all'}`;
         const tableCached = cache.get(tableCacheKey);
         if (tableCached && (Date.now() - tableCached.timestamp) < CACHE_TTL) {
           return { table: r.table, ...(tableCached.data as any) };
