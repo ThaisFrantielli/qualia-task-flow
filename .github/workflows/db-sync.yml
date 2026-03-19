@@ -12,7 +12,7 @@ on:
 jobs:
   db-sync:
     name: Sincronizar SQL Server -> Supabase
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64, sql-vpn]
     timeout-minutes: 180
 
     steps:
