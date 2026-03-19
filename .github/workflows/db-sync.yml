@@ -28,7 +28,7 @@ jobs:
       - name: Instalar dependencias ETL
         run: npm --prefix scripts/local-etl install
 
-      - name: Executar sincronizacao
+      - name: Executar sincronizacao otimizada v3 (parallelized COPY protocol)
         env:
           SQL_SERVER: ${{ secrets['SQL_SERVER'] }}
           SQL_USER: ${{ secrets['SQL_USER'] }}
@@ -50,4 +50,4 @@ jobs:
           HEAVY_PG_DATABASE: ${{ secrets['HEAVY_PG_DATABASE'] }}
 
           NODE_OPTIONS: '--max-old-space-size=4096'
-        run: node --max-old-space-size=4096 scripts/local-etl/run-sync-v2.js
+        run: node --max-old-space-size=4096 scripts/local-etl/run-sync-v3.js
