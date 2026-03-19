@@ -33,15 +33,15 @@ jobs:
 
       - name: 4. Rodar ETL (PostgreSQL Sync)
         env:
-          SQL_SERVER: ${{ secrets.SQL_SERVER }}
-          SQL_USER: ${{ secrets.SQL_USER }}
-          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
-          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-          PG_HOST: ${{ secrets.PG_HOST }}
-          PG_PORT: ${{ secrets.PG_PORT }}
-          PG_USER: ${{ secrets.PG_USER }}
-          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
-          PG_DATABASE: ${{ secrets.PG_DATABASE }}
+          SQL_SERVER: ${{ secrets['SQL_SERVER'] }}
+          SQL_USER: ${{ secrets['SQL_USER'] }}
+          SQL_PASSWORD: ${{ secrets['SQL_PASSWORD'] }}
+          SQL_DATABASE: ${{ secrets['SQL_DATABASE'] }}
+          PG_POOLER_HOST: ${{ secrets['PG_POOLER_HOST'] }}
+          PG_POOLER_PORT: ${{ secrets['PG_POOLER_PORT'] }}
+          PG_POOLER_USER: ${{ secrets['PG_POOLER_USER'] }}
+          PG_PASSWORD: ${{ secrets['PG_PASSWORD'] }}
+          PG_DATABASE: ${{ secrets['PG_DATABASE'] }}
           NODE_OPTIONS: "--max-old-space-size=7168"
         run: node scripts/local-etl/run-sync-v2.js
 

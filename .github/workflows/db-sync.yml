@@ -2,7 +2,8 @@ name: Supabase DB Sync
 
 on:
   schedule:
-    # Horarios de Brasilia convertidos para UTC
+    # Horarios de Brasilia (BRT/UTC-3): 00:30, 10:30 e 15:30
+    # Em UTC: 03:30, 13:30 e 18:30
     - cron: '30 3 * * *'
     - cron: '30 13 * * *'
     - cron: '30 18 * * *'
@@ -24,19 +25,29 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Instalar dependencias
-        run: npm install
+      - name: Instalar dependencias ETL
+        run: npm --prefix scripts/local-etl install
 
       - name: Executar sincronizacao
         env:
-          SQL_SERVER: ${{ secrets.SQL_SERVER }}
-          SQL_USER: ${{ secrets.SQL_USER }}
-          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
-          SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-          SQL_PORT: ${{ secrets.SQL_PORT }}
-          PG_POOLER_HOST: ${{ secrets.PG_POOLER_HOST }}
-          PG_POOLER_PORT: ${{ secrets.PG_POOLER_PORT }}
-          PG_POOLER_USER: ${{ secrets.PG_POOLER_USER }}
-          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
-          PG_DATABASE: ${{ secrets.PG_DATABASE }}
+          SQL_SERVER: ${{ secrets['SQL_SERVER'] }}
+          SQL_USER: ${{ secrets['SQL_USER'] }}
+          SQL_PASSWORD: ${{ secrets['SQL_PASSWORD'] }}
+          SQL_DATABASE: ${{ secrets['SQL_DATABASE'] }}
+          SQL_PORT: ${{ secrets['SQL_PORT'] }}
+
+          PG_POOLER_HOST: ${{ secrets['PG_POOLER_HOST'] }}
+          PG_POOLER_PORT: ${{ secrets['PG_POOLER_PORT'] }}
+          PG_POOLER_USER: ${{ secrets['PG_POOLER_USER'] }}
+
+          PG_PASSWORD: ${{ secrets['PG_PASSWORD'] }}
+          PG_DATABASE: ${{ secrets['PG_DATABASE'] }}
+
+          HEAVY_PG_POOLER_HOST: ${{ secrets['HEAVY_PG_POOLER_HOST'] }}
+          HEAVY_PG_POOLER_PORT: ${{ secrets['HEAVY_PG_POOLER_PORT'] }}
+          HEAVY_PG_POOLER_USER: ${{ secrets['HEAVY_PG_POOLER_USER'] }}
+          HEAVY_PG_PASSWORD: ${{ secrets['HEAVY_PG_PASSWORD'] }}
+          HEAVY_PG_DATABASE: ${{ secrets['HEAVY_PG_DATABASE'] }}
+
+          NODE_OPTIONS: '--max-old-space-size=4096'
         run: node --max-old-space-size=4096 scripts/local-etl/run-sync-v2.js
