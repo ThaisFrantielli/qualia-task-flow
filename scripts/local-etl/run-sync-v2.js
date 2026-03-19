@@ -90,9 +90,9 @@ const TABLES = [
     { table: 'dim_movimentacao_veiculos', query: `SELECT * FROM MovimentacaoVeiculos WITH (NOLOCK)` },
     { table: 'fat_carro_reserva', query: `SELECT * FROM OcorrenciasVeiculoTemporario WITH (NOLOCK)` },
     { table: 'fat_itens_ordem_servico', query: `SELECT * FROM ItensOrdemServico WITH (NOLOCK)` },
-    { table: 'fat_manutencao_unificado', query: `SELECT * FROM OcorrenciasManutencao WITH (NOLOCK) WHERE DataCriacao >= '2024-01-01'` },
+    { table: 'fat_manutencao_unificado', query: `SELECT * FROM OcorrenciasManutencao WITH (NOLOCK)` },
     { table: 'fat_movimentacao_ocorrencias', query: `SELECT * FROM MovimentacaoOcorrencias WITH (NOLOCK)` },
-    { table: 'fat_multas', query: `SELECT * FROM OcorrenciasInfracoes WITH (NOLOCK) WHERE DataInfracao >= '2024-01-01'` },
+    { table: 'fat_multas', query: `SELECT * FROM OcorrenciasInfracoes WITH (NOLOCK)` },
     { table: 'fat_sinistros', query: `SELECT * FROM OcorrenciasSinistro WITH (NOLOCK)` },
     { table: 'historico_situacao_veiculos', query: `SELECT * FROM HistoricoSituacaoVeiculos WITH (NOLOCK)` }
 ];

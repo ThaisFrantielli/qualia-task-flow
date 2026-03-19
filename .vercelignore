@@ -1,0 +1,14 @@
+node_modules/
+dist/
+public/data/
+whatsapp-service/node_modules/
+whatsapp-session-default/
+*.log
+*.tmp
+*.bak
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+vercel_500.txt
