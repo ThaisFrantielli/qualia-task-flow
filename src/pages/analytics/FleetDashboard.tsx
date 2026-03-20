@@ -31,6 +31,28 @@ type AnyObject = { [k: string]: any };
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function sanitizeText(v: any): string {
+    const s = String(v ?? '').trim();
+    if (!s) return '';
+
+    // Corrige padrões mais comuns de mojibake encontrados na carga de frota.
+    return s
+        .replace(/├ç/g, 'Ç')
+        .replace(/├â/g, 'Ã')
+        .replace(/├ü/g, 'Á')
+        .replace(/├á/g, 'á')
+        .replace(/├®/g, 'é')
+        .replace(/├£/g, 'ã')
+        .replace(/├ª/g, 'ê')
+        .replace(/├│/g, 'ó')
+        .replace(/├ô/g, 'Ó')
+        .replace(/├ì/g, 'Í')
+        .replace(/├í/g, 'í')
+        .replace(/├ú/g, 'Ú')
+        .replace(/┬º/g, 'º')
+        .replace(/┬°/g, '°')
+        .replace(/�/g, '');
+}
 function normalizePlate(v: any): string { return String(v ?? '').trim().toUpperCase(); }
 function normalizeOccurrence(v: any): string {
     const s = String(v ?? '').trim().toUpperCase();
@@ -126,15 +148,15 @@ export default function FleetDashboard() {
         return raw.map((item: AnyObject): AnyObject => ({
             ...item,
             Placa: item.Placa || item.placa || item.plate || '',
-            Modelo: item.Modelo || item.modelo || item.modelo_veiculo || 'N/A',
-            Status: item.Status || item.status || item.SituacaoVeiculo || item.situacaoveiculo || 'N/A',
+            Modelo: sanitizeText(item.Modelo || item.modelo || item.modelo_veiculo || 'N/A') || 'N/A',
+            Status: sanitizeText(item.Status || item.status || item.SituacaoVeiculo || item.situacaoveiculo || 'N/A') || 'N/A',
             ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.ValorCompraVeiculo || item.valor_compra || 0),
             ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorAtualFIPE || item.valoratualfipe || item.ValorFipe || item.valorfipe || 0),
             KmInformado: parseNum(item.KmInformado || item.kminformado || item.KM || item.km || item.currentkm || 0),
             KmConfirmado: parseNum(item.KmConfirmado || item.kmconfirmado || item.OdometroConfirmado || item.odometroconfirmado || 0),
             IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.IdadeEmMeses || item.idadeemmeses || item.agemonths || 0),
-            Categoria: item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros',
-            Filial: item.Filial || item.filial || 'N/A',
+            Categoria: sanitizeText(item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros') || 'Outros',
+            Filial: sanitizeText(item.Filial || item.filial || 'N/A') || 'N/A',
             UltimoEnderecoTelemetria: item.UltimoEnderecoTelemetria || item.ultimoenderecotelemetria || '',
         }));
     }, [frotaData]);
@@ -1049,12 +1071,13 @@ export default function FleetDashboard() {
 
     // Dados para exibição no gráfico (com categorias colapsáveis)
     const modelosHierarchicalData = useMemo(() => {
-        const data: Array<{ name: string; value: number; isCategory?: boolean; categoria?: string }> = [];
+        const data: Array<{ name: string; label: string; value: number; isCategory?: boolean; categoria?: string }> = [];
 
         modelosPorCategoria.forEach(({ categoria, total, modelos }) => {
             // Adiciona a linha da categoria
             data.push({
-                name: `­ƒôü ${categoria}`,
+                name: categoria,
+                label: categoria,
                 value: total,
                 isCategory: true,
                 categoria
@@ -1064,7 +1087,8 @@ export default function FleetDashboard() {
             if (expandedCategories.includes(categoria)) {
                 modelos.forEach(modelo => {
                     data.push({
-                        name: `  ÔööÔöÇ ${modelo.name}`,
+                        name: modelo.name,
+                        label: `- ${modelo.name}`,
                         value: modelo.value,
                         isCategory: false,
                         categoria
@@ -2211,7 +2235,7 @@ export default function FleetDashboard() {
                                     <BarChart data={modelosHierarchicalData} layout="vertical" margin={{ left: 0, right: 80, top: 6 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                                         <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 10 }} />
+                                        <YAxis dataKey="label" type="category" width={240} tick={{ fontSize: 10 }} />
                                         <Tooltip formatter={(value: any) => [String(value), 'Veículos']} />
                                         <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={16}
                                             onClick={(data: any, _index: number, event: any) => {
@@ -2220,7 +2244,7 @@ export default function FleetDashboard() {
                                                     toggleCategory(data.categoria);
                                                 } else {
                                                     // Se for modelo, aplica filtro
-                                                    const modeloName = data.name.replace('  • ', '').trim();
+                                                    const modeloName = String(data.name || '').trim();
                                                     handleChartClick('modelo', modeloName, event as unknown as React.MouseEvent);
                                                     if (!((event?.ctrlKey) || (event?.metaKey))) {
                                                         document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' });
