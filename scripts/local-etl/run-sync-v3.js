@@ -17,6 +17,15 @@ const sqlConfig = {
     options: { encrypt: false, trustServerCertificate: true }
 };
 
+function parsePositiveInt(value, fallback) {
+    const n = Number.parseInt(String(value ?? ''), 10);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const primaryPoolMax = parsePositiveInt(process.env.PG_POOL_MAX, 15);
+const heavyPoolMax = parsePositiveInt(process.env.HEAVY_PG_POOL_MAX ?? process.env.PG_POOL_MAX, 15);
+const parallelBatchSize = parsePositiveInt(process.env.ETL_BATCH_SIZE, 4);
+
 // Pooler Session mode (IPv4, porta 5432) — necessário para COPY protocol
 // Host direto (db.*) é IPv6-only; pooler tem IPv4.
 const pgPrimaryConfig = {
@@ -26,7 +35,7 @@ const pgPrimaryConfig = {
     password: process.env.PG_PASSWORD,
     database: process.env.PG_DATABASE || 'postgres',
     ssl: { rejectUnauthorized: false },
-    max: 15,  // ↑ Aumentado de 5 para melhor paralelização
+    max: primaryPoolMax,
     connectionTimeoutMillis: 30000,
     idleTimeoutMillis: 30000
 };
@@ -38,7 +47,7 @@ const pgHeavyConfig = {
     password: process.env.HEAVY_PG_PASSWORD,
     database: process.env.HEAVY_PG_DATABASE || 'postgres',
     ssl: { rejectUnauthorized: false },
-    max: 15,  // ↑ Aumentado de 5 para melhor paralelização
+    max: heavyPoolMax,
     connectionTimeoutMillis: 30000,
     idleTimeoutMillis: 30000
 };
@@ -336,7 +345,7 @@ async function runSync() {
         const heavyTables = tablesToRun.filter(t => HEAVY_TABLES.has(t.table));
         const lightTables = tablesToRun.filter(t => !HEAVY_TABLES.has(t.table));
 
-        const BATCH_SIZE = 4; // Máximo de sincronizações paralelas simultâneas
+        const BATCH_SIZE = parallelBatchSize; // Máximo de sincronizações paralelas simultâneas
 
         // Primeira fase: tabelas leves em batches paralelos
         if (lightTables.length > 0) {
