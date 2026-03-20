@@ -106,32 +106,32 @@ crontab -l
 
 ## 📅 Horários de Execução
 
-O ETL será executado automaticamente nos seguintes horários (horário do servidor):
+O ETL será executado automaticamente nos seguintes horários (horário de Brasília):
 
-- 🌙 **00:30** - Execução noturna
-- ☀️ **10:30** - Execução matinal
-- 🌆 **15:30** - Execução vespertina
+- 🌙 **00:20** - Execução noturna
+- ☀️ **10:20** - Execução matinal
+- 🌆 **15:20** - Execução vespertina
 
 ## 📊 Monitoramento
 
 ### Ver Logs em Tempo Real
 
 ```bash
-# Log da execução das 00:30
-tail -f ~/qualia-task-flow/scripts/local-etl/logs/etl-0030.log
+# Log da execução das 00:20
+tail -f ~/qualia-task-flow/scripts/local-etl/logs/etl-0020.log
 
-# Log da execução das 10:30
-tail -f ~/qualia-task-flow/scripts/local-etl/logs/etl-1030.log
+# Log da execução das 10:20
+tail -f ~/qualia-task-flow/scripts/local-etl/logs/etl-1020.log
 
-# Log da execução das 15:30
-tail -f ~/qualia-task-flow/scripts/local-etl/logs/etl-1530.log
+# Log da execução das 15:20
+tail -f ~/qualia-task-flow/scripts/local-etl/logs/etl-1520.log
 ```
 
 ### Ver Últimas Linhas dos Logs
 
 ```bash
 # Ver últimas 50 linhas do log matinal
-tail -n 50 ~/qualia-task-flow/scripts/local-etl/logs/etl-1030.log
+tail -n 50 ~/qualia-task-flow/scripts/local-etl/logs/etl-1020.log
 ```
 
 ### Listar Todos os Logs

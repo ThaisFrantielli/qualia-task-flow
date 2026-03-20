@@ -19,7 +19,7 @@ echo ""
 
 # Diretório do script ETL (ajuste conforme necessário)
 ETL_DIR="/home/opc/qualia-task-flow/scripts/local-etl"
-ETL_SCRIPT="$ETL_DIR/run-sync-v2.js"
+ETL_SCRIPT="$ETL_DIR/run-sync-v3.js"
 LOG_DIR="$ETL_DIR/logs"
 
 # Verificar se Node.js está instalado
@@ -47,20 +47,21 @@ install_cron() {
     crontab -l > /tmp/crontab_backup_$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
     
     # Remover jobs antigos do ETL (se existirem)
-    crontab -l 2>/dev/null | grep -v "BluConecta-ETL" | crontab - || true
+    crontab -l 2>/dev/null | grep -v "BluConecta-ETL" | grep -v "$ETL_SCRIPT" | grep -v "CRON_TZ=America/Sao_Paulo" | crontab - || true
     
     # Adicionar novos jobs
     (crontab -l 2>/dev/null; echo "# BluConecta-ETL - Execução automática 3x ao dia") | crontab -
-    (crontab -l 2>/dev/null; echo "30 0 * * * cd $ETL_DIR && /usr/bin/node $ETL_SCRIPT >> $LOG_DIR/etl-0030.log 2>&1") | crontab -
-    (crontab -l 2>/dev/null; echo "30 10 * * * cd $ETL_DIR && /usr/bin/node $ETL_SCRIPT >> $LOG_DIR/etl-1030.log 2>&1") | crontab -
-    (crontab -l 2>/dev/null; echo "30 15 * * * cd $ETL_DIR && /usr/bin/node $ETL_SCRIPT >> $LOG_DIR/etl-1530.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "CRON_TZ=America/Sao_Paulo") | crontab -
+    (crontab -l 2>/dev/null; echo "20 0 * * * cd $ETL_DIR && /usr/bin/node $ETL_SCRIPT >> $LOG_DIR/etl-0020.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "20 10 * * * cd $ETL_DIR && /usr/bin/node $ETL_SCRIPT >> $LOG_DIR/etl-1020.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "20 15 * * * cd $ETL_DIR && /usr/bin/node $ETL_SCRIPT >> $LOG_DIR/etl-1520.log 2>&1") | crontab -
     
     echo -e "${GREEN}✅ Cron jobs instalados com sucesso!${NC}"
     echo ""
     echo -e "${CYAN}📅 Horários de execução:${NC}"
-    echo -e "   • 00:30 - Execução noturna"
-    echo -e "   • 10:30 - Execução matinal"
-    echo -e "   • 15:30 - Execução vespertina"
+    echo -e "   • 00:20 - Execução noturna"
+    echo -e "   • 10:20 - Execução matinal"
+    echo -e "   • 15:20 - Execução vespertina"
     echo ""
     echo -e "${CYAN}📁 Logs salvos em: $LOG_DIR${NC}"
 }
@@ -118,8 +119,8 @@ case "$1" in
         echo "  ./schedule-etl-linux.sh uninstall   # Remover cron jobs"
         echo ""
         echo -e "${CYAN}💡 Horários de execução:${NC}"
-        echo "   • 00:30 - Execução noturna"
-        echo "   • 10:30 - Execução matinal"
-        echo "   • 15:30 - Execução vespertina"
+        echo "   • 00:20 - Execução noturna"
+        echo "   • 10:20 - Execução matinal"
+        echo "   • 15:20 - Execução vespertina"
         ;;
 esac
