@@ -274,6 +274,9 @@ async function syncTable(item, sqlPool, pgPool, options = {}) {
 
     const client = await pgPool.connect();
     try {
+        await client.query('SET statement_timeout = 0');
+        await client.query('SET lock_timeout = 0');
+
         const colDefs = columnDefs.map(c => `"${c.key}" ${c.type}`).join(', ');
         await client.query(`DROP TABLE IF EXISTS public.${item.table} CASCADE`);
         await client.query(`CREATE TABLE public.${item.table} (${colDefs})`);
