@@ -447,8 +447,8 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, { error: an
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function FaturamentoDashboardInner(): JSX.Element {
-  // ── Filtros ativos (ano padrão 2026)
-  const [filtroAno, setFiltroAno] = useState<number>(2026);
+  // ── Filtros ativos (0 = todos os períodos)
+  const [filtroAno, setFiltroAno] = useState<number>(0);
   const [filtroStatus, setFiltroStatus] = useState('Todos');
   const [filtroTipoFaturamento, setFiltroTipoFaturamento] = useState<string>('__init__');
   const [tabTipoSelecionada, setTabTipoSelecionada] = useState<string>('__init__');
@@ -1148,13 +1148,13 @@ export function FaturamentoDashboardInner(): JSX.Element {
             </select>
 
             {/* Limpar */}
-            {(filtroAno !== 2026 || filtroStatus !== 'Todos' || filtroCliente !== 'Todos' ||
+            {(filtroAno !== 0 || filtroStatus !== 'Todos' || filtroCliente !== 'Todos' ||
               filtroContratoLoc !== 'Todos' || filtroContratoComercial !== 'Todos' ||
               filtroTipoContrato !== 'Todos' || searchText || filtroMes) && (
               <button
                 className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 bg-red-50 hover:bg-red-100 transition-colors font-semibold"
                 onClick={() => {
-                  setFiltroAno(2026); setFiltroStatus('Todos'); setFiltroCliente('Todos');
+                  setFiltroAno(0); setFiltroStatus('Todos'); setFiltroCliente('Todos');
                   setFiltroContratoLoc('Todos'); setFiltroContratoComercial('Todos');
                   setFiltroTipoContrato('Todos'); setSearchText(''); setFiltroMes(null); setPage(1);
                 }}
