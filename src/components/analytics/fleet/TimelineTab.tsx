@@ -216,6 +216,33 @@ function getMinutesConclusaoRetirada(row: any): number | null {
   }
 }
 
+function getMinutesAberturaRetirada(row: any): number | null {
+  try {
+    const first = row?.osRecords?.[0] ?? {};
+    const abertura = parseDateAny(
+      row?.dataAberturaOcorrencia ??
+      row?.ocorrenciaDate ??
+      first?.DataAberturaOcorrencia ??
+      first?.DataAbertura ??
+      first?.DataEntrada ??
+      row?.sinistroDate
+    );
+    const retirada = parseDateAny(
+      row?.dataRetiradaVeiculo ??
+      first?.DataRetiradaVeiculo ??
+      first?.DataRetirada ??
+      first?.DataSaida ??
+      first?.DataConclusaoOcorrencia ??
+      row?.DataRetirada
+    );
+    if (!abertura || !retirada) return null;
+    const diff = Math.round((retirada.getTime() - abertura.getTime()) / (1000 * 60));
+    return diff > 0 ? diff : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function fmtDurationFromMinutes(mins?: number | null): string {
   if (mins == null || isNaN(mins)) return '—';
   const total = Math.max(0, Math.floor(mins));
@@ -848,11 +875,14 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
   const aggregatedMetrics = useMemo(() => {
     const safeMovimentacoes = Array.isArray(movimentacoes) ? movimentacoes : [];
 
-    return aggregateFleetMetrics(frota, contratosLocacao || [], manutencao || [], safeMovimentacoes,
-      // @ts-ignore
-      undefined // now default
+    return aggregateFleetMetrics(
+      frota,
+      contratosLocacao || [],
+      manutencao || [],
+      safeMovimentacoes,
+      sinistros || []
     );
-  }, [frota, contratosLocacao, manutencao, movimentacoes]);
+  }, [frota, contratosLocacao, manutencao, movimentacoes, sinistros]);
 
   // Mapa de métricas por placa para lookup ràpido
   const metricsByPlaca = useMemo(() => {
@@ -1359,6 +1389,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
               const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
               const tipoRaw = String(ev.TipoEvento || ev.Evento || '').toUpperCase();
               if (tipo.includes('MANUT') || tipo.includes('MULTA')) return;
+              if (tipo === 'CARRO_RESERVA') return;
               if (tipoRaw.includes('PATIO') || tipoRaw.includes('MOVIMENTACAO_VEICULO') || tipoRaw.includes('MOVIMENTACAO')) return;
               const d = new Date(ev.DataEvento || ev.Data);
               if (!Number.isNaN(d.getTime())) {
@@ -1522,7 +1553,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
         </div>
       </div>
 
-      {(qualValuesLoading || qualValuesError || ((qualValuesCoverage?.total ?? 0) > 0 && (qualValuesCoverage?.withValues ?? 0) === 0)) && (
+      {(qualValuesLoading || !!qualValuesError) && (
         <Card className="border border-amber-200 bg-amber-50">
           {qualValuesLoading && (
             <Text className="text-amber-800 text-sm">
@@ -1532,11 +1563,6 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
           {!qualValuesLoading && qualValuesError && (
             <Text className="text-rose-700 text-sm">
               Não foi possível validar os valores QUAL no momento: {qualValuesError}
-            </Text>
-          )}
-          {!qualValuesLoading && !qualValuesError && ((qualValuesCoverage?.total ?? 0) > 0 && (qualValuesCoverage?.withValues ?? 0) === 0) && (
-            <Text className="text-amber-800 text-sm">
-              A timeline carregou, mas ainda não encontrou valores QUAL conciliados para as OS exibidas. Continue navegando ou atualize após o ETL concluir.
             </Text>
           )}
         </Card>
@@ -2281,22 +2307,33 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                 }
                               }
 
-                              // Se não encontramos uma manutenção correspondente mas o sinistro tem `ocorrencia`,
+                              // Se não encontramos uma manutenção correspondente,
                               // criar uma ocorrência sintética a partir do sinistro para reaproveitar o mesmo layout.
                               let syntheticManut: MaintenanceOccurrence | undefined;
-                              if (!matchedManut && sin.ocorrencia) {
+                              if (!matchedManut) {
+                                const syntheticOcorrencia = String(sin.ocorrencia ?? sin.sinistroId ?? '').trim();
                                 const valorTotal = Number(sin.items?.[0]?.ValorFinaleiroCalculado ?? 0);
                                 const valorReembolsavelItem = Number(sin.items?.[0]?.ValorReembolsavel ?? 0);
                                 syntheticManut = {
                                   kind: 'MANUTENCAO_OCORRENCIA',
                                   key: `occ:sin:${sin.key}`,
-                                  ocorrenciaId: String(sin.ocorrencia),
-                                  ocorrencia: String(sin.ocorrencia),
+                                  ocorrenciaId: syntheticOcorrencia,
+                                  ocorrencia: syntheticOcorrencia,
                                   ocorrenciaDate: sin.sinistroDate,
-                                  osRecords: sin.items?.map((it: any) => ({
+                                  osRecords: sin.items?.map((it: any, idx: number) => ({
                                     ...it,
-                                    CustoTotalOS: parseMoneyLike(it?.CustoTotalOS ?? it?.ValorFinaleiroCalculado ?? 0),
+                                    OrdemServico: it?.OrdemServico ?? it?.IdOrdemServico ?? `OS ${idx + 1}`,
+                                    DataEntrada: it?.DataEntrada ?? sin.dataAberturaOcorrencia ?? sin.sinistroDate ?? null,
+                                    DataSaida: it?.DataSaida ?? sin.dataRetiradaVeiculo ?? sin.dataConclusaoOcorrencia ?? null,
+                                    SituacaoOcorrencia: it?.SituacaoOcorrencia ?? it?.Situacao ?? sin.situacao ?? null,
+                                    FornecedorOS: it?.FornecedorOS ?? it?.Fornecedor ?? sin.fornecedor ?? null,
+                                    Motivo: it?.Motivo ?? it?.MotivoOcorrencia ?? it?.Descricao ?? null,
+                                    DescricaoOcorrencia: it?.DescricaoOcorrencia ?? it?.Observacao ?? it?.Descricao ?? null,
+                                    CustoTotalOS: parseMoneyLike(it?.CustoTotalOS ?? it?.ValorFinaleiroCalculado ?? it?.ValorTotal ?? 0),
+                                    ValorTotalFatItens: parseMoneyLike(it?.ValorFinaleiroCalculado ?? it?.ValorTotal ?? it?.CustoTotalOS ?? 0),
                                     ValorReembolsavel: parseMoneyLike(it?.ValorReembolsavel ?? valorReembolsavelItem ?? 0),
+                                    ValorReembolsavelFatItens: parseMoneyLike(it?.ValorReembolsavel ?? valorReembolsavelItem ?? 0),
+                                    OdometroOS: it?.OdometroOS ?? it?.Odometro ?? null,
                                   })) || [],
                                   situacao: sin.situacao ?? undefined,
                                   tipoOcorrencia: sin.tipoSinistro ?? undefined,
@@ -2419,26 +2456,12 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                                 <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
                                               ) : null;
                                             })()}
-                                            {/* Campos complementares do sinistro (sem duplicar datas já exibidas acima) */}
-                                            {sin.items?.[0] && (
-                                              (() => {
-                                                const itm = sin.items[0];
-                                                const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? row.situacao ?? '').trim();
-                                                const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '').trim();
-                                                const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '').trim();
-                                                const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '').trim();
-                                                const hasExtra = situ || etapa || motivoIt || fornecedorIt;
-                                                if (!hasExtra) return null;
-                                                return (
-                                                  <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
-                                                    {situ && <div><b>Situação:</b> {situ}</div>}
-                                                    {etapa && <div><b>Etapa:</b> {etapa}</div>}
-                                                    {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
-                                                    {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
-                                                  </div>
-                                                )
-                                              })()
-                                            )}
+                                            {(() => {
+                                              const minsAbertRet = getMinutesAberturaRetirada(row);
+                                              return minsAbertRet != null ? (
+                                                <div className="text-purple-700 font-semibold mt-1">Δ Abert→Ret: {fmtDurationFromMinutes(minsAbertRet)}</div>
+                                              ) : null;
+                                            })()}
                                           </div>
                                           <div className={`text-xs font-medium ${rowExpandColorClasses}`}>{isRowExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                         </div>
@@ -2446,22 +2469,168 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
 
                                       {isRowExpanded && (
                                         <div className="mt-3 space-y-2">
-                                          {row.osRecords.map((it: any, idx: number) => (
-                                            <div key={`os-${idx}`} className="p-3 bg-white rounded border border-amber-50 text-xs">
-                                              <div className="flex justify-between">
-                                                <div className="flex-1">
-                                                  <div className="font-medium text-slate-700">{it?.IdOrdemServico ?? it?.OrdemServico ?? it?.OS ?? `OS ${idx + 1}`}</div>
-                                                  <div className="text-[11px] text-slate-500">{it?.Fornecedor ?? it?.FornecedorOcorrencia ?? ''}</div>
-                                                </div>
-                                                  {(() => {
-                                                    const totalItem = parseMoneyLike(it?.CustoTotalOS ?? getSinistroValorTotal(it) ?? it?.CustoTotal ?? it?.Valor ?? 0);
-                                                    return totalItem > 0
-                                                      ? <div className="text-amber-700 font-bold">{fmtMoney(totalItem)}</div>
-                                                      : <div className="text-slate-400 font-medium">Sem valor informado</div>;
-                                                  })()}
+                                          {Array.isArray(row.movimentacoes) && row.movimentacoes.length > 0 && (
+                                            <div className="bg-slate-50 p-2 rounded text-xs text-slate-700">
+                                              <div className="font-medium text-[12px] mb-1">Etapas</div>
+                                              <div className="flex flex-col gap-1">
+                                                {row.movimentacoes.map((m, idx) => (
+                                                  <div key={`mov:${idx}`} className="flex items-center justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                      <div className="flex items-baseline gap-2">
+                                                        <div className="font-medium text-[12px]">{m?.Etapa ?? ''}</div>
+                                                        {m?.Usuario ? <div className="text-[11px] text-slate-400">  {String(m.Usuario)}</div> : null}
+                                                      </div>
+                                                      <div className="text-[11px] text-slate-500">{m?.DataConfirmacao ? (function () { const dt = parseDateAny(m.DataConfirmacao); return dt ? fmtDateTimeBR(dt) : String(m.DataConfirmacao); })() : ''}</div>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-600">{fmtDurationFromMinutes(m?.MinutosDesdeAnterior ?? (m?.HorasDesdeAnterior != null ? Number(m.HorasDesdeAnterior) * 60 : null))}</div>
+                                                  </div>
+                                                ))}
                                               </div>
                                             </div>
-                                          ))}
+                                          )}
+
+                                          {row.osRecords.map((r, i) => {
+                                            const osId = r?.OrdemServico ?? getMaintenanceId(r);
+                                            const entrada = normalizeDateLocal(r?.DataEntrada ?? r?.DataCriacaoOS ?? r?.DataAgendamento);
+                                            const saida = normalizeDateLocal(r?.DataSaida ?? r?.DataConclusaoOcorrencia);
+                                            const statusOS = r?.SituacaoOcorrencia ?? r?.StatusSimplificado ?? r?.StatusOS ?? r?.SituacaoOrdemServico;
+                                            const categoria = r?.Categoria ?? '';
+                                            const despesa = r?.Despesa ?? '';
+                                            const custo = r?.CustoTotalOS ?? r?.ValorTotal;
+                                            const valorTotalItens = r?.ValorTotalFatItens;
+                                            const valorReembolsavel = r?.ValorReembolsavel;
+                                            const valorReembolsavelItens = r?.ValorReembolsavelFatItens;
+                                            const valorNaoReembolsavel = r?.ValorNaoReembolsavel;
+                                            const valorTotalItensNum = Number(valorTotalItens ?? 0);
+                                            const valorReembolsavelItensNum = Number(valorReembolsavelItens ?? 0);
+                                            const valorLiquidoItens = valorTotalItensNum - valorReembolsavelItensNum;
+                                            const percentualReembolsoItens = valorTotalItensNum > 0 ? (valorReembolsavelItensNum / valorTotalItensNum) * 100 : null;
+                                            const odometro = r?.OdometroOS ?? r?.Odometro;
+                                            const fornecedorOS = r?.FornecedorOS ?? r?.Fornecedor;
+                                            const ordemCompra = r?.OrdemCompra;
+
+                                            return (
+                                              <div key={`${row.key}:os:${i}`} className="text-xs bg-white p-3 border-l-4 border-amber-400 rounded shadow-sm space-y-2">
+                                                <div className="flex justify-between items-start font-medium">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-slate-700 font-mono text-sm font-bold">{osId || `OS #${i + 1}`}</span>
+                                                    {statusOS && (
+                                                      <Badge
+                                                        color={statusOS.toLowerCase().includes('conclu') ? 'emerald' :
+                                                          statusOS.toLowerCase().includes('cancel') ? 'rose' : 'blue'}
+                                                        size="xs"
+                                                      >
+                                                        {statusOS}
+                                                      </Badge>
+                                                    )}
+                                                  </div>
+                                                  {custo != null && Number(custo) > 0 && (
+                                                    <span className="text-amber-700 font-bold">{fmtMoney(custo)}</span>
+                                                  )}
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-amber-50/50 p-2 rounded">
+                                                  {entrada && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Entrada:</span>
+                                                      <div className="font-semibold">{fmtDateBR(entrada)}</div>
+                                                    </div>
+                                                  )}
+                                                  {saida && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Saída:</span>
+                                                      <div className="font-semibold">{fmtDateBR(saida)}</div>
+                                                    </div>
+                                                  )}
+                                                  {odometro != null && Number(odometro) > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Odômetro:</span>
+                                                      <div className="font-semibold">{fmtDecimal(Number(odometro))} km</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+
+                                                {(categoria || despesa || ordemCompra) && (
+                                                  <div className="flex flex-wrap gap-2 items-center">
+                                                    {categoria && (
+                                                      <div className="flex items-center gap-1">
+                                                        <span className="text-slate-500 text-[10px]">Categoria:</span>
+                                                        <Badge color="amber" size="xs">{categoria}</Badge>
+                                                      </div>
+                                                    )}
+                                                    {despesa && (
+                                                      <div className="flex items-center gap-1">
+                                                        <span className="text-slate-500 text-[10px]">Despesa:</span>
+                                                        <Badge color="purple" size="xs">{despesa}</Badge>
+                                                      </div>
+                                                    )}
+                                                    {ordemCompra && (
+                                                      <div className="flex items-center gap-1">
+                                                        <span className="text-slate-500 text-[10px]">OC:</span>
+                                                        <span className="text-slate-700 font-mono text-[10px]">{ordemCompra}</span>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                )}
+
+                                                {(valorReembolsavel != null && Number(valorReembolsavel) > 0) ||
+                                                  (valorNaoReembolsavel != null && Number(valorNaoReembolsavel) > 0) ? (
+                                                  <div className="grid grid-cols-2 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
+                                                    {valorReembolsavel != null && Number(valorReembolsavel) > 0 && (
+                                                      <div>
+                                                        <span className="text-slate-500 font-medium">Reembolsàvel:</span>
+                                                        <div className="font-bold text-green-700">{fmtMoney(valorReembolsavel)}</div>
+                                                      </div>
+                                                    )}
+                                                    {valorNaoReembolsavel != null && Number(valorNaoReembolsavel) > 0 && (
+                                                      <div>
+                                                        <span className="text-slate-500 font-medium">Não Reembolsàvel:</span>
+                                                        <div className="font-bold text-red-700">{fmtMoney(valorNaoReembolsavel)}</div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ) : null}
+
+                                                {(valorTotalItens != null || valorReembolsavelItens != null) ? (
+                                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] bg-blue-50/50 p-2 rounded border border-blue-100">
+                                                    {valorTotalItens != null && (
+                                                      <div>
+                                                        <span className="text-slate-500 font-medium">Valor Total (Itens OS):</span>
+                                                        <div className="font-bold text-blue-700">{fmtMoney(valorTotalItens)}</div>
+                                                      </div>
+                                                    )}
+                                                    {valorReembolsavelItens != null && (
+                                                      <div>
+                                                        <span className="text-slate-500 font-medium">Valor Reembolsável (Itens OS):</span>
+                                                        <div className="font-bold text-green-700">{fmtMoney(valorReembolsavelItens)}</div>
+                                                      </div>
+                                                    )}
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Valor Líquido (Itens OS):</span>
+                                                      <div className="font-bold text-slate-700">{fmtMoney(valorLiquidoItens)}</div>
+                                                    </div>
+                                                    {percentualReembolsoItens != null && (
+                                                      <div>
+                                                        <span className="text-slate-500 font-medium">% Reembolso (Itens OS):</span>
+                                                        <div className="font-bold text-emerald-700">{fmtPercent(percentualReembolsoItens)}</div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ) : (
+                                                  <div className="text-[10px] bg-slate-50/80 p-2 rounded border border-slate-200 text-slate-600">
+                                                    Sem itens da OS vinculados na tabela fat_itens_ordem_servico para esta ocorrência.
+                                                  </div>
+                                                )}
+
+                                                {fornecedorOS && (
+                                                  <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit">
+                                                    <Store size={12} className="text-amber-600" />
+                                                    <span className="text-[10px]">Fornecedor: <b>{fornecedorOS}</b></span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       )}
                                     </div>
@@ -2482,7 +2651,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <span className={`font-bold text-sm ${titleColorClasses}`}>{title}</span>
-                                          <Badge color={isCancelada ? 'rose' : 'amber'} className="shrink-0">{sin.items?.length ?? 1} item(s)</Badge>
+                                          <Badge color="amber" className="shrink-0">{sin.items?.length ?? 1} OS</Badge>
                                           {tipoSin && (
                                             <Badge color="slate" className="shrink-0 text-[10px]">{tipoSin}</Badge>
                                           )}
@@ -2506,7 +2675,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                           {valorTotalSin > 0 && (
                                             <span className="text-emerald-700 font-bold text-xs">% Reemb: {fmtPercent(percentReembSin)}</span>
                                           )}
-                                          {valorTotalSin <= 0 && finSin.source === 'none' && (
+                                          {valorTotalSin <= 0 && (
                                             <span className="text-slate-400 text-xs ml-auto">Sem valor financeiro na origem</span>
                                           )}
                                         </div>
@@ -2535,26 +2704,12 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                               <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
                                             ) : null;
                                           })()}
-                                          {/* Campos complementares do sinistro (sem duplicar datas já exibidas acima) */}
-                                          {sin.items?.[0] && (
-                                            (() => {
-                                              const itm = sin.items[0];
-                                              const situ = String(itm?.Situacao ?? itm?.SituacaoOcorrencia ?? sin.situacao ?? '').trim();
-                                              const etapa = String(itm?.Etapa ?? itm?.EtapaOcorrencia ?? '').trim();
-                                              const motivoIt = String(itm?.Motivo ?? itm?.MotivoOcorrencia ?? itm?.Descricao ?? '').trim();
-                                              const fornecedorIt = String(itm?.Fornecedor ?? itm?.FornecedorOcorrencia ?? fornecedor ?? '').trim();
-                                              const hasExtra = situ || etapa || motivoIt || fornecedorIt;
-                                              if (!hasExtra) return null;
-                                              return (
-                                                <div className="mt-1 text-[11px] text-slate-600 space-y-0.5">
-                                                  {situ && <div><b>Situação:</b> {situ}</div>}
-                                                  {etapa && <div><b>Etapa:</b> {etapa}</div>}
-                                                  {motivoIt && <div><b>Motivo:</b> {motivoIt}</div>}
-                                                  {fornecedorIt && <div><b>Fornecedor:</b> {fornecedorIt}</div>}
-                                                </div>
-                                              )
-                                            })()
-                                          )}
+                                          {(() => {
+                                            const minsAbertRet = getMinutesAberturaRetirada(sin);
+                                            return minsAbertRet != null ? (
+                                              <div className="text-purple-700 font-semibold mt-1">Δ Abert→Ret: {fmtDurationFromMinutes(minsAbertRet)}</div>
+                                            ) : null;
+                                          })()}
                                         </div>
                                         <div className={`text-xs font-medium ${expandColorClasses}`}>{isSinExpanded ? '▼ Ocultar' : '▶ Expandir'}</div>
                                       </div>
@@ -2562,26 +2717,133 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
 
                                     {isSinExpanded && (
                                       <div className="mt-3 space-y-2">
-                                        {sin.items.map((it: any, idx: number) => (
-                                          <div key={`sin-item-${idx}`} className="text-xs bg-white p-3 border-l-4 border-rose-400 rounded shadow-sm">
-                                            <div className="flex justify-between">
-                                              <div className="flex-1">
-                                                <div className="font-medium text-slate-700">{getSinistroItemLabel(it, idx)}</div>
-                                                <div className="text-[11px] text-slate-500">{fmtDateTimeBR(parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro))}</div>
+                                        {sin.items.map((it: any, idx: number) => {
+                                          const itemId = getSinistroItemLabel(it, idx);
+                                          const dataItem = parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro);
+                                          const statusItem = it?.SituacaoOcorrencia ?? it?.Situacao ?? it?.Status ?? '';
+                                          const descricaoItem = it?.Observacao ?? it?.Descricao ?? it?.Motivo ?? '';
+                                          const categoryItem = it?.Categoria ?? '';
+                                          const despesaItem = it?.Despesa ?? '';
+                                          const ordemCompraItem = it?.OrdemCompra ?? '';
+                                          const fornecedorItem = it?.Fornecedor ?? it?.FornecedorOcorrencia ?? '';
+                                          const valorTotalItem = parseMoneyLike(getSinistroValorTotal(it));
+                                          const valorReembItem = parseMoneyLike(it?.ValorReembolsavel ?? 0);
+                                          const valorLiquidoItem = valorTotalItem - valorReembItem;
+                                          const percentualReembItem = valorTotalItem > 0 ? (valorReembItem / valorTotalItem) * 100 : 0;
+                                          const odometroItem = it?.Odometro ?? it?.OdometroSinistro ?? '';
+
+                                          return (
+                                            <div key={`sin-item-${idx}`} className="text-xs bg-white p-3 border-l-4 border-rose-400 rounded shadow-sm space-y-2">
+                                              {/* Linha 1: ID e Valor */}
+                                              <div className="flex justify-between items-start font-medium">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-slate-700 font-mono text-sm font-bold">{itemId}</span>
+                                                  {statusItem && (
+                                                    <Badge
+                                                      color={statusItem.toLowerCase().includes('conclu') ? 'emerald' :
+                                                        statusItem.toLowerCase().includes('cancel') ? 'rose' : 'blue'}
+                                                      size="xs"
+                                                    >
+                                                      {statusItem}
+                                                    </Badge>
+                                                  )}
+                                                </div>
+                                                {valorTotalItem > 0 && (
+                                                  <span className="text-amber-700 font-bold">{fmtMoney(valorTotalItem)}</span>
+                                                )}
                                               </div>
-                                              {getSinistroValorTotal(it) > 0
-                                                ? <div className="text-amber-700 font-bold">{fmtMoney(getSinistroValorTotal(it))}</div>
-                                                : <div className="text-slate-400 font-medium">Sem valor informado</div>
-                                              }
+
+                                              {/* Linha 2: Data e Odômetro */}
+                                              <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 bg-rose-50/50 p-2 rounded">
+                                                {dataItem && (
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Data Sinistro:</span>
+                                                    <div className="font-semibold">{fmtDateBR(dataItem)}</div>
+                                                  </div>
+                                                )}
+                                                {odometroItem && Number(odometroItem) > 0 && (
+                                                  <div>
+                                                    <span className="text-slate-500 font-medium">Odômetro:</span>
+                                                    <div className="font-semibold">{fmtDecimal(Number(odometroItem))} km</div>
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              {/* Linha 3: Categoria, Despesa, Ordem de Compra */}
+                                              {(categoryItem || despesaItem || ordemCompraItem) && (
+                                                <div className="flex flex-wrap gap-2 items-center">
+                                                  {categoryItem && (
+                                                    <div className="flex items-center gap-1">
+                                                      <span className="text-slate-500 text-[10px]">Categoria:</span>
+                                                      <Badge color="rose" size="xs">{categoryItem}</Badge>
+                                                    </div>
+                                                  )}
+                                                  {despesaItem && (
+                                                    <div className="flex items-center gap-1">
+                                                      <span className="text-slate-500 text-[10px]">Despesa:</span>
+                                                      <Badge color="purple" size="xs">{despesaItem}</Badge>
+                                                    </div>
+                                                  )}
+                                                  {ordemCompraItem && (
+                                                    <div className="flex items-center gap-1">
+                                                      <span className="text-slate-500 text-[10px]">OC:</span>
+                                                      <span className="text-slate-700 font-mono text-[10px]">{ordemCompraItem}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {/* Linha 4: Valores Reembolsáveis */}
+                                              {(valorReembItem > 0 || valorLiquidoItem > 0) ? (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] bg-green-50/50 p-2 rounded border border-green-100">
+                                                  {valorTotalItem > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Valor Total:</span>
+                                                      <div className="font-bold text-amber-700">{fmtMoney(valorTotalItem)}</div>
+                                                    </div>
+                                                  )}
+                                                  {valorReembItem > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Valor Reembolsável:</span>
+                                                      <div className="font-bold text-green-700">{fmtMoney(valorReembItem)}</div>
+                                                    </div>
+                                                  )}
+                                                  {valorTotalItem > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">Valor Líquido:</span>
+                                                      <div className="font-bold text-slate-700">{fmtMoney(valorLiquidoItem)}</div>
+                                                    </div>
+                                                  )}
+                                                  {valorTotalItem > 0 && (
+                                                    <div>
+                                                      <span className="text-slate-500 font-medium">% Reembolso:</span>
+                                                      <div className="font-bold text-emerald-700">{fmtPercent(percentualReembItem)}</div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <div className="text-[10px] bg-slate-50/80 p-2 rounded border border-slate-200 text-slate-600">
+                                                  Sem valores reembolsáveis informados.
+                                                </div>
+                                              )}
+
+                                              {/* Descrição/Observações */}
+                                              {descricaoItem && (
+                                                <div className="text-[10px] text-slate-600 italic bg-slate-50/50 p-2 rounded">
+                                                  {descricaoItem}
+                                                </div>
+                                              )}
+
+                                              {/* Fornecedor */}
+                                              {fornecedorItem && (
+                                                <div className="flex items-center gap-1.5 text-slate-600 bg-rose-50 px-2 py-1 rounded border border-rose-100 w-fit">
+                                                  <Store size={12} className="text-rose-600" />
+                                                  <span className="text-[10px]">Fornecedor: <b>{fornecedorItem}</b></span>
+                                                </div>
+                                              )}
                                             </div>
-                                            {it?.Fornecedor && (
-                                              <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit mt-2">
-                                                <Store size={12} className="text-amber-600" />
-                                                <span className="text-[10px]">Fornecedor: <b>{it.Fornecedor}</b></span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
+                                          );
+                                        })}
                                       </div>
                                     )}
                                   </div>
@@ -2693,6 +2955,12 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                             const minsConclRet = getMinutesConclusaoRetirada(row);
                                             return minsConclRet != null ? (
                                               <div className="text-amber-700 font-semibold mt-1">Δ Concl→Ret: {fmtDurationFromMinutes(minsConclRet)}</div>
+                                            ) : null;
+                                          })()}
+                                          {(() => {
+                                            const minsAbertRet = getMinutesAberturaRetirada(row);
+                                            return minsAbertRet != null ? (
+                                              <div className="text-purple-700 font-semibold mt-1">Δ Abert→Ret: {fmtDurationFromMinutes(minsAbertRet)}</div>
                                             ) : null;
                                           })()}
                                         </div>
@@ -3421,9 +3689,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                                     {pctReembSinistro != null && (
                                                       <span className="text-emerald-700 font-bold text-xs">% Reemb: {fmtPercent(pctReembSinistro)}</span>
                                                     )}
-                                                    {finSinistro.source === 'manutencao_fallback' && (
-                                                      <Badge color="amber" className="text-[10px]">Valor estimado via manutenção</Badge>
-                                                    )}
+
                                                   </div>
 
                                                   <div className="text-xs space-y-1.5">
@@ -3539,6 +3805,13 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                                     const diffMins = Math.round(diffMs / (1000 * 60));
                                                     return diffMins > 0 ? (
                                                       <div className="text-purple-700 font-semibold mt-1">Δ Abertura→Concl: {fmtDurationFromMinutes(diffMins)}</div>
+                                                    ) : null;
+                                                  })()}
+                                                  {dataAberturaOcorrenciaSinistro && dataLiberacaoSinistro && (() => {
+                                                    const diffMs = dataLiberacaoSinistro.getTime() - dataAberturaOcorrenciaSinistro.getTime();
+                                                    const diffMins = Math.round(diffMs / (1000 * 60));
+                                                    return diffMins > 0 ? (
+                                                      <div className="text-purple-700 font-semibold mt-1">Δ Abertura→Ret: {fmtDurationFromMinutes(diffMins)}</div>
                                                     ) : null;
                                                   })()}
                                                   {valorSinistro <= 0 && (

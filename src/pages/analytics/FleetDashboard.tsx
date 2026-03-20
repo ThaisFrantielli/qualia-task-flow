@@ -4,7 +4,7 @@ import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Car, Filter, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info } from 'lucide-react';
+import { Car, Filter, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info, ChevronDown } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MultiSelect } from '@/components/ui/multi-select';
 import CompactMultiSelect from '@/components/ui/compact-multi-select';
@@ -492,6 +492,9 @@ export default function FleetDashboard() {
     // note: use `getFilterValues(key)` to read current selections, e.g. getFilterValues('status')
 
     const [selectedLocation, setSelectedLocation] = useState<{ city: string, uf: string } | null>(null);
+    const [geoCollapsed, setGeoCollapsed] = useState<boolean>(true);
+    const [localizacaoCollapsed, setLocalizacaoCollapsed] = useState<boolean>(false);
+    const [accordionValue, setAccordionValue] = useState<string | null>(null);
     // activeTab already declared at top of component for lazy loading
 
     // Helper centralizado para extração de localização
@@ -992,17 +995,27 @@ export default function FleetDashboard() {
         return coordsValid.filter(r => r._city === selectedLocation.city && r._uf === selectedLocation.uf);
     }, [filteredData, selectedLocation]);
 
+    // Veículos com telemetria (pré-calculado e utilizado por outros agregados)
+    const veiculosComTelemetria = useMemo(() => {
+        return filteredData.filter(r =>
+            r.ProvedorTelemetria &&
+            r.ProvedorTelemetria !== 'NÃO DEFINIDO' &&
+            r.ProvedorTelemetria !== 'Não Definido'
+        );
+    }, [filteredData]);
+
+    // Calcular diferenças de odômetro considerando apenas veículos com telemetria
     const kmDifferenceData = useMemo(() => {
-        const ranges = { 'Sem Divergência': 0, 'Baixa (<1k)': 0, 'Média (1k-5k)': 0, 'Alta (>5k)': 0 };
-        filteredData.forEach(r => {
+        const ranges = { 'Sem Divergência': 0, 'Baixa (<1k)': 0, 'Média (1k-10k)': 0, 'Alta (>10k)': 0 };
+        veiculosComTelemetria.forEach(r => {
             const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
             if (diff === 0) ranges['Sem Divergência']++;
             else if (diff <= 1000) ranges['Baixa (<1k)']++;
-            else if (diff <= 5000) ranges['Média (1k-5k)']++;
-            else ranges['Alta (>5k)']++;
+            else if (diff <= 10000) ranges['Média (1k-10k)']++;
+            else ranges['Alta (>10k)']++;
         });
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
-    }, [filteredData]);
+    }, [veiculosComTelemetria]);
 
     // Distribuição por modelo removida - usar modelosPorCategoria (hierárquico)
 
@@ -1145,13 +1158,7 @@ export default function FleetDashboard() {
             .sort((a, b) => b.value - a.value);
     }, [filteredData]);
 
-    const veiculosComTelemetria = useMemo(() => {
-        return filteredData.filter(r =>
-            r.ProvedorTelemetria &&
-            r.ProvedorTelemetria !== 'NÃO DEFINIDO' &&
-            r.ProvedorTelemetria !== 'Não Definido'
-        );
-    }, [filteredData]);
+    
 
     const telemetriaAtualizada = useMemo(() => {
         const agora = new Date();
@@ -2438,7 +2445,7 @@ export default function FleetDashboard() {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                         <XAxis dataKey="name" fontSize={12} />
                                         <YAxis fontSize={12} />
-                                        <Tooltip />
+                                        <Tooltip formatter={(value: any) => [`${value}`, 'Qtd']} />
                                         <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('aging', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
@@ -2661,15 +2668,31 @@ export default function FleetDashboard() {
                             <Title>Diferença de Odômetro (Info vs Conf)</Title>
                             <div className="h-56 mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40 }}>
+                                    <BarChart data={kmDifferenceData} layout="vertical" margin={{ left: 40, right: 80 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                         <XAxis type="number" fontSize={10} tick={{ fill: '#475569' }} />
                                         <YAxis dataKey="name" type="category" width={120} fontSize={10} tick={{ fill: '#475569' }} />
                                         <Tooltip />
                                         <Bar dataKey="value" fill="#0891b2" radius={[0, 4, 4, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('km_diff', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
+                                            onClick={(data: any, _index: number, event: any) => {
+                                                try {
+                                                    handleChartClick('km_diff', data.name, event as unknown as React.MouseEvent);
+                                                    const isModifier = !!((event?.ctrlKey) || (event?.metaKey));
+                                                    if (!isModifier) {
+                                                        const el = document.getElementById('detail-table');
+                                                        if (el && typeof el.scrollIntoView === 'function') {
+                                                            el.scrollIntoView({ behavior: 'smooth' });
+                                                        }
+                                                    }
+                                                } catch (err) {
+                                                    // Protege contra erros inesperados durante o clique
+                                                    // Não interrompe a UX; apenas loga no console para debug
+                                                    // eslint-disable-next-line no-console
+                                                    console.warn('Erro ao processar clique do gráfico km_diff', err);
+                                                }
+                                            }}
                                             cursor="pointer">
-                                            <LabelList dataKey="value" position="right" fontSize={10} fill="#0f172a" />
+                                            <LabelList dataKey="value" content={renderVeiculoLabel} />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2739,17 +2762,24 @@ export default function FleetDashboard() {
                     {/* Gráficos de Localização (Telemetria) - Hierárquico */}
                     <div className="grid grid-cols-1 gap-6">
                         <Card className="p-0 overflow-hidden">
-                            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                            <div
+                                className="p-4 border-b border-slate-200 flex items-center justify-between cursor-pointer"
+                                role="button"
+                                aria-expanded={!geoCollapsed}
+                                onClick={() => setGeoCollapsed(v => !v)}
+                            >
                                 <div>
-                                    <Title>Distribuição Geográfica de Veículos (Por Estado)</Title>
+                                    <Title className="inline">Distribuição Geográfica de Veículos (Por Estado)</Title>
                                     <Text className="text-xs text-slate-500">Expanda o estado para visualizar as cidades</Text>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Badge className="ml-2">{mapData.length} veículos</Badge>
+                                    <ChevronDown className={`ml-2 transition-transform duration-200 ${geoCollapsed ? '' : 'rotate-180'}`} />
                                 </div>
                             </div>
+                            {!geoCollapsed && (
                             <div className="p-4">
-                                <Accordion type="single" collapsible className="w-full">
+                                <Accordion type="single" collapsible value={accordionValue} onValueChange={(v) => setAccordionValue(v)} className="w-full">
                                     {localizacaoHierarquica.map((item) => (
                                         <AccordionItem key={item.uf} value={item.uf} className="border-b border-slate-100 last:border-0">
                                             <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
@@ -2830,12 +2860,18 @@ export default function FleetDashboard() {
                                     </div>
                                 )}
                             </div>
+                            )}
                         </Card>
                     </div>
 
                     {/* Mapa */}
                     <Card className="p-0 overflow-hidden relative">
-                        <div className="p-4 border-b border-slate-100 flex items-center gap-2 absolute top-0 left-0 bg-white/90 z-10 w-full rounded-t-lg">
+                        <div
+                            className="p-4 border-b border-slate-100 flex items-center gap-2 bg-white rounded-t-lg cursor-pointer"
+                            role="button"
+                            aria-expanded={!localizacaoCollapsed}
+                            onClick={() => setLocalizacaoCollapsed(v => !v)}
+                        >
                             <MapPin className="w-5 h-5 text-blue-600" />
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
@@ -2848,7 +2884,7 @@ export default function FleetDashboard() {
                                 <div className="text-sm text-slate-600">Mostrando {Math.min(markerLimit, mapData.length)} / {fmtDecimal(mapData.length)}</div>
                                 {markerLimit < mapData.length && (
                                     <button
-                                        onClick={() => setMarkerLimit(prev => Math.min(mapData.length, prev + 500))}
+                                        onClick={(e) => { e.stopPropagation(); setMarkerLimit(prev => Math.min(mapData.length, prev + 500)); }}
                                         className="ml-2 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded border border-blue-100 hover:bg-blue-100"
                                     >
                                         Carregar mais
@@ -2856,7 +2892,7 @@ export default function FleetDashboard() {
                                 )}
                                 {markerLimit < mapData.length && (
                                     <button
-                                        onClick={() => setMarkerLimit(mapData.length)}
+                                        onClick={(e) => { e.stopPropagation(); setMarkerLimit(mapData.length); }}
                                         className="ml-2 px-2 py-1 text-xs bg-slate-50 text-slate-700 rounded border border-slate-100 hover:bg-slate-100"
                                     >
                                         Mostrar todos
@@ -2864,7 +2900,7 @@ export default function FleetDashboard() {
                                 )}
                                 {markerLimit > 500 && (
                                     <button
-                                        onClick={() => setMarkerLimit(500)}
+                                        onClick={(e) => { e.stopPropagation(); setMarkerLimit(500); }}
                                         className="ml-2 px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100"
                                     >
                                         Reduzir
@@ -2873,14 +2909,17 @@ export default function FleetDashboard() {
                             </div>
                             {selectedLocation && (
                                 <button
-                                    onClick={() => setSelectedLocation(null)}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedLocation(null); }}
                                     className="ml-2 px-2 py-1 text-xs bg-rose-50 text-rose-600 rounded border border-rose-100 hover:bg-rose-100"
                                 >
                                     Limpar
                                 </button>
                             )}
+                            <ChevronDown className={`ml-2 transition-transform duration-200 ${localizacaoCollapsed ? '' : 'rotate-180'}`} />
                         </div>
-                        <div className="h-[500px] w-full mt-14">
+
+                        {!localizacaoCollapsed && (
+                        <div className="h-[500px] w-full">
                             <MapContainer center={[-15.7942, -47.8822]} zoom={4} style={{ height: '100%', width: '100%' }}>
                                 <TileLayer
                                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -2908,6 +2947,7 @@ export default function FleetDashboard() {
                                 ))}
                             </MapContainer>
                         </div>
+                        )}
                     </Card>
 
                     {/* Tabela Detalhada de Telemetria */}

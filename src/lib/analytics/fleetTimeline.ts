@@ -192,7 +192,12 @@ export function calcDiasLocadoFromContratos(contratos: AnyObject[], now = new Da
   return totalDays;
 }
 
-export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date()): number {
+export function calcDiasManutencaoFromOS(
+  osRecords: AnyObject[],
+  now = new Date(),
+  lifeStart: Date | null = null,
+  lifeEnd: Date | null = null
+): number {
   if (!Array.isArray(osRecords) || osRecords.length === 0) return 0;
 
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -208,8 +213,27 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
     // A chave é que fat_manutencao NÃO tem 'Etapa' ou a 'Etapa' é null/generica, enquanto movimentacao tem 'Etapa' descritiva.
     // Vamos priorizar o formato de intervalo se as datas existirem e parecerem ser de Entrada/Saida de OS.
 
-    const dEntrada = parseDateAny(r?.DataEntrada ?? r?.DataInicioServico ?? r?.DataInicio ?? r?.DataAberturaOcorrencia ?? r?.DataOcorrencia ?? r?.DataAbertura);
-    const dSaida = parseDateAny(r?.DataSaida ?? r?.DataConclusaoOcorrencia ?? r?.DataFim ?? r?.DataConclusao);
+    const dEntrada = parseDateAny(
+      r?.DataEntrada ??
+      r?.DataInicioServico ??
+      r?.DataInicio ??
+      r?.DataAberturaOcorrencia ??
+      r?.DataOcorrencia ??
+      r?.DataAbertura ??
+      r?.DataAgendamento ??
+      r?.DataCriacao ??
+      r?.DataEtapa
+    );
+    const dSaida = parseDateAny(
+      r?.DataSaida ??
+      r?.DataConclusaoOcorrencia ??
+      r?.DataFim ??
+      r?.DataConclusao ??
+      r?.DataRetiradaVeiculo ??
+      r?.DataRetirada ??
+      r?.DataConfirmacaoSaida ??
+      r?.DataConclusaoServico
+    );
     
 
     // Se temos datas claras de inicio/fim e NÃO é um evento de fluxo (ou é, mas já tem o total calculado), usamos o intervalo.
@@ -220,8 +244,12 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
     if (dEntrada) {
       // É um intervalo.
       const end = dSaida || now;
-      if (end.getTime() > dEntrada.getTime()) {
-        sum += (end.getTime() - dEntrada.getTime()) / msPerDay;
+      let s = dEntrada;
+      let e = end;
+      if (lifeStart && s.getTime() < lifeStart.getTime()) s = lifeStart;
+      if (lifeEnd && e.getTime() > lifeEnd.getTime()) e = lifeEnd;
+      if (e.getTime() > s.getTime()) {
+        sum += (e.getTime() - s.getTime()) / msPerDay;
       }
       continue; // Processado
     }
@@ -266,7 +294,7 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
       const etapaText = normalizeEtapaText(rec.r?.etapa ?? rec.r?.Etapa ?? rec.r?.EtapaMovimentacao ?? rec.r?.DescricaoEtapa);
       if (!isArrival(etapaText)) continue;
 
-      const start = rec.d as Date;
+      let start = rec.d as Date;
       let end: Date | null = null;
 
       for (let j = i + 1; j < group.length; j++) {
@@ -276,6 +304,8 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
       }
 
       if (!end) end = now;
+      if (lifeStart && start.getTime() < lifeStart.getTime()) start = lifeStart;
+      if (lifeEnd && end.getTime() > lifeEnd.getTime()) end = lifeEnd;
       sum += Math.max(0, (end.getTime() - start.getTime()) / msPerDay);
     }
   }
@@ -283,10 +313,76 @@ export function calcDiasManutencaoFromOS(osRecords: AnyObject[], now = new Date(
   return sum;
 }
 
+function calcDiasManutencaoFromAberturaRetirada(
+  osRecords: AnyObject[],
+  now = new Date(),
+  lifeStart: Date | null = null,
+  lifeEnd: Date | null = null
+): number {
+  if (!Array.isArray(osRecords) || osRecords.length === 0) return 0;
+  const msPerDay = 1000 * 60 * 60 * 24;
+
+  const byOcc: Record<string, AnyObject[]> = {};
+  for (let i = 0; i < osRecords.length; i++) {
+    const r = osRecords[i];
+    const occKey = String(
+      r?.Ocorrencia ?? r?.IdOcorrencia ?? r?.NumeroOcorrencia ?? r?.OcorrenciaId ?? r?.MovimentacaoId ?? `${r?.Placa ?? 'NA'}_${i}`
+    );
+    if (!byOcc[occKey]) byOcc[occKey] = [];
+    byOcc[occKey].push(r);
+  }
+
+  let total = 0;
+  for (const k of Object.keys(byOcc)) {
+    const group = byOcc[k];
+    let aberturaMin: Date | null = null;
+    let retiradaMax: Date | null = null;
+
+    for (const r of group) {
+      const abertura = parseDateAny(
+        r?.DataAberturaOcorrencia ??
+        r?.DataAbertura ??
+        r?.DataEntrada ??
+        r?.DataOcorrencia ??
+        r?.DataAgendamento ??
+        r?.DataCriacao ??
+        r?.DataEtapa ??
+        r?.Data
+      );
+      const retirada = parseDateAny(
+        r?.DataRetiradaVeiculo ??
+        r?.DataRetirada ??
+        r?.DataSaida ??
+        r?.DataConclusaoOcorrencia ??
+        r?.DataConfirmacaoSaida ??
+        r?.DataConclusaoServico ??
+        r?.DataConclusao
+      );
+
+      if (abertura && (!aberturaMin || abertura.getTime() < aberturaMin.getTime())) aberturaMin = abertura;
+      if (retirada && (!retiradaMax || retirada.getTime() > retiradaMax.getTime())) retiradaMax = retirada;
+    }
+
+    if (!aberturaMin) continue;
+    let start = aberturaMin;
+    let end = retiradaMax ?? now;
+
+    if (lifeStart && start.getTime() < lifeStart.getTime()) start = lifeStart;
+    if (lifeEnd && end.getTime() > lifeEnd.getTime()) end = lifeEnd;
+
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs > 0) total += diffMs / msPerDay;
+  }
+
+  return total;
+}
+
 export interface VehicleLifecycleMetrics {
   placa: string;
   dataCompra: Date | null;
   dataVenda: Date | null;
+  dataRoubo: Date | null;
+  dataFimVida: Date | null;
   diasVida: number;
   diasLocado: number;
   diasManutencao: number;
@@ -311,18 +407,64 @@ export function aggregateFleetMetrics(
   contratos: AnyObject[] | { data?: AnyObject[] } | null,
   manutencao: AnyObject[] | { data?: AnyObject[] } | null,
   movimentacoes: AnyObject[] | { data?: AnyObject[] } | null = null, // Novo argumento opcional
+  sinistros: AnyObject[] | { data?: AnyObject[] } | null = null,
   now = new Date()
 ): FleetAggregatedMetrics {
   const frotaArr = Array.isArray(frota) ? frota : [];
   const contratosArr = Array.isArray(contratos) ? contratos : (contratos as any)?.data || [];
   const manutArr = Array.isArray(manutencao) ? manutencao : (manutencao as any)?.data || [];
   const movArr = Array.isArray(movimentacoes) ? movimentacoes : (movimentacoes as any)?.data || [];
-
-  // Se tivermos movimentações, usamos elas para o cálculo de dias. Se não, fallback para manutenção.
-  const sourceForMaintenanceDays = movArr.length > 0 ? movArr : manutArr;
+  const sinArr = Array.isArray(sinistros) ? sinistros : (sinistros as any)?.data || [];
 
   const contratosByPlaca: Record<string, AnyObject[]> = {};
   const manutByPlaca: Record<string, AnyObject[]> = {};
+  const movByPlaca: Record<string, AnyObject[]> = {};
+  const sinistrosByPlaca: Record<string, AnyObject[]> = {};
+
+  function isRouboSinistro(s: AnyObject): boolean {
+    // Regra restritiva: só considerar fim de vida quando o próprio status/classificação
+    // do sinistro indicar perda do veículo (evita falso positivo em "roubo de acessórios").
+    const statusTxt = normalizeEventName(
+      s?.Status ??
+      s?.StatusSinistro ??
+      s?.SituacaoOcorrencia ??
+      s?.Classificacao ??
+      s?.TipoSinistro
+    );
+    if (!statusTxt) return false;
+
+    const hasRouboStatus = statusTxt.includes('ROUB') || statusTxt.includes('FURT');
+    const hasPerdaTotal = statusTxt.includes('PERDA TOTAL') || statusTxt.includes('IRRECUPER') || statusTxt.includes('NAO RECUPER');
+    return hasRouboStatus || hasPerdaTotal;
+  }
+
+  function extractDataRouboFromSinistros(items: AnyObject[]): Date | null {
+    let minDt: Date | null = null;
+    for (const s of items) {
+      if (!isRouboSinistro(s)) continue;
+      const d = parseDateAny(
+        s?.DataSinistro ??
+        s?.DataOcorrencia ??
+        s?.DataAberturaOcorrencia ??
+        s?.DataAbertura ??
+        s?.DataEvento ??
+        s?.Data
+      );
+      if (!d) continue;
+      if (!minDt || d.getTime() < minDt.getTime()) minDt = d;
+    }
+    return minDt;
+  }
+
+  function resolveDataFimVida(compra: Date | null, venda: Date | null, roubo: Date | null): Date | null {
+    const candidates = [venda, roubo].filter(Boolean) as Date[];
+    if (candidates.length === 0) return null;
+    const valid = compra
+      ? candidates.filter((d) => d.getTime() >= compra.getTime())
+      : candidates;
+    if (valid.length === 0) return null;
+    return valid.reduce((min, cur) => (cur.getTime() < min.getTime() ? cur : min));
+  }
 
   for (const c of contratosArr) {
     const placa = normalizePlacaKey(c?.PlacaPrincipal ?? c?.Placa ?? c?.placa);
@@ -331,11 +473,25 @@ export function aggregateFleetMetrics(
     contratosByPlaca[placa].push(c);
   }
 
-  for (const m of sourceForMaintenanceDays) {
+  for (const m of manutArr) {
     const placa = normalizePlacaKey(m?.Placa ?? m?.placa);
     if (!placa) continue;
     if (!manutByPlaca[placa]) manutByPlaca[placa] = [];
     manutByPlaca[placa].push(m);
+  }
+
+  for (const m of movArr) {
+    const placa = normalizePlacaKey(m?.Placa ?? m?.placa);
+    if (!placa) continue;
+    if (!movByPlaca[placa]) movByPlaca[placa] = [];
+    movByPlaca[placa].push(m);
+  }
+
+  for (const s of sinArr) {
+    const placa = normalizePlacaKey(s?.Placa ?? s?.placa);
+    if (!placa) continue;
+    if (!sinistrosByPlaca[placa]) sinistrosByPlaca[placa] = [];
+    sinistrosByPlaca[placa].push(s);
   }
 
   const metricsPerVehicle: VehicleLifecycleMetrics[] = [];
@@ -347,11 +503,13 @@ export function aggregateFleetMetrics(
 
     const dataCompra = extractDataCompra(v);
     const dataVenda = extractDataVenda(v);
+    const dataRoubo = extractDataRouboFromSinistros(sinistrosByPlaca[placa] || []);
     const lifeStart = dataCompra;
-    const lifeEnd = dataVenda || null;
+    const lifeEnd = resolveDataFimVida(dataCompra, dataVenda, dataRoubo);
 
     const contratosPlaca = contratosByPlaca[placa] || [];
-    const manutPlaca = manutByPlaca[placa] || [];
+    const manutPlacaRaw = manutByPlaca[placa] || [];
+    const movPlacaRaw = movByPlaca[placa] || [];
 
     const diasLocadoRaw = calcDiasLocadoFromContratos(contratosPlaca, now, lifeStart, lifeEnd);
 
@@ -360,7 +518,23 @@ export function aggregateFleetMetrics(
 
     const diasLocado = dataCompra ? Math.min(diasLocadoRaw, diasVida) : diasLocadoRaw;
 
-    const diasManutencao = calcDiasManutencaoFromOS(manutPlaca, now);
+    // Preferir movimentações da própria placa quando existirem; senão usar manutenção consolidada.
+    const diasManutRoxoMov = movPlacaRaw.length > 0
+      ? calcDiasManutencaoFromAberturaRetirada(movPlacaRaw, now, lifeStart, lifeEnd)
+      : 0;
+    const diasManutRoxoConsolidado = manutPlacaRaw.length > 0
+      ? calcDiasManutencaoFromAberturaRetirada(manutPlacaRaw, now, lifeStart, lifeEnd)
+      : 0;
+    const diasManutRoxo = diasManutRoxoMov > 0 ? diasManutRoxoMov : diasManutRoxoConsolidado;
+
+    const diasManutMov = movPlacaRaw.length > 0
+      ? calcDiasManutencaoFromOS(movPlacaRaw, now, lifeStart, lifeEnd)
+      : 0;
+    const diasManutConsolidado = manutPlacaRaw.length > 0
+      ? calcDiasManutencaoFromOS(manutPlacaRaw, now, lifeStart, lifeEnd)
+      : 0;
+    const diasManutFallback = diasManutMov > 0 ? diasManutMov : diasManutConsolidado;
+    const diasManutencao = diasManutRoxo > 0 ? diasManutRoxo : diasManutFallback;
 
     const diasParado = dataCompra ? Math.max(0, diasVida - diasLocado) : 0;
 
@@ -370,6 +544,8 @@ export function aggregateFleetMetrics(
       placa,
       dataCompra,
       dataVenda,
+      dataRoubo,
+      dataFimVida: lifeEnd,
       diasVida,
       diasLocado,
       diasManutencao: diasManutencao,

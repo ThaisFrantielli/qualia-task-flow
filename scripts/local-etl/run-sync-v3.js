@@ -96,7 +96,24 @@ const TABLES = [
     { table: 'dim_movimentacao_veiculos', query: `SELECT * FROM MovimentacaoVeiculos WITH (NOLOCK)` },
     { table: 'fat_carro_reserva', query: `SELECT * FROM OcorrenciasVeiculoTemporario WITH (NOLOCK)` },
     { table: 'fat_itens_ordem_servico', query: `SELECT * FROM ItensOrdemServico WITH (NOLOCK)` },
-    { table: 'fat_manutencao_unificado', query: `SELECT * FROM OcorrenciasManutencao WITH (NOLOCK)` },
+    {
+        table: 'fat_manutencao_unificado',
+        query: `
+            SELECT
+                om.*,
+                ISNULL((
+                    SELECT SUM(CAST(i.ValorTotal AS FLOAT))
+                    FROM ItensOrdemServico i WITH (NOLOCK)
+                    WHERE i.IdOcorrencia = om.IdOcorrencia
+                ), 0) as ValorTotalFatItens,
+                ISNULL((
+                    SELECT SUM(CAST(i.ValorReembolsavel AS FLOAT))
+                    FROM ItensOrdemServico i WITH (NOLOCK)
+                    WHERE i.IdOcorrencia = om.IdOcorrencia
+                ), 0) as ValorReembolsavelFatItens
+            FROM OcorrenciasManutencao om WITH (NOLOCK)
+        `
+    },
     { table: 'fat_movimentacao_ocorrencias', query: `SELECT * FROM MovimentacaoOcorrencias WITH (NOLOCK)` },
     { table: 'fat_multas', query: `SELECT * FROM OcorrenciasInfracoes WITH (NOLOCK)` },
     {
