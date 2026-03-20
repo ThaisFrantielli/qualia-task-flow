@@ -1889,6 +1889,31 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                       }
 
                       const sinistroOccurrences = Array.from(sinistroMap.values()).sort((a, b) => b.sinistroDate.getTime() - a.sinistroDate.getTime());
+                      const manutOccurrencesNaoCanceladas = manutOccurrences.filter((m) => {
+                        const s = String(m?.situacao ?? '').toLowerCase();
+                        return !s.includes('cancel');
+                      });
+                      const sinistroOccurrencesNaoCanceladas = sinistroOccurrences.filter((s) => {
+                        const situ = String(s?.situacao ?? s?.items?.[0]?.Situacao ?? s?.items?.[0]?.SituacaoOcorrencia ?? '').toLowerCase();
+                        return !situ.includes('cancel');
+                      });
+                      const qtdSinistroOcorrencias = sinistroOccurrencesNaoCanceladas.length;
+                      const qtdSinistroCanceladas = Math.max(0, sinistroOccurrences.length - qtdSinistroOcorrencias);
+                      const qtdCarroReservaTotal = eventRows.reduce((sum, ev) => {
+                        if (!ev.tipo.includes('CARRO_RESERVA')) return sum;
+                        return sum + (ev.items?.length ?? ev.count ?? 0);
+                      }, 0);
+                      const qtdCarroReservaOcorrencias = eventRows.reduce((sum, ev) => {
+                        if (!ev.tipo.includes('CARRO_RESERVA')) return sum;
+                        const naoCancelados = (ev.items || []).filter((it: any) => {
+                          const situ = String(it?.SituacaoOcorrencia ?? it?.Situacao ?? it?.Status ?? '').toLowerCase();
+                          return !situ.includes('cancel');
+                        }).length;
+                        return sum + naoCancelados;
+                      }, 0);
+                      const qtdManutCanceladas = Math.max(0, manutOccurrences.length - manutOccurrencesNaoCanceladas.length);
+                      const qtdCarroReservaCanceladas = Math.max(0, qtdCarroReservaTotal - qtdCarroReservaOcorrencias);
+                      const qtdCanceladasTotal = qtdManutCanceladas + qtdSinistroCanceladas + qtdCarroReservaCanceladas;
 
                       // Eventos prioritàrios que SEMPRE devem aparecer (ciclo de vida do veículo)
                       const PRIORITY_TYPES = ['COMPRA', 'AQUISICAO', 'VENDA', 'BAIXA', 'LOCACAO', 'DEVOLUCAO', 'SINISTRO'];
@@ -1941,8 +1966,171 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                         r.kind === 'EVENTO_DIA_TIPO' && LIFECYCLE_TYPES.some(lt => (r as EventGroupRow).tipo.includes(lt))
                       ) as EventGroupRow[];
 
+                      const veiculoCompraData = (Array.isArray(frota) ? frota : []).find(
+                        (f) => normalizePlacaKey(f?.Placa) === normalizePlacaKey(placa)
+                      );
+                      const dataCompraVeiculo = parseDateAny(
+                        veiculoCompraData?.DataCompra ??
+                        veiculoCompraData?.DataAquisicao ??
+                        veiculoCompraData?.['Data de Compra'] ??
+                        veiculoCompraData?.datacompra ??
+                        veiculoCompraData?.dataaquisicao
+                      );
+                      const valorCompraVeiculo = parseMoneyLike(
+                        veiculoCompraData?.ValorCompra ??
+                        veiculoCompraData?.valorcompra ??
+                        veiculoCompraData?.ValorCompraVeiculo
+                      );
+                      const fipeAtualVeiculo = parseMoneyLike(
+                        veiculoCompraData?.ValorFipeAtual ??
+                        veiculoCompraData?.valorfipeatual ??
+                        veiculoCompraData?.ValorAtualFIPE
+                      );
+                      const modeloCompra = String(veiculoCompraData?.Modelo ?? veiculoCompraData?.modelo ?? '').trim();
+                      const montadoraCompra = String(veiculoCompraData?.Montadora ?? veiculoCompraData?.montadora ?? '').trim();
+                      const anoFabCompra = veiculoCompraData?.AnoFabricacao ?? veiculoCompraData?.anofabricacao;
+                      const anoModCompra = veiculoCompraData?.AnoModelo ?? veiculoCompraData?.anomodelo;
+                      const categoriaCompra = String(veiculoCompraData?.Categoria ?? veiculoCompraData?.GrupoVeiculo ?? '').trim();
+                      const corCompra = String(veiculoCompraData?.Cor ?? veiculoCompraData?.cor ?? '').trim();
+                      const proprietarioCompra = String(veiculoCompraData?.Proprietario ?? veiculoCompraData?.proprietario ?? '').trim();
+                      const situacaoFinanceiraCompra = String(veiculoCompraData?.SituacaoFinanceira ?? '').trim();
+                      const dataProjVendaCompra = parseDateAny(
+                        veiculoCompraData?.DataProjetadaVenda ?? veiculoCompraData?.DataProjetadaOriginalParaVenda
+                      );
+                      const valorProjVendaCompra = parseMoneyLike(
+                        veiculoCompraData?.ValorProjetadoVenda ?? veiculoCompraData?.ValorOriginalProjetadoParaVenda
+                      );
+                      const valorAcessorioCompra = parseMoneyLike(veiculoCompraData?.ValorAcessorio);
+                      const compraCardKey = `compra:${normalizePlacaKey(placa)}`;
+                      const isCompraOpen = expandedSubSections.has(compraCardKey);
+                      const contratosCardKey = `contratos:${normalizePlacaKey(placa)}`;
+                      const isContratosOpen = expandedSubSections.has(contratosCardKey);
+                      const hasDadosCompra = Boolean(
+                        dataCompraVeiculo ||
+                        valorCompraVeiculo > 0 ||
+                        fipeAtualVeiculo > 0 ||
+                        modeloCompra ||
+                        montadoraCompra ||
+                        anoFabCompra ||
+                        anoModCompra ||
+                        categoriaCompra ||
+                        corCompra ||
+                        proprietarioCompra ||
+                        situacaoFinanceiraCompra ||
+                        dataProjVendaCompra ||
+                        valorProjVendaCompra > 0 ||
+                        valorAcessorioCompra > 0
+                      );
+
                       return (
                         <>
+                          {/* Card fixo de compra: aparece mesmo sem evento COMPRA no stream */}
+                          {hasDadosCompra && (
+                            <div className="pl-6 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                              <div className="flex items-center justify-between gap-2 text-sm mb-2">
+                                <div className="flex items-center gap-2">
+                                  <ShoppingCart className="w-4 h-4 text-amber-600" />
+                                  <span className="font-semibold text-amber-800">Dados de Compra do Veículo</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const next = new Set(expandedSubSections);
+                                    if (next.has(compraCardKey)) next.delete(compraCardKey);
+                                    else next.add(compraCardKey);
+                                    setExpandedSubSections(next);
+                                  }}
+                                  className="text-xs text-amber-700 font-medium hover:underline"
+                                >
+                                  {isCompraOpen ? '▼ Ocultar' : '▶ Expandir'}
+                                </button>
+                              </div>
+                              {isCompraOpen && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                                {modeloCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Modelo:</span>{' '}
+                                    <span className="font-semibold text-slate-700">{modeloCompra}</span>
+                                  </div>
+                                )}
+                                {montadoraCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Montadora:</span>{' '}
+                                    <span className="text-slate-700">{montadoraCompra}</span>
+                                  </div>
+                                )}
+                                {(anoFabCompra || anoModCompra) && (
+                                  <div>
+                                    <span className="text-slate-500">Ano:</span>{' '}
+                                    <span className="text-slate-700">{String(anoFabCompra ?? '')}{anoModCompra && anoModCompra !== anoFabCompra ? `/${String(anoModCompra)}` : ''}</span>
+                                  </div>
+                                )}
+                                {categoriaCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Categoria:</span>{' '}
+                                    <span className="text-slate-700">{categoriaCompra}</span>
+                                  </div>
+                                )}
+                                {corCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Cor:</span>{' '}
+                                    <span className="text-slate-700">{corCompra}</span>
+                                  </div>
+                                )}
+                                {proprietarioCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Proprietário:</span>{' '}
+                                    <span className="text-slate-700">{proprietarioCompra}</span>
+                                  </div>
+                                )}
+                                {dataCompraVeiculo && (
+                                  <div>
+                                    <span className="text-slate-500">Data Compra:</span>{' '}
+                                    <span className="font-semibold text-slate-700">{fmtDateBR(dataCompraVeiculo)}</span>
+                                  </div>
+                                )}
+                                {valorCompraVeiculo > 0 && (
+                                  <div>
+                                    <span className="text-slate-500">Valor Compra:</span>{' '}
+                                    <span className="font-semibold text-amber-700">{fmtMoney(valorCompraVeiculo)}</span>
+                                  </div>
+                                )}
+                                {fipeAtualVeiculo > 0 && (
+                                  <div>
+                                    <span className="text-slate-500">FIPE Atual:</span>{' '}
+                                    <span className="font-semibold text-emerald-700">{fmtMoney(fipeAtualVeiculo)}</span>
+                                  </div>
+                                )}
+                                {valorAcessorioCompra > 0 && (
+                                  <div>
+                                    <span className="text-slate-500">Acessórios:</span>{' '}
+                                    <span className="font-semibold text-slate-700">{fmtMoney(valorAcessorioCompra)}</span>
+                                  </div>
+                                )}
+                                {situacaoFinanceiraCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Sit. Financeira:</span>{' '}
+                                    <span className="text-slate-700">{situacaoFinanceiraCompra}</span>
+                                  </div>
+                                )}
+                                {dataProjVendaCompra && (
+                                  <div>
+                                    <span className="text-slate-500">Venda Projetada:</span>{' '}
+                                    <span className="text-slate-700">{fmtDateBR(dataProjVendaCompra)}</span>
+                                  </div>
+                                )}
+                                {valorProjVendaCompra > 0 && (
+                                  <div>
+                                    <span className="text-slate-500">Valor Proj. Venda:</span>{' '}
+                                    <span className="font-semibold text-slate-700">{fmtMoney(valorProjVendaCompra)}</span>
+                                  </div>
+                                )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Seção de Ciclo de Vida do Veículo - Destaque para COMPRA/VENDA */}
                           {lifecycleEvents.length > 0 && (
                             <div className="pl-6 mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
@@ -2000,16 +2188,32 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
 
                             return (
                               <div className="pl-6 mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                                <div className="flex items-center gap-2 text-sm mb-2">
-                                  <Play className="w-4 h-4 text-emerald-600" />
-                                  <span className="font-semibold text-emerald-800">
-                                    {useContratos
-                                      ? `${contratosDoVeiculo.length} contrato(s) de locação`
-                                      : `Histórico de Locações (${locacaoEventsStream.filter(e => e.tipo.includes('LOCACAO')).length} entrada(s), ${locacaoEventsStream.filter(e => e.tipo.includes('DEVOLUCAO')).length} devolução(ões))`
-                                    }
-                                  </span>
+                                <div className="flex items-center justify-between gap-2 text-sm mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Play className="w-4 h-4 text-emerald-600" />
+                                    <span className="font-semibold text-emerald-800">
+                                      {useContratos
+                                        ? `${contratosDoVeiculo.length} contrato(s) de locação`
+                                        : `Histórico de Locações (${locacaoEventsStream.filter(e => e.tipo.includes('LOCACAO')).length} entrada(s), ${locacaoEventsStream.filter(e => e.tipo.includes('DEVOLUCAO')).length} devolução(ões))`
+                                      }
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const next = new Set(expandedSubSections);
+                                      if (next.has(contratosCardKey)) next.delete(contratosCardKey);
+                                      else next.add(contratosCardKey);
+                                      setExpandedSubSections(next);
+                                    }}
+                                    className="text-xs text-emerald-700 font-medium hover:underline"
+                                  >
+                                    {isContratosOpen ? '▼ Ocultar' : '▶ Expandir'}
+                                  </button>
                                 </div>
-                                <div className="space-y-2">
+                                {isContratosOpen && (
+                                  <div className="space-y-2">
                                   {useContratos
                                     ? contratosDoVeiculo.map((c, idx) => {
                                       const inicio = c.__inicio as Date | null;
@@ -2111,7 +2315,8 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                   {!useContratos && locacaoEventsStream.length > 8 && (
                                     <div className="text-xs text-emerald-600 text-center">+{locacaoEventsStream.length - 8} eventos...</div>
                                   )}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })()}
@@ -2121,7 +2326,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                               <div className="flex items-center gap-2 text-sm">
                                 <Wrench className="w-4 h-4 text-amber-600" />
                                 <span className="font-semibold text-amber-800">
-                                  {manutOccurrences.length} ocorrência(s) de manutenção   {manutRecords.length} OS total
+                                  {manutOccurrencesNaoCanceladas.length} ocorrência(s) de manutenção   {qtdSinistroOcorrencias} sinistro(s)   {qtdCarroReservaOcorrencias} carro reserva   {qtdCanceladasTotal} canceladas   {manutRecords.length} OS total
                                 </span>
                               </div>
                               <div className="text-xs text-amber-600 mt-1">

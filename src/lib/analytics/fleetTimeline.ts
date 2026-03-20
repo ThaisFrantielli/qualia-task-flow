@@ -187,6 +187,31 @@ function buildContractIntervals(contratos: AnyObject[], now = new Date(), lifeSt
   return { raw: intervals, merged, totalDays };
 }
 
+function overlapDaysBetweenIntervals(
+  a: Array<{ start: Date; end: Date }>,
+  b: Array<{ start: Date; end: Date }>
+): number {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || b.length === 0) return 0;
+  const msPerDay = 1000 * 60 * 60 * 24;
+  let i = 0;
+  let j = 0;
+  let overlapMs = 0;
+
+  const aa = [...a].sort((x, y) => x.start.getTime() - y.start.getTime());
+  const bb = [...b].sort((x, y) => x.start.getTime() - y.start.getTime());
+
+  while (i < aa.length && j < bb.length) {
+    const start = Math.max(aa[i].start.getTime(), bb[j].start.getTime());
+    const end = Math.min(aa[i].end.getTime(), bb[j].end.getTime());
+    if (end > start) overlapMs += (end - start);
+
+    if (aa[i].end.getTime() < bb[j].end.getTime()) i++;
+    else j++;
+  }
+
+  return overlapMs / msPerDay;
+}
+
 export function calcDiasLocadoFromContratos(contratos: AnyObject[], now = new Date(), lifeStart: Date | null = null, lifeEnd: Date | null = null): number {
   const { totalDays } = buildContractIntervals(contratos, now, lifeStart, lifeEnd);
   return totalDays;
@@ -315,11 +340,27 @@ export function calcDiasManutencaoFromOS(
 
 function calcDiasManutencaoFromAberturaRetirada(
   osRecords: AnyObject[],
-  now = new Date(),
+  _now = new Date(),
   lifeStart: Date | null = null,
   lifeEnd: Date | null = null
 ): number {
-  if (!Array.isArray(osRecords) || osRecords.length === 0) return 0;
+  const { totalDaysRaw } = buildManutencaoIntervalsFromAberturaRetirada(osRecords, lifeStart, lifeEnd);
+  return totalDaysRaw;
+}
+
+function buildManutencaoIntervalsFromAberturaRetirada(
+  osRecords: AnyObject[],
+  lifeStart: Date | null = null,
+  lifeEnd: Date | null = null
+): {
+  raw: Array<{ start: Date; end: Date }>;
+  merged: Array<{ start: Date; end: Date }>;
+  totalDaysRaw: number;
+  totalDaysMerged: number;
+} {
+  if (!Array.isArray(osRecords) || osRecords.length === 0) {
+    return { raw: [], merged: [], totalDaysRaw: 0, totalDaysMerged: 0 };
+  }
   const msPerDay = 1000 * 60 * 60 * 24;
 
   const byOcc: Record<string, AnyObject[]> = {};
@@ -332,7 +373,7 @@ function calcDiasManutencaoFromAberturaRetirada(
     byOcc[occKey].push(r);
   }
 
-  let total = 0;
+  const intervals: Array<{ start: Date; end: Date }> = [];
   for (const k of Object.keys(byOcc)) {
     const group = byOcc[k];
     let aberturaMin: Date | null = null;
@@ -363,18 +404,37 @@ function calcDiasManutencaoFromAberturaRetirada(
       if (retirada && (!retiradaMax || retirada.getTime() > retiradaMax.getTime())) retiradaMax = retirada;
     }
 
-    if (!aberturaMin) continue;
+    // Regra do KPI: seguir o mesmo conceito dos deltas roxos exibidos no card,
+    // portanto só conta ocorrência com início e fim válidos.
+    if (!aberturaMin || !retiradaMax) continue;
     let start = aberturaMin;
-    let end = retiradaMax ?? now;
+    let end = retiradaMax;
 
     if (lifeStart && start.getTime() < lifeStart.getTime()) start = lifeStart;
     if (lifeEnd && end.getTime() > lifeEnd.getTime()) end = lifeEnd;
 
     const diffMs = end.getTime() - start.getTime();
-    if (diffMs > 0) total += diffMs / msPerDay;
+    if (diffMs > 0) intervals.push({ start, end });
   }
 
-  return total;
+  intervals.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const merged: Array<{ start: Date; end: Date }> = [];
+  for (const iv of intervals) {
+    const last = merged[merged.length - 1];
+    if (!last) {
+      merged.push({ start: new Date(iv.start), end: new Date(iv.end) });
+      continue;
+    }
+    if (iv.start.getTime() <= last.end.getTime()) {
+      if (iv.end.getTime() > last.end.getTime()) last.end = new Date(iv.end);
+    } else {
+      merged.push({ start: new Date(iv.start), end: new Date(iv.end) });
+    }
+  }
+
+  const totalDaysRaw = intervals.reduce((sum, iv) => sum + Math.max(0, (iv.end.getTime() - iv.start.getTime()) / msPerDay), 0);
+  const totalDaysMerged = merged.reduce((sum, iv) => sum + Math.max(0, (iv.end.getTime() - iv.start.getTime()) / msPerDay), 0);
+  return { raw: intervals, merged, totalDaysRaw, totalDaysMerged };
 }
 
 export interface VehicleLifecycleMetrics {
@@ -466,6 +526,41 @@ export function aggregateFleetMetrics(
     return valid.reduce((min, cur) => (cur.getTime() < min.getTime() ? cur : min));
   }
 
+  function resolveDataCompraFallback(
+    contratosPlaca: AnyObject[],
+    manutPlacaRaw: AnyObject[],
+    movPlacaRaw: AnyObject[]
+  ): Date | null {
+    const candidates: Date[] = [];
+
+    for (const c of contratosPlaca || []) {
+      const d = parseDateAny(
+        c?.Inicio ?? c?.DataInicio ?? c?.DataInicial ?? c?.InicioContrato ?? c?.DataRetirada ?? c?.DataInicioLocacao
+      );
+      if (d) candidates.push(d);
+    }
+
+    const addManutCandidate = (r: AnyObject) => {
+      const d = parseDateAny(
+        r?.DataAberturaOcorrencia ??
+        r?.DataAbertura ??
+        r?.DataEntrada ??
+        r?.DataOcorrencia ??
+        r?.DataAgendamento ??
+        r?.DataCriacao ??
+        r?.DataEtapa ??
+        r?.Data
+      );
+      if (d) candidates.push(d);
+    };
+
+    for (const r of manutPlacaRaw || []) addManutCandidate(r);
+    for (const r of movPlacaRaw || []) addManutCandidate(r);
+
+    if (candidates.length === 0) return null;
+    return candidates.reduce((min, cur) => (cur.getTime() < min.getTime() ? cur : min));
+  }
+
   for (const c of contratosArr) {
     const placa = normalizePlacaKey(c?.PlacaPrincipal ?? c?.Placa ?? c?.placa);
     if (!placa) continue;
@@ -501,22 +596,23 @@ export function aggregateFleetMetrics(
     const placa = normalizePlacaKey(placaRaw);
     if (!placa) continue;
 
-    const dataCompra = extractDataCompra(v);
+    const dataCompraOriginal = extractDataCompra(v);
+    const contratosPlaca = contratosByPlaca[placa] || [];
+    const manutPlacaRaw = manutByPlaca[placa] || [];
+    const movPlacaRaw = movByPlaca[placa] || [];
+    const dataCompra = dataCompraOriginal ?? resolveDataCompraFallback(contratosPlaca, manutPlacaRaw, movPlacaRaw);
     const dataVenda = extractDataVenda(v);
     const dataRoubo = extractDataRouboFromSinistros(sinistrosByPlaca[placa] || []);
     const lifeStart = dataCompra;
     const lifeEnd = resolveDataFimVida(dataCompra, dataVenda, dataRoubo);
 
-    const contratosPlaca = contratosByPlaca[placa] || [];
-    const manutPlacaRaw = manutByPlaca[placa] || [];
-    const movPlacaRaw = movByPlaca[placa] || [];
-
-    const diasLocadoRaw = calcDiasLocadoFromContratos(contratosPlaca, now, lifeStart, lifeEnd);
+    const contratosIntervals = buildContractIntervals(contratosPlaca, now, lifeStart, lifeEnd);
+    const diasLocadoContrato = contratosIntervals.totalDays;
 
     const fim = lifeEnd || now;
     const diasVida = dataCompra ? Math.max(0, (fim.getTime() - dataCompra.getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
-    const diasLocado = dataCompra ? Math.min(diasLocadoRaw, diasVida) : diasLocadoRaw;
+    const diasLocadoBase = dataCompra ? Math.min(diasLocadoContrato, diasVida) : diasLocadoContrato;
 
     // Preferir movimentações da própria placa quando existirem; senão usar manutenção consolidada.
     const diasManutRoxoMov = movPlacaRaw.length > 0
@@ -527,6 +623,12 @@ export function aggregateFleetMetrics(
       : 0;
     const diasManutRoxo = diasManutRoxoMov > 0 ? diasManutRoxoMov : diasManutRoxoConsolidado;
 
+    const manutIntervalsSource = movPlacaRaw.length > 0 ? movPlacaRaw : manutPlacaRaw;
+    const manutIntervals = buildManutencaoIntervalsFromAberturaRetirada(manutIntervalsSource, lifeStart, lifeEnd);
+    const overlapLocacaoManutencao = overlapDaysBetweenIntervals(contratosIntervals.merged, manutIntervals.merged);
+    const diasLocadoEfetivo = Math.max(0, diasLocadoBase - overlapLocacaoManutencao);
+    const diasLocado = dataCompra ? Math.min(diasVida, diasLocadoEfetivo) : diasLocadoEfetivo;
+
     const diasManutMov = movPlacaRaw.length > 0
       ? calcDiasManutencaoFromOS(movPlacaRaw, now, lifeStart, lifeEnd)
       : 0;
@@ -534,7 +636,8 @@ export function aggregateFleetMetrics(
       ? calcDiasManutencaoFromOS(manutPlacaRaw, now, lifeStart, lifeEnd)
       : 0;
     const diasManutFallback = diasManutMov > 0 ? diasManutMov : diasManutConsolidado;
-    const diasManutencao = diasManutRoxo > 0 ? diasManutRoxo : diasManutFallback;
+    const diasManutBase = diasManutRoxo > 0 ? diasManutRoxo : diasManutFallback;
+    const diasManutencao = diasVida > 0 ? Math.min(diasVida, diasManutBase) : diasManutBase;
 
     const diasParado = dataCompra ? Math.max(0, diasVida - diasLocado) : 0;
 
