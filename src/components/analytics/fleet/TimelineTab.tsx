@@ -10,12 +10,15 @@ import * as XLSX from 'xlsx';
 import { normalizeEventName, aggregateFleetMetrics } from '@/lib/analytics/fleetTimeline';
 import { useChartFilter } from '@/hooks/useChartFilter';
 import { ChartFilterBadges } from '@/components/analytics/ChartFilterBadges';
+import type { TimelineDiagnostics } from '@/hooks/useTimelineData';
 
 type AnyObject = { [k: string]: any };
 
 interface TimelineTabProps {
   timeline: AnyObject[];
   timelineLoading?: boolean;
+  timelineError?: string | null;
+  timelineDiagnostics?: TimelineDiagnostics | null;
   filteredData: AnyObject[];
   frota: AnyObject[];
   manutencao?: AnyObject[];
@@ -57,8 +60,28 @@ function fmtPercent(v: number) {
   return `${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v)}%`;
 }
 
+function parseMoneyLike(value: unknown): number {
+  if (value == null) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const normalized = trimmed
+      .replace(/R\$\s?/gi, '')
+      .replace(/\s/g, '')
+      .replace(/\./g, '')
+      .replace(',', '.');
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function getSinistroValorTotal(raw: AnyObject): number {
-  const v = Number(
+  const v = parseMoneyLike(
     raw?.ValorOrcamento ??
     raw?.ValorOrcado ??
     raw?.ValorSinistro ??
@@ -72,13 +95,29 @@ function getSinistroValorTotal(raw: AnyObject): number {
 }
 
 function getSinistroValorReembolsavel(raw: AnyObject): number {
-  const v = Number(
+  const v = parseMoneyLike(
     raw?.ValorReembolsavel ??
     raw?.ValorReembolso ??
     raw?.ValorReembolsado ??
     0
   );
   return Number.isFinite(v) ? v : 0;
+}
+
+function getSinistroItemLabel(item: AnyObject, index: number): string {
+  const descricao = String(item?.Observacao || item?.Descricao || item?.Motivo || '').trim();
+  if (descricao) return descricao;
+
+  const os = String(item?.IdOrdemServico ?? item?.OrdemServico ?? item?.OS ?? '').trim();
+  if (os) return `OS ${os}`;
+
+  const ocorrencia = String(item?.Ocorrencia ?? item?.NumeroOcorrencia ?? item?.IdOcorrencia ?? '').trim();
+  if (ocorrencia) return `Ocorrência ${ocorrencia}`;
+
+  const bo = String(item?.NumeroBO ?? item?.BoletimOcorrencia ?? '').trim();
+  if (bo) return `B.O. ${bo}`;
+
+  return `Registro ${index + 1}`;
 }
 
 function normalizePlacaKey(raw: unknown): string {
@@ -351,6 +390,14 @@ function normalizeOcorrenciaKey(raw?: unknown): string {
   if (!s) return '';
   // manter prefixo QUAL- se já existir, caso contràrio manter como està
   return s;
+}
+
+function isMovimentacaoTipo(tipo: string): boolean {
+  return String(tipo || '').toUpperCase().includes('MOVIMENTACAO');
+}
+
+function getEventGroupKey(tipo: string, d: Date): string {
+  return isMovimentacaoTipo(tipo) ? `${tipo}:RESUMO` : `${tipo}:${toISODateKey(d)}`;
 }
 
 // Nova função: agrupa manutenções por Ocorrência
@@ -696,6 +743,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   'MOVIMENTACAO': <MapPin size={14} className="text-slate-500" />,
   'MULTA': <FileWarning size={14} className="text-yellow-600" />,
   'MULTAS': <FileWarning size={14} className="text-yellow-600" />,
+  'CARRO_RESERVA': <Car size={14} className="text-cyan-600" />,
   'COMPRA': <ShoppingCart size={14} className="text-purple-500" />,
   'AQUISICAO': <ShoppingCart size={14} className="text-purple-500" />,
   'VENDA': <DollarSign size={14} className="text-emerald-600" />,
@@ -710,6 +758,7 @@ const EVENT_LABELS: Record<string, string> = {
   SINISTRO: 'SINISTRO',
   MULTA: 'MULTA',
   MULTAS: 'MULTAS',
+  CARRO_RESERVA: 'CARRO RESERVA',
   COMPRA: 'COMPRA',
   AQUISICAO: 'AQUISIÇÃO',
   VENDA: 'VENDA',
@@ -761,7 +810,7 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
 
 // DEBUG HELPER removed
 
-export default function TimelineTab({ timeline, timelineLoading, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas, qualValuesLoading, qualValuesError, qualValuesCoverage }: TimelineTabProps) { // Adicionado movimentacoes
+export default function TimelineTab({ timeline, timelineLoading, timelineError, timelineDiagnostics, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas, qualValuesLoading, qualValuesError, qualValuesCoverage }: TimelineTabProps) { // Adicionado movimentacoes
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set()); // Novo controle para sub-seções (ex: lista de multas)
@@ -945,7 +994,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
     // Priorizar filtro de `productivity` (Ativa = Produtiva + Improdutiva, Inativa = Inativa)
     const productivityValues = getFilterValues('productivity') || [];
 
-    const placasFiltradasFromProp = new Set(filteredData.map(f => f.Placa).filter(Boolean));
+    const placasFiltradasFromProp = new Set(
+      filteredData
+        .map(f => normalizePlacaKey(f.Placa))
+        .filter(Boolean)
+    );
 
     const normalizeStatus = (s: any) => String(s || '').toUpperCase();
     const getCategoryLocal = (statusRaw: any) => {
@@ -970,11 +1023,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
         const cat = getCategoryLocal(status);
         // Ativa significa Produtiva + Improdutiva
         if (productivityValues.includes('Ativa')) {
-          if (cat === 'Produtiva' || cat === 'Improdutiva') wanted.add(f.Placa);
+          if (cat === 'Produtiva' || cat === 'Improdutiva') wanted.add(normalizePlacaKey(f.Placa));
         }
-        if (productivityValues.includes('Produtiva') && cat === 'Produtiva') wanted.add(f.Placa);
-        if (productivityValues.includes('Improdutiva') && cat === 'Improdutiva') wanted.add(f.Placa);
-        if (productivityValues.includes('Inativa') && cat === 'Inativa') wanted.add(f.Placa);
+        if (productivityValues.includes('Produtiva') && cat === 'Produtiva') wanted.add(normalizePlacaKey(f.Placa));
+        if (productivityValues.includes('Improdutiva') && cat === 'Improdutiva') wanted.add(normalizePlacaKey(f.Placa));
+        if (productivityValues.includes('Inativa') && cat === 'Inativa') wanted.add(normalizePlacaKey(f.Placa));
       }
       if (wanted.size > 0) placasFiltradas = wanted;
     }
@@ -982,7 +1035,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
     // Se houver filtros ativos e um conjunto de placas filtradas, aplicar; caso contràrio, mostrar timeline completo
     const hasFiltrosAtivos = hasActiveFilters || (filteredData && filteredData.length > 0);
     const data = hasFiltrosAtivos && placasFiltradas.size > 0
-      ? timeline.filter(t => placasFiltradas.has(t.Placa))
+      ? timeline.filter(t => placasFiltradas.has(normalizePlacaKey(t.Placa)))
       : timeline;
 
     const grouped: Record<string, AnyObject[]> = {};
@@ -1296,10 +1349,12 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
             const groups = new Map<string, Date>();
             veiculoData.eventos.forEach(ev => {
               const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
+              const tipoRaw = String(ev.TipoEvento || ev.Evento || '').toUpperCase();
               if (tipo.includes('MANUT') || tipo.includes('MULTA')) return;
+              if (tipoRaw.includes('PATIO') || tipoRaw.includes('MOVIMENTACAO_VEICULO') || tipoRaw.includes('MOVIMENTACAO')) return;
               const d = new Date(ev.DataEvento || ev.Data);
               if (!Number.isNaN(d.getTime())) {
-                const key = `${tipo}:${toISODateKey(d)}`;
+                const key = getEventGroupKey(tipo, d);
                 groups.set(key, d);
               }
             });
@@ -1347,31 +1402,90 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
     XLSX.writeFile(wb, `timeline_veiculos_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const mappedPercent = Number(timelineDiagnostics?.mappedPercent ?? 0);
+  const totalSourceRows = Number(timelineDiagnostics?.totalSourceRows ?? 0);
+  const totalMappedRows = Number(timelineDiagnostics?.totalMappedRows ?? 0);
+  const droppedRows = Number(timelineDiagnostics?.droppedRows ?? 0);
+
+  const sourceRows = timelineDiagnostics?.sourceRows || {};
+  const sourceMappedRows = timelineDiagnostics?.sourceMappedRows || {};
+  const sourceEntries = Object.keys(sourceRows)
+    .map((table) => ({
+      table,
+      source: Number(sourceRows[table] ?? 0),
+      mapped: Number(sourceMappedRows[table] ?? 0),
+    }))
+    .filter((x) => x.source > 0 || x.mapped > 0)
+    .sort((a, b) => b.source - a.source);
+
+  const TimelineDiagnosticsPanel = (
+    <Card className="border border-blue-200 bg-blue-50">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <Text className="text-xs uppercase tracking-wide text-blue-700 font-semibold">Diagnóstico Timeline</Text>
+          <Text className="text-sm text-blue-900">
+            Eventos mapeados: <span className="font-semibold">{fmtDecimal(totalMappedRows)}</span> de <span className="font-semibold">{fmtDecimal(totalSourceRows)}</span>
+            {' '}({fmtPercent(mappedPercent)})
+          </Text>
+          <Text className="text-xs text-blue-800">
+            Linhas descartadas: {fmtDecimal(droppedRows)}
+            {timelineError ? ` | erro API: ${timelineError}` : ''}
+          </Text>
+        </div>
+        <Badge color={mappedPercent >= 60 ? 'emerald' : mappedPercent >= 30 ? 'amber' : 'rose'}>
+          {timelineLoading ? 'Carregando fontes...' : `Aproveitamento ${fmtPercent(mappedPercent)}`}
+        </Badge>
+      </div>
+
+      {sourceEntries.length > 0 && (
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+          {sourceEntries.slice(0, 6).map((s) => {
+            const pct = s.source > 0 ? (s.mapped / s.source) * 100 : 0;
+            return (
+              <div key={s.table} className="rounded-md bg-white border border-blue-100 px-3 py-2">
+                <Text className="text-[11px] text-slate-600 truncate">{s.table}</Text>
+                <Text className="text-xs text-slate-800">
+                  {fmtDecimal(s.mapped)} / {fmtDecimal(s.source)} ({fmtPercent(pct)})
+                </Text>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+
   if (timelineLoading) {
     return (
-      <Card className="bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="p-12 text-center">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-200 flex items-center justify-center">
-            <svg className="animate-spin w-10 h-10 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle><path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor"></path></svg>
+      <div className="space-y-4">
+        {TimelineDiagnosticsPanel}
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100">
+          <div className="p-12 text-center">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-200 flex items-center justify-center">
+              <svg className="animate-spin w-10 h-10 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle><path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor"></path></svg>
+            </div>
+            <Title className="text-slate-600">Carregando Timeline</Title>
+            <Text className="mt-3 text-slate-500 max-w-md mx-auto">Buscando fontes e processando eventos. Veja o diagnóstico acima para acompanhar o progresso.</Text>
           </div>
-          <Title className="text-slate-600">Carregando Timeline</Title>
-          <Text className="mt-3 text-slate-500 max-w-md mx-auto">Carregando dados de histórico — aguarde alguns instantes.</Text>
-        </div>
-      </Card>
+        </Card>
+      </div>
     );
   }
 
   if (!timeline || timeline.length === 0) {
     return (
-      <Card className="bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="p-12 text-center">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-200 flex items-center justify-center">
-            <History className="w-10 h-10 text-slate-400" />
+      <div className="space-y-4">
+        {TimelineDiagnosticsPanel}
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100">
+          <div className="p-12 text-center">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-200 flex items-center justify-center">
+              <History className="w-10 h-10 text-slate-400" />
+            </div>
+            <Title className="text-slate-600">Sem Dados de Timeline</Title>
+            <Text className="mt-3 text-slate-500 max-w-md mx-auto">Nenhum evento de histórico encontrado para os veículos selecionados. O diagnóstico acima mostra se as fontes estão chegando e quantas linhas foram aproveitadas.</Text>
           </div>
-          <Title className="text-slate-600">Sem Dados de Timeline</Title>
-          <Text className="mt-3 text-slate-500 max-w-md mx-auto">Nenhum evento de histórico encontrado para os veículos selecionados. Aguarde o carregamento dos dados ou ajuste os filtros.</Text>
-        </div>
-      </Card>
+        </Card>
+      </div>
     );
   }
 
@@ -1666,19 +1780,24 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                       for (const ev of [...eventos].slice().reverse()) {
                         // reverse para manter o último evento do dia no topo ao expandir o grupo
                         const tipo = normalizeEventName(ev.TipoEvento || ev.Evento || 'Evento') || 'OUTRO';
+                        const tipoRaw = String(ev.TipoEvento || ev.Evento || '').toUpperCase();
                         // Se hà ocorrências consolidadas, pular eventos de manutenção individuais
                         if (tipo.includes('MANUT') && manutOccurrences.length > 0) continue;
                         // Multas vêm de fat_multas; sinistros serão agrupados separadamente
                         if (tipo.includes('MULTA')) continue;
                         if (tipo.includes('SINIST')) continue;
+                        if (tipoRaw.includes('PATIO') || tipoRaw.includes('MOVIMENTACAO_VEICULO') || tipoRaw.includes('MOVIMENTACAO')) continue;
                         // Evita poluição visual com eventos administrativos repetitivos
                         if (tipo.includes('STATUS')) continue;
                         const d = new Date(ev.DataEvento || ev.Data);
                         if (Number.isNaN(d.getTime())) continue;
-                        const key = `${tipo}:${toISODateKey(d)}`;
+                        const key = getEventGroupKey(tipo, d);
                         const prev = groups.get(key);
                         if (!prev) groups.set(key, { tipo, date: d, items: [ev] });
-                        else prev.items.push(ev);
+                        else {
+                          prev.items.push(ev);
+                          if (d.getTime() > prev.date.getTime()) prev.date = d;
+                        }
                       }
 
                       // 3) Multas - agora usando fat_multas via multasByPlaca
@@ -1714,8 +1833,22 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                         const k = keyFor(s) || s.key;
                         sinistroMap.set(k, s);
                       }
+
+                      const hasNearbyFatSinistro = (candidate: SinistroOccurrence): boolean => {
+                        if (sinistrosFromFat.length === 0) return false;
+                        const t = candidate.sinistroDate?.getTime?.() ?? 0;
+                        if (!t) return false;
+                        return sinistrosFromFat.some((f) => {
+                          const tf = f.sinistroDate?.getTime?.() ?? 0;
+                          if (!tf) return false;
+                          // mesma placa já está no contexto; tolerância de 48h para deduplicar fallback
+                          return Math.abs(tf - t) <= 1000 * 60 * 60 * 48;
+                        });
+                      };
+
                       for (const s of sinistrosFromEvents) {
                         const k = keyFor(s) || s.key;
+                        if (hasNearbyFatSinistro(s)) continue;
                         if (!sinistroMap.has(k)) {
                           sinistroMap.set(k, s);
                         }
@@ -2090,12 +2223,17 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 title = `Sinistro ${sin.numeroBO}`;
                               } else if (/^\d+$/.test(String(sin.sinistroId))) {
                                 title = `Sinistro #${sin.sinistroId}`;
+                              } else if (/^[A-Z0-9]{7}:\d{10,}$/.test(String(sin.sinistroId))) {
+                                title = 'Sinistro sem nº de ocorrência';
                               } else {
                                 title = String(sin.sinistroId ?? 'Sinistro');
                               }
                               const dataSinistro = fmtDateTimeBR(sin.sinistroDate);
                               const isSinExpanded = expandedRows.has(sin.key);
-                              const valor = sin.valorOrcamento;
+                              const valorTotalSin = Number(sin.items?.[0]?.ValorFinaleiroCalculado ?? 0);
+                              const valorReembSin = Number(sin.items?.[0]?.ValorReembolsavel ?? 0);
+                              const valorLiquidoSin = valorTotalSin - valorReembSin;
+                              const percentReembSin = valorTotalSin > 0 ? (valorReembSin / valorTotalSin) * 100 : 0;
                               const tipoSin = sin.tipoSinistro;
                               const situacao = sin.situacao;
                               const fornecedor = sin.fornecedor ?? sin.items?.[0]?.Fornecedor ?? null;
@@ -2139,6 +2277,8 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                               // criar uma ocorrência sintética a partir do sinistro para reaproveitar o mesmo layout.
                               let syntheticManut: MaintenanceOccurrence | undefined;
                               if (!matchedManut && sin.ocorrencia) {
+                                const valorTotal = Number(sin.items?.[0]?.ValorFinaleiroCalculado ?? 0);
+                                const valorReembolsavelItem = Number(sin.items?.[0]?.ValorReembolsavel ?? 0);
                                 syntheticManut = {
                                   kind: 'MANUTENCAO_OCORRENCIA',
                                   key: `occ:sin:${sin.key}`,
@@ -2147,12 +2287,13 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                   ocorrenciaDate: sin.sinistroDate,
                                   osRecords: sin.items?.map((it: any) => ({
                                     ...it,
-                                    CustoTotalOS: Number(it?.CustoTotalOS ?? getSinistroValorTotal(it) ?? 0),
-                                    ValorReembolsavel: Number(it?.ValorReembolsavel ?? getSinistroValorReembolsavel(it) ?? 0),
+                                    CustoTotalOS: parseMoneyLike(it?.CustoTotalOS ?? it?.ValorFinaleiroCalculado ?? 0),
+                                    ValorReembolsavel: parseMoneyLike(it?.ValorReembolsavel ?? valorReembolsavelItem ?? 0),
                                   })) || [],
                                   situacao: sin.situacao ?? undefined,
                                   tipoOcorrencia: sin.tipoSinistro ?? undefined,
-                                  custoTotal: sin.valorOrcamento ?? undefined,
+                                  custoTotal: valorTotal > 0 ? valorTotal : (sin.valorOrcamento ?? undefined),
+                                  valorReembolsavelTotal: valorReembolsavelItem > 0 ? valorReembolsavelItem : undefined,
                                   dataAberturaOcorrencia: sin.dataAberturaOcorrencia ?? null,
                                   dataConclusaoOcorrencia: sin.dataConclusaoOcorrencia ?? null,
                                   dataRetiradaVeiculo: sin.dataRetiradaVeiculo ?? null,
@@ -2168,7 +2309,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 const row = matchedManut;
                                 // iconMan not needed here
                                 const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
-                                const titleMan = /^\d+$/.test(String(ocorrenciaRaw)) ? `OCORRÊNCIA #${ocorrenciaRaw}` : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0, 10)}`);
+                                const titleMan = /^[A-Z0-9]{7}:\d{10,}$/.test(String(ocorrenciaRaw))
+                                  ? 'OCORRÊNCIA SEM Nº IDENTIFICADO'
+                                  : /^\d+$/.test(String(ocorrenciaRaw))
+                                    ? `OCORRÊNCIA #${ocorrenciaRaw}`
+                                    : String(ocorrenciaRaw || `QUAL-${String(matchedManut?.ocorrenciaId ?? '').slice(0, 10)}`);
                                 const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                                 const firstRec = row.osRecords[0];
                                 const motivo = firstRec?.Motivo ?? '';
@@ -2341,8 +2486,20 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                               {situacao}
                                             </Badge>
                                           )}
-                                          {valor != null && Number(valor) > 0 && (
-                                            <span className="text-amber-700 font-bold text-xs ml-auto">Total: {fmtMoney(valor)}</span>
+                                          {valorTotalSin > 0 && (
+                                            <span className="text-amber-700 font-bold text-xs ml-auto">Total: {fmtMoney(valorTotalSin)}</span>
+                                          )}
+                                          {valorReembSin > 0 && (
+                                            <span className="text-green-700 font-bold text-xs">Reemb: {fmtMoney(valorReembSin)}</span>
+                                          )}
+                                          {valorTotalSin > 0 && (
+                                            <span className="text-slate-700 font-bold text-xs">Líquido: {fmtMoney(valorLiquidoSin)}</span>
+                                          )}
+                                          {valorTotalSin > 0 && (
+                                            <span className="text-emerald-700 font-bold text-xs">% Reemb: {fmtPercent(percentReembSin)}</span>
+                                          )}
+                                          {valorTotalSin <= 0 && finSin.source === 'none' && (
+                                            <span className="text-slate-400 text-xs ml-auto">Sem valor financeiro na origem</span>
                                           )}
                                         </div>
                                         <div className="text-xs text-slate-600 mt-1.5 space-y-0.5">
@@ -2401,10 +2558,13 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                           <div key={`sin-item-${idx}`} className="text-xs bg-white p-3 border-l-4 border-rose-400 rounded shadow-sm">
                                             <div className="flex justify-between">
                                               <div className="flex-1">
-                                                <div className="font-medium text-slate-700">{it?.Observacao || it?.Descricao || it?.Motivo || `Item ${idx + 1}`}</div>
+                                                <div className="font-medium text-slate-700">{getSinistroItemLabel(it, idx)}</div>
                                                 <div className="text-[11px] text-slate-500">{fmtDateTimeBR(parseDateAny(it?.DataEvento ?? it?.Data ?? it?.DataSinistro))}</div>
                                               </div>
-                                              {getSinistroValorTotal(it) > 0 && <div className="text-amber-700 font-bold">{fmtMoney(getSinistroValorTotal(it))}</div>}
+                                              {getSinistroValorTotal(it) > 0
+                                                ? <div className="text-amber-700 font-bold">{fmtMoney(getSinistroValorTotal(it))}</div>
+                                                : <div className="text-slate-400 font-medium">Sem valor informado</div>
+                                              }
                                             </div>
                                             {it?.Fornecedor && (
                                               <div className="flex items-center gap-1.5 text-slate-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit mt-2">
@@ -2425,9 +2585,11 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                               const icon = EVENT_ICONS['MANUTENÇÃO'] || <Wrench size={14} className="text-amber-500" />;
                               const ocorrenciaRaw = row.ocorrencia ?? row.ocorrenciaId ?? '';
                               // Melhorar exibição: se for só número, adicionar prefixo "OCORRÊNCIA #"
-                              const title = /^\d+$/.test(String(ocorrenciaRaw))
-                                ? `OCORRÊNCIA #${ocorrenciaRaw}`
-                                : String(ocorrenciaRaw);
+                              const title = /^[A-Z0-9]{7}:\d{10,}$/.test(String(ocorrenciaRaw))
+                                ? 'OCORRÊNCIA SEM Nº IDENTIFICADO'
+                                : /^\d+$/.test(String(ocorrenciaRaw))
+                                  ? `OCORRÊNCIA #${ocorrenciaRaw}`
+                                  : String(ocorrenciaRaw);
                               const dataOcorrencia = fmtDateTimeBR(row.ocorrenciaDate);
                               const firstRec = row.osRecords[0];
                               const motivo = firstRec?.Motivo ?? '';
@@ -2932,7 +3094,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                 {/* Detalhes expandidos - FORA do card clicàvel */}
                                 {isExpandable && expandedRows.has(row.key) && (
                                   <div className="mt-2 ml-3 space-y-2 border-l-2 border-blue-200 pl-3">
-                                    {row.items.map((it, i) => {
+                                    {(tipoNorm.includes('MOVIMENTACAO') ? row.items.slice(0, 8) : row.items).map((it, i) => {
                                       const dd = parseDateAny(it.DataEvento || it.Data);
                                       // Melhorar busca de descrição com fallback garantido
                                       const detail = it.Detalhe1 || it.Descricao || it.DescricaoInfracao ||
@@ -3022,6 +3184,18 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                       // SEMPRE mostrar detalhes para LOCACAO/DEVOLUCAO
                                       const showContrato = tipoNorm === 'LOCACAO' || tipoNorm === 'DEVOLUCAO';
 
+                                      // Carro Reserva
+                                      const showCarroReserva = tipoNorm === 'CARRO_RESERVA';
+                                      const crOcorrencia = String(it?.Ocorrencia ?? it?.NumeroOcorrencia ?? it?.IdOcorrencia ?? '').trim();
+                                      const crMotivo = String(it?.Motivo ?? it?.Detalhe2 ?? '').trim();
+                                      const crCliente = String(it?.NomeCliente ?? it?.Cliente ?? '').trim();
+                                      const crFornecedor = String(it?.Fornecedor ?? '').trim();
+                                      const crSituacao = String(it?.SituacaoOcorrencia ?? it?.Status ?? '').trim();
+                                      const crEtapa = String(it?.Etapa ?? '').trim();
+                                      const crPlacaReserva = String(it?.PlacaReserva ?? '').trim();
+                                      const crDataRetirada = parseDateAny(it?.DataRetirada ?? it?.DataInicio ?? it?.DataEvento);
+                                      const crDataDevolucao = parseDateAny(it?.DataDevolucao ?? it?.DataFinal);
+
                                       // Sinistro - Campos expandidos (enriquecidos com fat_sinistros)
                                       const showSinistro = tipoNorm === 'SINISTRO';
                                       const numeroOcorrencia = String(
@@ -3032,8 +3206,10 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                         sinistroData?.Status ?? sinistroData?.StatusSinistro ?? sinistroData?.SituacaoOcorrencia ??
                                         it?.Status ?? it?.StatusSinistro ?? it?.SituacaoOcorrencia ?? ''
                                       ).trim();
-                                      const valorSinistro = sinistroData?.ValorOrcado ?? sinistroData?.ValorSinistro ?? sinistroData?.Valor ??
-                                        it?.ValorOrcado ?? it?.ValorSinistro ?? it?.Valor;
+                                      const valorSinistro = Number(sinistroData?.ValorFinaleiroCalculado ?? it?.ValorFinaleiroCalculado ?? it?.ValorTotal ?? 0);
+                                      const reembSinistro = Number(sinistroData?.ValorReembolsavel ?? it?.ValorReembolsavel ?? 0);
+                                      const liquidoSinistro = valorSinistro - reembSinistro;
+                                      const pctReembSinistro = valorSinistro > 0 ? (reembSinistro / valorSinistro) * 100 : null;
                                       // Datas do sinistro - usando campos do ETL fat_sinistros
                                       const dataSinistro = parseDateAny(
                                         sinistroData?.DataSinistro ?? sinistroData?.DataOcorrencia ??
@@ -3071,7 +3247,7 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                       const localSinistro = sinistroData?.Cidade ? `${sinistroData.Cidade}${sinistroData.Estado ? ` - ${sinistroData.Estado}` : ''}` : null;
 
                                       // Movimentação
-                                      const showMovimentacao = tipoNorm === 'MOVIMENTACAO';
+                                      const showMovimentacao = tipoNorm.includes('MOVIMENTACAO');
                                       const origem = String(it?.Origem ?? it?.origem ?? it?.LocalOrigem ?? '').trim();
                                       const destino = String(it?.Destino ?? it?.destino ?? it?.LocalDestino ?? '').trim();
 
@@ -3176,6 +3352,42 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                             </div>
                                           )}
 
+                                          {/* Detalhes de Carro Reserva */}
+                                          {showCarroReserva && (
+                                            <div className="bg-cyan-50/60 rounded-lg p-3 mt-2 border border-cyan-200">
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs font-bold text-cyan-700">🚗 Carro Reserva</span>
+                                                {crSituacao && <Badge color="blue" className="text-[10px]">{crSituacao}</Badge>}
+                                                {crEtapa && <Badge color="slate" className="text-[10px]">{crEtapa}</Badge>}
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                                {crOcorrencia && (
+                                                  <div><span className="text-slate-500">Ocorrência:</span> <span className="font-mono font-semibold text-cyan-700">{crOcorrencia}</span></div>
+                                                )}
+                                                {crCliente && (
+                                                  <div><span className="text-slate-500">Cliente:</span> <span className="text-slate-700">{crCliente}</span></div>
+                                                )}
+                                                {crFornecedor && (
+                                                  <div><span className="text-slate-500">Fornecedor:</span> <span className="text-slate-700">{crFornecedor}</span></div>
+                                                )}
+                                                {crPlacaReserva && (
+                                                  <div><span className="text-slate-500">Placa Reserva:</span> <span className="font-mono text-slate-700">{crPlacaReserva}</span></div>
+                                                )}
+                                                {crDataRetirada && (
+                                                  <div><span className="text-slate-500">Retirada:</span> <span className="text-slate-700">{fmtDateTimeBR(crDataRetirada)}</span></div>
+                                                )}
+                                                {crDataDevolucao && (
+                                                  <div><span className="text-slate-500">Devolução:</span> <span className="text-slate-700">{fmtDateTimeBR(crDataDevolucao)}</span></div>
+                                                )}
+                                              </div>
+                                              {crMotivo && (
+                                                <div className="mt-2 pt-2 border-t border-cyan-200 text-xs">
+                                                  <span className="text-slate-500">Motivo:</span> <span className="text-slate-700 italic">{crMotivo}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+
                                           {/* Detalhes de Sinistro - layout com datas no lado direito igual manutenção */}
                                           {showSinistro && (
                                             <div className="bg-purple-50/50 rounded-lg p-3 mt-2 border border-purple-200">
@@ -3189,8 +3401,20 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                         {statusSinistro}
                                                       </Badge>
                                                     )}
-                                                    {valorSinistro != null && valorSinistro > 0 && (
-                                                      <span className="text-purple-700 font-bold text-xs ml-auto">{fmtMoney(valorSinistro)}</span>
+                                                    {valorSinistro > 0 && (
+                                                      <span className="text-purple-700 font-bold text-xs ml-auto">Total: {fmtMoney(valorSinistro)}</span>
+                                                    )}
+                                                    {reembSinistro > 0 && (
+                                                      <span className="text-green-700 font-bold text-xs">Reemb: {fmtMoney(reembSinistro)}</span>
+                                                    )}
+                                                    {valorSinistro > 0 && (
+                                                      <span className="text-slate-700 font-bold text-xs">Líquido: {fmtMoney(liquidoSinistro)}</span>
+                                                    )}
+                                                    {pctReembSinistro != null && (
+                                                      <span className="text-emerald-700 font-bold text-xs">% Reemb: {fmtPercent(pctReembSinistro)}</span>
+                                                    )}
+                                                    {finSinistro.source === 'manutencao_fallback' && (
+                                                      <Badge color="amber" className="text-[10px]">Valor estimado via manutenção</Badge>
                                                     )}
                                                   </div>
 
@@ -3309,6 +3533,9 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                                       <div className="text-purple-700 font-semibold mt-1">Δ Abertura→Concl: {fmtDurationFromMinutes(diffMins)}</div>
                                                     ) : null;
                                                   })()}
+                                                  {valorSinistro <= 0 && (
+                                                    <div className="text-slate-500 italic mt-1">Valor não informado na tabela fat_sinistros.</div>
+                                                  )}
                                                 </div>
                                               </div>
                                             </div>
@@ -3636,7 +3863,10 @@ export default function TimelineTab({ timeline, timelineLoading, filteredData, f
                                         </div>
                                       );
                                     })}
-                                    {row.items.length > 10 && (
+                                    {tipoNorm.includes('MOVIMENTACAO') && row.items.length > 8 && (
+                                      <div className="text-xs text-slate-400">+{row.items.length - 8} movimentações ocultas para reduzir poluição visual.</div>
+                                    )}
+                                    {!tipoNorm.includes('MOVIMENTACAO') && row.items.length > 10 && (
                                       <div className="text-xs text-slate-400">+{row.items.length - 10} ocorrências…</div>
                                     )}
                                   </div>

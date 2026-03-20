@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import useBIDataBatch from '@/hooks/useBIDataBatch';
 
 export interface TimelineAggregated {
@@ -26,12 +26,38 @@ export interface TimelineEvent {
   Detalhe1?: string;
   Detalhe2?: string;
   ValorEvento?: number;
+  IdOcorrencia?: string;
+  Ocorrencia?: string;
+  NumeroOcorrencia?: string;
+  NumeroBO?: string;
+  Tipo?: string;
+  Motivo?: string;
+  Descricao?: string;
+  Fornecedor?: string;
+  NomeCliente?: string;
+  SituacaoOcorrencia?: string;
+  Etapa?: string;
+  DataRetirada?: string;
+  DataDevolucao?: string;
+  PlacaReserva?: string;
+  ValorOrcamento?: number;
+  ValorReembolsavel?: number;
+}
+
+export interface TimelineDiagnostics {
+  sourceRows: Record<string, number>;
+  sourceMappedRows: Record<string, number>;
+  totalSourceRows: number;
+  totalMappedRows: number;
+  droppedRows: number;
+  mappedPercent: number;
 }
 
 type TimelineMode = 'aggregated' | 'recent' | 'vehicle';
 
 interface UseTimelineDataResult<T> {
   data: T[] | null;
+  diagnostics: TimelineDiagnostics;
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -42,8 +68,7 @@ const TIMELINE_TABLES = [
   'fat_carro_reserva',
   'fat_multas',
   'fat_sinistros',
-  'dim_movimentacao_veiculos',
-  'dim_movimentacao_patios',
+  'hist_vida_veiculo_timeline',
 ] as const;
 
 function normalizePlaca(raw: unknown): string {
@@ -52,7 +77,22 @@ function normalizePlaca(raw: unknown): string {
 
 function toDate(raw: unknown): Date | null {
   if (!raw) return null;
-  const d = new Date(String(raw));
+  if (raw instanceof Date) {
+    return Number.isNaN(raw.getTime()) ? null : raw;
+  }
+
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  // Accepts local Brazilian date formats: dd/MM/yyyy and dd/MM/yyyy HH:mm[:ss]
+  const brDateMatch = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (brDateMatch) {
+    const [, dd, mm, yyyy, hh = '00', min = '00', ss = '00'] = brDateMatch;
+    const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), Number(ss));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -72,12 +112,22 @@ function eventFromRow(row: Record<string, unknown>, tipo: string): TimelineEvent
 
   const dataEvento =
     toIso(row.DataEvento) ||
+    toIso(row.Data) ||
     toIso(row.DataOcorrencia) ||
+    toIso(row.DataCriacao) ||
+    toIso(row.DataCriacaoInfracao) ||
+    toIso(row.DataMovimentacao) ||
+    toIso(row.DataRetirada) ||
+    toIso(row.DataDevolucao) ||
+    toIso(row.DataInicial) ||
+    toIso(row.DataFinal) ||
+    toIso(row.DataConclusaoOcorrencia) ||
     toIso(row.DataSinistro) ||
     toIso(row.DataInfracao) ||
     toIso(row.DataEntrada) ||
     toIso(row.DataSaida) ||
     toIso(row.DataCriacaoOcorrencia) ||
+    toIso(row.DataAtualizacaoDados) ||
     toIso(row.UltimaAtualizacao) ||
     toIso(row.ultimaatualizacao);
 
@@ -90,6 +140,22 @@ function eventFromRow(row: Record<string, unknown>, tipo: string): TimelineEvent
     Detalhe1: String(row.Tipo ?? row.TipoOcorrencia ?? row.Status ?? row.Situacao ?? '').trim() || undefined,
     Detalhe2: String(row.Descricao ?? row.Observacao ?? row.Origem ?? row.Patio ?? '').trim() || undefined,
     ValorEvento: toNumber(row.ValorTotal ?? row.ValorSinistro ?? row.ValorMulta ?? row.CustoTotalOS ?? row.Valor),
+    IdOcorrencia: String(row.IdOcorrencia ?? '').trim() || undefined,
+    Ocorrencia: String(row.Ocorrencia ?? '').trim() || undefined,
+    NumeroOcorrencia: String(row.NumeroOcorrencia ?? '').trim() || undefined,
+    NumeroBO: String(row.NumeroBO ?? row.BoletimOcorrencia ?? '').trim() || undefined,
+    Tipo: String(row.Tipo ?? '').trim() || undefined,
+    Motivo: String(row.Motivo ?? '').trim() || undefined,
+    Descricao: String(row.Descricao ?? row.Observacao ?? '').trim() || undefined,
+    Fornecedor: String(row.Fornecedor ?? '').trim() || undefined,
+    NomeCliente: String(row.NomeCliente ?? row.Cliente ?? '').trim() || undefined,
+    SituacaoOcorrencia: String(row.SituacaoOcorrencia ?? row.Status ?? row.Situacao ?? '').trim() || undefined,
+    Etapa: String(row.Etapa ?? '').trim() || undefined,
+    DataRetirada: String(row.DataRetirada ?? row.DataRetiradaEfetiva ?? '').trim() || undefined,
+    DataDevolucao: String(row.DataDevolucao ?? row.DataDevolucaoEfetiva ?? '').trim() || undefined,
+    PlacaReserva: String(row.PlacaReserva ?? '').trim() || undefined,
+    ValorOrcamento: toNumber(row.ValorOrcamento ?? row.ValorSinistro ?? row.ValorTotal ?? row.Valor),
+    ValorReembolsavel: toNumber(row.ValorReembolsavel ?? row.ValorReembolso ?? row.ValorReembolsado),
   };
 }
 
@@ -98,43 +164,86 @@ function readTableRows(results: Record<string, unknown>, table: string): Record<
   return Array.isArray(entry?.data) ? (entry.data as Record<string, unknown>[]) : [];
 }
 
-function mapRowsToEvents(results: Record<string, unknown>): TimelineEvent[] {
+function mapRowsToEvents(results: Record<string, unknown>): { events: TimelineEvent[]; diagnostics: TimelineDiagnostics } {
   const eventos: TimelineEvent[] = [];
 
   const manut = readTableRows(results, 'fat_manutencao_unificado');
   const reserva = readTableRows(results, 'fat_carro_reserva');
   const multas = readTableRows(results, 'fat_multas');
   const sinistros = readTableRows(results, 'fat_sinistros');
-  const movVeiculos = readTableRows(results, 'dim_movimentacao_veiculos');
-  const movPatios = readTableRows(results, 'dim_movimentacao_patios');
+  const historico = readTableRows(results, 'hist_vida_veiculo_timeline');
+
+  const sourceRows: Record<string, number> = {
+    fat_manutencao_unificado: manut.length,
+    fat_carro_reserva: reserva.length,
+    fat_multas: multas.length,
+    fat_sinistros: sinistros.length,
+    hist_vida_veiculo_timeline: historico.length,
+  };
+
+  const sourceMappedRows: Record<string, number> = {
+    fat_manutencao_unificado: 0,
+    fat_carro_reserva: 0,
+    fat_multas: 0,
+    fat_sinistros: 0,
+    hist_vida_veiculo_timeline: 0,
+  };
 
   for (const row of manut) {
     const ev = eventFromRow(row, 'MANUTENCAO');
-    if (ev) eventos.push(ev);
+    if (ev) {
+      eventos.push(ev);
+      sourceMappedRows.fat_manutencao_unificado += 1;
+    }
   }
   for (const row of reserva) {
     const ev = eventFromRow(row, 'CARRO_RESERVA');
-    if (ev) eventos.push(ev);
+    if (ev) {
+      eventos.push(ev);
+      sourceMappedRows.fat_carro_reserva += 1;
+    }
   }
   for (const row of multas) {
     const ev = eventFromRow(row, 'MULTA');
-    if (ev) eventos.push(ev);
+    if (ev) {
+      eventos.push(ev);
+      sourceMappedRows.fat_multas += 1;
+    }
   }
   for (const row of sinistros) {
     const ev = eventFromRow(row, 'SINISTRO');
-    if (ev) eventos.push(ev);
+    if (ev) {
+      eventos.push(ev);
+      sourceMappedRows.fat_sinistros += 1;
+    }
   }
-  for (const row of movVeiculos) {
-    const ev = eventFromRow(row, 'MOVIMENTACAO_VEICULO');
-    if (ev) eventos.push(ev);
-  }
-  for (const row of movPatios) {
-    const ev = eventFromRow(row, 'MOVIMENTACAO_PATIO');
-    if (ev) eventos.push(ev);
+  for (const row of historico) {
+    const tipoRaw = String(row.TipoEvento ?? row.Evento ?? row.Status ?? row.Situacao ?? 'STATUS').trim();
+    const ev = eventFromRow(row, tipoRaw || 'STATUS');
+    if (ev) {
+      eventos.push(ev);
+      sourceMappedRows.hist_vida_veiculo_timeline += 1;
+    }
   }
 
   eventos.sort((a, b) => new Date(b.DataEvento).getTime() - new Date(a.DataEvento).getTime());
-  return eventos;
+
+  const totalSourceRows = Object.values(sourceRows).reduce((s, n) => s + n, 0);
+  const totalMappedRows = Object.values(sourceMappedRows).reduce((s, n) => s + n, 0);
+  const droppedRows = Math.max(0, totalSourceRows - totalMappedRows);
+  const mappedPercent = totalSourceRows > 0 ? (totalMappedRows / totalSourceRows) * 100 : 0;
+
+  return {
+    events: eventos,
+    diagnostics: {
+      sourceRows,
+      sourceMappedRows,
+      totalSourceRows,
+      totalMappedRows,
+      droppedRows,
+      mappedPercent,
+    },
+  };
 }
 
 function aggregateTimeline(events: TimelineEvent[]): TimelineAggregated[] {
@@ -190,10 +299,27 @@ export function useTimelineData<T = TimelineAggregated>(
     { enabled, staleTime: 5 * 60 * 1000 }
   );
 
+  const mapped = useMemo(() => {
+    if (!enabled) {
+      return {
+        events: [] as TimelineEvent[],
+        diagnostics: {
+          sourceRows: {},
+          sourceMappedRows: {},
+          totalSourceRows: 0,
+          totalMappedRows: 0,
+          droppedRows: 0,
+          mappedPercent: 0,
+        } as TimelineDiagnostics,
+      };
+    }
+    return mapRowsToEvents(results as Record<string, unknown>);
+  }, [results, enabled]);
+
   const data = useMemo(() => {
     if (!enabled) return [] as T[];
 
-    const allEvents = mapRowsToEvents(results as Record<string, unknown>);
+    const allEvents = mapped.events;
     const filteredEvents = placa
       ? allEvents.filter((ev) => normalizePlaca(ev.Placa) === normalizePlaca(placa))
       : allEvents;
@@ -203,10 +329,26 @@ export function useTimelineData<T = TimelineAggregated>(
     }
 
     return filteredEvents as T[];
-  }, [results, mode, placa, enabled]);
+  }, [mapped.events, mode, placa, enabled]);
+
+  useEffect(() => {
+    if (!enabled || loading) return;
+    console.info('[timeline] diagnostico', {
+      mode,
+      placa: placa || null,
+      totalSourceRows: mapped.diagnostics.totalSourceRows,
+      totalMappedRows: mapped.diagnostics.totalMappedRows,
+      droppedRows: mapped.diagnostics.droppedRows,
+      mappedPercent: Number(mapped.diagnostics.mappedPercent.toFixed(2)),
+      sourceRows: mapped.diagnostics.sourceRows,
+      sourceMappedRows: mapped.diagnostics.sourceMappedRows,
+      error,
+    });
+  }, [enabled, loading, mode, placa, mapped.diagnostics, error]);
 
   return {
     data,
+    diagnostics: mapped.diagnostics,
     loading,
     error,
     refetch,

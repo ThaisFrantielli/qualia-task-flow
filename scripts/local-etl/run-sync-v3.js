@@ -99,7 +99,18 @@ const TABLES = [
     { table: 'fat_manutencao_unificado', query: `SELECT * FROM OcorrenciasManutencao WITH (NOLOCK)` },
     { table: 'fat_movimentacao_ocorrencias', query: `SELECT * FROM MovimentacaoOcorrencias WITH (NOLOCK)` },
     { table: 'fat_multas', query: `SELECT * FROM OcorrenciasInfracoes WITH (NOLOCK)` },
-    { table: 'fat_sinistros', query: `SELECT * FROM OcorrenciasSinistro WITH (NOLOCK)` },
+    {
+        table: 'fat_sinistros',
+        query: `
+            SELECT 
+                os.*,
+                ISNULL(COALESCE(
+                    NULLIF(CAST(os.ValorOrcamento AS FLOAT), 0),
+                    (SELECT SUM(CAST(i.ValorTotal AS FLOAT)) FROM ItensOrdemServico i WITH (NOLOCK) WHERE i.IdOcorrencia = os.IdOcorrencia AND i.ValorTotal IS NOT NULL)
+                ), 0) as ValorFinaleiroCalculado
+            FROM OcorrenciasSinistro os WITH (NOLOCK)
+        `
+    },
     { table: 'historico_situacao_veiculos', query: `SELECT * FROM HistoricoSituacaoVeiculos WITH (NOLOCK)` }
 ];
 

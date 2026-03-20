@@ -141,7 +141,7 @@ export default function useBIDataBatch(
       mountedRef.current = false;
       fetchIdRef.current++;
     };
-  }, [load, cacheKey]); // re-dispara quando cacheKey muda (ex: ano filtrado de outro componente)
+  }, [load, cacheKey, enabled]); // re-dispara quando cacheKey muda ou lazy-load é habilitado
 
   return { results, metadata, loading, error, refetch };
 }

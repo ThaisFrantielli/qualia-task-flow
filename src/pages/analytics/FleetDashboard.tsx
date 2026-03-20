@@ -102,7 +102,7 @@ export default function FleetDashboard() {
         'fat_itens_ordem_servico'
     ], undefined, { enabled: needsTimeline, params: { limit: timelineItensLimit } });
     const { data: _timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline }); // eslint-disable-line @typescript-eslint/no-unused-vars
-    const { data: timelineRecent, loading: timelineLoading } = useTimelineData('recent', undefined, { enabled: needsTimeline });
+    const { data: timelineRecent, loading: timelineLoading, error: timelineError, diagnostics: timelineDiagnostics } = useTimelineData('recent', undefined, { enabled: needsTimeline });
 
     // Extract individual datasets from batch results
     const frotaData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_frota'), [primaryData]);
@@ -1218,6 +1218,41 @@ export default function FleetDashboard() {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [filteredData]);
+
+    const veiculosChartMinWidth = useMemo(() => {
+        const base = 700; // mínimo para uma boa visualização
+        const perItem = 22; // largura por item (ajustável)
+        return Math.max(base, veiculosPorClienteData.length * perItem + 200);
+    }, [veiculosPorClienteData]);
+
+    // Alturas para scroll vertical: mostrar 10 itens por vez
+    const veiculosItemHeight = 36; // altura por linha/barras
+    const veiculosVisibleItems = 10; // quantos itens visíveis por vez
+    const veiculosContainerHeight = Math.min(veiculosPorClienteData.length, veiculosVisibleItems) * veiculosItemHeight + 80; // +80 para padding/título
+    const veiculosChartHeight = Math.max(veiculosPorClienteData.length * veiculosItemHeight + 40, veiculosContainerHeight);
+
+    // Renderer customizado para rótulos: coloca dentro da barra se houver espaço,
+    // caso contrário posiciona à direita fora da barra com cor escura.
+    const renderVeiculoLabel = (props: any) => {
+        const { x, y, width = 0, height = 0, value } = props;
+        const padding = 8;
+        const fontSize = 12;
+        const textY = y + height / 2 + 4;
+        // threshold em pixels para decidir se o label cabe dentro da barra
+        const insideThreshold = 40;
+        if ((width as number) >= insideThreshold) {
+            return (
+                <text x={x + (width as number) - padding} y={textY} fill="#0f172a" fontSize={fontSize} textAnchor="end" dominantBaseline="middle">
+                    {value}
+                </text>
+            );
+        }
+        return (
+            <text x={x + (width as number) + padding} y={textY} fill="#0f172a" fontSize={fontSize} dominantBaseline="middle">
+                {value}
+            </text>
+        );
+    };
 
     const localizacaoHierarquica = useMemo(() => {
         const hierarquia: Record<string, Record<string, number>> = {};
@@ -2643,20 +2678,22 @@ export default function FleetDashboard() {
 
                         <Card className="lg:col-start-1 lg:row-span-2">
                             <Title>Veículos por Cliente</Title>
-                            <div className="h-[520px] mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={veiculosPorClienteData} layout="vertical" margin={{ left: 0, right: 60 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                        <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={150} fontSize={9} tick={{ fill: '#475569' }} />
-                                        <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
-                                        <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={20}
-                                            onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
-                                            cursor="pointer">
-                                            <LabelList dataKey="value" position="right" fontSize={10} fill="#1e293b" />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="mt-4 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-400" style={{ height: veiculosContainerHeight }}>
+                                <div style={{ height: veiculosChartHeight, width: '100%' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={veiculosPorClienteData} layout="vertical" margin={{ left: 0, right: 30 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={260} tick={{ fill: '#475569', fontSize: 11 }} />
+                                            <Tooltip formatter={(value: any) => [`${value}`, 'Veículos']} />
+                                            <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={14}
+                                                onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
+                                                cursor="pointer">
+                                                <LabelList dataKey="value" content={renderVeiculoLabel} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </Card>
 
@@ -3075,6 +3112,8 @@ export default function FleetDashboard() {
                     <TimelineTab
                         timeline={timeline}
                         timelineLoading={timelineLoading}
+                        timelineError={timelineError}
+                        timelineDiagnostics={timelineDiagnostics}
                         filteredData={filteredData}
                         frota={frotaEnriched}
                         manutencao={manutencao}
