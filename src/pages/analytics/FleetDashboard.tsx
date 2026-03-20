@@ -2106,7 +2106,7 @@ export default function FleetDashboard() {
                                             {statusData.map((entry, idx) => (
                                                 <Cell key={`cell-st-${idx}`} fill={isValueSelected('status', entry.name) ? '#063970' : entry.color} />
                                             ))}
-                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
+                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2150,7 +2150,7 @@ export default function FleetDashboard() {
                                                         return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                     }} />
                                                     <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#64748b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                                        <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
+                                                        <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fill="#0f172a" />
                                                     </Bar>
                                                 </BarChart>
                                             </ResponsiveContainer>
@@ -2169,7 +2169,7 @@ export default function FleetDashboard() {
                                                         return [`${value} (${pct ? pct.toFixed(1) + '%' : ''})`, 'Veículos'];
                                                     }} />
                                                     <Bar dataKey="value" radius={[6, 6, 6, 6]} barSize={20} fill="#f59e0b" onClick={(data: any, _index: number, event: any) => { handleChartClick('status', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                                        <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} />
+                                                        <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fill="#0f172a" />
                                                     </Bar>
                                                 </BarChart>
                                             </ResponsiveContainer>
@@ -2227,7 +2227,7 @@ export default function FleetDashboard() {
                                                     fill={entry.isCategory ? '#7c3aed' : '#a78bfa'}
                                                 />
                                             ))}
-                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} />
+                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2255,7 +2255,7 @@ export default function FleetDashboard() {
                                         <YAxis tick={{ fontSize: 12 }} />
                                         <Tooltip formatter={(value: any) => [`${value} veículos`, 'Quantidade']} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32} fill="#06b6d4" onClick={(data: any, _index: number, event: any) => { const key = odometroView === 'odometro' ? 'odometro' : 'idade'; handleChartClick(key, data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }} cursor="pointer">
-                                            <LabelList dataKey="value" position="top" formatter={(v: any) => v > 0 ? String(v) : ''} fontSize={11} />
+                                            <LabelList dataKey="value" position="top" formatter={(v: any) => v > 0 ? String(v) : ''} fontSize={11} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2442,7 +2442,7 @@ export default function FleetDashboard() {
                                         <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('aging', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
-                                            <LabelList dataKey="value" position="top" fontSize={12} fill="#666" />
+                                            <LabelList dataKey="value" position="top" fontSize={12} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2461,7 +2461,7 @@ export default function FleetDashboard() {
                                             <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}
                                                 onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                                 cursor="pointer">
-                                                <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
+                                                <LabelList dataKey="value" position="right" fontSize={10} fill="#0f172a" />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -2481,7 +2481,7 @@ export default function FleetDashboard() {
                                             <Bar dataKey="value" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20}
                                                 onClick={(data: any, _index: number, event: any) => { handleChartClick('status_improdutivo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                                 cursor="pointer">
-                                                <LabelList dataKey="value" position="right" fontSize={10} fill="#666" />
+                                                <LabelList dataKey="value" position="right" fontSize={10} fill="#0f172a" />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -2625,7 +2625,7 @@ export default function FleetDashboard() {
                                         <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20} fill="#3b82f6"
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('telemetria', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
-                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} fill="#1e293b" />
+                                            <LabelList dataKey="value" position="right" formatter={(v: any) => String(v)} fontSize={10} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2650,7 +2650,7 @@ export default function FleetDashboard() {
                                                         entry.name === 'Sem Seguro' ? '#ef4444' : '#94a3b8'
                                                 } />
                                             ))}
-                                            <LabelList dataKey="value" position="top" fontSize={11} fill="#1e293b" />
+                                            <LabelList dataKey="value" position="top" fontSize={11} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2669,7 +2669,7 @@ export default function FleetDashboard() {
                                         <Bar dataKey="value" fill="#0891b2" radius={[0, 4, 4, 0]} barSize={20}
                                             onClick={(data: any, _index: number, event: any) => { handleChartClick('km_diff', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                             cursor="pointer">
-                                            <LabelList dataKey="value" position="right" fontSize={10} fill="#1e293b" />
+                                            <LabelList dataKey="value" position="right" fontSize={10} fill="#0f172a" />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -2689,7 +2689,7 @@ export default function FleetDashboard() {
                                             <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={14}
                                                 onClick={(data: any, _index: number, event: any) => { handleChartClick('cliente', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('detail-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                                 cursor="pointer">
-                                                <LabelList dataKey="value" content={renderVeiculoLabel} />
+                                                <LabelList dataKey="value" position="right" fontSize={12} fill="#0f172a" />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
