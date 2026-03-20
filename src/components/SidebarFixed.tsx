@@ -8,6 +8,7 @@ import {
   PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Mail, Send, DollarSign, Headphones,
   ShoppingCart, Wrench, ShieldAlert, FileWarning
 } from 'lucide-react';
+import { Layers3 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useEnabledModules } from '@/modules/registry';
@@ -90,6 +91,7 @@ const baseMenuGroups: MenuGroup[] = [
     title: 'CRM',
     items: [
       { label: 'Central de Atendimento', url: '/atendimento', icon: Headphones, permissionKey: 'crm' },
+      { label: 'Workspace Atendimento', url: '/atendimento/workspace', icon: Layers3, permissionKey: 'crm' },
       { label: 'Central de Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' },
       { label: 'Emails', url: '/emails', icon: Mail, permissionKey: 'crm' },
       { label: 'Lista de Transmissão', url: '/broadcasts', icon: Send, permissionKey: 'crm' },

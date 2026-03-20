@@ -3,9 +3,17 @@ import { useClientes } from '@/hooks/useClientes';
 import { CustomerListEnhanced, CustomerDisplayInfo } from '@/components/customer-management/CustomerListEnhanced';
 import { CustomerDetailRedesign } from '@/components/customer-management/CustomerDetailRedesign';
 import ClienteFormModal from '@/components/customer-management/ClienteFormModal';
-import { SyncClientesButton } from '@/components/customer-management/SyncClientesButton';
+import { ImportClientesButton } from '@/components/customer-management/ImportClientesButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -13,11 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, Users, X, Filter, Merge } from 'lucide-react';
+import { Plus, Search, Users, X, Filter, Merge, ScanSearch } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ClienteComContatos } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { useAutoMergeClients } from '@/hooks/useAutoMergeClients';
+import { NameSimilaritySuggestion, useAutoMergeClients } from '@/hooks/useAutoMergeClients';
+import { normalizeClienteCodigo } from '@/lib/clienteCodigo';
 
 function getInitials(name: string | null) {
   if (!name) return '?';
@@ -31,7 +40,7 @@ function getInitials(name: string | null) {
 
 const CustomerHubPage: React.FC = () => {
   const { clientes, loading, error, refetch } = useClientes();
-  const { autoMergeAllDuplicates, findAllDuplicates } = useAutoMergeClients();
+  const { autoMergeAllDuplicates, findAllDuplicates, findNameSimilaritySuggestions, mergeClients } = useAutoMergeClients();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ativo');
@@ -39,6 +48,9 @@ const CustomerHubPage: React.FC = () => {
   const [clienteToEdit, setClienteToEdit] = useState<ClienteComContatos | null>(null);
   const [merging, setMerging] = useState(false);
   const [duplicateCount, setDuplicateCount] = useState(0);
+  const [nameSuggestions, setNameSuggestions] = useState<NameSimilaritySuggestion[]>([]);
+  const [nameReviewOpen, setNameReviewOpen] = useState(false);
+  const [reviewMergingKey, setReviewMergingKey] = useState<string | null>(null);
 
   // Check for duplicates on load
   useEffect(() => {
@@ -46,7 +58,18 @@ const CustomerHubPage: React.FC = () => {
       const total = groups.reduce((acc, g) => acc + g.clients.length - 1, 0);
       setDuplicateCount(total);
     });
-  }, [clientes, findAllDuplicates]);
+    findNameSimilaritySuggestions().then(setNameSuggestions);
+  }, [clientes, findAllDuplicates, findNameSimilaritySuggestions]);
+
+  const refreshDuplicateSignals = async () => {
+    const [groups, suggestions] = await Promise.all([
+      findAllDuplicates(),
+      findNameSimilaritySuggestions(),
+    ]);
+    const total = groups.reduce((acc, g) => acc + g.clients.length - 1, 0);
+    setDuplicateCount(total);
+    setNameSuggestions(suggestions);
+  };
 
   const handleMergeDuplicates = async () => {
     if (!window.confirm(`Deseja unificar automaticamente ${duplicateCount} clientes duplicados? Os dados serão migrados para o cadastro principal.`)) {
@@ -56,9 +79,32 @@ const CustomerHubPage: React.FC = () => {
     try {
       await autoMergeAllDuplicates();
       refetch();
-      setDuplicateCount(0);
+      await refreshDuplicateSignals();
     } finally {
       setMerging(false);
+    }
+  };
+
+  const handleMergeNameSuggestion = async (s: NameSimilaritySuggestion, keepId: string) => {
+    const [a, b] = s.clients;
+    const sourceId = keepId === a.id ? b.id : a.id;
+    const targetId = keepId;
+
+    const sourceName = sourceId === a.id ? (a.nome_fantasia || a.razao_social || a.id) : (b.nome_fantasia || b.razao_social || b.id);
+    const targetName = targetId === a.id ? (a.nome_fantasia || a.razao_social || a.id) : (b.nome_fantasia || b.razao_social || b.id);
+
+    if (!window.confirm(`Confirmar unificação manual?\nOrigem: ${sourceName}\nDestino: ${targetName}`)) {
+      return;
+    }
+
+    setReviewMergingKey(s.key);
+    try {
+      await mergeClients(sourceId, targetId, true);
+      await refetch();
+      await refreshDuplicateSignals();
+      toast.success('Unificação manual concluída');
+    } finally {
+      setReviewMergingKey(null);
     }
   };
 
@@ -168,7 +214,7 @@ const CustomerHubPage: React.FC = () => {
     tipoCliente: c.tipo_cliente || undefined,
     naturezaCliente: c.natureza_cliente || undefined,
     ultimoAtendimentoAt: (c as any).ultimo_atendimento_at || null,
-    codigoCliente: c.codigo_cliente || undefined,
+    codigoCliente: c.codigo_cliente ? normalizeClienteCodigo(c.codigo_cliente) : undefined,
   }));
 
   return (
@@ -195,7 +241,17 @@ const CustomerHubPage: React.FC = () => {
                   {merging ? 'Unificando...' : `Unificar ${duplicateCount} Duplicados`}
                 </Button>
               )}
-              <SyncClientesButton onSyncComplete={refetch} />
+              {nameSuggestions.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setNameReviewOpen(true)}
+                  className="text-blue-700 border-blue-300 hover:bg-blue-50"
+                >
+                  <ScanSearch className="h-4 w-4 mr-2" />
+                  Revisar {nameSuggestions.length} por Nome
+                </Button>
+              )}
+              <ImportClientesButton onImportComplete={refetch} />
               <Button onClick={handleOpenNewModal}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Cliente
@@ -297,6 +353,76 @@ const CustomerHubPage: React.FC = () => {
         }}
         cliente={clienteToEdit}
       />
+
+      <Dialog open={nameReviewOpen} onOpenChange={setNameReviewOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Revisão de Similaridade Nominal</DialogTitle>
+            <DialogDescription>
+              Sugestões de possível duplicidade por nome. A unificação só ocorre com sua confirmação por par.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto space-y-3">
+            {nameSuggestions.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nenhuma sugestão pendente.</div>
+            ) : (
+              nameSuggestions.map((s) => {
+                const [a, b] = s.clients;
+                const aName = a.nome_fantasia || a.razao_social || a.id;
+                const bName = b.nome_fantasia || b.razao_social || b.id;
+                const aCode = normalizeClienteCodigo((a as any).codigo_cliente || '');
+                const bCode = normalizeClienteCodigo((b as any).codigo_cliente || '');
+
+                return (
+                  <div key={s.key} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{s.reason}</span>
+                      <Badge variant="secondary">Score {(s.score * 100).toFixed(1)}%</Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="border rounded p-2">
+                        <div className="font-medium truncate">{aName}</div>
+                        <div className="text-xs text-muted-foreground">{aCode || a.id}</div>
+                      </div>
+                      <div className="border rounded p-2">
+                        <div className="font-medium truncate">{bName}</div>
+                        <div className="text-xs text-muted-foreground">{bCode || b.id}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={reviewMergingKey === s.key}
+                        onClick={() => handleMergeNameSuggestion(s, a.id)}
+                      >
+                        Manter {aName}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={reviewMergingKey === s.key}
+                        onClick={() => handleMergeNameSuggestion(s, b.id)}
+                      >
+                        Manter {bName}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNameReviewOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

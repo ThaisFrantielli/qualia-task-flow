@@ -48,8 +48,9 @@ import WhatsAppCentralPage from '@/pages/WhatsAppCentralPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
 // Páginas antigas redirecionadas para UsuariosAcessos
 import UsuariosAcessosPage from '@/pages/Configuracoes/UsuariosAcessos';
-import TicketOptionsPage from '@/pages/Configuracoes/TicketOptionsPage';
+import TicketOptionsPage from '@/pages/TicketOptionsPage';
 import FilaTriagem from '@/pages/FilaTriagem';
+import AtendimentoWorkspacePage from '@/pages/AtendimentoWorkspacePage';
 import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
@@ -110,6 +111,7 @@ function App() {
               <Route path="/tickets/reports" element={<TicketsReportsDashboard />} />
 
               <Route path="/atendimento" element={<AtendimentoCentralPage />} />
+              <Route path="/atendimento/workspace" element={<AtendimentoWorkspacePage />} />
               <Route path="/whatsapp" element={<WhatsAppCentralPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
               <Route path="/emails" element={<EmailPage />} />

@@ -14,6 +14,7 @@ type BIResult<T = unknown> = {
 
 // In-memory cache to avoid repeated calls
 const dataCache = new Map<string, { data: unknown; metadata: BIMetadata | null; timestamp: number }>();
+const inFlightRequests = new Map<string, Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }>>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
@@ -123,7 +124,15 @@ export default function useBIData<T = unknown>(
     setLoading(true);
     setError(null);
 
-    const result = await fetchFromAPI(tableName, forceRefresh, limit);
+    let request = inFlightRequests.get(cacheKey);
+    if (!request || forceRefresh) {
+      request = fetchFromAPI(tableName, forceRefresh, limit).finally(() => {
+        inFlightRequests.delete(cacheKey);
+      });
+      inFlightRequests.set(cacheKey, request);
+    }
+
+    const result = await request;
     if (fetchId !== fetchIdRef.current) return;
 
     if (result.success && result.data != null) {
@@ -140,7 +149,7 @@ export default function useBIData<T = unknown>(
 
     setError(`Sem dados disponíveis para '${tableName}'. Verifique a conexão com o servidor.`);
     setLoading(false);
-  }, [tableName, staleTime, enabled]);
+  }, [tableName, staleTime, enabled, limit]);
 
   const refetch = useCallback(() => {
     load(true);
@@ -158,8 +167,19 @@ export default function useBIData<T = unknown>(
 
 export function clearBIDataCache(identifier?: string) {
   if (identifier) {
-    dataCache.delete(normalizeTableName(identifier));
+    const tableName = normalizeTableName(identifier);
+    for (const key of dataCache.keys()) {
+      if (key === tableName || key.startsWith(`${tableName}_limit`)) {
+        dataCache.delete(key);
+      }
+    }
+    for (const key of inFlightRequests.keys()) {
+      if (key === tableName || key.startsWith(`${tableName}_limit`)) {
+        inFlightRequests.delete(key);
+      }
+    }
   } else {
     dataCache.clear();
+    inFlightRequests.clear();
   }
 }

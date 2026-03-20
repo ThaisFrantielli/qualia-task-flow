@@ -314,7 +314,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         // retroativamente de todos os dias anteriores, alterando o gráfico histórico.
         const { status, usedHistorico } = placa
           ? resolveStatusForDate(placa, checkDate)
-          : { status: veiculo?.Status || null, usedHistorico: false, lastChangeDate: null };
+          : { status: veiculo?.Status || null, usedHistorico: false };
         if (usedHistorico) usandoHistoricoCount++;
         else usandoFallbackCount++;
         if (!status) continue;

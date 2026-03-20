@@ -30,6 +30,10 @@ import {
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  DEFAULT_TRIAGEM_THRESHOLDS,
+  getSloAlertLevel,
+} from "@/lib/triagemOperationalAlerts";
 
 interface TriagemReportsDashboardProps {
   dateRange?: { from: Date; to: Date };
@@ -284,6 +288,13 @@ export function TriagemReportsDashboard({ dateRange }: TriagemReportsDashboardPr
   const slaCompliance = metrics.slaMetrics.totalComSLA > 0 
     ? Math.round((metrics.slaMetrics.slaCumprido / metrics.slaMetrics.totalComSLA) * 100)
     : 0;
+  const sloLevel = getSloAlertLevel(slaCompliance);
+  const sloLabel =
+    sloLevel === 'ok'
+      ? 'Meta atendida'
+      : sloLevel === 'warning'
+        ? 'Abaixo da meta'
+        : 'Risco critico';
 
   return (
     <div className="space-y-6">
@@ -346,7 +357,18 @@ export function TriagemReportsDashboard({ dateRange }: TriagemReportsDashboardPr
               <Target className="w-5 h-5 text-cyan-500" />
               <div>
                 <p className="text-2xl font-bold">{slaCompliance}%</p>
-                <p className="text-xs text-muted-foreground">SLA Cumprido</p>
+                <p className="text-xs text-muted-foreground">SLO 1a resposta</p>
+                <p
+                  className={`text-[11px] font-medium ${
+                    sloLevel === 'ok'
+                      ? 'text-emerald-600'
+                      : sloLevel === 'warning'
+                        ? 'text-amber-600'
+                        : 'text-rose-600'
+                  }`}
+                >
+                  {sloLabel} (meta {DEFAULT_TRIAGEM_THRESHOLDS.sloTarget}%)
+                </p>
               </div>
             </div>
           </CardContent>

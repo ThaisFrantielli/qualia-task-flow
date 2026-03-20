@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { Loader2, PlusCircle, Trash2, AlertTriangle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { generateClienteCodigo, normalizeClienteCodigo } from '@/lib/clienteCodigo';
 
 const contatoSchema = z.object({
   id: z.string().optional(),
@@ -78,7 +79,7 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
   useEffect(() => {
     if (isEditMode && cliente) {
       form.reset({
-        codigo_cliente: cliente.codigo_cliente || '',
+        codigo_cliente: normalizeClienteCodigo(cliente.codigo_cliente),
         razao_social: cliente.razao_social || '',
         nome_fantasia: cliente.nome_fantasia || '',
         cpf_cnpj: cliente.cpf_cnpj || '',
@@ -95,7 +96,7 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
       });
     } else {
       form.reset({
-        codigo_cliente: `CLI-${Date.now().toString().slice(-6)}`,
+        codigo_cliente: generateClienteCodigo(),
         razao_social: '',
         nome_fantasia: '',
         cpf_cnpj: '',
@@ -241,6 +242,7 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
         const { error: updateError } = await supabase
           .from('clientes')
           .update({
+            codigo_cliente: normalizeClienteCodigo(values.codigo_cliente),
             razao_social: values.razao_social,
             nome_fantasia: values.nome_fantasia,
             cpf_cnpj: values.cpf_cnpj,
@@ -282,7 +284,7 @@ const ClienteFormModal: React.FC<ClienteFormModalProps> = ({ isOpen, onClose, on
         const { data: newCliente, error: clienteError } = await supabase
           .from('clientes')
           .insert({
-            codigo_cliente: values.codigo_cliente,
+            codigo_cliente: normalizeClienteCodigo(values.codigo_cliente),
             razao_social: values.razao_social,
             nome_fantasia: values.nome_fantasia,
             cpf_cnpj: values.cpf_cnpj,

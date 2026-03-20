@@ -224,11 +224,40 @@ export function useEncaminharParaComercial() {
         estagioId = estagios?.[0]?.id || null;
       }
 
-      // 3. Criar oportunidade
+      // 3. Coletar contexto completo para handoff
+      const { data: conversation } = await supabase
+        .from('whatsapp_conversations')
+        .select('id, last_message, last_message_at, unread_count, whatsapp_number')
+        .eq('cliente_id', clienteId)
+        .maybeSingle();
+
+      const { data: latestTicket } = await supabase
+        .from('tickets')
+        .select('id, numero_ticket, titulo, status, prioridade, updated_at')
+        .eq('cliente_id', clienteId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const handoffLines = [
+        `Cliente: ${cliente.nome_fantasia || cliente.razao_social || 'Nao informado'}`,
+        `Origem: ${cliente.origem || 'nao informada'}`,
+        `WhatsApp: ${cliente.whatsapp_number || cliente.telefone || 'nao informado'}`,
+        `Email: ${cliente.email || 'nao informado'}`,
+        `Status triagem: ${cliente.status_triagem || 'nao informado'}`,
+        `Ultimo atendimento: ${cliente.ultimo_atendimento_at || 'nao informado'}`,
+        conversation?.last_message ? `Ultima mensagem: ${conversation.last_message}` : 'Ultima mensagem: nao disponivel',
+        conversation?.last_message_at ? `Data ultima mensagem: ${conversation.last_message_at}` : 'Data ultima mensagem: nao disponivel',
+        typeof conversation?.unread_count === 'number' ? `Nao lidas: ${conversation.unread_count}` : 'Nao lidas: 0',
+        latestTicket?.numero_ticket ? `Ultimo ticket: ${latestTicket.numero_ticket} (${latestTicket.status || 'sem status'})` : 'Ultimo ticket: nao disponivel',
+      ];
+
+      // 4. Criar oportunidade
       const { data: oportunidade, error: oppError } = await supabase
         .from('oportunidades')
         .insert({
           titulo: `Oportunidade - ${cliente.nome_fantasia || cliente.razao_social || cliente.whatsapp_number}`,
+          descricao: handoffLines.join('\n'),
           cliente_id: clienteId,
           status: 'aberta',
           funil_id: funilId || null,
@@ -240,7 +269,7 @@ export function useEncaminharParaComercial() {
 
       if (oppError) throw oppError;
 
-      // 4. Atualizar status do cliente
+      // 5. Atualizar status do cliente
       await supabase
         .from('clientes')
         .update({ 
@@ -250,15 +279,24 @@ export function useEncaminharParaComercial() {
         })
         .eq('id', clienteId);
 
-      // 5. Vincular conversa à oportunidade (se existir)
-      const { data: conversation } = await supabase
-        .from('whatsapp_conversations')
-        .select('id')
-        .eq('cliente_id', clienteId)
-        .maybeSingle();
+      // 6. Registrar mensagem de sistema na oportunidade com contexto de handoff
+      await supabase
+        .from('oportunidade_messages')
+        .insert({
+          oportunidade_id: oportunidade.id,
+          content: 'Handoff triagem -> comercial registrado com contexto completo.',
+          is_system_message: true,
+          metadata: {
+            cliente_id: clienteId,
+            origem: cliente.origem,
+            ultimo_ticket_id: latestTicket?.id || null,
+            conversation_id: conversation?.id || null,
+            handoff_snapshot: handoffLines,
+          }
+        } as any);
 
+      // 7. Vincular conversa ao cliente atualizado (manter consistencia)
       if (conversation) {
-        // Podemos usar o campo atendimento_id para vincular
         await supabase
           .from('whatsapp_conversations')
           .update({ cliente_id: clienteId })
@@ -294,6 +332,7 @@ export function useCriarTicket() {
       motivo,
       departamento,
       placa,
+      customFields,
       fase,
       status
     }: {
@@ -306,6 +345,7 @@ export function useCriarTicket() {
       motivo?: string;
       departamento?: string;
       placa?: string;
+      customFields?: Record<string, any>;
       fase?: string;
       status?: string;
     }) => {
@@ -324,6 +364,7 @@ export function useCriarTicket() {
           motivo: motivo as any,
           departamento: departamento as any,
           placa,
+          custom_fields: customFields || null,
           fase: fase || 'Análise do caso'
         })
         .select()

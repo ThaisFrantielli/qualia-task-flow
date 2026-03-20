@@ -14,6 +14,7 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -31,9 +32,8 @@ import { useCreateTicket } from "@/hooks/useTickets";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Plus, Car, Building2, FileText } from "lucide-react";
-import { useTicketOrigens, useTicketMotivos } from "@/hooks/useTicketOptions";
+import { useTicketOrigens, useTicketMotivos, useTicketDepartamentos, useTicketCustomFields } from "@/hooks/useTicketOptions";
 import { useVeiculoByPlaca } from "@/hooks/useVeiculoByPlaca";
-import { TICKET_DEPARTAMENTO_OPTIONS } from "@/constants/ticketOptions";
 import { ClienteCombobox } from "@/components/common/ClienteCombobox";
 import { PlacaVeiculoInput } from "./PlacaVeiculoInput";
 
@@ -56,10 +56,31 @@ export function CreateTicketDialog() {
     const [vinculos, setVinculos] = useState<Array<{ tipo: string; numero: string }>>([]);
     const createTicket = useCreateTicket();
     const isSubmittingRef = useRef(false);
+    const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
 
     const { data: origens } = useTicketOrigens();
     const { data: motivos } = useTicketMotivos();
+    const { data: departamentos } = useTicketDepartamentos();
+    const { data: customFields } = useTicketCustomFields();
     const veiculoData = useVeiculoByPlaca(placa);
+
+    const activeCustomFields = (customFields || []).filter((field) => field.is_active);
+
+    const normalizeOptions = (options: any): Array<{ value: string; label: string }> => {
+        if (!Array.isArray(options)) return [];
+        return options
+            .map((option) => {
+                if (typeof option === "string") return { value: option, label: option };
+                if (option && typeof option === "object") {
+                    return {
+                        value: String(option.value ?? option.label ?? ""),
+                        label: String(option.label ?? option.value ?? ""),
+                    };
+                }
+                return null;
+            })
+            .filter((option): option is { value: string; label: string } => !!option && !!option.value);
+    };
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -101,6 +122,19 @@ export function CreateTicketDialog() {
             return;
         }
 
+        const missingCustomRequired = activeCustomFields
+            .filter((field) => field.is_required)
+            .some((field) => {
+                const value = customFieldValues[field.field_key];
+                if (Array.isArray(value)) return value.length === 0;
+                return value === undefined || value === null || value === "";
+            });
+
+        if (missingCustomRequired) {
+            toast.error("Preencha todos os campos customizados obrigatórios");
+            return;
+        }
+
         isSubmittingRef.current = true;
         console.log("[CreateTicketDialog] Submitting ticket:", { 
             titulo: values.titulo, 
@@ -125,6 +159,7 @@ export function CreateTicketDialog() {
                 veiculo_ano: veiculoData.ano || null,
                 veiculo_cliente: veiculoData.cliente || null,
                 veiculo_km: veiculoData.km || null,
+                custom_fields: customFieldValues,
                 status: "aguardando_triagem",
                 tipo_reclamacao: "pos_venda"
             } as any,
@@ -140,6 +175,7 @@ export function CreateTicketDialog() {
                     form.reset();
                     setPlaca("");
                     setVinculos([]);
+                    setCustomFieldValues({});
                     isSubmittingRef.current = false;
                 },
                 onError: (error: any) => {
@@ -291,8 +327,8 @@ export function CreateTicketDialog() {
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {TICKET_DEPARTAMENTO_OPTIONS.map((option) => (
-                                                    <SelectItem key={option.value} value={option.value}>
+                                                {departamentos?.map((option) => (
+                                                    <SelectItem key={option.id} value={option.label}>
                                                         {option.label}
                                                     </SelectItem>
                                                 ))}
@@ -394,6 +430,155 @@ export function CreateTicketDialog() {
                         </div>
 
                         {/* Nota: Vínculos serão adicionados após criação do ticket */}
+
+                        {activeCustomFields.length > 0 && (
+                            <Card className="bg-muted/40 border-dashed">
+                                <CardContent className="pt-4 space-y-4">
+                                    <div>
+                                        <p className="text-sm font-medium">Campos Customizados</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Campos configurados no painel de tickets
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {activeCustomFields.map((field) => {
+                                            const value = customFieldValues[field.field_key];
+                                            const fieldOptions = normalizeOptions(field.options as any);
+
+                                            if (field.field_type === "textarea") {
+                                                return (
+                                                    <div key={field.id} className="space-y-2 md:col-span-2">
+                                                        <Label>
+                                                            {field.label}{field.is_required ? " *" : ""}
+                                                        </Label>
+                                                        <Textarea
+                                                            value={value || ""}
+                                                            onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.value }))}
+                                                            placeholder={field.placeholder || ""}
+                                                            className="resize-none"
+                                                        />
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (field.field_type === "select") {
+                                                return (
+                                                    <div key={field.id} className="space-y-2">
+                                                        <Label>
+                                                            {field.label}{field.is_required ? " *" : ""}
+                                                        </Label>
+                                                        <Select
+                                                            value={value || ""}
+                                                            onValueChange={(selected) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: selected }))}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder={field.placeholder || "Selecione..."} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {fieldOptions.map((option) => (
+                                                                    <SelectItem key={`${field.field_key}-${option.value}`} value={option.value}>
+                                                                        {option.label}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (field.field_type === "multiselect") {
+                                                const selectedValues = Array.isArray(value)
+                                                    ? value
+                                                    : (typeof value === "string" && value ? value.split(",").map((item) => item.trim()).filter(Boolean) : []);
+
+                                                return (
+                                                    <div key={field.id} className="space-y-2">
+                                                        <Label>
+                                                            {field.label}{field.is_required ? " *" : ""}
+                                                        </Label>
+                                                        {fieldOptions.length > 0 ? (
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {fieldOptions.map((option) => {
+                                                                    const isSelected = selectedValues.includes(option.value);
+                                                                    return (
+                                                                        <button
+                                                                            key={`${field.field_key}-${option.value}`}
+                                                                            type="button"
+                                                                            className={`px-2 py-1 text-xs rounded border transition-colors ${isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}
+                                                                            onClick={() => {
+                                                                                const nextValues = isSelected
+                                                                                    ? selectedValues.filter((item) => item !== option.value)
+                                                                                    : [...selectedValues, option.value];
+                                                                                setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: nextValues }));
+                                                                            }}
+                                                                        >
+                                                                            {option.label}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            <Input
+                                                                value={selectedValues.join(", ")}
+                                                                onChange={(e) => {
+                                                                    const list = e.target.value
+                                                                        .split(",")
+                                                                        .map((item) => item.trim())
+                                                                        .filter(Boolean);
+                                                                    setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: list }));
+                                                                }}
+                                                                placeholder={field.placeholder || "Informe valores separados por vírgula"}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (field.field_type === "checkbox") {
+                                                return (
+                                                    <div key={field.id} className="space-y-2">
+                                                        <Label>
+                                                            {field.label}{field.is_required ? " *" : ""}
+                                                        </Label>
+                                                        <label className="flex items-center gap-2 text-sm">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={Boolean(value)}
+                                                                onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.checked }))}
+                                                            />
+                                                            Ativar
+                                                        </label>
+                                                    </div>
+                                                );
+                                            }
+
+                                            const inputType = field.field_type === "number"
+                                                ? "number"
+                                                : field.field_type === "date"
+                                                    ? "date"
+                                                    : field.field_type === "datetime"
+                                                        ? "datetime-local"
+                                                        : "text";
+
+                                            return (
+                                                <div key={field.id} className="space-y-2">
+                                                    <Label>
+                                                        {field.label}{field.is_required ? " *" : ""}
+                                                    </Label>
+                                                    <Input
+                                                        type={inputType}
+                                                        value={value || ""}
+                                                        onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.value }))}
+                                                        placeholder={field.placeholder || ""}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Síntese */}
                         <FormField

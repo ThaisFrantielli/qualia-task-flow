@@ -8,7 +8,6 @@ import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
-    PieChart, Pie, Legend,
 } from 'recharts';
 import { AlertTriangle, DollarSign, TrendingDown, Hash, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -67,6 +66,11 @@ const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'
 const fmtMonth = (ym: string) => {
     const [y, m] = ym.split('-');
     return `${MONTHS_PT[Number(m) - 1]}/${y.slice(2)}`;
+};
+
+const truncateLabel = (value: string, max = 28) => {
+    if (!value) return 'Não informado';
+    return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 };
 
 const PALETTE = ['#6366f1', '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#84cc16'];
@@ -148,9 +152,12 @@ function InfractionsDashboardInner() {
         });
         return [...byMonth.entries()]
             .sort((a, b) => a[0].localeCompare(b[0]))
-            .sort((a, b) => a[0].localeCompare(b[0]))
             .map(([mes, v]) => ({ mes, label: fmtMonth(mes), ...v }));
     }, [multas]);
+
+    const evolucaoMinWidth = useMemo(() => {
+        return Math.max(760, evolucaoMensal.length * 72);
+    }, [evolucaoMensal.length]);
 
     // ── Top condutores ──────────────────────────────────────────────
     const topCondutores = useMemo(() => {
@@ -164,22 +171,43 @@ function InfractionsDashboardInner() {
             map.set(cond, cur);
         });
         return [...map.entries()]
-            .map(([name, v]) => ({ name: name.length > 25 ? name.slice(0, 22) + '…' : name, fullName: name, ...v }))
+            .map(([name, v]) => ({ name, ...v }))
             .sort((a, b) => b.qtd - a.qtd);
     }, [multas]);
+
+    const topCondutoresChart = useMemo(() => topCondutores.slice(0, 15), [topCondutores]);
+
+    const condutoresYAxisWidth = useMemo(() => {
+        const maxChars = topCondutoresChart.reduce((acc, item) => Math.max(acc, item.name.length), 0);
+        return Math.min(260, Math.max(150, maxChars * 6));
+    }, [topCondutoresChart]);
 
     // ── Distribuição por tipo ─────────────────────────────────────
     const tiposDistribuicao = useMemo(() => {
         const map = new Map<string, number>();
         multas.forEach(m => {
-            const tipo = m.TipoInfracao || m.DescricaoInfracao || 'Outros';
-            const short = tipo.length > 30 ? tipo.slice(0, 27) + '…' : tipo;
-            map.set(short, (map.get(short) || 0) + 1);
+            const tipo = m.TipoInfracao || m.DescricaoInfracao || 'Não informado';
+            map.set(tipo, (map.get(tipo) || 0) + 1);
         });
         return [...map.entries()]
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [multas]);
+
+    const tiposDistribuicaoChart = useMemo(() => {
+        const TOP_N = 12;
+        const top = tiposDistribuicao.slice(0, TOP_N);
+        const rest = tiposDistribuicao.slice(TOP_N);
+        if (rest.length === 0) return top;
+
+        const outrosValue = rest.reduce((sum, item) => sum + item.value, 0);
+        return [...top, { name: 'Outros', value: outrosValue }];
+    }, [tiposDistribuicao]);
+
+    const tiposYAxisWidth = useMemo(() => {
+        const maxChars = tiposDistribuicaoChart.reduce((acc, item) => Math.max(acc, item.name.length), 0);
+        return Math.min(320, Math.max(170, maxChars * 5.8));
+    }, [tiposDistribuicaoChart]);
 
     // ── Export ──────────────────────────────────────────────────────
     const exportXLSX = () => {
@@ -291,10 +319,10 @@ function InfractionsDashboardInner() {
                         {/* Evolução Mensal */}
                         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                             <h3 className="font-semibold text-slate-800 mb-4">Evolução Mensal de Multas</h3>
-                            <div className="overflow-x-auto pb-4">
-                                <div style={{ minWidth: evolucaoMensal.length * 50 }}>
+                            <div className="overflow-x-auto pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                <div style={{ minWidth: evolucaoMinWidth, width: '100%' }}>
                                     <ResponsiveContainer width="100%" height={320}>
-                                        <BarChart data={evolucaoMensal}>
+                                        <BarChart data={evolucaoMensal} margin={{ top: 12, right: 24, left: 4, bottom: 4 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                             <XAxis dataKey="label" fontSize={11} tick={{ fill: '#64748b' }} />
                                             <YAxis yAxisId="left" fontSize={11} tick={{ fill: '#64748b' }} />
@@ -316,16 +344,23 @@ function InfractionsDashboardInner() {
                             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                                 <h3 className="font-semibold text-slate-800 mb-4">Top Infratores (Condutores)</h3>
                                 <div className="overflow-y-auto" style={{ maxHeight: 350 }}>
-                                    <ResponsiveContainer width="100%" height={Math.max(350, topCondutores.length * 35)}>
-                                        <BarChart data={topCondutores} layout="vertical" margin={{ left: 10 }}>
+                                    <ResponsiveContainer width="100%" height={Math.max(350, topCondutoresChart.length * 36)}>
+                                        <BarChart data={topCondutoresChart} layout="vertical" margin={{ top: 8, right: 20, left: 10, bottom: 6 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                             <XAxis type="number" fontSize={11} tick={{ fill: '#64748b' }} />
-                                            <YAxis type="category" dataKey="name" width={140} fontSize={11} tick={{ fill: '#334155' }} />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                width={condutoresYAxisWidth}
+                                                fontSize={11}
+                                                tick={{ fill: '#334155' }}
+                                                tickFormatter={(value: string) => truncateLabel(value, 26)}
+                                            />
                                             <Tooltip formatter={(v: number, name: string) =>
                                                 name === 'valor' ? [fmtBRL(v), 'Valor'] : [v, 'Quantidade']}
                                             />
                                             <Bar dataKey="qtd" fill="#6366f1" radius={[0, 4, 4, 0]} name="Quantidade">
-                                                {topCondutores.map((_, i) => (
+                                                {topCondutoresChart.map((_, i) => (
                                                     <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
                                                 ))}
                                             </Bar>
@@ -337,18 +372,32 @@ function InfractionsDashboardInner() {
                             {/* Tipos de Infração */}
                             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                                 <h3 className="font-semibold text-slate-800 mb-4">Distribuição por Tipo de Infração</h3>
-                                <ResponsiveContainer width="100%" height={350}>
-                                    <PieChart>
-                                        <Pie data={tiposDistribuicao} cx="50%" cy="50%" innerRadius={60} outerRadius={110}
-                                            paddingAngle={3} dataKey="value">
-                                            {tiposDistribuicao.map((_, i) => (
+                                <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
+                                    <ResponsiveContainer width="100%" height={Math.max(360, tiposDistribuicaoChart.length * 34)}>
+                                        <BarChart
+                                            data={tiposDistribuicaoChart}
+                                            layout="vertical"
+                                            margin={{ top: 8, right: 20, left: 8, bottom: 6 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                            <XAxis type="number" fontSize={11} tick={{ fill: '#64748b' }} />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                width={tiposYAxisWidth}
+                                                fontSize={11}
+                                                tick={{ fill: '#334155' }}
+                                                tickFormatter={(value: string) => truncateLabel(value, 32)}
+                                            />
+                                            <Tooltip formatter={(v: number) => [v, 'Infrações']} />
+                                            <Bar dataKey="value" radius={[0, 4, 4, 0]} name="Infrações">
+                                                {tiposDistribuicaoChart.map((_, i) => (
                                                 <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
                                             ))}
-                                        </Pie>
-                                        <Tooltip formatter={(v: number) => [v, 'Infrações']} />
-                                        <Legend wrapperStyle={{ fontSize: '11px' }} />
-                                    </PieChart>
-                                </ResponsiveContainer>
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </div>
                     </div>

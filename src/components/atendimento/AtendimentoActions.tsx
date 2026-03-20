@@ -26,6 +26,7 @@ import {
   TICKET_MOTIVO_OPTIONS,
   TICKET_DEPARTAMENTO_OPTIONS
 } from '@/constants/ticketOptions';
+import { useTicketMotivos, useTicketDepartamentos, useTicketCustomFields } from '@/hooks/useTicketOptions';
 
 export interface WhatsAppConversation {
   id: string;
@@ -64,6 +65,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   const [discardReason, setDiscardReason] = useState('');
   const [discardReasonType, setDiscardReasonType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [ticketForm, setTicketForm] = useState({
     titulo: '',
     sintese: '',
@@ -73,9 +75,55 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
     departamento: '',
     placa: ''
   });
+  const { data: ticketMotivos } = useTicketMotivos();
+  const { data: ticketDepartamentos } = useTicketDepartamentos();
+  const { data: ticketCustomFields } = useTicketCustomFields();
+
+  const motivoOptions = (ticketMotivos && ticketMotivos.length > 0)
+    ? ticketMotivos.filter((m) => m.is_active).map((m) => ({ value: m.id, label: m.label }))
+    : TICKET_MOTIVO_OPTIONS;
+
+  const departamentoOptions = (ticketDepartamentos && ticketDepartamentos.length > 0)
+    ? ticketDepartamentos.filter((d) => d.is_active).map((d) => ({ value: d.label, label: d.label }))
+    : TICKET_DEPARTAMENTO_OPTIONS;
+
+  const activeCustomFields = (ticketCustomFields || []).filter((field) => field.is_active);
+
+  const normalizeOptions = (options: any): Array<{ value: string; label: string }> => {
+    if (!Array.isArray(options)) return [];
+    return options
+      .map((option) => {
+        if (typeof option === 'string') return { value: option, label: option };
+        if (option && typeof option === 'object') {
+          return {
+            value: String(option.value ?? option.label ?? ''),
+            label: String(option.label ?? option.value ?? ''),
+          };
+        }
+        return null;
+      })
+      .filter((option): option is { value: string; label: string } => !!option && !!option.value);
+  };
 
   const handleCreateTicket = async () => {
     if (!conversation) return;
+
+    const missingCustomRequired = activeCustomFields
+      .filter((field) => field.is_required)
+      .some((field) => {
+        const value = customFieldValues[field.field_key];
+        if (Array.isArray(value)) return value.length === 0;
+        return value === undefined || value === null || value === '';
+      });
+
+    if (missingCustomRequired) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha os campos customizados obrigatórios antes de criar o ticket.',
+        variant: 'destructive'
+      });
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -90,6 +138,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
           motivo_id: ticketForm.motivo || null,
           departamento: ticketForm.departamento as any,
           placa: ticketForm.placa,
+          custom_fields: customFieldValues,
           fase: 'Análise do caso',
           status: 'aguardando_triagem',
           cliente_id: conversation.cliente_id,
@@ -121,6 +170,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
         departamento: '',
         placa: ''
       });
+      setCustomFieldValues({});
       onActionComplete();
     } catch (error: any) {
       toast({
@@ -382,7 +432,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    {TICKET_DEPARTAMENTO_OPTIONS.map(opt => (
+                    {departamentoOptions.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -399,7 +449,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    {TICKET_MOTIVO_OPTIONS.map(opt => (
+                    {motivoOptions.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -440,6 +490,140 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
                 rows={3}
               />
             </div>
+
+            {activeCustomFields.length > 0 && (
+              <div className="space-y-3 rounded-md border border-dashed p-3">
+                <div>
+                  <p className="text-sm font-medium">Campos Customizados</p>
+                  <p className="text-xs text-muted-foreground">Campos configurados no painel de tickets.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {activeCustomFields.map((field) => {
+                    const value = customFieldValues[field.field_key];
+                    const fieldOptions = normalizeOptions(field.options as any);
+
+                    if (field.field_type === 'textarea') {
+                      return (
+                        <div key={field.id} className="space-y-2 md:col-span-2">
+                          <Label>{field.label}{field.is_required ? ' *' : ''}</Label>
+                          <Textarea
+                            value={value || ''}
+                            onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.value }))}
+                            placeholder={field.placeholder || ''}
+                            className="resize-none"
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (field.field_type === 'select') {
+                      return (
+                        <div key={field.id} className="space-y-2">
+                          <Label>{field.label}{field.is_required ? ' *' : ''}</Label>
+                          <Select
+                            value={value || ''}
+                            onValueChange={(selected) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: selected }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={field.placeholder || 'Selecione...'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {fieldOptions.map((option) => (
+                                <SelectItem key={`${field.field_key}-${option.value}`} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    }
+
+                    if (field.field_type === 'multiselect') {
+                      const selectedValues = Array.isArray(value)
+                        ? value
+                        : (typeof value === 'string' && value ? value.split(',').map((item) => item.trim()).filter(Boolean) : []);
+
+                      return (
+                        <div key={field.id} className="space-y-2">
+                          <Label>{field.label}{field.is_required ? ' *' : ''}</Label>
+                          {fieldOptions.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {fieldOptions.map((option) => {
+                                const isSelected = selectedValues.includes(option.value);
+                                return (
+                                  <button
+                                    key={`${field.field_key}-${option.value}`}
+                                    type="button"
+                                    className={`px-2 py-1 text-xs rounded border transition-colors ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted'}`}
+                                    onClick={() => {
+                                      const nextValues = isSelected
+                                        ? selectedValues.filter((item) => item !== option.value)
+                                        : [...selectedValues, option.value];
+                                      setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: nextValues }));
+                                    }}
+                                  >
+                                    {option.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <Input
+                              value={selectedValues.join(', ')}
+                              onChange={(e) => {
+                                const list = e.target.value
+                                  .split(',')
+                                  .map((item) => item.trim())
+                                  .filter(Boolean);
+                                setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: list }));
+                              }}
+                              placeholder={field.placeholder || 'Informe valores separados por vírgula'}
+                            />
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (field.field_type === 'checkbox') {
+                      return (
+                        <div key={field.id} className="space-y-2">
+                          <Label>{field.label}{field.is_required ? ' *' : ''}</Label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(value)}
+                              onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.checked }))}
+                            />
+                            Ativar
+                          </label>
+                        </div>
+                      );
+                    }
+
+                    const inputType = field.field_type === 'number'
+                      ? 'number'
+                      : field.field_type === 'date'
+                        ? 'date'
+                        : field.field_type === 'datetime'
+                          ? 'datetime-local'
+                          : 'text';
+
+                    return (
+                      <div key={field.id} className="space-y-2">
+                        <Label>{field.label}{field.is_required ? ' *' : ''}</Label>
+                        <Input
+                          type={inputType}
+                          value={value || ''}
+                          onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.value }))}
+                          placeholder={field.placeholder || ''}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setTicketDialogOpen(false)}>

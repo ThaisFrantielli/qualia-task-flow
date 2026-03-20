@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -3628,6 +3628,123 @@ export type Database = {
           },
         ]
       }
+      ticket_config_audit_log: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          changed_fields: Json | null
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: Json | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: Json | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string
+        }
+        Relationships: []
+      }
+      ticket_custom_field_definitions: {
+        Row: {
+          created_at: string
+          entity: string
+          field_key: string
+          field_type: string
+          help_text: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          label: string
+          options: Json
+          placeholder: string | null
+          sort_order: number
+          updated_at: string
+          validation_rules: Json
+        }
+        Insert: {
+          created_at?: string
+          entity?: string
+          field_key: string
+          field_type: string
+          help_text?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          label: string
+          options?: Json
+          placeholder?: string | null
+          sort_order?: number
+          updated_at?: string
+          validation_rules?: Json
+        }
+        Update: {
+          created_at?: string
+          entity?: string
+          field_key?: string
+          field_type?: string
+          help_text?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          label?: string
+          options?: Json
+          placeholder?: string | null
+          sort_order?: number
+          updated_at?: string
+          validation_rules?: Json
+        }
+        Relationships: []
+      }
+      ticket_departamento_opcoes: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       ticket_departamentos: {
         Row: {
           created_at: string | null
@@ -3837,6 +3954,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_peps_etapas: {
+        Row: {
+          created_at: string
+          fluxo_tipo: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          fluxo_tipo: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          fluxo_tipo?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       ticket_vinculos: {
         Row: {
           created_at: string | null
@@ -3894,6 +4044,7 @@ export type Database = {
           contrato_comercial: string | null
           contrato_locacao: string | null
           created_at: string | null
+          custom_fields: Json
           data_abertura: string | null
           data_conclusao: string | null
           data_fechamento: string | null
@@ -3940,6 +4091,7 @@ export type Database = {
           contrato_comercial?: string | null
           contrato_locacao?: string | null
           created_at?: string | null
+          custom_fields?: Json
           data_abertura?: string | null
           data_conclusao?: string | null
           data_fechamento?: string | null
@@ -3986,6 +4138,7 @@ export type Database = {
           contrato_comercial?: string | null
           contrato_locacao?: string | null
           created_at?: string | null
+          custom_fields?: Json
           data_abertura?: string | null
           data_conclusao?: string | null
           data_fechamento?: string | null
@@ -5214,81 +5367,81 @@ export type Database = {
       app_role: "admin" | "manager" | "agent" | "user" | "supervisor" | "gestao"
       survey_type: "comercial" | "entrega" | "manutencao" | "devolucao"
       ticket_departamento_enum:
-        | "Manutenção"
+        | "Manuten├º├úo"
         | "Central de atendimento"
-        | "Documentação"
-        | "Operação"
+        | "Documenta├º├úo"
+        | "Opera├º├úo"
         | "Comercial"
         | "Financeiro"
-        | "Operação SP"
-        | "Não se aplica"
+        | "Opera├º├úo SP"
+        | "N├úo se aplica"
       ticket_motivo_enum:
-        | "Contestação cobrança"
-        | "Demora na aprovação do orçamento"
-        | "Agendamento errôneo"
-        | "Má qualidade do serviço"
+        | "Contesta├º├úo cobran├ºa"
+        | "Demora na aprova├º├úo do or├ºamento"
+        | "Agendamento err├┤neo"
+        | "M├í qualidade do servi├ºo"
         | "Problema com fornecedor"
         | "Demora no atendimento"
-        | "Multas e notificações"
-        | "Problemas na entrega do veículo"
-        | "Problemas com o veículo"
+        | "Multas e notifica├º├Áes"
+        | "Problemas na entrega do ve├¡culo"
+        | "Problemas com o ve├¡culo"
         | "Atendimento Comercial"
         | "Oportunidade aberta erroneamente"
         | "Problemas de acesso"
         | "Problemas com terceiro"
-        | "Dúvida"
+        | "D├║vida"
         | "Outros"
       ticket_origem_enum:
         | "Whatsapp"
         | "Site"
-        | "Ligação"
+        | "Liga├º├úo"
         | "Redes Sociais"
         | "E-mail"
-      tipo_analise_final: "Procedente" | "Improcedente" | "Dúvida"
+      tipo_analise_final: "Procedente" | "Improcedente" | "D├║vida"
       tipo_departamento:
-        | "Manutenção"
+        | "Manuten├º├úo"
         | "Central de Atendimento"
-        | "Documentação"
-        | "Operação"
+        | "Documenta├º├úo"
+        | "Opera├º├úo"
         | "Comercial"
         | "Financeiro"
         | "Departamento Pessoal"
         | "Aberto Erroneamente"
-        | "Dúvida"
-        | "Operação - Filial SP"
+        | "D├║vida"
+        | "Opera├º├úo - Filial SP"
       tipo_motivo_reclamacao:
-        | "Contestação de Cobrança"
-        | "Demora na Aprovação do Orçamento"
-        | "Agendamento Errôneo"
-        | "Má Qualidade de Serviço"
+        | "Contesta├º├úo de Cobran├ºa"
+        | "Demora na Aprova├º├úo do Or├ºamento"
+        | "Agendamento Err├┤neo"
+        | "M├í Qualidade de Servi├ºo"
         | "Problemas Com Fornecedor"
         | "Demora em atendimento"
         | "Atendimento Ineficaz"
-        | "Multas e Notificações"
+        | "Multas e Notifica├º├Áes"
         | "Problemas na Entrega"
-        | "Problemas Com Veículo Reserva"
+        | "Problemas Com Ve├¡culo Reserva"
         | "Atendimento Comercial"
         | "Oportunidade Aberta Erroneamente"
-        | "Cobrança Indevida"
-        | "Dúvida"
+        | "Cobran├ºa Indevida"
+        | "D├║vida"
         | "Erro de processo interno"
-        | "Troca definitiva de veículo"
+        | "Troca definitiva de ve├¡culo"
         | "Problema recorrente"
-        | "Solicitação de Reembolso"
+        | "Solicita├º├úo de Reembolso"
         | "Problemas com Terceiro"
       tipo_origem_lead:
         | "Cliente (Base)"
-        | "Tráfego Pago"
-        | "Indicação"
+        | "Tr├ífego Pago"
+        | "Indica├º├úo"
         | "Site"
-        | "Ligação"
+        | "Liga├º├úo"
         | "Redes Sociais"
         | "Blip ChatBot"
         | "E-mail"
-        | "Encerrado - Manutenção"
+        | "Encerrado - Manuten├º├úo"
         | "Fechada"
         | "Perdida"
-      tipo_status_atendimento: "Solicitação" | "Em Análise" | "Resolvido"
+      tipo_status_atendimento: "Solicita├º├úo" | "Em An├ílise" | "Resolvido"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5419,87 +5572,87 @@ export const Constants = {
       app_role: ["admin", "manager", "agent", "user", "supervisor", "gestao"],
       survey_type: ["comercial", "entrega", "manutencao", "devolucao"],
       ticket_departamento_enum: [
-        "Manutenção",
+        "Manuten├º├úo",
         "Central de atendimento",
-        "Documentação",
-        "Operação",
+        "Documenta├º├úo",
+        "Opera├º├úo",
         "Comercial",
         "Financeiro",
-        "Operação SP",
-        "Não se aplica",
+        "Opera├º├úo SP",
+        "N├úo se aplica",
       ],
       ticket_motivo_enum: [
-        "Contestação cobrança",
-        "Demora na aprovação do orçamento",
-        "Agendamento errôneo",
-        "Má qualidade do serviço",
+        "Contesta├º├úo cobran├ºa",
+        "Demora na aprova├º├úo do or├ºamento",
+        "Agendamento err├┤neo",
+        "M├í qualidade do servi├ºo",
         "Problema com fornecedor",
         "Demora no atendimento",
-        "Multas e notificações",
-        "Problemas na entrega do veículo",
-        "Problemas com o veículo",
+        "Multas e notifica├º├Áes",
+        "Problemas na entrega do ve├¡culo",
+        "Problemas com o ve├¡culo",
         "Atendimento Comercial",
         "Oportunidade aberta erroneamente",
         "Problemas de acesso",
         "Problemas com terceiro",
-        "Dúvida",
+        "D├║vida",
         "Outros",
       ],
       ticket_origem_enum: [
         "Whatsapp",
         "Site",
-        "Ligação",
+        "Liga├º├úo",
         "Redes Sociais",
         "E-mail",
       ],
-      tipo_analise_final: ["Procedente", "Improcedente", "Dúvida"],
+      tipo_analise_final: ["Procedente", "Improcedente", "D├║vida"],
       tipo_departamento: [
-        "Manutenção",
+        "Manuten├º├úo",
         "Central de Atendimento",
-        "Documentação",
-        "Operação",
+        "Documenta├º├úo",
+        "Opera├º├úo",
         "Comercial",
         "Financeiro",
         "Departamento Pessoal",
         "Aberto Erroneamente",
-        "Dúvida",
-        "Operação - Filial SP",
+        "D├║vida",
+        "Opera├º├úo - Filial SP",
       ],
       tipo_motivo_reclamacao: [
-        "Contestação de Cobrança",
-        "Demora na Aprovação do Orçamento",
-        "Agendamento Errôneo",
-        "Má Qualidade de Serviço",
+        "Contesta├º├úo de Cobran├ºa",
+        "Demora na Aprova├º├úo do Or├ºamento",
+        "Agendamento Err├┤neo",
+        "M├í Qualidade de Servi├ºo",
         "Problemas Com Fornecedor",
         "Demora em atendimento",
         "Atendimento Ineficaz",
-        "Multas e Notificações",
+        "Multas e Notifica├º├Áes",
         "Problemas na Entrega",
-        "Problemas Com Veículo Reserva",
+        "Problemas Com Ve├¡culo Reserva",
         "Atendimento Comercial",
         "Oportunidade Aberta Erroneamente",
-        "Cobrança Indevida",
-        "Dúvida",
+        "Cobran├ºa Indevida",
+        "D├║vida",
         "Erro de processo interno",
-        "Troca definitiva de veículo",
+        "Troca definitiva de ve├¡culo",
         "Problema recorrente",
-        "Solicitação de Reembolso",
+        "Solicita├º├úo de Reembolso",
         "Problemas com Terceiro",
       ],
       tipo_origem_lead: [
         "Cliente (Base)",
-        "Tráfego Pago",
-        "Indicação",
+        "Tr├ífego Pago",
+        "Indica├º├úo",
         "Site",
-        "Ligação",
+        "Liga├º├úo",
         "Redes Sociais",
         "Blip ChatBot",
         "E-mail",
-        "Encerrado - Manutenção",
+        "Encerrado - Manuten├º├úo",
         "Fechada",
         "Perdida",
       ],
-      tipo_status_atendimento: ["Solicitação", "Em Análise", "Resolvido"],
+      tipo_status_atendimento: ["Solicita├º├úo", "Em An├ílise", "Resolvido"],
     },
   },
 } as const

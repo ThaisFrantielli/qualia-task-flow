@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { TicketOrigem, TicketAnaliseFinal, TicketMotivo } from '@/types/ticket-options';
+import {
+  TicketOrigem,
+  TicketAnaliseFinal,
+  TicketMotivo,
+  TicketDepartamentoOpcao,
+  TicketCustomFieldDefinition,
+  TicketConfigAuditLog,
+} from '@/types/ticket-options';
 import { toast } from 'sonner';
 
 // =========================================
@@ -289,6 +296,226 @@ export function useDeleteTicketMotivo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket-motivos'] });
       toast.success('Motivo removido!');
+    }
+  });
+}
+
+// =========================================
+// Departamentos (catalogo configuravel)
+// =========================================
+export function useTicketDepartamentos() {
+  return useQuery({
+    queryKey: ['ticket-departamentos'],
+    queryFn: async (): Promise<TicketDepartamentoOpcao[]> => {
+      const { data, error } = await supabase
+        .from('ticket_departamento_opcoes')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+}
+
+export function useAllTicketDepartamentos() {
+  return useQuery({
+    queryKey: ['ticket-departamentos-all'],
+    queryFn: async (): Promise<TicketDepartamentoOpcao[]> => {
+      const { data, error } = await supabase
+        .from('ticket_departamento_opcoes')
+        .select('*')
+        .order('sort_order');
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+}
+
+export function useCreateTicketDepartamento() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (item: Partial<TicketDepartamentoOpcao>) => {
+      const { data, error } = await supabase
+        .from('ticket_departamento_opcoes')
+        .insert(item)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-departamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-departamentos-all'] });
+      toast.success('Departamento criado com sucesso!');
+    }
+  });
+}
+
+export function useUpdateTicketDepartamento() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...item }: Partial<TicketDepartamentoOpcao> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('ticket_departamento_opcoes')
+        .update(item)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-departamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-departamentos-all'] });
+      toast.success('Departamento atualizado!');
+    }
+  });
+}
+
+export function useDeleteTicketDepartamento() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('ticket_departamento_opcoes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-departamentos'] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-departamentos-all'] });
+      toast.success('Departamento removido!');
+    }
+  });
+}
+
+// =========================================
+// Campos customizados de ticket
+// =========================================
+export function useTicketCustomFields() {
+  return useQuery({
+    queryKey: ['ticket-custom-fields'],
+    queryFn: async (): Promise<TicketCustomFieldDefinition[]> => {
+      const { data, error } = await supabase
+        .from('ticket_custom_field_definitions')
+        .select('*')
+        .eq('entity', 'ticket')
+        .order('sort_order');
+
+      if (error) throw error;
+      return data || [];
+    }
+  });
+}
+
+export function useCreateTicketCustomField() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (field: Partial<TicketCustomFieldDefinition>) => {
+      const { data, error } = await supabase
+        .from('ticket_custom_field_definitions')
+        .insert(field)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-custom-fields'] });
+      toast.success('Campo customizado criado!');
+    }
+  });
+}
+
+export function useUpdateTicketCustomField() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...field }: Partial<TicketCustomFieldDefinition> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('ticket_custom_field_definitions')
+        .update(field)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-custom-fields'] });
+      toast.success('Campo customizado atualizado!');
+    }
+  });
+}
+
+export function useDeleteTicketCustomField() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('ticket_custom_field_definitions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-custom-fields'] });
+      toast.success('Campo customizado removido!');
+    }
+  });
+}
+
+// =========================================
+// Auditoria de configuracoes de ticket
+// =========================================
+interface TicketConfigAuditFilters {
+  action?: 'ALL' | 'INSERT' | 'UPDATE' | 'DELETE';
+  tableName?: string;
+  changedBy?: string;
+  limit?: number;
+}
+
+export function useTicketConfigAuditLogs(filters?: TicketConfigAuditFilters) {
+  return useQuery({
+    queryKey: ['ticket-config-audit-log', filters],
+    queryFn: async (): Promise<TicketConfigAuditLog[]> => {
+      let query = supabase
+        .from('ticket_config_audit_log')
+        .select('*')
+        .order('changed_at', { ascending: false });
+
+      if (filters?.action && filters.action !== 'ALL') {
+        query = query.eq('action', filters.action);
+      }
+
+      if (filters?.tableName && filters.tableName !== 'all') {
+        query = query.eq('table_name', filters.tableName);
+      }
+
+      if (filters?.changedBy && filters.changedBy !== 'all') {
+        query = query.eq('changed_by', filters.changedBy);
+      }
+
+      const limit = filters?.limit ?? 100;
+      const { data, error } = await query.limit(limit);
+
+      if (error) throw error;
+      return data || [];
     }
   });
 }

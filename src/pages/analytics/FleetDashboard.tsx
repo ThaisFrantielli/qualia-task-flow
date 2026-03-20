@@ -1250,12 +1250,6 @@ export default function FleetDashboard() {
             .sort((a, b) => b.value - a.value);
     }, [filteredData]);
 
-    const veiculosChartMinWidth = useMemo(() => {
-        const base = 700; // mínimo para uma boa visualização
-        const perItem = 22; // largura por item (ajustável)
-        return Math.max(base, veiculosPorClienteData.length * perItem + 200);
-    }, [veiculosPorClienteData]);
-
     // Alturas para scroll vertical: mostrar 10 itens por vez
     const veiculosItemHeight = 36; // altura por linha/barras
     const veiculosVisibleItems = 10; // quantos itens visíveis por vez
@@ -2803,7 +2797,7 @@ export default function FleetDashboard() {
                             </div>
                             {!geoCollapsed && (
                             <div className="p-4">
-                                <Accordion type="single" collapsible value={accordionValue} onValueChange={(v) => setAccordionValue(v)} className="w-full">
+                                <Accordion type="single" collapsible value={accordionValue ?? undefined} onValueChange={(v) => setAccordionValue(v)} className="w-full">
                                     {localizacaoHierarquica.map((item) => (
                                         <AccordionItem key={item.uf} value={item.uf} className="border-b border-slate-100 last:border-0">
                                             <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">

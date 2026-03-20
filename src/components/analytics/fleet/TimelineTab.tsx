@@ -845,7 +845,7 @@ function getEventActor(tipoNorm: string, item: AnyObject) {
 
 // DEBUG HELPER removed
 
-export default function TimelineTab({ timeline, timelineLoading, timelineError, timelineDiagnostics, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas, qualValuesLoading, qualValuesError, qualValuesCoverage }: TimelineTabProps) { // Adicionado movimentacoes
+export default function TimelineTab({ timeline, timelineLoading, timelineError, timelineDiagnostics, filteredData, frota, manutencao, movimentacoes, contratosLocacao, sinistros, multas, qualValuesLoading, qualValuesError }: TimelineTabProps) { // Adicionado movimentacoes
   const [expandedPlates, setExpandedPlates] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set()); // Novo controle para sub-seções (ex: lista de multas)
@@ -2482,7 +2482,6 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                 ? 'bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 cursor-pointer hover:bg-rose-100/50 transition-all'
                                 : 'bg-amber-50/70 rounded-lg p-3 border-2 border-amber-200 cursor-pointer hover:bg-amber-100/50 transition-all';
                               const iconBorderClasses = isCancelada ? 'border-rose-300' : 'border-amber-300';
-                              const iconColorClasses = isCancelada ? 'text-rose-600' : 'text-amber-600';
                               const titleColorClasses = isCancelada ? 'text-rose-800' : 'text-amber-800';
                               const expandColorClasses = isCancelada ? 'text-rose-600' : 'text-amber-600';
 

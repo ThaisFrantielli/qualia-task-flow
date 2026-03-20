@@ -20,11 +20,10 @@ import {
 import { Pencil, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUpdateTicket } from "@/hooks/useTickets";
-import { useTicketOrigens } from "@/hooks/useTicketOptions";
+import { useTicketOrigens, useTicketMotivos, useTicketDepartamentos, useTicketCustomFields } from "@/hooks/useTicketOptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { ClienteCombobox } from "@/components/common/ClienteCombobox";
 import { PlacaVeiculoInput } from "./PlacaVeiculoInput";
-import { TICKET_DEPARTAMENTO_OPTIONS, TICKET_MOTIVO_OPTIONS } from "@/constants/ticketOptions";
 
 interface EditTicketDialogProps {
   ticket: any;
@@ -37,6 +36,9 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
   const { user } = useAuth();
   const updateTicket = useUpdateTicket();
   const { data: origens } = useTicketOrigens();
+  const { data: motivos } = useTicketMotivos();
+  const { data: departamentos } = useTicketDepartamentos();
+  const { data: customFields } = useTicketCustomFields();
 
   // Form state
   const [titulo, setTitulo] = useState("");
@@ -46,12 +48,33 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
   const [veiculoAno, setVeiculoAno] = useState("");
   const [veiculoKm, setVeiculoKm] = useState("");
   const [origem, setOrigem] = useState("");
+  const [origemId, setOrigemId] = useState("");
   const [departamento, setDepartamento] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [motivoId, setMotivoId] = useState("");
   const [prioridade, setPrioridade] = useState("media");
   const [contratoComercial, setContratoComercial] = useState("");
   const [contratoLocacao, setContratoLocacao] = useState("");
   const [sintese, setSintese] = useState("");
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
+
+  const activeCustomFields = (customFields || []).filter((field) => field.is_active);
+
+  const normalizeOptions = (options: any): Array<{ value: string; label: string }> => {
+    if (!Array.isArray(options)) return [];
+    return options
+      .map((option) => {
+        if (typeof option === "string") return { value: option, label: option };
+        if (option && typeof option === "object") {
+          return {
+            value: String(option.value ?? option.label ?? ""),
+            label: String(option.label ?? option.value ?? ""),
+          };
+        }
+        return null;
+      })
+      .filter((option): option is { value: string; label: string } => !!option && !!option.value);
+  };
 
   // Populate form when ticket changes
   useEffect(() => {
@@ -63,14 +86,31 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
       setVeiculoAno(ticket.veiculo_ano || "");
       setVeiculoKm(ticket.veiculo_km?.toString() || "");
       setOrigem(ticket.origem || "");
+      setOrigemId(ticket.origem_id || "");
       setDepartamento(ticket.departamento || "");
       setMotivo(ticket.motivo || "");
+      setMotivoId(ticket.motivo_id || "");
       setPrioridade(ticket.prioridade || "media");
       setContratoComercial(ticket.contrato_comercial || "");
       setContratoLocacao(ticket.contrato_locacao || "");
       setSintese(ticket.sintese || ticket.descricao || "");
+      setCustomFieldValues(ticket.custom_fields || {});
     }
   }, [ticket, open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (!origemId && ticket?.origem && origens?.length) {
+      const found = origens.find((item) => item.value === ticket.origem || item.label === ticket.origem);
+      if (found) setOrigemId(found.id);
+    }
+
+    if (!motivoId && ticket?.motivo && motivos?.length) {
+      const found = motivos.find((item) => item.value === ticket.motivo || item.label === ticket.motivo);
+      if (found) setMotivoId(found.id);
+    }
+  }, [open, ticket?.origem, ticket?.motivo, origens, motivos, origemId, motivoId]);
 
   const handleVeiculoFound = (data: any) => {
     if (data.found) {
@@ -117,13 +157,16 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
           veiculo_ano: veiculoAno,
           veiculo_km: veiculoKm ? parseInt(veiculoKm) : null,
           origem,
+          origem_id: origemId || null,
           departamento,
           motivo,
+          motivo_id: motivoId || null,
           prioridade,
           contrato_comercial: contratoComercial,
           contrato_locacao: contratoLocacao,
           sintese,
           descricao: sintese,
+          custom_fields: customFieldValues,
         },
         userId: user.id,
       });
@@ -226,13 +269,20 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Origem do Lead</Label>
-              <Select value={origem} onValueChange={setOrigem}>
+              <Select
+                value={origemId}
+                onValueChange={(id) => {
+                  setOrigemId(id);
+                  const selected = origens?.find((item) => item.id === id);
+                  setOrigem(selected?.value || selected?.label || "");
+                }}
+              >
                 <SelectTrigger className="h-11">
                   <SelectValue placeholder="Selecione a origem..." />
                 </SelectTrigger>
                 <SelectContent>
                   {origens?.map((o) => (
-                    <SelectItem key={o.id} value={o.value}>
+                    <SelectItem key={o.id} value={o.id}>
                       {o.label}
                     </SelectItem>
                   ))}
@@ -246,8 +296,8 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
                   <SelectValue placeholder="Selecione o departamento..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {TICKET_DEPARTAMENTO_OPTIONS.map((d) => (
-                    <SelectItem key={d.value} value={d.value}>
+                  {departamentos?.map((d) => (
+                    <SelectItem key={d.id} value={d.label}>
                       {d.label}
                     </SelectItem>
                   ))}
@@ -260,13 +310,20 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Motivo da Reclamação</Label>
-              <Select value={motivo} onValueChange={setMotivo}>
+              <Select
+                value={motivoId}
+                onValueChange={(id) => {
+                  setMotivoId(id);
+                  const selected = motivos?.find((item) => item.id === id);
+                  setMotivo(selected?.value || selected?.label || "");
+                }}
+              >
                 <SelectTrigger className="h-11">
                   <SelectValue placeholder="Selecione o motivo..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {TICKET_MOTIVO_OPTIONS.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
+                  {motivos?.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
                       {m.label}
                     </SelectItem>
                   ))}
@@ -310,6 +367,139 @@ export function EditTicketDialog({ ticket, open, onOpenChange, onSuccess }: Edit
               />
             </div>
           </div>
+
+          {activeCustomFields.length > 0 && (
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+              <p className="text-xs font-medium text-muted-foreground">Campos Customizados</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {activeCustomFields.map((field) => {
+                  const value = customFieldValues[field.field_key];
+                  const fieldOptions = normalizeOptions(field.options as any);
+
+                  if (field.field_type === "textarea") {
+                    return (
+                      <div key={field.id} className="space-y-2 md:col-span-2">
+                        <Label className="text-sm font-medium">{field.label}{field.is_required ? " *" : ""}</Label>
+                        <Textarea
+                          value={value || ""}
+                          onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.value }))}
+                          placeholder={field.placeholder || ""}
+                          className="resize-none"
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (field.field_type === "select") {
+                    return (
+                      <div key={field.id} className="space-y-2">
+                        <Label className="text-sm font-medium">{field.label}{field.is_required ? " *" : ""}</Label>
+                        <Select
+                          value={value || ""}
+                          onValueChange={(selected) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: selected }))}
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder={field.placeholder || "Selecione..."} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {fieldOptions.map((option) => (
+                              <SelectItem key={`${field.field_key}-${option.value}`} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  }
+
+                  if (field.field_type === "multiselect") {
+                    const selectedValues = Array.isArray(value)
+                      ? value
+                      : (typeof value === "string" && value ? value.split(",").map((item) => item.trim()).filter(Boolean) : []);
+
+                    return (
+                      <div key={field.id} className="space-y-2">
+                        <Label className="text-sm font-medium">{field.label}{field.is_required ? " *" : ""}</Label>
+                        {fieldOptions.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 min-h-11 items-center">
+                            {fieldOptions.map((option) => {
+                              const isSelected = selectedValues.includes(option.value);
+                              return (
+                                <button
+                                  key={`${field.field_key}-${option.value}`}
+                                  type="button"
+                                  className={`px-2 py-1 text-xs rounded border transition-colors ${isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}
+                                  onClick={() => {
+                                    const nextValues = isSelected
+                                      ? selectedValues.filter((item) => item !== option.value)
+                                      : [...selectedValues, option.value];
+                                    setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: nextValues }));
+                                  }}
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <Input
+                            className="h-11"
+                            value={selectedValues.join(", ")}
+                            onChange={(e) => {
+                              const list = e.target.value
+                                .split(",")
+                                .map((item) => item.trim())
+                                .filter(Boolean);
+                              setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: list }));
+                            }}
+                            placeholder={field.placeholder || "Valores separados por vírgula"}
+                          />
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (field.field_type === "checkbox") {
+                    return (
+                      <div key={field.id} className="space-y-2">
+                        <Label className="text-sm font-medium">{field.label}{field.is_required ? " *" : ""}</Label>
+                        <label className="flex items-center gap-2 text-sm h-11">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(value)}
+                            onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.checked }))}
+                          />
+                          Ativar
+                        </label>
+                      </div>
+                    );
+                  }
+
+                  const inputType = field.field_type === "number"
+                    ? "number"
+                    : field.field_type === "date"
+                      ? "date"
+                      : field.field_type === "datetime"
+                        ? "datetime-local"
+                        : "text";
+
+                  return (
+                    <div key={field.id} className="space-y-2">
+                      <Label className="text-sm font-medium">{field.label}{field.is_required ? " *" : ""}</Label>
+                      <Input
+                        className="h-11"
+                        type={inputType}
+                        value={value || ""}
+                        onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [field.field_key]: e.target.value }))}
+                        placeholder={field.placeholder || ""}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Síntese */}
           <div className="space-y-2">
