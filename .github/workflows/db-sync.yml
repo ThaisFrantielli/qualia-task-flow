@@ -2,11 +2,11 @@ name: Supabase DB Sync
 
 on:
   schedule:
-    # Horarios de Brasilia (BRT/UTC-3): 00:30, 10:30 e 15:30
-    # Em UTC: 03:30, 13:30 e 18:30
-    - cron: '30 3 * * *'
-    - cron: '30 13 * * *'
-    - cron: '30 18 * * *'
+    # Horarios de Brasilia (BRT/UTC-3): 00:20, 10:20 e 15:20
+    # Em UTC: 03:20, 13:20 e 18:20
+    - cron: '20 3 * * *'
+    - cron: '20 13 * * *'
+    - cron: '20 18 * * *'
   workflow_dispatch:
 
 jobs:

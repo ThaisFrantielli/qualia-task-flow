@@ -2457,7 +2457,7 @@ export default function FleetDashboard() {
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                             <XAxis type="number" fontSize={12} />
                                             <YAxis dataKey="name" type="category" width={100} fontSize={10} />
-                                            <Tooltip />
+                                            <Tooltip formatter={(value: any) => [String(value), 'Qtd']} />
                                             <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}
                                                 onClick={(data: any, _index: number, event: any) => { handleChartClick('patio', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                                 cursor="pointer">
@@ -2699,7 +2699,7 @@ export default function FleetDashboard() {
 
                         <Card className="lg:col-start-2 lg:col-span-1 lg:row-span-2">
                             <Title>Proprietário do Veículo</Title>
-                            <div className="h-[520px] mt-4">
+                            <div className="mt-4" style={{ height: veiculosContainerHeight }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={proprietarioData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2718,7 +2718,7 @@ export default function FleetDashboard() {
 
                         <Card className="lg:col-start-3 lg:col-span-1 lg:row-span-2">
                             <Title>Finalidade de Uso</Title>
-                            <div className="h-[520px] mt-4">
+                            <div className="mt-4" style={{ height: veiculosContainerHeight }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={finalidadeData} margin={{ left: 0, right: 60 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />

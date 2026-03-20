@@ -34,15 +34,7 @@ interface TimelineTabProps {
 function fmtDecimal(v: number) { return new Intl.NumberFormat('pt-BR').format(v); }
 
 function fmtMoney(v: any) {
-  // Parse do valor: aceita strings com R$, pontos e vírgulas
-  let num: number;
-  if (typeof v === 'string') {
-    // Remove R$, espaÇos, e converte vírgula decimal em ponto
-    const cleaned = v.replace(/R\$?\s*/g, '').replace(/\./g, '').replace(',', '.');
-    num = parseFloat(cleaned);
-  } else {
-    num = Number(v);
-  }
+  const num = parseMoneyLike(v);
 
   if (!num || isNaN(num)) return 'R$ 0,00';
 
@@ -67,11 +59,27 @@ function parseMoneyLike(value: unknown): number {
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return 0;
-    const normalized = trimmed
+
+    // Suporta tanto pt-BR (1.234,56) quanto decimal com ponto (1234.56).
+    const raw = trimmed
       .replace(/R\$\s?/gi, '')
-      .replace(/\s/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.');
+      .replace(/\s/g, '');
+
+    let normalized = raw;
+    const hasComma = raw.includes(',');
+    const hasDot = raw.includes('.');
+
+    if (hasComma && hasDot) {
+      // Ex.: 1.234,56 -> 1234.56
+      normalized = raw.replace(/\./g, '').replace(',', '.');
+    } else if (hasComma) {
+      // Ex.: 1234,56 -> 1234.56
+      normalized = raw.replace(',', '.');
+    } else {
+      // Ex.: 1234.56 ou 1234
+      normalized = raw;
+    }
+
     const n = Number(normalized);
     return Number.isFinite(n) ? n : 0;
   }
@@ -2446,7 +2454,7 @@ export default function TimelineTab({ timeline, timelineLoading, timelineError, 
                                                   <div className="text-[11px] text-slate-500">{it?.Fornecedor ?? it?.FornecedorOcorrencia ?? ''}</div>
                                                 </div>
                                                   {(() => {
-                                                    const totalItem = Number(it?.CustoTotalOS ?? getSinistroValorTotal(it) ?? it?.CustoTotal ?? it?.Valor ?? 0);
+                                                    const totalItem = parseMoneyLike(it?.CustoTotalOS ?? getSinistroValorTotal(it) ?? it?.CustoTotal ?? it?.Valor ?? 0);
                                                     return totalItem > 0
                                                       ? <div className="text-amber-700 font-bold">{fmtMoney(totalItem)}</div>
                                                       : <div className="text-slate-400 font-medium">Sem valor informado</div>;
