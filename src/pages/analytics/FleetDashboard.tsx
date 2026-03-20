@@ -31,6 +31,27 @@ type AnyObject = { [k: string]: any };
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
 function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function parseBIDate(v: any): Date | null {
+    if (!v) return null;
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+    const s = String(v).trim();
+    if (!s || s === 'N/A' || s === '—' || s === '-') return null;
+
+    // ISO format: 2024-03-20...
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    // BR format: 20/03/2024...
+    const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (brMatch) {
+        return new Date(parseInt(brMatch[3], 10), parseInt(brMatch[2], 10) - 1, parseInt(brMatch[1], 10));
+    }
+
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+}
 function sanitizeText(v: any): string {
     const s = String(v ?? '').trim();
     if (!s) return '';
@@ -111,7 +132,7 @@ export default function FleetDashboard() {
     ]);
     // Batch 2: Secondary/fact tables — lazy loaded only when relevant tab is active
     const needsSecondary = activeTab === 'visao-geral' || activeTab === 'patio' || activeTab === 'carro-reserva' || activeTab === 'timeline';
-    const { results: secondaryData } = useBIDataBatch([
+    const { results: secondaryData, loading: loadingSecondary } = useBIDataBatch([
         'fat_sinistros', 'fat_multas', 'fat_carro_reserva', 'fat_movimentacao_ocorrencias', 'fat_manutencao_unificado'
     ], undefined, { enabled: needsSecondary });
 
@@ -252,19 +273,50 @@ export default function FleetDashboard() {
     const carroReserva = useMemo(() => Array.isArray(carroReservaData) ? carroReservaData : [], [carroReservaData]);
     // Garantir que consideramos apenas ocorrências do tipo 'Carro Reserva'
     const carroReservaFiltered = useMemo(() => {
-        // Se o arquivo já é específico de "carro reserva" (sem campo Tipo/IdTipo), assume todos os registros pertencem a carro reserva. Caso contrário, aplica o filtro por Tipo/TipoOcorrencia/IdTipo quando presente.
         if (!Array.isArray(carroReserva) || carroReserva.length === 0) return [];
 
-        const sample = carroReserva[0] || {};
-        const hasTipoField = Object.prototype.hasOwnProperty.call(sample, 'Tipo') || Object.prototype.hasOwnProperty.call(sample, 'TipoOcorrencia') || Object.prototype.hasOwnProperty.call(sample, 'IdTipo');
+        // Normalizar e filtrar em um único loop para performance
+        return carroReserva
+            .map(r => {
+                // Tenta encontrar as datas em múltiplos campos possíveis (Power BI export tags variam)
+                const rawInicio = r.DataInicio || r.DataRetirada || r.DataRetiradaEfetiva || r.DataCriacao;
+                const rawFim = r.DataFim || r.DataDevolucao || r.DataDevolucaoEfetiva || r.DataConclusao || r.DataConclusaoOcorrencia || r.DataEntrega || r.DataRetorno;
 
-        if (!hasTipoField) return carroReserva; // já é um arquivo de carro reserva
+                const dInicio = parseBIDate(rawInicio);
+                const dFim = parseBIDate(rawFim);
 
-        return carroReserva.filter(r => {
-            const tipo = String(r.Tipo || r.TipoOcorrencia || '').toLowerCase();
-            const idTipo = String(r.IdTipo || '').trim();
-            return tipo.includes('carro') || tipo.includes('reserva') || idTipo === '5' || idTipo === '21';
-        });
+                const status = r.StatusOcorrencia || r.SituacaoOcorrencia || 'N/A';
+                const motivo = r.Motivo || r.MotivoOcorrencia || 'Não Definido';
+                const cliente = r.Cliente || r.NomeCliente || 'N/A';
+                const placa = r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || '—';
+
+                const concluded = !!dFim;
+                const isCancelled = status.toLowerCase().includes('canc') || !!r.CanceladoPor;
+                const isAtiva = !!dInicio && !concluded && !isCancelled;
+
+                return {
+                    ...r,
+                    DataInicio: dInicio ? dInicio.toISOString() : null,
+                    DataFim: dFim ? dFim.toISOString() : null,
+                    StatusOcorrencia: status,
+                    Motivo: motivo,
+                    Cliente: cliente,
+                    PlacaReserva: placa,
+                    isAtiva,
+                    isCancelled,
+                    concluded
+                } as any;
+            })
+            .filter(r => {
+                const sample = carroReserva[0] || {};
+                const hasTipoField = Object.prototype.hasOwnProperty.call(sample, 'Tipo') || Object.prototype.hasOwnProperty.call(sample, 'TipoOcorrencia') || Object.prototype.hasOwnProperty.call(sample, 'IdTipo');
+
+                if (!hasTipoField) return true;
+
+                const tipo = String(r.Tipo || r.TipoOcorrencia || '').toLowerCase();
+                const idTipo = String(r.IdTipo || '').trim();
+                return tipo.includes('carro') || tipo.includes('reserva') || idTipo === '5' || idTipo === '21';
+            });
     }, [carroReserva]);
     const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
     const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
@@ -391,7 +443,7 @@ export default function FleetDashboard() {
         setPage(0);
     };
     const [page, setPage] = useState(0);
-    const pageSize = 15;
+    const pageSize = 10;
     const [sortConfig, setSortConfig] = useState<{ key: keyof FleetTableItem; direction: 'asc' | 'desc' } | null>(null);
     const [_timelinePage, _setTimelinePage] = useState(0);
     const [_expandedPlates, _setExpandedPlates] = useState<string[]>([]);
@@ -406,6 +458,7 @@ export default function FleetDashboard() {
     // (removed main header input; plates are shown as MultiSelect in the filters grid)
     // Slider de período para gráfico de ocupação
     const [sliderRange, setSliderRange] = useState<{ startPercent: number, endPercent: number }>({ startPercent: 0, endPercent: 100 });
+    const [isCustomReservaDate, setIsCustomReservaDate] = useState(false);
     const [selectedResumoChart, setSelectedResumoChart] = useState<'motivo' | 'status' | 'tipo' | 'modelo' | 'cliente' | 'local'>('motivo');
     const [expandedYears, setExpandedYears] = useState<string[]>([]);
     const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
@@ -1541,8 +1594,8 @@ export default function FleetDashboard() {
             }
         }
 
-        // Garantir que minDate existe
-        const finalMinDate = minDate || new Date(finalMaxDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        // Garantir que minDate existe - se for carregamento inicial sem dados, usar 4 anos atrás para cobrir histórico 2022
+        const finalMinDate = minDate || new Date(finalMaxDate.getTime() - (4 * 365 * 24 * 60 * 60 * 1000));
 
         finalMinDate.setHours(0, 0, 0, 0);
         finalMaxDate.setHours(23, 59, 59, 999);
@@ -1568,7 +1621,18 @@ export default function FleetDashboard() {
         dataInicio.setHours(0, 0, 0, 0);
         dataFim.setHours(23, 59, 59, 999);
 
+        const activeFilter = (getFilterValues('reserva_ativo') || [])[0];
+
         return carroReservaFiltered.filter(r => {
+            // Filtro de Ativas vs Todas (Solicitado pelo usuário)
+            const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
+            const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+            const isCancelled = status.includes('cancel') || Boolean(r.CanceladoPor);
+            const isActive = !concluded && !isCancelled && r.DataInicio;
+
+            if (activeFilter === 'Ativas' && !isActive) return false;
+            if (activeFilter === 'Concluídas' && !concluded) return false;
+
             // Filtro de período (slider)
             if (r.DataInicio) {
                 const di = new Date(r.DataInicio);
@@ -1616,12 +1680,12 @@ export default function FleetDashboard() {
 
     const reservaKPIs = useMemo(() => {
         const total = filteredReservas.length;
-        // Nova regra: ativa = sem data de conclusão (ex: DataDevolucao/DataConclusao) e não cancelada
+        // Ativa = sem data de conclusão e não cancelada (conforme explicado ao usuário)
         const ativas = filteredReservas.filter(r => {
             const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
-            if (status.includes('cancel')) return false;
+            const isCancelled = status.includes('cancel') || Boolean(r.CanceladoPor);
             const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-            return !concluded;
+            return !concluded && !isCancelled && r.DataInicio;
         }).length;
 
         const motivoMap: Record<string, number> = {};
@@ -1639,10 +1703,11 @@ export default function FleetDashboard() {
         const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         // Tempo médio de reserva (Concluídas)
-        const concluidas = filteredReservas.filter(r =>
-            ['Finalizado', 'Concluída'].includes(r.StatusOcorrencia || '') &&
-            (r.DiariasEfetivas || (r.DataInicio && r.DataDevolucao))
-        );
+        const concluidas = filteredReservas.filter(r => {
+            const status = String(r.StatusOcorrencia || '').toLowerCase();
+            const hasDates = r.DataInicio && r.DataFim;
+            return (status.includes('conclu') || status.includes('finaliz') || status.includes('encerr') || r.DataFim) && hasDates;
+        });
 
         const tempoMedioConcluidas = concluidas.length > 0 ? concluidas.reduce((sum, r) => {
             let dias = Number(r.DiariasEfetivas) || 0;
@@ -3186,16 +3251,35 @@ export default function FleetDashboard() {
                 </TabsContent>
 
                 <TabsContent value="carro-reserva" className="space-y-6">
-                    {carroReserva.length === 0 && (
-                        <Card>
-                            <div className="p-8 text-center">
-                                <Info className="w-12 h-12 mx-auto text-slate-400 mb-4" />
-                                <Title>Sem Dados de Carro Reserva</Title>
-                                <Text className="mt-2 text-slate-500">Nenhuma ocorrência de carro reserva foi encontrada. Verifique se o arquivo `fat_carro_reserva.json` está disponível.</Text>
+                    {(loadingPrimary || loadingSecondary) && (
+                        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 shadow-sm">
+                            <div className="p-12 text-center">
+                                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-200 flex items-center justify-center">
+                                    <svg className="animate-spin w-10 h-10 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle>
+                                        <path className="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" fill="currentColor"></path>
+                                    </svg>
+                                </div>
+                                <Title className="text-slate-600 font-bold tracking-tight">Carregando Carro Reserva</Title>
+                                <Text className="mt-3 text-slate-500 max-w-md mx-auto">
+                                    Buscando dados de ocorrências e processando indicadores de performance. Aguarde a conclusão da carga.
+                                </Text>
                             </div>
                         </Card>
                     )}
-                    {carroReserva.length > 0 && (
+
+                    {!loadingPrimary && !loadingSecondary && carroReserva.length === 0 && (
+                        <Card className="bg-white border border-slate-200 shadow-sm">
+                            <div className="p-12 text-center">
+                                <Info className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+                                <Title className="text-slate-600">Sem Dados de Carro Reserva</Title>
+                                <Text className="mt-2 text-slate-500 max-w-lg mx-auto">
+                                    Nenhuma ocorrência de carro reserva foi encontrada para o período e filtros selecionados. Verifique se o arquivo <code className="bg-slate-100 px-1 rounded text-slate-700 font-mono text-[10px]">fat_carro_reserva.json</code> está atualizado no servidor.
+                                </Text>
+                            </div>
+                        </Card>
+                    )}
+                    {!loadingPrimary && !loadingSecondary && carroReserva.length > 0 && (
                         <>
                             {/* Filtros */}
                             <Card className="bg-white shadow-sm border border-slate-200">
@@ -3295,11 +3379,57 @@ export default function FleetDashboard() {
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 75, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 3m</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 50, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Últimos 6m</button>
-                                                <button onClick={() => setSliderRange({ startPercent: 0, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">Todo período</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 75, endPercent: 100 }); setIsCustomReservaDate(false); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 75 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Últimos 3m</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 50, endPercent: 100 }); setIsCustomReservaDate(false); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 50 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Últimos 6m</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 0, endPercent: 100 }); setIsCustomReservaDate(false); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 0 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Todo período</button>
+                                                <button
+                                                    onClick={() => setIsCustomReservaDate(!isCustomReservaDate)}
+                                                    className={`px-2 py-1 text-xs rounded transition-colors ${isCustomReservaDate ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-indigo-100 hover:text-indigo-700'}`}
+                                                >
+                                                    {isCustomReservaDate ? '✖ Fechar' : '📅 Personalizado'}
+                                                </button>
                                             </div>
                                         </div>
+
+                                        {isCustomReservaDate && (
+                                            <div className="mb-4 p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg flex flex-wrap gap-4 items-end animate-in fade-in slide-in-from-top-2">
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[10px] font-bold text-indigo-700 uppercase">Início</label>
+                                                    <input
+                                                        type="date"
+                                                        className="px-2 py-1 text-sm border border-indigo-200 rounded bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                        value={new Date(reservaDateBounds!.minDate.getTime() + ((reservaDateBounds!.maxDate.getTime() - reservaDateBounds!.minDate.getTime()) * sliderRange.startPercent / 100)).toISOString().split('T')[0]}
+                                                        onChange={(e) => {
+                                                            const d = new Date(e.target.value);
+                                                            if (!isNaN(d.getTime())) {
+                                                                const total = reservaDateBounds!.maxDate.getTime() - reservaDateBounds!.minDate.getTime();
+                                                                const percent = Math.max(0, Math.min(100, (d.getTime() - reservaDateBounds!.minDate.getTime()) / total * 100));
+                                                                setSliderRange(prev => ({ ...prev, startPercent: percent }));
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[10px] font-bold text-indigo-700 uppercase">Fim</label>
+                                                    <input
+                                                        type="date"
+                                                        className="px-2 py-1 text-sm border border-indigo-200 rounded bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                        value={new Date(reservaDateBounds!.minDate.getTime() + ((reservaDateBounds!.maxDate.getTime() - reservaDateBounds!.minDate.getTime()) * sliderRange.endPercent / 100)).toISOString().split('T')[0]}
+                                                        onChange={(e) => {
+                                                            const d = new Date(e.target.value);
+                                                            if (!isNaN(d.getTime())) {
+                                                                const total = reservaDateBounds!.maxDate.getTime() - reservaDateBounds!.minDate.getTime();
+                                                                const percent = Math.max(0, Math.min(100, (d.getTime() - reservaDateBounds!.minDate.getTime()) / total * 100));
+                                                                setSliderRange(prev => ({ ...prev, endPercent: percent }));
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="text-xs text-indigo-600 italic pb-1">
+                                                    O slider abaixo foi atualizado conforme as datas escolhidas.
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="relative pt-1">
                                             <div className="flex items-center gap-3">
@@ -3440,6 +3570,7 @@ export default function FleetDashboard() {
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Cliente</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Motivo</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Status</th>
+                                                        <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Ativa?</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Início</th>
                                                         <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b">Data Fim</th>
                                                         <th className="px-3 py-2 text-right font-semibold text-slate-700 border-b">Dias</th>
@@ -3462,12 +3593,31 @@ export default function FleetDashboard() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-3 py-2">
-                                                                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída') || (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('aberto')
-                                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                                        : 'bg-slate-100 text-slate-600'
+                                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${!(r.StatusOcorrencia || r.SituacaoOcorrencia)
+                                                                        ? 'bg-slate-50 text-slate-400 italic font-normal border border-slate-100'
+                                                                        : (r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase().includes('concluída')
+                                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                                            : 'bg-blue-50 text-blue-700 border border-blue-100'
                                                                         }`}>
-                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || '—'}
+                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || 'Sem status'}
                                                                     </span>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center">
+                                                                    {(() => {
+                                                                        const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
+                                                                        const isCancelled = status.includes('cancel') || Boolean(r.CanceladoPor);
+                                                                        const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+                                                                        const isActive = !concluded && !isCancelled && r.DataInicio;
+                                                                        return isActive ? (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200">
+                                                                                ● ATIVA
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                                                                                Concluída
+                                                                            </span>
+                                                                        );
+                                                                    })()}
                                                                 </td>
                                                                 <td className="px-3 py-2 text-slate-600">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : '—'}</td>
                                                                 <td className="px-3 py-2 text-slate-600">{r.DataFim ? new Date(r.DataFim).toLocaleDateString('pt-BR') : <span className="text-rose-600 font-medium">Em andamento</span>}</td>
@@ -3486,7 +3636,7 @@ export default function FleetDashboard() {
                             {/* 2) Evolução hierárquica de ocorrências (Ano->Mês->Dia) - largura cheia */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <Title>Evolução de Ocorrências <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
+                                    <Title>Evolu&ccedil;&atilde;o de Ocorr&ecirc;ncias <span className="text-xs text-slate-500 font-normal">(Use o chevron para expandir; clique no texto para filtrar)</span></Title>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => {
@@ -3622,7 +3772,7 @@ export default function FleetDashboard() {
                                                                                 className="w-6 h-6 flex items-center justify-center text-xs rounded hover:bg-slate-100 mr-2"
                                                                                 aria-label={isMonthExpanded ? 'Colapsar mês' : 'Expandir mês'}
                                                                             >
-                                                                                {isMonthExpanded ? 'Ôû╝' : 'ÔûÂ'}
+                                                                                {isMonthExpanded ? '▼' : '▶'}
                                                                             </button>
                                                                             <span className={`text-sm font-medium ${selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month
                                                                                 ? 'text-blue-700 font-bold'
@@ -3631,7 +3781,7 @@ export default function FleetDashboard() {
                                                                             <Badge size="xs" className={selectedTemporalFilter?.year === yearData.year && selectedTemporalFilter?.month === monthData.month ? 'bg-blue-600 text-white' : 'bg-slate-600 text-white'}>{monthData.monthTotal}</Badge>
                                                                             {monthData.prevMonthTotal > 0 && (
                                                                                 <span className={`text-xs ${monthData.monthYoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                                    {monthData.monthYoyChange >= 0 ? 'Ôû▓' : 'Ôû╝'} {Math.abs(monthData.monthYoyChange).toFixed(0)}%
+                                                                                    {monthData.monthYoyChange >= 0 ? '▲' : '▼'} {Math.abs(monthData.monthYoyChange).toFixed(0)}%
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -3667,7 +3817,7 @@ export default function FleetDashboard() {
                             {/* 3) Abas para Motivo / Status / Tipo Veículo / Modelo / Cliente / Local */}
                             <Card className="mt-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <Title>Resumo Analítico de Carro Reserva</Title>
+                                    <Title>Resumo Anal&iacute;tico de Carro Reserva</Title>
                                     <div className="flex gap-2 flex-wrap">
                                         <button
                                             onClick={() => setSelectedResumoChart('motivo')}
@@ -3810,75 +3960,74 @@ export default function FleetDashboard() {
                             {/* Modelos agora acessíveis via o card de Resumo (botão 'Modelo') - card duplicado removido */}
 
                             {/* Tabela de Detalhamento */}
-                            <Card id="reserva-table" className="p-0 overflow-hidden">
-                                <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                            <Card id="reserva-table" className="border-slate-200 overflow-hidden flex flex-col p-0">
+                                <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center shrink-0">
                                     <div className="flex items-center gap-2">
-                                        <Title>Detalhamento de Ocorrências</Title>
-                                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(filteredReservas.length)} registros</span>
+                                        <Title className="text-slate-700">Detalhamento de Carro Reserva</Title>
+                                        <Badge color="blue" size="sm" className="font-bold">{fmtDecimal(filteredReservas.length)} registros</Badge>
                                     </div>
-                                    <button onClick={() => exportToExcel(filteredReservas, 'carro_reserva')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded">
-                                        <FileSpreadsheet size={16} /> Exportar
+                                    <button onClick={() => exportToExcel(filteredReservas, 'carro_reserva')} className="flex items-center gap-2 text-xs text-slate-600 hover:text-emerald-600 transition-colors border px-3 py-1.5 rounded-md bg-white shadow-sm">
+                                        <FileSpreadsheet size={14} /> Exportar Excel
                                     </button>
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
+                                <div className="overflow-auto max-h-[600px] relative">
+                                    <table className="w-full text-sm text-left border-collapse">
+                                        <thead className="bg-slate-50 text-slate-600 uppercase text-xs sticky top-0 z-10 shadow-sm">
                                             <tr>
-                                                <th className="px-6 py-3">Data Criação</th>
-                                                <th className="px-6 py-3">Ocorrência</th>
-                                                <th className="px-6 py-3">Placa Reserva</th>
-                                                <th className="px-6 py-3">Modelo Reserva</th>
-                                                <th className="px-6 py-3">Data Devolução</th>
-                                                <th className="px-6 py-3">Diárias</th>
-                                                <th className="px-6 py-3">Contrato Locação</th>
-                                                <th className="px-6 py-3">Cliente</th>
-                                                <th className="px-6 py-3">Tipo Veículo</th>
-                                                <th className="px-6 py-3">Fornecedor Reserva</th>
-                                                <th className="px-6 py-3">Motivo</th>
-                                                <th className="px-6 py-3">Número Reserva</th>
-                                                <th className="px-6 py-3">Requisitante</th>
-                                                <th className="px-6 py-3">Telefone</th>
-                                                <th className="px-6 py-3">Origem</th>
-                                                <th className="px-6 py-3">Local (Cidade/UF)</th>
-                                                <th className="px-6 py-3">Km Inicial</th>
-                                                <th className="px-6 py-3">Km Final</th>
-                                                <th className="px-6 py-3">Cancelado Em</th>
-                                                <th className="px-6 py-3">Motivo Cancelamento</th>
-                                                <th className="px-6 py-3">Observações</th>
-                                                <th className="px-6 py-3 text-center">Status</th>
+                                                <th className="px-4 py-3 min-w-[100px]">Ativa?</th>
+                                                <th className="px-4 py-3 min-w-[120px]">Data Criação</th>
+                                                <th className="px-4 py-3 min-w-[120px]">Data Início</th>
+                                                <th className="px-4 py-3 min-w-[120px]">Data Fim</th>
+                                                <th className="px-4 py-3 min-w-[120px]">Ocorrência</th>
+                                                <th className="px-4 py-3 min-w-[110px]">Placa</th>
+                                                <th className="px-4 py-3 min-w-[150px]">Modelo</th>
+                                                <th className="px-4 py-3 min-w-[80px]">Diárias</th>
+                                                <th className="px-4 py-3 min-w-[150px]">Cliente</th>
+                                                <th className="px-4 py-3 min-w-[150px]">Motivo</th>
+                                                <th className="px-4 py-3 min-w-[150px]">Status</th>
+                                                <th className="px-4 py-3 min-w-[200px]">Localizacão</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {reservaPageItems.map((r, i) => {
-                                                const statusLow = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
-                                                const isCancelled = statusLow.includes('cancel');
-                                                const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-                                                const isAtiva = !isCancelled && !concluded;
-                                                const badgeColor = isAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600';
+                                                const badgeColor = r.isAtiva ? 'bg-emerald-100 text-emerald-700' : (r.isCancelled ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500');
                                                 return (
-                                                    <tr key={i} className="hover:bg-slate-50">
-                                                        <td className="px-6 py-3">{r.DataCriacao ? new Date(r.DataCriacao).toLocaleDateString('pt-BR') : '-'}</td>
-                                                        <td className="px-6 py-3 font-mono text-xs">{r.Ocorrencia || r.IdOcorrencia || '-'}</td>
-                                                        <td className="px-6 py-3 font-medium font-mono">{r.PlacaReserva || '-'}</td>
-                                                        <td className="px-6 py-3">{r.ModeloReserva || '-'}</td>
-                                                        <td className="px-6 py-3">{r.DataDevolucao ? new Date(r.DataDevolucao).toLocaleDateString('pt-BR') : '-'}</td>
-                                                        <td className="px-6 py-3">{(r.DiariasEfetivas !== undefined && r.DiariasEfetivas !== null) ? String(r.DiariasEfetivas) : ((r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-')}</td>
-                                                        <td className="px-6 py-3">{r.ContratoLocacao || r.NumeroContratoLocacao || r.IdContratoLocacao || '-'}</td>
-                                                        <td className="px-6 py-3 max-w-xs truncate">{r.Cliente || '-'}</td>
-                                                        <td className="px-6 py-3">{r.TipoVeiculoTemporario || r.Tipo || '-'}</td>
-                                                        <td className="px-6 py-3">{r.FornecedorReservaOriginal || r.FornecedorReserva || '-'}</td>
-                                                        <td className="px-6 py-3">{r.Motivo ? <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">{r.Motivo}</span> : '-'}</td>
-                                                        <td className="px-6 py-3 font-mono">{r.NumeroReserva || '-'}</td>
-                                                        <td className="px-6 py-3">{r.NomeRequisitante || '-'}</td>
-                                                        <td className="px-6 py-3">{r.TelefoneRequisitante || '-'}</td>
-                                                        <td className="px-6 py-3">{r.Origem || '-'}</td>
-                                                        <td className="px-6 py-3">{(r.Cidade || '-') + (r.Estado ? ' / ' + r.Estado : '')}</td>
-                                                        <td className="px-6 py-3">{r.OdometroInicial !== undefined && r.OdometroInicial !== null ? r.OdometroInicial : '-'}</td>
-                                                        <td className="px-6 py-3">{r.OdometroFinal !== undefined && r.OdometroFinal !== null ? r.OdometroFinal : '-'}</td>
-                                                        <td className="px-6 py-3">{r.CanceladoEm ? new Date(r.CanceladoEm).toLocaleDateString('pt-BR') : '-'}</td>
-                                                        <td className="px-6 py-3">{r.MotivoCancelamento || '-'}</td>
-                                                        <td className="px-6 py-3 max-w-xl truncate">{r.Observacoes ? String(r.Observacoes).slice(0, 140) : '-'}</td>
-                                                        <td className="px-6 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${badgeColor}`}>{r.StatusOcorrencia || 'Sem status'}</span></td>
+                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-4 py-3">
+                                                            {r.isAtiva ? (
+                                                                <span className="flex items-center gap-1.5 text-emerald-600 font-bold text-[10px] bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+                                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                    ATIVA
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-400 text-[10px] px-2 py-1 bg-slate-50 rounded-full">Encerrada</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-slate-600">{r.DataCriacao ? new Date(r.DataCriacao).toLocaleDateString('pt-BR') : '-'}</td>
+                                                        <td className="px-4 py-3 text-slate-700 font-medium">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : '-'}</td>
+                                                        <td className="px-4 py-3">
+                                                            {r.DataFim ? (
+                                                                <span className="text-slate-600">{new Date(r.DataFim).toLocaleDateString('pt-BR')}</span>
+                                                            ) : (
+                                                                !r.isCancelled && <span className="text-red-600 font-medium italic animate-pulse">Em andamento</span>
+                                                            ) || '-'}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.Ocorrencia || r.IdOcorrencia || '-'}</td>
+                                                        <td className="px-4 py-3 font-bold text-slate-700 font-mono underline decoration-slate-200">{r.PlacaReserva || '-'}</td>
+                                                        <td className="px-4 py-3 text-slate-600 truncate max-w-[150px]">{r.ModeloReserva || '-'}</td>
+                                                        <td className="px-4 py-3 font-medium text-slate-700">{(r.DiariasEfetivas !== undefined && r.DiariasEfetivas !== null) ? String(r.DiariasEfetivas) : ((r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-')}</td>
+                                                        <td className="px-4 py-3 text-slate-500 truncate max-w-[150px]">{r.Cliente || '-'}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-medium border border-indigo-100">
+                                                                {r.Motivo}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${badgeColor} whitespace-nowrap shadow-sm`}>
+                                                                {r.StatusOcorrencia || 'Sem status'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-slate-500 text-xs">{(r.Cidade || '-') + (r.Estado ? ' / ' + r.Estado : '')}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -3897,7 +4046,7 @@ export default function FleetDashboard() {
                     )}
                 </TabsContent>
             </Tabs>
-        </div>
+        </div >
     );
 }
 
