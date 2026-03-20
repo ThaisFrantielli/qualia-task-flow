@@ -2,16 +2,15 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { 
-  UserPlus, 
-  Ticket, 
-  X, 
-  Clock, 
-  Mail, 
-  Phone, 
-  MessageSquare, 
-  ChevronDown,
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  UserPlus,
+  Ticket,
+  X,
+  Clock,
+  Mail,
+  Phone,
+  MessageSquare,
   Hand,
   Eye
 } from "lucide-react";
@@ -30,7 +29,9 @@ interface TriagemLeadCardV2Props {
   isEncaminhando?: boolean;
   isDescartando?: boolean;
   isAtribuindo?: boolean;
+  isAtribuindo?: boolean;
   currentUserId?: string;
+  viewMode?: 'grid' | 'list';
 }
 
 export function TriagemLeadCardV2({
@@ -42,10 +43,11 @@ export function TriagemLeadCardV2({
   isEncaminhando,
   isDescartando,
   isAtribuindo,
-  currentUserId
+  currentUserId,
+  viewMode = 'grid'
 }: TriagemLeadCardV2Props) {
   const [chatOpen, setChatOpen] = useState(false);
-  
+
   const createdAt = lead.created_at || lead.cadastro_cliente;
   const isWhatsAppLead = lead.origem === 'whatsapp_inbound' || !!lead.whatsapp_number;
   const hasConversation = !!lead.conversation;
@@ -73,7 +75,7 @@ export function TriagemLeadCardV2({
               </p>
             )}
           </div>
-          
+
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
             {/* Status Badge */}
             {isInProgress ? (
@@ -85,11 +87,11 @@ export function TriagemLeadCardV2({
                 Aguardando
               </Badge>
             )}
-            
+
             {/* WhatsApp Badge com contador */}
             {isWhatsAppLead && (
-              <Badge 
-                variant={unreadCount > 0 ? "destructive" : "outline"} 
+              <Badge
+                variant={unreadCount > 0 ? "destructive" : "outline"}
                 className={cn(
                   "text-xs flex items-center gap-1",
                   unreadCount === 0 && "border-green-500 text-green-600"
@@ -99,7 +101,7 @@ export function TriagemLeadCardV2({
                 {unreadCount > 0 ? `${unreadCount} nova(s)` : 'WhatsApp'}
               </Badge>
             )}
-            
+
             {/* Tempo */}
             {createdAt && (
               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -113,26 +115,53 @@ export function TriagemLeadCardV2({
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="px-4 pb-3 space-y-3">
+        {/* Modal do Chat */}
+        {hasConversation && (
+          <Dialog open={chatOpen} onOpenChange={setChatOpen}>
+            <DialogContent className="max-w-[600px] p-0 overflow-hidden flex flex-col h-[80vh]">
+              <DialogHeader className="p-4 border-b bg-muted/30 shrink-0">
+                <DialogTitle className="flex items-center gap-2 text-base">
+                  <MessageSquare className="w-4 h-4 text-green-500" />
+                  Conversa com {displayName}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-hidden p-0 m-0">
+                <TriagemInlineChat
+                  conversationId={lead.conversation!.id}
+                  maxHeight="100%"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Info do Lead */}
-        <div className="text-sm space-y-1">
-          {lead.email && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate text-xs">{lead.email}</span>
-            </div>
-          )}
-          {(lead.whatsapp_number || lead.telefone) && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="text-xs">{lead.whatsapp_number || lead.telefone}</span>
-            </div>
-          )}
-        </div>
+        {viewMode === 'grid' ? (
+          <div className="text-sm space-y-1">
+            {lead.email && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate text-xs">{lead.email}</span>
+              </div>
+            )}
+            {(lead.whatsapp_number || lead.telefone) && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="text-xs">{lead.whatsapp_number || lead.telefone}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex gap-4 text-sm mb-2 mt-2 border-t pt-2">
+            {lead.email && <div className="flex items-center gap-1.5 text-muted-foreground"><Mail className="w-3.5 h-3.5" /><span className="text-xs">{lead.email}</span></div>}
+            {(lead.whatsapp_number || lead.telefone) && <div className="flex items-center gap-1.5 text-muted-foreground"><Phone className="w-3.5 h-3.5" /><span className="text-xs">{lead.whatsapp_number || lead.telefone}</span></div>}
+          </div>
+        )}
 
         {/* Preview da última mensagem */}
-        {hasConversation && lead.conversation?.last_message && (
+        {hasConversation && lead.conversation?.last_message && viewMode === 'grid' && (
           <div className="bg-muted/50 rounded-md p-2 text-xs">
             <p className="text-muted-foreground line-clamp-2">
               {lead.conversation.last_message}
@@ -140,47 +169,31 @@ export function TriagemLeadCardV2({
           </div>
         )}
 
-        {/* Chat inline colapsável */}
-        {hasConversation && (
-          <Collapsible open={chatOpen} onOpenChange={setChatOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  {chatOpen ? 'Fechar conversa' : 'Ver conversa completa'}
-                </span>
-                <ChevronDown className={cn(
-                  "w-4 h-4 transition-transform",
-                  chatOpen && "rotate-180"
-                )} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <TriagemInlineChat 
-                conversationId={lead.conversation!.id}
-                maxHeight="250px"
-              />
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+        {/* Lista de Ações e Botão de Chat */}
+        <div className={cn("flex gap-1.5 pt-2", viewMode === 'grid' ? "flex-col border-t mt-3" : "flex-row flex-wrap items-center mt-2")}>
+          {hasConversation && (
+            <Button variant="outline" size="sm" className={cn("justify-between", viewMode === 'list' && "w-auto")} onClick={() => setChatOpen(true)}>
+              <span className="flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                Ver conversa
+              </span>
+            </Button>
+          )}
 
-        {/* Ações */}
-        <div className="flex flex-col gap-1.5 pt-2 border-t">
-          {/* Botão de atribuir (se não estiver atribuído) */}
           {!isInProgress && onAtribuir && (
             <Button
-              className="w-full justify-start"
+              className={cn("justify-start", viewMode === 'grid' && "w-full")}
               variant="secondary"
               size="sm"
               onClick={() => onAtribuir(lead.id)}
               disabled={isAtribuindo}
             >
               <Hand className="w-4 h-4 mr-2" />
-              Assumir atendimento
+              Assumir
             </Button>
           )}
-          
-          <div className="grid grid-cols-2 gap-1.5">
+
+          <div className="flex gap-1.5">
             <Button
               variant="default"
               size="sm"
@@ -200,18 +213,16 @@ export function TriagemLeadCardV2({
               <Ticket className="w-3.5 h-3.5 mr-1.5" />
               Ticket
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDescartar(lead.id)}
+              disabled={isDescartando}
+              className="text-xs text-muted-foreground hover:text-destructive px-2"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
           </div>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onDescartar(lead.id)}
-            disabled={isDescartando}
-            className="text-xs text-muted-foreground hover:text-destructive"
-          >
-            <X className="w-3.5 h-3.5 mr-1.5" />
-            Descartar
-          </Button>
         </div>
       </CardContent>
     </Card>

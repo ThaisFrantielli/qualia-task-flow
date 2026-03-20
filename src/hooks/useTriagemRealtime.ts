@@ -28,8 +28,8 @@ export interface TriagemLead {
 }
 
 // Buscar leads com conversas vinculadas - otimizado para alto volume
-export function useTriagemLeads(options?: { 
-  limit?: number; 
+export function useTriagemLeads(options?: {
+  limit?: number;
   offset?: number;
   debounceMs?: number;
 }) {
@@ -64,22 +64,22 @@ export function useTriagemLeads(options?: {
           .from('whatsapp_conversations')
           .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count, instance_id')
           .in('cliente_id', leadIds);
-        
+
         conversations = convs || [];
 
         // Se ainda faltam, busca por whatsapp_number
         if (whatsappNumbers.length > 0) {
           const existingClientIds = conversations.map(c => c.cliente_id);
-          const missingLeads = leads.filter(l => 
+          const missingLeads = leads.filter(l =>
             l.whatsapp_number && !existingClientIds.includes(l.id)
           );
-          
+
           if (missingLeads.length > 0) {
             const { data: additionalConvs } = await supabase
               .from('whatsapp_conversations')
               .select('id, cliente_id, whatsapp_number, last_message, last_message_at, unread_count, instance_id')
               .in('whatsapp_number', missingLeads.map(l => l.whatsapp_number));
-            
+
             if (additionalConvs) {
               conversations = [...conversations, ...additionalConvs];
             }
@@ -89,7 +89,7 @@ export function useTriagemLeads(options?: {
 
       // Mesclar dados
       const enrichedLeads = leads.map(lead => {
-        const conv = conversations.find(c => 
+        const conv = conversations.find(c =>
           c.cliente_id === lead.id || c.whatsapp_number === lead.whatsapp_number
         );
         return {
@@ -122,7 +122,7 @@ export function useTriagemLeads(options?: {
   useEffect(() => {
     const clientesChannel = supabase
       .channel('triagem-clientes-realtime')
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'clientes' },
         (payload) => {
           const record = payload.new as any;
@@ -173,7 +173,7 @@ export function useAtribuirLead() {
     mutationFn: async ({ clienteId }: { clienteId: string }) => {
       const { error } = await supabase
         .from('clientes')
-        .update({ 
+        .update({
           status_triagem: 'em_atendimento',
           ultimo_atendente_id: user?.id,
           ultimo_atendimento_at: new Date().toISOString()
@@ -198,8 +198,8 @@ export function useEncaminharParaComercial() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ clienteId, funilId }: { 
-      clienteId: string; 
+    mutationFn: async ({ clienteId, funilId }: {
+      clienteId: string;
       funilId?: string;
     }) => {
       // 1. Buscar dados do cliente
@@ -272,7 +272,7 @@ export function useEncaminharParaComercial() {
       // 5. Atualizar status do cliente
       await supabase
         .from('clientes')
-        .update({ 
+        .update({
           status_triagem: 'comercial',
           ultimo_atendente_id: user?.id,
           ultimo_atendimento_at: new Date().toISOString()
@@ -322,9 +322,9 @@ export function useCriarTicket() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ 
-      clienteId, 
-      titulo, 
+    mutationFn: async ({
+      clienteId,
+      titulo,
       descricao,
       sintese,
       prioridade,
@@ -375,7 +375,7 @@ export function useCriarTicket() {
       // 2. Atualizar cliente
       await supabase
         .from('clientes')
-        .update({ 
+        .update({
           status_triagem: 'em_atendimento',
           ultimo_atendente_id: user?.id,
           ultimo_atendimento_at: new Date().toISOString()
@@ -394,9 +394,9 @@ export function useCriarTicket() {
         // Note: atendimento_id pode ser usado para tickets também
         await supabase
           .from('whatsapp_conversations')
-          .update({ 
+          .update({
             atendimento_id: null, // Reset any previous link
-            cliente_id: clienteId 
+            cliente_id: clienteId
           })
           .eq('id', conversation.id);
       }
@@ -434,7 +434,7 @@ export function useDescartarLead() {
       // 1) Update client status
       const { error: updateError } = await supabase
         .from('clientes')
-        .update({ 
+        .update({
           status_triagem: 'descartado',
           descartado_motivo: motivo || null,
           descartado_em: new Date().toISOString()
@@ -495,12 +495,12 @@ export function useSendTriagemMessage() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ 
-      conversationId, 
+    mutationFn: async ({
+      conversationId,
       content,
       instanceId
-    }: { 
-      conversationId: string; 
+    }: {
+      conversationId: string;
       content: string;
       instanceId?: string;
     }) => {
@@ -538,8 +538,9 @@ export function useSendTriagemMessage() {
         const { data, error } = await supabase.functions.invoke('whatsapp-send', {
           body: {
             instance_id: instId,
-            to: targetPhone,
-            message: content
+            phoneNumber: targetPhone,
+            message: content,
+            conversationId: conversationId
           }
         });
 

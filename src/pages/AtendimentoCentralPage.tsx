@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWhatsAppConversations } from '@/hooks/useWhatsAppConversations';
 import { useWhatsAppStats } from '@/hooks/useWhatsAppStats';
@@ -24,8 +26,15 @@ import {
   Smartphone,
   Settings,
   RefreshCw,
-  Headphones
+  Plus,
+  Send,
+  Loader2,
+  Headphones,
+  Zap,
+  MessageSquare as MessageSquareIcon,
+  Inbox
 } from 'lucide-react';
+import FilaTriagem from '@/pages/FilaTriagem';
 
 interface WhatsAppInstance {
   id: string;
@@ -38,10 +47,10 @@ export default function AtendimentoCentralPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  
+
   const urlClienteId = searchParams.get('cliente_id');
   const urlTelefone = searchParams.get('telefone');
-  
+
   // State
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
@@ -51,9 +60,15 @@ export default function AtendimentoCentralPage() {
   const [filter, setFilter] = useState<'all' | 'queue' | 'mine' | 'unread'>('all');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
-  const [pendingAutoOpen, setPendingAutoOpen] = useState<{clienteId: string; telefone: string} | null>(
+  const [activeFolder, setActiveFolder] = useState<'triagem' | 'whatsapp'>('triagem');
+  const [pendingAutoOpen, setPendingAutoOpen] = useState<{ clienteId: string; telefone: string } | null>(
     urlClienteId && urlTelefone ? { clienteId: urlClienteId, telefone: urlTelefone } : null
   );
+
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState('');
+  const [newChatMessage, setNewChatMessage] = useState('');
+  const [isSendingNewChat, setIsSendingNewChat] = useState(false);
 
   // Hooks - use first selected instance or null for all
   const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
@@ -99,7 +114,7 @@ export default function AtendimentoCentralPage() {
         { event: '*', schema: 'public', table: 'whatsapp_instances' },
         (payload) => {
           if (payload.eventType === 'UPDATE') {
-            setInstances(prev => prev.map(i => 
+            setInstances(prev => prev.map(i =>
               i.id === payload.new.id ? payload.new as WhatsAppInstance : i
             ));
           }
@@ -112,17 +127,48 @@ export default function AtendimentoCentralPage() {
     };
   }, []);
 
+  const handleStartNewConversation = async () => {
+    if (!newChatPhone.trim() || !newChatMessage.trim()) return;
+    if (!selectedInstanceId) {
+      toast({ title: 'Erro', description: 'Nenhuma conexão WhatsApp selecionada.', variant: 'destructive' });
+      return;
+    }
+
+    setIsSendingNewChat(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
+          instance_id: selectedInstanceId,
+          phoneNumber: newChatPhone.replace(/\D/g, ''),
+          message: newChatMessage
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'Mensagem Enviada!', description: 'A conversa logo aparecerá na sua fila.' });
+      setIsNewChatOpen(false);
+      setNewChatPhone('');
+      setNewChatMessage('');
+      refetchConversations();
+    } catch (err: any) {
+      toast({ title: 'Erro ao enviar', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsSendingNewChat(false);
+    }
+  };
+
   // Auto-open conversation from URL
   useEffect(() => {
     if (pendingAutoOpen && conversations.length > 0 && !convLoading) {
       const { clienteId, telefone } = pendingAutoOpen;
-      
-      const existingConv = conversations.find(c => 
-        c.cliente_id === clienteId || 
+
+      const existingConv = conversations.find(c =>
+        c.cliente_id === clienteId ||
         c.whatsapp_number === telefone ||
         c.whatsapp_number === telefone.replace(/\D/g, '')
       );
-      
+
       if (existingConv) {
         setSelectedConversationId(existingConv.id);
         toast({
@@ -136,7 +182,7 @@ export default function AtendimentoCentralPage() {
         });
         setSearchTerm(telefone);
       }
-      
+
       setPendingAutoOpen(null);
     }
   }, [pendingAutoOpen, conversations, convLoading, toast]);
@@ -152,7 +198,7 @@ export default function AtendimentoCentralPage() {
     // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(c => 
+      filtered = filtered.filter(c =>
         c.customer_name?.toLowerCase().includes(term) ||
         c.customer_phone?.includes(term) ||
         c.last_message?.toLowerCase().includes(term)
@@ -167,7 +213,7 @@ export default function AtendimentoCentralPage() {
     // Tab filter
     switch (filter) {
       case 'queue':
-        filtered = filtered.filter(c => 
+        filtered = filtered.filter(c =>
           (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id
         );
         break;
@@ -184,7 +230,7 @@ export default function AtendimentoCentralPage() {
       const aUnread = a.unread_count || 0;
       const bUnread = b.unread_count || 0;
       if (bUnread !== aUnread) return bUnread - aUnread;
-      
+
       const aDate = new Date(a.last_message_at || a.created_at || '').getTime();
       const bDate = new Date(b.last_message_at || b.created_at || '').getTime();
       return bDate - aDate;
@@ -195,11 +241,11 @@ export default function AtendimentoCentralPage() {
 
   const handleAssignConversation = async (conversationId: string) => {
     if (!user?.id) return;
-    
+
     try {
       const { error } = await supabase
         .from('whatsapp_conversations')
-        .update({ 
+        .update({
           status: 'active',
           assigned_agent_id: user.id,
           assigned_at: new Date().toISOString()
@@ -231,178 +277,263 @@ export default function AtendimentoCentralPage() {
   const selectedInstance = instances.find(i => i.id === selectedInstanceId);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
-      {/* Header */}
-      <div className="px-4 py-3 border-b bg-background shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Headphones className="h-5 w-5 text-primary" />
+    <div className="flex h-[calc(100vh-4rem)] bg-background">
+      {/* Inner Sidebar (Folders) */}
+      <div className="w-64 border-r flex flex-col p-4 gap-6 shrink-0 bg-muted/10 hidden md:flex">
+        <div>
+          <div className="flex items-center justify-between pl-1 pr-0 mb-1">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Inbox className="w-5 h-5" /> Inbox
+            </h2>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" asChild>
+                <a href="/configuracoes/whatsapp" title="Configurações">
+                  <Settings className="h-4 w-4" />
+                </a>
+              </Button>
             </div>
-            <div>
-              <h1 className="text-lg font-bold">Central de Atendimento</h1>
-              <p className="text-xs text-muted-foreground">WhatsApp • Triagem • Tickets</p>
-            </div>
-            {selectedInstance && (
-              <Badge 
-                variant={selectedInstance.status === 'connected' ? 'default' : 'secondary'}
-                className={selectedInstance.status === 'connected' ? 'bg-green-500' : ''}
-              >
-                {selectedInstance.status === 'connected' ? 'Conectado' : 'Desconectado'}
-              </Badge>
-            )}
+          </div>
+          <p className="text-xs text-muted-foreground px-1 mb-6">Central Unificada</p>
+
+          <div className="mb-6 px-1">
+            <AgentStatusSelector variant="compact" />
           </div>
 
-          <div className="flex items-center gap-2">
-            <AgentStatusSelector variant="compact" />
-
-            {instances.length > 0 && (
-              <Select value={selectedInstanceId || undefined} onValueChange={setSelectedInstanceId}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Instância" />
-                </SelectTrigger>
-                <SelectContent>
-                  {instances.map(instance => (
-                    <SelectItem key={instance.id} value={instance.id}>
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${instance.status === 'connected' ? 'bg-green-500' : 'bg-muted'}`} />
-                        {instance.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4" />
+          <div className="space-y-1">
+            <Button
+              variant={activeFolder === 'triagem' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setActiveFolder('triagem')}
+            >
+              <Zap className="mr-2 h-4 w-4 text-yellow-500" />
+              Fila de Triagem
             </Button>
-
-            <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
-              <a href="/configuracoes/whatsapp">
-                <Settings className="h-4 w-4" />
-              </a>
+            <Button
+              variant={activeFolder === 'whatsapp' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setActiveFolder('whatsapp')}
+            >
+              <MessageSquareIcon className="mr-2 h-4 w-4 text-green-500" />
+              WhatsApp (Conversas)
             </Button>
           </div>
         </div>
 
-        {/* Estatísticas removidas conforme solicitado (big numbers ocultos) */}
+        {/* Instâncias Selector (apenas para WhatsApp) */}
+        {activeFolder === 'whatsapp' && instances.length > 0 && (
+          <div className="mt-auto p-3 rounded-xl border bg-background/50 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground px-1">Instância WhatsApp</p>
+            <Select value={selectedInstanceId || undefined} onValueChange={setSelectedInstanceId}>
+              <SelectTrigger className="w-full h-9 bg-background">
+                <Smartphone className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100]">
+                {instances.map(instance => (
+                  <SelectItem key={instance.id} value={instance.id}>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${instance.status === 'connected' ? 'bg-green-500' : 'bg-muted'}`} />
+                      <span className="truncate">{instance.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* Main Content */}
-      {instances.length === 0 && !isLoadingInstances ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Card className="max-w-md">
-            <CardContent className="py-12 text-center">
-              <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">Nenhuma instância configurada</h3>
-              <p className="text-muted-foreground mb-4">
-                Configure uma instância WhatsApp para começar
-              </p>
-              <Button asChild>
-                <a href="/configuracoes/whatsapp">Configurar WhatsApp</a>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      ) : (
-        <div className="flex-1 flex overflow-hidden min-h-0">
-          {/* Left Panel - Queue */}
-          <div className="w-80 border-r flex flex-col bg-background shrink-0">
-            <div className="p-3 border-b space-y-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar conversas..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-9"
-                  />
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+        {activeFolder === 'triagem' ? (
+          <div className="flex-1 overflow-y-auto">
+            <FilaTriagem />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            {/* Header Reduzido para WhatsApp */}
+            <div className="px-4 py-3 border-b bg-background shrink-0 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-green-500/10 hidden sm:block">
+                  <MessageSquareIcon className="h-4 w-4 text-green-500" />
                 </div>
-                <AtendimentoFilters
-                  instances={instances}
-                  selectedInstances={selectedInstanceIds}
-                  onInstancesChange={setSelectedInstanceIds}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                />
+                <div>
+                  <h2 className="font-semibold text-sm">Meus Atendimentos</h2>
+                </div>
+                {selectedInstance && (
+                  <Badge
+                    variant={selectedInstance.status === 'connected' ? 'default' : 'secondary'}
+                    className={selectedInstance.status === 'connected' ? 'bg-green-500 text-[10px] h-5' : 'text-[10px] h-5'}
+                  >
+                    {selectedInstance.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                  </Badge>
+                )}
               </div>
 
-              <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                <TabsList className="w-full grid grid-cols-4 h-8">
-                  <TabsTrigger value="all" className="text-xs px-2">Todas</TabsTrigger>
-                  <TabsTrigger value="queue" className="text-xs px-2 relative">
-                    Fila
-                    {stats.queueConversations > 0 && (
-                      <Badge variant="destructive" className="ml-1 h-4 min-w-4 p-0 text-[10px] absolute -top-1 -right-1">
-                        {stats.queueConversations}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="unread" className="text-xs px-2 relative">
-                    Novas
-                    {stats.unreadMessages > 0 && (
-                      <Badge variant="destructive" className="ml-1 h-4 min-w-4 p-0 text-[10px] absolute -top-1 -right-1">
-                        {stats.unreadMessages > 9 ? '9+' : stats.unreadMessages}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="mine" className="text-xs px-2 relative">
-                    Meus
-                    {myConversationsCount > 0 && (
-                      <Badge className="ml-1 h-4 min-w-4 p-0 text-[10px] absolute -top-1 -right-1 bg-green-500">
-                        {myConversationsCount}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-2">
+                <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="hidden sm:flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Nova Conversa
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Iniciar Nova Conversa</DialogTitle>
+                      <DialogDescription>Digite o número de WhatsApp e a primeira mensagem.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Número (com DDI + DDD)</label>
+                        <Input
+                          placeholder="Ex: 5511999999999"
+                          value={newChatPhone}
+                          onChange={e => setNewChatPhone(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Mensagem de Abertura</label>
+                        <Textarea
+                          placeholder="Olá, como podemos ajudar?"
+                          value={newChatMessage}
+                          onChange={e => setNewChatMessage(e.target.value)}
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsNewChatOpen(false)}>Cancelar</Button>
+                      <Button onClick={handleStartNewConversation} disabled={isSendingNewChat || !newChatPhone || !newChatMessage}>
+                        {isSendingNewChat ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                        Enviar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            <ScrollArea className="flex-1">
-              <AtendimentoQueue
-                conversations={filteredConversations}
-                selectedId={selectedConversationId}
-                onSelect={setSelectedConversationId}
-                onAssign={handleAssignConversation}
-                loading={convLoading}
-                filter={filter}
-                currentUserId={user?.id}
-              />
-            </ScrollArea>
-          </div>
-
-          {/* Center Panel - Chat */}
-          <div className="flex-1 flex flex-col min-w-0 min-h-0">
-            <WhatsAppChatPanel
-              conversation={selectedConversation}
-              instanceId={selectedInstanceId || undefined}
-            />
-          </div>
-
-          {/* Right Panel - Actions & Agents */}
-          <div className="w-72 border-l flex flex-col bg-muted/10 overflow-hidden shrink-0">
-            <ScrollArea className="flex-1">
-              <div className="p-3 space-y-4">
-                <AtendimentoActions
-                  conversation={selectedConversation as any}
-                  onActionComplete={() => {
-                    refetchConversations();
-                    refetchStats();
-                  }}
-                />
-
-                <WhatsAppAgentPanel
-                  agents={agents}
-                  loading={agentsLoading}
-                />
+            {/* Main Content WhatsApp */}
+            {instances.length === 0 && !isLoadingInstances ? (
+              <div className="flex-1 flex items-center justify-center bg-muted/5">
+                <Card className="max-w-md">
+                  <CardContent className="py-12 text-center">
+                    <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhuma instância configurada</h3>
+                    <p className="text-muted-foreground mb-4 text-sm">
+                      Configure uma instância WhatsApp para começar a atender.
+                    </p>
+                    <Button asChild>
+                      <a href="/configuracoes/whatsapp">Configurar WhatsApp</a>
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
-            </ScrollArea>
+            ) : (
+              <div className="flex-1 flex overflow-hidden min-h-0 bg-background">
+                {/* Left Panel - Queue */}
+                <div className="w-80 border-r flex flex-col bg-background shrink-0">
+                  <div className="p-3 border-b space-y-3 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar conversas..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9 h-9"
+                        />
+                      </div>
+                      <AtendimentoFilters
+                        instances={instances}
+                        selectedInstances={selectedInstanceIds}
+                        onInstancesChange={setSelectedInstanceIds}
+                        statusFilter={statusFilter}
+                        onStatusFilterChange={setStatusFilter}
+                      />
+                    </div>
+
+                    <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+                      <TabsList className="w-full grid grid-cols-4 h-8 bg-muted/50">
+                        <TabsTrigger value="all" className="text-[10px] px-1">Todas</TabsTrigger>
+                        <TabsTrigger value="queue" className="text-[10px] px-1 relative">
+                          Aguardando
+                          {stats.queueConversations > 0 && (
+                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {stats.queueConversations}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="unread" className="text-[10px] px-1 relative">
+                          Novas
+                          {stats.unreadMessages > 0 && (
+                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {stats.unreadMessages > 9 ? '9+' : stats.unreadMessages}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="mine" className="text-[10px] px-1 relative">
+                          Meus
+                          {myConversationsCount > 0 && (
+                            <Badge className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5 bg-green-500">
+                              {myConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+
+                  <ScrollArea className="flex-1">
+                    <AtendimentoQueue
+                      conversations={filteredConversations}
+                      selectedId={selectedConversationId}
+                      onSelect={setSelectedConversationId}
+                      onAssign={handleAssignConversation}
+                      loading={convLoading}
+                      filter={filter}
+                      currentUserId={user?.id}
+                    />
+                  </ScrollArea>
+                </div>
+
+                {/* Center Panel - Chat */}
+                <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                  <WhatsAppChatPanel
+                    conversation={selectedConversation}
+                    instanceId={selectedInstanceId || undefined}
+                  />
+                </div>
+
+                {/* Right Panel - Actions & Agents */}
+                <div className="w-72 border-l flex flex-col bg-muted/5 overflow-hidden shrink-0 hidden lg:flex">
+                  <ScrollArea className="flex-1">
+                    <div className="p-3 space-y-4">
+                      <AtendimentoActions
+                        conversation={selectedConversation as any}
+                        onActionComplete={() => {
+                          refetchConversations();
+                          refetchStats();
+                        }}
+                      />
+
+                      <WhatsAppAgentPanel
+                        agents={agents}
+                        loading={agentsLoading}
+                      />
+                    </div>
+                  </ScrollArea>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useConversationMessages, useSendTriagemMessage } from "@/hooks/useTriagemRealtime";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, Loader2, MessageSquare } from "lucide-react";
@@ -13,8 +12,8 @@ interface TriagemInlineChatProps {
   maxHeight?: string;
 }
 
-export function TriagemInlineChat({ 
-  conversationId, 
+export function TriagemInlineChat({
+  conversationId,
   maxHeight = "300px"
 }: TriagemInlineChatProps) {
   const { data: messages, isLoading } = useConversationMessages(conversationId);
@@ -56,7 +55,7 @@ export function TriagemInlineChat({
   }
 
   return (
-    <div className="border rounded-lg bg-background overflow-hidden">
+    <div className="flex flex-col h-full border rounded-lg bg-background overflow-hidden w-full">
       {/* Header */}
       <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
@@ -69,12 +68,12 @@ export function TriagemInlineChat({
       </div>
 
       {/* Messages */}
-      <ScrollArea 
+      <div
         ref={scrollRef}
-        className="p-3"
-        style={{ maxHeight }}
+        className="flex-1 p-3 overflow-y-auto w-full custom-scrollbar"
+        style={{ maxHeight: maxHeight === '100%' ? undefined : maxHeight, overflowX: 'hidden' }}
       >
-        <div className="space-y-2">
+        <div className="space-y-4">
           {messages?.length === 0 && (
             <div className="text-center text-sm text-muted-foreground py-4">
               Nenhuma mensagem ainda
@@ -85,8 +84,8 @@ export function TriagemInlineChat({
               key={msg.id}
               className={cn(
                 "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                msg.sender_type === 'customer' 
-                  ? "bg-muted mr-auto" 
+                msg.sender_type === 'customer'
+                  ? "bg-muted mr-auto"
                   : "bg-primary text-primary-foreground ml-auto"
               )}
             >
@@ -95,19 +94,19 @@ export function TriagemInlineChat({
               </p>
               <span className={cn(
                 "text-[10px] mt-1 block",
-                msg.sender_type === 'customer' 
-                  ? "text-muted-foreground" 
+                msg.sender_type === 'customer'
+                  ? "text-muted-foreground"
                   : "text-primary-foreground/70"
               )}>
-                {formatDistanceToNow(new Date(msg.created_at), { 
-                  addSuffix: true, 
-                  locale: ptBR 
+                {formatDistanceToNow(new Date(msg.created_at), {
+                  addSuffix: true,
+                  locale: ptBR
                 })}
               </span>
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Input */}
       <div className="p-2 border-t flex gap-2">
@@ -119,8 +118,8 @@ export function TriagemInlineChat({
           className="flex-1 text-sm"
           disabled={sendMessage.isPending}
         />
-        <Button 
-          size="icon" 
+        <Button
+          size="icon"
           onClick={handleSend}
           disabled={!newMessage.trim() || sendMessage.isPending}
         >

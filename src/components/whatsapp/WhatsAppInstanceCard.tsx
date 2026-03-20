@@ -35,6 +35,7 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
     const [isLoading, setIsLoading] = useState(false);
     const [qrExpired, setQrExpired] = useState(false);
     const [timeLeft, setTimeLeft] = useState(40);
+    const [pendingRefresh, setPendingRefresh] = useState(false);
     const { toast } = useToast();
 
     // Poll for QR code when instance is not connected and sem QR ainda
@@ -86,6 +87,11 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
             setQrExpired(remaining <= 0);
         };
 
+        // If the prop updated to a fresh date, we can clear the pending state
+        if (Date.now() - createdAt < 5000) {
+            setPendingRefresh(false);
+        }
+
         updateTimer();
         const interval = setInterval(updateTimer, 1000);
         return () => clearInterval(interval);
@@ -135,6 +141,10 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
             await new Promise(resolve => setTimeout(resolve, 500));
 
             // Restart the instance to generate new QR code
+            setPendingRefresh(true);
+            setQrExpired(false);
+            setTimeLeft(40);
+
             const response = await fetch(`${SERVICE_URL}/instances`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -169,7 +179,7 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                 if (isConnected) {
                     await handleDisconnect();
                 }
-                
+
                 // Delete from WhatsApp service
                 try {
                     await fetch(`${SERVICE_URL}/instances/${instance.id}`, {
@@ -178,10 +188,10 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                 } catch (serviceError) {
                     console.warn('Could not delete from WhatsApp service:', serviceError);
                 }
-                
+
                 // Delete from database via callback
                 onDelete(instance.id);
-                
+
                 toast({
                     title: "Removido",
                     description: "Instância removida com sucesso.",
@@ -227,12 +237,12 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                         </div>
                     )}
 
-                    {!isConnected && instance.qr_code && (
+                    {!isConnected && instance.qr_code && !pendingRefresh && (
                         <div className="flex flex-col items-center justify-center p-4 border rounded-md bg-slate-50">
                             <img
                                 src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(instance.qr_code)}`}
                                 alt="QR Code"
-                                className="w-48 h-48 mb-3"
+                                className={`w-48 h-48 mb-3 ${qrExpired ? 'opacity-20 blur-sm grayscale' : ''}`}
                             />
                             <div className="w-full max-w-[200px]">
                                 <Progress value={qrProgress} className="h-1.5" />
@@ -243,7 +253,7 @@ export function WhatsAppInstanceCard({ instance, onRefresh, onDelete }: WhatsApp
                         </div>
                     )}
 
-                    {!isConnected && !instance.qr_code && (
+                    {!isConnected && (!instance.qr_code || pendingRefresh) && (
                         <div className="flex flex-col items-center justify-center p-4 border rounded-md bg-slate-50 text-muted-foreground text-sm">
                             <Loader2 className="h-6 w-6 animate-spin mb-2" />
                             <p>Aguardando QR Code...</p>

@@ -5,10 +5,9 @@ import {
   LayoutDashboard, List, Settings,
   Users, Bell, LogOut, FolderOpen, ChevronDown, BarChart3,
   ClipboardList, SlidersHorizontal, Target, MessageSquare, Calendar as CalendarIcon,
-  PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Mail, Send, DollarSign, Headphones,
+  PanelLeftClose, PanelRightClose, Ticket, FileText, Car, AlertTriangle, Send, DollarSign, Headphones,
   ShoppingCart, Wrench, ShieldAlert, FileWarning
 } from 'lucide-react';
-import { Layers3 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useEnabledModules } from '@/modules/registry';
@@ -81,22 +80,28 @@ const baseMenuGroups: MenuGroup[] = [
     ]
   },
   {
+    title: 'ATENDIMENTO',
+    items: [
+      { label: 'Inbox', url: '/atendimento', icon: Headphones, permissionKey: 'crm' },
+      { label: 'Painel de Atendimento', url: '/atendimento/painel', icon: LayoutDashboard, permissionKey: 'crm' },
+      { label: 'Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' }
+    ]
+  },
+  {
     title: 'COMERCIAL',
     items: [
+      { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
+      { label: 'Propostas', url: '/propostas', icon: FileText, permissionKey: 'crm' },
+      { label: 'Forecast', url: '/forecast', icon: BarChart3, permissionKey: 'crm' },
       { label: 'Veículos Comprados', url: '/analytics/compras', icon: ShoppingCart, permissionKey: 'crm' },
       { label: 'Contratos', url: '/analytics/contratos', icon: FileText, permissionKey: 'crm' },
     ]
   },
   {
-    title: 'CRM',
+    title: 'CLIENTES & PESQUISAS',
     items: [
-      { label: 'Central de Atendimento', url: '/atendimento', icon: Headphones, permissionKey: 'crm' },
-      { label: 'Workspace Atendimento', url: '/atendimento/workspace', icon: Layers3, permissionKey: 'crm' },
-      { label: 'Central de Tickets', url: '/tickets', icon: Ticket, permissionKey: 'crm' },
-      { label: 'Emails', url: '/emails', icon: Mail, permissionKey: 'crm' },
-      { label: 'Lista de Transmissão', url: '/broadcasts', icon: Send, permissionKey: 'crm' },
-      { label: 'Oportunidades', url: '/oportunidades', icon: Target, permissionKey: 'crm' },
-      { label: 'Hub de Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
+      { label: 'Clientes', url: '/clientes', icon: Users, permissionKey: 'crm' },
+      { label: 'Campanhas', url: '/broadcasts', icon: Send, permissionKey: 'crm' },
       { label: 'Relatórios', url: '/tickets/reports', icon: BarChart3, permissionKey: 'crm' },
       { label: 'Pesquisas', url: '/pesquisas', icon: ClipboardList, permissionKey: 'crm' },
     ]

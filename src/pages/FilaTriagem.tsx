@@ -18,11 +18,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Ticket, Inbox, MessageSquare, Users, Eye } from "lucide-react";
+import { Loader2, Ticket, Inbox, MessageSquare, Users, Eye, LayoutGrid, LayoutList } from "lucide-react";
 import { TriagemLeadCardV2 } from "@/components/triagem/TriagemLeadCardV2";
 import { TriagemFilters } from "@/components/triagem/TriagemFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   TICKET_ORIGEM_OPTIONS,
   TICKET_MOTIVO_OPTIONS,
@@ -62,6 +63,7 @@ export default function FilaTriagem() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [origemFilter, setOrigemFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Fetch WhatsApp instances
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function FilaTriagem() {
         .from('whatsapp_instances')
         .select('id, name, status, phone_number')
         .order('name');
-      
+
       if (data) {
         setInstances(data);
       }
@@ -95,12 +97,14 @@ export default function FilaTriagem() {
   const { data: ticketCustomFields } = useTicketCustomFields();
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
 
-  const motivoOptions = (ticketMotivos && ticketMotivos.length > 0)
-    ? ticketMotivos.filter((m) => m.is_active).map((m) => ({ value: m.value, label: m.label }))
+  const activeMotivos = ticketMotivos?.filter((m) => m.is_active) || [];
+  const motivoOptions = activeMotivos.length > 0
+    ? activeMotivos.map((m) => ({ value: m.value, label: m.label }))
     : TICKET_MOTIVO_OPTIONS;
 
-  const departamentoOptions = (ticketDepartamentos && ticketDepartamentos.length > 0)
-    ? ticketDepartamentos.filter((d) => d.is_active).map((d) => ({ value: d.label, label: d.label }))
+  const activeDepartamentos = ticketDepartamentos?.filter((d) => d.is_active) || [];
+  const departamentoOptions = activeDepartamentos.length > 0
+    ? activeDepartamentos.map((d) => ({ value: d.label, label: d.label }))
     : TICKET_DEPARTAMENTO_OPTIONS;
 
   const activeCustomFields = (ticketCustomFields || []).filter((field) => field.is_active);
@@ -275,7 +279,7 @@ export default function FilaTriagem() {
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [discardReason, setDiscardReason] = useState("");
   const [discardingLeadId, setDiscardingLeadId] = useState<string | null>(null);
-  
+
 
   const submitDiscard = async () => {
     if (!discardingLeadId) return;
@@ -343,11 +347,10 @@ export default function FilaTriagem() {
 
       {queueAlertLevel !== 'ok' && (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            queueAlertLevel === 'critical'
-              ? 'border-rose-300 bg-rose-50 text-rose-800'
-              : 'border-amber-300 bg-amber-50 text-amber-800'
-          }`}
+          className={`rounded-lg border px-4 py-3 text-sm ${queueAlertLevel === 'critical'
+            ? 'border-rose-300 bg-rose-50 text-rose-800'
+            : 'border-amber-300 bg-amber-50 text-amber-800'
+            }`}
         >
           <p className="font-medium">
             {queueAlertLevel === 'critical'
@@ -363,31 +366,54 @@ export default function FilaTriagem() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="all" className="flex items-center gap-2">
-            <Inbox className="w-4 h-4" />
-            <span className="hidden sm:inline">Todos</span>
-            <span className="text-xs opacity-70">({leads?.length || 0})</span>
-          </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden sm:inline">WhatsApp</span>
-            <span className="text-xs opacity-70">({stats.whatsapp})</span>
-          </TabsTrigger>
-          <TabsTrigger value="unread" className="flex items-center gap-2 relative">
-            <span className="hidden sm:inline">Não lidas</span>
-            <span className="sm:hidden">Novas</span>
-            {stats.urgent > 0 && (
-              <span className="bg-destructive text-destructive-foreground text-[10px] px-1.5 rounded-full">
-                {stats.urgent}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="mine" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Meus</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="all" className="flex items-center gap-2">
+              <Inbox className="w-4 h-4" />
+              <span className="hidden sm:inline">Todos</span>
+              <span className="text-xs opacity-70">({leads?.length || 0})</span>
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+              <span className="text-xs opacity-70">({stats.whatsapp})</span>
+            </TabsTrigger>
+            <TabsTrigger value="unread" className="flex items-center gap-2 relative">
+              <span className="hidden sm:inline">Não lidas</span>
+              <span className="sm:hidden">Novas</span>
+              {stats.urgent > 0 && (
+                <span className="bg-destructive text-destructive-foreground text-[10px] px-1.5 rounded-full">
+                  {stats.urgent}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="mine" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Meus</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="flex items-center gap-1 border rounded-md p-1 bg-muted/20 self-end sm:self-auto">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn("h-8 px-3 text-xs", viewMode === 'list' && "bg-background shadow-sm")}
+              onClick={() => setViewMode('list')}
+            >
+              <LayoutList className="w-4 h-4 mr-2" />
+              Lista
+            </Button>
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn("h-8 px-3 text-xs", viewMode === 'grid' && "bg-background shadow-sm")}
+              onClick={() => setViewMode('grid')}
+            >
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              Grade
+            </Button>
+          </div>
+        </div>
 
         <TabsContent value={activeTab} className="mt-4">
           {filteredLeads.length === 0 ? (
@@ -405,7 +431,7 @@ export default function FilaTriagem() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            <div className={cn("gap-4", viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" : "flex flex-col space-y-3")}>
               {filteredLeads.map((lead) => (
                 <TriagemLeadCardV2
                   key={lead.id}
@@ -418,6 +444,7 @@ export default function FilaTriagem() {
                   isDescartando={descartarLead.isPending}
                   isAtribuindo={atribuirLead.isPending}
                   currentUserId={user?.id}
+                  viewMode={viewMode}
                 />
               ))}
             </div>
@@ -450,7 +477,7 @@ export default function FilaTriagem() {
                   onValueChange={(value) => setTicketForm({ ...ticketForm, origem: value })}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="z-[100]">
                     {TICKET_ORIGEM_OPTIONS.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
@@ -464,7 +491,7 @@ export default function FilaTriagem() {
                   onValueChange={(value) => setTicketForm({ ...ticketForm, departamento: value })}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="z-[100]">
                     {departamentoOptions.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
@@ -481,7 +508,7 @@ export default function FilaTriagem() {
                   onValueChange={(value) => setTicketForm({ ...ticketForm, motivo: value })}
                 >
                   <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="z-[100]">
                     {motivoOptions.map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
@@ -495,7 +522,7 @@ export default function FilaTriagem() {
                   onValueChange={(value) => setTicketForm({ ...ticketForm, prioridade: value })}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" className="z-[100]">
                     <SelectItem value="baixa">Baixa</SelectItem>
                     <SelectItem value="media">Média</SelectItem>
                     <SelectItem value="alta">Alta</SelectItem>
@@ -676,36 +703,36 @@ export default function FilaTriagem() {
           </div>
         </DialogContent>
       </Dialog>
-        {/* Dialog para Descartar Lead (motivo) */}
-        <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
-          <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
-              <DialogHeader>
-                <DialogTitle>Descartar Lead</DialogTitle>
-                <DialogDescription id="desc-discard">Informe o motivo do descarte para registro no histórico.</DialogDescription>
-              </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="discardReason">Motivo do Descarte *</Label>
-                <Textarea
-                  id="discardReason"
-                  value={discardReason}
-                  onChange={(e) => setDiscardReason(e.target.value)}
-                  placeholder="Informe o motivo pelo qual este lead está sendo descartado"
-                  rows={4}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => { setDiscardDialogOpen(false); setDiscardReason(''); setDiscardingLeadId(null); }}>
-                  Cancelar
-                </Button>
-                <Button onClick={submitDiscard} disabled={!discardReason || descartarLead.isPending}>
-                  {descartarLead.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Descartar
-                </Button>
-              </div>
+      {/* Dialog para Descartar Lead (motivo) */}
+      <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+        <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
+          <DialogHeader>
+            <DialogTitle>Descartar Lead</DialogTitle>
+            <DialogDescription id="desc-discard">Informe o motivo do descarte para registro no histórico.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="discardReason">Motivo do Descarte *</Label>
+              <Textarea
+                id="discardReason"
+                value={discardReason}
+                onChange={(e) => setDiscardReason(e.target.value)}
+                placeholder="Informe o motivo pelo qual este lead está sendo descartado"
+                rows={4}
+              />
             </div>
-          </DialogContent>
-        </Dialog>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setDiscardDialogOpen(false); setDiscardReason(''); setDiscardingLeadId(null); }}>
+                Cancelar
+              </Button>
+              <Button onClick={submitDiscard} disabled={!discardReason || descartarLead.isPending}>
+                {descartarLead.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Descartar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

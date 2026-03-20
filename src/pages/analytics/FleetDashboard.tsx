@@ -271,7 +271,7 @@ export default function FleetDashboard() {
     const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
     const sinistros = useMemo(() => sinistrosData || [], [sinistrosData]);
     const multas = useMemo(() => multasData || [], [multasData]);
-    
+
     // Mapa de Contratos por Placa (para enriquecer dim_frota)
     const contratosMap = useMemo(() => {
         const map: Record<string, {
@@ -1182,7 +1182,7 @@ export default function FleetDashboard() {
             .sort((a, b) => b.value - a.value);
     }, [filteredData]);
 
-    
+
 
     const telemetriaAtualizada = useMemo(() => {
         const agora = new Date();
@@ -2796,88 +2796,88 @@ export default function FleetDashboard() {
                                 </div>
                             </div>
                             {!geoCollapsed && (
-                            <div className="p-4">
-                                <Accordion type="single" collapsible value={accordionValue ?? undefined} onValueChange={(v) => setAccordionValue(v)} className="w-full">
-                                    {localizacaoHierarquica.map((item) => (
-                                        <AccordionItem key={item.uf} value={item.uf} className="border-b border-slate-100 last:border-0">
-                                            <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
-                                                <div className="flex w-full items-center justify-between pr-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'Não classificados' : item.uf}</Badge>
-                                                        <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} veículos</span>
-                                                        <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden ml-2">
-                                                            <div
-                                                                className="h-full bg-blue-600 rounded-full"
-                                                                style={{ width: `${Math.min(100, (item.total / mapData.length) * 100)}%` }}
-                                                            />
+                                <div className="p-4">
+                                    <Accordion type="single" collapsible value={accordionValue ?? undefined} onValueChange={(v) => setAccordionValue(v)} className="w-full">
+                                        {localizacaoHierarquica.map((item) => (
+                                            <AccordionItem key={item.uf} value={item.uf} className="border-b border-slate-100 last:border-0">
+                                                <AccordionTrigger className="hover:no-underline py-3 px-2 hover:bg-slate-50 rounded-lg group">
+                                                    <div className="flex w-full items-center justify-between pr-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <Badge size="lg" className="w-12 justify-center font-bold bg-blue-600 text-white">{item.uf === 'ND' ? 'Não classificados' : item.uf}</Badge>
+                                                            <span className="text-sm font-medium text-slate-700">{item.cities.length} Cidades</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-bold text-slate-900">{fmtDecimal(item.total)} veículos</span>
+                                                            <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden ml-2">
+                                                                <div
+                                                                    className="h-full bg-blue-600 rounded-full"
+                                                                    style={{ width: `${Math.min(100, (item.total / mapData.length) * 100)}%` }}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="px-4 pb-4 pt-2">
-                                                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                                                    <Title className="text-sm mb-3 text-slate-700">Veículos por Município em {item.uf}</Title>
-                                                    <div className="mt-2 space-y-1 max-h-96 overflow-y-auto">
-                                                        {item.cities.map((city) => (
-                                                            <div
-                                                                key={city.name}
-                                                                className={`flex items-center justify-between text-sm p-2 rounded cursor-pointer transition-colors ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-100 ring-1 ring-blue-500' : 'hover:bg-blue-50'}`}
-                                                                onClick={() => handleLocationClick(item.uf, city.name)}
-                                                            >
-                                                                <div className="flex items-center gap-2 truncate">
-                                                                    <div className={`h-2 w-2 rounded-full ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-600' : 'bg-blue-400'}`} />
-                                                                    <span className="truncate text-slate-700 font-medium">{city.name}</span>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="px-4 pb-4 pt-2">
+                                                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                                                        <Title className="text-sm mb-3 text-slate-700">Veículos por Município em {item.uf}</Title>
+                                                        <div className="mt-2 space-y-1 max-h-96 overflow-y-auto">
+                                                            {item.cities.map((city) => (
+                                                                <div
+                                                                    key={city.name}
+                                                                    className={`flex items-center justify-between text-sm p-2 rounded cursor-pointer transition-colors ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-100 ring-1 ring-blue-500' : 'hover:bg-blue-50'}`}
+                                                                    onClick={() => handleLocationClick(item.uf, city.name)}
+                                                                >
+                                                                    <div className="flex items-center gap-2 truncate">
+                                                                        <div className={`h-2 w-2 rounded-full ${selectedLocation?.city === city.name && selectedLocation?.uf === item.uf ? 'bg-blue-600' : 'bg-blue-400'}`} />
+                                                                        <span className="truncate text-slate-700 font-medium">{city.name}</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span className="text-slate-600 font-medium">{city.value} veículos</span>
+                                                                        {item.uf === 'ND' && city.name === 'Não classificados' && naoClassificadosPlacas.length > 0 && (
+                                                                            <div className="mt-2 flex gap-2 flex-wrap max-w-[360px] justify-end">
+                                                                                {naoClassificadosPlacas.map(p => (
+                                                                                    <button
+                                                                                        key={p}
+                                                                                        onClick={() => {
+                                                                                            applyFilterValues('search', [p]);
+                                                                                            // garantir que a tabela local de telemetria também aplique a pesquisa
+                                                                                            setAppliedPlateSearch(p);
+                                                                                            setPlateSearch(p);
+                                                                                            setActiveTab('telemetria');
+                                                                                            // rolar até a tabela de telemetria para foco do usuário
+                                                                                            setTimeout(() => {
+                                                                                                const el = document.getElementById('telemetria-table');
+                                                                                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                                                // tentar focar o input de pesquisa local se existir
+                                                                                                const input = el?.querySelector('input[placeholder="Pesquisar placa"]') as HTMLElement | null;
+                                                                                                if (input) input.focus();
+                                                                                            }, 120);
+                                                                                        }}
+                                                                                        className="px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-700 hover:bg-blue-50"
+                                                                                    >
+                                                                                        {p}
+                                                                                    </button>
+                                                                                ))}
+                                                                                {naoClassificadosPlacas.length > 30 && (
+                                                                                    <span className="px-2 py-0.5 bg-slate-50 rounded text-xs text-slate-500">+{naoClassificadosPlacas.length - 30} mais</span>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="flex flex-col items-end">
-                                                                    <span className="text-slate-600 font-medium">{city.value} veículos</span>
-                                                                    {item.uf === 'ND' && city.name === 'Não classificados' && naoClassificadosPlacas.length > 0 && (
-                                                                        <div className="mt-2 flex gap-2 flex-wrap max-w-[360px] justify-end">
-                                                                            {naoClassificadosPlacas.map(p => (
-                                                                                <button
-                                                                                    key={p}
-                                                                                    onClick={() => {
-                                                                                        applyFilterValues('search', [p]);
-                                                                                        // garantir que a tabela local de telemetria também aplique a pesquisa
-                                                                                        setAppliedPlateSearch(p);
-                                                                                        setPlateSearch(p);
-                                                                                        setActiveTab('telemetria');
-                                                                                        // rolar até a tabela de telemetria para foco do usuário
-                                                                                        setTimeout(() => {
-                                                                                            const el = document.getElementById('telemetria-table');
-                                                                                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                                            // tentar focar o input de pesquisa local se existir
-                                                                                            const input = el?.querySelector('input[placeholder="Pesquisar placa"]') as HTMLElement | null;
-                                                                                            if (input) input.focus();
-                                                                                        }, 120);
-                                                                                    }}
-                                                                                    className="px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-700 hover:bg-blue-50"
-                                                                                >
-                                                                                    {p}
-                                                                                </button>
-                                                                            ))}
-                                                                            {naoClassificadosPlacas.length > 30 && (
-                                                                                <span className="px-2 py-0.5 bg-slate-50 rounded text-xs text-slate-500">+{naoClassificadosPlacas.length - 30} mais</span>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    ))}
-                                </Accordion>
-                                {localizacaoHierarquica.length === 0 && (
-                                    <div className="p-8 text-center text-slate-500 text-sm">
-                                        Nenhuma informação de localização disponível nos filtros atuais.
-                                    </div>
-                                )}
-                            </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        ))}
+                                    </Accordion>
+                                    {localizacaoHierarquica.length === 0 && (
+                                        <div className="p-8 text-center text-slate-500 text-sm">
+                                            Nenhuma informação de localização disponível nos filtros atuais.
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </Card>
                     </div>
@@ -2937,34 +2937,34 @@ export default function FleetDashboard() {
                         </div>
 
                         {!localizacaoCollapsed && (
-                        <div className="h-[500px] w-full">
-                            <MapContainer center={[-15.7942, -47.8822]} zoom={4} style={{ height: '100%', width: '100%' }}>
-                                <TileLayer
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; OpenStreetMap'
-                                />
-                                {mapData.slice(0, markerLimit).map((v, idx) => (
-                                    <Marker key={idx} position={[v._lat, v._lng]}>
-                                        <Popup>
-                                            <div className="text-sm">
-                                                <p className="font-bold">{v.Placa}</p>
-                                                <p>{v.Modelo}</p>
-                                                <p className="text-xs text-slate-600 font-medium">{v.NomeCliente}</p>
-                                                <p className="text-xs text-slate-500">{v.Status}</p>
-                                                {v.UltimoEnderecoTelemetria && (
-                                                    <p className="text-xs text-blue-600 mt-1">{v.UltimoEnderecoTelemetria}</p>
-                                                )}
-                                                {v.UltimaAtualizacaoTelemetria && (
-                                                    <p className="text-xs text-slate-400 mt-1">
-                                                        Atualizado: {new Date(v.UltimaAtualizacaoTelemetria).toLocaleString('pt-BR')}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </Popup>
-                                    </Marker>
-                                ))}
-                            </MapContainer>
-                        </div>
+                            <div className="h-[500px] w-full">
+                                <MapContainer center={[-15.7942, -47.8822]} zoom={4} style={{ height: '100%', width: '100%' }}>
+                                    <TileLayer
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        attribution='&copy; OpenStreetMap'
+                                    />
+                                    {mapData.slice(0, markerLimit).map((v, idx) => (
+                                        <Marker key={idx} position={[v._lat, v._lng]}>
+                                            <Popup>
+                                                <div className="text-sm">
+                                                    <p className="font-bold">{v.Placa}</p>
+                                                    <p>{v.Modelo}</p>
+                                                    <p className="text-xs text-slate-600 font-medium">{v.NomeCliente}</p>
+                                                    <p className="text-xs text-slate-500">{v.Status}</p>
+                                                    {v.UltimoEnderecoTelemetria && (
+                                                        <p className="text-xs text-blue-600 mt-1">{v.UltimoEnderecoTelemetria}</p>
+                                                    )}
+                                                    {v.UltimaAtualizacaoTelemetria && (
+                                                        <p className="text-xs text-slate-400 mt-1">
+                                                            Atualizado: {new Date(v.UltimaAtualizacaoTelemetria).toLocaleString('pt-BR')}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </Popup>
+                                        </Marker>
+                                    ))}
+                                </MapContainer>
+                            </div>
                         )}
                     </Card>
 
@@ -3214,10 +3214,10 @@ export default function FleetDashboard() {
                                             className="bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer hover:bg-purple-200 transition-colors"
                                             onClick={() => setSelectedTemporalFilter(null)}
                                         >
-                                            ­ƒôà {selectedTemporalFilter.month
+                                            📅 {selectedTemporalFilter.month
                                                 ? `${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][parseInt(selectedTemporalFilter.month) - 1]}/${selectedTemporalFilter.year}`
                                                 : selectedTemporalFilter.year
-                                            } Ô£ò
+                                            } ✖
                                         </Badge>
                                     )}
                                 </div>
@@ -3268,11 +3268,11 @@ export default function FleetDashboard() {
                                         <div className="group relative">
                                             <Info size={16} className="text-slate-400 hover:text-blue-600 cursor-help transition-colors" />
                                             <div className="absolute left-0 top-6 w-80 bg-slate-800 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl">
-                                                <p className="font-semibold mb-2">­ƒôè Como funciona este gráfico:</p>
+                                                <p className="font-semibold mb-2">ℹ️ Como funciona este gráfico:</p>
                                                 <p className="mb-2"><strong>Fonte:</strong> fat_carro_reserva.json</p>
                                                 <p className="mb-2"><strong>Cálculo:</strong> Para cada dia, conta quantos veículos estavam "na rua" simultaneamente.</p>
                                                 <p className="mb-2"><strong>Regra:</strong> Um veículo conta se DataInicio &lt;= dia E (DataFim &gt;= dia OU DataFim = null)</p>
-                                                <p><strong>­ƒÆí Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
+                                                <p><strong>💡 Dica:</strong> Use o slider abaixo para ajustar o período de análise!</p>
                                                 <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 transform rotate-45"></div>
                                             </div>
                                         </div>
@@ -3428,7 +3428,7 @@ export default function FleetDashboard() {
                                                 onClick={() => setSelectedDayForDetail(null)}
                                                 className="px-3 py-1.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors flex items-center gap-1"
                                             >
-                                                Ô£ò Fechar
+                                                ✖ Fechar
                                             </button>
                                         </div>
                                         <div className="overflow-x-auto">
@@ -3453,12 +3453,12 @@ export default function FleetDashboard() {
                                                             : Math.ceil((Date.now() - new Date(r.DataInicio!).getTime()) / (1000 * 60 * 60 * 24));
                                                         return (
                                                             <tr key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0">
-                                                                <td className="px-3 py-2 font-mono font-semibold text-slate-800">{r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || 'ÔÇö'}</td>
-                                                                <td className="px-3 py-2 text-slate-700">{r.ModeloVeiculoReserva || r.ModeloReserva || 'ÔÇö'}</td>
-                                                                <td className="px-3 py-2 text-slate-700">{r.Cliente || 'ÔÇö'}</td>
+                                                                <td className="px-3 py-2 font-mono font-semibold text-slate-800">{r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-700">{r.ModeloVeiculoReserva || r.ModeloReserva || '—'}</td>
+                                                                <td className="px-3 py-2 text-slate-700">{r.Cliente || '—'}</td>
                                                                 <td className="px-3 py-2">
                                                                     <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-                                                                        {r.Motivo || 'ÔÇö'}
+                                                                        {r.Motivo || '—'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-3 py-2">
@@ -3466,13 +3466,13 @@ export default function FleetDashboard() {
                                                                         ? 'bg-emerald-100 text-emerald-700'
                                                                         : 'bg-slate-100 text-slate-600'
                                                                         }`}>
-                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || 'ÔÇö'}
+                                                                        {r.StatusOcorrencia || r.SituacaoOcorrencia || '—'}
                                                                     </span>
                                                                 </td>
-                                                                <td className="px-3 py-2 text-slate-600">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : 'ÔÇö'}</td>
+                                                                <td className="px-3 py-2 text-slate-600">{r.DataInicio ? new Date(r.DataInicio).toLocaleDateString('pt-BR') : '—'}</td>
                                                                 <td className="px-3 py-2 text-slate-600">{r.DataFim ? new Date(r.DataFim).toLocaleDateString('pt-BR') : <span className="text-rose-600 font-medium">Em andamento</span>}</td>
                                                                 <td className="px-3 py-2 text-right font-medium text-slate-700">{diasParado}</td>
-                                                                <td className="px-3 py-2 text-slate-600 text-xs">{r.Cidade ? `${r.Cidade}${r.Estado ? ` / ${r.Estado}` : ''}` : 'ÔÇö'}</td>
+                                                                <td className="px-3 py-2 text-slate-600 text-xs">{r.Cidade ? `${r.Cidade}${r.Estado ? ` / ${r.Estado}` : ''}` : '—'}</td>
                                                             </tr>
                                                         );
                                                     })}
@@ -3559,13 +3559,13 @@ export default function FleetDashboard() {
                                                             className="w-6 h-6 flex items-center justify-center text-sm rounded hover:bg-slate-100"
                                                             aria-label={isYearExpanded ? 'Colapsar ano' : 'Expandir ano'}
                                                         >
-                                                            {isYearExpanded ? 'Ôû╝' : 'ÔûÂ'}
+                                                            {isYearExpanded ? '▼' : '▶'}
                                                         </button>
                                                         <span className="text-lg font-bold text-blue-700">{yearData.year}</span>
                                                         <Badge className="bg-blue-600 text-white">{yearData.yearTotal} ocorrências</Badge>
                                                         {yearData.prevYearTotal > 0 && (
                                                             <span className={`text-xs font-medium ${yearData.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                {yearData.yoyChange >= 0 ? 'Ôû▓' : 'Ôû╝'} {Math.abs(yearData.yoyChange).toFixed(1)}% vs {parseInt(yearData.year) - 1}
+                                                                {yearData.yoyChange >= 0 ? '▲' : '▼'} {Math.abs(yearData.yoyChange).toFixed(1)}% vs {parseInt(yearData.year) - 1}
                                                             </span>
                                                         )}
                                                     </div>
