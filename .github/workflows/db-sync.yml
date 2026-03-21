@@ -16,7 +16,9 @@ concurrency:
 jobs:
   db-sync:
     name: Sincronizar SQL Server -> Supabase
-    runs-on: [self-hosted, Windows, X64, sql-vpn]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 180
 
     steps:
