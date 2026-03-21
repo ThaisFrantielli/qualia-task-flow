@@ -29,7 +29,6 @@ import {
   Plus,
   Send,
   Loader2,
-  Headphones,
   Zap,
   MessageSquare as MessageSquareIcon,
   Inbox
@@ -42,6 +41,26 @@ interface WhatsAppInstance {
   status: string;
   phone_number: string | null;
 }
+
+const normalizePhoneDigits = (value: string) => value.replace(/\D/g, '');
+
+const getFunctionErrorMessage = async (error: any) => {
+  const fallback = error?.message || 'Falha ao enviar mensagem';
+  const context = error?.context;
+
+  if (!context || typeof context.json !== 'function') {
+    return fallback;
+  }
+
+  try {
+    const payload = await context.json();
+    if (payload?.error) return String(payload.error);
+    if (payload?.message) return String(payload.message);
+    return fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 export default function AtendimentoCentralPage() {
   const { user } = useAuth();
@@ -134,17 +153,40 @@ export default function AtendimentoCentralPage() {
       return;
     }
 
+    const selectedInstance = instances.find((instance) => instance.id === selectedInstanceId);
+    if (!selectedInstance || selectedInstance.status !== 'connected') {
+      toast({
+        title: 'Instância desconectada',
+        description: 'Conecte a instância WhatsApp selecionada antes de enviar.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneDigits(newChatPhone);
+    if (normalizedPhone.length < 12) {
+      toast({
+        title: 'Número inválido',
+        description: 'Informe o número com DDI + DDD + número (apenas dígitos). Ex.: 5511999999999.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsSendingNewChat(true);
     try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+      const { error } = await supabase.functions.invoke('whatsapp-send', {
         body: {
           instance_id: selectedInstanceId,
-          phoneNumber: newChatPhone.replace(/\D/g, ''),
-          message: newChatMessage
+          phoneNumber: normalizedPhone,
+          message: newChatMessage.trim()
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        const parsedMessage = await getFunctionErrorMessage(error);
+        throw new Error(parsedMessage);
+      }
 
       toast({ title: 'Mensagem Enviada!', description: 'A conversa logo aparecerá na sua fila.' });
       setIsNewChatOpen(false);
@@ -404,7 +446,7 @@ export default function AtendimentoCentralPage() {
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setIsNewChatOpen(false)}>Cancelar</Button>
-                      <Button onClick={handleStartNewConversation} disabled={isSendingNewChat || !newChatPhone || !newChatMessage}>
+                      <Button onClick={handleStartNewConversation} disabled={isSendingNewChat || !newChatPhone || !newChatMessage || selectedInstance?.status !== 'connected'}>
                         {isSendingNewChat ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                         Enviar
                       </Button>

@@ -12,7 +12,8 @@ import {
   Phone,
   MessageSquare,
   Hand,
-  Eye
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,7 +29,6 @@ interface TriagemLeadCardV2Props {
   onAtribuir?: (clienteId: string) => void;
   isEncaminhando?: boolean;
   isDescartando?: boolean;
-  isAtribuindo?: boolean;
   isAtribuindo?: boolean;
   currentUserId?: string;
   viewMode?: 'grid' | 'list';
@@ -188,8 +188,12 @@ export function TriagemLeadCardV2({
               onClick={() => onAtribuir(lead.id)}
               disabled={isAtribuindo}
             >
-              <Hand className="w-4 h-4 mr-2" />
-              Assumir
+              {isAtribuindo ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Hand className="w-4 h-4 mr-2" />
+              )}
+              {isAtribuindo ? 'Assumindo...' : 'Assumir'}
             </Button>
           )}
 
@@ -201,8 +205,12 @@ export function TriagemLeadCardV2({
               disabled={isEncaminhando}
               className="text-xs"
             >
-              <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-              Comercial
+              {isEncaminhando ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              {isEncaminhando ? 'Enviando...' : 'Comercial'}
             </Button>
             <Button
               variant="outline"
@@ -220,7 +228,11 @@ export function TriagemLeadCardV2({
               disabled={isDescartando}
               className="text-xs text-muted-foreground hover:text-destructive px-2"
             >
-              <X className="w-3.5 h-3.5" />
+              {isDescartando ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <X className="w-3.5 h-3.5" />
+              )}
             </Button>
           </div>
         </div>

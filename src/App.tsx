@@ -44,13 +44,13 @@ import WhatsAppTemplatesPage from '@/pages/WhatsAppTemplatesPage';
 import WhatsAppDistributionConfigPage from '@/pages/WhatsAppDistributionConfigPage';
 import WhatsAppDistributionDashboard from '@/pages/WhatsAppDistributionDashboard';
 import AtendimentoCentralPage from '@/pages/AtendimentoCentralPage';
+import WhatsAppCentralPage from '@/pages/WhatsAppChatPage';
 import MultiWhatsAppManagerPage from '@/pages/MultiWhatsAppManagerPage';
 // Páginas antigas redirecionadas para UsuariosAcessos
 import UsuariosAcessosPage from '@/pages/Configuracoes/UsuariosAcessos';
 import TicketOptionsPage from '@/pages/TicketOptionsPage';
 import FilaTriagem from '@/pages/FilaTriagem';
-import AtendimentoPainelPage from '@/pages/AtendimentoPainelPage';
-import ForecastDashboard from '@/pages/ForecastDashboard';
+import AtendimentoWorkspacePage from '@/pages/AtendimentoPainelPage';
 import TicketsUnifiedPage from '@/pages/TicketsUnifiedPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import TicketsReportsDashboard from '@/pages/TicketsReportsDashboard';
@@ -111,10 +111,8 @@ function App() {
               <Route path="/tickets/reports" element={<TicketsReportsDashboard />} />
 
               <Route path="/atendimento" element={<AtendimentoCentralPage />} />
-              <Route path="/atendimento/workspace" element={<Navigate to="/atendimento/painel" replace />} />
-              <Route path="/atendimento/painel" element={<AtendimentoPainelPage />} />
-              <Route path="/whatsapp" element={<Navigate to="/atendimento" replace />} />
-              <Route path="/forecast" element={<ForecastDashboard />} />
+              <Route path="/atendimento/workspace" element={<AtendimentoWorkspacePage />} />
+              <Route path="/whatsapp" element={<WhatsAppCentralPage />} />
               <Route path="/triagem" element={<FilaTriagem />} />
               <Route path="/emails" element={<EmailPage />} />
               <Route path="/broadcasts" element={<Broadcasts />} />
@@ -138,8 +136,6 @@ function App() {
               <Route path="/propostas/:id" element={<PropostasFormPage />} />
 
               <Route path="/precificacao/config" element={<PrecificacaoConfigPage />} />
-
-              <Route path="/triagem" element={<FilaTriagem />} />
 
               <Route path="/pesquisas" element={<SurveyAdminPage />} />
               <Route path="/pesquisas/relatorios" element={<SurveyReportsPage />} />

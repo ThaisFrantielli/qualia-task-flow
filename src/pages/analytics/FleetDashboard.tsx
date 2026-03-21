@@ -1986,7 +1986,35 @@ export default function FleetDashboard() {
         };
     }, [ocupacaoSimultaneaData]);
 
-    const reservaPageItems = filteredReservas.slice(reservaPage * pageSize, (reservaPage + 1) * pageSize);
+    // Ordenação na tabela de Detalhamento de Carro Reserva
+    const [reservaSort, setReservaSort] = useState<{ col: string | null; dir: 'asc' | 'desc' }>({ col: null, dir: 'asc' });
+
+    const reservaSorted = useMemo(() => {
+        const arr = (filteredReservas || []).slice();
+        if (!reservaSort.col) return arr;
+        const col = reservaSort.col;
+        arr.sort((a: any, b: any) => {
+            let va: any = '';
+            let vb: any = '';
+            if (col === 'Modelo') {
+                va = a.ModeloVeiculoReserva || a.ModeloReserva || a.Modelo || '';
+                vb = b.ModeloVeiculoReserva || b.ModeloReserva || b.Modelo || '';
+            } else {
+                va = a[col] || '';
+                vb = b[col] || '';
+            }
+
+            // tentar número primeiro
+            if (!isNaN(Number(va)) || !isNaN(Number(vb))) {
+                return ((Number(va) || 0) - (Number(vb) || 0)) * (reservaSort.dir === 'asc' ? 1 : -1);
+            }
+
+            return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * (reservaSort.dir === 'asc' ? 1 : -1);
+        });
+        return arr;
+    }, [filteredReservas, reservaSort]);
+
+    const reservaPageItems = reservaSorted.slice(reservaPage * pageSize, (reservaPage + 1) * pageSize);
 
     // TIMELINE & EFFICIENCY - componentes movidos para EfficiencyTab e TimelineTab
 
@@ -3980,7 +4008,15 @@ export default function FleetDashboard() {
                                                 <th className="px-4 py-3 min-w-[120px]">Data Fim</th>
                                                 <th className="px-4 py-3 min-w-[120px]">Ocorrência</th>
                                                 <th className="px-4 py-3 min-w-[110px]">Placa</th>
-                                                <th className="px-4 py-3 min-w-[150px]">Modelo</th>
+                                                <th onClick={() => {
+                                                    setReservaPage(0);
+                                                    setReservaSort(s => ({ col: s.col === 'Modelo' ? (s.dir === 'asc' ? 'desc' : 'asc') : 'Modelo', dir: s.col === 'Modelo' ? (s.dir === 'asc' ? 'desc' : 'asc') : 'asc' }));
+                                                }} className="px-4 py-3 min-w-[150px] cursor-pointer select-none">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>Modelo</span>
+                                                        {reservaSort.col === 'Modelo' ? (reservaSort.dir === 'asc' ? <ArrowUp size={14} className="text-slate-500" /> : <ArrowDown size={14} className="text-slate-500" />) : <ArrowUpDown size={12} className="text-slate-300" />}
+                                                    </div>
+                                                </th>
                                                 <th className="px-4 py-3 min-w-[80px]">Diárias</th>
                                                 <th className="px-4 py-3 min-w-[150px]">Cliente</th>
                                                 <th className="px-4 py-3 min-w-[150px]">Motivo</th>
@@ -4014,7 +4050,7 @@ export default function FleetDashboard() {
                                                         </td>
                                                         <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.Ocorrencia || r.IdOcorrencia || '-'}</td>
                                                         <td className="px-4 py-3 font-bold text-slate-700 font-mono underline decoration-slate-200">{r.PlacaReserva || '-'}</td>
-                                                        <td className="px-4 py-3 text-slate-600 truncate max-w-[150px]">{r.ModeloReserva || '-'}</td>
+                                                        <td className="px-4 py-3 text-slate-600 truncate max-w-[150px]">{r.ModeloVeiculoReserva || r.ModeloReserva || r.Modelo || '-'}</td>
                                                         <td className="px-4 py-3 font-medium text-slate-700">{(r.DiariasEfetivas !== undefined && r.DiariasEfetivas !== null) ? String(r.DiariasEfetivas) : ((r.Diarias !== undefined && r.Diarias !== null) ? String(r.Diarias) : '-')}</td>
                                                         <td className="px-4 py-3 text-slate-500 truncate max-w-[150px]">{r.Cliente || '-'}</td>
                                                         <td className="px-4 py-3">

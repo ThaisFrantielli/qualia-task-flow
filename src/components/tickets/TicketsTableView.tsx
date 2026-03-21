@@ -10,7 +10,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { format } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowUpDown, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,13 @@ export function TicketsTableView({
     if (ticket.status === "resolvido" || ticket.status === "fechado") return false;
     const sla = ticket.sla_resolucao ? new Date(ticket.sla_resolucao).getTime() : 0;
     return sla > 0 && sla < Date.now();
+  };
+
+  const getSlaRelative = (slaDate: string) => {
+    return formatDistanceToNowStrict(new Date(slaDate), {
+      addSuffix: true,
+      locale: ptBR,
+    });
   };
 
   const SortButton = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
@@ -230,14 +237,14 @@ export function TicketsTableView({
                 </TableCell>
                 <TableCell>
                   {isSlaOverdue(ticket) ? (
-                    <Badge variant="destructive" className="text-[10px] gap-1">
+                    <Badge variant="destructive" className="text-[10px] gap-1 whitespace-nowrap">
                       <AlertTriangle className="h-3 w-3" />
-                      Vencido
+                      {getSlaRelative(ticket.sla_resolucao)}
                     </Badge>
                   ) : ticket.sla_resolucao ? (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
                       <Clock className="h-3 w-3" />
-                      {format(new Date(ticket.sla_resolucao), "dd/MM HH:mm")}
+                      {format(new Date(ticket.sla_resolucao), "dd/MM HH:mm")} ({getSlaRelative(ticket.sla_resolucao)})
                     </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">-</span>

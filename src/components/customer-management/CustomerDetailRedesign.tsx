@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { ClienteComContatos, Contato } from '@/types';
 import { useClienteDetail } from '@/hooks/useClienteDetail';
 import { useWhatsAppNumbers } from '@/hooks/useWhatsAppNumbers';
@@ -31,6 +31,7 @@ import { CustomerQuickActions } from './CustomerQuickActions';
 import { CustomerTimeline } from './CustomerTimeline';
 import { CustomerSurveysTab } from '@/components/surveys/CustomerSurveysTab';
 import { CustomerNegociosCollapsible } from './CustomerNegociosCollapsible';
+import { DeleteClienteConfirmation } from '@/components/DeleteClienteConfirmation';
 
 interface CustomerDetailRedesignProps {
   customer: ClienteComContatos;
@@ -43,6 +44,7 @@ export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   useClienteDetail(customer);
   const { numbers: whatsappNumbers, loading: whatsappLoading } = useWhatsAppNumbers();
   const { data: tickets, isLoading: ticketsLoading } = useTickets({ cliente_id: customer.id });
@@ -110,7 +112,7 @@ export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
               variant="outline"
               size="sm"
               className="text-destructive hover:bg-destructive/10"
-              onClick={onDelete}
+              onClick={() => setDeleteConfirmOpen(true)}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -314,6 +316,13 @@ export const CustomerDetailRedesign: React.FC<CustomerDetailRedesignProps> = ({
           </TabsContent>
         </div>
       </Tabs>
+
+      <DeleteClienteConfirmation
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={onDelete}
+        clienteName={customer.nome_fantasia || customer.razao_social || 'Cliente'}
+      />
     </div>
   );
 }
