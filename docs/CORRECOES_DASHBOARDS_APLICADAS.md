@@ -237,3 +237,46 @@ Os únicos ajustes pendentes são otimizações e melhorias incrementais, mas **
 ---
 
 **Última Atualização:** 20/01/2026 - Correções aplicadas e testadas
+
+---
+
+## 6. Ajustes de Qualidade - Divergências Frota (Mar/2026) ✅ CORRIGIDO
+
+**Arquivo:** `src/pages/analytics/FleetDashboard.tsx`
+
+### Itens ajustados
+- ✅ Classificação de Odômetro
+- ✅ Aging de pátio
+- ✅ Provedores de Telemetria
+- ✅ Situação de Seguro
+- ✅ KM Informado (fallback para evitar leitura zerada por campo placeholder)
+- ✅ Proprietário do Veículo
+- ✅ Finalidade de Uso
+
+### Regras aplicadas
+
+1. **KM Informado / KM Confirmado**
+- Foi aplicada seleção por melhor valor numérico disponível entre aliases (`KmInformado`, `KM`, `km`, `currentkm`, etc.).
+- Quando um campo vem preenchido com `0` placeholder e existe alias com valor válido, o dashboard passa a considerar o valor válido.
+
+2. **Aging de Pátio**
+- O gráfico de aging agora considera apenas veículos com `DataInicioStatus` conhecida.
+- Veículos sem referência temporal continuam no detalhamento de pátio, mas não entram na distribuição por faixa de dias.
+
+3. **Telemetria, Seguro, Proprietário, Finalidade**
+- Campos foram normalizados na carga para reduzir divergência por variação de casing, valor vazio e aliases.
+- Situação de seguro passou a classificar de forma robusta (`true/false`, `1/0`, `sim/não`, etc.).
+
+### Regra oficial dos Big Numbers solicitados
+
+1. **Veículos Localizáveis**
+- Definição: quantidade de veículos filtrados que possuem **Latitude e Longitude válidas** (numéricas e diferentes de zero).
+- Fórmula:
+  - `Localizáveis = count(veículos filtrados com lat != 0 e lng != 0)`
+
+2. **Taxa de Cobertura GPS**
+- Definição: percentual de veículos localizáveis sobre a frota filtrada no contexto atual.
+- Fórmula:
+  - `Cobertura GPS (%) = (Veículos Localizáveis / Total da Frota Filtrada) * 100`
+
+> Observação: o mapa pode usar fallback visual de localização para plotagem, mas os Big Numbers usam somente coordenadas reais válidas para evitar inflar KPI.

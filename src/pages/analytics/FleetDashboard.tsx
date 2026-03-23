@@ -30,7 +30,69 @@ L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, 
 type AnyObject = { [k: string]: any };
 
 function parseCurrency(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
-function parseNum(v: any): number { return typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, '')) || 0; }
+function parseNum(v: any): number {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    const raw = String(v ?? '').trim();
+    if (!raw) return 0;
+
+    const s = raw.replace(/\s/g, '').replace(/[^0-9,.-]/g, '');
+    if (!s) return 0;
+
+    // pt-BR com milhar por ponto: 81.112 ou 81.112,50
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
+        const n = Number(s.replace(/\./g, '').replace(',', '.'));
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    // en-US com milhar por vírgula: 81,112 ou 81,112.50
+    if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) {
+        const n = Number(s.replace(/,/g, ''));
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    // Decimal com vírgula: 123,45
+    if (/^-?\d+,\d+$/.test(s)) {
+        const n = Number(s.replace(',', '.'));
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    const n = Number(s);
+    if (Number.isFinite(n)) return n;
+
+    const fallback = parseFloat(s.replace(',', '.'));
+    return Number.isFinite(fallback) ? fallback : 0;
+}
+function pickBestNumber(item: AnyObject, keys: string[]): number {
+    let firstKnown: number | null = null;
+    for (const key of keys) {
+        const raw = item?.[key];
+        if (raw === null || raw === undefined) continue;
+        const text = String(raw).trim();
+        if (!text) continue;
+        const n = parseNum(raw);
+        if (Number.isFinite(n) && n > 0) return n;
+        if (firstKnown === null && Number.isFinite(n)) firstKnown = n;
+    }
+    return firstKnown ?? 0;
+}
+function classifySeguro(v: any): 'Com Seguro' | 'Sem Seguro' | 'Não Informado' {
+    const s = String(v ?? '').trim().toLowerCase();
+    if (!s) return 'Não Informado';
+    if (['1', 'true', 'sim', 's', 'yes'].includes(s)) return 'Com Seguro';
+    if (['0', 'false', 'nao', 'não', 'n', 'no'].includes(s)) return 'Sem Seguro';
+    return 'Não Informado';
+}
+function normalizeTelemetriaProvider(v: any): string {
+    const raw = sanitizeText(v).trim();
+    if (!raw) return 'Sem Telemetria';
+    const key = raw
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    if (['NAO DEFINIDO', 'N/A', '-', 'SEM TELEMETRIA'].includes(key)) return 'Sem Telemetria';
+    if (key === 'ITER') return 'iTER';
+    return raw;
+}
 function parseBIDate(v: any): Date | null {
     if (!v) return null;
     if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
@@ -173,12 +235,22 @@ export default function FleetDashboard() {
             Status: sanitizeText(item.Status || item.status || item.SituacaoVeiculo || item.situacaoveiculo || 'N/A') || 'N/A',
             ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.ValorCompraVeiculo || item.valor_compra || 0),
             ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorAtualFIPE || item.valoratualfipe || item.ValorFipe || item.valorfipe || 0),
-            KmInformado: parseNum(item.KmInformado || item.kminformado || item.KM || item.km || item.currentkm || 0),
-            KmConfirmado: parseNum(item.KmConfirmado || item.kmconfirmado || item.OdometroConfirmado || item.odometroconfirmado || 0),
+            KmInformado: pickBestNumber(item, ['KmInformado', 'kminformado', 'KM', 'km', 'currentkm', 'KmConfirmado', 'kmconfirmado']),
+            KmConfirmado: pickBestNumber(item, ['KmConfirmado', 'kmconfirmado', 'OdometroConfirmado', 'odometroconfirmado', 'KmInformado', 'kminformado', 'KM']),
             IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.IdadeEmMeses || item.idadeemmeses || item.agemonths || 0),
             Categoria: sanitizeText(item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros') || 'Outros',
             Filial: sanitizeText(item.Filial || item.filial || 'N/A') || 'N/A',
+            Patio: sanitizeText(item.Patio || item.patio || item.Localizacao || item.localizacao || item.LocalizacaoVeiculo || item.localizacaoveiculo || 'Sem pátio') || 'Sem pátio',
+            DiasNoStatus: parseNum(item.DiasSituacao || item.diassituacao || item.DiasNoStatus || item.diasnostatus || 0),
+            DataInicioStatus: item.DataInicioStatus || item.datainiciostatus || item.DataInicioSituacao || item.datainiciosituacao || null,
+            ProvedorTelemetria: normalizeTelemetriaProvider(item.ProvedorTelemetria || item.provedortelemetria || ''),
+            UltimaAtualizacaoTelemetria: item.UltimaAtualizacaoTelemetria || item.ultimaatualizacaotelemetria || null,
             UltimoEnderecoTelemetria: item.UltimoEnderecoTelemetria || item.ultimoenderecotelemetria || '',
+            Latitude: parseNum(item.Latitude ?? item.latitude ?? 0),
+            Longitude: parseNum(item.Longitude ?? item.longitude ?? 0),
+            ComSeguroVigente: item.ComSeguroVigente ?? item.comsegurovigente ?? null,
+            Proprietario: sanitizeText(item.Proprietario || item.proprietario || 'Não Definido') || 'Não Definido',
+            FinalidadeUso: sanitizeText(item.FinalidadeUso || item.finalidadeUso || item.finalidadeuso || 'Não Definido').toUpperCase() || 'Não Definido',
         }));
     }, [frotaData]);
 
@@ -786,7 +858,7 @@ export default function FleetDashboard() {
 
             // Filtro de odômetro (clique no gráfico de classificação por odômetro)
             if (odometroFilters.length > 0) {
-                const km = parseNum(r.KmInformado);
+                const km = parseNum(r.KmConfirmado);
                 const ok = odometroFilters.some((of: string) => {
                     if (of === '0-10k') return km < 10000;
                     if (of === '10k-20k') return km >= 10000 && km < 20000;
@@ -823,33 +895,146 @@ export default function FleetDashboard() {
 
             // Filtro de provedor de telemetria
             if (telemetriaFilters.length > 0) {
-                const provedor = r.ProvedorTelemetria || 'Não Definido';
+                const provedor = normalizeTelemetriaProvider(r.ProvedorTelemetria);
                 if (!telemetriaFilters.includes(provedor)) return false;
             }
 
             // Filtro de seguro
             if (seguroFilters.length > 0) {
-                const seguro = r.ComSeguroVigente === true || r.ComSeguroVigente === 'true' || r.ComSeguroVigente === 1
-                    ? 'Com Seguro'
-                    : r.ComSeguroVigente === false || r.ComSeguroVigente === 'false' || r.ComSeguroVigente === 0
-                        ? 'Sem Seguro'
-                        : 'Não Informado';
+                const seguro = classifySeguro(r.ComSeguroVigente);
                 if (!seguroFilters.includes(seguro)) return false;
             }
 
             // Filtro de proprietário
             if (proprietarioFilters.length > 0) {
-                const prop = r.Proprietario || 'Não Definido';
+                const prop = sanitizeText(r.Proprietario || 'Não Definido') || 'Não Definido';
                 if (!proprietarioFilters.includes(prop)) return false;
             }
 
             // Filtro de finalidade de uso
             if (finalidadeFilters.length > 0) {
-                const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
+                const finalidade = sanitizeText((r.FinalidadeUso ?? r.finalidadeUso ?? 'Não Definido') as any).toUpperCase() || 'Não Definido';
                 if (!finalidadeFilters.includes(finalidade)) return false;
             }
 
             // Filtro de diferença de KM
+            if (kmDiffFilters.length > 0) {
+                const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
+                const ok = kmDiffFilters.some((kf: string) => {
+                    if (kf === 'Sem Divergência') return diff === 0;
+                    if (kf === 'Baixa (<1k)') return diff > 0 && diff <= 1000;
+                    if (kf === 'Média (1k-5k)') return diff > 1000 && diff <= 5000;
+                    if (kf === 'Alta (>5k)') return diff > 5000;
+                    return false;
+                });
+                if (!ok) return false;
+            }
+
+            if (search) {
+                const term = search.toLowerCase();
+                if (!r.Placa?.toLowerCase().includes(term) && !r.Modelo?.toLowerCase().includes(term)) return false;
+            }
+            return true;
+        });
+    }, [frotaWithLocation, filters, getFilterValues, selectedLocation]);
+
+    // Base específica para os gráficos de odômetro/idade:
+    // aplica todos os filtros globais, exceto os próprios filtros de odômetro/idade,
+    // para evitar auto-filtragem visual (todas as barras aparentando zero fora da faixa clicada).
+    const filteredForOdometroChart = useMemo(() => {
+        const prodFilters = getFilterValues('productivity');
+        const statusFilters = getFilterValues('status');
+        const modeloFilters = getFilterValues('modelo');
+        const filialFilters = getFilterValues('filial');
+        const patioFilters = getFilterValues('patio');
+        const agingFilters = getFilterValues('aging');
+        const search = (getFilterValues('search') || [])[0] || '';
+
+        const clienteFilters = getFilterValues('cliente');
+        const tipoLocacaoFilters = getFilterValues('tipoLocacao');
+        const categoriaFilters = getFilterValues('categoria');
+
+        const telemetriaFilters = getFilterValues('telemetria');
+        const seguroFilters = getFilterValues('seguro');
+        const proprietarioFilters = getFilterValues('proprietario');
+        const finalidadeFilters = getFilterValues('finalidade');
+        const kmDiffFilters = getFilterValues('km_diff');
+
+        return frotaWithLocation.filter(r => {
+            const cat = getCategory(r.Status);
+            const finalidadeVal = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim();
+            const isTerceiro = finalidadeVal.toUpperCase() === 'TERCEIRO';
+            const wantsTerceiro = prodFilters.includes('Terceiro');
+
+            if (!wantsTerceiro && isTerceiro) return false;
+
+            if (prodFilters.length > 0) {
+                const allowed = new Set<string>();
+                if (prodFilters.includes('Ativa')) { allowed.add('Produtiva'); allowed.add('Improdutiva'); }
+                if (prodFilters.includes('Produtiva')) allowed.add('Produtiva');
+                if (prodFilters.includes('Improdutiva')) allowed.add('Improdutiva');
+                if (prodFilters.includes('Inativa')) allowed.add('Inativa');
+
+                if (wantsTerceiro) {
+                    if (allowed.size === 0) {
+                        if (!isTerceiro) return false;
+                    } else {
+                        if (!isTerceiro && !allowed.has(cat)) return false;
+                    }
+                } else {
+                    if (!allowed.has(cat)) return false;
+                }
+            }
+
+            if (statusFilters.length > 0 && !statusFilters.includes(r.Status)) return false;
+            if (modeloFilters.length > 0 && !modeloFilters.includes(r.Modelo)) return false;
+            if (filialFilters.length > 0 && !filialFilters.includes(r.Filial)) return false;
+            if (clienteFilters.length > 0 && !clienteFilters.includes(r.NomeCliente)) return false;
+            if (tipoLocacaoFilters.length > 0 && !tipoLocacaoFilters.includes(r.TipoLocacao)) return false;
+
+            if (categoriaFilters.length > 0) {
+                const categoria = r.Categoria || r.GrupoVeiculo || 'Outros';
+                if (!categoriaFilters.includes(categoria)) return false;
+            }
+
+            if (patioFilters.length > 0 && !patioFilters.includes(r.Patio)) return false;
+
+            if (selectedLocation) {
+                if ((r as any)._uf !== selectedLocation.uf || (r as any)._city !== selectedLocation.city) return false;
+            }
+
+            if (agingFilters.length > 0) {
+                const dias = parseNum(r.DiasNoStatus);
+                const ok = agingFilters.some((af: string) => {
+                    if (af === '0-30 dias') return dias <= 30;
+                    if (af === '31-60 dias') return dias > 30 && dias <= 60;
+                    if (af === '61-90 dias') return dias > 60 && dias <= 90;
+                    if (af === '90+ dias') return dias > 90;
+                    return false;
+                });
+                if (!ok) return false;
+            }
+
+            if (telemetriaFilters.length > 0) {
+                const provedor = normalizeTelemetriaProvider(r.ProvedorTelemetria);
+                if (!telemetriaFilters.includes(provedor)) return false;
+            }
+
+            if (seguroFilters.length > 0) {
+                const seguro = classifySeguro(r.ComSeguroVigente);
+                if (!seguroFilters.includes(seguro)) return false;
+            }
+
+            if (proprietarioFilters.length > 0) {
+                const prop = sanitizeText(r.Proprietario || 'Não Definido') || 'Não Definido';
+                if (!proprietarioFilters.includes(prop)) return false;
+            }
+
+            if (finalidadeFilters.length > 0) {
+                const finalidade = sanitizeText((r.FinalidadeUso ?? r.finalidadeUso ?? 'Não Definido') as any).toUpperCase() || 'Não Definido';
+                if (!finalidadeFilters.includes(finalidade)) return false;
+            }
+
             if (kmDiffFilters.length > 0) {
                 const diff = Math.abs(parseNum(r.KmInformado) - parseNum(r.KmConfirmado));
                 const ok = kmDiffFilters.some((kf: string) => {
@@ -1179,8 +1364,8 @@ export default function FleetDashboard() {
             '120k+': 0
         };
 
-        filteredData.forEach(r => {
-            const km = parseNum(r.KmInformado);
+        filteredForOdometroChart.forEach(r => {
+            const km = parseNum(r.KmConfirmado);
             if (km < 10000) ranges['0-10k']++;
             else if (km < 20000) ranges['10k-20k']++;
             else if (km < 30000) ranges['20k-30k']++;
@@ -1197,7 +1382,7 @@ export default function FleetDashboard() {
         });
 
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
-    }, [filteredData]);
+    }, [filteredForOdometroChart]);
 
     // Toggle view for odometer card: 'odometro' or 'idade' (idade em meses)
     const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
@@ -1211,7 +1396,7 @@ export default function FleetDashboard() {
             '37-48m': 0,
             '48m+': 0
         };
-        filteredData.forEach(r => {
+        filteredForOdometroChart.forEach(r => {
             const idade = parseNum(r.IdadeVeiculo);
             if (idade <= 12) ranges['0-12m']++;
             else if (idade <= 24) ranges['13-24m']++;
@@ -1220,14 +1405,13 @@ export default function FleetDashboard() {
             else ranges['48m+']++;
         });
         return Object.entries(ranges).map(([name, value]) => ({ name, value }));
-    }, [filteredData]);
+    }, [filteredForOdometroChart]);
 
     // ANÁLISES DE TELEMETRIA
     const telemetriaData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const raw = (r.ProvedorTelemetria ?? '').toString().trim();
-            const provedor = raw || 'Sem Telemetria';
+            const provedor = normalizeTelemetriaProvider(r.ProvedorTelemetria);
             map[provedor] = (map[provedor] || 0) + 1;
         });
         return Object.entries(map)
@@ -1256,13 +1440,7 @@ export default function FleetDashboard() {
         };
 
         filteredData.forEach(r => {
-            if (r.ComSeguroVigente === null || r.ComSeguroVigente === undefined) {
-                map['Não Informado']++;
-            } else if (r.ComSeguroVigente === 1 || r.ComSeguroVigente === true || r.ComSeguroVigente === 'true') {
-                map['Com Seguro']++;
-            } else {
-                map['Sem Seguro']++;
-            }
+            map[classifySeguro(r.ComSeguroVigente)]++;
         });
 
         return Object.entries(map).map(([name, value]) => ({ name, value }));
@@ -1271,7 +1449,7 @@ export default function FleetDashboard() {
     const proprietarioData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const prop = r.Proprietario || 'Não Definido';
+            const prop = sanitizeText(r.Proprietario || 'Não Definido') || 'Não Definido';
             map[prop] = (map[prop] || 0) + 1;
         });
         return Object.entries(map)
@@ -1282,12 +1460,20 @@ export default function FleetDashboard() {
     const finalidadeData = useMemo(() => {
         const map: Record<string, number> = {};
         filteredData.forEach(r => {
-            const finalidade = ((r.FinalidadeUso ?? r.finalidadeUso ?? '') as any).toString().trim() || 'Não Definido';
+            const finalidade = sanitizeText((r.FinalidadeUso ?? r.finalidadeUso ?? 'Não Definido') as any).toUpperCase() || 'Não Definido';
             map[finalidade] = (map[finalidade] || 0) + 1;
         });
         return Object.entries(map)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
+    }, [filteredData]);
+
+    const veiculosLocalizaveisKpi = useMemo(() => {
+        return filteredData.filter(r => {
+            const lat = parseNum(r.Latitude);
+            const lng = parseNum(r.Longitude);
+            return isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0;
+        }).length;
     }, [filteredData]);
 
     const veiculosPorClienteData = useMemo(() => {
@@ -1512,6 +1698,8 @@ export default function FleetDashboard() {
     const agingData = useMemo(() => {
         const ranges = { '0-30 dias': 0, '31-60 dias': 0, '61-90 dias': 0, '90+ dias': 0 };
         vehiclesDetailed.forEach(v => {
+            // Aging considera apenas veículos com data de início de status conhecida.
+            if (!v.DataInicioStatus) return;
             const dias = v.DiasNoStatus;
             if (dias <= 30) ranges['0-30 dias']++;
             else if (dias <= 60) ranges['31-60 dias']++;
@@ -2364,7 +2552,7 @@ export default function FleetDashboard() {
                                     </button>
                                 </div>
                             </div>
-                            <Text className="text-xs text-slate-500 mb-3">Distribuição de veículos por faixa de quilometragem informada</Text>
+                            <Text className="text-xs text-slate-500 mb-3">Distribuição de veículos por faixa de quilometragem confirmada</Text>
                             <div className="h-[400px] mt-8">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={odometroView === 'odometro' ? odometroData : idadeFaixaData} margin={{ left: 20, right: 60, bottom: 36, top: 24 }}>
@@ -2388,8 +2576,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('Placa')}>Placa</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Placa', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Placa', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column="Placa" />
                                     </span>
                                 </div>
@@ -2398,8 +2584,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('Modelo')}>Modelo</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Modelo', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Modelo', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column="Modelo" />
                                     </span>
                                 </div>
@@ -2409,8 +2593,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('NomeCliente')}>Cliente</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'NomeCliente', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'NomeCliente', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column="NomeCliente" />
                                     </span>
                                 </div>
@@ -2419,8 +2601,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('TipoLocacao')}>Contrato</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'TipoLocacao', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'TipoLocacao', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column="TipoLocacao" />
                                     </span>
                                 </div>
@@ -2429,8 +2609,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('Status')}>Status</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Status', direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'Status', direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column="Status" />
                                     </span>
                                 </div>
@@ -2439,8 +2617,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('tipo')}>Tipo</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'tipo' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'tipo' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"tipo" as any} />
                                     </span>
                                 </div>
@@ -2449,8 +2625,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('ValorLocacao')}>Valor Locação</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'ValorLocacao' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"ValorLocacao" as any} />
                                     </span>
                                 </div>
@@ -2459,8 +2633,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('compra')}>Compra</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'compra' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'compra' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"compra" as any} />
                                     </span>
                                 </div>
@@ -2469,8 +2641,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('fipe')}>FIPE</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'fipe' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'fipe' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"fipe" as any} />
                                     </span>
                                 </div>
@@ -2479,9 +2649,15 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('KmInformado')}>Odômetro (Info)</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'KmInformado' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"KmInformado" as any} />
+                                    </span>
+                                </div>
+                            </th>
+                            <th className="px-6 py-3 text-right">
+                                <div className="flex items-center justify-between">
+                                    <span className="cursor-pointer" onClick={() => handleSort('KmConfirmado')}>Odômetro (Conf)</span>
+                                    <span className="flex items-center gap-1">
+                                        <SortIcon column={"KmConfirmado" as any} />
                                     </span>
                                 </div>
                             </th>
@@ -2489,8 +2665,6 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('pctFipe')}>% FIPE</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'pctFipe' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'pctFipe' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"pctFipe" as any} />
                                     </span>
                                 </div>
@@ -2499,16 +2673,14 @@ export default function FleetDashboard() {
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('IdadeVeiculo')}>Idade</span>
                                     <span className="flex items-center gap-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'IdadeVeiculo' as any, direction: 'asc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowUp size={12} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setSortConfig({ key: 'IdadeVeiculo' as any, direction: 'desc' }); }} className="text-slate-400 hover:text-slate-700 p-0"><ArrowDown size={12} /></button>
                                         <SortIcon column={"IdadeVeiculo" as any} />
                                     </span>
                                 </div>
                             </th>
                         </tr></thead><tbody className="divide-y divide-slate-100">
-                                {pageItems.length === 0 ? (
+                                        {pageItems.length === 0 ? (
                                     <tr className="bg-transparent">
-                                        <td colSpan={13} className="px-6 py-8 text-center text-sm text-slate-600">
+                                        <td colSpan={14} className="px-6 py-8 text-center text-sm text-slate-600">
                                             {appliedPlateSearch ? (
                                                 <div>
                                                     Nenhum resultado para <strong>{appliedPlateSearch}</strong>.
@@ -2521,7 +2693,7 @@ export default function FleetDashboard() {
                                             )}
                                         </td>
                                     </tr>
-                                ) : pageItems.map((r, i) => (
+                                        ) : pageItems.map((r, i) => (
                                     <tr key={i} className="hover:bg-slate-50">
                                         <td className="px-6 py-3 font-medium font-mono">{r.Placa}</td>
                                         <td className="px-6 py-3">{r.Modelo}</td>
@@ -2534,6 +2706,7 @@ export default function FleetDashboard() {
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
                                         <td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
                                         <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
                                         <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
                                     </tr>))}</tbody></table></div>
@@ -2719,12 +2892,12 @@ export default function FleetDashboard() {
                         </Card>
                         <Card decoration="top" decorationColor="amber">
                             <Text>Veículos Localizáveis</Text>
-                            <Metric>{fmtDecimal(mapData.length)}</Metric>
+                            <Metric>{fmtDecimal(veiculosLocalizaveisKpi)}</Metric>
                             <Text className="text-xs text-slate-500 mt-1">Com coordenadas GPS</Text>
                         </Card>
                         <Card decoration="top" decorationColor="violet">
                             <Text>Taxa de Cobertura GPS</Text>
-                            <Metric>{((mapData.length / filteredData.length) * 100).toFixed(1)}%</Metric>
+                            <Metric>{filteredData.length > 0 ? ((veiculosLocalizaveisKpi / filteredData.length) * 100).toFixed(1) : '0.0'}%</Metric>
                             <Text className="text-xs text-slate-500 mt-1">Lat/Long disponível</Text>
                         </Card>
                     </div>
