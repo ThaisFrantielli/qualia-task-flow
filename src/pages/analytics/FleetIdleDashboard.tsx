@@ -250,7 +250,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   // Gerar histórico diário de % improdutiva (90 dias ou todo histórico disponível)
   const dailyIdleHistory = useMemo(() => {
     const today = new Date();
-    const data: { date: string; dateLocal: string; pct: number; improdutiva: number; total: number; displayDate: string; statusBreakdown: Record<string, number> }[] = [];
+    const data: { date: string; dateLocal: string; pct: number; improdutiva: number; produtiva: number; totalAtiva: number; displayDate: string; statusBreakdown: Record<string, number> }[] = [];
 
     // OTIMIZAÇÃO: Filtrar apenas terceiros ANTES do loop pesado. A exclusão de veículos
     // Inativa é aplicada por data mais abaixo (a partir do dia em que ficaram inativos).
@@ -295,6 +295,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       const displayDate = checkDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
       let improdutivaCount = 0;
+      let produtivaCount = 0;
       let activeCount = 0;
       let usandoHistoricoCount = 0;
       let usandoFallbackCount = 0;
@@ -332,6 +333,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         if (statusCounts[sNorm].placas.length < 10) statusCounts[sNorm].placas.push(placaLabel);
 
         if (cat === 'Produtiva' || cat === 'Improdutiva') activeCount += 1;
+        if (cat === 'Produtiva') produtivaCount += 1;
         if (cat === 'Improdutiva') improdutivaCount += 1;
       }
 
@@ -347,7 +349,16 @@ export default function FleetIdleDashboard(): JSX.Element {
         }
       });
 
-      data.push({ date: dateISO, dateLocal: dateStr, pct: Number(pct.toFixed(1)), improdutiva: improdutivaCount, total: activeCount, displayDate, statusBreakdown });
+      data.push({
+        date: dateISO,
+        dateLocal: dateStr,
+        pct: Number(pct.toFixed(1)),
+        improdutiva: improdutivaCount,
+        produtiva: produtivaCount,
+        totalAtiva: activeCount,
+        displayDate,
+        statusBreakdown
+      });
 
     }
     return data;
@@ -402,8 +413,8 @@ export default function FleetIdleDashboard(): JSX.Element {
         let diasNoStatus = 0;
         if (dataInicioStatus) {
           const dataInicio = new Date(dataInicioStatus);
-          const hoje = new Date();
-          diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+          // Dias parado deve refletir a data selecionada no gráfico (snapshot), não a data atual.
+          diasNoStatus = Math.floor((checkDate.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
         }
 
         const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
@@ -411,6 +422,7 @@ export default function FleetIdleDashboard(): JSX.Element {
         // Terceiros já foram filtrados antes do loop
         improdutivos.push({
           Placa: placa,
+          Chassi: String(v.Chassi || v.chassi || '-'),
           Modelo: v.Modelo,
           Status: currentStatus || v.Status,
           Patio: patio,
@@ -424,6 +436,21 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     return improdutivos;
   }, [frota, patioMov, veiculoMov, selectedDate, historicoSituacao]);
+
+  const currentIdleVehicles = useMemo(() => {
+    const improdutivosHoje = frota
+      .filter(v => v.FinalidadeUso !== 'TERCEIRO')
+      .filter(v => getCategory(v.Status) === 'Improdutiva')
+      .map((v: any) => ({
+        Placa: String(v.Placa || '').trim().toUpperCase() || '-',
+        Modelo: String(v.Modelo || '-'),
+        Status: String(v.Status || '-'),
+        DiasNoStatus: Math.max(0, parseNum(v.DiasNoStatus))
+      }))
+      .sort((a, b) => b.DiasNoStatus - a.DiasNoStatus);
+
+    return improdutivosHoje;
+  }, [frota]);
 
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
@@ -569,8 +596,8 @@ export default function FleetIdleDashboard(): JSX.Element {
                     <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">3.</span><span><strong>Sem nenhum evento registrado:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> para todas as datas (veículo nunca mudou de situação).</span></li>
                     <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">4.</span><span><strong>Eventos apenas posteriores a D:</strong> veículo excluído (ainda não estava na frota).</span></li>
                   </ul>
-                  <p className="border-t border-slate-100 pt-2">Veículos <strong>Inativos</strong> (vendido, baixado, sinistro) são excluídos retroativamente a partir da data de inativação. <strong>Terceiros</strong> não são contabilizados.</p>
-                  <p className="text-slate-500">% = Improdutivos ÷ (Produtivos + Improdutivos) × 100</p>
+                  <p className="border-t border-slate-100 pt-2">Classificação usada: <strong>Produtiva</strong> (Locado, Locado veículo reserva, Uso Interno e Em Mobilização), <strong>Improdutiva</strong> (ex.: Disponível, Reserva, Bloqueado, Não disponível) e <strong>Inativa</strong> (Vendido, Baixado, Roubo / Furto, Devolvido, Disponível para venda e Em Desmobilização). <strong>Terceiros</strong> não são contabilizados.</p>
+                  <p className="text-slate-500">% = Improdutivos ÷ (Produtivos + Improdutivos) * 100</p>
                 </div>
               )}
             </div>
@@ -658,7 +685,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                           <div className="bg-white p-3 border border-slate-200 rounded shadow-lg min-w-[200px]">
                             <p className="font-semibold text-slate-700 mb-1">{new Date(data.date).toLocaleDateString('pt-BR')}</p>
                             <p className="text-rose-600 font-bold">{data.pct}% Improdutiva</p>
-                            <p className="text-xs text-slate-500 mb-2">{data.improdutiva} de {data.total} veículos</p>
+                            <p className="text-xs text-slate-500 mb-2">{data.improdutiva} improdutivos | {data.produtiva} produtivos</p>
                             {breakdown.length > 0 && (
                               <div className="border-t border-slate-100 pt-2 space-y-0.5">
                                 {breakdown.map(([status, count]) => (
@@ -738,6 +765,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                 <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
                   <tr>
                     <th className="px-6 py-3">Placa</th>
+                    <th className="px-6 py-3">Chassi</th>
                     <th className="px-6 py-3">Modelo</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3">Pátio</th>
@@ -751,6 +779,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   {vehiclesOnSelectedDate.map((v, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
+                      <td className="px-6 py-3 font-mono text-xs text-slate-500">{v.Chassi || '-'}</td>
                       <td className="px-6 py-3">{v.Modelo}</td>
                       <td className="px-6 py-3">
                         <span className="px-2 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
@@ -818,7 +847,48 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">3</span>
                   Status
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Lista apenas status considerados improdutivos (ex.: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>). Veículos locados (produtivos) ou inativos (vendidos/baixados/sinistro total) não são exibidos.</p>
+                <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Lista apenas status considerados improdutivos (ex.: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>, <strong>Não disponível</strong>). Veículos produtivos (<strong>Locado</strong>, <strong>Locado veículo reserva</strong>, <strong>Uso Interno</strong> e <strong>Em Mobilização</strong>) ou inativos (<strong>Vendido</strong>, <strong>Baixado</strong>, <strong>Roubo / Furto</strong>, <strong>Devolvido</strong>, <strong>Disponível para venda</strong>, <strong>Em Desmobilização</strong>) não são exibidos.</p>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded border-l-4 border-blue-400">
+                <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">6</span>
+                  Data Início Status ⭐
+                </h3>
+                <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Lógica:</strong></p>
+                <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
+                  <li>Obtém a última movimentação de pátio (se houver).</li>
+                  <li>Obtém a última devolução de locação (se houver).</li>
+                  <li>Compara as datas e utiliza a <strong>mais recente</strong> como Data Início.</li>
+                  <li>Essa data representa o início do status improdutivo atual.</li>
+                </ol>
+              </div>
+
+              <div className="bg-violet-50 p-4 rounded border-l-4 border-violet-400">
+                <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-xs">6A</span>
+                  Big Number: Tendência (7 dias) ⭐
+                </h3>
+                <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Cálculo:</strong></p>
+                <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
+                  <li>Calcula a média do <strong>% improdutiva</strong> dos últimos 7 dias.</li>
+                  <li>Calcula a média do <strong>% improdutiva</strong> dos 7 dias anteriores.</li>
+                  <li>Aplica: <code className="bg-slate-100 px-1 rounded">Tendência = Média(Últimos 7) - Média(7 Anteriores)</code></li>
+                </ol>
+              </div>
+
+              <div className="bg-violet-50 p-4 rounded border-l-4 border-violet-400">
+                <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-xs">6B</span>
+                  Big Number: Tempo Médio Parado ⭐
+                </h3>
+                <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Cálculo:</strong></p>
+                <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
+                  <li>Seleciona somente veículos com categoria <strong>Improdutiva</strong>.</li>
+                  <li>Soma o campo <strong>Dias em Situação</strong> desses veículos.</li>
+                  <li>Divide pela quantidade de veículos improdutivos.</li>
+                  <li>Aplica: <code className="bg-slate-100 px-1 rounded">Tempo Médio = Soma(Dias em Situação dos improdutivos) / Qtd improdutivos</code></li>
+                </ol>
               </div>
 
               <div>
@@ -838,8 +908,8 @@ export default function FleetIdleDashboard(): JSX.Element {
                 <ul className="text-sm text-slate-600 ml-8 space-y-1 list-disc list-inside">
                   <li>Compara a data da <strong>última movimentação de pátio</strong> com a data da <strong>última devolução de locação</strong>.</li>
                   <li>Seleciona a <strong>data mais recente</strong> entre as duas como <em>Data Início</em>.</li>
-                  <li>Calcula: <code className="bg-slate-100 px-1 rounded">Dias = Data Hoje - Data Início</code></li>
-                  <li>Exemplo: última movimentação em 06/10/2025 → hoje (05/01/2026) = <strong>91 dias</strong></li>
+                  <li>Calcula: <code className="bg-slate-100 px-1 rounded">Dias = Data de Referência (dia selecionado) - Data Início</code></li>
+                  <li>Exemplo: última movimentação em 06/10/2025 e data selecionada 05/01/2026 = <strong>91 dias</strong></li>
                 </ul>
               </div>
 
@@ -876,10 +946,10 @@ export default function FleetIdleDashboard(): JSX.Element {
               <div className="bg-emerald-50 p-4 rounded border border-emerald-200 mt-6">
                 <h3 className="font-semibold text-emerald-900 mb-2">📊 Cálculo do % Improdutiva (Gráfico)</h3>
                 <p className="text-sm text-emerald-700">
-                  <strong>Fórmula:</strong> (Veículos Improdutivos / Veículos Ativos) × 100
+                  <strong>Fórmula:</strong> (Veículos Improdutivos / Veículos Ativos) * 100
                 </p>
                 <p className="text-xs text-emerald-600 mt-2">
-                  <strong>Veículos Ativos</strong> = Produtivos (locados) + Improdutivos (parados). Não inclui inativos (vendidos, baixados, sinistro total).
+                  <strong>Veículos Ativos</strong> = Veículos produtivos (Locado, Locado veículo reserva, Uso Interno e Em Mobilização) + Improdutivos (parados). Não inclui inativos (Vendido, Baixado, Roubo / Furto, Devolvido, Disponível para venda e Em Desmobilização).
                 </p>
               </div>
             </div>
@@ -900,6 +970,26 @@ export default function FleetIdleDashboard(): JSX.Element {
         <Card>
           <Title>Alertas Automáticos</Title>
           <div className="mt-4 space-y-3">
+            {currentIdleVehicles.filter(v => v.DiasNoStatus >= 30).length > 0 && (
+              <div className="flex gap-3 p-3 bg-amber-50 rounded border-l-4 border-amber-500">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-700">Veículos com parada prolongada</p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    {currentIdleVehicles.filter(v => v.DiasNoStatus >= 30).length} veículo(s) improdutivo(s) com 30+ dias em situação. Lista completa:
+                  </p>
+                  <div className="text-xs text-slate-700 mt-2 flex flex-wrap gap-2">
+                    {currentIdleVehicles
+                      .filter(v => v.DiasNoStatus >= 30)
+                      .map((v) => (
+                        <span key={v.Placa} className="px-2 py-1 rounded bg-white border border-amber-200">
+                          {v.Placa} ({v.DiasNoStatus}d)
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            )}
             {currentIdleKPIs.pct > 15 && (
               <div className="flex gap-3 p-3 bg-rose-50 rounded border-l-4 border-rose-500">
                 <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
