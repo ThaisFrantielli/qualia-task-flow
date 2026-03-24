@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  db-sync:
-    name: Sincronizar SQL Server -> Supabase
+  db-sync-cloud:
+    name: Sincronizar SQL Server -> Supabase (Cloud)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,7 +34,91 @@ jobs:
       - name: Instalar dependencias ETL
         run: npm --prefix scripts/local-etl install
 
+      - name: Validar conectividade TCP com SQL Server
+        env:
+          SQL_SERVER: ${{ secrets['SQL_SERVER'] }}
+          SQL_PORT: ${{ secrets['SQL_PORT'] }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, socket, sys
+          host = os.environ.get('SQL_SERVER')
+          port = int(os.environ.get('SQL_PORT', '3494'))
+          s = socket.socket()
+          s.settimeout(10)
+          try:
+            s.connect((host, port))
+            print(f"Conectividade TCP OK: {host}:{port}")
+          except Exception as exc:
+            print(f"Falha de conectividade TCP: {host}:{port} -> {exc}")
+            sys.exit(1)
+          finally:
+            s.close()
+          PY
+
       - name: Executar sincronizacao otimizada v3 (parallelized COPY protocol)
+        env:
+          SQL_SERVER: ${{ secrets['SQL_SERVER'] }}
+          SQL_USER: ${{ secrets['SQL_USER'] }}
+          SQL_PASSWORD: ${{ secrets['SQL_PASSWORD'] }}
+          SQL_DATABASE: ${{ secrets['SQL_DATABASE'] }}
+          SQL_PORT: ${{ secrets['SQL_PORT'] }}
+
+          PG_POOLER_HOST: ${{ secrets['PG_POOLER_HOST'] }}
+          PG_POOLER_PORT: ${{ secrets['PG_POOLER_PORT'] }}
+          PG_POOLER_USER: ${{ secrets['PG_POOLER_USER'] }}
+
+          PG_PASSWORD: ${{ secrets['PG_PASSWORD'] }}
+          PG_DATABASE: ${{ secrets['PG_DATABASE'] }}
+
+          HEAVY_PG_POOLER_HOST: ${{ secrets['HEAVY_PG_POOLER_HOST'] }}
+          HEAVY_PG_POOLER_PORT: ${{ secrets['HEAVY_PG_POOLER_PORT'] }}
+          HEAVY_PG_POOLER_USER: ${{ secrets['HEAVY_PG_POOLER_USER'] }}
+          HEAVY_PG_PASSWORD: ${{ secrets['HEAVY_PG_PASSWORD'] }}
+          HEAVY_PG_DATABASE: ${{ secrets['HEAVY_PG_DATABASE'] }}
+
+          PG_POOL_MAX: '3'
+          HEAVY_PG_POOL_MAX: '3'
+          ETL_BATCH_SIZE: '1'
+
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        shell: bash
+        run: |
+          for attempt in 1 2; do
+            echo "Tentativa ${attempt}/2"
+            if node --max-old-space-size=4096 scripts/local-etl/run-sync-v3.js; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 2 ]; then
+              echo "Falhou, aguardando 20s para retry..."
+              sleep 20
+            fi
+          done
+          exit 1
+
+  db-sync-fallback-selfhosted:
+    name: Sincronizar SQL Server -> Supabase (Fallback self-hosted)
+    needs: db-sync-cloud
+    if: ${{ needs.db-sync-cloud.result == 'failure' }}
+    runs-on: [self-hosted, Windows, X64, sql-vpn]
+    permissions:
+      contents: read
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout do codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias ETL
+        run: npm --prefix scripts/local-etl install
+
+      - name: Executar sincronizacao otimizada v3 (fallback)
         env:
           SQL_SERVER: ${{ secrets['SQL_SERVER'] }}
           SQL_USER: ${{ secrets['SQL_USER'] }}
