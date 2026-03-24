@@ -62,19 +62,7 @@ function parseNum(v: any): number {
     const fallback = parseFloat(s.replace(',', '.'));
     return Number.isFinite(fallback) ? fallback : 0;
 }
-function pickBestNumber(item: AnyObject, keys: string[]): number {
-    let firstKnown: number | null = null;
-    for (const key of keys) {
-        const raw = item?.[key];
-        if (raw === null || raw === undefined) continue;
-        const text = String(raw).trim();
-        if (!text) continue;
-        const n = parseNum(raw);
-        if (Number.isFinite(n) && n > 0) return n;
-        if (firstKnown === null && Number.isFinite(n)) firstKnown = n;
-    }
-    return firstKnown ?? 0;
-}
+// pickBestNumber removed because it was unused; keep parsing helpers above.
 function classifySeguro(v: any): 'Com Seguro' | 'Sem Seguro' | 'Não Informado' {
     const s = String(v ?? '').trim().toLowerCase();
     if (!s) return 'Não Informado';
@@ -235,8 +223,9 @@ export default function FleetDashboard() {
             Status: sanitizeText(item.Status || item.status || item.SituacaoVeiculo || item.situacaoveiculo || 'N/A') || 'N/A',
             ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.ValorCompraVeiculo || item.valor_compra || 0),
             ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorAtualFIPE || item.valoratualfipe || item.ValorFipe || item.valorfipe || 0),
-            KmInformado: pickBestNumber(item, ['KmInformado', 'kminformado', 'KM', 'km', 'currentkm', 'KmConfirmado', 'kmconfirmado']),
-            KmConfirmado: pickBestNumber(item, ['KmConfirmado', 'kmconfirmado', 'OdometroConfirmado', 'odometroconfirmado', 'KmInformado', 'kminformado', 'KM']),
+            // `KmInformado` deve refletir o valor informado originalmente (sem usar fallback para confirmado)
+            KmInformado: parseNum(item.KmInformado ?? item.kminformado ?? item.KM ?? item.km ?? item.currentkm ?? 0),
+            KmConfirmado: parseNum(item.KmConfirmado ?? item.kmconfirmado ?? item.OdometroConfirmado ?? item.odometroconfirmado ?? 0),
             IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.IdadeEmMeses || item.idadeemmeses || item.agemonths || 0),
             Categoria: sanitizeText(item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros') || 'Outros',
             Filial: sanitizeText(item.Filial || item.filial || 'N/A') || 'N/A',
@@ -2271,6 +2260,17 @@ export default function FleetDashboard() {
         }
         return data;
     }, [filteredData, manutencaoMap, sortConfig, appliedPlateSearch]);
+
+    // DEBUG: mostrar amostra dos dados processados para validar campos (remover após diagnóstico)
+    useEffect(() => {
+        try {
+            // eslint-disable-next-line no-console
+            console.debug('[FleetDashboard] tableData sample (first 20):', tableData?.slice?.(0, 20) || tableData);
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.debug('[FleetDashboard] erro ao logar tableData:', err);
+        }
+    }, [tableData]);
 
     // Reset page when local plate search changes to show results from first page
     useEffect(() => {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, Fragment } from 'react'
 import useBIData from '../../hooks/useBIData'
 
 type Row = Record<string, any>
@@ -24,7 +24,6 @@ function extractAmount(row: Row): number {
       }
     }
   }
-  // fallback: try find first numeric-like field
   for (const key of Object.keys(row)) {
     const v = row[key]
     if (typeof v === 'number') return v
@@ -38,33 +37,67 @@ function extractAmount(row: Row): number {
 
 function isCanceled(row: Row): boolean {
   if (!row) return false
-  const keys = ['SituacaoNota','Situacao','Status','SituacaoFaturamento','SituacaoNota','situacao']
-  for (const k of Object.keys(row)) keys.push(k)
-  for (const key of keys) {
-    if (!key) continue
-    const low = String(key).toLowerCase()
-    // find actual property on row (case-insensitive)
-    for (const prop of Object.keys(row)) {
-      if (prop.toLowerCase() === low) {
-        const v = row[prop]
-        if (v == null) continue
-        const s = String(v).toLowerCase()
-        if (s.includes('cancel') || s.includes('anul') || s.includes('estorn') || s === 'c' || s === 'cancelado' || s === 'cancelada') return true
-      }
-    }
+  const candidates = ['SituacaoNota','Situacao','Status','SituacaoFaturamento','situacao']
+  for (const k of Object.keys(row)) candidates.push(k)
+  for (const k of candidates) {
+    const v = row[k]
+    if (!v) continue
+    const s = String(v).toLowerCase()
+    if (s.includes('cancel') || s.includes('cancelado') || s.includes('anul') || s.includes('estornado')) return true
   }
   return false
 }
 
-export default function FaturamentoDashboard(): JSX.Element {
-  const { data, loading, error } = useBIData('fat_faturamentos')
-  const [expanded, setExpanded] = useState<boolean>(false)
+// Valida a regra do PowerBI para "FaturamentoLocacaoEmitido":
+// IdSituacaoNota in {1,2} e `FA/ND` = 'FA'
+function isLocacaoEmitidoValid(row: Row): boolean {
+  if (!row) return false
+  // localizar possível coluna de situação (numérica)
+  const possibleSituKeys = ['IdSituacaoNota','IdSituacao','SituacaoNota','IdSituacao','situacao']
+  let situVal: number | null = null
+  for (const k of Object.keys(row)) {
+    const lk = k.toLowerCase()
+    for (const candidate of possibleSituKeys) {
+      if (lk === candidate.toLowerCase()) {
+        const v = row[k]
+        const n = Number(v)
+        if (!isNaN(n)) { situVal = n }
+        break
+      }
+    }
+    if (situVal !== null) break
+  }
 
-  const { mapByYm, years } = useMemo(() => {
+  // localizar coluna FA/ND — pode vir com nome 'FA/ND', 'FA_ND', 'FAND', 'FA'
+  const possibleFaKeys = ['FA/ND','FA_ND','FA','FAND','fa/nd','fa_nd']
+  let faVal: string | null = null
+  for (const k of Object.keys(row)) {
+    const lk = k.replace(/[^a-zA-Z0-9_\/]/g,'').toLowerCase()
+    for (const candidate of possibleFaKeys) {
+      if (lk === candidate.replace(/[^a-zA-Z0-9_\/]/g,'').toLowerCase()) {
+        const v = row[k]
+        if (v != null) { faVal = String(v).trim().toUpperCase() }
+        break
+      }
+    }
+    if (faVal !== null) break
+  }
+
+  const situOk = situVal === 1 || situVal === 2
+  const faOk = faVal === 'FA'
+  // Se os campos não estiverem presentes, não filtrar — manter compatibilidade com dados antigos
+  if (situVal === null || faVal === null) return true
+  return situOk && faOk
+}
+
+export default function FaturamentoDashboard() {
+  const { data, loading, error } = useBIData('fat_faturamentos') as { data?: Row[], loading?: boolean, error?: any }
+
+  // map by year-month and list of years available
+  const { years } = useMemo(() => {
     const rows: Row[] = Array.isArray(data) ? data : []
     const map = new Map<string, number>()
     const yearsSet = new Set<number>()
-
     rows.forEach(r => {
       if (isCanceled(r)) return
       let dateStr = r.DataCompetencia || r.dataCompetencia || r.data || r.Data || r.Data_competencia || r.dataCompetenciaString
@@ -78,70 +111,46 @@ export default function FaturamentoDashboard(): JSX.Element {
       const amount = extractAmount(r) || 0
       map.set(key, (map.get(key) || 0) + amount)
     })
-
     return { mapByYm: map, years: [...yearsSet].sort((a,b) => b-a) }
   }, [data])
 
   const defaultYear = years && years.length ? years[0] : new Date().getFullYear()
   const [selectedYear, setSelectedYear] = useState<number>(defaultYear)
 
-  const { monthlySums, total, lastMonthValue, monthsWithData, grouped } = useMemo(() => {
-    // Agrupar por Tipo de faturamento (TipoNota / TipoFaturamento)
-    const rows: Row[] = Array.isArray(data) ? data : []
+  // aggregated data from backend (yearly sums by tipo + ym)
+  // removed server-side aggregation usage — fallback to client-side aggregation only
 
+  const { monthlySums, total, lastMonthValue, monthsWithData, grouped } = useMemo(() => {
+    // helpers
     const getTipo = (r: Row) => {
       if (!r) return 'Outros'
-      // Priorizar a coluna `TipoFaturamento` conforme informado
-      if (r.TipoFaturamento !== undefined && r.TipoFaturamento !== null) return String(r.TipoFaturamento)
-      if (r.TipoNota !== undefined && r.TipoNota !== null) return String(r.TipoNota)
-      if (r.Tipo !== undefined && r.Tipo !== null) return String(r.Tipo)
-      if (r.Natureza !== undefined && r.Natureza !== null) return String(r.Natureza)
-      // tentativa case-insensitive
-      for (const key of Object.keys(r)) {
-        if (key.toLowerCase() === 'tipofaturamento' && r[key] != null) return String(r[key])
-      }
+      if (r.TipoFaturamento != null) return String(r.TipoFaturamento)
+      if (r.TipoNota != null) return String(r.TipoNota)
+      if (r.Tipo != null) return String(r.Tipo)
+      if (r.Natureza != null) return String(r.Natureza)
+      for (const key of Object.keys(r)) if (key.toLowerCase() === 'tipofaturamento' && r[key] != null) return String(r[key])
       return 'Outros'
     }
 
     const getValorByTipo = (r: Row, tipo: string) => {
-      // Normalizar chaves mais comuns
       const lookup = (k: string) => {
         if (k in r) return r[k]
         const lower = k.toLowerCase()
         for (const key of Object.keys(r)) if (key.toLowerCase() === lower) return r[key]
         return undefined
       }
-
-      // Tipos principais: locação, reembols, multa, default -> ValorTotal
       const t = String(tipo).toLowerCase()
-      if (t.includes('loca') || t.includes('locação') || t.includes('loca\u00E7')) {
-        return Number(lookup('ValorLocacao') ?? lookup('ValorLocacao'.toLowerCase()) ?? 0)
-      }
-      if (t.includes('reemb') || t.includes('reembolso')) {
-        return Number(lookup('ValorReembolsaveis') ?? lookup('ValorReembolso') ?? lookup('ValorReembolsaveis'.toLowerCase()) ?? 0)
-      }
-      if (t.includes('multa')) {
-        return Number(lookup('ValorMultas') ?? lookup('ValorMultas'.toLowerCase()) ?? 0)
-      }
-      // fallback prefer ValorTotal, Valor, ValorBruto
-      return Number(lookup('ValorTotal') ?? lookup('Valor') ?? lookup('ValorBruto') ?? 0)
+      if (t.includes('loca') || t.includes('locação') || t.includes('loca\u00E7')) return Number(lookup('ValorLocacao') ?? lookup('valorlocacao') ?? 0)
+      if (t.includes('reemb') || t.includes('reembolso')) return Number(lookup('ValorReembolsaveis') ?? lookup('valorreembolsaveis') ?? 0)
+      if (t.includes('multa')) return Number(lookup('ValorMultas') ?? lookup('valormultas') ?? 0)
+      return Number(lookup('ValorTotal') ?? lookup('valor') ?? lookup('Valor') ?? 0)
     }
 
-    // Agrupar por Tipo e por Documento (hierarquia)
-    const grouped = new Map<string, { arr: number[], docs: Map<string, number[]> }>()
-    const getDocumento = (r: Row) => {
-      if (!r) return 'Documento'
-      if (r.TipoDocumento != null) return String(r.TipoDocumento)
-      if (r.TipoNota != null) return String(r.TipoNota)
-      if (r.Documento != null) return String(r.Documento)
-      if (r.Nota != null) return String(r.Nota)
-      for (const key of Object.keys(r)) {
-        const lk = key.toLowerCase()
-        if (lk === 'tipodocumento' || lk === 'tiponota' || lk === 'documento' || lk === 'nota') return String(r[key])
-      }
-      return 'Documento'
-    }
+    // server aggregation removed — always use client-side grouping below
 
+    // fallback: client-side aggregation from raw rows
+    const rows: Row[] = Array.isArray(data) ? data : []
+    const groupedMap = new Map<string, { arr: number[], docs: Map<string, number[]> }>()
     for (const r of rows) {
       if (isCanceled(r)) continue
       let dateStr = r.DataCompetencia || r.dataCompetencia || r.data || r.Data || r.Data_competencia || r.dataCompetenciaString
@@ -152,22 +161,20 @@ export default function FaturamentoDashboard(): JSX.Element {
       if (Number(y) !== Number(selectedYear)) continue
       const m = dateStr.length >= 7 ? Number(dateStr.slice(5,7)) : 1
       const tipo = String(getTipo(r) || 'Outros')
-      const doc = String(getDocumento(r) || 'Documento')
+      // Aplica regra específica: se for Locação, só conta quando atender a condição "emitido"
+      const isLocacao = String(tipo).toLowerCase().includes('loca') || String(tipo).toLowerCase().includes('locação')
+      if (isLocacao && !isLocacaoEmitidoValid(r)) continue
+      const doc = String(r.TipoDocumento || r.TipoNota || r.Documento || r.Nota || 'Documento')
       const val = getValorByTipo(r, tipo) || 0
-
-      if (!grouped.has(tipo)) grouped.set(tipo, { arr: new Array(12).fill(0), docs: new Map() })
-      const bucket = grouped.get(tipo) as { arr: number[], docs: Map<string, number[]> }
-      bucket.arr[m-1] = (bucket.arr[m-1] || 0) + val
+      if (!groupedMap.has(tipo)) groupedMap.set(tipo, { arr: new Array(12).fill(0), docs: new Map() })
+      const bucket = groupedMap.get(tipo) as { arr: number[], docs: Map<string, number[]> }
+      if (m >=1 && m <=12) bucket.arr[m-1] = (bucket.arr[m-1] || 0) + val
       if (!bucket.docs.has(doc)) bucket.docs.set(doc, new Array(12).fill(0))
       const darr = bucket.docs.get(doc) as number[]
-      darr[m-1] = (darr[m-1] || 0) + val
+      if (m >=1 && m <=12) darr[m-1] = (darr[m-1] || 0) + val
     }
-
-    // transformar em lista ordenada por acumulado, incluindo docs
-    const list = Array.from(grouped.entries()).map(([tipo, v]) => ({ tipo, arr: v.arr, total: v.arr.reduce((s,n) => s+n,0), docs: Array.from(v.docs.entries()).map(([doc, darr]) => ({ doc, arr: darr, total: darr.reduce((s,n)=>s+n,0) })).sort((a,b)=>b.total-a.total) }))
+    const list = Array.from(groupedMap.entries()).map(([tipo, v]) => ({ tipo, arr: v.arr, total: v.arr.reduce((s,n) => s+n,0), docs: Array.from(v.docs.entries()).map(([doc, darr]) => ({ doc, arr: darr, total: darr.reduce((s,n) => s+n,0) })).sort((a,b) => b.total - a.total) }))
     list.sort((a,b) => b.total - a.total)
-
-    // calcular totais gerais (somando por mês)
     const monthly = new Array(12).fill(0)
     for (const it of list) for (let i=0;i<12;i++) monthly[i] += it.arr[i] || 0
     const totalSum = monthly.reduce((s,n) => s+n, 0)
@@ -175,15 +182,12 @@ export default function FaturamentoDashboard(): JSX.Element {
     let lastIdx = -1
     for (let i = 11; i >= 0; i--) if (monthly[i] !== 0) { lastIdx = i; break }
     const lastVal = lastIdx >= 0 ? monthly[lastIdx] : 0
-
     return { monthlySums: monthly, total: totalSum, lastMonthValue: lastVal, monthsWithData: monthsWith, grouped: list }
-  }, [mapByYm, selectedYear])
+  }, [data, selectedYear])
 
-  // resumo de contagens por TipoFaturamento para o ano selecionado (usado para validar agrupamento)
   const typeCounts = useMemo(() => {
     const rows: Row[] = Array.isArray(data) ? data : []
     const counts = new Map<string, number[]>()
-
     for (const r of rows) {
       if (isCanceled(r)) continue
       let dateStr = r.DataCompetencia || r.dataCompetencia || r.data || r.Data || r.Data_competencia || r.dataCompetenciaString
@@ -193,8 +197,6 @@ export default function FaturamentoDashboard(): JSX.Element {
       if (!/^[0-9]{4}$/.test(y)) continue
       if (Number(y) !== Number(selectedYear)) continue
       const m = dateStr.length >= 7 ? Number(dateStr.slice(5,7)) : 1
-
-      // determinar tipo priorizando TipoFaturamento
       let tipo: string = 'Outros'
       if (r.TipoFaturamento != null) tipo = String(r.TipoFaturamento)
       else if (r.TipoNota != null) tipo = String(r.TipoNota)
@@ -203,12 +205,13 @@ export default function FaturamentoDashboard(): JSX.Element {
       else {
         for (const key of Object.keys(r)) if (key.toLowerCase() === 'tipofaturamento' && r[key] != null) { tipo = String(r[key]); break }
       }
-
       if (!counts.has(tipo)) counts.set(tipo, new Array(12).fill(0))
+      // aplicar a mesma validação: se for locação, só contar quando emitido
+      const isLocacao = String(tipo).toLowerCase().includes('loca') || String(tipo).toLowerCase().includes('locação')
+      if (isLocacao && !isLocacaoEmitidoValid(r)) continue
       const arr = counts.get(tipo) as number[]
-      arr[m-1] = (arr[m-1] || 0) + 1
+      if (m >=1 && m <=12) arr[m-1] = (arr[m-1] || 0) + 1
     }
-
     const list = Array.from(counts.entries()).map(([tipo, arr]) => ({ tipo, arr, total: arr.reduce((s,n) => s+n,0) }))
     list.sort((a,b) => b.total - a.total)
     return list
@@ -216,6 +219,8 @@ export default function FaturamentoDashboard(): JSX.Element {
 
   const [showCounts, setShowCounts] = useState<boolean>(false)
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>({})
+  // restore previous default: collapsed
+  const [expanded, setExpanded] = useState<boolean>(false)
 
   return (
     <div className="p-4">
@@ -259,7 +264,6 @@ export default function FaturamentoDashboard(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {/* Linha pai com botão de colapsar/expandir */}
             <tr className="odd:bg-white even:bg-gray-50">
               <td className="px-3 py-2">
                 <button aria-label={expanded ? 'Recolher' : 'Expandir'} onClick={() => setExpanded(s => !s)} className="mr-2 w-6 h-6 inline-flex items-center justify-center border rounded">
@@ -273,10 +277,9 @@ export default function FaturamentoDashboard(): JSX.Element {
               <td className="px-3 py-2 text-right font-bold">{fmtBRL(total)}</td>
             </tr>
 
-            {/* Linhas por tipo de faturamento (visíveis quando expanded=true) */}
             {expanded && (grouped && grouped.length ? grouped.map((g: any) => (
-              <>
-                <tr key={g.tipo} className="odd:bg-white even:bg-gray-50">
+              <Fragment key={g.tipo}>
+                <tr className="odd:bg-white even:bg-gray-50">
                   <td className="px-3 py-2 pl-8">
                     <button aria-label={expandedTypes[g.tipo] ? 'Recolher tipo' : 'Expandir tipo'} onClick={() => setExpandedTypes(s => ({ ...s, [g.tipo]: !s[g.tipo] }))} className="mr-2 w-6 h-6 inline-flex items-center justify-center border rounded">
                       {expandedTypes[g.tipo] ? '−' : '+'}
@@ -298,14 +301,13 @@ export default function FaturamentoDashboard(): JSX.Element {
                     <td className="px-3 py-2 text-right font-medium">{fmtBRL(d.total)}</td>
                   </tr>
                 ))}
-              </>
+              </Fragment>
             )) : (
               <tr>
                 <td className="p-4" colSpan={14}>Nenhum registro para o ano selecionado.</td>
               </tr>
             ))}
 
-            {/* Linha resumo total */}
             <tr className="border-t font-bold bg-gray-50">
               <td className="px-3 py-2">Total</td>
               {monthlySums.map((v, i) => (
