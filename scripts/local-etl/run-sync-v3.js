@@ -313,6 +313,14 @@ async function syncTable(item, sqlPool, pgPool, options = {}) {
     process.stdout.write(` ${rows.length.toLocaleString()} linhas. Enviando via COPY para ${isHeavyDestination ? 'HEAVY' : 'PRIMARY'}...`);
 
     const client = await pgPool.connect();
+    let clientRuntimeError = null;
+    const onClientError = (err) => {
+        // Em conexões TLS instáveis o pg.Client pode emitir erro fora do stream do COPY.
+        // Guardamos o erro para rejeitar o fluxo atual de forma controlada.
+        clientRuntimeError = err;
+    };
+
+    client.on('error', onClientError);
     try {
         await client.query('SET statement_timeout = 0');
         await client.query('SET lock_timeout = 0');
@@ -327,15 +335,26 @@ async function syncTable(item, sqlPool, pgPool, options = {}) {
         const dataStream = rowsToStream(rows, columnDefs, now);
 
         await new Promise((resolve, reject) => {
+            if (clientRuntimeError) {
+                reject(clientRuntimeError);
+                return;
+            }
+
             dataStream.on('error', reject);
             copyStream.on('error', reject);
             copyStream.on('finish', resolve);
+            client.once('error', reject);
             dataStream.pipe(copyStream);
         });
+
+        if (clientRuntimeError) {
+            throw clientRuntimeError;
+        }
 
         // ✨ NOVO: ANALYZE após insert para otimizar query planner
         await client.query(`ANALYZE public.${item.table}`);
     } finally {
+        client.off('error', onClientError);
         client.release();
     }
 
