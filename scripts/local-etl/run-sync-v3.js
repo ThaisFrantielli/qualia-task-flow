@@ -246,6 +246,46 @@ function rowsToStream(rows, columns, now) {
     });
 }
 
+function isTransientSyncError(err) {
+    const message = String(err?.message || '').toUpperCase();
+    const code = String(err?.code || '').toUpperCase();
+    const transientPatterns = [
+        'ECONNRESET',
+        'ETIMEDOUT',
+        'ECONNREFUSED',
+        'CONNECTION TERMINATED UNEXPECTEDLY',
+        'SERVER CLOSED THE CONNECTION UNEXPECTEDLY',
+        'TERMINATING CONNECTION',
+        '57P01'
+    ];
+    return transientPatterns.some(p => message.includes(p) || code.includes(p));
+}
+
+async function syncTableWithRetry(item, sqlPool, pgPool, options = {}) {
+    const maxAttempts = parsePositiveInt(process.env.ETL_TABLE_MAX_RETRIES, 2);
+    let lastErr;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await syncTable(item, sqlPool, pgPool, options);
+            return;
+        } catch (err) {
+            lastErr = err;
+            const transient = isTransientSyncError(err);
+            const canRetry = transient && attempt < maxAttempts;
+            console.warn(`\n⚠️  [${item.table}] tentativa ${attempt}/${maxAttempts} falhou (${err?.code || 'SEM_CODIGO'}: ${err?.message || err}).`);
+
+            if (!canRetry) break;
+
+            const waitMs = 10000 * attempt;
+            console.warn(`🔁 [${item.table}] erro transitório detectado, retry em ${Math.round(waitMs / 1000)}s...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+    }
+
+    throw lastErr;
+}
+
 async function syncTable(item, sqlPool, pgPool, options = {}) {
     const isHeavyDestination = Boolean(options.isHeavyDestination);
     const t0 = Date.now();
@@ -363,7 +403,7 @@ async function runSync() {
                         if (!isHeavy && !PRIMARY_TABLES.has(item.table)) {
                             console.log(`ℹ️  [${item.table}] não está mapeada explicitamente; destino padrão: PRIMARY.`);
                         }
-                        return syncTable(item, sqlPool, destinationPool, { isHeavyDestination: isHeavy });
+                        return syncTableWithRetry(item, sqlPool, destinationPool, { isHeavyDestination: isHeavy });
                     })
                 );
             }
@@ -375,7 +415,7 @@ async function runSync() {
             for (const item of heavyTables) {
                 const isHeavy = HEAVY_TABLES.has(item.table);
                 const destinationPool = isHeavy ? pgPoolHeavy : pgPoolPrimary;
-                await syncTable(item, sqlPool, destinationPool, { isHeavyDestination: isHeavy });
+                await syncTableWithRetry(item, sqlPool, destinationPool, { isHeavyDestination: isHeavy });
             }
         }
     } catch (err) {
