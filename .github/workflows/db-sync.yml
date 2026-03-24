@@ -99,7 +99,7 @@ jobs:
   db-sync-fallback-selfhosted:
     name: Sincronizar SQL Server -> Supabase (Fallback self-hosted)
     needs: db-sync-cloud
-    if: ${{ needs.db-sync-cloud.result == 'failure' }}
+    if: ${{ always() && needs.db-sync-cloud.result == 'failure' }}
     runs-on: [self-hosted, Windows, X64, sql-vpn]
     permissions:
       contents: read
