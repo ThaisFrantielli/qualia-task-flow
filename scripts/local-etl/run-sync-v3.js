@@ -25,6 +25,7 @@ function parsePositiveInt(value, fallback) {
 const primaryPoolMax = parsePositiveInt(process.env.PG_POOL_MAX, 15);
 const heavyPoolMax = parsePositiveInt(process.env.HEAVY_PG_POOL_MAX ?? process.env.PG_POOL_MAX, 15);
 const parallelBatchSize = parsePositiveInt(process.env.ETL_BATCH_SIZE, 4);
+const copyChunkSize = parsePositiveInt(process.env.ETL_COPY_CHUNK_SIZE, 50000);
 
 // Pooler Session mode (IPv4, porta 5432) — necessário para COPY protocol
 // Host direto (db.*) é IPv6-only; pooler tem IPv4.
@@ -262,7 +263,7 @@ function isTransientSyncError(err) {
 }
 
 async function syncTableWithRetry(item, sqlPool, pgPool, options = {}) {
-    const maxAttempts = parsePositiveInt(process.env.ETL_TABLE_MAX_RETRIES, 2);
+    const maxAttempts = parsePositiveInt(process.env.ETL_TABLE_MAX_RETRIES, 3);
     let lastErr;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -330,22 +331,34 @@ async function syncTable(item, sqlPool, pgPool, options = {}) {
         await client.query(`CREATE TABLE public.${item.table} (${colDefs})`);
         await client.query(`GRANT ALL ON public.${item.table} TO anon, authenticated, service_role`);
 
-        // COPY é o método mais rápido do Postgres
-        const copyStream = client.query(copyStreamFrom(`COPY public.${item.table} (${colNames}) FROM STDIN`));
-        const dataStream = rowsToStream(rows, columnDefs, now);
+        const copyRows = async (chunkRows) => {
+            const copyStream = client.query(copyStreamFrom(`COPY public.${item.table} (${colNames}) FROM STDIN`));
+            const dataStream = rowsToStream(chunkRows, columnDefs, now);
 
-        await new Promise((resolve, reject) => {
-            if (clientRuntimeError) {
-                reject(clientRuntimeError);
-                return;
+            await new Promise((resolve, reject) => {
+                if (clientRuntimeError) {
+                    reject(clientRuntimeError);
+                    return;
+                }
+
+                dataStream.on('error', reject);
+                copyStream.on('error', reject);
+                copyStream.on('finish', resolve);
+                dataStream.pipe(copyStream);
+            });
+        };
+
+        // Em tabelas grandes/heavy, quebrar o COPY em chunks reduz a janela de reset de conexão.
+        if (isHeavyDestination && rows.length > copyChunkSize) {
+            const totalChunks = Math.ceil(rows.length / copyChunkSize);
+            for (let offset = 0, idx = 1; offset < rows.length; offset += copyChunkSize, idx += 1) {
+                const chunkRows = rows.slice(offset, Math.min(offset + copyChunkSize, rows.length));
+                process.stdout.write(` [chunk ${idx}/${totalChunks}]`);
+                await copyRows(chunkRows);
             }
-
-            dataStream.on('error', reject);
-            copyStream.on('error', reject);
-            copyStream.on('finish', resolve);
-            client.once('error', reject);
-            dataStream.pipe(copyStream);
-        });
+        } else {
+            await copyRows(rows);
+        }
 
         if (clientRuntimeError) {
             throw clientRuntimeError;

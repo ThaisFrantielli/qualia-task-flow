@@ -58,6 +58,8 @@ jobs:
           PG_POOL_MAX: '3'
           HEAVY_PG_POOL_MAX: '3'
           ETL_BATCH_SIZE: '1'
+          ETL_TABLE_MAX_RETRIES: '3'
+          ETL_COPY_CHUNK_SIZE: '50000'
 
           NODE_OPTIONS: '--max-old-space-size=4096'
         run: node --max-old-space-size=4096 scripts/local-etl/run-sync-v3.js
