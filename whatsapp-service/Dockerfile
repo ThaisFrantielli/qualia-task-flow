@@ -47,5 +47,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Usar dumb-init para lidar com sinais corretamente
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Comando para iniciar o serviço
-CMD ["node", "simple-whatsapp-service.js"]
+# Comando para iniciar o serviço com auto-reconnect 24/7
+CMD ["node", "index-auto-reconnect.js"]

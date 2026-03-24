@@ -51,8 +51,33 @@ function splitLine(line, delim = ',') {
 function normalizeNumber(v) {
   if (v === undefined || v === null) return 0;
   if (typeof v === 'number') return v;
-  v = String(v).replace(/\s/g, '').replace(/R\$/g, '').replace(/\./g, '').replace(/,/g, '.');
-  const n = parseFloat(v);
+  let s = String(v).trim();
+  s = s.replace(/\s/g, '').replace(/R\$/g, '').replace(/\u00A0/g, '');
+  // Cases:
+  // - both '.' and ',' present => '.' thousands, ',' decimal (BR) -> remove dots, replace comma
+  // - only ',' present => comma is decimal
+  // - only '.' present => could be decimal (e.g. 11588.01) or thousands (e.g. 1.158.801)
+  if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+    s = s.replace(/\./g, '').replace(/,/g, '.');
+    const n2 = parseFloat(s);
+    return isNaN(n2) ? 0 : n2;
+  }
+  if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) {
+    s = s.replace(/,/g, '.');
+    const n2 = parseFloat(s);
+    return isNaN(n2) ? 0 : n2;
+  }
+  if (s.indexOf('.') !== -1 && s.indexOf(',') === -1) {
+    // If dot followed by 1-2 digits at end, treat as decimal, else remove dots (thousands)
+    if (/\.\d{1,2}$/.test(s)) {
+      const n2 = parseFloat(s);
+      return isNaN(n2) ? 0 : n2;
+    }
+    s = s.replace(/\./g, '');
+    const n2 = parseFloat(s);
+    return isNaN(n2) ? 0 : n2;
+  }
+  const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
 

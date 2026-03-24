@@ -1,0 +1,71 @@
+# Script de Monitoramento 24/7 com Uptime Kuma
+# Inicie este container junto ao WhatsApp para monitorar e receber alertas
+
+version: '3.8'
+
+services:
+  whatsapp-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    container_name: whatsapp-service-24-7
+    ports:
+      - "3005:3005"
+    volumes:
+      - ./whatsapp-sessions:/app/whatsapp-sessions
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - whatsapp-network
+    restart_policy:
+      condition: on-failure
+      delay: 10s
+      max_attempts: 5
+      window: 120s
+
+  # Uptime Kuma para monitoramento 24/7
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    restart: always
+    container_name: uptime-kuma-monitor
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime-data:/app/data
+    networks:
+      - whatsapp-network
+    healthcheck:
+      test: ["CMD", "node", "extra/healthcheck.js"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  uptime-data:
+
+networks:
+  whatsapp-network:
+    driver: bridge
+
+# Para iniciar:
+# docker-compose -f docker-compose-monitoring.yml up -d
+#
+# Acessar:
+# WhatsApp Service: http://localhost:3005
+# Uptime Kuma: http://localhost:3001
+#
+# Setup Uptime Kuma:
+# 1. Crie uma conta
+# 2. Add Monitor → HTTP GET
+# 3. URL: http://whatsapp-service:3005/status
+# 4. Interval: 300 (5 min)
+# 5. Configure notificações (Slack, Discord, Email, etc)
