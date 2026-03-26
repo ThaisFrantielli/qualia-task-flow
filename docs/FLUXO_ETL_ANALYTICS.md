@@ -373,7 +373,7 @@ export default function FleetDashboard() {
 
 ### **Método 1: GitHub Actions (Atual)** ⚠️
 
-**Arquivo**: [.github/workflows/sync-data.yml](../.github/workflows/sync-data.yml)  
+**Arquivo**: [.github/workflows/db-sync.yml](../.github/workflows/db-sync.yml)  
 **Status**: Parcialmente ativo (modo `--json-only`)  
 **Frequência**: 3x por dia
 

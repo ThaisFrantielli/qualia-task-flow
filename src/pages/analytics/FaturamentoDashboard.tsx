@@ -90,6 +90,61 @@ function isLocacaoEmitidoValid(row: Row): boolean {
   return situOk && faOk
 }
 
+function includesLocacao(v: unknown): boolean {
+  const s = String(v || '').toLowerCase()
+  return s.includes('loca') || s.includes('locação') || s.includes('loca\u00E7')
+}
+
+function getInsensitive(row: Row, key: string): any {
+  if (!row) return undefined
+  if (key in row) return row[key]
+  const lk = key.toLowerCase()
+  for (const k of Object.keys(row)) {
+    if (k.toLowerCase() === lk) return row[k]
+  }
+  return undefined
+}
+
+function isLocacaoNatureza(row: Row): boolean {
+  const natureza = getInsensitive(row, 'Natureza')
+  const tipoFaturamento = getInsensitive(row, 'TipoFaturamento')
+
+  if (natureza != null && String(natureza).trim() !== '') return includesLocacao(natureza)
+  if (tipoFaturamento != null && String(tipoFaturamento).trim() !== '') return includesLocacao(tipoFaturamento)
+  return false
+}
+
+function isLocacaoRow(row: Row, tipoFallback?: string): boolean {
+  // Prioriza Natureza/TipoFaturamento.
+  if (isLocacaoNatureza(row)) return true
+  return includesLocacao(tipoFallback || '')
+}
+
+function isDebitNote(row: Row): boolean {
+  const tipoNota = String(getInsensitive(row, 'TipoNota') || getInsensitive(row, 'TipoDocumento') || '').toLowerCase()
+  if (tipoNota.includes('débito') || tipoNota.includes('debito')) return true
+
+  const numero = String(getInsensitive(row, 'NumeroNota') || getInsensitive(row, 'Nota') || '').toUpperCase().trim()
+  if (numero.startsWith('ND-')) return true
+
+  const faNd = String(getInsensitive(row, 'FA/ND') || getInsensitive(row, 'FA_ND') || getInsensitive(row, 'FAND') || '').toUpperCase().trim()
+  if (faNd === 'ND') return true
+
+  return false
+}
+
+function getDocLabel(row: Row): string {
+  const explicit = String(getInsensitive(row, 'TipoDocumento') || getInsensitive(row, 'TipoNota') || '').trim()
+  if (explicit) return explicit
+
+  const numero = String(getInsensitive(row, 'NumeroNota') || getInsensitive(row, 'Nota') || '').toUpperCase().trim()
+  if (numero.startsWith('ND-')) return 'Nota de débito'
+  if (numero.startsWith('FA-')) return 'Fatura'
+
+  const fallback = String(getInsensitive(row, 'Documento') || getInsensitive(row, 'Nota') || '').trim()
+  return fallback || 'Documento'
+}
+
 export default function FaturamentoDashboard() {
   const { data, loading, error } = useBIData('fat_faturamentos') as { data?: Row[], loading?: boolean, error?: any }
 
@@ -125,9 +180,9 @@ export default function FaturamentoDashboard() {
     const getTipo = (r: Row) => {
       if (!r) return 'Outros'
       if (r.TipoFaturamento != null) return String(r.TipoFaturamento)
-      if (r.TipoNota != null) return String(r.TipoNota)
-      if (r.Tipo != null) return String(r.Tipo)
       if (r.Natureza != null) return String(r.Natureza)
+      if (r.Tipo != null) return String(r.Tipo)
+      if (r.TipoNota != null) return String(r.TipoNota)
       for (const key of Object.keys(r)) if (key.toLowerCase() === 'tipofaturamento' && r[key] != null) return String(r[key])
       return 'Outros'
     }
@@ -162,9 +217,10 @@ export default function FaturamentoDashboard() {
       const m = dateStr.length >= 7 ? Number(dateStr.slice(5,7)) : 1
       const tipo = String(getTipo(r) || 'Outros')
       // Aplica regra específica: se for Locação, só conta quando atender a condição "emitido"
-      const isLocacao = String(tipo).toLowerCase().includes('loca') || String(tipo).toLowerCase().includes('locação')
-      if (isLocacao && !isLocacaoEmitidoValid(r)) continue
-      const doc = String(r.TipoDocumento || r.TipoNota || r.Documento || r.Nota || 'Documento')
+      const isLocacao = isLocacaoRow(r, tipo)
+      const isND = isDebitNote(r)
+      if (isLocacao && !isND && !isLocacaoEmitidoValid(r)) continue
+      const doc = getDocLabel(r)
       const val = getValorByTipo(r, tipo) || 0
       if (!groupedMap.has(tipo)) groupedMap.set(tipo, { arr: new Array(12).fill(0), docs: new Map() })
       const bucket = groupedMap.get(tipo) as { arr: number[], docs: Map<string, number[]> }
@@ -199,16 +255,17 @@ export default function FaturamentoDashboard() {
       const m = dateStr.length >= 7 ? Number(dateStr.slice(5,7)) : 1
       let tipo: string = 'Outros'
       if (r.TipoFaturamento != null) tipo = String(r.TipoFaturamento)
-      else if (r.TipoNota != null) tipo = String(r.TipoNota)
-      else if (r.Tipo != null) tipo = String(r.Tipo)
       else if (r.Natureza != null) tipo = String(r.Natureza)
+      else if (r.Tipo != null) tipo = String(r.Tipo)
+      else if (r.TipoNota != null) tipo = String(r.TipoNota)
       else {
         for (const key of Object.keys(r)) if (key.toLowerCase() === 'tipofaturamento' && r[key] != null) { tipo = String(r[key]); break }
       }
       if (!counts.has(tipo)) counts.set(tipo, new Array(12).fill(0))
       // aplicar a mesma validação: se for locação, só contar quando emitido
-      const isLocacao = String(tipo).toLowerCase().includes('loca') || String(tipo).toLowerCase().includes('locação')
-      if (isLocacao && !isLocacaoEmitidoValid(r)) continue
+      const isLocacao = isLocacaoRow(r, tipo)
+      const isND = isDebitNote(r)
+      if (isLocacao && !isND && !isLocacaoEmitidoValid(r)) continue
       const arr = counts.get(tipo) as number[]
       if (m >=1 && m <=12) arr[m-1] = (arr[m-1] || 0) + 1
     }

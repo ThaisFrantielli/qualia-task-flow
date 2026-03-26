@@ -25,6 +25,7 @@ const pgPrimaryConfig = {
     user: process.env.PG_POOLER_USER || 'postgres.qcptedntbdsvqplrrqpi',
     password: process.env.PG_PASSWORD,
     database: process.env.PG_DATABASE || 'postgres',
+    options: '-c statement_timeout=0',
     ssl: { rejectUnauthorized: false },
     max: 5,
     connectionTimeoutMillis: 30000,
@@ -37,6 +38,7 @@ const pgHeavyConfig = {
     user: process.env.HEAVY_PG_POOLER_USER || process.env.HEAVY_PG_USER || 'postgres',
     password: process.env.HEAVY_PG_PASSWORD,
     database: process.env.HEAVY_PG_DATABASE || 'postgres',
+    options: '-c statement_timeout=0',
     ssl: { rejectUnauthorized: false },
     max: 5,
     connectionTimeoutMillis: 30000,
@@ -266,6 +268,7 @@ async function syncTable(item, sqlPool, pgPool, options = {}) {
 
     const client = await pgPool.connect();
     try {
+        await client.query('SET statement_timeout = 0');
         const colDefs = columnDefs.map(c => `"${c.key}" ${c.type}`).join(', ');
         await client.query(`DROP TABLE IF EXISTS public.${item.table} CASCADE`);
         await client.query(`CREATE TABLE public.${item.table} (${colDefs})`);

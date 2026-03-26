@@ -1,0 +1,12 @@
+name: Supabase DB Sync (Legacy)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  legacy-notice:
+    name: Legacy Notice
+    runs-on: ubuntu-latest
+    steps:
+      - name: Informar workflow atual
+        run: echo "Workflow legado. Use .github/workflows/db-sync.yml"

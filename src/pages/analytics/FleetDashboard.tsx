@@ -2705,7 +2705,7 @@ export default function FleetDashboard() {
                                         <td className="px-6 py-3 text-right font-medium text-blue-600">{r.ValorLocacao ? fmtBRL(r.ValorLocacao) : '-'}</td>
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
-                                        <td className="px-6 py-3 text-right">{r.KmInformado ? Number(r.KmInformado).toLocaleString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3 text-right">{(r.KmInformado ?? r.KmConfirmado) ? Number(r.KmInformado ?? r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
                                         <td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
                                         <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
                                         <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>

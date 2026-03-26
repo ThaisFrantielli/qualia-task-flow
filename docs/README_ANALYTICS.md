@@ -291,7 +291,7 @@ Este índice conecta toda a documentação do módulo de Analytics do projeto qu
 
 ### Configuração
 - [scripts/local-etl/.env](../scripts/local-etl/.env) - Variáveis de ambiente
-- [.github/workflows/sync-data.yml](../.github/workflows/sync-data.yml) - GitHub Action
+- [.github/workflows/db-sync.yml](../.github/workflows/db-sync.yml) - GitHub Action
 
 ### Storage
 - [Supabase Storage: bi-reports](https://apqrjkobktjcyrxhqwtm.supabase.co/storage/v1/object/public/bi-reports/) - Arquivos JSON públicos

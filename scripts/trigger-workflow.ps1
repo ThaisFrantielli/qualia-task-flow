@@ -12,7 +12,7 @@ if (-not $Token) {
     Write-Host "Opções:" -ForegroundColor Yellow
     Write-Host "  1. Defina variável de ambiente: `$env:GITHUB_TOKEN='seu_token'" -ForegroundColor White
     Write-Host "  2. Passe como parâmetro: .\trigger-workflow.ps1 'seu_token'" -ForegroundColor White
-    Write-Host "  3. Ou acesse: https://github.com/ThaisFrantielli/qualia-task-flow/actions/workflows/sync-data.yml" -ForegroundColor White
+    Write-Host "  3. Ou acesse: https://github.com/ThaisFrantielli/qualia-task-flow/actions/workflows/db-sync.yml" -ForegroundColor White
     Write-Host "     E clique em 'Run workflow' manualmente" -ForegroundColor White
     exit 1
 }
@@ -30,7 +30,7 @@ $body = @{
 Write-Host "🚀 Disparando workflow 'Sincronizar Dados (3x ao Dia)'..." -ForegroundColor Cyan
 
 try {
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/ThaisFrantielli/qualia-task-flow/actions/workflows/sync-data.yml/dispatches" `
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/ThaisFrantielli/qualia-task-flow/actions/workflows/db-sync.yml/dispatches" `
         -Method Post `
         -Headers $headers `
         -Body $body `
@@ -46,6 +46,6 @@ try {
     Write-Host $_.Exception.Message -ForegroundColor Red
     Write-Host ""
     Write-Host "💡 Solução: Acesse manualmente" -ForegroundColor Yellow
-    Write-Host "   https://github.com/ThaisFrantielli/qualia-task-flow/actions/workflows/sync-data.yml" -ForegroundColor White
+    Write-Host "   https://github.com/ThaisFrantielli/qualia-task-flow/actions/workflows/db-sync.yml" -ForegroundColor White
     exit 1
 }

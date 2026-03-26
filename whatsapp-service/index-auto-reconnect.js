@@ -10,6 +10,8 @@ const path = require('path');
 const app = express();
 app.use(cors());
 app.use(express.json());
+// Também aceitar form-urlencoded para compatibilidade com requests antigos
+app.use(express.urlencoded({ extended: true }));
 
 // Serve static assets
 const publicDir = path.join(__dirname, 'public');
@@ -314,12 +316,34 @@ app.get('/status', (req, res) => {
 // Create new instance
 app.post('/instances', async (req, res) => {
     try {
-        const { id, name } = req.body;
+        // Log do corpo recebido para debugging quando client enviar formatos inesperados
+        console.log('[API] POST /instances body:', JSON.stringify(req.body));
+        // Aceitar vários nomes de campo para compatibilidade: id, instanceId, instance_id
+        const id = req.body?.id || req.body?.instanceId || req.body?.instance_id || req.query?.id || req.query?.instanceId || req.query?.instance_id || req.params?.id;
+        const name = req.body?.name || req.query?.name || null;
 
-        if (!id) return res.status(400).json({ error: 'Instance ID is required' });
+        if (!id) {
+            console.warn('[API] POST /instances missing id - body or query param required');
+            return res.status(400).json({ error: 'Instance ID is required (body.id, body.instanceId or ?id=...)' });
+        }
 
+        // Se já existir uma instância com esse ID, reinicializar para gerar novo QR (comportamento esperado pelo frontend)
         if (whatsappInstances.has(id)) {
-            return res.status(400).json({ error: 'Instance already active' });
+            try {
+                console.log(`[API] Instance ${id} already exists — reinitializing session to refresh QR`);
+                const existing = whatsappInstances.get(id);
+                if (existing && typeof existing.destroy === 'function') {
+                    await existing.destroy();
+                }
+            } catch (err) {
+                console.error(`[API] Error destroying existing instance ${id}:`, err?.message || err);
+            }
+
+            // limpar estados associados antes de recriar
+            whatsappInstances.delete(id);
+            activeQRCodes.delete(id);
+            reconnectAttempts.delete(id);
+            instanceStates.delete(id);
         }
 
         console.log(`[API] Creating new instance: ${id}`);
