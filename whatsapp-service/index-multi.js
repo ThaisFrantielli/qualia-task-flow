@@ -836,3 +836,55 @@ app.listen(PORT, () => {
     // POLLING DISABLED: was causing infinite loop resending messages
     console.log('⚠️  Polling fallback is DISABLED to prevent message loops');
 });
+
+// Delete instance (remove client, session files and update DB)
+app.delete('/instances/:instanceId', async (req, res) => {
+    try {
+        const { instanceId } = req.params;
+
+        const client = whatsappInstances.get(instanceId);
+
+        if (client) {
+            try {
+                await client.destroy();
+            } catch (e) {
+                console.error(`Error destroying client ${instanceId}:`, e);
+            }
+
+            whatsappInstances.delete(instanceId);
+            activeQRCodes.delete(instanceId);
+        }
+
+        // Update DB to mark as disconnected / removed
+        try {
+            await supabase
+                .from('whatsapp_instances')
+                .update({
+                    status: 'disconnected',
+                    qr_code: null,
+                    phone_number: null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', instanceId);
+        } catch (dbErr) {
+            console.error(`Failed to update Supabase for deleted instance ${instanceId}:`, dbErr);
+        }
+
+        // Remove local session folder if exists
+        try {
+            const sanitizedId = instanceId.replace(/-/g, '');
+            const sessionDir = `./whatsapp-session-${sanitizedId}`;
+            if (fs.existsSync(sessionDir)) {
+                fs.rmSync(sessionDir, { recursive: true, force: true });
+                console.log(`Removed session dir ${sessionDir}`);
+            }
+        } catch (fsErr) {
+            console.error(`Failed to remove session directory for ${instanceId}:`, fsErr);
+        }
+
+        res.json({ success: true, instanceId });
+    } catch (error) {
+        console.error('Failed to delete instance:', error);
+        res.status(500).json({ error: 'Failed to delete instance' });
+    }
+});

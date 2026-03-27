@@ -137,34 +137,41 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
       const motivoId = isUuid(ticketForm.motivo) ? ticketForm.motivo : null;
       const motivoEnum = !motivoId ? (selectedMotivo?.label || ticketForm.motivo || null) : null;
 
+      const payload = {
+        titulo: ticketForm.titulo || `Atendimento - ${conversation.customer_name || conversation.customer_phone}`,
+        sintese: ticketForm.sintese,
+        prioridade: ticketForm.prioridade,
+        origem: ticketForm.origem,
+        motivo: motivoEnum as any,
+        motivo_id: motivoId,
+        departamento: ticketForm.departamento as any,
+        placa: ticketForm.placa,
+        custom_fields: customFieldValues,
+        fase: 'Análise do caso',
+        status: 'aguardando_triagem',
+        cliente_id: conversation.cliente_id,
+        atendente_id: user?.id
+      };
+
+      console.debug('Criando ticket payload:', payload);
+
       const { data: insertedTicket, error } = await supabase
         .from('tickets')
-        .insert({
-          // Do not send a formatted string for `numero_ticket` (DB expects numeric or is auto-generated).
-          titulo: ticketForm.titulo || `Atendimento - ${conversation.customer_name || conversation.customer_phone}`,
-          sintese: ticketForm.sintese,
-          prioridade: ticketForm.prioridade,
-          origem: ticketForm.origem,
-          motivo: motivoEnum as any,
-          motivo_id: motivoId,
-          departamento: ticketForm.departamento as any,
-          placa: ticketForm.placa,
-          custom_fields: customFieldValues,
-          fase: 'Análise do caso',
-          status: 'aguardando_triagem',
-          cliente_id: conversation.cliente_id,
-          atendente_id: user?.id
-        })
+        .insert(payload)
         .select()
         .single();
+
+      console.debug('Ticket insert result:', { insertedTicket, error });
 
       if (error) throw error;
 
       // Update conversation status
-      await supabase
+      const { error: convError } = await supabase
         .from('whatsapp_conversations')
         .update({ status: 'closed' })
         .eq('id', conversation.id);
+
+      if (convError) console.warn('Erro ao atualizar status da conversa após criar ticket:', convError);
 
       toast({
         title: 'Ticket criado',
@@ -184,11 +191,13 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
       setCustomFieldValues({});
       onActionComplete();
     } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error.message,
-        variant: 'destructive'
-      });
+        console.error('Erro ao criar ticket:', error);
+        const message = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
+        toast({
+          title: 'Erro',
+          description: message,
+          variant: 'destructive'
+        });
     } finally {
       setIsLoading(false);
     }

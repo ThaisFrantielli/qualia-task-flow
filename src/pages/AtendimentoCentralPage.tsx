@@ -384,7 +384,12 @@ export default function AtendimentoCentralPage() {
         description: 'Você está agora atendendo esta conversa'
       });
 
+      // Refetch list and also optimistically ensure current user's name is available
       refetchConversations();
+      setAssignedAgentNames((prev) => ({
+        ...prev,
+        [user.id]: (user as any)?.full_name || 'Você'
+      }));
     } catch (error: any) {
       toast({
         title: 'Erro',

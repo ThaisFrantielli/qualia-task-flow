@@ -70,17 +70,26 @@ export function useWhatsAppConversations(customerId?: string, instanceId?: strin
           console.log('Conversation updated:', payload);
 
           if (payload.eventType === 'INSERT') {
-            setConversations(prev => [payload.new as WhatsAppConversation, ...prev]);
+              // Ignore inserts that are already closed
+              if ((payload.new as any).status === 'closed') return;
+              setConversations(prev => [payload.new as WhatsAppConversation, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
-            setConversations(prev =>
-              prev.map(conv =>
-                conv.id === payload.new.id ? { ...payload.new as WhatsAppConversation } : conv
-              ).sort((a, b) => {
-                const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-                const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-                return dateB - dateA;
-              })
-            );
+              // If conversation was closed, remove it from the list immediately
+              if ((payload.new as any).status === 'closed') {
+                console.debug('Realtime: removing closed conversation', (payload.new as any).id);
+                setConversations(prev => prev.filter(conv => conv.id !== (payload.new as any).id));
+                return;
+              }
+
+              setConversations(prev =>
+                prev.map(conv =>
+                  conv.id === payload.new.id ? { ...payload.new as WhatsAppConversation } : conv
+                ).sort((a, b) => {
+                  const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+                  const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+                  return dateB - dateA;
+                })
+              );
           } else if (payload.eventType === 'DELETE') {
             setConversations(prev => prev.filter(conv => conv.id !== payload.old.id));
           }
