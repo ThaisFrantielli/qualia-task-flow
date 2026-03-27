@@ -17,12 +17,15 @@ export interface WhatsAppConversation {
   unread_count: number | null;
   status: string | null;
   created_at: string | null;
+  updated_at: string | null;
   cliente_id: string | null;
   assigned_agent_id: string | null;
   assigned_at: string | null;
   assigned_agent_name?: string | null;
-  whatsapp_number?: string | null;
-  instance_id?: string | null;
+  whatsapp_number: string;
+  instance_id: string | null;
+  atendimento_id: number | null;
+  is_online: boolean | null;
 }
 
 interface AtendimentoQueueProps {

@@ -26,6 +26,7 @@ import FleetIdleDashboard from '@/pages/analytics/FleetIdleDashboard';
 import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 import AnaliseContrato from '@/pages/analytics/AnaliseContrato';
+import ContractTerminationDashboard from '@/pages/analytics/ContractTerminationDashboard';
 // CashFlowProjectionPage removed (unused)
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import FaturamentoDashboard from '@/pages/analytics/FaturamentoDashboard';
@@ -124,6 +125,7 @@ function App() {
                 <Route path="frota-metodologia" element={<FleetMethodologyPage />} />
                 <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="analise-contrato" element={<AnaliseContrato />} />
+                <Route path="previsao-encerramento" element={<ContractTerminationDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="faturamento" element={<FaturamentoDashboard />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />

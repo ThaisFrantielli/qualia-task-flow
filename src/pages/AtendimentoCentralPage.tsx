@@ -109,7 +109,7 @@ export default function AtendimentoCentralPage() {
   // Hooks - use first selected instance or null for all
   const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
-  const { stats, refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
+  const { refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
 
   // Calculate "my conversations" count
@@ -130,7 +130,7 @@ export default function AtendimentoCentralPage() {
   }, [conversations]);
 
   const queueConversationsCount = useMemo(() => {
-    return conversations.filter(c => (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id).length;
+    return conversations.filter(c => (c.status === 'waiting' || c.status === 'open') && !(c as any).assigned_agent_id).length;
   }, [conversations]);
 
   const othersConversationsCount = useMemo(() => {
@@ -138,15 +138,15 @@ export default function AtendimentoCentralPage() {
       if (c.status === 'closed') return false;
       const unreadCount = Number(c.unread_count || 0);
       const isUnread = unreadCount > 0 || c.status === 'waiting';
-      const isMine = c.assigned_agent_id === user?.id;
-      const isQueue = (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id;
+      const isMine = (c as any).assigned_agent_id === user?.id;
+      const isQueue = (c.status === 'waiting' || c.status === 'open') && !(c as any).assigned_agent_id;
       return !isUnread && !isMine && !isQueue;
     }).length;
   }, [conversations, user?.id]);
 
   useEffect(() => {
     const loadAssignedAgentNames = async () => {
-      const ids = Array.from(new Set(conversations.map((c) => c.assigned_agent_id).filter(Boolean) as string[]));
+      const ids = Array.from(new Set(conversations.map((c) => (c as any).assigned_agent_id).filter(Boolean) as string[]));
       if (ids.length === 0) {
         setAssignedAgentNames({});
         return;
@@ -326,6 +326,11 @@ export default function AtendimentoCentralPage() {
       assigned_agent_id: (c as any).assigned_agent_id || null,
       assigned_at: (c as any).assigned_at || null,
       assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
+      updated_at: (c as any).updated_at || null,
+      atendimento_id: (c as any).atendimento_id || null,
+      is_online: (c as any).is_online || false,
+      whatsapp_number: (c as any).whatsapp_number || (c as any).customer_phone || '',
+      instance_id: (c as any).instance_id || null,
     })) as WhatsAppConversation[];
 
     // Search filter
@@ -389,12 +394,19 @@ export default function AtendimentoCentralPage() {
     });
   }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id, assignedAgentNames, statusFilter]);
 
-  const selectedConversation = (filteredConversations.find(c => c.id === selectedConversationId)
-    || conversations.map(c => ({
+  const selectedConversation = filteredConversations.find(c => c.id === selectedConversationId)
+    || (conversations.map(c => ({
       ...c,
+      assigned_agent_id: (c as any).assigned_agent_id || null,
+      assigned_at: (c as any).assigned_at || null,
       assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
-    }) as WhatsAppConversation).find(c => c.id === selectedConversationId)
-    || null);
+      updated_at: (c as any).updated_at || null,
+      atendimento_id: (c as any).atendimento_id || null,
+      is_online: (c as any).is_online || false,
+      whatsapp_number: (c as any).whatsapp_number || (c as any).customer_phone || '',
+      instance_id: (c as any).instance_id || null,
+    })) as WhatsAppConversation[]).find(c => c.id === selectedConversationId)
+    || null;
 
   const handleAssignConversation = async (conversationId: string) => {
     if (!user?.id) return;
@@ -683,7 +695,7 @@ export default function AtendimentoCentralPage() {
                 {/* Center Panel - Chat */}
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
                   <WhatsAppChatPanel
-                    conversation={selectedConversation}
+                    conversation={selectedConversation as any}
                     instanceId={selectedInstanceId || undefined}
                   />
                 </div>

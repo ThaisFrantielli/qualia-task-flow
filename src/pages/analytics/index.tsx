@@ -100,6 +100,12 @@ export default function AnalyticsIndex() {
                 desc: 'Contratos de Locação, Estratégias e Projeções',
               },
               {
+                to: '/analytics/previsao-encerramento',
+                icon: <FileText className="w-5 h-5" />,
+                title: 'Previsão de Encerramento',
+                desc: 'Forecast de Vencimento, KPIs e Distribuição por Faixa',
+              },
+              {
                 to: '/analytics/frota-metodologia',
                 icon: <LayoutDashboard className="w-5 h-5" />,
                 title: 'Metodologia',
