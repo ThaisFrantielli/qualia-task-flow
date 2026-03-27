@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MessageSquare, UserPlus, User } from 'lucide-react';
+import { MessageSquare, UserPlus, User, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
 
@@ -20,6 +20,7 @@ export interface WhatsAppConversation {
   cliente_id: string | null;
   assigned_agent_id: string | null;
   assigned_at: string | null;
+  assigned_agent_name?: string | null;
   whatsapp_number?: string | null;
   instance_id?: string | null;
 }
@@ -84,6 +85,8 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
           {filter === 'queue' && 'Aguardando novas mensagens'}
           {filter === 'unread' && 'Todas as mensagens lidas'}
           {filter === 'mine' && 'Assuma uma conversa para atender'}
+          {filter === 'whatsapp' && 'Nenhuma conversa de WhatsApp encontrada'}
+          {filter === 'others' && 'Sem conversas fora de Não Lidas, Aguardando e Meus'}
         </p>
       </div>
     );
@@ -165,11 +168,15 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
                         <TooltipTrigger asChild>
                           <Badge variant="secondary" className="h-4 px-1.5 text-[10px] gap-0.5">
                             <User className="h-2.5 w-2.5" />
-                            Atribuído
+                            {conv.assigned_agent_name ? `Com ${conv.assigned_agent_name}` : 'Atribuído'}
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p className="text-xs">Atribuído a outro agente</p>
+                          <p className="text-xs">
+                            {conv.assigned_agent_name
+                              ? `Atribuído para ${conv.assigned_agent_name}`
+                              : 'Atribuído a outro agente'}
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -179,20 +186,43 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
             </div>
 
             {/* Assign button on hover - only show if not assigned */}
-            {(isWaiting || !conv.assigned_agent_id) && !isAssignedToMe && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button
                 size="sm"
-                variant="secondary"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                variant="outline"
+                className="h-7 text-xs"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onAssign(conv.id);
+                  onSelect(conv.id);
                 }}
               >
-                <UserPlus className="h-3 w-3 mr-1" />
-                Assumir
+                {conv.last_message ? 'Ver conversa' : 'Iniciar conversa'}
               </Button>
-            )}
+
+              {!isAssignedToMe && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAssign(conv.id);
+                  }}
+                >
+                  {isAssignedToOther ? (
+                    <>
+                      <ArrowRightLeft className="h-3 w-3 mr-1" />
+                      Assumir
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-3 w-3 mr-1" />
+                      Assumir
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         );
       })}

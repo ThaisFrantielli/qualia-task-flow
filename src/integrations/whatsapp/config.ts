@@ -1,6 +1,6 @@
 // Centralized WhatsApp integration configuration
 export const WHATSAPP = {
-  // Base URL for the production WhatsApp service (real service on port 3006)
+  // Default local service URL. Override with VITE_WHATSAPP_SERVICE_URL if needed.
   SERVICE_URL: (import.meta as any).env?.VITE_WHATSAPP_SERVICE_URL ?? 'http://localhost:3006',
 
   // Supabase Edge Function name for sending messages

@@ -821,7 +821,7 @@ app.post('/send-message', async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3007;
+const PORT = process.env.PORT || 3006;
 app.listen(PORT, () => {
     console.log(`\n✓ Multi-WhatsApp service is running on http://localhost:${PORT}`);
     console.log(`✓ Health check: http://localhost:${PORT}/status`);

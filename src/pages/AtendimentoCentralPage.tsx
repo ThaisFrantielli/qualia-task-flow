@@ -76,8 +76,9 @@ export default function AtendimentoCentralPage() {
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<'all' | 'queue' | 'mine' | 'unread'>('all');
+  const [filter, setFilter] = useState<'all' | 'whatsapp' | 'queue' | 'mine' | 'unread' | 'others'>('all');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [assignedAgentNames, setAssignedAgentNames] = useState<Record<string, string>>({});
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
   const [activeFolder, setActiveFolder] = useState<'triagem' | 'whatsapp'>('triagem');
   const [pendingAutoOpen, setPendingAutoOpen] = useState<{ clienteId: string; telefone: string } | null>(
@@ -99,6 +100,63 @@ export default function AtendimentoCentralPage() {
   const myConversationsCount = useMemo(() => {
     return conversations.filter(c => (c as any).assigned_agent_id === user?.id && c.status !== 'closed').length;
   }, [conversations, user?.id]);
+
+  const whatsappConversationsCount = useMemo(() => {
+    return conversations.filter((c) => Boolean(c.whatsapp_number || c.customer_phone) && c.status !== 'closed').length;
+  }, [conversations]);
+
+  const unreadConversationsCount = useMemo(() => {
+    return conversations.filter((c) => {
+      if (c.status === 'closed') return false;
+      const unreadCount = Number(c.unread_count || 0);
+      return unreadCount > 0 || c.status === 'waiting';
+    }).length;
+  }, [conversations]);
+
+  const queueConversationsCount = useMemo(() => {
+    return conversations.filter(c => (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id).length;
+  }, [conversations]);
+
+  const othersConversationsCount = useMemo(() => {
+    return conversations.filter((c) => {
+      if (c.status === 'closed') return false;
+      const unreadCount = Number(c.unread_count || 0);
+      const isUnread = unreadCount > 0 || c.status === 'waiting';
+      const isMine = c.assigned_agent_id === user?.id;
+      const isQueue = (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id;
+      return !isUnread && !isMine && !isQueue;
+    }).length;
+  }, [conversations, user?.id]);
+
+  useEffect(() => {
+    const loadAssignedAgentNames = async () => {
+      const ids = Array.from(new Set(conversations.map((c) => c.assigned_agent_id).filter(Boolean) as string[]));
+      if (ids.length === 0) {
+        setAssignedAgentNames({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', ids);
+
+      if (error) {
+        console.warn('Falha ao carregar nomes de agentes atribuídos:', error);
+        return;
+      }
+
+      const map: Record<string, string> = {};
+      (data || []).forEach((profile) => {
+        if (profile.id) {
+          map[profile.id] = profile.full_name || 'Agente';
+        }
+      });
+      setAssignedAgentNames(map);
+    };
+
+    loadAssignedAgentNames();
+  }, [conversations]);
 
   // Fetch instances
   useEffect(() => {
@@ -235,6 +293,7 @@ export default function AtendimentoCentralPage() {
       ...c,
       assigned_agent_id: (c as any).assigned_agent_id || null,
       assigned_at: (c as any).assigned_at || null,
+      assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
     })) as WhatsAppConversation[];
 
     // Search filter
@@ -243,8 +302,15 @@ export default function AtendimentoCentralPage() {
       filtered = filtered.filter(c =>
         c.customer_name?.toLowerCase().includes(term) ||
         c.customer_phone?.includes(term) ||
-        c.last_message?.toLowerCase().includes(term)
+        c.last_message?.toLowerCase().includes(term) ||
+        c.assigned_agent_name?.toLowerCase().includes(term)
       );
+    }
+
+    if (statusFilter) {
+      filtered = filtered.filter((c) => c.status === statusFilter);
+    } else {
+      filtered = filtered.filter((c) => c.status !== 'closed');
     }
 
     // Instance filter (when multiple selected)
@@ -254,16 +320,28 @@ export default function AtendimentoCentralPage() {
 
     // Tab filter
     switch (filter) {
+      case 'whatsapp':
+        filtered = filtered.filter(c => Boolean(c.whatsapp_number || c.customer_phone) && c.status !== 'closed');
+        break;
       case 'queue':
         filtered = filtered.filter(c =>
           (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id
         );
         break;
       case 'unread':
-        filtered = filtered.filter(c => (c.unread_count || 0) > 0);
+        filtered = filtered.filter(c => Number(c.unread_count || 0) > 0 || c.status === 'waiting');
         break;
       case 'mine':
         filtered = filtered.filter(c => c.assigned_agent_id === user?.id);
+        break;
+      case 'others':
+        filtered = filtered.filter((c) => {
+          const unreadCount = Number(c.unread_count || 0);
+          const isUnread = unreadCount > 0 || c.status === 'waiting';
+          const isMine = c.assigned_agent_id === user?.id;
+          const isQueue = (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id;
+          return c.status !== 'closed' && !isUnread && !isMine && !isQueue;
+        });
         break;
     }
 
@@ -277,9 +355,14 @@ export default function AtendimentoCentralPage() {
       const bDate = new Date(b.last_message_at || b.created_at || '').getTime();
       return bDate - aDate;
     });
-  }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id]);
+  }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id, assignedAgentNames, statusFilter]);
 
-  const selectedConversation = conversations.find(c => c.id === selectedConversationId) || null;
+  const selectedConversation = (filteredConversations.find(c => c.id === selectedConversationId)
+    || conversations.map(c => ({
+      ...c,
+      assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
+    }) as WhatsAppConversation).find(c => c.id === selectedConversationId)
+    || null);
 
   const handleAssignConversation = async (conversationId: string) => {
     if (!user?.id) return;
@@ -501,21 +584,29 @@ export default function AtendimentoCentralPage() {
                     </div>
 
                     <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                      <TabsList className="w-full grid grid-cols-4 h-8 bg-muted/50">
+                      <TabsList className="w-full grid grid-cols-6 h-8 bg-muted/50">
                         <TabsTrigger value="all" className="text-[10px] px-1">Todas</TabsTrigger>
+                        <TabsTrigger value="whatsapp" className="text-[10px] px-1 relative">
+                          WhatsApp
+                          {whatsappConversationsCount > 0 && (
+                            <Badge variant="secondary" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {whatsappConversationsCount > 9 ? '9+' : whatsappConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
                         <TabsTrigger value="queue" className="text-[10px] px-1 relative">
                           Aguardando
-                          {stats.queueConversations > 0 && (
+                          {queueConversationsCount > 0 && (
                             <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {stats.queueConversations}
+                              {queueConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
                         <TabsTrigger value="unread" className="text-[10px] px-1 relative">
-                          Novas
-                          {stats.unreadMessages > 0 && (
+                          Não Lidas
+                          {unreadConversationsCount > 0 && (
                             <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {stats.unreadMessages > 9 ? '9+' : stats.unreadMessages}
+                              {unreadConversationsCount > 9 ? '9+' : unreadConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
@@ -524,6 +615,14 @@ export default function AtendimentoCentralPage() {
                           {myConversationsCount > 0 && (
                             <Badge className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5 bg-green-500">
                               {myConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="others" className="text-[10px] px-1 relative">
+                          Outros
+                          {othersConversationsCount > 0 && (
+                            <Badge variant="outline" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {othersConversationsCount > 9 ? '9+' : othersConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>

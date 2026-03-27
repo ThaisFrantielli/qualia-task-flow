@@ -27,6 +27,7 @@ import {
   TICKET_DEPARTAMENTO_OPTIONS
 } from '@/constants/ticketOptions';
 import { useTicketMotivos, useTicketDepartamentos, useTicketCustomFields } from '@/hooks/useTicketOptions';
+import { useFunis } from '@/hooks/useFunis';
 
 export interface WhatsAppConversation {
   id: string;
@@ -37,6 +38,7 @@ export interface WhatsAppConversation {
   cliente_id: string | null;
   assigned_agent_id: string | null;
   assigned_at: string | null;
+  assigned_agent_name?: string | null;
 }
 
 interface AtendimentoActionsProps {
@@ -78,6 +80,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   const { data: ticketMotivos } = useTicketMotivos();
   const { data: ticketDepartamentos } = useTicketDepartamentos();
   const { data: ticketCustomFields } = useTicketCustomFields();
+  const { data: funis } = useFunis();
 
   const motivoOptions = (ticketMotivos && ticketMotivos.length > 0)
     ? ticketMotivos.filter((m) => m.is_active).map((m) => ({ value: m.id, label: m.label }))
@@ -105,6 +108,9 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
       .filter((option): option is { value: string; label: string } => !!option && !!option.value);
   };
 
+  const isUuid = (value: string | null | undefined) =>
+    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value));
+
   const handleCreateTicket = async () => {
     if (!conversation) return;
 
@@ -127,6 +133,10 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
     
     setIsLoading(true);
     try {
+      const selectedMotivo = motivoOptions.find((option) => option.value === ticketForm.motivo);
+      const motivoId = isUuid(ticketForm.motivo) ? ticketForm.motivo : null;
+      const motivoEnum = !motivoId ? (selectedMotivo?.label || ticketForm.motivo || null) : null;
+
       const { data: insertedTicket, error } = await supabase
         .from('tickets')
         .insert({
@@ -135,7 +145,8 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
           sintese: ticketForm.sintese,
           prioridade: ticketForm.prioridade,
           origem: ticketForm.origem,
-          motivo_id: ticketForm.motivo || null,
+          motivo: motivoEnum as any,
+          motivo_id: motivoId,
           departamento: ticketForm.departamento as any,
           placa: ticketForm.placa,
           custom_fields: customFieldValues,
@@ -188,9 +199,31 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
 
     setIsLoading(true);
     try {
+      const funilVendas = funis?.find((funil) => funil.tipo === 'vendas');
+
+      if (!funilVendas) {
+        throw new Error('Nenhum funil de vendas ativo encontrado para criar a oportunidade.');
+      }
+
+      const { data: estagios, error: estagioError } = await supabase
+        .from('funil_estagios')
+        .select('id')
+        .eq('funil_id', funilVendas.id)
+        .order('ordem', { ascending: true })
+        .limit(1);
+
+      if (estagioError) throw estagioError;
+
+      const primeiroEstagioId = estagios?.[0]?.id;
+      if (!primeiroEstagioId) {
+        throw new Error('O funil de vendas não possui estágios configurados.');
+      }
+
       const { error } = await supabase.from('oportunidades').insert({
         titulo: `Oportunidade - ${conversation.customer_name || conversation.customer_phone}`,
         cliente_id: conversation.cliente_id,
+        funil_id: funilVendas.id,
+        estagio_id: primeiroEstagioId,
         status: 'aberta',
         user_id: user?.id
       });
@@ -278,6 +311,39 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
     }
   };
 
+  const handleAssumeToMe = async () => {
+    if (!conversation || !user?.id) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('whatsapp_conversations')
+        .update({
+          status: 'active',
+          assigned_agent_id: user.id,
+          assigned_at: new Date().toISOString()
+        })
+        .eq('id', conversation.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Conversa atribuída',
+        description: 'Agora esta conversa está atribuída para você.'
+      });
+
+      onActionComplete();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const isAssignedToMe = conversation?.assigned_agent_id === user?.id;
 
   if (!conversation) {
@@ -335,6 +401,14 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
                 <span>+{conversation.customer_phone}</span>
               </div>
             )}
+            {conversation.assigned_agent_id && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <UserCheck className="h-3 w-3" />
+                <span>
+                  Responsável: {conversation.assigned_agent_name || (isAssignedToMe ? 'Você' : 'Outro colaborador')}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-muted-foreground">
               <MessageSquare className="h-3 w-3" />
               <span>{conversation.unread_count || 0} não lidas</span>
@@ -381,6 +455,18 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
             <Users className="h-4 w-4 mr-2" />
             Transferir
           </Button>
+
+          {!isAssignedToMe && (
+            <Button
+              className="w-full justify-start h-9"
+              variant="outline"
+              onClick={handleAssumeToMe}
+              disabled={isLoading}
+            >
+              <UserCheck className="h-4 w-4 mr-2" />
+              Assumir para mim
+            </Button>
+          )}
 
           <Button 
             className="w-full justify-start h-9 text-destructive hover:text-destructive" 

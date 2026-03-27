@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Ticket, Inbox, MessageSquare, Users, Eye, LayoutGrid, LayoutList } from "lucide-react";
 import { TriagemLeadCardV2 } from "@/components/triagem/TriagemLeadCardV2";
 import { TriagemFilters } from "@/components/triagem/TriagemFilters";
@@ -57,6 +58,10 @@ export default function FilaTriagem() {
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
   // Local cache of removed leads to remove them from the list immediately
   const [removedLeadIds, setRemovedLeadIds] = useState<string[]>([]);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [pendingEncaminhandoIds, setPendingEncaminhandoIds] = useState<string[]>([]);
+  const [pendingAtribuindoIds, setPendingAtribuindoIds] = useState<string[]>([]);
+  const [pendingDescartandoIds, setPendingDescartandoIds] = useState<string[]>([]);
 
   // Filters state
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,8 +104,8 @@ export default function FilaTriagem() {
 
   const activeMotivos = ticketMotivos?.filter((m) => m.is_active) || [];
   const motivoOptions = activeMotivos.length > 0
-    ? activeMotivos.map((m) => ({ value: m.value, label: m.label }))
-    : TICKET_MOTIVO_OPTIONS;
+    ? activeMotivos.map((m) => ({ value: m.id, label: m.label }))
+    : TICKET_MOTIVO_OPTIONS.map((m) => ({ value: m.label, label: m.label }));
 
   const activeDepartamentos = ticketDepartamentos?.filter((d) => d.is_active) || [];
   const departamentoOptions = activeDepartamentos.length > 0
@@ -125,12 +130,16 @@ export default function FilaTriagem() {
       .filter((option): option is { value: string; label: string } => !!option && !!option.value);
   };
 
+  const isUuid = (value: string | null | undefined) =>
+    Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value));
+
   // Filter and sort leads
+  const visibleLeads = useMemo(() => {
+    return (leads || []).filter((lead) => !removedLeadIds.includes(lead.id));
+  }, [leads, removedLeadIds]);
+
   const filteredLeads = useMemo(() => {
-    if (!leads) return [];
-    return leads.filter(lead => {
-      // Exclude leads that were removed locally after discard
-      if (removedLeadIds.includes(lead.id)) return false;
+    return visibleLeads.filter(lead => {
       // Search filter
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
@@ -181,17 +190,34 @@ export default function FilaTriagem() {
       const bDate = b.created_at || b.cadastro_cliente || '';
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
-  }, [leads, searchTerm, statusFilter, origemFilter, activeTab, user?.id, selectedInstanceIds, instances.length, removedLeadIds]);
+  }, [visibleLeads, searchTerm, statusFilter, origemFilter, activeTab, user?.id, selectedInstanceIds, instances.length]);
 
   // Stats
   const stats = useMemo(() => {
-    if (!leads) return { total: 0, whatsapp: 0, urgent: 0 };
+    if (!visibleLeads) return { total: 0, whatsapp: 0, urgent: 0 };
     return {
-      total: leads.length,
-      whatsapp: leads.filter(l => l.origem === 'whatsapp_inbound' || l.whatsapp_number).length,
-      urgent: leads.filter(l => (l.conversation?.unread_count || 0) > 0).length
+      total: visibleLeads.length,
+      whatsapp: visibleLeads.filter(l => l.origem === 'whatsapp_inbound' || l.whatsapp_number).length,
+      urgent: visibleLeads.filter(l => (l.conversation?.unread_count || 0) > 0).length
     };
+  }, [visibleLeads]);
+
+  useEffect(() => {
+    if (!leads || leads.length === 0) return;
+    const currentIds = new Set(leads.map((lead) => lead.id));
+    setRemovedLeadIds((prev) => prev.filter((id) => currentIds.has(id)));
   }, [leads]);
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredLeads.map((lead) => lead.id));
+    setSelectedLeadIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [filteredLeads]);
+
+  useEffect(() => {
+    if (viewMode !== 'list' && selectedLeadIds.length > 0) {
+      setSelectedLeadIds([]);
+    }
+  }, [viewMode, selectedLeadIds.length]);
 
   const queueAlertLevel = useMemo(
     () => getQueueAlertLevel(stats.total, stats.urgent),
@@ -204,10 +230,79 @@ export default function FilaTriagem() {
   // Handlers
   const handleEncaminharComercial = async (clienteId: string) => {
     const funilVendas = funis?.find(f => f.tipo === 'vendas');
-    await encaminharComercial.mutateAsync({
-      clienteId,
-      funilId: funilVendas?.id
+    setPendingEncaminhandoIds((prev) => Array.from(new Set([...prev, clienteId])));
+    try {
+      await encaminharComercial.mutateAsync({
+        clienteId,
+        funilId: funilVendas?.id
+      });
+      setRemovedLeadIds((s) => Array.from(new Set([...s, clienteId])));
+    } finally {
+      setPendingEncaminhandoIds((prev) => prev.filter((id) => id !== clienteId));
+    }
+  };
+
+  const handleToggleLeadSelection = (leadId: string, checked: boolean) => {
+    setSelectedLeadIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, leadId]));
+      return prev.filter((id) => id !== leadId);
     });
+  };
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    if (!checked) {
+      setSelectedLeadIds([]);
+      return;
+    }
+    setSelectedLeadIds(filteredLeads.map((lead) => lead.id));
+  };
+
+  const allFilteredSelected = filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length;
+
+  const handleBulkEncaminhar = async () => {
+    if (selectedLeadIds.length === 0) return;
+    const funilVendas = funis?.find((f) => f.tipo === 'vendas');
+    const successIds: string[] = [];
+    setPendingEncaminhandoIds((prev) => Array.from(new Set([...prev, ...selectedLeadIds])));
+
+    for (const leadId of selectedLeadIds) {
+      try {
+        await encaminharComercial.mutateAsync({ clienteId: leadId, funilId: funilVendas?.id });
+        successIds.push(leadId);
+      } catch (error) {
+        console.error('Falha ao encaminhar lead em lote:', leadId, error);
+      }
+    }
+
+    if (successIds.length > 0) {
+      setRemovedLeadIds((prev) => Array.from(new Set([...prev, ...successIds])));
+      setSelectedLeadIds((prev) => prev.filter((id) => !successIds.includes(id)));
+      toast.success(`${successIds.length} lead(s) encaminhado(s) para Comercial.`);
+    }
+
+    setPendingEncaminhandoIds((prev) => prev.filter((id) => !selectedLeadIds.includes(id)));
+  };
+
+  const handleBulkAtribuir = async () => {
+    if (selectedLeadIds.length === 0) return;
+    const successIds: string[] = [];
+    setPendingAtribuindoIds((prev) => Array.from(new Set([...prev, ...selectedLeadIds])));
+
+    for (const leadId of selectedLeadIds) {
+      try {
+        await atribuirLead.mutateAsync({ clienteId: leadId });
+        successIds.push(leadId);
+      } catch (error) {
+        console.error('Falha ao assumir lead em lote:', leadId, error);
+      }
+    }
+
+    if (successIds.length > 0) {
+      setSelectedLeadIds((prev) => prev.filter((id) => !successIds.includes(id)));
+      toast.success(`${successIds.length} lead(s) assumido(s).`);
+    }
+
+    setPendingAtribuindoIds((prev) => prev.filter((id) => !selectedLeadIds.includes(id)));
   };
 
   const handleCriarTicket = async () => {
@@ -226,19 +321,26 @@ export default function FilaTriagem() {
       return;
     }
 
+    const selectedMotivo = motivoOptions.find((option) => option.value === ticketForm.motivo);
+    const motivoId = isUuid(ticketForm.motivo) ? ticketForm.motivo : undefined;
+    const motivoEnum = !motivoId ? (selectedMotivo?.label || ticketForm.motivo || undefined) : undefined;
+
     await criarTicket.mutateAsync({
       clienteId: selectedLead.id,
       titulo: ticketForm.titulo,
       sintese: ticketForm.sintese,
       prioridade: ticketForm.prioridade,
       origem: ticketForm.origem,
-      motivo: ticketForm.motivo,
+      motivo: motivoEnum,
+      motivoId,
       departamento: ticketForm.departamento,
       placa: ticketForm.placa,
       customFields: customFieldValues,
       fase: "Aguardando departamento",
       status: "aguardando_departamento"
     } as any);
+
+    setRemovedLeadIds((s) => Array.from(new Set([...s, selectedLead.id])));
 
     setTicketDialogOpen(false);
     setSelectedLead(null);
@@ -271,34 +373,62 @@ export default function FilaTriagem() {
 
   const handleDescartar = async (clienteId: string) => {
     // Open discard reason dialog
-    setDiscardingLeadId(clienteId);
+    setDiscardingLeadIds([clienteId]);
+    setDiscardDialogOpen(true);
+  };
+
+  const handleDescartarSelecionados = () => {
+    if (selectedLeadIds.length === 0) return;
+    setDiscardingLeadIds(selectedLeadIds);
     setDiscardDialogOpen(true);
   };
 
   // Discard modal state
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [discardReason, setDiscardReason] = useState("");
-  const [discardingLeadId, setDiscardingLeadId] = useState<string | null>(null);
+  const [discardingLeadIds, setDiscardingLeadIds] = useState<string[]>([]);
 
 
   const submitDiscard = async () => {
-    if (!discardingLeadId) return;
+    if (discardingLeadIds.length === 0) return;
     try {
-      await descartarLead.mutateAsync({ clienteId: discardingLeadId, motivo: discardReason });
+      const successIds: string[] = [];
+      setPendingDescartandoIds(discardingLeadIds);
+      for (const leadId of discardingLeadIds) {
+        try {
+          await descartarLead.mutateAsync({ clienteId: leadId, motivo: discardReason });
+          successIds.push(leadId);
+        } catch (error) {
+          console.error('Erro ao descartar lead em lote:', leadId, error);
+        }
+      }
+
       // Remove immediately from UI before refetch completes
-      setRemovedLeadIds((s) => Array.from(new Set([...s, discardingLeadId])));
+      setRemovedLeadIds((s) => Array.from(new Set([...s, ...successIds])));
+      setSelectedLeadIds((prev) => prev.filter((id) => !successIds.includes(id)));
       // Refresh leads immediately so the discarded lead is removed from the source of truth
       try { await refetch(); } catch (e) { console.warn('Refetch after discard failed', e); }
       setDiscardDialogOpen(false);
       setDiscardReason("");
-      setDiscardingLeadId(null);
+      setDiscardingLeadIds([]);
+
+      if (successIds.length > 1) {
+        toast.success(`${successIds.length} lead(s) descartado(s).`);
+      }
     } catch (err) {
       console.error('Erro ao descartar com motivo:', err);
+    } finally {
+      setPendingDescartandoIds([]);
     }
   };
 
   const handleAtribuir = async (clienteId: string) => {
-    await atribuirLead.mutateAsync({ clienteId });
+    setPendingAtribuindoIds((prev) => Array.from(new Set([...prev, clienteId])));
+    try {
+      await atribuirLead.mutateAsync({ clienteId });
+    } finally {
+      setPendingAtribuindoIds((prev) => prev.filter((id) => id !== clienteId));
+    }
   };
 
   if (isLoading) {
@@ -371,7 +501,7 @@ export default function FilaTriagem() {
             <TabsTrigger value="all" className="flex items-center gap-2">
               <Inbox className="w-4 h-4" />
               <span className="hidden sm:inline">Todos</span>
-              <span className="text-xs opacity-70">({leads?.length || 0})</span>
+              <span className="text-xs opacity-70">({stats.total})</span>
             </TabsTrigger>
             <TabsTrigger value="whatsapp" className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4" />
@@ -416,6 +546,50 @@ export default function FilaTriagem() {
         </div>
 
         <TabsContent value={activeTab} className="mt-4">
+          {viewMode === 'list' && filteredLeads.length > 0 && (
+            <div className="mb-3 rounded-lg border bg-muted/20 p-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  onCheckedChange={(checked) => handleToggleSelectAll(checked === true)}
+                  aria-label="Selecionar todos os leads visíveis"
+                />
+                <span className="text-sm font-medium">Selecionar todos</span>
+                <Badge variant="outline">{selectedLeadIds.length} selecionado(s)</Badge>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleBulkEncaminhar}
+                  disabled={selectedLeadIds.length === 0 || pendingEncaminhandoIds.length > 0}
+                >
+                  {pendingEncaminhandoIds.length > 0 && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Comercial (lote)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBulkAtribuir}
+                  disabled={selectedLeadIds.length === 0 || pendingAtribuindoIds.length > 0}
+                >
+                  {pendingAtribuindoIds.length > 0 && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Assumir (lote)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDescartarSelecionados}
+                  disabled={selectedLeadIds.length === 0 || pendingDescartandoIds.length > 0}
+                >
+                  {pendingDescartandoIds.length > 0 && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Descartar (lote)
+                </Button>
+              </div>
+            </div>
+          )}
+
           {filteredLeads.length === 0 ? (
             <div className="text-center py-16">
               <div className="text-muted-foreground space-y-2">
@@ -440,11 +614,14 @@ export default function FilaTriagem() {
                   onCriarTicket={handleOpenTicketDialog}
                   onDescartar={handleDescartar}
                   onAtribuir={handleAtribuir}
-                  isEncaminhando={encaminharComercial.isPending}
-                  isDescartando={descartarLead.isPending}
-                  isAtribuindo={atribuirLead.isPending}
+                  isEncaminhando={pendingEncaminhandoIds.includes(lead.id)}
+                  isDescartando={pendingDescartandoIds.includes(lead.id)}
+                  isAtribuindo={pendingAtribuindoIds.includes(lead.id)}
                   currentUserId={user?.id}
                   viewMode={viewMode}
+                  showSelectionControl={viewMode === 'list'}
+                  isSelected={selectedLeadIds.includes(lead.id)}
+                  onToggleSelection={handleToggleLeadSelection}
                 />
               ))}
             </div>
@@ -708,7 +885,10 @@ export default function FilaTriagem() {
         <DialogContent className="w-[90vw] md:w-[50vw] max-w-[900px]">
           <DialogHeader>
             <DialogTitle>Descartar Lead</DialogTitle>
-            <DialogDescription id="desc-discard">Informe o motivo do descarte para registro no histórico.</DialogDescription>
+            <DialogDescription id="desc-discard">
+              Informe o motivo do descarte para registro no histórico.
+              {discardingLeadIds.length > 1 ? ` ${discardingLeadIds.length} leads serão descartados.` : ''}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -722,7 +902,7 @@ export default function FilaTriagem() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => { setDiscardDialogOpen(false); setDiscardReason(''); setDiscardingLeadId(null); }}>
+              <Button variant="outline" onClick={() => { setDiscardDialogOpen(false); setDiscardReason(''); setDiscardingLeadIds([]); }}>
                 Cancelar
               </Button>
               <Button onClick={submitDiscard} disabled={!discardReason || descartarLead.isPending}>

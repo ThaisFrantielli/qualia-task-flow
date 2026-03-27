@@ -330,6 +330,7 @@ export function useCriarTicket() {
       prioridade,
       origem,
       motivo,
+      motivoId,
       departamento,
       placa,
       customFields,
@@ -343,12 +344,19 @@ export function useCriarTicket() {
       prioridade?: string;
       origem?: string;
       motivo?: string;
+      motivoId?: string;
       departamento?: string;
       placa?: string;
       customFields?: Record<string, any>;
       fase?: string;
       status?: string;
     }) => {
+      const isUuid = (value?: string) =>
+        Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value));
+
+      const resolvedMotivoId = motivoId || (isUuid(motivo) ? motivo : undefined);
+      const resolvedMotivo = resolvedMotivoId ? null : (motivo || null);
+
       // 1. Criar ticket com todos os campos
       const { data: ticket, error: ticketError } = await supabase
         .from('tickets')
@@ -361,7 +369,8 @@ export function useCriarTicket() {
           status: status || 'em_atendimento',
           atendente_id: user?.id,
           origem: origem || 'triagem',
-          motivo: motivo as any,
+          motivo: resolvedMotivo as any,
+          motivo_id: resolvedMotivoId || null,
           departamento: departamento as any,
           placa,
           custom_fields: customFields || null,

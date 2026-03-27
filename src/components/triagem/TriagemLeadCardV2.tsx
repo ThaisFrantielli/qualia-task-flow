@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   UserPlus,
   Ticket,
@@ -32,6 +33,9 @@ interface TriagemLeadCardV2Props {
   isAtribuindo?: boolean;
   currentUserId?: string;
   viewMode?: 'grid' | 'list';
+  showSelectionControl?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (leadId: string, checked: boolean) => void;
 }
 
 export function TriagemLeadCardV2({
@@ -44,7 +48,10 @@ export function TriagemLeadCardV2({
   isDescartando,
   isAtribuindo,
   currentUserId,
-  viewMode = 'grid'
+  viewMode = 'grid',
+  showSelectionControl = false,
+  isSelected = false,
+  onToggleSelection
 }: TriagemLeadCardV2Props) {
   const [chatOpen, setChatOpen] = useState(false);
 
@@ -65,7 +72,16 @@ export function TriagemLeadCardV2({
     )}>
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex justify-between items-start gap-2">
-          <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {showSelectionControl && (
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(checked) => onToggleSelection?.(lead.id, checked === true)}
+                aria-label={`Selecionar ${displayName}`}
+                className="mt-1"
+              />
+            )}
+            <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-base truncate" title={displayName}>
               {displayName}
             </h3>
@@ -74,6 +90,7 @@ export function TriagemLeadCardV2({
                 #{lead.codigo_cliente}
               </p>
             )}
+            </div>
           </div>
 
           <div className="flex flex-col items-end gap-1 flex-shrink-0">

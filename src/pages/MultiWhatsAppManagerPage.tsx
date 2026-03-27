@@ -16,6 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { WHATSAPP } from '@/integrations/whatsapp/config';
 
 interface WhatsAppInstance {
   instanceId: string;
@@ -24,7 +25,7 @@ interface WhatsAppInstance {
   hasQRCode: boolean;
 }
 
-const WHATSAPP_SERVICE_URL = 'http://localhost:3006';
+const WHATSAPP_SERVICE_URL = WHATSAPP.SERVICE_URL;
 
 export default function MultiWhatsAppManagerPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
@@ -169,7 +170,8 @@ export default function MultiWhatsAppManagerPage() {
       }
       
       const data = await response.json();
-      if (data.qr) {
+      const qrValue = data.qrCode || data.qr;
+      if (qrValue) {
         // Create a new window with the QR code
         const qrWindow = window.open('', 'qrcode', 'width=500,height=600');
         if (qrWindow) {
@@ -184,7 +186,7 @@ export default function MultiWhatsAppManagerPage() {
                   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
                   <script>
                     document.addEventListener('DOMContentLoaded', function() {
-                      QRCode.toCanvas(document.getElementById('qrcode'), '${data.qr}', {
+                      QRCode.toCanvas(document.getElementById('qrcode'), '${qrValue}', {
                         width: 256,
                         margin: 2,
                         color: {

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DndProvider, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useOportunidades } from '@/hooks/useOportunidades';
@@ -23,13 +24,15 @@ function KanbanColumn({
   estagioNome,
   estagioCor,
   oportunidades,
-  onDrop
+  onDrop,
+  onOpenOpportunity
 }: {
   estagioId: string;
   estagioNome: string;
   estagioCor: string;
   oportunidades: any[];
   onDrop: (oportunidadeId: string, estagioId: string) => void;
+  onOpenOpportunity: (oportunidadeId: string) => void;
 }) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'OPORTUNIDADE',
@@ -63,6 +66,7 @@ function KanbanColumn({
             user={opp.user}
             created_at={opp.created_at}
             prioridade={opp.prioridade}
+            onClick={() => onOpenOpportunity(opp.id)}
           />
         ))}
         {oportunidades.length === 0 && (
@@ -76,6 +80,7 @@ function KanbanColumn({
 }
 
 export default function OportunidadesPage() {
+  const navigate = useNavigate();
   const { oportunidades, isLoading, error, createOportunidade, updateOportunidadeEstagio } = useOportunidades();
   const { data: funis } = useFunis();
 
@@ -90,17 +95,18 @@ export default function OportunidadesPage() {
     valor_total: ''
   });
 
-  // Selecionar funil padrão (vendas) ao carregar
-  useState(() => {
-    if (funis && funis.length > 0 && !selectedFunilId) {
-      const funilVendas = funis.find(f => f.tipo === 'vendas');
-      if (funilVendas) {
-        setSelectedFunilId(funilVendas.id);
-      } else {
-        setSelectedFunilId(funis[0].id);
-      }
+  // Selecionar funil padrão (vendas) quando os funis forem carregados
+  useEffect(() => {
+    if (!funis || funis.length === 0 || selectedFunilId) return;
+
+    const funilVendas = funis.find((f) => f.tipo === 'vendas');
+    if (funilVendas) {
+      setSelectedFunilId(funilVendas.id);
+      return;
     }
-  });
+
+    setSelectedFunilId(funis[0].id);
+  }, [funis, selectedFunilId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,6 +288,7 @@ export default function OportunidadesPage() {
                 estagioCor={estagio.cor || '#3b82f6'}
                 oportunidades={oportunidadesPorEstagio[estagio.id] || []}
                 onDrop={handleDrop}
+                onOpenOpportunity={(id) => navigate(`/oportunidades/${id}`)}
               />
             ))}
           </div>
@@ -304,7 +311,11 @@ export default function OportunidadesPage() {
         {!isLoading && !error && view === 'grid' && oportunidades.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {oportunidades.map((oportunidade) => (
-              <Card key={oportunidade.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card
+                key={oportunidade.id}
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(`/oportunidades/${oportunidade.id}`)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-lg line-clamp-2">{oportunidade.titulo}</CardTitle>
