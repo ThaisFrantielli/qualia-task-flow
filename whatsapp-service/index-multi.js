@@ -56,6 +56,22 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const whatsappInstances = new Map();
 const activeQRCodes = new Map();
 
+async function syncConnectedStatus(instanceId, phoneNumber = null) {
+    try {
+        await supabase
+            .from('whatsapp_instances')
+            .update({
+                status: 'connected',
+                phone_number: phoneNumber,
+                qr_code: null,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', instanceId);
+    } catch (error) {
+        console.error(`Failed to sync connected status for ${instanceId}:`, error);
+    }
+}
+
 function resolveBrowserExecutable() {
     const candidates = [
         process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -266,6 +282,14 @@ function createWhatsAppClient(instanceId, instanceName = null) {
 
     client.on('change_state', (state) => {
         console.log(`Instance ${instanceId} state changed: ${state}`);
+
+        // Some sessions authenticate without emitting 'ready'.
+        // When WA state reaches CONNECTED, force DB status reconciliation.
+        if (state === 'CONNECTED') {
+            const connectedNumber = client.info?.wid?.user || null;
+            activeQRCodes.delete(instanceId);
+            syncConnectedStatus(instanceId, connectedNumber);
+        }
     });
 
     // Generate QR code for WhatsApp login
@@ -310,6 +334,11 @@ function createWhatsAppClient(instanceId, instanceName = null) {
 
     client.on('authenticated', () => {
         console.log(`Instance ${instanceId} authenticated event fired`);
+
+        // Keep UI consistent even if 'ready' does not fire on this runtime.
+        const connectedNumber = client.info?.wid?.user || null;
+        activeQRCodes.delete(instanceId);
+        syncConnectedStatus(instanceId, connectedNumber);
     });
 
     // WhatsApp client is ready
@@ -319,15 +348,7 @@ function createWhatsAppClient(instanceId, instanceName = null) {
         // Update connection status in Supabase
         try {
             const connectedNumber = client.info?.wid?.user || 'unknown';
-            await supabase
-                .from('whatsapp_instances')
-                .update({
-                    status: 'connected',
-                    phone_number: connectedNumber,
-                    qr_code: null,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', instanceId);
+            await syncConnectedStatus(instanceId, connectedNumber);
             console.log(`WhatsApp connected with number: ${connectedNumber} for instance ${instanceId}`);
 
             // Remove QR code from active list
@@ -499,11 +520,17 @@ app.get('/instances', async (req, res) => {
             const client = whatsappInstances.get(inst.id);
             const isConnected = client?.info?.wid !== undefined;
             const hasQRCode = activeQRCodes.has(inst.id);
+            const connectedNumber = client?.info?.wid?.user || inst.phone_number;
+
+            if (isConnected && (inst.status !== 'connected' || !inst.phone_number || inst.qr_code !== null)) {
+                activeQRCodes.delete(inst.id);
+                syncConnectedStatus(inst.id, connectedNumber || null);
+            }
             
             return {
                 instanceId: inst.id,
                 isConnected: isConnected || inst.status === 'connected',
-                connectedNumber: inst.phone_number,
+                connectedNumber,
                 hasQRCode: hasQRCode || (inst.qr_code !== null && inst.status !== 'connected')
             };
         });

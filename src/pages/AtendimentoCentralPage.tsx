@@ -67,6 +67,8 @@ export default function AtendimentoCentralPage() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
+  const urlFolder = searchParams.get('folder');
+  const urlConversationId = searchParams.get('conversation_id');
   const urlClienteId = searchParams.get('cliente_id');
   const urlTelefone = searchParams.get('telefone');
 
@@ -80,9 +82,23 @@ export default function AtendimentoCentralPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [assignedAgentNames, setAssignedAgentNames] = useState<Record<string, string>>({});
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
-  const [activeFolder, setActiveFolder] = useState<'triagem' | 'whatsapp'>('triagem');
-  const [pendingAutoOpen, setPendingAutoOpen] = useState<{ clienteId: string; telefone: string } | null>(
-    urlClienteId && urlTelefone ? { clienteId: urlClienteId, telefone: urlTelefone } : null
+  const [activeFolder, setActiveFolder] = useState<'triagem' | 'whatsapp'>(
+    urlFolder === 'whatsapp' || Boolean(urlConversationId) || (Boolean(urlClienteId) && Boolean(urlTelefone))
+      ? 'whatsapp'
+      : 'triagem'
+  );
+  const [pendingAutoOpen, setPendingAutoOpen] = useState<{
+    clienteId?: string;
+    telefone?: string;
+    conversationId?: string;
+  } | null>(
+    urlConversationId || urlClienteId || urlTelefone
+      ? {
+          clienteId: urlClienteId || undefined,
+          telefone: urlTelefone || undefined,
+          conversationId: urlConversationId || undefined,
+        }
+      : null
   );
 
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -260,27 +276,43 @@ export default function AtendimentoCentralPage() {
 
   // Auto-open conversation from URL
   useEffect(() => {
+    if (urlFolder === 'whatsapp' || urlConversationId || urlClienteId || urlTelefone) {
+      setActiveFolder('whatsapp');
+    }
+
+    if (urlConversationId || urlClienteId || urlTelefone) {
+      setPendingAutoOpen({
+        clienteId: urlClienteId || undefined,
+        telefone: urlTelefone || undefined,
+        conversationId: urlConversationId || undefined,
+      });
+    }
+  }, [urlFolder, urlConversationId, urlClienteId, urlTelefone]);
+
+  useEffect(() => {
     if (pendingAutoOpen && conversations.length > 0 && !convLoading) {
-      const { clienteId, telefone } = pendingAutoOpen;
+      const { clienteId, telefone, conversationId } = pendingAutoOpen;
 
       const existingConv = conversations.find(c =>
-        c.cliente_id === clienteId ||
-        c.whatsapp_number === telefone ||
-        c.whatsapp_number === telefone.replace(/\D/g, '')
+        c.id === conversationId ||
+        (clienteId && c.cliente_id === clienteId) ||
+        (telefone && (c.whatsapp_number === telefone || c.whatsapp_number === telefone.replace(/\D/g, '')))
       );
 
       if (existingConv) {
         setSelectedConversationId(existingConv.id);
         toast({
           title: 'Conversa aberta',
-          description: `Abrindo conversa com ${existingConv.customer_name || telefone}`,
+          description: `Abrindo conversa com ${existingConv.customer_name || telefone || 'cliente'}`,
         });
       } else {
         toast({
           title: 'Cliente selecionado',
           description: 'Nenhuma conversa existente encontrada.',
         });
-        setSearchTerm(telefone);
+        if (telefone) {
+          setSearchTerm(telefone);
+        }
       }
 
       setPendingAutoOpen(null);

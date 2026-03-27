@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 interface TriagemLeadCardV2Props {
   lead: TriagemLead;
+  onFalarWhatsapp?: (lead: TriagemLead) => void;
   onEncaminharComercial: (clienteId: string) => void;
   onCriarTicket: (lead: TriagemLead) => void;
   onDescartar: (clienteId: string) => void;
@@ -40,6 +41,7 @@ interface TriagemLeadCardV2Props {
 
 export function TriagemLeadCardV2({
   lead,
+  onFalarWhatsapp,
   onEncaminharComercial,
   onCriarTicket,
   onDescartar,
@@ -58,6 +60,7 @@ export function TriagemLeadCardV2({
   const createdAt = lead.created_at || lead.cadastro_cliente;
   const isWhatsAppLead = lead.origem === 'whatsapp_inbound' || !!lead.whatsapp_number;
   const hasConversation = !!lead.conversation;
+  const canContactOnWhatsapp = Boolean(lead.whatsapp_number || lead.telefone || lead.conversation?.id);
   const unreadCount = lead.conversation?.unread_count || 0;
   const isAssignedToMe = lead.ultimo_atendente_id === currentUserId;
   const isInProgress = lead.status_triagem === 'em_atendimento';
@@ -188,8 +191,30 @@ export function TriagemLeadCardV2({
 
         {/* Lista de Ações e Botão de Chat */}
         <div className={cn("flex gap-1.5 pt-2", viewMode === 'grid' ? "flex-col border-t mt-3" : "flex-row flex-wrap items-center mt-2")}>
-          {hasConversation && (
-            <Button variant="outline" size="sm" className={cn("justify-between", viewMode === 'list' && "w-auto")} onClick={() => setChatOpen(true)}>
+          {canContactOnWhatsapp && (
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn("justify-between", viewMode === 'list' && "w-auto")}
+              onClick={() => {
+                if (onFalarWhatsapp) {
+                  onFalarWhatsapp(lead);
+                  return;
+                }
+                if (hasConversation) {
+                  setChatOpen(true);
+                }
+              }}
+            >
+              <span className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Falar no WhatsApp
+              </span>
+            </Button>
+          )}
+
+          {hasConversation && !onFalarWhatsapp && (
+            <Button variant="ghost" size="sm" className={cn("justify-between", viewMode === 'list' && "w-auto")} onClick={() => setChatOpen(true)}>
               <span className="flex items-center gap-2">
                 <Eye className="w-4 h-4" />
                 Ver conversa

@@ -205,12 +205,20 @@ export default function FilaTriagem() {
   useEffect(() => {
     if (!leads || leads.length === 0) return;
     const currentIds = new Set(leads.map((lead) => lead.id));
-    setRemovedLeadIds((prev) => prev.filter((id) => currentIds.has(id)));
+    setRemovedLeadIds((prev) => {
+      const next = prev.filter((id) => currentIds.has(id));
+      if (next.length === prev.length) return prev;
+      return next;
+    });
   }, [leads]);
 
   useEffect(() => {
     const visibleIds = new Set(filteredLeads.map((lead) => lead.id));
-    setSelectedLeadIds((prev) => prev.filter((id) => visibleIds.has(id)));
+    setSelectedLeadIds((prev) => {
+      const next = prev.filter((id) => visibleIds.has(id));
+      if (next.length === prev.length) return prev;
+      return next;
+    });
   }, [filteredLeads]);
 
   useEffect(() => {
@@ -431,6 +439,23 @@ export default function FilaTriagem() {
     }
   };
 
+  const handleFalarWhatsapp = (lead: TriagemLead) => {
+    const phone = lead.whatsapp_number || lead.telefone;
+
+    if (!phone && !lead.conversation?.id) {
+      toast.error("Este lead nao possui numero ou conversa WhatsApp vinculada.");
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set("folder", "whatsapp");
+    params.set("cliente_id", lead.id);
+    if (phone) params.set("telefone", phone);
+    if (lead.conversation?.id) params.set("conversation_id", lead.conversation.id);
+
+    window.location.assign(`/atendimento?${params.toString()}`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
@@ -546,7 +571,7 @@ export default function FilaTriagem() {
         </div>
 
         <TabsContent value={activeTab} className="mt-4">
-          {viewMode === 'list' && filteredLeads.length > 0 && (
+          {(viewMode === 'list' || activeTab === 'mine') && filteredLeads.length > 0 && (
             <div className="mb-3 rounded-lg border bg-muted/20 p-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -610,6 +635,7 @@ export default function FilaTriagem() {
                 <TriagemLeadCardV2
                   key={lead.id}
                   lead={lead}
+                  onFalarWhatsapp={handleFalarWhatsapp}
                   onEncaminharComercial={handleEncaminharComercial}
                   onCriarTicket={handleOpenTicketDialog}
                   onDescartar={handleDescartar}
@@ -619,7 +645,7 @@ export default function FilaTriagem() {
                   isAtribuindo={pendingAtribuindoIds.includes(lead.id)}
                   currentUserId={user?.id}
                   viewMode={viewMode}
-                  showSelectionControl={viewMode === 'list'}
+                  showSelectionControl={viewMode === 'list' || activeTab === 'mine'}
                   isSelected={selectedLeadIds.includes(lead.id)}
                   onToggleSelection={handleToggleLeadSelection}
                 />
