@@ -8,6 +8,9 @@ import { ChevronLeft, FileSpreadsheet } from 'lucide-react';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import * as XLSX from 'xlsx';
 import { Link } from 'react-router-dom';
+import useChartFilter from '@/hooks/useChartFilter';
+import { DateRangePicker } from '@/components/analytics/DateRangePicker';
+import { DateRange } from 'react-day-picker';
 
 type AnyObject = { [k: string]: any };
 const COLORS = ['#6366f1', '#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b'];
@@ -97,10 +100,14 @@ export default function ContractTerminationDashboard() {
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
 
-  // Filter state
+  // Filter state (Chart-based)
+  const { filters, handleChartClick, clearAllFilters, isValueSelected, getFilterValues } = useChartFilter();
+
+  // Primary filters (Sidebar)
   const [filterTipoCliente, setFilterTipoCliente] = useState<string>('Todos');
   const [filterCliente, setFilterCliente] = useState<string>('Todos');
   const [filterFaixa, setFilterFaixa] = useState<string>('Todos');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const NOW = useMemo(() => new Date(), []);
 
@@ -219,16 +226,52 @@ export default function ContractTerminationDashboard() {
 
   // ─── Filtered contracts ────────────────────────────────────────────
   const filtered = useMemo(() => {
+    // Get chart filters
+    const chartTipoFilters = getFilterValues('tipoCliente');
+    const chartClienteFilters = getFilterValues('nomeCliente');
+    const chartFaixaFilters = getFilterValues('faixaVencimento');
+    const chartGrupoFilters = getFilterValues('grupo');
+    const chartCidadeFilters = getFilterValues('cidade');
+    const chartFilialFilters = getFilterValues('filial');
+    const chartKmFilters = getFilterValues('faixaKm');
+    const chartIdadeFilters = getFilterValues('faixaIdade');
+    const chartAnoVencFilters = getFilterValues('anoVencimento');
+
     return contracts.filter(c => {
-      // Only show active contracts (not closed)
+      // Basic business rule: only active contracts
       if (c.isClosed) return false;
 
+      // 1. Sidebar Filters
       if (filterTipoCliente !== 'Todos' && c.tipoCliente !== filterTipoCliente) return false;
       if (filterCliente !== 'Todos' && c.nomeCliente !== filterCliente) return false;
       if (filterFaixa !== 'Todos' && c.faixaVencimento !== filterFaixa) return false;
+
+      // 2. Date Range Filter (Expiration Date)
+      if (dateRange?.from || dateRange?.to) {
+        const refDate = c.dataFim ?? c.dataEncerramento;
+        if (!refDate) return false;
+        if (dateRange.from && refDate < dateRange.from) return false;
+        if (dateRange.to) {
+          const end = new Date(dateRange.to);
+          end.setHours(23, 59, 59, 999);
+          if (refDate > end) return false;
+        }
+      }
+
+      // 3. Chart Cross-Filters
+      if (chartTipoFilters.length > 0 && !chartTipoFilters.includes(c.tipoCliente)) return false;
+      if (chartClienteFilters.length > 0 && !chartClienteFilters.includes(c.nomeCliente)) return false;
+      if (chartFaixaFilters.length > 0 && !chartFaixaFilters.includes(c.faixaVencimento)) return false;
+      if (chartGrupoFilters.length > 0 && !chartGrupoFilters.includes(c.grupo)) return false;
+      if (chartCidadeFilters.length > 0 && !chartCidadeFilters.includes(c.cidade?.toUpperCase().trim())) return false;
+      if (chartFilialFilters.length > 0 && !chartFilialFilters.includes(c.filial)) return false;
+      if (chartKmFilters.length > 0 && !chartKmFilters.includes(c.faixaKm)) return false;
+      if (chartIdadeFilters.length > 0 && !chartIdadeFilters.includes(c.faixaIdade)) return false;
+      if (chartAnoVencFilters.length > 0 && !chartAnoVencFilters.includes(String(c.anoVencimento))) return false;
+
       return true;
     });
-  }, [contracts, filterTipoCliente, filterCliente, filterFaixa]);
+  }, [contracts, filterTipoCliente, filterCliente, filterFaixa, dateRange, filters]);
 
   // ─── Unique clients & types for filters ────────────────────────────
   const uniqueTipos = useMemo(() => {
@@ -470,6 +513,15 @@ export default function ContractTerminationDashboard() {
 
         <div className="space-y-6">
           <div>
+            <label className="block text-xs font-bold text-orange-500 uppercase mb-2">Vencimento (Período)</label>
+            <DateRangePicker 
+              value={dateRange} 
+              onChange={setDateRange} 
+              className="w-full h-9"
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-bold text-orange-500 uppercase mb-2">Previsão Encerramento</label>
             <div className="relative">
               <select
@@ -525,7 +577,14 @@ export default function ContractTerminationDashboard() {
           </div>
 
           <button
-            onClick={() => { setFilterTipoCliente('Todos'); setFilterCliente('Todos'); setFilterFaixa('Todos'); setTablePage(0); }}
+            onClick={() => { 
+                setFilterTipoCliente('Todos'); 
+                setFilterCliente('Todos'); 
+                setFilterFaixa('Todos'); 
+                setDateRange(undefined);
+                clearAllFilters();
+                setTablePage(0); 
+            }}
             className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
           >
             Limpar Filtros
@@ -603,12 +662,25 @@ export default function ContractTerminationDashboard() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {clientTypeData.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {clientTypeData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]} 
+                        opacity={getFilterValues('tipoCliente').length > 0 ? (isValueSelected('tipoCliente', entry.name) ? 1 : 0.3) : 1}
+                        cursor="pointer"
+                        onClick={(e) => handleChartClick('tipoCliente', entry.name, e as any)}
+                      />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: any, _name: any, props: any) => [`${value} — ${props.payload.amount}`, props.payload.name]} />
-                  <Legend verticalAlign="middle" align="right" layout="vertical" iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
+                  <Legend 
+                    verticalAlign="middle" 
+                    align="right" 
+                    layout="vertical" 
+                    iconSize={8} 
+                    wrapperStyle={{ fontSize: '10px' }} 
+                    onClick={(data) => handleChartClick('tipoCliente', data.value, {} as any)}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -623,8 +695,21 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="range" type="category" width={110} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                   <Tooltip cursor={{ fill: 'transparent' }} />
-                  <Bar dataKey="value" fill="#f97316" radius={[0, 4, 4, 0]} barSize={15}>
-                    <Cell fill="#ef4444" /> {/* Vencido */}
+                  <Bar 
+                    dataKey="value" 
+                    fill="#f97316" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={15}
+                    onClick={(data, _i, e) => handleChartClick('faixaVencimento', data.range, e as any)}
+                    cursor="pointer"
+                  >
+                    {expirationData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.range === 'Vencido' ? '#ef4444' : '#f97316'} 
+                        opacity={getFilterValues('faixaVencimento').length > 0 ? (isValueSelected('faixaVencimento', entry.range) ? 1 : 0.3) : 1}
+                      />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -640,7 +725,21 @@ export default function ContractTerminationDashboard() {
                   <XAxis dataKey="range" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={50} axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#3b82f6" 
+                    radius={[4, 4, 0, 0]} 
+                    onClick={(data, _i, e) => handleChartClick('faixaIdade', data.range, e as any)}
+                    cursor="pointer"
+                  >
+                    {fleetAgeData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#3b82f6" 
+                        opacity={getFilterValues('faixaIdade').length > 0 ? (isValueSelected('faixaIdade', entry.range) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -656,7 +755,22 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#818cf8" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#818cf8" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={20} 
+                    onClick={(data, _i, e) => handleChartClick('tipoCliente', data.name, e as any)}
+                    cursor="pointer"
+                  >
+                    {clientTypeData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#818cf8" 
+                        opacity={getFilterValues('tipoCliente').length > 0 ? (isValueSelected('tipoCliente', entry.name) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -671,7 +785,22 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#3b82f6" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={12} 
+                    onClick={(data, _i, e) => handleChartClick('nomeCliente', data.name, e as any)}
+                    cursor="pointer"
+                  >
+                     {fleetByClientData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#3b82f6" 
+                        opacity={getFilterValues('nomeCliente').length > 0 ? (isValueSelected('nomeCliente', entry.name) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -686,7 +815,21 @@ export default function ContractTerminationDashboard() {
                   <XAxis dataKey="range" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={60} axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#f97316" radius={[4, 4, 0, 0]} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#f97316" 
+                    radius={[4, 4, 0, 0]} 
+                    onClick={(data, _i, e) => handleChartClick('faixaKm', data.range, e as any)}
+                    cursor="pointer"
+                  >
+                    {kmIndexData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#f97316" 
+                        opacity={getFilterValues('faixaKm').length > 0 ? (isValueSelected('faixaKm', entry.range) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -702,7 +845,22 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="group" type="category" width={120} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={12} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#0ea5e9" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={12} 
+                    onClick={(data, _i, e) => handleChartClick('grupo', data.group, e as any)}
+                    cursor="pointer"
+                  >
+                    {vehicleGroupData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#0ea5e9" 
+                        opacity={getFilterValues('grupo').length > 0 ? (isValueSelected('grupo', entry.group) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -717,7 +875,22 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="city" type="category" width={120} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={15} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#3b82f6" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={15} 
+                    onClick={(data, _i, e) => handleChartClick('cidade', data.city, e as any)}
+                    cursor="pointer"
+                  >
+                    {cityData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#3b82f6" 
+                        opacity={getFilterValues('cidade').length > 0 ? (isValueSelected('cidade', entry.city) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -733,7 +906,22 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="branch" type="category" width={100} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={12} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#0ea5e9" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={12} 
+                    onClick={(data, _i, e) => handleChartClick('filial', data.branch, e as any)}
+                    cursor="pointer"
+                  >
+                     {branchData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#0ea5e9" 
+                        opacity={getFilterValues('filial').length > 0 ? (isValueSelected('filial', entry.branch) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -748,7 +936,22 @@ export default function ContractTerminationDashboard() {
                   <XAxis type="number" hide />
                   <YAxis dataKey="year" type="category" width={50} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value: any) => fmtBRL(value)} />
-                  <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#0ea5e9" 
+                    radius={[0, 4, 4, 0]} 
+                    barSize={20} 
+                    onClick={(data, _i, e) => handleChartClick('anoVencimento', data.year, e as any)}
+                    cursor="pointer"
+                  >
+                    {financialBalanceData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill="#0ea5e9" 
+                        opacity={getFilterValues('anoVencimento').length > 0 ? (isValueSelected('anoVencimento', entry.year) ? 1 : 0.4) : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
