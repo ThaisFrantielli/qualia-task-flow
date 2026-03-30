@@ -50,7 +50,9 @@ CREATE INDEX IF NOT EXISTS idx_deletions_deleted_at ON public.ticket_deletions_l
 ALTER TABLE public.ticket_deletions_log ENABLE ROW LEVEL SECURITY;
 
 -- Política permissiva para desenvolvimento
-CREATE POLICY IF NOT EXISTS "Allow all for authenticated users" ON public.ticket_deletions_log 
+-- DROP existing policy if present (some Postgres versions don't support CREATE POLICY IF NOT EXISTS)
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.ticket_deletions_log;
+CREATE POLICY "Allow all for authenticated users" ON public.ticket_deletions_log 
 FOR ALL USING (true);
 
 -- 6. Função para registrar exclusão
@@ -116,6 +118,17 @@ BEGIN
         updated_at = NOW()
     WHERE id = p_ticket_id AND NOT is_deleted;
     
+    -- Marcar departamentos pendentes como respondidos pela exclusão
+    UPDATE public.ticket_departamentos
+    SET
+        respondido_em = COALESCE(respondido_em, NOW()),
+        respondido_por = COALESCE(respondido_por, p_deleted_by),
+        resposta = COALESCE(resposta, 'Ticket excluído pelo usuário')
+    WHERE ticket_id = p_ticket_id AND respondido_em IS NULL;
+
+    -- Opcional: fechar conversas relacionadas (se houver vínculo)
+    -- UPDATE public.whatsapp_conversations SET status = 'closed' WHERE ticket_id = p_ticket_id;
+
     RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

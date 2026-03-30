@@ -100,21 +100,25 @@ export const useTicketDetail = (ticketId: string) => {
           )
         `)
                 .eq("id", ticketId)
-                .single();
+                .eq("is_deleted", false)
+                .maybeSingle();
 
             if (error) {
                 console.error("Error fetching ticket details:", error);
                 throw error;
             }
-                        // Mapear `placa` -> `vehicle_plate` e preencher motivo via FK quando necessário
-                        const motivoLabel = (data as any)?.ticket_motivos?.label || (data as any)?.ticket_motivos?.value || null;
-                        const mapped = data
-                            ? {
-                                    ...data,
-                                    vehicle_plate: (data as any).vehicle_plate || (data as any).placa || null,
-                                    motivo: (data as any).motivo || motivoLabel,
-                                }
-                            : data;
+
+            // Se o ticket não existir (excluído ou não encontrado), retornar null para o caller lidar
+            if (!data) return null;
+
+            // Mapear `placa` -> `vehicle_plate` e preencher motivo via FK quando necessário
+            const motivoLabel = (data as any)?.ticket_motivos?.label || (data as any)?.ticket_motivos?.value || null;
+            const mapped = {
+                ...data,
+                vehicle_plate: (data as any).vehicle_plate || (data as any).placa || null,
+                motivo: (data as any).motivo || motivoLabel,
+            };
+
             return mapped;
         },
         enabled: !!ticketId && isValidUUID,

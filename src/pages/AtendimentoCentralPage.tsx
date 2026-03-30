@@ -109,7 +109,7 @@ export default function AtendimentoCentralPage() {
   // Hooks - use first selected instance or null for all
   const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
-  const { refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
+  const { stats, refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
 
   // Calculate "my conversations" count
@@ -621,53 +621,49 @@ export default function AtendimentoCentralPage() {
                     </div>
 
                     <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                      <div className="overflow-x-auto pb-1">
-                        <TabsList className="w-max min-w-full h-9 bg-muted/50 inline-flex items-center gap-1 p-1">
-                          <TabsTrigger value="all" className="text-xs px-2.5 shrink-0">
-                            Todas
-                          </TabsTrigger>
-                          <TabsTrigger value="whatsapp" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
-                            WhatsApp
-                            {whatsappConversationsCount > 0 && (
-                              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-none">
-                                {whatsappConversationsCount > 99 ? '99+' : whatsappConversationsCount}
-                              </Badge>
-                            )}
-                          </TabsTrigger>
-                          <TabsTrigger value="queue" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
-                            Aguardando
-                            {queueConversationsCount > 0 && (
-                              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
-                                {queueConversationsCount > 99 ? '99+' : queueConversationsCount}
-                              </Badge>
-                            )}
-                          </TabsTrigger>
-                          <TabsTrigger value="unread" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
-                            Nao lidas
-                            {unreadConversationsCount > 0 && (
-                              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
-                                {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
-                              </Badge>
-                            )}
-                          </TabsTrigger>
-                          <TabsTrigger value="mine" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
-                            Meus
-                            {myConversationsCount > 0 && (
-                              <Badge className="h-4 min-w-4 px-1 text-[10px] leading-none bg-green-500">
-                                {myConversationsCount > 99 ? '99+' : myConversationsCount}
-                              </Badge>
-                            )}
-                          </TabsTrigger>
-                          <TabsTrigger value="others" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
-                            Outros
-                            {othersConversationsCount > 0 && (
-                              <Badge variant="outline" className="h-4 min-w-4 px-1 text-[10px] leading-none">
-                                {othersConversationsCount > 99 ? '99+' : othersConversationsCount}
-                              </Badge>
-                            )}
-                          </TabsTrigger>
-                        </TabsList>
-                      </div>
+                      <TabsList className="w-full grid grid-cols-6 h-8 bg-muted/50">
+                        <TabsTrigger value="all" className="text-[10px] px-1">Todas</TabsTrigger>
+                        <TabsTrigger value="whatsapp" className="text-[10px] px-1 relative">
+                          WhatsApp
+                          {whatsappConversationsCount > 0 && (
+                            <Badge variant="secondary" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {whatsappConversationsCount > 9 ? '9+' : whatsappConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="queue" className="text-[10px] px-1 relative">
+                          Aguardando
+                          {queueConversationsCount > 0 && (
+                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {queueConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="unread" className="text-[10px] px-1 relative">
+                          Não Lidas
+                          {unreadConversationsCount > 0 && (
+                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {unreadConversationsCount > 9 ? '9+' : unreadConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="mine" className="text-[10px] px-1 relative">
+                          Meus
+                          {myConversationsCount > 0 && (
+                            <Badge className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5 bg-green-500">
+                              {myConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                        <TabsTrigger value="others" className="text-[10px] px-1 relative">
+                          Outros
+                          {othersConversationsCount > 0 && (
+                            <Badge variant="outline" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
+                              {othersConversationsCount > 9 ? '9+' : othersConversationsCount}
+                            </Badge>
+                          )}
+                        </TabsTrigger>
+                      </TabsList>
                     </Tabs>
                   </div>
 
@@ -687,7 +683,7 @@ export default function AtendimentoCentralPage() {
                 {/* Center Panel - Chat */}
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
                   <WhatsAppChatPanel
-                    conversation={selectedConversation as any}
+                    conversation={selectedConversation}
                     instanceId={selectedInstanceId || undefined}
                   />
                 </div>
