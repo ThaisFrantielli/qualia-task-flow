@@ -472,13 +472,11 @@ export default function AtendimentoCentralPage() {
     }
   }, [pendingAutoOpen, conversations, convLoading, toast]);
 
-  // Filter conversations - cast to extended type
+  // Filter conversations
   const filteredConversations = useMemo(() => {
     let filtered = conversations.map(c => ({
       ...c,
-      assigned_agent_id: (c as any).assigned_agent_id || null,
-      assigned_at: (c as any).assigned_at || null,
-      assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
+      assigned_agent_name: c.assigned_agent_id ? assignedAgentNames[c.assigned_agent_id] || null : null,
     })) as WhatsAppConversation[];
 
     // Search filter
