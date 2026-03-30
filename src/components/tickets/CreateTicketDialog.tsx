@@ -160,7 +160,7 @@ export function CreateTicketDialog() {
                 veiculo_cliente: veiculoData.cliente || null,
                 veiculo_km: veiculoData.km || null,
                 custom_fields: customFieldValues,
-                status: "aguardando_triagem",
+                status: "novo",
                 tipo_reclamacao: "pos_venda"
             } as any,
             {

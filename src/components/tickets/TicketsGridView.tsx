@@ -54,7 +54,7 @@ export function TicketsGridView({ tickets, onTicketClick, pageSize = 5 }: Ticket
         ))}
       </div>
       {/* sentinel para scroll infinito */}
-      <div ref={sentinelRef} />
+      <div ref={sentinelRef} className="h-px w-full pointer-events-none opacity-0" aria-hidden="true" />
     </div>
   );
 }

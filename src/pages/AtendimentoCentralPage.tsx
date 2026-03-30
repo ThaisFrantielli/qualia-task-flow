@@ -249,11 +249,55 @@ export default function AtendimentoCentralPage() {
 
     setIsSendingNewChat(true);
     try {
+      // Ensure conversation exists before sending so whatsapp-send can queue the message.
+      const { data: existingConversation, error: existingConversationError } = await supabase
+        .from('whatsapp_conversations')
+        .select('id, customer_phone, whatsapp_number')
+        .eq('instance_id', selectedInstanceId)
+        .or(`customer_phone.eq.${normalizedPhone},whatsapp_number.eq.${normalizedPhone}`)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingConversationError) {
+        throw new Error(existingConversationError.message || 'Falha ao buscar conversa existente');
+      }
+
+      let conversationId = existingConversation?.id;
+
+      if (!conversationId) {
+        const { data: createdConversation, error: createConversationError } = await supabase
+          .from('whatsapp_conversations')
+          .insert({
+            instance_id: selectedInstanceId,
+            customer_phone: normalizedPhone,
+            whatsapp_number: normalizedPhone,
+            customer_name: normalizedPhone,
+            status: 'open',
+            unread_count: 0,
+            last_message: newChatMessage.trim(),
+            last_message_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
+
+        if (createConversationError) {
+          throw new Error(createConversationError.message || 'Falha ao criar conversa');
+        }
+
+        conversationId = createdConversation?.id;
+      }
+
+      if (!conversationId) {
+        throw new Error('Não foi possível identificar a conversa para envio da mensagem');
+      }
+
       const { error } = await supabase.functions.invoke('whatsapp-send', {
         body: {
           instance_id: selectedInstanceId,
           phoneNumber: normalizedPhone,
-          message: newChatMessage.trim()
+          message: newChatMessage.trim(),
+          conversationId,
         }
       });
 
@@ -266,7 +310,9 @@ export default function AtendimentoCentralPage() {
       setIsNewChatOpen(false);
       setNewChatPhone('');
       setNewChatMessage('');
+      setSelectedConversationId(conversationId);
       refetchConversations();
+      refetchStats();
     } catch (err: any) {
       toast({ title: 'Erro ao enviar', description: err.message, variant: 'destructive' });
     } finally {

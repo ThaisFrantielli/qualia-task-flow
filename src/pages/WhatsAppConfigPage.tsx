@@ -24,6 +24,15 @@ interface WhatsAppInstance {
 
 const SERVICE_URL = WHATSAPP.SERVICE_URL;
 
+type ServiceStatusInstance = {
+  id?: string;
+  instanceId?: string;
+  name?: string;
+  status?: string;
+  phone_number?: string | null;
+  connectedNumber?: string | null;
+};
+
 export default function WhatsAppConfigPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +49,12 @@ export default function WhatsAppConfigPage() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setInstances(data || []);
+
+      const dbInstances = data || [];
+      setInstances(dbInstances);
+
+      // Also reconcile with live service status so number/status appears immediately.
+      await checkServiceStatus(dbInstances);
     } catch (error) {
       console.error('Error fetching instances:', error);
       toast({
@@ -53,13 +67,39 @@ export default function WhatsAppConfigPage() {
     }
   };
 
-  const checkServiceStatus = async () => {
+  const checkServiceStatus = async (baseInstances: WhatsAppInstance[] = instances) => {
     try {
       const response = await fetch(`${SERVICE_URL}/status`);
       // Just check if the service responds, no need to track state
       if (!response.ok) {
         console.log('WhatsApp service not responding');
+        return;
       }
+
+      const payload = await response.json().catch(() => null);
+      const serviceInstances = Array.isArray(payload?.instances)
+        ? (payload.instances as ServiceStatusInstance[])
+        : [];
+
+      if (serviceInstances.length === 0) {
+        return;
+      }
+
+      const merged = baseInstances.map((dbItem) => {
+        const serviceItem = serviceInstances.find((svc) => (svc.id || svc.instanceId) === dbItem.id);
+
+        if (!serviceItem) {
+          return dbItem;
+        }
+
+        return {
+          ...dbItem,
+          status: serviceItem.status || dbItem.status,
+          phone_number: serviceItem.phone_number || serviceItem.connectedNumber || dbItem.phone_number || null,
+        };
+      });
+
+      setInstances(merged);
     } catch (error) {
       console.log('WhatsApp service offline');
     }
