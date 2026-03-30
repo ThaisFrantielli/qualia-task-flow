@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import WhatsAppChat from '@/components/WhatsAppChat';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, Clock, CheckCircle, Smartphone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useWhatsAppStats } from '@/hooks/useWhatsAppStats';
 
 interface WhatsAppInstance {
   id: string;
@@ -17,6 +19,7 @@ export default function WhatsAppChatPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { stats, loading: statsLoading } = useWhatsAppStats(selectedInstanceId || undefined);
 
   useEffect(() => {
     fetchInstances();
@@ -71,6 +74,9 @@ export default function WhatsAppChatPage() {
   };
 
   const selectedInstance = instances.find(i => i.id === selectedInstanceId);
+  const responseRate = stats.totalConversations > 0
+    ? Math.round(((stats.totalConversations - stats.unreadMessages) / stats.totalConversations) * 100)
+    : 0;
 
   const getInstanceColor = (id: string) => {
     const colors = [
@@ -180,10 +186,8 @@ export default function WhatsAppChatPage() {
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">
-                +2 hoje
-              </p>
+              {statsLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats.totalConversations}</div>}
+              <p className="text-xs text-muted-foreground">Dados em tempo real</p>
             </CardContent>
           </Card>
 
@@ -193,10 +197,8 @@ export default function WhatsAppChatPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">
-                Online agora
-              </p>
+              {statsLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats.queueConversations}</div>}
+              <p className="text-xs text-muted-foreground">Conversas em fila ativa</p>
             </CardContent>
           </Card>
 
@@ -206,10 +208,8 @@ export default function WhatsAppChatPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">45</div>
-              <p className="text-xs text-muted-foregreen">
-                +12% vs ontem
-              </p>
+              {statsLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{stats.todayMessages}</div>}
+              <p className="text-xs text-muted-foreground">Atualizado automaticamente</p>
             </CardContent>
           </Card>
 
@@ -219,19 +219,27 @@ export default function WhatsAppChatPage() {
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">94%</div>
-              <p className="text-xs text-muted-foreground">
-                Tempo médio: 2min
-              </p>
+              {statsLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{responseRate}%</div>}
+              <p className="text-xs text-muted-foreground">Baseado em conversas sem pendências</p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* WhatsApp Chat Component */}
+      {/* Componente legado descontinuado */}
       {selectedInstanceId && (
-        <Card className="p-0 overflow-hidden">
-          <WhatsAppChat instanceId={selectedInstanceId} className="border-0 rounded-none" />
+        <Card>
+          <CardHeader>
+            <CardTitle>Chat Unificado</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Esta tela legada foi descontinuada. O atendimento oficial agora acontece na Central de Atendimento com o componente unificado.
+            </p>
+            <Button asChild>
+              <a href="/atendimento-central?folder=whatsapp">Abrir Central de Atendimento</a>
+            </Button>
+          </CardContent>
         </Card>
       )}
     </div>

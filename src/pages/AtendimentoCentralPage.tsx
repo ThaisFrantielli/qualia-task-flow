@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useWhatsAppConversations } from '@/hooks/useWhatsAppConversations';
 import { useWhatsAppStats } from '@/hooks/useWhatsAppStats';
 import { useWhatsAppAgents } from '@/hooks/useWhatsAppAgents';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { notificationService } from '@/utils/notificationService';
 import WhatsAppChatPanel from '@/components/whatsapp/WhatsAppChatPanel';
 import WhatsAppAgentPanel from '@/components/whatsapp/WhatsAppAgentPanel';
 import { AgentStatusSelector } from '@/components/presence/AgentStatusSelector';
@@ -78,7 +80,14 @@ export default function AtendimentoCentralPage() {
   const [selectedInstanceIds, setSelectedInstanceIds] = useState<string[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<'all' | 'whatsapp' | 'queue' | 'mine' | 'unread' | 'others'>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [filter, setFilter] = useState<'all' | 'queue' | 'mine' | 'unread'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | '7d' | '30d'>('all');
+  const [mobilePanel, setMobilePanel] = useState<'queue' | 'chat' | 'actions'>('queue');
+  const [isActionsSheetOpen, setIsActionsSheetOpen] = useState(false);
+  const [messageSearchConversationIds, setMessageSearchConversationIds] = useState<string[]>([]);
+  const touchStartXRef = useRef<number | null>(null);
+  const previousUnreadByConversationRef = useRef<Record<string, number>>({});
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [assignedAgentNames, setAssignedAgentNames] = useState<Record<string, string>>({});
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
@@ -117,8 +126,8 @@ export default function AtendimentoCentralPage() {
     return conversations.filter(c => (c as any).assigned_agent_id === user?.id && c.status !== 'closed').length;
   }, [conversations, user?.id]);
 
-  const whatsappConversationsCount = useMemo(() => {
-    return conversations.filter((c) => Boolean(c.whatsapp_number || c.customer_phone) && c.status !== 'closed').length;
+  const allConversationsCount = useMemo(() => {
+    return conversations.filter((c) => c.status !== 'closed').length;
   }, [conversations]);
 
   const unreadConversationsCount = useMemo(() => {
@@ -133,16 +142,113 @@ export default function AtendimentoCentralPage() {
     return conversations.filter(c => (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id).length;
   }, [conversations]);
 
-  const othersConversationsCount = useMemo(() => {
-    return conversations.filter((c) => {
-      if (c.status === 'closed') return false;
-      const unreadCount = Number(c.unread_count || 0);
-      const isUnread = unreadCount > 0 || c.status === 'waiting';
-      const isMine = c.assigned_agent_id === user?.id;
-      const isQueue = (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id;
-      return !isUnread && !isMine && !isQueue;
-    }).length;
-  }, [conversations, user?.id]);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearchTerm(searchInput);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  useEffect(() => {
+    const runMessageSearch = async () => {
+      const term = searchTerm.trim();
+      if (!term) {
+        setMessageSearchConversationIds([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('whatsapp_messages')
+        .select('conversation_id')
+        .ilike('content', `%${term}%`)
+        .limit(200);
+
+      if (error) {
+        console.warn('Falha na busca global de mensagens:', error);
+        setMessageSearchConversationIds([]);
+        return;
+      }
+
+      const ids = Array.from(new Set((data || []).map((row: any) => row.conversation_id).filter(Boolean)));
+      setMessageSearchConversationIds(ids as string[]);
+    };
+
+    runMessageSearch();
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const totalUnread = conversations.reduce((acc, conv) => acc + Number(conv.unread_count || 0), 0);
+    document.title = totalUnread > 0 ? `(${totalUnread}) Atendimento Central` : 'Atendimento Central';
+  }, [conversations]);
+
+  useEffect(() => {
+    let shouldNotifyPermission = false;
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      shouldNotifyPermission = Notification.permission === 'default';
+    }
+
+    if (shouldNotifyPermission) {
+      notificationService.requestPermission().catch(() => undefined);
+    }
+  }, []);
+
+  useEffect(() => {
+    const previous = previousUnreadByConversationRef.current;
+
+    for (const conversation of conversations) {
+      const currentUnread = Number(conversation.unread_count || 0);
+      const previousUnread = Number(previous[conversation.id] || 0);
+      const hasNewUnread = currentUnread > previousUnread;
+      const isNotSelected = selectedConversationId !== conversation.id;
+
+      if (hasNewUnread && isNotSelected) {
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          oscillator.type = 'sine';
+          oscillator.frequency.value = 880;
+          gainNode.gain.value = 0.03;
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.12);
+        } catch {
+          // no-op
+        }
+
+        notificationService.showBrowserNotification('Nova mensagem no WhatsApp', {
+          body: `${conversation.customer_name || conversation.customer_phone || 'Cliente'} enviou mensagem.`,
+          tag: `wa-conversation-${conversation.id}`,
+        });
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistration('/whatsapp-sw.js').then((registration) => {
+            if (registration) {
+              registration.showNotification('Nova mensagem no WhatsApp', {
+                body: `${conversation.customer_name || conversation.customer_phone || 'Cliente'} enviou mensagem.`,
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                tag: `wa-conversation-${conversation.id}`,
+                data: { url: '/atendimento-central?folder=whatsapp' },
+              });
+            }
+          }).catch(() => undefined);
+        }
+
+        toast({
+          title: 'Nova mensagem',
+          description: `Conversa de ${conversation.customer_name || conversation.customer_phone || 'cliente'} recebeu nova mensagem.`,
+        });
+      }
+    }
+
+    previousUnreadByConversationRef.current = conversations.reduce<Record<string, number>>((acc, conv) => {
+      acc[conv.id] = Number(conv.unread_count || 0);
+      return acc;
+    }, {});
+  }, [conversations, selectedConversationId, toast]);
 
   useEffect(() => {
     const loadAssignedAgentNames = async () => {
@@ -357,6 +463,7 @@ export default function AtendimentoCentralPage() {
           description: 'Nenhuma conversa existente encontrada.',
         });
         if (telefone) {
+          setSearchInput(telefone);
           setSearchTerm(telefone);
         }
       }
@@ -381,7 +488,8 @@ export default function AtendimentoCentralPage() {
         c.customer_name?.toLowerCase().includes(term) ||
         c.customer_phone?.includes(term) ||
         c.last_message?.toLowerCase().includes(term) ||
-        c.assigned_agent_name?.toLowerCase().includes(term)
+        c.assigned_agent_name?.toLowerCase().includes(term) ||
+        messageSearchConversationIds.includes(c.id)
       );
     }
 
@@ -391,6 +499,24 @@ export default function AtendimentoCentralPage() {
       filtered = filtered.filter((c) => c.status !== 'closed');
     }
 
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const threshold = new Date();
+      if (dateFilter === 'today') {
+        threshold.setHours(0, 0, 0, 0);
+      } else if (dateFilter === '7d') {
+        threshold.setDate(now.getDate() - 7);
+      } else if (dateFilter === '30d') {
+        threshold.setDate(now.getDate() - 30);
+      }
+
+      filtered = filtered.filter((c) => {
+        const messageDate = c.last_message_at || c.updated_at || c.created_at;
+        if (!messageDate) return false;
+        return new Date(messageDate) >= threshold;
+      });
+    }
+
     // Instance filter (when multiple selected)
     if (selectedInstanceIds.length > 0 && selectedInstanceIds.length < instances.length) {
       filtered = filtered.filter(c => selectedInstanceIds.includes(c.instance_id || ''));
@@ -398,9 +524,6 @@ export default function AtendimentoCentralPage() {
 
     // Tab filter
     switch (filter) {
-      case 'whatsapp':
-        filtered = filtered.filter(c => Boolean(c.whatsapp_number || c.customer_phone) && c.status !== 'closed');
-        break;
       case 'queue':
         filtered = filtered.filter(c =>
           (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id
@@ -411,15 +534,6 @@ export default function AtendimentoCentralPage() {
         break;
       case 'mine':
         filtered = filtered.filter(c => c.assigned_agent_id === user?.id);
-        break;
-      case 'others':
-        filtered = filtered.filter((c) => {
-          const unreadCount = Number(c.unread_count || 0);
-          const isUnread = unreadCount > 0 || c.status === 'waiting';
-          const isMine = c.assigned_agent_id === user?.id;
-          const isQueue = (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id;
-          return c.status !== 'closed' && !isUnread && !isMine && !isQueue;
-        });
         break;
     }
 
@@ -433,7 +547,7 @@ export default function AtendimentoCentralPage() {
       const bDate = new Date(b.last_message_at || b.created_at || '').getTime();
       return bDate - aDate;
     });
-  }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id, assignedAgentNames, statusFilter]);
+  }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id, assignedAgentNames, statusFilter, dateFilter, messageSearchConversationIds]);
 
   const selectedConversation = (filteredConversations.find(c => c.id === selectedConversationId)
     || conversations.map(c => ({
@@ -441,6 +555,13 @@ export default function AtendimentoCentralPage() {
       assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
     }) as WhatsAppConversation).find(c => c.id === selectedConversationId)
     || null);
+
+  const handleSelectConversation = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    if (window.innerWidth < 1024) {
+      setMobilePanel('chat');
+    }
+  };
 
   const handleAssignConversation = async (conversationId: string) => {
     if (!user?.id) return;
@@ -579,6 +700,36 @@ export default function AtendimentoCentralPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <div className="lg:hidden flex items-center gap-1 mr-1">
+                  <Button
+                    variant={mobilePanel === 'queue' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setMobilePanel('queue')}
+                  >
+                    Fila
+                  </Button>
+                  <Button
+                    variant={mobilePanel === 'chat' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setMobilePanel('chat')}
+                  >
+                    Chat
+                  </Button>
+                  <Button
+                    variant={mobilePanel === 'actions' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => {
+                      setMobilePanel('actions');
+                      setIsActionsSheetOpen(true);
+                    }}
+                  >
+                    Ações
+                  </Button>
+                </div>
+
                 <Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm" className="hidden sm:flex items-center gap-2">
@@ -626,6 +777,22 @@ export default function AtendimentoCentralPage() {
               </div>
             </div>
 
+            <div className="px-4 pb-2 lg:hidden border-b bg-background flex items-center gap-2">
+              <Select value={selectedInstanceId || undefined} onValueChange={setSelectedInstanceId}>
+                <SelectTrigger className="h-8 text-xs">
+                  <Smartphone className="h-3.5 w-3.5 mr-2" />
+                  <SelectValue placeholder="Instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  {instances.map((instance) => (
+                    <SelectItem key={instance.id} value={instance.id}>
+                      {instance.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Main Content WhatsApp */}
             {instances.length === 0 && !isLoadingInstances ? (
               <div className="flex-1 flex items-center justify-center bg-muted/5">
@@ -645,15 +812,15 @@ export default function AtendimentoCentralPage() {
             ) : (
               <div className="flex-1 flex overflow-hidden min-h-0 bg-background">
                 {/* Left Panel - Queue */}
-                <div className="w-80 border-r flex flex-col bg-background shrink-0">
+                <div className={`w-full md:w-80 border-r flex flex-col bg-background shrink-0 ${mobilePanel !== 'queue' ? 'hidden md:flex' : ''}`}>
                   <div className="p-3 border-b space-y-3 shrink-0">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           placeholder="Buscar conversas..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value)}
                           className="pl-9 h-9"
                         />
                       </div>
@@ -667,13 +834,12 @@ export default function AtendimentoCentralPage() {
                     </div>
 
                     <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                      <TabsList className="w-full grid grid-cols-6 h-8 bg-muted/50">
-                        <TabsTrigger value="all" className="text-[10px] px-1">Todas</TabsTrigger>
-                        <TabsTrigger value="whatsapp" className="text-[10px] px-1 relative">
-                          WhatsApp
-                          {whatsappConversationsCount > 0 && (
+                      <TabsList className="w-full grid grid-cols-4 h-8 bg-muted/50">
+                        <TabsTrigger value="all" className="text-[10px] px-1 relative">
+                          Todas
+                          {allConversationsCount > 0 && (
                             <Badge variant="secondary" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {whatsappConversationsCount > 9 ? '9+' : whatsappConversationsCount}
+                              {allConversationsCount > 9 ? '9+' : allConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
@@ -701,33 +867,53 @@ export default function AtendimentoCentralPage() {
                             </Badge>
                           )}
                         </TabsTrigger>
-                        <TabsTrigger value="others" className="text-[10px] px-1 relative">
-                          Outros
-                          {othersConversationsCount > 0 && (
-                            <Badge variant="outline" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {othersConversationsCount > 9 ? '9+' : othersConversationsCount}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
                       </TabsList>
                     </Tabs>
+
+                    <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as any)}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="Período" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Período: Tudo</SelectItem>
+                        <SelectItem value="today">Período: Hoje</SelectItem>
+                        <SelectItem value="7d">Período: 7 dias</SelectItem>
+                        <SelectItem value="30d">Período: 30 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <ScrollArea className="flex-1">
                     <AtendimentoQueue
                       conversations={filteredConversations}
                       selectedId={selectedConversationId}
-                      onSelect={setSelectedConversationId}
+                      onSelect={handleSelectConversation}
                       onAssign={handleAssignConversation}
                       loading={convLoading}
                       filter={filter}
                       currentUserId={user?.id}
+                      searchTerm={searchTerm}
                     />
                   </ScrollArea>
                 </div>
 
                 {/* Center Panel - Chat */}
-                <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                <div
+                  className={`flex-1 flex flex-col min-w-0 min-h-0 ${mobilePanel !== 'chat' ? 'hidden md:flex' : ''}`}
+                  onTouchStart={(e) => {
+                    touchStartXRef.current = e.changedTouches[0]?.clientX ?? null;
+                  }}
+                  onTouchEnd={(e) => {
+                    if (window.innerWidth >= 1024) return;
+                    const startX = touchStartXRef.current;
+                    const endX = e.changedTouches[0]?.clientX ?? null;
+                    if (startX == null || endX == null) return;
+                    const deltaX = endX - startX;
+                    if (deltaX > 70) {
+                      setMobilePanel('queue');
+                    }
+                  }}
+                >
                   <WhatsAppChatPanel
                     conversation={selectedConversation}
                     instanceId={selectedInstanceId || undefined}
@@ -753,6 +939,28 @@ export default function AtendimentoCentralPage() {
                     </div>
                   </ScrollArea>
                 </div>
+
+                <Sheet open={isActionsSheetOpen} onOpenChange={setIsActionsSheetOpen}>
+                  <SheetContent side="bottom" className="h-[80vh] lg:hidden">
+                    <SheetHeader>
+                      <SheetTitle>Ações rápidas</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-4 space-y-4 overflow-y-auto h-[calc(80vh-5rem)]">
+                      <AtendimentoActions
+                        conversation={selectedConversation as any}
+                        onActionComplete={() => {
+                          refetchConversations();
+                          refetchStats();
+                        }}
+                      />
+
+                      <WhatsAppAgentPanel
+                        agents={agents}
+                        loading={agentsLoading}
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </div>
             )}
           </div>

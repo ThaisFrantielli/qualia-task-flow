@@ -18,6 +18,14 @@ if (!rootElement) throw new Error("Elemento root não encontrado.");
 
 const root = createRoot(rootElement);
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/whatsapp-sw.js').catch((error) => {
+      console.warn('Falha ao registrar Service Worker de notificações:', error);
+    });
+  });
+}
+
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

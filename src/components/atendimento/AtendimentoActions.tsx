@@ -55,6 +55,14 @@ const DISCARD_REASONS = [
   'Outro'
 ];
 
+const CLOSE_REASONS = [
+  'Atendimento concluído',
+  'Cliente desistiu',
+  'Sem retorno do cliente',
+  'Encaminhado para ticket',
+  'Outro'
+];
+
 export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   conversation,
   onActionComplete
@@ -63,9 +71,12 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   const { toast } = useToast();
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [discardReason, setDiscardReason] = useState('');
   const [discardReasonType, setDiscardReasonType] = useState('');
+  const [closeReason, setCloseReason] = useState('');
+  const [closeReasonType, setCloseReasonType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [ticketForm, setTicketForm] = useState({
@@ -353,6 +364,63 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
     }
   };
 
+  const handleCloseConversation = async () => {
+    if (!conversation) return;
+
+    const finalReason = closeReasonType === 'Outro' ? closeReason.trim() : closeReasonType;
+    if (!finalReason) {
+      toast({
+        title: 'Motivo obrigatório',
+        description: 'Selecione ou informe o motivo do encerramento.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('close_whatsapp_conversation', {
+        p_conversation_id: conversation.id,
+        p_closed_reason: finalReason,
+        p_actor: user?.id || null,
+      });
+
+      if (rpcError) {
+        const { error: fallbackError } = await supabase
+          .from('whatsapp_conversations')
+          .update({
+            status: 'closed',
+            closed_reason: finalReason,
+            closed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', conversation.id);
+
+        if (fallbackError) throw fallbackError;
+      } else if (!rpcData) {
+        throw new Error('Não foi possível encerrar a conversa.');
+      }
+
+      toast({
+        title: 'Atendimento encerrado',
+        description: 'Conversa encerrada com sucesso.',
+      });
+
+      setCloseDialogOpen(false);
+      setCloseReason('');
+      setCloseReasonType('');
+      onActionComplete();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao encerrar',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const isAssignedToMe = conversation?.assigned_agent_id === user?.id;
 
   if (!conversation) {
@@ -391,7 +459,7 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
                 <Badge variant="outline" className="text-[10px]">
                   {conversation.status === 'active' ? 'Em atendimento' : 
                    conversation.status === 'waiting' ? 'Aguardando' : 
-                   conversation.status === 'open' ? 'Aberto' : conversation.status}
+                   conversation.status}
                 </Badge>
                 {isAssignedToMe && (
                   <Badge className="text-[10px] bg-green-500">
@@ -476,6 +544,16 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
               Assumir para mim
             </Button>
           )}
+
+          <Button
+            className="w-full justify-start h-9"
+            variant="outline"
+            onClick={() => setCloseDialogOpen(true)}
+            disabled={isLoading || conversation.status === 'closed'}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Encerrar Atendimento
+          </Button>
 
           <Button 
             className="w-full justify-start h-9 text-destructive hover:text-destructive" 
@@ -726,6 +804,52 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
               </Button>
               <Button onClick={handleCreateTicket} disabled={isLoading}>
                 Criar Ticket
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Close Dialog */}
+      <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Encerrar Atendimento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Motivo do encerramento</Label>
+              <Select value={closeReasonType} onValueChange={setCloseReasonType}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Selecione o motivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLOSE_REASONS.map((reason) => (
+                    <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {closeReasonType === 'Outro' && (
+              <div>
+                <Label>Detalhes</Label>
+                <Textarea
+                  value={closeReason}
+                  onChange={(e) => setCloseReason(e.target.value)}
+                  placeholder="Descreva o motivo"
+                  rows={3}
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleCloseConversation} disabled={isLoading || !closeReasonType}>
+                Encerrar
               </Button>
             </div>
           </div>

@@ -6,15 +6,17 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { WHATSAPP } from '@/integrations/whatsapp/config';
+import { TemplatePicker } from '@/components/whatsapp/TemplatePicker';
 import {
   Send,
   MessageSquare,
   Clock,
   CheckCheck,
   Check,
+  AlertCircle,
   Paperclip,
   Smile,
   MoreVertical,
@@ -53,6 +55,41 @@ const getInitials = (name: string | null, phone: string | null) => {
   return '??';
 };
 
+const getFunctionErrorMessage = async (error: any) => {
+  const fallback = error?.message || 'Falha ao enviar mensagem';
+  const context = error?.context;
+
+  if (!context || typeof context.json !== 'function') {
+    return fallback;
+  }
+
+  try {
+    const payload = await context.json();
+    if (payload?.error) return String(payload.error);
+    if (payload?.message) return String(payload.message);
+    return fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const getDeliveryIcon = (status: string | null | undefined) => {
+  switch (status) {
+    case 'pending':
+      return <Clock className="h-3 w-3 text-amber-500" />;
+    case 'sent':
+      return <Check className="h-3 w-3 text-primary-foreground/70" />;
+    case 'delivered':
+      return <CheckCheck className="h-3 w-3 text-primary-foreground/70" />;
+    case 'read':
+      return <CheckCheck className="h-3 w-3 text-blue-400" />;
+    case 'failed':
+      return <AlertCircle className="h-3 w-3 text-red-400" />;
+    default:
+      return <Check className="h-3 w-3 text-primary-foreground/70" />;
+  }
+};
+
 export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   conversation,
   instanceId
@@ -68,6 +105,16 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [customerProfile, setCustomerProfile] = useState<{
+    clienteId: string | null;
+    nome: string;
+    tags: string[];
+    lastTicket?: { id: string; title: string | null; status: string | null } | null;
+    lastOpportunity?: { id: string; title: string | null; status: string | null } | null;
+    lastAtendimento?: { id: string; summary: string | null; status: string | null } | null;
+  } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -161,25 +208,21 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
       if (insertError) throw insertError;
 
-      // Send directly to local service
-      const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { error: sendError } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
           instance_id: instanceId,
           phoneNumber: conversation.customer_phone,
           message: '',
           mediaUrl: publicUrl,
-            mediaType: file.type || '',
+          mediaType: file.type || '',
           fileName: file.name,
-          conversation_id: conversation.id,
-          message_id: messageData.id
-        })
+          conversationId: conversation.id,
+          message_id: messageData.id,
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send message');
+      if (sendError) {
+        throw new Error(await getFunctionErrorMessage(sendError));
       }
 
       toast({
@@ -187,7 +230,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         description: 'O arquivo foi enviado com sucesso!'
       });
       
-      setTimeout(() => refetch(), 500);
+      refetch();
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast({
@@ -314,25 +357,21 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
       if (insertError) throw insertError;
 
-      // Send directly to local service
-      const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { error: sendError } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
           instance_id: instanceId,
           phoneNumber: conversation.customer_phone,
           message: '',
           mediaUrl: publicUrl,
           mediaType: mimeType,
-          fileName: fileName,
-          conversation_id: conversation.id,
-          message_id: messageData.id
-        })
+          fileName,
+          conversationId: conversation.id,
+          message_id: messageData.id,
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send message');
+      if (sendError) {
+        throw new Error(await getFunctionErrorMessage(sendError));
       }
 
       toast({
@@ -340,7 +379,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         description: 'O áudio foi enviado com sucesso!'
       });
       
-      setTimeout(() => refetch(), 500);
+      refetch();
     } catch (error: any) {
       console.error('Error sending audio:', error);
       toast({
@@ -383,26 +422,22 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
       if (insertError) throw insertError;
 
-      // Send directly to local service
-      const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { error: sendError } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
           instance_id: instanceId,
           phoneNumber: conversation.customer_phone,
           message: newMessage.trim(),
-          conversation_id: conversation.id,
-          message_id: messageData.id
-        })
+          conversationId: conversation.id,
+          message_id: messageData.id,
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send message');
+      if (sendError) {
+        throw new Error(await getFunctionErrorMessage(sendError));
       }
 
       setNewMessage('');
-      setTimeout(() => refetch(), 500);
+      refetch();
       toast({
         title: 'Mensagem enviada',
         description: 'Sua mensagem foi enviada com sucesso!'
@@ -423,6 +458,72 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    }
+  };
+
+  const loadCustomerProfile = async () => {
+    const phone = conversation?.customer_phone || conversation?.whatsapp_number;
+    if (!phone) return;
+
+    setIsProfileLoading(true);
+    try {
+      const { data: cliente } = await supabase
+        .from('clientes')
+        .select('id, nome_fantasia, razao_social, status_triagem')
+        .or(`whatsapp_number.eq.${phone},telefone.eq.${phone}`)
+        .maybeSingle();
+
+      if (!cliente?.id) {
+        setCustomerProfile({
+          clienteId: null,
+          nome: conversation?.customer_name || phone,
+          tags: ['Sem cadastro'],
+          lastTicket: null,
+          lastOpportunity: null,
+          lastAtendimento: null,
+        });
+        return;
+      }
+
+      const [ticketRes, opportunityRes, atendimentoRes] = await Promise.all([
+        supabase
+          .from('tickets')
+          .select('id, titulo, status')
+          .eq('cliente_id', cliente.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('oportunidades')
+          .select('id, titulo, status')
+          .eq('cliente_id', cliente.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('atendimentos')
+          .select('id, summary, status')
+          .eq('cliente_id', cliente.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const tags: string[] = [];
+      if ((cliente.status_triagem || '').toLowerCase() === 'vip') tags.push('VIP');
+      if (ticketRes.data) tags.push('Recorrente');
+      if (tags.length === 0) tags.push('Ativo');
+
+      setCustomerProfile({
+        clienteId: cliente.id,
+        nome: cliente.nome_fantasia || cliente.razao_social || conversation?.customer_name || phone,
+        tags,
+        lastTicket: ticketRes.data ? { id: ticketRes.data.id, title: ticketRes.data.titulo, status: ticketRes.data.status } : null,
+        lastOpportunity: opportunityRes.data ? { id: opportunityRes.data.id, title: opportunityRes.data.titulo, status: opportunityRes.data.status } : null,
+        lastAtendimento: atendimentoRes.data ? { id: atendimentoRes.data.id, summary: atendimentoRes.data.summary, status: atendimentoRes.data.status } : null,
+      });
+    } finally {
+      setIsProfileLoading(false);
     }
   };
 
@@ -461,9 +562,15 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-semibold text-sm">
+            <button
+              className="font-semibold text-sm text-left hover:underline"
+              onClick={() => {
+                setIsProfileOpen(true);
+                loadCustomerProfile();
+              }}
+            >
               {conversation.customer_name || 'Cliente WhatsApp'}
-            </h3>
+            </button>
             <p className="text-xs text-muted-foreground">
               +{conversation.customer_phone || conversation.whatsapp_number}
             </p>
@@ -485,6 +592,56 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
           </Button>
         </div>
       </div>
+
+      <Sheet open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <SheetContent side="right" className="w-full sm:w-[420px]">
+          <SheetHeader>
+            <SheetTitle>Perfil do Cliente</SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-4 space-y-4">
+            {isProfileLoading ? (
+              <p className="text-sm text-muted-foreground">Carregando perfil...</p>
+            ) : !customerProfile ? (
+              <p className="text-sm text-muted-foreground">Sem dados para este cliente.</p>
+            ) : (
+              <>
+                <div>
+                  <h4 className="text-base font-semibold">{customerProfile.nome}</h4>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {customerProfile.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">{tag}</Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Último ticket</p>
+                    <p>{customerProfile.lastTicket?.title || 'Nenhum ticket encontrado'}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-muted-foreground">Última oportunidade</p>
+                    <p>{customerProfile.lastOpportunity?.title || 'Nenhuma oportunidade encontrada'}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-muted-foreground">Último atendimento</p>
+                    <p>{customerProfile.lastAtendimento?.summary || 'Nenhum atendimento encontrado'}</p>
+                  </div>
+                </div>
+
+                {customerProfile.clienteId && (
+                  <Button asChild className="w-full">
+                    <a href={`/hub-cliente/${customerProfile.clienteId}`}>Abrir Hub do Cliente</a>
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-4 min-h-0">
@@ -584,13 +741,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                           )}>
                             {formatTime(msg.created_at || '')}
                           </span>
-                          {msg.sender_type !== 'customer' && (
-                            (msg as any).status === 'delivered' ? (
-                              <CheckCheck className="h-3 w-3 text-primary-foreground/70" />
-                            ) : (
-                              <Check className="h-3 w-3 text-primary-foreground/70" />
-                            )
-                          )}
+                          {msg.sender_type !== 'customer' && getDeliveryIcon((msg as any).status)}
                         </div>
                       </div>
                     </div>
@@ -700,6 +851,14 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                 onKeyPress={handleKeyPress}
                 disabled={isSending || instanceStatus !== 'connected'}
                 className="flex-1"
+              />
+              <TemplatePicker
+                onSelect={(message) => setNewMessage(message)}
+                clientName={conversation.customer_name || undefined}
+                customerData={{
+                  nome: conversation.customer_name || '',
+                  telefone: conversation.customer_phone || conversation.whatsapp_number || ''
+                }}
               />
               <Button 
                 variant="ghost" 

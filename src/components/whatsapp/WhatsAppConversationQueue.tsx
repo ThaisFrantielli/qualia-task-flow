@@ -72,7 +72,7 @@ export const WhatsAppConversationQueue: React.FC<WhatsAppConversationQueueProps>
         {conversations.map((conv) => {
           const isSelected = conv.id === selectedId;
           const hasUnread = (conv.unread_count || 0) > 0;
-          const isWaiting = conv.status === 'waiting' || conv.status === 'open';
+          const isWaiting = conv.status === 'waiting' || conv.status === 'active';
 
           return (
             <div

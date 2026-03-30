@@ -33,6 +33,8 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Plus, Car, Building2, FileText } from "lucide-react";
 import { useTicketOrigens, useTicketMotivos, useTicketDepartamentos, useTicketCustomFields } from "@/hooks/useTicketOptions";
+import { useAuth } from '@/contexts/AuthContext';
+import { useUsersContext } from '@/contexts/UsersContext';
 import { useVeiculoByPlaca } from "@/hooks/useVeiculoByPlaca";
 import { ClienteCombobox } from "@/components/common/ClienteCombobox";
 import { PlacaVeiculoInput } from "./PlacaVeiculoInput";
@@ -47,7 +49,7 @@ const formSchema = z.object({
     departamento: z.string().min(1, "Departamento é obrigatório"),
     placa: z.string().optional(),
     contrato_comercial: z.string().optional(),
-    contrato_locacao: z.string().optional(),
+    atendente: z.string().optional(),
 });
 
 export function CreateTicketDialog() {
@@ -93,7 +95,7 @@ export function CreateTicketDialog() {
             motivo: "",
             departamento: "",
             contrato_comercial: "",
-            contrato_locacao: "",
+                    atendente: "",
         },
     });
 
@@ -103,11 +105,18 @@ export function CreateTicketDialog() {
             if (veiculoData.contratoComercial) {
                 form.setValue("contrato_comercial", veiculoData.contratoComercial);
             }
-            if (veiculoData.contratoLocacao) {
-                form.setValue("contrato_locacao", veiculoData.contratoLocacao);
-            }
         }
-    }, [veiculoData.found, veiculoData.contratoComercial, veiculoData.contratoLocacao, form]);
+    }, [veiculoData.found, veiculoData.contratoComercial, form]);
+
+    // Pré-preencher atendente com o usuário logado
+    const { user } = useAuth();
+    const { users } = useUsersContext();
+
+    useEffect(() => {
+        if (user?.id) {
+            form.setValue('atendente', user.id);
+        }
+    }, [user?.id, form]);
 
     function onSubmit(values: z.infer<typeof formSchema>) {
         // Prevent double submission
@@ -154,7 +163,7 @@ export function CreateTicketDialog() {
                 setor_responsavel: values.departamento,
                 placa: values.placa || null,
                 contrato_comercial: values.contrato_comercial || null,
-                contrato_locacao: values.contrato_locacao || null,
+                atendente_id: values.atendente || user?.id || null,
                 veiculo_modelo: veiculoData.modelo || null,
                 veiculo_ano: veiculoData.ano || null,
                 veiculo_cliente: veiculoData.cliente || null,
@@ -413,15 +422,28 @@ export function CreateTicketDialog() {
 
                             <FormField
                                 control={form.control}
-                                name="contrato_locacao"
+                                name="atendente"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="flex items-center gap-2">
                                             <FileText className="w-4 h-4" />
-                                            Contrato de Locação
+                                            Atendente (atribuir)
                                         </FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Número do contrato" {...field} />
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Selecione atendente..." />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {users?.map((u: any) => (
+                                                        <SelectItem key={u.id} value={u.id}>
+                                                            {u.full_name || u.email}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

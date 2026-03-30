@@ -15,6 +15,17 @@ serve(async (req: Request) => {
   }
 
   try {
+    const webhookSecret = Deno.env.get('WHATSAPP_WEBHOOK_SECRET') ?? ''
+    if (webhookSecret) {
+      const providedSecret = req.headers.get('x-webhook-secret') || ''
+      if (!providedSecret || providedSecret !== webhookSecret) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized webhook request' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+    }
+
     const { instance_id, from, body, timestamp, messageId } = await req.json()
 
     console.log('=== WhatsApp Webhook Debug ===')
@@ -58,6 +69,7 @@ serve(async (req: Request) => {
           whatsapp_number: phoneNumber,
           customer_name: phoneNumber,
           instance_id: instance_id,
+          status: 'active',
           last_message: body || null,
           last_message_at: new Date().toISOString(),
           unread_count: 1

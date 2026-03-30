@@ -36,6 +36,7 @@ interface AtendimentoQueueProps {
   loading: boolean;
   filter: string;
   currentUserId?: string;
+  searchTerm?: string;
 }
 
 const formatDate = (date: string | null) => {
@@ -59,8 +60,29 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
   onAssign,
   loading,
   filter,
-  currentUserId
+  currentUserId,
+  searchTerm
 }) => {
+  const renderHighlighted = (text: string) => {
+    const term = (searchTerm || '').trim();
+    if (!term) return text;
+    const lower = text.toLowerCase();
+    const index = lower.indexOf(term.toLowerCase());
+    if (index < 0) return text;
+
+    const before = text.slice(0, index);
+    const match = text.slice(index, index + term.length);
+    const after = text.slice(index + term.length);
+
+    return (
+      <>
+        {before}
+        <mark className="bg-yellow-200 text-foreground px-0.5 rounded-sm">{match}</mark>
+        {after}
+      </>
+    );
+  };
+
   if (loading) {
     return (
       <div className="p-3 space-y-3">
@@ -88,8 +110,6 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
           {filter === 'queue' && 'Aguardando novas mensagens'}
           {filter === 'unread' && 'Todas as mensagens lidas'}
           {filter === 'mine' && 'Assuma uma conversa para atender'}
-          {filter === 'whatsapp' && 'Nenhuma conversa de WhatsApp encontrada'}
-          {filter === 'others' && 'Sem conversas fora de Não Lidas, Aguardando e Meus'}
         </p>
       </div>
     );
@@ -100,7 +120,7 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
       {conversations.map((conv) => {
         const isSelected = conv.id === selectedId;
         const hasUnread = (conv.unread_count || 0) > 0;
-        const isWaiting = conv.status === 'waiting' || conv.status === 'open';
+        const isWaiting = conv.status === 'waiting' || conv.status === 'active';
         const isAssignedToMe = conv.assigned_agent_id === currentUserId;
         const isAssignedToOther = conv.assigned_agent_id && !isAssignedToMe;
 
@@ -146,7 +166,7 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
                   "text-xs truncate mt-0.5",
                   hasUnread ? "text-foreground" : "text-muted-foreground"
                 )}>
-                  {conv.last_message || 'Sem mensagens'}
+                  {renderHighlighted(conv.last_message || 'Sem mensagens')}
                 </p>
 
                 <div className="flex items-center gap-1.5 mt-1.5">

@@ -7,12 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Send, User, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users, Trash2 } from "lucide-react";
+import { Loader2, Send, User, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { TicketSLAIndicator } from "./TicketSLAIndicator";
-import { TicketDepartamentoCard } from "./TicketDepartamentoCard";
 import { TicketAnexos } from "./TicketAnexos";
 import { TicketClassificacao, ClassificacaoData } from "./TicketClassificacao";
 import { TicketWhatsAppViewer } from "./TicketWhatsAppViewer";
@@ -23,6 +22,15 @@ import { EditTicketDialog } from "./EditTicketDialog";
 import { DeleteTicketDialog } from "./DeleteTicketDialog";
 import { TICKET_FASES } from "@/constants/ticketOptions";
 import { supabase } from "@/integrations/supabase/client";
+import { useTicketDepartamentos } from '@/hooks/useTicketOptions';
+import { useAddTicketDepartamento } from '@/hooks/useTickets';
+import {
+    Select,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from '@/components/ui/select';
 
 
 interface TicketDetailProps {
@@ -35,6 +43,32 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const ticket = ticketData as any; // Cast to any to support new fields
     const updateTicket = useUpdateTicket();
     const addInteracao = useAddTicketInteracao();
+
+    const { data: departamentosOptions } = useTicketDepartamentos();
+    const addDepartamento = useAddTicketDepartamento();
+    const [selectedDept, setSelectedDept] = useState<string>('');
+
+    const handleAddDepartamento = async () => {
+        if (!selectedDept) {
+            toast.error('Selecione um departamento');
+            return;
+        }
+        const opt = (departamentosOptions || []).find((d: any) => d.id === selectedDept);
+        const nome = opt?.label || opt?.value || opt?.id || 'Departamento';
+        try {
+            await addDepartamento.mutateAsync({
+                ticket_id: ticketId,
+                departamento: nome,
+                solicitado_por: user?.id || null
+            });
+            toast.success('Departamento adicionado');
+            setSelectedDept('');
+            refetch();
+        } catch (error: any) {
+            console.error('Erro ao adicionar departamento', error);
+            toast.error('Erro ao adicionar departamento');
+        }
+    };
 
     const [comment, setComment] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -50,6 +84,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const [createdByName, setCreatedByName] = useState<string | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>("detalhes");
 
     // Normaliza strings de timestamp que podem vir sem fuso (ex: "YYYY-MM-DD HH:MM:SS")
     const toDate = (val: any) => {
@@ -68,14 +103,20 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
     const handleFaseChange = async (newFase: string) => {
         if (!user?.id) return;
+        // If user clicked to set phase to Concluída, do not immediately finalize.
+        // Instead, open the Encerramento tab so the user can fill the required fields
+        // and then confirm conclusion via the Encerramento save action.
+        if (newFase === "Concluída") {
+            setActiveTab("encerramento");
+            toast.info('Preencha os campos de encerramento e clique em "Salvar Encerramento" para concluir o ticket.');
+            return;
+        }
+
         try {
             const updates: any = { fase: newFase };
 
             // Coerência fase <-> status (evita divergência entre quadro/lista e detalhe)
-            if (newFase === "Concluída") {
-                updates.status = "resolvido";
-                updates.data_conclusao = new Date().toISOString();
-            } else if (ticket?.fase === "Concluída") {
+            if (ticket?.fase === "Concluída" && newFase !== "Concluída") {
                 updates.status = "em_analise";
                 updates.data_conclusao = null;
             }
@@ -374,25 +415,25 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 </CardContent>
             </Card>
 
-            <Tabs defaultValue="interacoes" className="flex-1 flex flex-col">
+            <Tabs defaultValue="detalhes" className="flex-1 flex flex-col">
                 <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 overflow-x-auto">
-                    <TabsTrigger value="interacoes" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
-                        <MessageSquare className="w-4 h-4" /> Interações
-                    </TabsTrigger>
-                    <TabsTrigger value="plano_acao" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
-                        <ListTodo className="w-4 h-4" /> Plano de Ação
+                    <TabsTrigger value="detalhes" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
+                        <FileText className="w-4 h-4" /> Detalhes
                     </TabsTrigger>
                     <TabsTrigger value="whatsapp" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                     </TabsTrigger>
-                    <TabsTrigger value="detalhes" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
-                        <FileText className="w-4 h-4" /> Detalhes
+                    <TabsTrigger value="plano_acao" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
+                        <ListTodo className="w-4 h-4" /> Plano de Ação
                     </TabsTrigger>
                     <TabsTrigger value="anexos" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
                         <Paperclip className="w-4 h-4" /> Anexos ({ticket.ticket_anexos?.length || 0})
                     </TabsTrigger>
-                    <TabsTrigger value="classificacao" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
-                        <CheckSquare className="w-4 h-4" /> Classificação
+                    <TabsTrigger value="interacoes" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
+                        <MessageSquare className="w-4 h-4" /> Interações
+                    </TabsTrigger>
+                    <TabsTrigger value="encerramento" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
+                        <CheckSquare className="w-4 h-4" /> Encerramento
                     </TabsTrigger>
                 </TabsList>
 
@@ -492,11 +533,11 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                                         }
                                                     }, 100);
                                                 }
-                                                toast.info('Vá até a seção "Departamentos Envolvidos" para vincular ou solicitar apoio');
+                                                toast.info('Use a opção "Departamentos envolvidos" para solicitar apoio');
                                             }}
                                         >
                                             <Users className="w-4 h-4 mr-2" />
-                                            Vincular Departamento
+                                            Departamentos envolvidos
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -642,53 +683,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                 )}
                             </Card>
 
-                            <div className="flex justify-between items-center mt-6" data-section="departamentos">
-                                <h3 className="text-lg font-semibold">Departamentos Envolvidos</h3>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={async () => {
-                                        // Implementar dialog para adicionar departamento
-                                        const departamento = prompt('Selecione o departamento:\n1 - Manutenção\n2 - Central de Atendimento\n3 - Documentação\n4 - Operação\n5 - Comercial\n6 - Financeiro\n7 - Operação SP');
-                                        if (departamento) {
-                                            const deptNames = ['Manutenção', 'Central de atendimento', 'Documentação', 'Operação', 'Comercial', 'Financeiro', 'Operação SP'];
-                                            const deptIndex = parseInt(departamento) - 1;
-                                            if (deptIndex >= 0 && deptIndex < deptNames.length) {
-                                                const mensagem = prompt('Mensagem para o departamento:');
-                                                if (mensagem && user?.id) {
-                                                        try {
-                                                            await supabase.from('ticket_departamentos').insert({
-                                                                ticket_id: ticketId,
-                                                                departamento: deptNames[deptIndex],
-                                                                mensagem: mensagem,
-                                                                solicitado_por: user.id,
-                                                                created_at: new Date().toISOString()
-                                                            });
-                                                            toast.success('Departamento vinculado!');
-                                                            refetch();
-                                                        } catch (err) {
-                                                            toast.error('Erro ao vincular departamento');
-                                                        }
-                                                }
-                                            }
-                                        }
-                                    }}
-                                >
-                                    + Adicionar Departamento
-                                </Button>
-                            </div>
-                            <div className="grid gap-4">
-                                {ticket.ticket_departamentos?.length === 0 && (
-                                    <div className="text-center py-8 bg-muted/30 rounded-lg border border-dashed">
-                                        <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                                        <p className="text-muted-foreground mb-2">Nenhum departamento envolvido</p>
-                                        <p className="text-xs text-muted-foreground">Clique em "Adicionar Departamento" para solicitar apoio</p>
-                                    </div>
-                                )}
-                                {ticket.ticket_departamentos?.map((dept: any) => (
-                                    <TicketDepartamentoCard key={dept.id} departamento={dept} />
-                                ))}
-                            </div>
+                            {/* Departamentos agora movidos para a coluna direita */}
                         </TabsContent>
 
                         {/* Anexos Tab */}
@@ -701,8 +696,8 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                             />
                         </TabsContent>
 
-                        {/* Classificação Tab */}
-                        <TabsContent value="classificacao" className="mt-0">
+                        {/* Encerramento Tab (antiga Classificação) */}
+                        <TabsContent value="encerramento" className="mt-0">
                             <TicketClassificacao
                                 ticketId={ticketId}
                                 onSave={handleSaveClassificacao}
@@ -720,23 +715,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                     {/* Sidebar */}
                     <div className="space-y-4">
                         <Card>
-                            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium uppercase text-muted-foreground">Ações Rápidas</CardTitle></CardHeader>
-                            <CardContent className="flex flex-col gap-2">
-                                <Button variant="outline" className="justify-start" onClick={() => handleFaseChange("Concluída")}>
-                                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                                    Concluir Ticket
-                                </Button>
-                                <Button variant="outline" className="justify-start" onClick={() => handleFaseChange("Aberta erroneamente")}>
-                                    <AlertCircle className="w-4 h-4 mr-2 text-red-600" />
-                                    Marcar como Erro
-                                </Button>
-                                <Button variant="outline" className="justify-start" onClick={() => handleFaseChange("Dúvida")}>
-                                    <HelpCircle className="w-4 h-4 mr-2 text-yellow-600" />
-                                    Marcar como Dúvida
-                                </Button>
-                            </CardContent>
-                        </Card>
-                        <Card>
                             <CardHeader className="pb-2"><CardTitle className="text-sm font-medium uppercase text-muted-foreground">Detalhes Técnicos</CardTitle></CardHeader>
                             <CardContent className="space-y-3 text-sm">
                                 <div><span className="font-semibold block text-xs text-muted-foreground">CRIADO EM</span><p>{format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm")}</p></div>
@@ -747,6 +725,45 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                     <div className="pt-2 border-t mt-2">
                                         <span className="font-semibold block text-xs text-muted-foreground">RESOLUÇÃO</span>
                                         <p className="text-green-700">{ticket.resolucao}</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Departamentos envolvidos (moved to sidebar) */}
+                        <Card className="border-slate-200 bg-muted/5">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base">Departamentos envolvidos</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4">
+                                <div className="mb-4 flex items-center gap-2">
+                                    <Select
+                                        onValueChange={(v) => setSelectedDept(v)}
+                                        value={selectedDept}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecione departamento..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {departamentosOptions?.map((opt: any) => (
+                                                <SelectItem key={opt.id} value={opt.id}>{opt.label || opt.value || opt.id}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button size="sm" onClick={handleAddDepartamento} disabled={!selectedDept}>Adicionar</Button>
+                                </div>
+
+                                {(!ticket.ticket_departamentos || ticket.ticket_departamentos.length === 0) ? (
+                                    <div className="text-center py-8">
+                                        <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                                        <p className="text-muted-foreground mb-2">Nenhum departamento envolvido</p>
+                                        <p className="text-xs text-muted-foreground">Use o seletor acima para adicionar um departamento envolvido</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap gap-3">
+                                        {ticket.ticket_departamentos.map((d: any) => (
+                                            <Badge key={d.id} variant="outline" className="text-sm px-3 py-1">{d.departamento}</Badge>
+                                        ))}
                                     </div>
                                 )}
                             </CardContent>

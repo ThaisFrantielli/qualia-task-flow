@@ -62,6 +62,13 @@ export function TicketTempoCounter({
       const inicio = inicioDate.getTime();
       const fimDate = dataConlusao ? (toDate(dataConlusao) || new Date()) : new Date();
       const fim = fimDate.getTime();
+      // Debug: log parsed dates to help diagnose zero durations
+      try {
+        // eslint-disable-next-line no-console
+        console.debug('[TicketTempoCounter] calcularTempo', { createdAt, dataConlusao, dataPrimeiraInteracao, inicioDate: inicioDate?.toISOString?.(), fimDate: fimDate?.toISOString?.() });
+      } catch (e) {
+        // ignore
+      }
       const diffSeconds = Math.floor((fim - inicio) / 1000);
       setTempoTotal(Math.max(0, diffSeconds));
 

@@ -42,10 +42,8 @@ export function useWhatsAppStats(instanceId?: string) {
 
       // Calculate stats from conversations
       const unreadTotal = conversations?.reduce((acc, c) => acc + (c.unread_count || 0), 0) || 0;
-      const queueCount = conversations?.filter(c => c.status === 'waiting' || c.status === 'open').length || 0;
-
-      // Fetch my conversations (with assigned atendimento linked to current user)
-      const myConvsCount = 0; // Will implement with proper assignment system
+      const queueCount = conversations?.filter(c => c.status === 'waiting' || c.status === 'active').length || 0;
+      const myConvsCount = conversations?.filter(c => (c as any).assigned_agent_id === user?.id && c.status !== 'closed').length || 0;
 
       // Fetch today's messages count
       const today = new Date();

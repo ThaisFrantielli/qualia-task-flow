@@ -74,13 +74,13 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Classificação Final do Ticket</CardTitle>
+                <CardTitle>Encerramento do Ticket</CardTitle>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Procedência (Análise Final) */}
                     <div className="space-y-2">
-                        <Label htmlFor="procedencia">Análise Final *</Label>
+                        <Label htmlFor="procedencia">Encerramento / Análise Final *</Label>
                         <Select
                             value={formData.procedencia}
                             onValueChange={(value) => setFormData({ ...formData, procedencia: value })}
@@ -147,7 +147,7 @@ export function TicketClassificacao({ onSave, initialData }: TicketClassificacao
                     {/* Botão Salvar */}
                     <div className="flex justify-end pt-4">
                         <Button type="submit" disabled={isSaving || !formData.solucao_aplicada || !formData.procedencia}>
-                            {isSaving ? 'Salvando...' : 'Salvar Classificação e Concluir'}
+                            {isSaving ? 'Salvando...' : 'Salvar Encerramento'}
                         </Button>
                     </div>
                 </form>

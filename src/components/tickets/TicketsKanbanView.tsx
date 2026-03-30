@@ -5,33 +5,13 @@ import { TicketKanbanCard } from "./TicketKanbanCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
+import { KANBAN_COLUMNS, normalizeStatusToColumn, STATUS_LABELS } from "@/lib/ticketPhases";
 
 interface TicketsKanbanViewProps {
   tickets: any[];
   onStatusChange: (ticketId: string, newStatus: string) => void;
   onTicketClick: (id: string) => void;
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  novo: "Solicitação",
-  em_analise: "Em Análise",
-  aguardando_departamento: "Aguard. Depto.",
-  em_tratativa: "Em Tratativa",
-  aguardando_cliente: "Aguard. Cliente",
-  resolvido: "Resolvido",
-};
-
-const KANBAN_COLUMNS = Object.keys(STATUS_LABELS);
-
-// Map canonical column keys to possible ticket.status values in DB
-const STATUS_KEY_MAP: Record<string, string[]> = {
-  novo: ["novo", "solicitacao", "aberto"],
-  em_analise: ["em_analise"],
-  aguardando_departamento: ["aguardando_departamento", "aguardando_setor", "aguardando_triagem"],
-  em_tratativa: ["em_tratativa", "em_atendimento"],
-  aguardando_cliente: ["aguardando_cliente"],
-  resolvido: ["resolvido", "fechado", "concluida", "concluído", "concluido"],
-};
 
 const COLUMN_COLORS: Record<string, { bg: string; border: string; header: string }> = {
   novo: { bg: "bg-blue-50/50 dark:bg-blue-950/20", border: "border-blue-200 dark:border-blue-800", header: "text-blue-700 dark:text-blue-400" },
@@ -161,6 +141,8 @@ export function TicketsKanbanView({
   onTicketClick,
 }: TicketsKanbanViewProps) {
   const handleDrop = (item: { id: string; status: string }, newStatus: string) => {
+    // newStatus here is the canonical column key (ex: 'em_analise')
+    // We'll send the canonical column key to the parent; the parent can map to a DB value.
     if (item.status !== newStatus) {
       onStatusChange(item.id, newStatus);
     }
@@ -172,21 +154,7 @@ export function TicketsKanbanView({
         <KanbanColumn
           key={status}
           status={status}
-          tickets={tickets.filter((t: any) => {
-            const sRaw = t.status || "";
-            const normalize = (v: string) => (v || "").toString().toLowerCase().replace(/[-\s]/g, "_");
-            const s = normalize(sRaw);
-            const allowed = (STATUS_KEY_MAP[status] || [status]).map(normalize);
-
-            // Exact match or direct inclusion (tolerate variations like 'aguardando_triagem', 'aguardando_setor')
-            if (allowed.includes(s)) return true;
-
-            // Fuzzy match: allow when either side contains the other (covers small variations)
-            if (allowed.some((a) => a && s.includes(a))) return true;
-            if (allowed.some((a) => a && a.includes(s))) return true;
-
-            return false;
-          })}
+          tickets={tickets.filter((t: any) => normalizeStatusToColumn(t.status) === status)}
           onDrop={handleDrop}
           onCardClick={onTicketClick}
         />

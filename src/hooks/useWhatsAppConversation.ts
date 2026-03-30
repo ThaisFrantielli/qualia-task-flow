@@ -245,53 +245,29 @@ export function useWhatsAppConversation(clienteId?: string, whatsappNumber?: str
       const sanitizedPhone = digits;
       if (WHATSAPP.DEBUG_LOGS) console.log('Sanitized phone:', { input: customerPhone, sanitized: sanitizedPhone });
 
-      // Prefer Edge Function; fallback to direct service when in dev
-      let sentOk = false;
-      if (WHATSAPP.USE_EDGE_FUNCTION) {
-        try {
-          if (WHATSAPP.DEBUG_LOGS) console.log('Sending via Supabase Edge Function:', {
-            to_number: customerPhone,
-            message_text: content
-          });
-          const { data: functionResult, error: functionError } = await supabase.functions
-            .invoke(WHATSAPP.EDGE_FUNCTION_NAME, {
-              body: {
-                to_number: customerPhone,
-                message_text: content
-              }
-            });
-
-          if (WHATSAPP.DEBUG_LOGS) console.log('Edge Function response:', { functionResult, functionError });
-          if (!functionError && functionResult?.success) {
-            sentOk = true;
-          } else if (functionError) {
-            console.warn('Edge Function failed, will try direct service fallback:', functionError);
-          } else {
-            console.warn('Edge Function returned error:', functionResult);
-          }
-        } catch (e) {
-          console.warn('Edge Function exception, falling back to direct service:', e);
-        }
+      if (!canPersistToDb) {
+        throw new Error('Conversa local não suporta envio seguro. Selecione uma conversa persistida.');
       }
 
-      if (!sentOk) {
-        if (WHATSAPP.DEBUG_LOGS) console.log('Sending directly to WhatsApp service (fallback):', {
-          phoneNumber: sanitizedPhone,
-          message: content,
-          url: `${WHATSAPP.SERVICE_URL}/send-message`
+      if (WHATSAPP.DEBUG_LOGS) console.log('Sending via Supabase Edge Function:', {
+        phoneNumber: sanitizedPhone,
+        message: content,
+        conversationId: conversation.id,
+      });
+
+      const { data: functionResult, error: functionError } = await supabase.functions
+        .invoke('whatsapp-send', {
+          body: {
+            instance_id: instanceId,
+            phoneNumber: sanitizedPhone,
+            message: content,
+            conversationId: conversation.id,
+          }
         });
-        const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber: sanitizedPhone, message: content })
-        });
-        if (WHATSAPP.DEBUG_LOGS) console.log('WhatsApp service response status:', response.status);
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('WhatsApp service error:', errorText);
-          throw new Error(`Erro no serviço WhatsApp: ${errorText}`);
-        }
-        sentOk = true;
+
+      if (WHATSAPP.DEBUG_LOGS) console.log('Edge Function response:', { functionResult, functionError });
+      if (functionError || !functionResult?.success) {
+        throw new Error(functionError?.message || functionResult?.error || 'Falha ao enfileirar envio');
       }
 
       if (WHATSAPP.DEBUG_LOGS) console.log('Message sent successfully');

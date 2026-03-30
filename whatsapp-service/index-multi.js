@@ -51,10 +51,49 @@ if (!SUPABASE_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const circuitBreakers = new Map();
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+const CIRCUIT_BREAKER_COOLDOWN_MS = 60 * 1000;
 
 // Multiple WhatsApp instances management
 const whatsappInstances = new Map();
 const activeQRCodes = new Map();
+
+function getCircuitState(instanceId) {
+    const current = circuitBreakers.get(instanceId);
+    if (!current) {
+        return { failures: 0, openUntil: 0 };
+    }
+    if (current.openUntil && Date.now() > current.openUntil) {
+        const reset = { failures: 0, openUntil: 0 };
+        circuitBreakers.set(instanceId, reset);
+        return reset;
+    }
+    return current;
+}
+
+function isCircuitOpen(instanceId) {
+    const state = getCircuitState(instanceId);
+    return state.openUntil && state.openUntil > Date.now();
+}
+
+function registerCircuitFailure(instanceId) {
+    const state = getCircuitState(instanceId);
+    const failures = (state.failures || 0) + 1;
+    const nextState = {
+        failures,
+        openUntil: failures >= CIRCUIT_BREAKER_THRESHOLD ? (Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS) : 0
+    };
+    circuitBreakers.set(instanceId, nextState);
+
+    if (nextState.openUntil) {
+        console.error(`Circuit breaker OPEN for instance ${instanceId} until ${new Date(nextState.openUntil).toISOString()}`);
+    }
+}
+
+function registerCircuitSuccess(instanceId) {
+    circuitBreakers.set(instanceId, { failures: 0, openUntil: 0 });
+}
 
 async function syncConnectedStatus(instanceId, phoneNumber = null) {
     try {
@@ -142,6 +181,114 @@ async function restoreActiveInstances() {
 }
 
 // Subscribe to outgoing messages
+async function markFailedWithRetry(msg, reason) {
+    const currentRetry = Number(msg.retry_count || 0);
+    const nextRetry = currentRetry + 1;
+    const shouldDeadLetter = nextRetry >= 3;
+    const retryDelaySeconds = Math.min(120, 10 * nextRetry);
+    const nextRetryAt = shouldDeadLetter ? null : new Date(Date.now() + retryDelaySeconds * 1000).toISOString();
+
+    try {
+        await supabase
+            .from('whatsapp_messages')
+            .update({
+                status: shouldDeadLetter ? 'failed' : 'failed',
+                retry_count: nextRetry,
+                last_error: reason,
+                error_message: reason,
+                dead_letter: shouldDeadLetter,
+                failed_at: new Date().toISOString(),
+                next_retry_at: nextRetryAt,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', msg.id);
+
+        if (shouldDeadLetter) {
+            console.error(`Message ${msg.id} moved to dead-letter after ${nextRetry} attempts`);
+        }
+    } catch (error) {
+        console.error(`Failed to mark message ${msg.id} with retry metadata:`, error);
+    }
+}
+
+async function processOutgoingMessage(msg) {
+    if (!msg || !msg.instance_id) return;
+
+    if (isCircuitOpen(msg.instance_id)) {
+        const state = getCircuitState(msg.instance_id);
+        const waitMs = Math.max(0, state.openUntil - Date.now());
+        console.warn(`Skipping message ${msg.id} because circuit is open for ${msg.instance_id}. Retry in ${Math.ceil(waitMs / 1000)}s`);
+        await markFailedWithRetry(msg, 'Circuit breaker open');
+        return;
+    }
+
+    try {
+        const client = whatsappInstances.get(msg.instance_id);
+        if (!client) {
+            await markFailedWithRetry(msg, 'Instance not found');
+            registerCircuitFailure(msg.instance_id);
+            return;
+        }
+
+        if (!client.info || !client.info.wid) {
+            await markFailedWithRetry(msg, 'Instance not connected');
+            registerCircuitFailure(msg.instance_id);
+            return;
+        }
+
+        const { data: conversation, error: convError } = await supabase
+            .from('whatsapp_conversations')
+            .select('customer_phone, whatsapp_number')
+            .eq('id', msg.conversation_id)
+            .single();
+
+        if (convError || !conversation) {
+            await markFailedWithRetry(msg, 'Conversation not found');
+            registerCircuitFailure(msg.instance_id);
+            return;
+        }
+
+        const phoneNumber = conversation.customer_phone || conversation.whatsapp_number;
+        if (!phoneNumber) {
+            await markFailedWithRetry(msg, 'Conversation has no phone number');
+            registerCircuitFailure(msg.instance_id);
+            return;
+        }
+
+        const formattedNumber = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+
+        if (msg.media_url) {
+            const media = await MessageMedia.fromUrl(msg.media_url);
+            if (msg.file_name) media.filename = msg.file_name;
+            await client.sendMessage(formattedNumber, media, { caption: msg.content || '' });
+        } else {
+            await client.sendMessage(formattedNumber, msg.content || '');
+        }
+
+        await supabase
+            .from('whatsapp_messages')
+            .update({
+                status: 'sent',
+                retry_count: 0,
+                next_retry_at: null,
+                dead_letter: false,
+                last_error: null,
+                error_message: null,
+                sent_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', msg.id);
+
+        registerCircuitSuccess(msg.instance_id);
+        console.log(`Message ${msg.id} sent successfully`);
+    } catch (error) {
+        const reason = error?.message || 'Send failed';
+        console.error(`Failed to send message ${msg.id}:`, error);
+        await markFailedWithRetry(msg, reason);
+        registerCircuitFailure(msg.instance_id);
+    }
+}
+
 function subscribeToOutgoingMessages() {
     console.log('========================================');
     console.log('SUBSCRIBING TO OUTGOING MESSAGES...');
@@ -165,60 +312,7 @@ function subscribeToOutgoingMessages() {
                 console.log('Media URL:', payload.new.media_url);
                 console.log('========================================');
                 const msg = payload.new;
-                
-                try {
-                    const client = whatsappInstances.get(msg.instance_id);
-                    if (!client) {
-                        console.error(`Instance ${msg.instance_id} not found for message ${msg.id}`);
-                        await updateMessageStatus(msg.id, 'failed', 'Instance not found');
-                        return;
-                    }
-
-                    if (!client.info || !client.info.wid) {
-                        console.error(`Instance ${msg.instance_id} not connected for message ${msg.id}`);
-                        await updateMessageStatus(msg.id, 'failed', 'Instance not connected');
-                        return;
-                    }
-
-                    // Format phone number
-                    // Assuming msg.conversation_id links to a conversation which has the phone number, 
-                    // BUT the message table itself doesn't have the phone number usually?
-                    // Wait, the Edge Function was passing phoneNumber.
-                    // The whatsapp_messages table usually stores content, but maybe not the recipient phone if it's linked to conversation.
-                    // We need to fetch the conversation to get the phone number.
-                    
-                    const { data: conversation, error: convError } = await supabase
-                        .from('whatsapp_conversations')
-                        .select('customer_phone, whatsapp_number')
-                        .eq('id', msg.conversation_id)
-                        .single();
-
-                    if (convError || !conversation) {
-                        console.error(`Conversation ${msg.conversation_id} not found for message ${msg.id}`);
-                        await updateMessageStatus(msg.id, 'failed', 'Conversation not found');
-                        return;
-                    }
-
-                    const phoneNumber = conversation.customer_phone;
-                    const formattedNumber = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
-
-                    console.log(`Sending message ${msg.id} to ${formattedNumber} via instance ${msg.instance_id}`);
-
-                    if (msg.media_url) {
-                        const media = await MessageMedia.fromUrl(msg.media_url);
-                        if (msg.file_name) media.filename = msg.file_name;
-                        await client.sendMessage(formattedNumber, media, { caption: msg.content });
-                    } else {
-                        await client.sendMessage(formattedNumber, msg.content);
-                    }
-
-                    await updateMessageStatus(msg.id, 'sent');
-                    console.log(`Message ${msg.id} sent successfully`);
-
-                } catch (error) {
-                    console.error(`Failed to send message ${msg.id}:`, error);
-                    await updateMessageStatus(msg.id, 'failed', error.message);
-                }
+                await processOutgoingMessage(msg);
             }
         )
         .subscribe((status) => {
@@ -235,6 +329,48 @@ function subscribeToOutgoingMessages() {
                 console.warn('🔒 Subscription closed');
             }
         });
+}
+
+function startRetryWorker() {
+    setInterval(async () => {
+        try {
+            const nowIso = new Date().toISOString();
+
+            const { data: pendingMessages, error: pendingError } = await supabase
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('status', 'pending')
+                .order('created_at', { ascending: true })
+                .limit(20);
+
+            if (pendingError) {
+                console.error('Retry worker failed to fetch pending messages:', pendingError);
+                return;
+            }
+
+            const { data: failedMessages, error: failedError } = await supabase
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('status', 'failed')
+                .eq('dead_letter', false)
+                .lte('next_retry_at', nowIso)
+                .order('updated_at', { ascending: true })
+                .limit(20);
+
+            if (failedError) {
+                console.error('Retry worker failed to fetch failed messages:', failedError);
+                return;
+            }
+
+            const messages = [...(pendingMessages || []), ...(failedMessages || [])];
+
+            for (const msg of messages || []) {
+                await processOutgoingMessage(msg);
+            }
+        } catch (error) {
+            console.error('Retry worker crashed:', error);
+        }
+    }, 30000);
 }
 
 async function updateMessageStatus(messageId, status, errorMessage = null) {
@@ -432,77 +568,72 @@ function createWhatsAppClient(instanceId, instanceName = null) {
 
     // Listen for incoming messages
     client.on('message', async (message) => {
-            // TEMPORARILY DISABLED: webhook forwarding causing infinite loop
-            console.log(`⚠️ Message received from ${message.from} but forwarding is DISABLED to prevent loop`);
-            return;
-            
-            /* ORIGINAL CODE - RE-ENABLE AFTER FIXING WEBHOOK LOOP
-            console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body}`);
+        console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body || '[media/no-text]'}`);
 
-            // Skip empty or whitespace-only messages (these cause validation 400s in the webhook)
-            if (!message.body || String(message.body).trim() === '') {
-                console.log(`Skipping empty-body message from ${message.from} on instance ${instanceId}`);
+        if (message.fromMe) {
+            return;
+        }
+
+        if (String(message.from || '').includes('@g.us')) {
+            return;
+        }
+
+        try {
+            const instanceNumber = client?.info?.wid?.user;
+            if (instanceNumber && String(message.from).includes(String(instanceNumber))) {
                 return;
             }
+        } catch (e) {
+            console.error('Error checking instance number for self-skip:', e);
+        }
 
-            // Skip messages sent by this instance (avoid echo/loop)
-            try {
-                const instanceNumber = client?.info?.wid?.user;
-                if (instanceNumber && String(message.from).includes(String(instanceNumber))) {
-                    console.log(`Skipping message from self (${message.from}) on instance ${instanceId}`);
-                    return;
-                }
-            } catch (e) {
-                console.error('Error checking instance number for self-skip:', e);
+        try {
+            const { data: existing, error: existError } = await supabase
+                .from('whatsapp_messages')
+                .select('id')
+                .eq('whatsapp_message_id', message.id._serialized)
+                .limit(1);
+
+            if (existError) {
+                console.error('Error checking existing whatsapp_message_id before forwarding:', existError);
+            } else if (existing && existing.length > 0) {
+                return;
+            }
+        } catch (err) {
+            console.error('Unexpected error during dedup check:', err);
+        }
+
+        try {
+            const headers = {
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json'
+            };
+
+            if (process.env.WHATSAPP_WEBHOOK_SECRET) {
+                headers['x-webhook-secret'] = process.env.WHATSAPP_WEBHOOK_SECRET;
             }
 
-            // Deduplication: check if message was already processed (by whatsapp_message_id)
-            try {
-                const { data: existing, error: existError } = await supabase
-                    .from('whatsapp_messages')
-                    .select('id')
-                    .eq('whatsapp_message_id', message.id._serialized)
-                    .limit(1);
+            await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
+                instance_id: instanceId,
+                from: message.from,
+                body: message.body,
+                timestamp: message.timestamp,
+                type: message.type,
+                messageId: message.id._serialized
+            }, { headers });
 
-                if (existError) {
-                    console.error('Error checking existing whatsapp_message_id before forwarding:', existError);
-                } else if (existing && existing.length > 0) {
-                    console.log(`Message ${message.id._serialized} already exists in whatsapp_messages, skipping forward.`);
-                    return;
+            console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
+        } catch (error) {
+            if (error && error.response) {
+                try {
+                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`);
+                } catch (e) {
+                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: response status=${error.response.status}`);
                 }
-            } catch (err) {
-                console.error('Unexpected error during dedup check:', err);
+            } else {
+                console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}:`, error);
             }
-
-            // Forward message to Supabase Edge Function
-            try {
-                await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
-                    instance_id: instanceId,
-                    from: message.from,
-                    body: message.body,
-                    timestamp: message.timestamp,
-                    type: message.type,
-                    messageId: message.id._serialized
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${SUPABASE_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
-            } catch (error) {
-                // Improve error logging so we can see status and response body from the Edge Function
-                if (error && error.response) {
-                    try {
-                        console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`);
-                    } catch (e) {
-                        console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: response status=${error.response.status}`);
-                    }
-                } else {
-                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}:`, error);
-                }
-            }
-            */
+        }
     });
 
     return client;
@@ -892,6 +1023,7 @@ app.listen(PORT, () => {
     });
     
     subscribeToOutgoingMessages();
+    startRetryWorker();
 
     // POLLING DISABLED: was causing infinite loop resending messages
     console.log('⚠️  Polling fallback is DISABLED to prevent message loops');

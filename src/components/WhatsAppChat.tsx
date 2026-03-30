@@ -280,24 +280,16 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
       const selectedConv = conversations.find(c => c.id === selectedConversationId);
       if (!selectedConv) return;
 
-      const SUPABASE_URL = 'https://apqrjkobktjcyrxhqwtm.supabase.co';
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcXJqa29ia3RqY3lyeGhxd3RtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEzOTI4NzUsImV4cCI6MjA2Njk2ODg3NX0.99HhMrWfMStRH1p607RjOt6ChklI0iBjg8AGk_QUSbw';
-
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { error } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
           phoneNumber: (selectedConv as any).customer_phone,
           message: newMessage.trim(),
           conversationId: selectedConversationId,
-          instance_id: instanceId || (selectedConv as any).instance_id
-        }),
+          instance_id: instanceId || (selectedConv as any).instance_id,
+        }
       });
 
-      if (response.ok) {
+      if (!error) {
         setNewMessage('');
         // Refresh messages after sending
         setTimeout(() => {
@@ -309,8 +301,7 @@ export const WhatsAppChat: React.FC<WhatsAppChatProps> = ({
           description: "Sua mensagem foi enviada com sucesso!",
         });
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to send message');
+        throw new Error(error.message || 'Failed to send message');
       }
     } catch (error: any) {
       console.error('Error sending message:', error);
