@@ -70,6 +70,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _scrollToDepartamentos = () => {
         // Ensure detalhes tab is active then scroll to the section
         setActiveTab('detalhes');
