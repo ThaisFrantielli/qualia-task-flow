@@ -126,7 +126,7 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
     const handleCreateTask = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTaskTitle.trim()) return;
-        createTaskMutation.mutate();
+        createTaskMutation.mutate({});
     };
 
     const handleStartEdit = (task: { id: string; title: string; due_date?: string | null }) => {
