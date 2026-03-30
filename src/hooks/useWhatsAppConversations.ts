@@ -3,11 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 import type { Database } from '@/types';
 
-export type WhatsAppConversation = Database['public']['Tables']['whatsapp_conversations']['Row'] & {
-  assigned_agent_id?: string | null;
-  assigned_at?: string | null;
-  instance_id?: string | null;
-};
+export type WhatsAppConversation = Database['public']['Tables']['whatsapp_conversations']['Row'];
 
 export type WhatsAppMessage = Database['public']['Tables']['whatsapp_messages']['Row'];
 

@@ -123,7 +123,7 @@ export default function AtendimentoCentralPage() {
 
   // Calculate "my conversations" count
   const myConversationsCount = useMemo(() => {
-    return conversations.filter(c => (c as any).assigned_agent_id === user?.id && c.status !== 'closed').length;
+    return conversations.filter(c => c.assigned_agent_id === user?.id && c.status !== 'closed').length;
   }, [conversations, user?.id]);
 
   const allConversationsCount = useMemo(() => {
