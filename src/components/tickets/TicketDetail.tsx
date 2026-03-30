@@ -2,7 +2,7 @@ import { useTicketDetail, useUpdateTicket, useAddTicketInteracao } from "@/hooks
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// ScrollArea replaced by native scroll container for paginated interactions
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
@@ -70,6 +70,15 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         }
     };
 
+    const scrollToDepartamentos = () => {
+        // Ensure detalhes tab is active then scroll to the section
+        setActiveTab('detalhes');
+        setTimeout(() => {
+            const el = document.querySelector('[data-section="departamentos"]');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 120);
+    };
+
     const [comment, setComment] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const [mentionOpen, setMentionOpen] = useState(false);
@@ -85,6 +94,9 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<string>("detalhes");
+    const [visibleInteracoes, setVisibleInteracoes] = useState<number>(3);
+    const interacoesRef = useRef<HTMLDivElement | null>(null);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
 
     // Normaliza strings de timestamp que podem vir sem fuso (ex: "YYYY-MM-DD HH:MM:SS")
     const toDate = (val: any) => {
@@ -234,6 +246,9 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
             }
 
             toast.success("Classificação salva e ticket resolvido!");
+            // Mostrar confirmação clara e voltar para a aba de detalhes
+            toast.success("Ticket finalizado com sucesso!");
+            setActiveTab('detalhes');
         } catch (error) {
             toast.error("Erro ao salvar classificação");
         }
@@ -277,6 +292,29 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         })();
         return () => { active = false; };
     }, [mentionQuery]);
+
+    // Reset visible count when interacoes change
+    useEffect(() => {
+        setVisibleInteracoes(3);
+    }, [ticket?.ticket_interacoes?.length]);
+
+    // IntersectionObserver to load more interacoes (3 em 3) when scrolling
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        const rootEl = interacoesRef.current;
+        if (!sentinel || !rootEl) return;
+
+        const obs = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    setVisibleInteracoes((v) => Math.min(((ticket?.ticket_interacoes || []).length), v + 3));
+                }
+            });
+        }, { root: rootEl, rootMargin: '100px' });
+
+        obs.observe(sentinel);
+        return () => obs.disconnect();
+    }, [ticket?.ticket_interacoes]);
 
     if (isLoading) return <div className="flex justify-center h-full items-center"><Loader2 className="animate-spin" /></div>;
     if (!ticket) return <div className="flex justify-center h-full items-center">Ticket não encontrado</div>;
@@ -445,9 +483,9 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                             <Card className="flex-1 flex flex-col min-h-[400px]">
                                 <CardHeader className="pb-2"><CardTitle className="text-base">Histórico de Interações</CardTitle></CardHeader>
                                 <CardContent className="flex-1 flex flex-col">
-                                    <ScrollArea className="flex-1 h-[300px] pr-4">
+                                    <div ref={interacoesRef} className="flex-1 h-[300px] pr-4 overflow-auto">
                                         <div className="space-y-6">
-                                            {ticket.ticket_interacoes?.map((interacao: any) => (
+                                            {((ticket.ticket_interacoes || []) as any[]).slice(0, visibleInteracoes).map((interacao: any) => (
                                                 <div key={interacao.id} className="flex gap-3 group">
                                                     <div className="mt-1">
                                                         <div className="w-8 h-8 rounded-full bg-slate-100 border flex items-center justify-center text-slate-500 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
@@ -471,8 +509,11 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                                     </div>
                                                 </div>
                                             ))}
+
+                                            {/* sentinel para carregar mais 3 interações quando o usuário scrollar até o fim */}
+                                            <div ref={sentinelRef} className="h-px w-full pointer-events-none opacity-0" aria-hidden="true" />
                                         </div>
-                                    </ScrollArea>
+                                    </div>
                                     <div className="mt-4 flex gap-2 relative">
                                         <Textarea
                                             ref={textareaRef}
@@ -683,7 +724,44 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                 )}
                             </Card>
 
-                            {/* Departamentos agora movidos para a coluna direita */}
+                            {/* Departamentos envolvidos - mover de volta para Detalhes */}
+                            <Card className="border-slate-200 bg-muted/5" data-section="departamentos">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-base">Departamentos envolvidos</CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-4">
+                                    <div className="mb-4 flex items-center gap-2">
+                                        <Select
+                                            onValueChange={(v) => setSelectedDept(v)}
+                                            value={selectedDept}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecione departamento..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {departamentosOptions?.map((opt: any) => (
+                                                    <SelectItem key={opt.id} value={opt.id}>{opt.label || opt.value || opt.id}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button size="sm" onClick={handleAddDepartamento} disabled={!selectedDept}>Adicionar</Button>
+                                    </div>
+
+                                    {(!ticket.ticket_departamentos || ticket.ticket_departamentos.length === 0) ? (
+                                        <div className="text-center py-8">
+                                            <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                                            <p className="text-muted-foreground mb-2">Nenhum departamento envolvido</p>
+                                            <p className="text-xs text-muted-foreground">Use o seletor acima para adicionar um departamento envolvido</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-3">
+                                            {ticket.ticket_departamentos.map((d: any) => (
+                                                <Badge key={d.id} variant="outline" className="text-sm px-3 py-1">{d.departamento}</Badge>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
                         </TabsContent>
 
                         {/* Anexos Tab */}
@@ -705,7 +783,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                     procedencia: ticket.procedencia,
                                     solucao_aplicada: ticket.solucao_aplicada,
                                     acoes_corretivas: ticket.acoes_corretivas,
-                                    feedback_cliente: ticket.feedback_cliente,
                                     nota_cliente: ticket.nota_cliente
                                 }}
                             />
@@ -730,42 +807,11 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                             </CardContent>
                         </Card>
 
-                        {/* Departamentos envolvidos (moved to sidebar) */}
-                        <Card className="border-slate-200 bg-muted/5">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-base">Departamentos envolvidos</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-4">
-                                <div className="mb-4 flex items-center gap-2">
-                                    <Select
-                                        onValueChange={(v) => setSelectedDept(v)}
-                                        value={selectedDept}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione departamento..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {departamentosOptions?.map((opt: any) => (
-                                                <SelectItem key={opt.id} value={opt.id}>{opt.label || opt.value || opt.id}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Button size="sm" onClick={handleAddDepartamento} disabled={!selectedDept}>Adicionar</Button>
-                                </div>
-
-                                {(!ticket.ticket_departamentos || ticket.ticket_departamentos.length === 0) ? (
-                                    <div className="text-center py-8">
-                                        <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                                        <p className="text-muted-foreground mb-2">Nenhum departamento envolvido</p>
-                                        <p className="text-xs text-muted-foreground">Use o seletor acima para adicionar um departamento envolvido</p>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-wrap gap-3">
-                                        {ticket.ticket_departamentos.map((d: any) => (
-                                            <Badge key={d.id} variant="outline" className="text-sm px-3 py-1">{d.departamento}</Badge>
-                                        ))}
-                                    </div>
-                                )}
+                        <Card>
+                            <CardContent className="p-3">
+                                <Button variant="outline" size="sm" className="w-full" onClick={scrollToDepartamentos}>
+                                    Ir para Departamentos
+                                </Button>
                             </CardContent>
                         </Card>
                     </div>

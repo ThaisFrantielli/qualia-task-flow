@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,10 +84,14 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
-        await processFileUpload(file);
+        setIsUploading(true);
+        for (const f of Array.from(files)) {
+            await processFileUpload(f);
+        }
+        setIsUploading(false);
         // Reset input
         e.target.value = '';
     };
@@ -134,6 +138,48 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
             }
         }
     };
+
+    // Global paste handler to support Ctrl+V when the drop zone is not focused
+    useEffect(() => {
+        const handler = async (ev: ClipboardEvent) => {
+            if (!ev.clipboardData) return;
+            const files = ev.clipboardData.files;
+            const items = ev.clipboardData.items;
+            let handled = false;
+
+            if (files && files.length > 0) {
+                ev.preventDefault();
+                setIsUploading(true);
+                for (const f of Array.from(files)) {
+                    await processFileUpload(f as File);
+                }
+                setIsUploading(false);
+                handled = true;
+            } else if (items && items.length > 0) {
+                // fallback to images from clipboard
+                for (const item of Array.from(items)) {
+                    if (item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) {
+                            ev.preventDefault();
+                            setIsUploading(true);
+                            const timestamp = new Date().getTime();
+                            const extension = item.type.split('/')[1];
+                            const renamedFile = new File([file], `screenshot_${timestamp}.${extension}`, { type: item.type });
+                            await processFileUpload(renamedFile);
+                            setIsUploading(false);
+                            handled = true;
+                        }
+                    }
+                }
+            }
+
+            return handled;
+        };
+
+        window.addEventListener('paste', handler as any);
+        return () => window.removeEventListener('paste', handler as any);
+    }, []);
 
     const handleDelete = async (anexo: TicketAnexo) => {
         if (!confirm("Tem certeza que deseja excluir este anexo?")) return;
@@ -184,6 +230,7 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
                             className="hidden"
                             onChange={handleFileUpload}
                             disabled={isUploading}
+                            multiple
                         />
                         <Label
                             htmlFor="file-upload"
@@ -214,7 +261,7 @@ export function TicketAnexos({ ticketId, anexos, onUploadComplete, onDeleteCompl
                     >
                         <Paperclip className="w-12 h-12 mx-auto mb-2 opacity-20" />
                         <p>Nenhum anexo vinculado a este ticket</p>
-                        <p className="text-xs mt-1">Clique aqui, arraste arquivos ou cole (Ctrl+V) imagens</p>
+                        <p className="text-xs mt-1">Clique aqui, arraste arquivos, selecione múltiplos ou cole (Ctrl+V) imagens/arquivos</p>
                     </div>
                 ) : (
                     <div 

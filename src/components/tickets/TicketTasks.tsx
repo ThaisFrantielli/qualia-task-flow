@@ -30,6 +30,7 @@ interface TicketTasksProps {
 export function TicketTasks({ ticketId }: TicketTasksProps) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
+    const tasksContainerRef = React.useRef<HTMLDivElement | null>(null);
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskDate, setNewTaskDate] = useState<Date | undefined>(undefined);
     const [isCreating, setIsCreating] = useState(false);
@@ -45,7 +46,8 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
                 .from('tasks')
                 .select('*')
                 .eq('ticket_id', ticketId)
-                .order('created_at', { ascending: false });
+                // Order ascending so newer tasks appear at the bottom
+                .order('created_at', { ascending: true });
 
             if (error) throw error;
             return data;
@@ -76,6 +78,11 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
             setNewTaskDate(undefined);
             setIsCreating(false);
             toast.success("Tarefa adicionada!");
+            // scroll to bottom so the newly added task is visible
+            setTimeout(() => {
+                const el = tasksContainerRef.current;
+                if (el) el.scrollTop = el.scrollHeight;
+            }, 300);
         },
         onError: (error) => {
             toast.error("Erro ao criar tarefa: " + error.message);
@@ -215,8 +222,9 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
                     <div className="flex justify-center py-4">
                         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                     </div>
-                ) : tasks && tasks.length > 0 ? (
-                    tasks.map((task) => (
+                    ) : tasks && tasks.length > 0 ? (
+                        <div ref={tasksContainerRef} className="space-y-2">
+                        {tasks.map((task) => (
                         <div key={task.id} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors group">
                             <Checkbox
                                 checked={task.status === 'done'}
@@ -286,7 +294,8 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
                                 </div>
                             )}
                         </div>
-                    ))
+                        ))}
+                    </div>
                 ) : (
                     <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
                         <p>Nenhuma tarefa no plano de ação.</p>
