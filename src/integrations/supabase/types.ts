@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -3467,6 +3467,20 @@ export type Database = {
             foreignKeyName: "tasks_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
@@ -3616,6 +3630,20 @@ export type Database = {
             foreignKeyName: "ticket_anexos_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_anexos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_anexos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
@@ -3714,6 +3742,56 @@ export type Database = {
           validation_rules?: Json
         }
         Relationships: []
+      }
+      ticket_deletions_log: {
+        Row: {
+          cliente_id: string | null
+          created_at: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_by_name: string | null
+          deleted_reason: string | null
+          id: string
+          numero_ticket: string | null
+          ticket_data: Json | null
+          ticket_id: string
+          titulo: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_name?: string | null
+          deleted_reason?: string | null
+          id?: string
+          numero_ticket?: string | null
+          ticket_data?: Json | null
+          ticket_id: string
+          titulo?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_name?: string | null
+          deleted_reason?: string | null
+          id?: string
+          numero_ticket?: string | null
+          ticket_data?: Json | null
+          ticket_id?: string
+          titulo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_deletions_log_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ticket_departamento_opcoes: {
         Row: {
@@ -3828,6 +3906,20 @@ export type Database = {
             foreignKeyName: "ticket_departamentos_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_departamentos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_departamentos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
@@ -3882,6 +3974,20 @@ export type Database = {
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_interacoes_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_interacoes_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
             referencedColumns: ["id"]
           },
           {
@@ -4030,6 +4136,20 @@ export type Database = {
             foreignKeyName: "ticket_vinculos_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_vinculos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_vinculos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
@@ -4049,6 +4169,9 @@ export type Database = {
           data_conclusao: string | null
           data_fechamento: string | null
           data_primeira_interacao: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
           departamento:
             | Database["public"]["Enums"]["ticket_departamento_enum"]
             | null
@@ -4056,6 +4179,7 @@ export type Database = {
           fase: string | null
           feedback_cliente: string | null
           id: string
+          is_deleted: boolean | null
           motivo: Database["public"]["Enums"]["ticket_motivo_enum"] | null
           motivo_id: string | null
           nota_cliente: number | null
@@ -4096,6 +4220,9 @@ export type Database = {
           data_conclusao?: string | null
           data_fechamento?: string | null
           data_primeira_interacao?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
           departamento?:
             | Database["public"]["Enums"]["ticket_departamento_enum"]
             | null
@@ -4103,6 +4230,7 @@ export type Database = {
           fase?: string | null
           feedback_cliente?: string | null
           id?: string
+          is_deleted?: boolean | null
           motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
           motivo_id?: string | null
           nota_cliente?: number | null
@@ -4143,6 +4271,9 @@ export type Database = {
           data_conclusao?: string | null
           data_fechamento?: string | null
           data_primeira_interacao?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
           departamento?:
             | Database["public"]["Enums"]["ticket_departamento_enum"]
             | null
@@ -4150,6 +4281,7 @@ export type Database = {
           fase?: string | null
           feedback_cliente?: string | null
           id?: string
+          is_deleted?: boolean | null
           motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
           motivo_id?: string | null
           nota_cliente?: number | null
@@ -4197,6 +4329,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -4681,6 +4820,20 @@ export type Database = {
             foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
             referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
@@ -5070,6 +5223,404 @@ export type Database = {
           },
         ]
       }
+      tickets_active: {
+        Row: {
+          acoes_corretivas: string | null
+          analise_final_id: string | null
+          atendente_id: string | null
+          cliente_id: string | null
+          contrato_comercial: string | null
+          contrato_locacao: string | null
+          created_at: string | null
+          custom_fields: Json | null
+          data_abertura: string | null
+          data_conclusao: string | null
+          data_fechamento: string | null
+          data_primeira_interacao: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
+          departamento:
+            | Database["public"]["Enums"]["ticket_departamento_enum"]
+            | null
+          descricao: string | null
+          fase: string | null
+          feedback_cliente: string | null
+          id: string | null
+          is_deleted: boolean | null
+          motivo: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id: string | null
+          nota_cliente: number | null
+          numero_ticket: string | null
+          origem: string | null
+          origem_id: string | null
+          placa: string | null
+          prioridade: string | null
+          procedencia: string | null
+          resolucao: string | null
+          setor_responsavel: string | null
+          sintese: string | null
+          sla_primeira_resposta: string | null
+          sla_resolucao: string | null
+          solucao_aplicada: string | null
+          status: string | null
+          tempo_primeira_resposta: string | null
+          tempo_total_resolucao: string | null
+          tipo: string | null
+          tipo_reclamacao: string | null
+          titulo: string | null
+          updated_at: string | null
+          veiculo_ano: string | null
+          veiculo_cliente: string | null
+          veiculo_km: number | null
+          veiculo_modelo: string | null
+        }
+        Insert: {
+          acoes_corretivas?: string | null
+          analise_final_id?: string | null
+          atendente_id?: string | null
+          cliente_id?: string | null
+          contrato_comercial?: string | null
+          contrato_locacao?: string | null
+          created_at?: string | null
+          custom_fields?: Json | null
+          data_abertura?: string | null
+          data_conclusao?: string | null
+          data_fechamento?: string | null
+          data_primeira_interacao?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
+          departamento?:
+            | Database["public"]["Enums"]["ticket_departamento_enum"]
+            | null
+          descricao?: string | null
+          fase?: string | null
+          feedback_cliente?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id?: string | null
+          nota_cliente?: number | null
+          numero_ticket?: string | null
+          origem?: string | null
+          origem_id?: string | null
+          placa?: string | null
+          prioridade?: string | null
+          procedencia?: string | null
+          resolucao?: string | null
+          setor_responsavel?: string | null
+          sintese?: string | null
+          sla_primeira_resposta?: string | null
+          sla_resolucao?: string | null
+          solucao_aplicada?: string | null
+          status?: string | null
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
+          tipo?: string | null
+          tipo_reclamacao?: string | null
+          titulo?: string | null
+          updated_at?: string | null
+          veiculo_ano?: string | null
+          veiculo_cliente?: string | null
+          veiculo_km?: number | null
+          veiculo_modelo?: string | null
+        }
+        Update: {
+          acoes_corretivas?: string | null
+          analise_final_id?: string | null
+          atendente_id?: string | null
+          cliente_id?: string | null
+          contrato_comercial?: string | null
+          contrato_locacao?: string | null
+          created_at?: string | null
+          custom_fields?: Json | null
+          data_abertura?: string | null
+          data_conclusao?: string | null
+          data_fechamento?: string | null
+          data_primeira_interacao?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
+          departamento?:
+            | Database["public"]["Enums"]["ticket_departamento_enum"]
+            | null
+          descricao?: string | null
+          fase?: string | null
+          feedback_cliente?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id?: string | null
+          nota_cliente?: number | null
+          numero_ticket?: string | null
+          origem?: string | null
+          origem_id?: string | null
+          placa?: string | null
+          prioridade?: string | null
+          procedencia?: string | null
+          resolucao?: string | null
+          setor_responsavel?: string | null
+          sintese?: string | null
+          sla_primeira_resposta?: string | null
+          sla_resolucao?: string | null
+          solucao_aplicada?: string | null
+          status?: string | null
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
+          tipo?: string | null
+          tipo_reclamacao?: string | null
+          titulo?: string | null
+          updated_at?: string | null
+          veiculo_ano?: string | null
+          veiculo_cliente?: string | null
+          veiculo_km?: number | null
+          veiculo_modelo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_analise_final_id_fkey"
+            columns: ["analise_final_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_analises_finais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_atendente_id_fkey"
+            columns: ["atendente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_motivo_id_fkey"
+            columns: ["motivo_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_motivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_origem_id_fkey"
+            columns: ["origem_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_origens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tickets_deleted: {
+        Row: {
+          acoes_corretivas: string | null
+          analise_final_id: string | null
+          atendente_id: string | null
+          cliente_id: string | null
+          contrato_comercial: string | null
+          contrato_locacao: string | null
+          created_at: string | null
+          custom_fields: Json | null
+          data_abertura: string | null
+          data_conclusao: string | null
+          data_fechamento: string | null
+          data_primeira_interacao: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
+          departamento:
+            | Database["public"]["Enums"]["ticket_departamento_enum"]
+            | null
+          descricao: string | null
+          fase: string | null
+          feedback_cliente: string | null
+          id: string | null
+          is_deleted: boolean | null
+          motivo: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id: string | null
+          nota_cliente: number | null
+          numero_ticket: string | null
+          origem: string | null
+          origem_id: string | null
+          placa: string | null
+          prioridade: string | null
+          procedencia: string | null
+          resolucao: string | null
+          setor_responsavel: string | null
+          sintese: string | null
+          sla_primeira_resposta: string | null
+          sla_resolucao: string | null
+          solucao_aplicada: string | null
+          status: string | null
+          tempo_primeira_resposta: string | null
+          tempo_total_resolucao: string | null
+          tipo: string | null
+          tipo_reclamacao: string | null
+          titulo: string | null
+          updated_at: string | null
+          veiculo_ano: string | null
+          veiculo_cliente: string | null
+          veiculo_km: number | null
+          veiculo_modelo: string | null
+        }
+        Insert: {
+          acoes_corretivas?: string | null
+          analise_final_id?: string | null
+          atendente_id?: string | null
+          cliente_id?: string | null
+          contrato_comercial?: string | null
+          contrato_locacao?: string | null
+          created_at?: string | null
+          custom_fields?: Json | null
+          data_abertura?: string | null
+          data_conclusao?: string | null
+          data_fechamento?: string | null
+          data_primeira_interacao?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
+          departamento?:
+            | Database["public"]["Enums"]["ticket_departamento_enum"]
+            | null
+          descricao?: string | null
+          fase?: string | null
+          feedback_cliente?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id?: string | null
+          nota_cliente?: number | null
+          numero_ticket?: string | null
+          origem?: string | null
+          origem_id?: string | null
+          placa?: string | null
+          prioridade?: string | null
+          procedencia?: string | null
+          resolucao?: string | null
+          setor_responsavel?: string | null
+          sintese?: string | null
+          sla_primeira_resposta?: string | null
+          sla_resolucao?: string | null
+          solucao_aplicada?: string | null
+          status?: string | null
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
+          tipo?: string | null
+          tipo_reclamacao?: string | null
+          titulo?: string | null
+          updated_at?: string | null
+          veiculo_ano?: string | null
+          veiculo_cliente?: string | null
+          veiculo_km?: number | null
+          veiculo_modelo?: string | null
+        }
+        Update: {
+          acoes_corretivas?: string | null
+          analise_final_id?: string | null
+          atendente_id?: string | null
+          cliente_id?: string | null
+          contrato_comercial?: string | null
+          contrato_locacao?: string | null
+          created_at?: string | null
+          custom_fields?: Json | null
+          data_abertura?: string | null
+          data_conclusao?: string | null
+          data_fechamento?: string | null
+          data_primeira_interacao?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
+          departamento?:
+            | Database["public"]["Enums"]["ticket_departamento_enum"]
+            | null
+          descricao?: string | null
+          fase?: string | null
+          feedback_cliente?: string | null
+          id?: string | null
+          is_deleted?: boolean | null
+          motivo?: Database["public"]["Enums"]["ticket_motivo_enum"] | null
+          motivo_id?: string | null
+          nota_cliente?: number | null
+          numero_ticket?: string | null
+          origem?: string | null
+          origem_id?: string | null
+          placa?: string | null
+          prioridade?: string | null
+          procedencia?: string | null
+          resolucao?: string | null
+          setor_responsavel?: string | null
+          sintese?: string | null
+          sla_primeira_resposta?: string | null
+          sla_resolucao?: string | null
+          solucao_aplicada?: string | null
+          status?: string | null
+          tempo_primeira_resposta?: string | null
+          tempo_total_resolucao?: string | null
+          tipo?: string | null
+          tipo_reclamacao?: string | null
+          titulo?: string | null
+          updated_at?: string | null
+          veiculo_ano?: string | null
+          veiculo_cliente?: string | null
+          veiculo_km?: number | null
+          veiculo_modelo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_analise_final_id_fkey"
+            columns: ["analise_final_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_analises_finais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_atendente_id_fkey"
+            columns: ["atendente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_motivo_id_fkey"
+            columns: ["motivo_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_motivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_origem_id_fkey"
+            columns: ["origem_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_origens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets_sla: {
         Row: {
           cliente_nome: string | null
@@ -5181,6 +5732,14 @@ export type Database = {
           user_permissoes?: Json
         }
         Returns: Json
+      }
+      delete_ticket_soft: {
+        Args: {
+          p_deleted_by: string
+          p_deleted_reason: string
+          p_ticket_id: string
+        }
+        Returns: boolean
       }
       generate_ticket_number: { Args: never; Returns: string }
       get_all_subordinates: { Args: { _manager_id: string }; Returns: string[] }
@@ -5358,6 +5917,7 @@ export type Database = {
         }
         Returns: Json
       }
+      restore_ticket: { Args: { p_ticket_id: string }; Returns: boolean }
       send_whatsapp_message: {
         Args: { message_text: string; to_number: string }
         Returns: Json
@@ -5367,81 +5927,81 @@ export type Database = {
       app_role: "admin" | "manager" | "agent" | "user" | "supervisor" | "gestao"
       survey_type: "comercial" | "entrega" | "manutencao" | "devolucao"
       ticket_departamento_enum:
-        | "Manuten├º├úo"
+        | "Manutenção"
         | "Central de atendimento"
-        | "Documenta├º├úo"
-        | "Opera├º├úo"
+        | "Documentação"
+        | "Operação"
         | "Comercial"
         | "Financeiro"
-        | "Opera├º├úo SP"
-        | "N├úo se aplica"
+        | "Operação SP"
+        | "Não se aplica"
       ticket_motivo_enum:
-        | "Contesta├º├úo cobran├ºa"
-        | "Demora na aprova├º├úo do or├ºamento"
-        | "Agendamento err├┤neo"
-        | "M├í qualidade do servi├ºo"
+        | "Contestação cobrança"
+        | "Demora na aprovação do orçamento"
+        | "Agendamento errôneo"
+        | "Má qualidade do serviço"
         | "Problema com fornecedor"
         | "Demora no atendimento"
-        | "Multas e notifica├º├Áes"
-        | "Problemas na entrega do ve├¡culo"
-        | "Problemas com o ve├¡culo"
+        | "Multas e notificações"
+        | "Problemas na entrega do veículo"
+        | "Problemas com o veículo"
         | "Atendimento Comercial"
         | "Oportunidade aberta erroneamente"
         | "Problemas de acesso"
         | "Problemas com terceiro"
-        | "D├║vida"
+        | "Dúvida"
         | "Outros"
       ticket_origem_enum:
         | "Whatsapp"
         | "Site"
-        | "Liga├º├úo"
+        | "Ligação"
         | "Redes Sociais"
         | "E-mail"
-      tipo_analise_final: "Procedente" | "Improcedente" | "D├║vida"
+      tipo_analise_final: "Procedente" | "Improcedente" | "Dúvida"
       tipo_departamento:
-        | "Manuten├º├úo"
+        | "Manutenção"
         | "Central de Atendimento"
-        | "Documenta├º├úo"
-        | "Opera├º├úo"
+        | "Documentação"
+        | "Operação"
         | "Comercial"
         | "Financeiro"
         | "Departamento Pessoal"
         | "Aberto Erroneamente"
-        | "D├║vida"
-        | "Opera├º├úo - Filial SP"
+        | "Dúvida"
+        | "Operação - Filial SP"
       tipo_motivo_reclamacao:
-        | "Contesta├º├úo de Cobran├ºa"
-        | "Demora na Aprova├º├úo do Or├ºamento"
-        | "Agendamento Err├┤neo"
-        | "M├í Qualidade de Servi├ºo"
+        | "Contestação de Cobrança"
+        | "Demora na Aprovação do Orçamento"
+        | "Agendamento Errôneo"
+        | "Má Qualidade de Serviço"
         | "Problemas Com Fornecedor"
         | "Demora em atendimento"
         | "Atendimento Ineficaz"
-        | "Multas e Notifica├º├Áes"
+        | "Multas e Notificações"
         | "Problemas na Entrega"
-        | "Problemas Com Ve├¡culo Reserva"
+        | "Problemas Com Veículo Reserva"
         | "Atendimento Comercial"
         | "Oportunidade Aberta Erroneamente"
-        | "Cobran├ºa Indevida"
-        | "D├║vida"
+        | "Cobrança Indevida"
+        | "Dúvida"
         | "Erro de processo interno"
-        | "Troca definitiva de ve├¡culo"
+        | "Troca definitiva de veículo"
         | "Problema recorrente"
-        | "Solicita├º├úo de Reembolso"
+        | "Solicitação de Reembolso"
         | "Problemas com Terceiro"
       tipo_origem_lead:
         | "Cliente (Base)"
-        | "Tr├ífego Pago"
-        | "Indica├º├úo"
+        | "Tráfego Pago"
+        | "Indicação"
         | "Site"
-        | "Liga├º├úo"
+        | "Ligação"
         | "Redes Sociais"
         | "Blip ChatBot"
         | "E-mail"
-        | "Encerrado - Manuten├º├úo"
+        | "Encerrado - Manutenção"
         | "Fechada"
         | "Perdida"
-      tipo_status_atendimento: "Solicita├º├úo" | "Em An├ílise" | "Resolvido"
+      tipo_status_atendimento: "Solicitação" | "Em Análise" | "Resolvido"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5572,87 +6132,87 @@ export const Constants = {
       app_role: ["admin", "manager", "agent", "user", "supervisor", "gestao"],
       survey_type: ["comercial", "entrega", "manutencao", "devolucao"],
       ticket_departamento_enum: [
-        "Manuten├º├úo",
+        "Manutenção",
         "Central de atendimento",
-        "Documenta├º├úo",
-        "Opera├º├úo",
+        "Documentação",
+        "Operação",
         "Comercial",
         "Financeiro",
-        "Opera├º├úo SP",
-        "N├úo se aplica",
+        "Operação SP",
+        "Não se aplica",
       ],
       ticket_motivo_enum: [
-        "Contesta├º├úo cobran├ºa",
-        "Demora na aprova├º├úo do or├ºamento",
-        "Agendamento err├┤neo",
-        "M├í qualidade do servi├ºo",
+        "Contestação cobrança",
+        "Demora na aprovação do orçamento",
+        "Agendamento errôneo",
+        "Má qualidade do serviço",
         "Problema com fornecedor",
         "Demora no atendimento",
-        "Multas e notifica├º├Áes",
-        "Problemas na entrega do ve├¡culo",
-        "Problemas com o ve├¡culo",
+        "Multas e notificações",
+        "Problemas na entrega do veículo",
+        "Problemas com o veículo",
         "Atendimento Comercial",
         "Oportunidade aberta erroneamente",
         "Problemas de acesso",
         "Problemas com terceiro",
-        "D├║vida",
+        "Dúvida",
         "Outros",
       ],
       ticket_origem_enum: [
         "Whatsapp",
         "Site",
-        "Liga├º├úo",
+        "Ligação",
         "Redes Sociais",
         "E-mail",
       ],
-      tipo_analise_final: ["Procedente", "Improcedente", "D├║vida"],
+      tipo_analise_final: ["Procedente", "Improcedente", "Dúvida"],
       tipo_departamento: [
-        "Manuten├º├úo",
+        "Manutenção",
         "Central de Atendimento",
-        "Documenta├º├úo",
-        "Opera├º├úo",
+        "Documentação",
+        "Operação",
         "Comercial",
         "Financeiro",
         "Departamento Pessoal",
         "Aberto Erroneamente",
-        "D├║vida",
-        "Opera├º├úo - Filial SP",
+        "Dúvida",
+        "Operação - Filial SP",
       ],
       tipo_motivo_reclamacao: [
-        "Contesta├º├úo de Cobran├ºa",
-        "Demora na Aprova├º├úo do Or├ºamento",
-        "Agendamento Err├┤neo",
-        "M├í Qualidade de Servi├ºo",
+        "Contestação de Cobrança",
+        "Demora na Aprovação do Orçamento",
+        "Agendamento Errôneo",
+        "Má Qualidade de Serviço",
         "Problemas Com Fornecedor",
         "Demora em atendimento",
         "Atendimento Ineficaz",
-        "Multas e Notifica├º├Áes",
+        "Multas e Notificações",
         "Problemas na Entrega",
-        "Problemas Com Ve├¡culo Reserva",
+        "Problemas Com Veículo Reserva",
         "Atendimento Comercial",
         "Oportunidade Aberta Erroneamente",
-        "Cobran├ºa Indevida",
-        "D├║vida",
+        "Cobrança Indevida",
+        "Dúvida",
         "Erro de processo interno",
-        "Troca definitiva de ve├¡culo",
+        "Troca definitiva de veículo",
         "Problema recorrente",
-        "Solicita├º├úo de Reembolso",
+        "Solicitação de Reembolso",
         "Problemas com Terceiro",
       ],
       tipo_origem_lead: [
         "Cliente (Base)",
-        "Tr├ífego Pago",
-        "Indica├º├úo",
+        "Tráfego Pago",
+        "Indicação",
         "Site",
-        "Liga├º├úo",
+        "Ligação",
         "Redes Sociais",
         "Blip ChatBot",
         "E-mail",
-        "Encerrado - Manuten├º├úo",
+        "Encerrado - Manutenção",
         "Fechada",
         "Perdida",
       ],
-      tipo_status_atendimento: ["Solicita├º├úo", "Em An├ílise", "Resolvido"],
+      tipo_status_atendimento: ["Solicitação", "Em Análise", "Resolvido"],
     },
   },
 } as const
