@@ -807,13 +807,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                             </CardContent>
                         </Card>
 
-                        <Card>
-                            <CardContent className="p-3">
-                                <Button variant="outline" size="sm" className="w-full" onClick={scrollToDepartamentos}>
-                                    Ir para Departamentos
-                                </Button>
-                            </CardContent>
-                        </Card>
+                        {/* botão lateral "Ir para Departamentos" removido a pedido do usuário */}
                     </div>
                 </div>
             </Tabs>
