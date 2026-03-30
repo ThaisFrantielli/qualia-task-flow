@@ -32,7 +32,7 @@ export function useWhatsAppStats(instanceId?: string) {
       // Fetch conversations stats
       let conversationsQuery = supabase
         .from('whatsapp_conversations')
-        .select('id, unread_count, status, cliente_id', { count: 'exact' });
+        .select('id, unread_count, status, cliente_id, assigned_agent_id', { count: 'exact' });
 
       if (instanceId) {
         conversationsQuery = conversationsQuery.eq('instance_id', instanceId);
