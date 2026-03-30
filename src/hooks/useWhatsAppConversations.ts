@@ -72,7 +72,14 @@ export function useWhatsAppConversations(customerId?: string, instanceId?: strin
           if (payload.eventType === 'INSERT') {
               // Ignore inserts that are already closed
               if ((payload.new as any).status === 'closed') return;
-              setConversations(prev => [payload.new as WhatsAppConversation, ...prev]);
+              setConversations(prev => {
+                const newConv = payload.new as WhatsAppConversation;
+                const exists = prev.some((conv) => conv.id === newConv.id);
+                if (exists) {
+                  return prev.map((conv) => (conv.id === newConv.id ? { ...newConv } : conv));
+                }
+                return [newConv, ...prev];
+              });
           } else if (payload.eventType === 'UPDATE') {
               // If conversation was closed, remove it from the list immediately
               if ((payload.new as any).status === 'closed') {
@@ -81,15 +88,19 @@ export function useWhatsAppConversations(customerId?: string, instanceId?: strin
                 return;
               }
 
-              setConversations(prev =>
-                prev.map(conv =>
-                  conv.id === payload.new.id ? { ...payload.new as WhatsAppConversation } : conv
-                ).sort((a, b) => {
+              setConversations(prev => {
+                const updatedConv = payload.new as WhatsAppConversation;
+                const exists = prev.some((conv) => conv.id === updatedConv.id);
+                const next = exists
+                  ? prev.map((conv) => (conv.id === updatedConv.id ? { ...updatedConv } : conv))
+                  : [updatedConv, ...prev];
+
+                return next.sort((a, b) => {
                   const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
                   const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
                   return dateB - dateA;
-                })
-              );
+                });
+              });
           } else if (payload.eventType === 'DELETE') {
             setConversations(prev => prev.filter(conv => conv.id !== payload.old.id));
           }

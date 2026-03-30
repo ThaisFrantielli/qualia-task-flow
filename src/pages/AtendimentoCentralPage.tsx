@@ -115,8 +115,8 @@ export default function AtendimentoCentralPage() {
   const [newChatMessage, setNewChatMessage] = useState('');
   const [isSendingNewChat, setIsSendingNewChat] = useState(false);
 
-  // Hooks - use first selected instance or null for all
-  const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
+  // Hooks - follow advanced filter semantics: none/many selected = all instances.
+  const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : undefined;
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
   const { refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
@@ -252,7 +252,7 @@ export default function AtendimentoCentralPage() {
                 icon: '/favicon.ico',
                 badge: '/favicon.ico',
                 tag: `wa-conversation-${conversation.id}`,
-                data: { url: '/atendimento-central?folder=whatsapp' },
+                data: { url: `/atendimento-central?folder=whatsapp&conversation_id=${conversation.id}` },
               });
             }
           }).catch(() => undefined);
