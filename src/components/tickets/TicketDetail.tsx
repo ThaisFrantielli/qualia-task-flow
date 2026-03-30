@@ -415,7 +415,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 </CardContent>
             </Card>
 
-            <Tabs defaultValue="detalhes" className="flex-1 flex flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
                 <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 overflow-x-auto">
                     <TabsTrigger value="detalhes" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-3 gap-2">
                         <FileText className="w-4 h-4" /> Detalhes
