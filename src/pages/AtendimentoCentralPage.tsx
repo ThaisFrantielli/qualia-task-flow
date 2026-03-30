@@ -109,7 +109,7 @@ export default function AtendimentoCentralPage() {
   // Hooks - use first selected instance or null for all
   const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : (selectedInstanceId || undefined);
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
-  const { stats, refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
+  const { refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
 
   // Calculate "my conversations" count

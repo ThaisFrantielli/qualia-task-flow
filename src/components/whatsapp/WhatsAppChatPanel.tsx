@@ -25,12 +25,16 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
-import type { Database } from '@/types';
 
-type WhatsAppConversation = Database['public']['Tables']['whatsapp_conversations']['Row'];
+type ChatPanelConversation = {
+  id: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  whatsapp_number?: string | null;
+};
 
 interface WhatsAppChatPanelProps {
-  conversation: WhatsAppConversation | null;
+  conversation: ChatPanelConversation | null;
   instanceId?: string;
 }
 

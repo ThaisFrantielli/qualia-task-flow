@@ -1,4 +1,5 @@
 import { useDrop } from "react-dnd";
+import { useState, useRef, useEffect } from "react";
 import { ItemTypes } from "@/constants/ItemTypes";
 import { TicketKanbanCard } from "./TicketKanbanCard";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,29 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
   }).length;
 
   const colors = COLUMN_COLORS[status] || COLUMN_COLORS.novo;
+  // Paginação/infinite-scroll por coluna
+  const [visibleCount, setVisibleCount] = useState<number>(5);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // Reset quando tickets mudam (filtros/refetch)
+    setVisibleCount(5);
+  }, [tickets]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((v: number) => Math.min(tickets.length, v + 5));
+        }
+      });
+    }, { rootMargin: '200px' });
+
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [tickets.length]);
 
   return (
     <div
@@ -99,7 +123,7 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
 
       {/* Column Content */}
       <div className="p-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-        {tickets.map((ticket) => (
+        {tickets.slice(0, visibleCount).map((ticket) => (
           <TicketKanbanCard
             key={ticket.id}
             id={ticket.id}
@@ -114,11 +138,15 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
             onClick={() => onCardClick(ticket.id)}
           />
         ))}
+
         {tickets.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground opacity-60">
             <p className="text-xs">Nenhum ticket</p>
           </div>
         )}
+
+        {/* sentinel para carregar mais quando usuário scrollar até o fim da coluna */}
+        <div ref={sentinelRef} className="h-px w-full pointer-events-none opacity-0" aria-hidden="true" />
       </div>
     </div>
   );

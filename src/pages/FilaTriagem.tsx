@@ -344,7 +344,7 @@ export default function FilaTriagem() {
       departamento: ticketForm.departamento,
       placa: ticketForm.placa,
       customFields: customFieldValues,
-      fase: "Aguardando departamento",
+      fase: "Solicitação",
       status: "aguardando_departamento"
     } as any);
 

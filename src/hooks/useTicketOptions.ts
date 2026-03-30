@@ -24,7 +24,18 @@ export function useTicketOrigens() {
         .order('sort_order');
       
       if (error) throw error;
-      return data || [];
+      // Remover duplicatas por `value`/`label` (caso haja registros duplicados na tabela)
+      const rows = data || [];
+      const seen = new Set<string>();
+      const unique: TicketOrigem[] = [];
+      for (const r of rows) {
+        const key = String(r.value || r.label || r.id || '').trim().toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(r);
+        }
+      }
+      return unique;
     }
   });
 }
