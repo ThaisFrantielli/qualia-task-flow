@@ -550,7 +550,7 @@ export default function AtendimentoCentralPage() {
   const selectedConversation = (filteredConversations.find(c => c.id === selectedConversationId)
     || conversations.map(c => ({
       ...c,
-      assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
+      assigned_agent_name: c.assigned_agent_id ? assignedAgentNames[c.assigned_agent_id] || null : null,
     }) as WhatsAppConversation).find(c => c.id === selectedConversationId)
     || null);
 
