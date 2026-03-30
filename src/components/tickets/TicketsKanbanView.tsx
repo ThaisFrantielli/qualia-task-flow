@@ -67,6 +67,7 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
   // Paginação/infinite-scroll por coluna
   const [visibleCount, setVisibleCount] = useState<number>(5);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // Reset quando tickets mudam (filtros/refetch)
@@ -74,17 +75,19 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
   }, [tickets]);
 
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
+    const sentinel = sentinelRef.current;
+    const rootEl = contentRef.current; // observe relative to the column scroll container
+    if (!sentinel || !rootEl) return;
+
     const obs = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           setVisibleCount((v: number) => Math.min(tickets.length, v + 5));
         }
       });
-    }, { rootMargin: '200px' });
+    }, { root: rootEl, rootMargin: '200px' });
 
-    obs.observe(el);
+    obs.observe(sentinel);
     return () => obs.disconnect();
   }, [tickets.length]);
 
@@ -93,7 +96,7 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
       ref={drop}
       className={cn(
         "rounded-xl border transition-all duration-200 flex flex-col",
-        "min-h-[500px] w-full md:w-72 lg:w-80 flex-shrink-0",
+        "min-h-[500px] w-full md:w-72 lg:w-80 flex-shrink-0 min-h-0",
         colors.bg,
         colors.border,
         isOver && "ring-2 ring-primary/30 border-primary/50"
@@ -122,7 +125,7 @@ const KanbanColumn = ({ status, tickets, onDrop, onCardClick }: KanbanColumnProp
       </div>
 
       {/* Column Content */}
-      <div className="p-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
+      <div ref={contentRef} className="p-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar max-h-[520px]">
         {tickets.slice(0, visibleCount).map((ticket) => (
           <TicketKanbanCard
             key={ticket.id}

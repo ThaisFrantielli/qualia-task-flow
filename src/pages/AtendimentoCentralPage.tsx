@@ -130,7 +130,7 @@ export default function AtendimentoCentralPage() {
   }, [conversations]);
 
   const queueConversationsCount = useMemo(() => {
-    return conversations.filter(c => (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id).length;
+    return conversations.filter(c => (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id).length;
   }, [conversations]);
 
   const othersConversationsCount = useMemo(() => {
@@ -139,7 +139,7 @@ export default function AtendimentoCentralPage() {
       const unreadCount = Number(c.unread_count || 0);
       const isUnread = unreadCount > 0 || c.status === 'waiting';
       const isMine = c.assigned_agent_id === user?.id;
-      const isQueue = (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id;
+      const isQueue = (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id;
       return !isUnread && !isMine && !isQueue;
     }).length;
   }, [conversations, user?.id]);
@@ -273,7 +273,7 @@ export default function AtendimentoCentralPage() {
             customer_phone: normalizedPhone,
             whatsapp_number: normalizedPhone,
             customer_name: normalizedPhone,
-            status: 'open',
+            status: 'active',
             unread_count: 0,
             last_message: newChatMessage.trim(),
             last_message_at: new Date().toISOString(),
@@ -403,7 +403,7 @@ export default function AtendimentoCentralPage() {
         break;
       case 'queue':
         filtered = filtered.filter(c =>
-          (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id
+          (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id
         );
         break;
       case 'unread':
@@ -417,7 +417,7 @@ export default function AtendimentoCentralPage() {
           const unreadCount = Number(c.unread_count || 0);
           const isUnread = unreadCount > 0 || c.status === 'waiting';
           const isMine = c.assigned_agent_id === user?.id;
-          const isQueue = (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id;
+          const isQueue = (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id;
           return c.status !== 'closed' && !isUnread && !isMine && !isQueue;
         });
         break;
