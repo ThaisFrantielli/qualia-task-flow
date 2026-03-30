@@ -28,8 +28,6 @@ interface TicketTasksProps {
 }
 
 export function TicketTasks({ ticketId }: TicketTasksProps) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _auth = useAuth();
     const queryClient = useQueryClient();
     const tasksContainerRef = useRef<HTMLDivElement | null>(null);
 
