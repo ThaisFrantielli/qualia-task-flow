@@ -22,6 +22,7 @@ export const useTickets = (filters?: { status?: string; cliente_id?: string; ate
             email
           )
         `)
+                .eq("is_deleted", false)
                 .order("created_at", { ascending: false });
 
             if (filters?.status) {
@@ -261,6 +262,113 @@ export const useUpdateTicketDepartamento = () => {
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["ticket", data.ticket_id] });
+        },
+    });
+};
+
+export const useDeleteTicket = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ ticketId, deletedReason, userId }: { ticketId: string; deletedReason: string; userId: string }) => {
+            // Call the soft delete function
+            const { data, error } = await supabase.rpc("delete_ticket_soft", {
+                p_ticket_id: ticketId,
+                p_deleted_by: userId,
+                p_deleted_reason: deletedReason
+            });
+
+            if (error) {
+                console.error('[useDeleteTicket] Supabase error:', error);
+                throw error;
+            }
+
+            // Log the deletion as an interaction
+            await supabase
+                .from("ticket_interacoes")
+                .insert({
+                    ticket_id: ticketId,
+                    usuario_id: userId,
+                    tipo: "exclusao",
+                    mensagem: `Ticket excluído - Justificativa: ${deletedReason}`
+                });
+
+            return data;
+        },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["tickets"] });
+            queryClient.invalidateQueries({ queryKey: ["ticket", variables.ticketId] });
+        },
+    });
+};
+
+export const useRestoreTicket = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (ticketId: string) => {
+            const { data, error } = await supabase.rpc("restore_ticket", {
+                p_ticket_id: ticketId
+            });
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (_, ticketId) => {
+            queryClient.invalidateQueries({ queryKey: ["tickets"] });
+            queryClient.invalidateQueries({ queryKey: ["ticket", ticketId] });
+        },
+    });
+};
+
+export const useDeletedTickets = (filters?: { cliente_id?: string; deleted_by?: string }) => {
+    return useQuery({
+        queryKey: ["deletedTickets", filters],
+        queryFn: async () => {
+            let query = supabase
+                .from("ticket_deletions_log")
+                .select(`
+          *,
+          profiles:deleted_by (
+            full_name,
+            email
+          )
+        `)
+                .order("deleted_at", { ascending: false });
+
+            if (filters?.cliente_id) {
+                query = query.eq("cliente_id", filters.cliente_id);
+            }
+            if (filters?.deleted_by) {
+                query = query.eq("deleted_by", filters.deleted_by);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+            return data || [];
+        },
+    });
+};
+
+export const useTicketDeletionLog = (ticketId: string) => {
+    return useQuery({
+        queryKey: ["ticketDeletionLog", ticketId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("ticket_deletions_log")
+                .select(`
+          *,
+          profiles:deleted_by (
+            full_name,
+            email
+          )
+        `)
+                .eq("ticket_id", ticketId)
+                .single();
+
+            if (error) throw error;
+            return data || null;
         },
     });
 };

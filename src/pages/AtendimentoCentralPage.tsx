@@ -130,7 +130,7 @@ export default function AtendimentoCentralPage() {
   }, [conversations]);
 
   const queueConversationsCount = useMemo(() => {
-    return conversations.filter(c => (c.status === 'waiting' || c.status === 'open') && !(c as any).assigned_agent_id).length;
+    return conversations.filter(c => (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id).length;
   }, [conversations]);
 
   const othersConversationsCount = useMemo(() => {
@@ -138,15 +138,15 @@ export default function AtendimentoCentralPage() {
       if (c.status === 'closed') return false;
       const unreadCount = Number(c.unread_count || 0);
       const isUnread = unreadCount > 0 || c.status === 'waiting';
-      const isMine = (c as any).assigned_agent_id === user?.id;
-      const isQueue = (c.status === 'waiting' || c.status === 'open') && !(c as any).assigned_agent_id;
+      const isMine = c.assigned_agent_id === user?.id;
+      const isQueue = (c.status === 'waiting' || c.status === 'open') && !c.assigned_agent_id;
       return !isUnread && !isMine && !isQueue;
     }).length;
   }, [conversations, user?.id]);
 
   useEffect(() => {
     const loadAssignedAgentNames = async () => {
-      const ids = Array.from(new Set(conversations.map((c) => (c as any).assigned_agent_id).filter(Boolean) as string[]));
+      const ids = Array.from(new Set(conversations.map((c) => c.assigned_agent_id).filter(Boolean) as string[]));
       if (ids.length === 0) {
         setAssignedAgentNames({});
         return;
@@ -326,11 +326,6 @@ export default function AtendimentoCentralPage() {
       assigned_agent_id: (c as any).assigned_agent_id || null,
       assigned_at: (c as any).assigned_at || null,
       assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
-      updated_at: (c as any).updated_at || null,
-      atendimento_id: (c as any).atendimento_id || null,
-      is_online: (c as any).is_online || false,
-      whatsapp_number: (c as any).whatsapp_number || (c as any).customer_phone || '',
-      instance_id: (c as any).instance_id || null,
     })) as WhatsAppConversation[];
 
     // Search filter
@@ -394,19 +389,12 @@ export default function AtendimentoCentralPage() {
     });
   }, [conversations, searchTerm, filter, selectedInstanceIds, instances.length, user?.id, assignedAgentNames, statusFilter]);
 
-  const selectedConversation = filteredConversations.find(c => c.id === selectedConversationId)
-    || (conversations.map(c => ({
+  const selectedConversation = (filteredConversations.find(c => c.id === selectedConversationId)
+    || conversations.map(c => ({
       ...c,
-      assigned_agent_id: (c as any).assigned_agent_id || null,
-      assigned_at: (c as any).assigned_at || null,
       assigned_agent_name: (c as any).assigned_agent_id ? assignedAgentNames[(c as any).assigned_agent_id] || null : null,
-      updated_at: (c as any).updated_at || null,
-      atendimento_id: (c as any).atendimento_id || null,
-      is_online: (c as any).is_online || false,
-      whatsapp_number: (c as any).whatsapp_number || (c as any).customer_phone || '',
-      instance_id: (c as any).instance_id || null,
-    })) as WhatsAppConversation[]).find(c => c.id === selectedConversationId)
-    || null;
+    }) as WhatsAppConversation).find(c => c.id === selectedConversationId)
+    || null);
 
   const handleAssignConversation = async (conversationId: string) => {
     if (!user?.id) return;
@@ -633,49 +621,53 @@ export default function AtendimentoCentralPage() {
                     </div>
 
                     <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                      <TabsList className="w-full grid grid-cols-6 h-8 bg-muted/50">
-                        <TabsTrigger value="all" className="text-[10px] px-1">Todas</TabsTrigger>
-                        <TabsTrigger value="whatsapp" className="text-[10px] px-1 relative">
-                          WhatsApp
-                          {whatsappConversationsCount > 0 && (
-                            <Badge variant="secondary" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {whatsappConversationsCount > 9 ? '9+' : whatsappConversationsCount}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                        <TabsTrigger value="queue" className="text-[10px] px-1 relative">
-                          Aguardando
-                          {queueConversationsCount > 0 && (
-                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {queueConversationsCount}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                        <TabsTrigger value="unread" className="text-[10px] px-1 relative">
-                          Não Lidas
-                          {unreadConversationsCount > 0 && (
-                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {unreadConversationsCount > 9 ? '9+' : unreadConversationsCount}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                        <TabsTrigger value="mine" className="text-[10px] px-1 relative">
-                          Meus
-                          {myConversationsCount > 0 && (
-                            <Badge className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5 bg-green-500">
-                              {myConversationsCount}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                        <TabsTrigger value="others" className="text-[10px] px-1 relative">
-                          Outros
-                          {othersConversationsCount > 0 && (
-                            <Badge variant="outline" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {othersConversationsCount > 9 ? '9+' : othersConversationsCount}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                      </TabsList>
+                      <div className="overflow-x-auto pb-1">
+                        <TabsList className="w-max min-w-full h-9 bg-muted/50 inline-flex items-center gap-1 p-1">
+                          <TabsTrigger value="all" className="text-xs px-2.5 shrink-0">
+                            Todas
+                          </TabsTrigger>
+                          <TabsTrigger value="whatsapp" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
+                            WhatsApp
+                            {whatsappConversationsCount > 0 && (
+                              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                                {whatsappConversationsCount > 99 ? '99+' : whatsappConversationsCount}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                          <TabsTrigger value="queue" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
+                            Aguardando
+                            {queueConversationsCount > 0 && (
+                              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                                {queueConversationsCount > 99 ? '99+' : queueConversationsCount}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                          <TabsTrigger value="unread" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
+                            Nao lidas
+                            {unreadConversationsCount > 0 && (
+                              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                                {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                          <TabsTrigger value="mine" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
+                            Meus
+                            {myConversationsCount > 0 && (
+                              <Badge className="h-4 min-w-4 px-1 text-[10px] leading-none bg-green-500">
+                                {myConversationsCount > 99 ? '99+' : myConversationsCount}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                          <TabsTrigger value="others" className="text-xs px-2.5 shrink-0 flex items-center gap-1.5">
+                            Outros
+                            {othersConversationsCount > 0 && (
+                              <Badge variant="outline" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                                {othersConversationsCount > 99 ? '99+' : othersConversationsCount}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                        </TabsList>
+                      </div>
                     </Tabs>
                   </div>
 

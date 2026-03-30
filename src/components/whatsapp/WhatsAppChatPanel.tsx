@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { WHATSAPP } from '@/integrations/whatsapp/config';
 import {
   Send,
   MessageSquare,
@@ -157,7 +158,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       if (insertError) throw insertError;
 
       // Send directly to local service
-      const response = await fetch('http://localhost:3008/send-message', {
+      const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -310,7 +311,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       if (insertError) throw insertError;
 
       // Send directly to local service
-      const response = await fetch('http://localhost:3008/send-message', {
+      const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -379,7 +380,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       if (insertError) throw insertError;
 
       // Send directly to local service
-      const response = await fetch('http://localhost:3008/send-message', {
+      const response = await fetch(`${WHATSAPP.SERVICE_URL}/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

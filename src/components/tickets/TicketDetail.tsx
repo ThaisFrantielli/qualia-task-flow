@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Send, User, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { Loader2, Send, User, CheckCircle2, AlertCircle, HelpCircle, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,7 @@ import { TicketTasks } from "./TicketTasks";
 import { TicketTempoCounter } from "./TicketTempoCounter";
 import { TicketVinculosManager } from "./TicketVinculosManager";
 import { EditTicketDialog } from "./EditTicketDialog";
+import { DeleteTicketDialog } from "./DeleteTicketDialog";
 import { TICKET_FASES } from "@/constants/ticketOptions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -48,6 +49,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const [mentionedUsers, setMentionedUsers] = useState<string[]>([]);
     const [createdByName, setCreatedByName] = useState<string | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
     // Normaliza strings de timestamp que podem vir sem fuso (ex: "YYYY-MM-DD HH:MM:SS")
     const toDate = (val: any) => {
@@ -325,6 +327,15 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                             title="Editar ticket"
                         >
                             <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => setIsDeleteDialogOpen(true)}
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                            title="Excluir ticket"
+                        >
+                            <Trash2 className="h-4 w-4" />
                         </Button>
                     </div>
                     <TicketSLAIndicator
@@ -750,6 +761,20 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 open={isEditDialogOpen}
                 onOpenChange={setIsEditDialogOpen}
                 onSuccess={refetch}
+            />
+
+            {/* Delete Dialog */}
+            <DeleteTicketDialog
+                ticketId={ticket.id}
+                numeroTicket={ticket.numero_ticket}
+                titulo={ticket.titulo}
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+                onSuccess={() => {
+                    setIsDeleteDialogOpen(false);
+                    // Redirecionar após exclusão
+                    window.location.href = '/tickets';
+                }}
             />
         </div>
     );

@@ -58,14 +58,19 @@ const activeQRCodes = new Map();
 
 async function syncConnectedStatus(instanceId, phoneNumber = null) {
     try {
+        const updates = {
+            status: 'connected',
+            qr_code: null,
+            updated_at: new Date().toISOString()
+        };
+
+        if (phoneNumber) {
+            updates.phone_number = phoneNumber;
+        }
+
         await supabase
             .from('whatsapp_instances')
-            .update({
-                status: 'connected',
-                phone_number: phoneNumber,
-                qr_code: null,
-                updated_at: new Date().toISOString()
-            })
+            .update(updates)
             .eq('id', instanceId);
     } catch (error) {
         console.error(`Failed to sync connected status for ${instanceId}:`, error);
@@ -574,13 +579,41 @@ app.post('/instances/:instanceId/reset', async (req, res) => {
 });
 
 // Health check
-app.get('/status', (req, res) => {
-    res.json({
-        online: true,
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString(),
-        activeInstances: whatsappInstances.size
-    });
+app.get('/status', async (req, res) => {
+    try {
+        const { data: dbInstances, error } = await supabase
+            .from('whatsapp_instances')
+            .select('id, name, status, phone_number, qr_code');
+
+        if (error) throw error;
+
+        const instances = (dbInstances || []).map((inst) => {
+            const client = whatsappInstances.get(inst.id);
+            const isConnected = client?.info?.wid !== undefined;
+            const connectedNumber = client?.info?.wid?.user || inst.phone_number || null;
+
+            return {
+                id: inst.id,
+                name: inst.name,
+                status: isConnected ? 'connected' : (inst.status || 'disconnected'),
+                phone_number: connectedNumber,
+                connectedNumber,
+                isConnected: isConnected || inst.status === 'connected',
+                hasQRCode: activeQRCodes.has(inst.id) || Boolean(inst.qr_code)
+            };
+        });
+
+        res.json({
+            online: true,
+            uptime: process.uptime(),
+            timestamp: new Date().toISOString(),
+            activeInstances: whatsappInstances.size,
+            instances
+        });
+    } catch (error) {
+        console.error('Failed to get status:', error);
+        res.status(500).json({ error: 'Failed to get status' });
+    }
 });
 
 // Create new instance
