@@ -70,7 +70,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         }
     };
 
-    const scrollToDepartamentos = () => {
+    const _scrollToDepartamentos = () => {
         // Ensure detalhes tab is active then scroll to the section
         setActiveTab('detalhes');
         setTimeout(() => {

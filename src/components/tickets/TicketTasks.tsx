@@ -191,8 +191,8 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
                         </Popover>
                         <div className="flex gap-2">
                             <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreating(false)}>Cancelar</Button>
-                            <Button type="submit" size="sm" disabled={createTaskMutation.isLoading || !newTaskTitle.trim()}>
-                                {createTaskMutation.isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            <Button type="submit" size="sm" disabled={createTaskMutation.isPending || !newTaskTitle.trim()}>
+                                {createTaskMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 Adicionar
                             </Button>
                         </div>
