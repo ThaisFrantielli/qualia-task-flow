@@ -28,7 +28,7 @@ interface TicketTasksProps {
 }
 
 export function TicketTasks({ ticketId }: TicketTasksProps) {
-    const { user } = useAuth();
+    const _auth = useAuth();
     const queryClient = useQueryClient();
     const tasksContainerRef = useRef<HTMLDivElement | null>(null);
 
