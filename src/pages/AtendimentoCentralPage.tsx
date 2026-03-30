@@ -46,6 +46,12 @@ interface WhatsAppInstance {
 
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, '');
 
+const isNonDirectJid = (value: string | null | undefined): boolean => {
+  if (!value) return false;
+  const normalized = String(value).toLowerCase();
+  return normalized.includes('@g.us') || normalized.includes('@broadcast') || normalized.includes('status@');
+};
+
 const getFunctionErrorMessage = async (error: any) => {
   const fallback = error?.message || 'Falha ao enviar mensagem';
   const context = error?.context;
@@ -88,6 +94,8 @@ export default function AtendimentoCentralPage() {
   const [messageSearchConversationIds, setMessageSearchConversationIds] = useState<string[]>([]);
   const touchStartXRef = useRef<number | null>(null);
   const previousUnreadByConversationRef = useRef<Record<string, number>>({});
+  const notificationsPrimedRef = useRef(false);
+  const notificationScopeRef = useRef<string>('none');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [assignedAgentNames, setAssignedAgentNames] = useState<Record<string, string>>({});
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
@@ -115,8 +123,13 @@ export default function AtendimentoCentralPage() {
   const [newChatMessage, setNewChatMessage] = useState('');
   const [isSendingNewChat, setIsSendingNewChat] = useState(false);
 
-  // Hooks - follow advanced filter semantics: none/many selected = all instances.
-  const effectiveInstanceId = selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : undefined;
+  // Hooks - default to selected instance; advanced multi-instance filter can override this.
+  const effectiveInstanceId =
+    selectedInstanceIds.length === 1
+      ? selectedInstanceIds[0]
+      : selectedInstanceIds.length > 1
+        ? undefined
+        : (selectedInstanceId || undefined);
   const { conversations, loading: convLoading, refetch: refetchConversations } = useWhatsAppConversations(undefined, effectiveInstanceId);
   const { refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
@@ -196,11 +209,36 @@ export default function AtendimentoCentralPage() {
   useEffect(() => {
     const previous = previousUnreadByConversationRef.current;
 
-    const isNonDirectJid = (value: string | null | undefined): boolean => {
-      if (!value) return false;
-      const normalized = String(value).toLowerCase();
-      return normalized.includes('@g.us') || normalized.includes('@broadcast') || normalized.includes('status@');
-    };
+    const activeScopeIds = selectedInstanceIds.length > 0
+      ? selectedInstanceIds
+      : selectedInstanceId
+        ? [selectedInstanceId]
+        : [];
+
+    const currentScopeKey = activeScopeIds.length > 0
+      ? activeScopeIds.slice().sort().join(',')
+      : 'none';
+
+    if (notificationScopeRef.current !== currentScopeKey) {
+      notificationScopeRef.current = currentScopeKey;
+      notificationsPrimedRef.current = false;
+    }
+
+    const scopedConversations = conversations.filter((conversation) => {
+      if (activeScopeIds.length === 0) return false;
+      const instanceId = conversation.instance_id || '';
+      return activeScopeIds.includes(instanceId);
+    });
+
+    // Prime baseline to avoid firing notifications for historical unread messages.
+    if (!notificationsPrimedRef.current) {
+      previousUnreadByConversationRef.current = scopedConversations.reduce<Record<string, number>>((acc, conv) => {
+        acc[conv.id] = Number(conv.unread_count || 0);
+        return acc;
+      }, {});
+      notificationsPrimedRef.current = activeScopeIds.length > 0;
+      return;
+    }
 
     const getNotificationLabel = (conversation: WhatsAppConversation): string => {
       const rawName = String(conversation.customer_name || '').trim();
@@ -214,7 +252,7 @@ export default function AtendimentoCentralPage() {
       return 'Cliente';
     };
 
-    for (const conversation of conversations) {
+    for (const conversation of scopedConversations) {
       const currentUnread = Number(conversation.unread_count || 0);
       const previousUnread = Number(previous[conversation.id] || 0);
       const hasNewUnread = currentUnread > previousUnread;
@@ -265,11 +303,11 @@ export default function AtendimentoCentralPage() {
       }
     }
 
-    previousUnreadByConversationRef.current = conversations.reduce<Record<string, number>>((acc, conv) => {
+    previousUnreadByConversationRef.current = scopedConversations.reduce<Record<string, number>>((acc, conv) => {
       acc[conv.id] = Number(conv.unread_count || 0);
       return acc;
     }, {});
-  }, [conversations, selectedConversationId, toast]);
+  }, [conversations, selectedConversationId, selectedInstanceId, selectedInstanceIds, toast]);
 
   useEffect(() => {
     const loadAssignedAgentNames = async () => {
@@ -500,6 +538,13 @@ export default function AtendimentoCentralPage() {
       assigned_agent_name: c.assigned_agent_id ? assignedAgentNames[c.assigned_agent_id] || null : null,
     })) as WhatsAppConversation[];
 
+    // Hide non-direct WhatsApp JIDs (group/status/broadcast) from the operator queue.
+    filtered = filtered.filter((c) =>
+      !isNonDirectJid(c.customer_name) &&
+      !isNonDirectJid(c.customer_phone) &&
+      !isNonDirectJid(c.whatsapp_number)
+    );
+
     // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -536,9 +581,12 @@ export default function AtendimentoCentralPage() {
       });
     }
 
-    // Instance filter (when multiple selected)
+    // Advanced instance filter (when explicitly selected in Filters popover)
     if (selectedInstanceIds.length > 0 && selectedInstanceIds.length < instances.length) {
       filtered = filtered.filter(c => selectedInstanceIds.includes(c.instance_id || ''));
+    } else if (selectedInstanceId) {
+      // Default behavior: follow the active instance selector.
+      filtered = filtered.filter((c) => c.instance_id === selectedInstanceId);
     }
 
     // Tab filter

@@ -39,6 +39,7 @@ export default function WhatsAppConfigPage() {
   const [newInstanceName, setNewInstanceName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [serviceProbeDisabled, setServiceProbeDisabled] = useState(false);
   const { toast } = useToast();
 
   const fetchInstances = async () => {
@@ -67,12 +68,21 @@ export default function WhatsAppConfigPage() {
     }
   };
 
-  const checkServiceStatus = async (baseInstances: WhatsAppInstance[] = instances) => {
+  const checkServiceStatus = async (
+    baseInstances: WhatsAppInstance[] = instances,
+    options?: { force?: boolean }
+  ) => {
+    const force = Boolean(options?.force);
+    if (serviceProbeDisabled && !force) {
+      return;
+    }
+
     try {
       const response = await fetch(`${SERVICE_URL}/status`);
       // Just check if the service responds, no need to track state
       if (!response.ok) {
         console.log('WhatsApp service not responding');
+        if (!force) setServiceProbeDisabled(true);
         return;
       }
 
@@ -100,8 +110,10 @@ export default function WhatsAppConfigPage() {
       });
 
       setInstances(merged);
+      setServiceProbeDisabled(false);
     } catch (error) {
       console.log('WhatsApp service offline');
+      if (!force) setServiceProbeDisabled(true);
     }
   };
 
@@ -195,7 +207,6 @@ export default function WhatsAppConfigPage() {
 
   useEffect(() => {
     fetchInstances();
-    checkServiceStatus();
 
     const channel = supabase
       .channel('whatsapp-instances-changes')
@@ -240,7 +251,10 @@ export default function WhatsAppConfigPage() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => { fetchInstances(); checkServiceStatus(); }}
+            onClick={() => {
+              fetchInstances();
+              checkServiceStatus(undefined, { force: true });
+            }}
             variant="outline"
             size="sm"
             className="flex items-center gap-2"
