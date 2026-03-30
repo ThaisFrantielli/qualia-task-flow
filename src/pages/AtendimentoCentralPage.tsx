@@ -196,13 +196,34 @@ export default function AtendimentoCentralPage() {
   useEffect(() => {
     const previous = previousUnreadByConversationRef.current;
 
+    const isNonDirectJid = (value: string | null | undefined): boolean => {
+      if (!value) return false;
+      const normalized = String(value).toLowerCase();
+      return normalized.includes('@g.us') || normalized.includes('@broadcast') || normalized.includes('status@');
+    };
+
+    const getNotificationLabel = (conversation: WhatsAppConversation): string => {
+      const rawName = String(conversation.customer_name || '').trim();
+      const rawPhone = String(conversation.customer_phone || conversation.whatsapp_number || '').trim();
+
+      if (rawName && !isNonDirectJid(rawName)) return rawName;
+
+      const digits = rawPhone.replace(/\D/g, '');
+      if (digits.length >= 8) return digits;
+
+      return 'Cliente';
+    };
+
     for (const conversation of conversations) {
       const currentUnread = Number(conversation.unread_count || 0);
       const previousUnread = Number(previous[conversation.id] || 0);
       const hasNewUnread = currentUnread > previousUnread;
       const isNotSelected = selectedConversationId !== conversation.id;
+      const hasInvalidJid = isNonDirectJid(conversation.customer_phone) || isNonDirectJid(conversation.whatsapp_number) || isNonDirectJid(conversation.customer_name);
 
-      if (hasNewUnread && isNotSelected) {
+      if (hasNewUnread && isNotSelected && !hasInvalidJid) {
+        const notificationLabel = getNotificationLabel(conversation);
+
         try {
           const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
           const oscillator = audioCtx.createOscillator();
@@ -219,7 +240,7 @@ export default function AtendimentoCentralPage() {
         }
 
         notificationService.showBrowserNotification('Nova mensagem no WhatsApp', {
-          body: `${conversation.customer_name || conversation.customer_phone || 'Cliente'} enviou mensagem.`,
+          body: `${notificationLabel} enviou mensagem.`,
           tag: `wa-conversation-${conversation.id}`,
         });
 
@@ -227,7 +248,7 @@ export default function AtendimentoCentralPage() {
           navigator.serviceWorker.getRegistration('/whatsapp-sw.js').then((registration) => {
             if (registration) {
               registration.showNotification('Nova mensagem no WhatsApp', {
-                body: `${conversation.customer_name || conversation.customer_phone || 'Cliente'} enviou mensagem.`,
+                body: `${notificationLabel} enviou mensagem.`,
                 icon: '/favicon.ico',
                 badge: '/favicon.ico',
                 tag: `wa-conversation-${conversation.id}`,
@@ -239,7 +260,7 @@ export default function AtendimentoCentralPage() {
 
         toast({
           title: 'Nova mensagem',
-          description: `Conversa de ${conversation.customer_name || conversation.customer_phone || 'cliente'} recebeu nova mensagem.`,
+          description: `Conversa de ${notificationLabel} recebeu nova mensagem.`,
         });
       }
     }

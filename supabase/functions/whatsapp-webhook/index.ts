@@ -47,8 +47,32 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Extract phone number from WhatsApp format (e.g., "5561999887766@c.us" -> "5561999887766")
-    const phoneNumber = String(from).replace('@c.us', '').replace('@s.whatsapp.net', '')
+    const fromJid = String(from || '').trim().toLowerCase()
+
+    // Ignore group, broadcast and status events to avoid creating noisy conversations.
+    if (
+      !fromJid ||
+      fromJid.includes('@g.us') ||
+      fromJid.includes('@broadcast') ||
+      fromJid.includes('status@')
+    ) {
+      return new Response(
+        JSON.stringify({ success: true, ignored: true, reason: 'non-direct-message' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
+
+    // Extract phone number from WhatsApp JID (e.g., "5561999887766@c.us" -> "5561999887766").
+    const jidUser = fromJid.split('@')[0] || ''
+    const phoneNumber = jidUser.replace(/\D/g, '')
+
+    // Guardrail: only keep plausible customer phone numbers.
+    if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+      return new Response(
+        JSON.stringify({ success: true, ignored: true, reason: 'invalid-phone' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
 
     // Find or create conversation for this instance
     // Try to find conversation by whatsapp_number OR customer_phone for resilience
