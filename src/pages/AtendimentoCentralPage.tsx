@@ -834,36 +834,36 @@ export default function AtendimentoCentralPage() {
                     </div>
 
                     <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                      <TabsList className="w-full grid grid-cols-4 h-8 bg-muted/50">
-                        <TabsTrigger value="all" className="text-[10px] px-1 relative">
+                      <TabsList className="w-full grid grid-cols-4 h-9 bg-muted/50">
+                        <TabsTrigger value="all" className="text-xs px-2 gap-1.5">
                           Todas
                           {allConversationsCount > 0 && (
-                            <Badge variant="secondary" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {allConversationsCount > 9 ? '9+' : allConversationsCount}
+                            <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                              {allConversationsCount > 99 ? '99+' : allConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
-                        <TabsTrigger value="queue" className="text-[10px] px-1 relative">
-                          Aguardando
+                        <TabsTrigger value="queue" className="text-xs px-2 gap-1.5">
+                          Fila
                           {queueConversationsCount > 0 && (
-                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {queueConversationsCount}
+                            <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                              {queueConversationsCount > 99 ? '99+' : queueConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
-                        <TabsTrigger value="unread" className="text-[10px] px-1 relative">
-                          Não Lidas
+                        <TabsTrigger value="unread" className="text-xs px-2 gap-1.5">
+                          Novas
                           {unreadConversationsCount > 0 && (
-                            <Badge variant="destructive" className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5">
-                              {unreadConversationsCount > 9 ? '9+' : unreadConversationsCount}
+                            <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                              {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
-                        <TabsTrigger value="mine" className="text-[10px] px-1 relative">
+                        <TabsTrigger value="mine" className="text-xs px-2 gap-1.5">
                           Meus
                           {myConversationsCount > 0 && (
-                            <Badge className="ml-0.5 h-3 min-w-3 p-0 text-[8px] absolute -top-1 -right-0.5 bg-green-500">
-                              {myConversationsCount}
+                            <Badge className="h-4 min-w-4 px-1 text-[10px] leading-none bg-green-600 text-white">
+                              {myConversationsCount > 99 ? '99+' : myConversationsCount}
                             </Badge>
                           )}
                         </TabsTrigger>
