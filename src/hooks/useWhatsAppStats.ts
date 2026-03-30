@@ -32,7 +32,7 @@ export function useWhatsAppStats(instanceId?: string) {
       // Fetch conversations stats
       let conversationsQuery = supabase
         .from('whatsapp_conversations')
-        .select('id, unread_count, status, cliente_id', { count: 'exact' });
+        .select('id, unread_count, status, cliente_id, assigned_agent_id', { count: 'exact' });
 
       if (instanceId) {
         conversationsQuery = conversationsQuery.eq('instance_id', instanceId);
@@ -43,7 +43,7 @@ export function useWhatsAppStats(instanceId?: string) {
       // Calculate stats from conversations
       const unreadTotal = conversations?.reduce((acc, c) => acc + (c.unread_count || 0), 0) || 0;
       const queueCount = conversations?.filter(c => c.status === 'waiting' || c.status === 'active').length || 0;
-      const myConvsCount = conversations?.filter(c => (c as any).assigned_agent_id === user?.id && c.status !== 'closed').length || 0;
+      const myConvsCount = conversations?.filter(c => c.assigned_agent_id === user?.id && c.status !== 'closed').length || 0;
 
       // Fetch today's messages count
       const today = new Date();

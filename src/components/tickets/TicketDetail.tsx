@@ -70,14 +70,6 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         }
     };
 
-    const scrollToDepartamentos = () => {
-        // Ensure detalhes tab is active then scroll to the section
-        setActiveTab('detalhes');
-        setTimeout(() => {
-            const el = document.querySelector('[data-section="departamentos"]');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 120);
-    };
 
     const [comment, setComment] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);

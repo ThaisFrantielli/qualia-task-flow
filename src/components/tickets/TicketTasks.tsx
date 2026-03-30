@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
+
 import {
     AlertDialog,
     AlertDialogAction,
@@ -28,7 +28,6 @@ interface TicketTasksProps {
 }
 
 export function TicketTasks({ ticketId }: TicketTasksProps) {
-    const { user } = useAuth();
     const queryClient = useQueryClient();
     const tasksContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -126,7 +125,7 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
     const handleCreateTask = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTaskTitle.trim()) return;
-        createTaskMutation.mutate();
+        createTaskMutation.mutate({});
     };
 
     const handleStartEdit = (task: { id: string; title: string; due_date?: string | null }) => {
@@ -191,8 +190,8 @@ export function TicketTasks({ ticketId }: TicketTasksProps) {
                         </Popover>
                         <div className="flex gap-2">
                             <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreating(false)}>Cancelar</Button>
-                            <Button type="submit" size="sm" disabled={createTaskMutation.isLoading || !newTaskTitle.trim()}>
-                                {createTaskMutation.isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            <Button type="submit" size="sm" disabled={createTaskMutation.isPending || !newTaskTitle.trim()}>
+                                {createTaskMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 Adicionar
                             </Button>
                         </div>
