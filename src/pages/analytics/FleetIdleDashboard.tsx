@@ -43,6 +43,14 @@ function formatLocalYMDToPtBR(ymd: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR');
 }
 
+function getMostRecentDate(...values: any[]): Date | null {
+  const valid = values
+    .map((v) => parseDateSafe(v))
+    .filter((d) => d.getTime() > 0)
+    .sort((a, b) => b.getTime() - a.getTime());
+  return valid[0] || null;
+}
+
 const normalizeStatus = (value: string) =>
   (value || '')
     .toUpperCase()
@@ -65,7 +73,6 @@ const getCategory = (status: string) => {
     s.includes('ROUB') ||
     s.includes('FURT') ||
     s.includes('DEVOLV') ||
-    s.includes('NAO DISPONIV') ||
     s.includes('DESMOBILIZ') ||
     // only treat as 'Inativa' when it's explicitly 'Disponivel para venda' (contains both tokens)
     (s.includes('DISPONIVEL') && s.includes('VENDA'))
@@ -238,6 +245,36 @@ export default function FleetIdleDashboard(): JSX.Element {
     return result;
   };
 
+  // Encontra o início do status vigente na data de snapshot usando apenas histórico de situação.
+  const resolveStatusStartForDate = (placa: string, checkDate: Date, statusAtDate: string | null): Date | null => {
+    if (!placa || !statusAtDate) return null;
+    const targetStatus = normalizeStatus(statusAtDate);
+    const events = (historicoMap.get(String(placa).trim().toUpperCase()) || []);
+    if (events.length === 0) return null;
+
+    const statusEvents = events
+      .map((e: any) => {
+        const status = e?.SituacaoVeiculo || e?.situacaoveiculo || e?.Situacao || e?.situacao || null;
+        const date = parseDateSafe(e?.UltimaAtualizacao || e?.ultimaatualizacao || e?.DataEvento || e?.dataevento);
+        return { status, date };
+      })
+      .filter((e: any) => !!e.status && e.date.getTime() > 0 && e.date.getTime() <= checkDate.getTime());
+
+    if (statusEvents.length === 0) return null;
+
+    const lastIdx = statusEvents.length - 1;
+    const lastStatusNorm = normalizeStatus(statusEvents[lastIdx].status);
+    if (lastStatusNorm !== targetStatus) return null;
+
+    let start = statusEvents[lastIdx].date;
+    for (let i = lastIdx - 1; i >= 0; i--) {
+      const sNorm = normalizeStatus(statusEvents[i].status);
+      if (sNorm !== targetStatus) break;
+      start = statusEvents[i].date;
+    }
+    return start;
+  };
+
   // Limpar cache quando dados mudarem para evitar resultados obsoletos
   useEffect(() => {
     statusCacheRef.current.clear();
@@ -402,7 +439,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       // Reconstruir status até checkDate usando a função centralizada
       // (inactivationDateMap não é usado aqui — resolveStatusForDate já retorna o status
       // correto baseado nos eventos históricos; getCategory filtra Inativos abaixo)
-      const { status: currentStatus, lastChangeDate } = placaLookup
+      const { status: currentStatus } = placaLookup
         ? resolveStatusForDate(placaLookup, checkDate)
         : { status: v?.Status || null, lastChangeDate: null };
       // Ignorar veículos sem status histórico encontrado — getCategory('') retornaria 'Improdutiva'
@@ -412,17 +449,25 @@ export default function FleetIdleDashboard(): JSX.Element {
       if (cat === 'Improdutiva') {
         // Movimentações de pátio
         const movPatio = patioMov
-          .filter((m: any) => placaLookup && m.Placa === placaLookup)
+          .filter((m: any) => placaLookup && m.Placa === placaLookup && parseDateSafe(m.DataMovimentacao).getTime() <= checkDate.getTime())
           .sort((a: any, b: any) => parseDateSafe(b.DataMovimentacao).getTime() - parseDateSafe(a.DataMovimentacao).getTime());
         const ultimoMovPatio = movPatio[0];
 
         const movVeiculo = veiculoMov
-          .filter((m: any) => placaLookup && m.Placa === placaLookup)
+          .filter((m: any) => placaLookup && m.Placa === placaLookup && parseDateSafe(m.DataDevolucao || m.DataRetirada).getTime() <= checkDate.getTime())
           .sort((a: any, b: any) => parseDateSafe(b.DataDevolucao || b.DataRetirada).getTime() - parseDateSafe(a.DataDevolucao || a.DataRetirada).getTime());
         const ultimaLocacao = movVeiculo[0];
 
-        // Data de início do status: preferir a última mudança detectada nos logs
-        let dataInicioStatus = lastChangeDate || (ultimaLocacao?.DataDevolucao ? parseDateSafe(ultimaLocacao.DataDevolucao).toISOString() : null) || (ultimoMovPatio?.DataMovimentacao ? parseDateSafe(ultimoMovPatio.DataMovimentacao).toISOString() : null) || null;
+        const ultimaDataPatio = ultimoMovPatio?.DataMovimentacao || null;
+        const ultimaDataDevolucao = ultimaLocacao?.DataDevolucao || null;
+        const dataMaisRecente = getMostRecentDate(ultimaDataPatio, ultimaDataDevolucao);
+        const dataInicioStatusHistorico = resolveStatusStartForDate(placaLookup, checkDate, currentStatus);
+
+        // Data Início Status: início do status atual conforme histórico de situação.
+        // Fallback para referência operacional quando o histórico não tiver dados suficientes.
+        let dataInicioStatus = dataInicioStatusHistorico
+          ? dataInicioStatusHistorico.toISOString()
+          : (dataMaisRecente ? dataMaisRecente.toISOString() : null);
 
         let diasNoStatus = 0;
         if (dataInicioStatus) {
@@ -431,7 +476,9 @@ export default function FleetIdleDashboard(): JSX.Element {
           diasNoStatus = Math.floor((checkDate.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        const patio = ultimoMovPatio?.Patio || v.Localizacao || '-';
+        const patio = (ultimoMovPatio && ultimoMovPatio.Patio && String(ultimoMovPatio.Patio).trim() !== '')
+          ? ultimoMovPatio.Patio
+          : (v.Localizacao || '-');
 
         // Terceiros já foram filtrados antes do loop
         improdutivos.push({
@@ -442,7 +489,7 @@ export default function FleetIdleDashboard(): JSX.Element {
           Patio: patio,
           DiasNoStatus: Math.max(0, diasNoStatus),
           DataInicioStatus: dataInicioStatus,
-          UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
+          UltimaMovimentacao: dataMaisRecente ? dataMaisRecente.toISOString() : '-',
           UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
         });
       }
@@ -871,9 +918,9 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Lógica:</strong></p>
                 <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
-                  <li>Obtém a última movimentação de pátio (se houver).</li>
-                  <li>Obtém a última devolução de locação (se houver).</li>
-                  <li>Compara as datas e utiliza a <strong>mais recente</strong> como Data Início.</li>
+                  <li>Reconstrói o status do veículo na data selecionada usando <strong>historico_situacao_veiculos</strong>.</li>
+                  <li>Identifica o último evento de troca para o status atual (ex.: Reserva).</li>
+                  <li>Usa esse timestamp como <strong>Data Início Status</strong>.</li>
                   <li>Essa data representa o início do status improdutivo atual.</li>
                 </ol>
               </div>
@@ -920,10 +967,9 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Cálculo:</strong></p>
                 <ul className="text-sm text-slate-600 ml-8 space-y-1 list-disc list-inside">
-                  <li>Compara a data da <strong>última movimentação de pátio</strong> com a data da <strong>última devolução de locação</strong>.</li>
-                  <li>Seleciona a <strong>data mais recente</strong> entre as duas como <em>Data Início</em>.</li>
+                  <li>Usa a <strong>Data Início Status</strong> reconstruída no histórico de situação.</li>
                   <li>Calcula: <code className="bg-slate-100 px-1 rounded">Dias = Data de Referência (dia selecionado) - Data Início</code></li>
-                  <li>Exemplo: última movimentação em 06/10/2025 e data selecionada 05/01/2026 = <strong>91 dias</strong></li>
+                  <li>A referência é sempre o dia selecionado no gráfico (snapshot histórico).</li>
                 </ul>
               </div>
 
@@ -934,9 +980,9 @@ export default function FleetIdleDashboard(): JSX.Element {
                 </h3>
                 <p className="text-sm text-slate-700 ml-8 mb-2"><strong>Lógica:</strong></p>
                 <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
-                  <li>Obtém a última movimentação de pátio (se houver).</li>
-                  <li>Obtém a última devolução de locação (se houver).</li>
-                  <li>Compara as datas e utiliza a <strong>mais recente</strong> como Data Início.</li>
+                  <li>Reconstrói o status do veículo na data selecionada usando <strong>historico_situacao_veiculos</strong>.</li>
+                  <li>Identifica o último evento de troca para o status atual (ex.: Reserva).</li>
+                  <li>Usa esse timestamp como <strong>Data Início Status</strong>.</li>
                   <li>Essa data representa o início do status improdutivo atual.</li>
                 </ol>
               </div>
