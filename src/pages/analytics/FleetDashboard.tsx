@@ -124,6 +124,15 @@ function sanitizeText(v: any): string {
         .replace(/┬°/g, '°')
         .replace(/�/g, '');
 }
+function mapTipoContratoGlobal(raw: any) {
+    const s = String(raw ?? '').toLowerCase();
+    if (!s || s === 'n/a' || s === 'nao definido' || s === 'não definido') return 'Assinatura';
+    if (s.includes('terceir') || s.includes('terceiriza')) return 'Terceirização';
+    if (s.includes('assin') || s.includes('subscription') || s.includes('assinatura')) return 'Assinatura';
+    if (s.includes('public') || s.includes('públic') || s.includes('publico')) return 'Público';
+    if (s.includes('loca') || s.includes('loca\u00e7') || s.includes('aluguel')) return 'Assinatura';
+    return 'Assinatura';
+}
 function normalizePlate(v: any): string { return String(v ?? '').trim().toUpperCase(); }
 function normalizeOccurrence(v: any): string {
     const s = String(v ?? '').trim().toUpperCase();
@@ -227,7 +236,7 @@ export default function FleetDashboard() {
             // `KmInformado` deve refletir o valor informado originalmente (sem usar fallback para confirmado)
             // Preserve `null`/`undefined` quando não houver valor para evitar sobreescrever com 0.
             KmInformado: (() => {
-                const raw = item.KmInformado ?? item.kminformado ?? item.KM ?? item.km ?? item.currentkm;
+                const raw = item.KmInformado ?? item.kminformado ?? item.OdometroInformado ?? item.odometroinformado;
                 return raw === null || raw === undefined || String(raw).trim() === '' ? null : parseNum(raw);
             })(),
             KmConfirmado: (() => {
@@ -436,12 +445,12 @@ export default function FleetDashboard() {
             const inicio = getStartDate(c);
             const next = {
                 NomeCliente: normalizeText(c.NomeCliente ?? c.nomecliente ?? c.Cliente ?? c.cliente ?? 'Sem Cliente') || 'Sem Cliente',
-                TipoLocacao: normalizeText(c.TipoLocacao ?? c.tipolocacao ?? 'Não Definido') || 'Não Definido',
+                TipoLocacao: normalizeText(c.ContratoComercial ?? c.contratocomercial ?? c.TipoLocacao ?? c.tipolocacao ?? 'Não Definido') || 'Não Definido',
                 NumeroContratoLocacao: contratoId || undefined,
                 SituacaoLocacao: status || undefined,
                 DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'dataprevistatermino', 'DataFimPrevista', 'datafimprevista', 'DataFimPrevisto', 'datafimprevisto', 'DataFim', 'datafim', 'DataTerminoPrevisto', 'dataterminoprevisto', 'DataFimLocacao', 'datafimlocacao']) || undefined,
                 DataEncerramentoLocacao: pickDate(c, ['DataEncerramento', 'dataencerramento', 'DataEncerrado', 'dataencerrado', 'DataFimEfetiva', 'datafimefetiva', 'DataFim', 'datafim', 'DataTermino', 'datatermino', 'DataFimLocacao', 'datafimlocacao']) || undefined,
-                ValorLocacao: parseCurrency(c.ValorMensal ?? c.valormensal ?? c.ValorLocacao ?? c.valorlocacao ?? c.ValorContrato ?? c.valorcontrato ?? 0) || undefined,
+                ValorLocacao: parseCurrency(c.ValorMensalAtual ?? c.valormensalatual ?? c.UltimoValorLocacao ?? c.ultimovalorlocacao ?? c.ValorMensal ?? c.valormensal ?? c.ValorLocacao ?? c.valorlocacao ?? c.ValorContrato ?? c.valorcontrato ?? 0) || undefined,
                 __inicio: inicio || undefined,
             };
 
@@ -471,17 +480,27 @@ export default function FleetDashboard() {
     }, [contratosLocacao]);
 
     const frotaEnriched = useMemo(() => {
+        const mapTipoContratoLocal = (raw: any) => {
+            const s = String(raw ?? '').toLowerCase();
+            if (!s || s === 'n/a' || s === 'nao definido' || s === 'não definido') return 'Assinatura';
+            if (s.includes('terceir') || s.includes('terceiriza')) return 'Terceirização';
+            if (s.includes('assin') || s.includes('subscription') || s.includes('assinatura')) return 'Assinatura';
+            if (s.includes('public') || s.includes('públic') || s.includes('publico')) return 'Público';
+            if (s.includes('loca') || s.includes('loca\u00e7') || s.includes('aluguel')) return 'Assinatura';
+            return 'Assinatura';
+        };
+
         return frota.map((v: AnyObject) => {
             const contrato = contratosMap[normalizePlate(v.Placa ?? v.placa ?? v.plate)];
             return {
                 ...v,
                 NomeCliente: contrato?.NomeCliente || 'N/A',
-                TipoLocacao: contrato?.TipoLocacao || 'N/A',
+                TipoLocacao: mapTipoContratoLocal(contrato?.TipoLocacao || 'N/A'),
                 NumeroContratoLocacao: contrato?.NumeroContratoLocacao || v.ContratoAtual || 'N/A',
                 SituacaoLocacao: contrato?.SituacaoLocacao || 'N/A',
                 DataPrevistaTerminoLocacao: contrato?.DataPrevistaTerminoLocacao || v.DataFimLocacao || null,
                 DataEncerramentoLocacao: contrato?.DataEncerramentoLocacao || v.DataFimLocacao || null,
-                ValorLocacao: contrato?.ValorLocacao || parseCurrency(v.ValorLocacao ?? v.ValorMensal ?? v.ValorLocacaoMensal) || 0,
+                ValorLocacao: contrato?.ValorLocacao || 0,
             } as typeof v & {
                 NomeCliente: string;
                 TipoLocacao: string;
@@ -511,6 +530,16 @@ export default function FleetDashboard() {
         setFilterValuesBulk(key, values);
         setPage(0);
     };
+    // Quando o usuário abrir a aba Telemetria, aplicar por padrão o filtro 'Ativa' na produtividade
+    useEffect(() => {
+        if (activeTab === 'telemetria') {
+            const prod = getFilterValues('productivity');
+            if (!prod || prod.length === 0) {
+                // aplica 'Ativa' por padrão
+                setFilterValuesBulk('productivity', ['Ativa']);
+            }
+        }
+    }, [activeTab, getFilterValues, setFilterValuesBulk]);
     const [page, setPage] = useState(0);
     const pageSize = 10;
     const [sortConfig, setSortConfig] = useState<{ key: keyof FleetTableItem; direction: 'asc' | 'desc' } | null>(null);
@@ -2337,7 +2366,7 @@ export default function FleetDashboard() {
     }
 
     return (
-        <div className="bg-slate-50 min-h-screen p-6 space-y-6">
+        <div className={`bg-slate-50 min-h-screen p-6 space-y-6 ${hasActiveFilters ? 'pb-28' : ''}`}>
             <div className="flex justify-between items-center">
                 <div><Title className="text-slate-900">Gestão de Frota</Title><Text className="text-slate-500">Análise de ativos, produtividade e localização.</Text></div>
                 <div className="flex items-center gap-3">
@@ -2715,7 +2744,7 @@ export default function FleetDashboard() {
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
                                         <td className="px-6 py-3 text-right">{
                                             ((): string => {
-                                                const v = r.KmInformado ?? r.KmConfirmado;
+                                                const v = r.KmInformado;
                                                 if (v === null || v === undefined) return '-';
                                                 const n = Number(v);
                                                 return Number.isNaN(n) ? '-' : n.toLocaleString('pt-BR');
@@ -2762,7 +2791,7 @@ export default function FleetDashboard() {
                             </div>
                         </Card>
                         <Card>
-                            <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Veículos por Pátio (Improdutivos)</Title></div>
+                            <div className="flex items-center gap-2 mb-4"><Warehouse size={16} className="text-blue-600" /><Title>Veículos por Localização (Improdutivos)</Title></div>
                             <div className="overflow-y-auto" style={{ maxHeight: 256 }}>
                                 <div style={{ height: Math.max(256, patioData.length * 35) }}>
                                     <ResponsiveContainer width="100%" height="100%">
@@ -2790,7 +2819,7 @@ export default function FleetDashboard() {
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                             <XAxis type="number" fontSize={12} />
                                             <YAxis dataKey="name" type="category" width={120} fontSize={10} />
-                                            <Tooltip />
+                                            <Tooltip formatter={(value: any) => [String(value), 'Quantidade']} />
                                             <Bar dataKey="value" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20}
                                                 onClick={(data: any, _index: number, event: any) => { handleChartClick('status_improdutivo', data.name, event as unknown as React.MouseEvent); if (!((event?.ctrlKey) || (event?.metaKey))) document.getElementById('patio-table')?.scrollIntoView({ behavior: 'smooth' }); }}
                                                 cursor="pointer">
@@ -3037,7 +3066,7 @@ export default function FleetDashboard() {
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                         <XAxis type="number" fontSize={10} tick={{ fill: '#475569' }} />
                                         <YAxis dataKey="name" type="category" width={120} fontSize={10} tick={{ fill: '#475569' }} />
-                                        <Tooltip />
+                                        <Tooltip formatter={(value: any) => [String(value), 'Quantidade']} />
                                         <Bar dataKey="value" fill="#0891b2" radius={[0, 4, 4, 0]} barSize={20}
                                             onClick={(data: any, _index: number, event: any) => {
                                                 try {

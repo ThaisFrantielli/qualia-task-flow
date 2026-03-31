@@ -31,6 +31,8 @@ export function useChartFilter(initialFilters: ChartFilterState = {}): UseChartF
   }, []);
 
   const handleChartClick = useCallback((key: string, value: string, event?: React.MouseEvent) => {
+    // Ignore invalid/empty values to avoid applying an empty filter (which clears results)
+    if (value === null || value === undefined || String(value).trim() === '') return;
     const isCtrlPressed = event?.ctrlKey || event?.metaKey;
     
     setFilters(prev => {
