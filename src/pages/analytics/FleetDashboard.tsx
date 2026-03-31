@@ -225,8 +225,15 @@ export default function FleetDashboard() {
             ValorCompra: parseCurrency(item.ValorCompra || item.valorcompra || item.ValorCompraVeiculo || item.valor_compra || 0),
             ValorFipeAtual: parseCurrency(item.ValorFipeAtual || item.valorfipeatual || item.ValorAtualFIPE || item.valoratualfipe || item.ValorFipe || item.valorfipe || 0),
             // `KmInformado` deve refletir o valor informado originalmente (sem usar fallback para confirmado)
-            KmInformado: parseNum(item.KmInformado ?? item.kminformado ?? item.KM ?? item.km ?? item.currentkm ?? 0),
-            KmConfirmado: parseNum(item.KmConfirmado ?? item.kmconfirmado ?? item.OdometroConfirmado ?? item.odometroconfirmado ?? 0),
+            // Preserve `null`/`undefined` quando não houver valor para evitar sobreescrever com 0.
+            KmInformado: (() => {
+                const raw = item.KmInformado ?? item.kminformado ?? item.KM ?? item.km ?? item.currentkm;
+                return raw === null || raw === undefined || String(raw).trim() === '' ? null : parseNum(raw);
+            })(),
+            KmConfirmado: (() => {
+                const raw = item.KmConfirmado ?? item.kmconfirmado ?? item.OdometroConfirmado ?? item.odometroconfirmado;
+                return raw === null || raw === undefined || String(raw).trim() === '' ? null : parseNum(raw);
+            })(),
             IdadeVeiculo: parseNum(item.IdadeVeiculo || item.idadeveiculo || item.IdadeEmMeses || item.idadeemmeses || item.agemonths || 0),
             Categoria: sanitizeText(item.Categoria || item.categoria || item.GrupoVeiculo || item.grupoveiculo || 'Outros') || 'Outros',
             Filial: sanitizeText(item.Filial || item.filial || 'N/A') || 'N/A',
@@ -2706,8 +2713,22 @@ export default function FleetDashboard() {
                                         <td className="px-6 py-3 text-right font-medium text-blue-600">{r.ValorLocacao ? fmtBRL(r.ValorLocacao) : '-'}</td>
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.compra)}</td>
                                         <td className="px-6 py-3 text-right">{fmtBRL(r.fipe)}</td>
-                                        <td className="px-6 py-3 text-right">{(r.KmInformado ?? r.KmConfirmado) ? Number(r.KmInformado ?? r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
-                                        <td className="px-6 py-3 text-right">{r.KmConfirmado ? Number(r.KmConfirmado).toLocaleString('pt-BR') : '-'}</td>
+                                        <td className="px-6 py-3 text-right">{
+                                            ((): string => {
+                                                const v = r.KmInformado ?? r.KmConfirmado;
+                                                if (v === null || v === undefined) return '-';
+                                                const n = Number(v);
+                                                return Number.isNaN(n) ? '-' : n.toLocaleString('pt-BR');
+                                            })()
+                                        }</td>
+                                        <td className="px-6 py-3 text-right">{
+                                            ((): string => {
+                                                const v = r.KmConfirmado;
+                                                if (v === null || v === undefined) return '-';
+                                                const n = Number(v);
+                                                return Number.isNaN(n) ? '-' : n.toLocaleString('pt-BR');
+                                            })()
+                                        }</td>
                                         <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
                                         <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
                                     </tr>))}</tbody></table></div>

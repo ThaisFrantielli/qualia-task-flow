@@ -35,6 +35,14 @@ function parseDateSafe(v: any): Date {
   }
 }
 
+function formatLocalYMDToPtBR(ymd: string | null | undefined): string {
+  if (!ymd) return '-';
+  const parts = String(ymd).split('-').map((p) => parseInt(p, 10));
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return '-';
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  return d.toLocaleDateString('pt-BR');
+}
+
 const normalizeStatus = (value: string) =>
   (value || '')
     .toUpperCase()
@@ -250,6 +258,8 @@ export default function FleetIdleDashboard(): JSX.Element {
   // Gerar histórico diário de % improdutiva (90 dias ou todo histórico disponível)
   const dailyIdleHistory = useMemo(() => {
     const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
     const data: { date: string; dateLocal: string; pct: number; improdutiva: number; produtiva: number; totalAtiva: number; displayDate: string; statusBreakdown: Record<string, number> }[] = [];
 
     // OTIMIZAÇÃO: Filtrar apenas terceiros ANTES do loop pesado. A exclusão de veículos
@@ -261,8 +271,7 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     // Determinar o intervalo de datas a gerar
     let startDate: Date;
-    let endDate: Date = new Date(today);
-    endDate.setHours(23, 59, 59, 999);
+    let endDate: Date = new Date(todayEnd);
 
     if (periodoSelecionado === 'custom') {
       const [fy, fm, fd] = customFrom.split('-').map(Number);
@@ -274,24 +283,29 @@ export default function FleetIdleDashboard(): JSX.Element {
       if (periodoSelecionado === '30d') daysToGenerate = 30;
       else if (periodoSelecionado === '90d') daysToGenerate = 90;
       else if (periodoSelecionado === '180d') daysToGenerate = 180;
-      startDate = new Date(today);
-      startDate.setDate(today.getDate() - (daysToGenerate - 1));
+      startDate = new Date(todayStart);
+      startDate.setDate(todayStart.getDate() - (daysToGenerate - 1));
     }
 
     // Gerar cada dia no intervalo
     const msPerDay = 24 * 60 * 60 * 1000;
-    const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
+    const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
     for (let i = 0; i < totalDays; i++) {
       const checkDate = new Date(startDate);
       checkDate.setDate(startDate.getDate() + i);
       checkDate.setHours(23, 59, 59, 999); // considerar até o fim do dia
+
+      // Segurança adicional: nunca incluir ponto de data futura no histórico diário.
+      if (checkDate.getTime() > todayEnd.getTime()) break;
 
       // Gerar `dateStr` no formato YYYY-MM-DD usando a data local (evita shift UTC)
       const y = checkDate.getFullYear();
       const m = String(checkDate.getMonth() + 1).padStart(2, '0');
       const d = String(checkDate.getDate()).padStart(2, '0');
       const dateStr = `${y}-${m}-${d}`;
-      const dateISO = checkDate.toISOString();
+      // Evitar UTC shift: persistir a data do ponto em formato local (YYYY-MM-DD)
+      // para exibição/seleção consistente no histórico.
+      const chartDate = `${dateStr}T12:00:00`;
       const displayDate = checkDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
       let improdutivaCount = 0;
@@ -350,7 +364,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       });
 
       data.push({
-        date: dateISO,
+        date: chartDate,
         dateLocal: dateStr,
         pct: Number(pct.toFixed(1)),
         improdutiva: improdutivaCount,
@@ -683,7 +697,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                         ).sort((a, b) => b[1] - a[1]);
                         return (
                           <div className="bg-white p-3 border border-slate-200 rounded shadow-lg min-w-[200px]">
-                            <p className="font-semibold text-slate-700 mb-1">{new Date(data.date).toLocaleDateString('pt-BR')}</p>
+                            <p className="font-semibold text-slate-700 mb-1">{formatLocalYMDToPtBR(data.dateLocal || data.date?.split?.('T')?.[0])}</p>
                             <p className="text-rose-600 font-bold">{data.pct}% Improdutiva</p>
                             <p className="text-xs text-slate-500 mb-2">{data.improdutiva} improdutivos | {data.produtiva} produtivos</p>
                             {breakdown.length > 0 && (
