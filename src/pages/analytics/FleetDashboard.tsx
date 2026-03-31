@@ -542,6 +542,9 @@ export default function FleetDashboard() {
     }, [activeTab, getFilterValues, setFilterValuesBulk]);
     const [page, setPage] = useState(0);
     const pageSize = 10;
+    const detailPageSize = 6; // quantos registros carregar por iteração no infinite scroll do detalhe
+    const [visibleCount, setVisibleCount] = useState<number>(detailPageSize);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: keyof FleetTableItem; direction: 'asc' | 'desc' } | null>(null);
     const [_timelinePage, _setTimelinePage] = useState(0);
     const [_expandedPlates, _setExpandedPlates] = useState<string[]>([]);
@@ -2314,7 +2317,27 @@ export default function FleetDashboard() {
         setPage(0);
     }, [appliedPlateSearch]);
 
-    const pageItems = tableData.slice(page * pageSize, (page + 1) * pageSize);
+    // Infinite scroll: reset visibleCount when tableData changes
+    useEffect(() => {
+        setVisibleCount(detailPageSize);
+    }, [tableData, detailPageSize]);
+
+    // IntersectionObserver to load more rows when sentinel becomes visible
+    useEffect(() => {
+        if (typeof window === 'undefined' || !sentinelRef.current) return;
+        const el = sentinelRef.current;
+        const obs = new IntersectionObserver((entries) => {
+            entries.forEach(en => {
+                if (en.isIntersecting) {
+                    setVisibleCount(prev => Math.min(tableData.length, prev + detailPageSize));
+                }
+            });
+        }, { root: null, rootMargin: '200px', threshold: 0.1 });
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, [sentinelRef, tableData, detailPageSize]);
+
+    const pageItems = tableData.slice(0, visibleCount);
 
     const patioItems = useMemo(() => {
         return tableData.filter(r => r.tipo === 'Improdutiva');
@@ -2608,7 +2631,10 @@ export default function FleetDashboard() {
 
                     <Card id="detail-table" className="p-0 overflow-hidden mt-4">
                         <div className="p-6 border-b border-slate-200 flex justify-between items-center"><div className="flex items-center gap-2"><Title>Detalhamento da Frota</Title><span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">{fmtDecimal(tableData.length)} registros</span></div><button onClick={() => exportToExcel(tableData, 'frota_detalhada')} className="flex items-center gap-2 text-sm text-slate-500 hover:text-green-600 transition-colors border px-3 py-1 rounded"><FileSpreadsheet size={16} /> Exportar</button></div>
-                        <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-600 uppercase text-xs"><tr>
+                        <div className="overflow-x-auto">
+                            <div className="max-h-[60vh] overflow-y-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 uppercase text-xs sticky top-0 z-20"><tr>
                             <th className="px-6 py-3">
                                 <div className="flex items-center justify-between">
                                     <span className="cursor-pointer" onClick={() => handleSort('Placa')}>Placa</span>
@@ -2760,12 +2786,11 @@ export default function FleetDashboard() {
                                         }</td>
                                         <td className="px-6 py-3 text-center font-bold text-slate-600">{r.pctFipe.toFixed(1)}%</td>
                                         <td className="px-6 py-3 text-center">{parseNum(r.IdadeVeiculo)} m</td>
-                                    </tr>))}</tbody></table></div>
-                        <div className="flex justify-start items-center gap-4 p-4 border-t border-slate-100">
-                            <div className="flex gap-2">
-                                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">←</button>
-                                <button onClick={() => setPage(page + 1)} disabled={(page + 1) * pageSize >= tableData.length} className="px-3 py-1 bg-slate-100 rounded disabled:opacity-50">→</button>
-                            </div>
+                                        </tr>))}</tbody></table></div></div>
+                        <div className="flex justify-between items-center gap-4 p-4 border-t border-slate-100">
+                            <div className="text-xs text-slate-500">Mostrando {pageItems.length} de {tableData.length} registros</div>
+                            <div className="text-sm text-slate-500">{visibleCount < tableData.length ? 'Role para carregar mais...' : 'Todos os registros carregados'}</div>
+                            <div ref={sentinelRef} className="h-px w-full pointer-events-none opacity-0" aria-hidden="true" />
                         </div>
                     </Card>
                 </TabsContent>
