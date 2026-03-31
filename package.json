@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:test-wa": "concurrently \"npm run dev\" \"node whatsapp-service/test-service.js\"",
-    "db:sync": "bash scripts/sync_supabase.sh",
+    "db:sync": "node scripts/local-etl/run-sync-v3.js",
     "sync:modelos": "node scripts/sync-modelos-from-analiticos.js",
     "supabase:functions:serve": "supabase functions serve",
     "supabase:functions:deploy:create-user": "supabase functions deploy create-user"

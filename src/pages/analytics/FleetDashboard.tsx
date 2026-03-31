@@ -4,7 +4,7 @@ import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
 import * as XLSX from 'xlsx';
 import { ResponsiveContainer, Cell, Tooltip, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Car, Filter, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info, ChevronDown } from 'lucide-react';
+import { Car, Filter, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, CheckCircle2, XCircle, MapPin, Warehouse, Timer, Archive, Info, ChevronDown, HelpCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MultiSelect } from '@/components/ui/multi-select';
 import CompactMultiSelect from '@/components/ui/compact-multi-select';
@@ -175,6 +175,7 @@ export default function FleetDashboard() {
 
     // Tab state (declared early for lazy loading logic)
     const [activeTab, setActiveTab] = useState<string>('visao-geral');
+    const [showKpiHelp, setShowKpiHelp] = useState(false);
 
     // Batch 1: Primary data (single HTTP request)
     const { results: primaryData, metadata: _primaryMeta, loading: loadingPrimary } = useBIDataBatch([
@@ -2878,6 +2879,21 @@ export default function FleetDashboard() {
                 </TabsContent>
 
                 <TabsContent value="telemetria" className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Title className="text-sm text-slate-700">Telemetria</Title>
+                            <Text className="text-xs text-slate-500">Visão geral dos aparelhos e cobertura GPS</Text>
+                        </div>
+                        <div>
+                            <button
+                                onClick={() => setShowKpiHelp(true)}
+                                className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 transition-colors border px-2 py-1 rounded bg-white"
+                                title="Como esses números são calculados?"
+                            >
+                                <HelpCircle size={16} />
+                            </button>
+                        </div>
+                    </div>
                     {/* KPIs de Telemetria */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <Card decoration="top" decorationColor="blue">
@@ -2901,6 +2917,50 @@ export default function FleetDashboard() {
                             <Text className="text-xs text-slate-500 mt-1">Lat/Long disponível</Text>
                         </Card>
                     </div>
+
+                    {/* Modal de ajuda: regras dos Big Numbers de Telemetria */}
+                    {showKpiHelp && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowKpiHelp(false)}>
+                            <div className="bg-white rounded-lg shadow-2xl max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                                <div className="sticky top-0 bg-blue-50 p-6 border-b">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <Title className="text-blue-900">💡 Como os Dados São Calculados</Title>
+                                            <Text className="text-blue-700 mt-1">Regras aplicadas para os Big Numbers de Telemetria</Text>
+                                        </div>
+                                        <button onClick={() => setShowKpiHelp(false)} className="text-slate-400 hover:text-slate-600">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="p-6 space-y-6">
+                                    <div className="bg-amber-50 p-4 rounded border-l-4 border-amber-400">
+                                        <h3 className="font-semibold text-slate-900 mb-2">Veículos Localizáveis</h3>
+                                        <p className="text-sm text-slate-700 ml-2 mb-1"><strong>Regra:</strong></p>
+                                        <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
+                                            <li>Conta veículos do conjunto atualmente filtrado (frota exibida) que possuem coordenadas válidas.</li>
+                                            <li>Considera-se válida uma coordenada quando <strong>Latitude</strong> e <strong>Longitude</strong> são numéricas, finitas e diferentes de 0.</li>
+                                            <li>Coordenadas nulas, 0, vazias ou inválidas são ignoradas.</li>
+                                        </ol>
+                                    </div>
+
+                                    <div className="bg-amber-50 p-4 rounded border-l-4 border-amber-400">
+                                        <h3 className="font-semibold text-slate-900 mb-2">Taxa de Cobertura GPS</h3>
+                                        <p className="text-sm text-slate-700 ml-2 mb-1"><strong>Regra:</strong></p>
+                                        <ol className="text-sm text-slate-600 ml-8 space-y-1 list-decimal list-inside">
+                                            <li>Calcula-se como: <code className="bg-slate-100 px-1 rounded">(Veículos Localizáveis / Total de veículos exibidos) * 100</code>.</li>
+                                            <li>O denominador é o tamanho do conjunto atual de veículos após aplicação dos filtros da página.</li>
+                                            <li>Valor exibido com uma casa decimal; se o denominador for zero, mostra 0.0%.</li>
+                                        </ol>
+                                    </div>
+
+                                    
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Gráficos de Análise */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">

@@ -2,6 +2,16 @@
 
 Este guia explica como configurar um runner do GitHub Actions na mesma máquina/rede onde o SQL Server está acessível.
 
+## ❓ Codespaces resolve ETL agendado 24x7?
+
+Não para este caso.
+
+- Codespaces é ótimo para desenvolvimento interativo, mas não foi feito para manter processo contínuo 24x7.
+- Codespaces pode parar por inatividade e possui cotas de horas/armazenamento.
+- Workflows com `runs-on: self-hosted` não executam dentro de um Codespace automaticamente.
+
+Para rodar ETL nos horários combinados sem seu computador ligado, use um runner self-hosted em VM cloud sempre ligada (Oracle/Azure/AWS) com acesso ao SQL Server/VPN.
+
 ## 📋 Pré-requisitos
 
 - Windows, Linux ou macOS
