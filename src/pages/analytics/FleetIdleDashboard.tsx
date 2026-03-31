@@ -73,6 +73,7 @@ const getCategory = (status: string) => {
     s.includes('ROUB') ||
     s.includes('FURT') ||
     s.includes('DEVOLV') ||
+    s.includes('NAO DISPON') ||
     s.includes('DESMOBILIZ') ||
     // only treat as 'Inativa' when it's explicitly 'Disponivel para venda' (contains both tokens)
     (s.includes('DISPONIVEL') && s.includes('VENDA'))
@@ -282,13 +283,15 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
-  const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d' | 'custom'>('90d');
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d' | 'custom'>('30d');
   // Estados para período personalizado
   const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
-  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 89); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 29); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
   const [customFrom, setCustomFrom] = useState<string>(defaultFrom);
   const [customTo, setCustomTo] = useState<string>(todayStr);
   const [showHistoricoInfo, setShowHistoricoInfo] = useState<boolean>(false);
+  const [payloadModalOpen, setPayloadModalOpen] = useState<boolean>(false);
+  const [payloadModalContent, setPayloadModalContent] = useState<any>(null);
 
   const pageSize = 10;
 
@@ -550,6 +553,8 @@ export default function FleetIdleDashboard(): JSX.Element {
     }
   };
 
+  // Plate-search helpers removed — feature deprecated in this view.
+
   // Análises de pátio removidas (cálculos anteriormente usados na seção eliminada)
 
   // Aguarda o carregamento primário (frota + movimentações) — exibe skeleton completo
@@ -564,67 +569,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   }
 
   return (
-    <div className="bg-slate-50 min-h-screen p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <Title className="text-slate-900">Monitoramento de Frota Improdutiva</Title>
-          <Text className="text-slate-500">Análise temporal e drill-down de veículos parados</Text>
-        </div>
-        <div className="flex items-center gap-3">
-          <DataUpdateBadge metadata={frotaMetadata} compact />
-          <div className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full flex gap-2 font-medium">
-            <AlertTriangle className="w-4 h-4" /> Controle de Ociosidade
-          </div>
-        </div>
-      </div>
-
-      {/* Banner: histórico ainda carregando (atualização em background após cache expirar) */}
-      {loadingHistorico && historicoSituacao.length > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
-          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-          <span>
-            <strong>Atualizando histórico de situações</strong> — os KPIs de tendência e improdutividade histórica podem estar desatualizados até o carregamento concluir (300 mil registros).
-          </span>
-        </div>
-      )}
-
-      {/* KPIs Atuais */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card decoration="top" decorationColor="rose">
-          <Text>Veículos Improdutivos Agora</Text>
-          {loadingHistorico && historicoSituacao.length === 0
-            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-rose-400" /><span className="text-slate-400 text-sm">Calculando...</span></div>
-            : <Metric>{currentIdleKPIs.qtd}</Metric>}
-          <Text className="text-xs text-slate-500 mt-1">{currentIdleKPIs.pct.toFixed(1)}% da frota ativa</Text>
-        </Card>
-        <Card decoration="top" decorationColor={currentIdleKPIs.trend > 0 ? 'rose' : 'emerald'}>
-          <Text>Tendência (7 dias)</Text>
-          {loadingHistorico
-            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /><span className="text-slate-400 text-sm">Aguardando histórico...</span></div>
-            : <Metric className={currentIdleKPIs.trend > 0 ? 'text-rose-600' : 'text-emerald-600'}>
-              {currentIdleKPIs.trend > 0 ? '+' : ''}{currentIdleKPIs.trend.toFixed(1)}%
-            </Metric>}
-          {!loadingHistorico && <Text className="text-xs text-slate-500 mt-1">
-            {currentIdleKPIs.trend > 0 ? 'Aumentando' : 'Diminuindo'}
-          </Text>}
-        </Card>
-        <Card decoration="top" decorationColor="amber">
-          <Text>Tempo Médio Parado</Text>
-          {loadingHistorico && historicoSituacao.length === 0
-            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-amber-400" /><span className="text-slate-400 text-sm">Calculando...</span></div>
-            : <Metric>{currentIdleKPIs.mediaDias.toFixed(0)} dias</Metric>}
-          <Text className="text-xs text-slate-500 mt-1">Média da frota improdutiva</Text>
-        </Card>
-        <Card decoration="top" decorationColor="blue">
-          <Text>Período Analisado</Text>
-          {loadingHistorico
-            ? <div className="flex items-center gap-2 py-2"><Loader2 className="w-5 h-5 animate-spin text-blue-400" /><span className="text-slate-400 text-sm">Carregando...</span></div>
-            : <Metric className="text-xl">{dailyIdleHistory.length} dias</Metric>}
-          <Text className="text-xs text-slate-500 mt-1">Histórico diário</Text>
-        </Card>
-      </div>
-
-      {/* Gráfico de Tendência Histórica */}
+    <div className="space-y-6">
       <Card>
         <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
           {/* Título + ícone de informação */}
@@ -657,7 +602,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                     <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">3.</span><span><strong>Sem nenhum evento registrado:</strong> usa <code className="bg-slate-100 px-1 rounded">dim_frota.Status</code> para todas as datas (veículo nunca mudou de situação).</span></li>
                     <li className="flex gap-2"><span className="text-rose-500 font-bold shrink-0">4.</span><span><strong>Eventos apenas posteriores a D:</strong> veículo excluído (ainda não estava na frota).</span></li>
                   </ul>
-                  <p className="border-t border-slate-100 pt-2">Classificação usada: <strong>Produtiva</strong> (Locado, Locado veículo reserva, Uso Interno e Em Mobilização), <strong>Improdutiva</strong> (ex.: Disponível, Reserva, Bloqueado, Não disponível) e <strong>Inativa</strong> (Vendido, Baixado, Roubo / Furto, Devolvido, Disponível para venda e Em Desmobilização). <strong>Terceiros</strong> não são contabilizados.</p>
+                  <p className="border-t border-slate-100 pt-2">Classificação usada: <strong>Produtiva</strong> (Locado, Locado veículo reserva, Uso Interno e Em Mobilização), <strong>Improdutiva</strong> (ex.: Disponível, Reserva e Bloqueado) e <strong>Inativa</strong> (Vendido, Baixado, Roubo / Furto, Devolvido, Não disponível, Disponível para venda e Em Desmobilização). <strong>Terceiros</strong> não são contabilizados.</p>
                   <p className="text-slate-500">% = Improdutivos ÷ (Produtivos + Improdutivos) * 100</p>
                 </div>
               )}
@@ -908,7 +853,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">3</span>
                   Status
                 </h3>
-                <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Lista apenas status considerados improdutivos (ex.: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>, <strong>Não disponível</strong>). Veículos produtivos (<strong>Locado</strong>, <strong>Locado veículo reserva</strong>, <strong>Uso Interno</strong> e <strong>Em Mobilização</strong>) ou inativos (<strong>Vendido</strong>, <strong>Baixado</strong>, <strong>Roubo / Furto</strong>, <strong>Devolvido</strong>, <strong>Disponível para venda</strong>, <strong>Em Desmobilização</strong>) não são exibidos.</p>
+                <p className="text-sm text-slate-600 ml-8">Situação atual do veículo. Lista apenas status considerados improdutivos (ex.: <strong>Reserva</strong>, <strong>Bloqueado</strong>, <strong>Disponível</strong>). Veículos produtivos (<strong>Locado</strong>, <strong>Locado veículo reserva</strong>, <strong>Uso Interno</strong> e <strong>Em Mobilização</strong>) ou inativos (<strong>Vendido</strong>, <strong>Baixado</strong>, <strong>Roubo / Furto</strong>, <strong>Devolvido</strong>, <strong>Não disponível</strong>, <strong>Disponível para venda</strong>, <strong>Em Desmobilização</strong>) não são exibidos.</p>
               </div>
 
               <div className="bg-blue-50 p-4 rounded border-l-4 border-blue-400">
@@ -1021,6 +966,21 @@ export default function FleetIdleDashboard(): JSX.Element {
                 Entendi
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Payload (JSON) */}
+      {payloadModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPayloadModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl max-h-[80vh] overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <Title className="text-sm">Detalhe do Evento (JSON)</Title>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPayloadModalOpen(false)} className="px-3 py-1 bg-white border rounded text-sm">Fechar</button>
+              </div>
+            </div>
+            <pre className="text-xs whitespace-pre-wrap break-words bg-slate-50 p-3 rounded border text-slate-700">{JSON.stringify(payloadModalContent, null, 2)}</pre>
           </div>
         </div>
       )}
