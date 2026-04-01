@@ -129,7 +129,7 @@ function mapTipoContratoGlobal(raw: any) {
     if (!s || s === 'n/a' || s === 'nao definido' || s === 'não definido') return 'Assinatura';
     if (s.includes('terceir') || s.includes('terceiriza')) return 'Terceirização';
     if (s.includes('assin') || s.includes('subscription') || s.includes('assinatura')) return 'Assinatura';
-    if (s.includes('public') || s.includes('públic') || s.includes('publico')) return 'Público';
+    if (s.includes('public') || s.includes('públic') || s.includes('publico')) return 'Assinatura Governo';
     if (s.includes('loca') || s.includes('loca\u00e7') || s.includes('aluguel')) return 'Assinatura';
     return 'Assinatura';
 }
@@ -445,7 +445,8 @@ export default function FleetDashboard() {
             const inicio = getStartDate(c);
             const next = {
                 NomeCliente: normalizeText(c.NomeCliente ?? c.nomecliente ?? c.Cliente ?? c.cliente ?? 'Sem Cliente') || 'Sem Cliente',
-                TipoLocacao: normalizeText(c.ContratoComercial ?? c.contratocomercial ?? c.TipoLocacao ?? c.tipolocacao ?? 'Não Definido') || 'Não Definido',
+                // Preferir campo TipoDeContrato (vindo do SELECT transformado no ETL). Falls back to older fields.
+                TipoLocacao: normalizeText(c.TipoDeContrato ?? c.ContratoComercial ?? c.contratocomercial ?? c.TipoLocacao ?? c.tipolocacao ?? 'Não Definido') || 'Não Definido',
                 NumeroContratoLocacao: contratoId || undefined,
                 SituacaoLocacao: status || undefined,
                 DataPrevistaTerminoLocacao: pickDate(c, ['DataPrevistaTermino', 'dataprevistatermino', 'DataFimPrevista', 'datafimprevista', 'DataFimPrevisto', 'datafimprevisto', 'DataFim', 'datafim', 'DataTerminoPrevisto', 'dataterminoprevisto', 'DataFimLocacao', 'datafimlocacao']) || undefined,
