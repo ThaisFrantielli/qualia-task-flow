@@ -124,15 +124,6 @@ function sanitizeText(v: any): string {
         .replace(/┬°/g, '°')
         .replace(/�/g, '');
 }
-function mapTipoContratoGlobal(raw: any) {
-    const s = String(raw ?? '').toLowerCase();
-    if (!s || s === 'n/a' || s === 'nao definido' || s === 'não definido') return 'Assinatura';
-    if (s.includes('terceir') || s.includes('terceiriza')) return 'Terceirização';
-    if (s.includes('assin') || s.includes('subscription') || s.includes('assinatura')) return 'Assinatura';
-    if (s.includes('public') || s.includes('públic') || s.includes('publico')) return 'Assinatura Governo';
-    if (s.includes('loca') || s.includes('loca\u00e7') || s.includes('aluguel')) return 'Assinatura';
-    return 'Assinatura';
-}
 function normalizePlate(v: any): string { return String(v ?? '').trim().toUpperCase(); }
 function normalizeOccurrence(v: any): string {
     const s = String(v ?? '').trim().toUpperCase();
@@ -143,6 +134,31 @@ function normalizeOccurrence(v: any): string {
     if (decimalLike) return decimalLike[1];
     const digits = noPrefix.replace(/[^0-9]/g, '');
     return digits || noPrefix;
+}
+
+type ReservaStatusCategoria = 'Ativa' | 'Concluída' | 'Cancelada';
+
+function isReservaConcluida(raw: AnyObject): boolean {
+    const status = String(raw?.StatusOcorrencia || raw?.SituacaoOcorrencia || raw?.Status || '').toLowerCase();
+    return Boolean(raw?.DataDevolucao || raw?.DataConclusao || raw?.DataEntrega || raw?.DataRetorno)
+        || status.includes('conclu')
+        || status.includes('finaliz')
+        || status.includes('encerr');
+}
+
+function isReservaCancelada(raw: AnyObject): boolean {
+    const status = String(raw?.StatusOcorrencia || raw?.SituacaoOcorrencia || raw?.Status || '').toLowerCase();
+    return status.includes('cancel') || Boolean(raw?.CanceladoPor);
+}
+
+function getReservaStatusCategoria(raw: AnyObject): ReservaStatusCategoria {
+    if (isReservaCancelada(raw)) return 'Cancelada';
+    if (isReservaConcluida(raw)) return 'Concluída';
+    return 'Ativa';
+}
+
+function isReservaAtiva(raw: AnyObject): boolean {
+    return !!raw?.DataInicio && getReservaStatusCategoria(raw) === 'Ativa';
 }
 function fmtBRL(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
 function fmtCompact(v: number) {
@@ -368,9 +384,10 @@ export default function FleetDashboard() {
                 const cliente = r.Cliente || r.NomeCliente || 'N/A';
                 const placa = r.PlacaReserva || r.PlacaVeiculoInterno || r.PlacaTitular || '—';
 
-                const concluded = !!dFim;
-                const isCancelled = status.toLowerCase().includes('canc') || !!r.CanceladoPor;
-                const isAtiva = !!dInicio && !concluded && !isCancelled;
+                const statusCategoria = getReservaStatusCategoria(r as AnyObject);
+                const concluded = statusCategoria === 'Concluída';
+                const isCancelled = statusCategoria === 'Cancelada';
+                const isAtiva = !!dInicio && statusCategoria === 'Ativa';
 
                 return {
                     ...r,
@@ -382,7 +399,8 @@ export default function FleetDashboard() {
                     PlacaReserva: placa,
                     isAtiva,
                     isCancelled,
-                    concluded
+                    concluded,
+                    StatusCategoria: statusCategoria,
                 } as any;
             })
             .filter(r => {
@@ -1769,7 +1787,7 @@ export default function FleetDashboard() {
     const reservaUniqueOptions = useMemo(() => ({
         motivos: Array.from(new Set(carroReservaFiltered.map(r => r.Motivo).filter(Boolean))).sort(),
         clientes: Array.from(new Set(carroReservaFiltered.map(r => r.Cliente).filter(Boolean))).sort(),
-        statuses: Array.from(new Set(carroReservaFiltered.map(r => r.StatusOcorrencia).filter(Boolean))).sort()
+        statuses: ['Ativa', 'Concluída', 'Cancelada']
     }), [carroReservaFiltered]);
 
     const setReservaFilterValues = (key: string, values: string[]) => {
@@ -1843,10 +1861,9 @@ export default function FleetDashboard() {
 
         return carroReservaFiltered.filter(r => {
             // Filtro de Ativas vs Todas (Solicitado pelo usuário)
-            const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
-            const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-            const isCancelled = status.includes('cancel') || Boolean(r.CanceladoPor);
-            const isActive = !concluded && !isCancelled && r.DataInicio;
+            const statusCategoria = getReservaStatusCategoria(r as AnyObject);
+            const concluded = statusCategoria === 'Concluída';
+            const isActive = !!r.DataInicio && statusCategoria === 'Ativa';
 
             if (activeFilter === 'Ativas' && !isActive) return false;
             if (activeFilter === 'Concluídas' && !concluded) return false;
@@ -1872,7 +1889,11 @@ export default function FleetDashboard() {
             if (modelosSel.length > 0 && !modelosSel.includes(r.ModeloReserva)) return false;
             if (motivos.length > 0 && !motivos.includes(r.Motivo)) return false;
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
-            if (statuses.length > 0 && !statuses.includes(r.StatusOcorrencia)) return false;
+            if (statuses.length > 0) {
+                const categoria = (r as AnyObject).StatusCategoria || getReservaStatusCategoria(r as AnyObject);
+                const statusRaw = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').trim();
+                if (!statuses.includes(categoria) && !statuses.includes(statusRaw)) return false;
+            }
 
             // Filtro de tipo de veículo (clique no gráfico Tipo Veículo)
             if (tiposVeiculo.length > 0) {
@@ -1899,12 +1920,7 @@ export default function FleetDashboard() {
     const reservaKPIs = useMemo(() => {
         const total = filteredReservas.length;
         // Ativa = sem data de conclusão e não cancelada (conforme explicado ao usuário)
-        const ativas = filteredReservas.filter(r => {
-            const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
-            const isCancelled = status.includes('cancel') || Boolean(r.CanceladoPor);
-            const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
-            return !concluded && !isCancelled && r.DataInicio;
-        }).length;
+        const ativas = filteredReservas.filter(r => isReservaAtiva(r as AnyObject)).length;
 
         const motivoMap: Record<string, number> = {};
         filteredReservas.forEach(r => { const m = r.Motivo || 'Não Definido'; motivoMap[m] = (motivoMap[m] || 0) + 1; });
@@ -1917,14 +1933,16 @@ export default function FleetDashboard() {
         const motivoData = Object.entries(motivoMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         const statusMap: Record<string, number> = {};
-        filteredReservas.forEach(r => { const s = r.StatusOcorrencia || 'Não Definido'; statusMap[s] = (statusMap[s] || 0) + 1; });
+        filteredReservas.forEach(r => {
+            const s = (r as AnyObject).StatusCategoria || getReservaStatusCategoria(r as AnyObject);
+            statusMap[s] = (statusMap[s] || 0) + 1;
+        });
         const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
         // Tempo médio de reserva (Concluídas)
         const concluidas = filteredReservas.filter(r => {
-            const status = String(r.StatusOcorrencia || '').toLowerCase();
             const hasDates = r.DataInicio && r.DataFim;
-            return (status.includes('conclu') || status.includes('finaliz') || status.includes('encerr') || r.DataFim) && hasDates;
+            return getReservaStatusCategoria(r as AnyObject) === 'Concluída' && hasDates;
         });
 
         const tempoMedioConcluidas = concluidas.length > 0 ? concluidas.reduce((sum, r) => {
@@ -1938,11 +1956,9 @@ export default function FleetDashboard() {
         // Reservas com atraso (Ativas que passaram da DataFim prevista)
         const hoje = new Date();
         const atrasadas = filteredReservas.filter(r => {
-            const status = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').toLowerCase();
-            if (status.includes('cancel')) return false;
-            const concluded = Boolean(r.DataDevolucao || r.DataConclusao || r.DataEntrega || r.DataRetorno);
+            if (getReservaStatusCategoria(r as AnyObject) !== 'Ativa') return false;
             // atrasada = ativa (não concluída e não cancelada) com DataFim prevista menor que hoje
-            return !concluded && r.DataFim && new Date(r.DataFim) < hoje;
+            return r.DataFim && new Date(r.DataFim) < hoje;
         }).length;
 
         // Gráfico hierárquico com comparação YoY
