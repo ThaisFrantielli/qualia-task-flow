@@ -2,11 +2,11 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
 import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { useTimelineData } from '@/hooks/useTimelineData';
-import { Card, Title, Text, Metric, Badge } from '@tremor/react';
+import { Card, Title, Text, Badge } from '@tremor/react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle, Info, Loader2 } from 'lucide-react';
+import { TrendingDown, Calendar, AlertTriangle, FileSpreadsheet, HelpCircle, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import DataUpdateBadge from '@/components/DataUpdateBadge';
+// DataUpdateBadge intentionally not used in this dashboard
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 
 type AnyObject = { [k: string]: any };
@@ -94,7 +94,8 @@ export default function FleetIdleDashboard(): JSX.Element {
   const frotaData = getBatchTable<AnyObject>(primaryResults, 'dim_frota');
   const patioMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_patios');
   const veiculoMovData = getBatchTable<AnyObject>(primaryResults, 'dim_movimentacao_veiculos');
-  const frotaMetadata = useMemo(() => (primaryResults['dim_frota'] as any)?.metadata || primaryMeta || null, [primaryResults, primaryMeta]);
+  // metadata not required in this component; keep primaryMeta available via hooks if needed
+  // const frotaMetadata = useMemo(() => (primaryResults['dim_frota'] as any)?.metadata || primaryMeta || null, [primaryResults, primaryMeta]);
   const { data: historicoSituacaoRaw, loading: loadingHistorico } = useBIData<AnyObject[]>('historico_situacao_veiculos');
 
   // Normalizar dados da frota para nomes de propriedades consistentes
@@ -291,7 +292,7 @@ export default function FleetIdleDashboard(): JSX.Element {
   const [customTo, setCustomTo] = useState<string>(todayStr);
   const [showHistoricoInfo, setShowHistoricoInfo] = useState<boolean>(false);
   const [payloadModalOpen, setPayloadModalOpen] = useState<boolean>(false);
-  const [payloadModalContent, setPayloadModalContent] = useState<any>(null);
+  const [payloadModalContent] = useState<any>(null);
 
   const pageSize = 10;
 
@@ -444,7 +445,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       // correto baseado nos eventos históricos; getCategory filtra Inativos abaixo)
       const { status: currentStatus } = placaLookup
         ? resolveStatusForDate(placaLookup, checkDate)
-        : { status: v?.Status || null, lastChangeDate: null };
+        : { status: v?.Status || null };
       // Ignorar veículos sem status histórico encontrado — getCategory('') retornaria 'Improdutiva'
       // incorretamente, causando veículos Locado/Vendido aparecerem com status errado.
       if (!currentStatus) return;

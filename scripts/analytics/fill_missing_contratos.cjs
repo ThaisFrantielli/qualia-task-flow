@@ -101,6 +101,44 @@ RETURNING c."ContratoLocacao" AS contrato, c."PlacaPrincipal" AS placa, f."kminf
     console.log('KM atualizados:', upd3.rowCount);
     fs.writeFileSync(path.join(backupDir, `updated_km_${safeTs}.json`), JSON.stringify(upd3.rows, null, 2));
 
+      // Preencher DataCompra em contratos a partir de dim_frota quando disponível
+      console.log('Preenchendo DataCompra em dim_contratos_locacao a partir de dim_frota...');
+      const updateDataCompraSql = `
+  UPDATE public.dim_contratos_locacao c
+  SET "DataCompra" = f."DataCompra"
+  FROM public.dim_frota f
+  WHERE (COALESCE(c."DataCompra"::text,'') = '' OR c."DataCompra" IS NULL)
+    AND regexp_replace(upper(coalesce(c."PlacaPrincipal",'')), '[^A-Z0-9]', 'g') = regexp_replace(upper(coalesce(f."Placa",'')), '[^A-Z0-9]', 'g')
+    AND f."DataCompra" IS NOT NULL
+  RETURNING c."ContratoLocacao" AS contrato, c."PlacaPrincipal" AS placa, f."DataCompra" AS novo_data_compra;`;
+
+      const updDataCompra = await client.query(updateDataCompraSql);
+      console.log('DataCompra atualizados:', updDataCompra.rowCount);
+      fs.writeFileSync(path.join(backupDir, `updated_datacompra_${safeTs}.json`), JSON.stringify(updDataCompra.rows, null, 2));
+
+      // Inferir DataFinal para contratos sem DataFinal/DataEncerramento usando média por TipoDeContrato
+      console.log('Inferindo DataFinal para contratos sem data com base em média por TipoDeContrato...');
+      const inferFinalSql = `
+  WITH avg_durations AS (
+    SELECT COALESCE("TipoDeContrato", 'Não Definido') AS tipo,
+           ROUND(AVG(EXTRACT(EPOCH FROM ("DataFinal" - "DataInicial"))/86400))::int AS avg_days
+    FROM public.dim_contratos_locacao
+    WHERE "DataInicial" IS NOT NULL AND "DataFinal" IS NOT NULL
+    GROUP BY 1
+  )
+  UPDATE public.dim_contratos_locacao c
+  SET "DataFinal" = (c."DataInicial"::date + (a.avg_days || ' days')::interval)
+  FROM avg_durations a
+  WHERE (c."DataFinal" IS NULL AND c."DataEncerramento" IS NULL)
+    AND c."DataInicial" IS NOT NULL
+    AND COALESCE(c."TipoDeContrato", 'Não Definido') = a.tipo
+  RETURNING c."ContratoLocacao" AS contrato, c."PlacaPrincipal" AS placa, c."DataInicial" AS data_inicio, c."DataFinal" AS novo_data_final, a.avg_days;
+  `;
+
+      const updInferFinal = await client.query(inferFinalSql);
+      console.log('DataFinal inferidos:', updInferFinal.rowCount);
+      fs.writeFileSync(path.join(backupDir, `inferred_datafinal_${safeTs}.json`), JSON.stringify(updInferFinal.rows, null, 2));
+
     // Atualizar dim_frota com ValorAtualFIPE a partir de contratos quando faltante
     console.log('Atualizando dim_frota com ValorAtualFIPE a partir de contratos quando faltante...');
     const updateFrotaFipeSql = `

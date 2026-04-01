@@ -114,6 +114,30 @@ export default function ContractTerminationDashboard() {
   // ─── Normalize contracts ───────────────────────────────────────────
   const contracts = useMemo(() => {
     if (!contractsData || !Array.isArray(contractsData)) return [];
+    // First pass: normalize and collect durations to compute averages by tipoCliente
+    const durationsByTipo = new Map<string, number[]>();
+    const normalized = contractsData.map((c: AnyObject) => {
+      const dataInicio = parseBIDate(c.DataInicial ?? c.DataInicio ?? c.datainicio ?? null);
+      const dataFim = parseBIDate(c.DataFinal ?? c.DataTermino ?? c.datatermino ?? c.DataFim ?? c.datafim ?? null);
+      return { raw: c, dataInicio, dataFim };
+    });
+
+    for (const item of normalized) {
+      const c = item.raw;
+      const tipo = getStr(c.TipoDeContrato, c.TipoLocacao, c.tipolocacao) || 'Não Definido';
+      if (item.dataInicio && item.dataFim) {
+        const days = diffDays(item.dataInicio, item.dataFim);
+        if (!durationsByTipo.has(tipo)) durationsByTipo.set(tipo, []);
+        durationsByTipo.get(tipo)!.push(days);
+      }
+    }
+
+    const avgDurationByTipo = new Map<string, number>();
+    for (const [k, arr] of durationsByTipo.entries()) {
+      const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+      avgDurationByTipo.set(k, avg);
+    }
+
     return contractsData.map((c: AnyObject) => {
       const placa = normalizePlate(c.PlacaPrincipal ?? c.placaprincipal ?? c.Placa ?? c.placa ?? '');
       const contratoLocacao = getStr(c.ContratoLocacao, c.NumeroContrato, c.id_contrato_locacao) || 'N/A';
@@ -135,11 +159,25 @@ export default function ContractTerminationDashboard() {
       const dataCompra = parseBIDate(c.DataCompra ?? c.datacompra ?? c.DataAquisicao ?? c.dataaquisicao ?? null);
 
       const dataInicio = parseBIDate(c.DataInicial ?? c.DataInicio ?? c.datainicio ?? null);
-      const dataFim = parseBIDate(c.DataFinal ?? c.DataTermino ?? c.datatermino ?? c.DataFim ?? c.datafim ?? null);
+      let dataFim = parseBIDate(c.DataFinal ?? c.DataTermino ?? c.datatermino ?? c.DataFim ?? c.datafim ?? null);
       const dataEncerramento = parseBIDate(c.DataEncerramento ?? c.dataencerramento ?? null);
 
-      // Determine dias para vencimento
-      const refDate = dataFim ?? dataEncerramento;
+      // If no explicit end date, try to estimate using average duration per contract type
+      let estimated = false;
+      let dataFimEfetiva: Date | null = dataFim ?? dataEncerramento;
+      if (!dataFimEfetiva && dataInicio) {
+        const tipo = getStr(c.TipoDeContrato, c.TipoLocacao, c.tipolocacao) || 'Não Definido';
+        const avg = avgDurationByTipo.get(tipo);
+        if (avg && Number.isFinite(avg) && avg > 0) {
+          const est = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate());
+          est.setDate(est.getDate() + avg);
+          dataFimEfetiva = est;
+          estimated = true;
+        }
+      }
+
+      // Determine dias para vencimento using the effective end date
+      const refDate = dataFimEfetiva;
       const diasParaVencimento = refDate ? diffDays(NOW, refDate) : null;
 
       // Classificar faixa de vencimento
@@ -213,6 +251,8 @@ export default function ContractTerminationDashboard() {
         dataCompra,
         dataInicio,
         dataFim,
+        dataFimEfetiva,
+        dataFimEstimado: estimated,
         dataEncerramento,
         diasParaVencimento,
         faixaVencimento,
@@ -629,6 +669,26 @@ export default function ContractTerminationDashboard() {
           </div>
         </div>
 
+        {/* Data quality banner */}
+        {/** Compute data quality metrics */}
+        {(() => {
+          const total = contracts.length;
+          const hasDataFimRaw = contracts.filter(c => c.dataFim || c.dataEncerramento).length;
+          const hasDataFimEffective = contracts.filter(c => c.dataFimEfetiva).length;
+          const hasValorFipe = contracts.filter(c => c.valorFipe && c.valorFipe > 0).length;
+          const hasNomeCliente = contracts.filter(c => c.nomeCliente && c.nomeCliente !== 'Sem Cliente').length;
+          const pct = (n:number) => total ? Math.round((n / total) * 100) : 0;
+          return (
+            <div className="mb-4 p-3 rounded border-l-4 border-orange-400 bg-yellow-50 text-sm text-slate-700">
+              <strong>Qualidade dos dados:</strong>
+              <span className="ml-3">Data Fim (raw): {hasDataFimRaw}/{total} ({pct(hasDataFimRaw)}%)</span>
+              <span className="ml-3">Data Fim (efetiva): {hasDataFimEffective}/{total} ({pct(hasDataFimEffective)}%)</span>
+              <span className="ml-3">Valor FIPE: {hasValorFipe}/{total} ({pct(hasValorFipe)}%)</span>
+              <span className="ml-3">Cliente: {hasNomeCliente}/{total} ({pct(hasNomeCliente)}%)</span>
+            </div>
+          );
+        })()}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
           {kpis.map((kpi, index) => (
@@ -1007,12 +1067,21 @@ export default function ContractTerminationDashboard() {
                   <tr key={`${row.contratoLocacao}-${row.placa}-${index}`} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2 font-medium text-slate-700">{row.contratoLocacao}</td>
                     <td className="px-4 py-2 text-slate-600">{row.contratoComercial || '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">{row.nomeCliente}</td>
-                    <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={row.modelo}>{row.modelo}</td>
-                    <td className="px-4 py-2 text-slate-600">{row.placa || '—'}</td>
+                    <td className={`px-4 py-2 ${row.nomeCliente === 'Sem Cliente' ? 'bg-amber-50 text-amber-800' : 'text-slate-600'}`}>{row.nomeCliente}</td>
+                    <td className={`px-4 py-2 max-w-[200px] truncate ${!row.modelo ? 'bg-amber-50 text-amber-800' : 'text-slate-600'}`} title={row.modelo}>{row.modelo || '—'}</td>
+                    <td className={`px-4 py-2 ${!row.placa ? 'bg-amber-50 text-amber-800' : 'text-slate-600'}`}>{row.placa || '—'}</td>
                     <td className="px-4 py-2 text-slate-600">{row.km > 0 ? fmtDecimal(row.km) : '—'}</td>
                     <td className="px-4 py-2 text-slate-600 font-medium">{row.valorLocacao > 0 ? fmtBRL(row.valorLocacao) : '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">{row.dataFim ? row.dataFim.toLocaleDateString('pt-BR') : '—'}</td>
+                    <td className="px-4 py-2">
+                      {row.dataFimEfetiva ? (
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${row.dataFimEstimado ? 'italic text-amber-800' : 'text-slate-700'}`}>{row.dataFimEfetiva.toLocaleDateString('pt-BR')}</span>
+                          {row.dataFimEstimado && <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">estimado</span>}
+                        </div>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-red-50 text-red-700">Sem Data</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         row.diasParaVencimento === null ? 'bg-slate-100 text-slate-500' :
