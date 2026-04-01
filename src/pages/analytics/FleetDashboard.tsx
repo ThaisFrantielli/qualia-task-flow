@@ -102,6 +102,25 @@ function parseBIDate(v: any): Date | null {
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
 }
+
+function parseDateOnlyLocal(v: any): Date | null {
+    if (!v) return null;
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+    const s = String(v).trim();
+    if (!s) return null;
+
+    // Evita offset de timezone ao parsear "YYYY-MM-DD" (que o JS trata como UTC)
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+        const y = Number(m[1]);
+        const mo = Number(m[2]) - 1;
+        const d = Number(m[3]);
+        return new Date(y, mo, d, 12, 0, 0, 0);
+    }
+
+    const parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
+}
 function sanitizeText(v: any): string {
     const s = String(v ?? '').trim();
     if (!s) return '';
@@ -2110,7 +2129,7 @@ export default function FleetDashboard() {
     const reservasDetailForSelectedDay = useMemo(() => {
         if (!selectedDayForDetail) return [];
 
-        const diaDate = new Date(selectedDayForDetail);
+        const diaDate = parseDateOnlyLocal(selectedDayForDetail) || new Date(selectedDayForDetail);
         diaDate.setHours(0, 0, 0, 0);
         const diaTime = diaDate.getTime();
 
@@ -3871,7 +3890,7 @@ export default function FleetDashboard() {
                                                 dataKey="date"
                                                 tick={{ fontSize: 10 }}
                                                 tickFormatter={(value) => {
-                                                    const date = new Date(value);
+                                                    const date = parseDateOnlyLocal(value) || new Date(value);
                                                     return `${date.getDate()}/${date.getMonth() + 1}`;
                                                 }}
                                                 interval={Math.floor(ocupacaoSimultaneaData.length / 12)}
@@ -3880,8 +3899,8 @@ export default function FleetDashboard() {
                                             <Tooltip
                                                 formatter={(value: any) => [value, 'Veículos em Uso']}
                                                 labelFormatter={(label) => {
-                                                    const date = new Date(label);
-                                                    return date.toLocaleDateString('pt-BR');
+                                                    const date = parseDateOnlyLocal(label) || new Date(label);
+                                                    return isNaN(date.getTime()) ? String(label) : date.toLocaleDateString('pt-BR');
                                                 }}
                                                 cursor={{ stroke: '#06b6d4', strokeWidth: 2, strokeDasharray: '5 5' }}
                                             />
@@ -3904,7 +3923,7 @@ export default function FleetDashboard() {
                                     <div id="reserva-day-detail" className="mt-6 pt-6 border-t border-slate-200">
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
-                                                <Title className="text-slate-700">Detalhamento - {new Date(selectedDayForDetail).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</Title>
+                                                <Title className="text-slate-700">Detalhamento - {(parseDateOnlyLocal(selectedDayForDetail) || new Date(selectedDayForDetail)).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</Title>
                                                 <Text className="text-slate-500 text-sm mt-1">{reservasDetailForSelectedDay.length} veículo(s) reserva em uso simultâneo neste dia</Text>
                                             </div>
                                             <button
