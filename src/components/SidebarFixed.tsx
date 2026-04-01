@@ -63,7 +63,15 @@ const baseMenuGroups: MenuGroup[] = [
         url: '/analytics/faturamento',
         icon: DollarSign,
       },
-        { label: 'Análise Contrato', url: '/analytics/analise-contrato', icon: FileText, permissionKey: 'crm' },
+        {
+          label: 'Análise Contrato',
+          url: '/analytics/analise-contrato',
+          icon: FileText,
+          permissionKey: 'crm',
+          children: [
+            { label: 'Previsão de Encerramento', url: '/analytics/analise-contrato/previsao-encerramento', icon: CalendarIcon, permissionKey: 'crm' }
+          ]
+        },
       {
         label: 'Manutenção',
         url: '/analytics/manutencao',

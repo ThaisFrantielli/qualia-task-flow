@@ -126,6 +126,8 @@ function App() {
                 <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="analise-contrato" element={<AnaliseContrato />} />
                 <Route path="previsao-encerramento" element={<ContractTerminationDashboard />} />
+                {/* Permit access via submenu under Analise Contrato */}
+                <Route path="analise-contrato/previsao-encerramento" element={<ContractTerminationDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="faturamento" element={<FaturamentoDashboard />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />

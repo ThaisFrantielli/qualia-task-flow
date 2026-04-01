@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, ComposedChart, Line
+  PieChart, Pie, Cell, ComposedChart, Line, LabelList
 } from 'recharts';
 import { ChevronLeft, FileSpreadsheet } from 'lucide-react';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
@@ -467,6 +467,24 @@ export default function ContractTerminationDashboard() {
   const tableSlice = sortedForTable.slice(tablePage * PAGE_SIZE, (tablePage + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(sortedForTable.length / PAGE_SIZE);
 
+  // Visible counts for charts that may have many categories (infinite-scroll style)
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({
+    fleetByClient: 10,
+    vehicleGroup: 10,
+    city: 10,
+    branch: 10,
+    clientType: 20,
+  });
+
+  const handleScrollLoad = (key: string) => {
+    setVisibleCounts(prev => {
+      const current = prev[key] || 0;
+      // Cap growth to avoid runaway rendering
+      if (current >= 1000) return prev;
+      return { ...prev, [key]: current + 10 };
+    });
+  };
+
   // ─── Export ────────────────────────────────────────────────────────
   const handleExport = () => {
     const rows = sortedForTable.map(c => ({
@@ -653,7 +671,7 @@ export default function ContractTerminationDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={clientTypeData}
+                    data={clientTypeData.slice(0, visibleCounts.clientType)}
                     cx="50%"
                     cy="50%"
                     innerRadius={40}
@@ -661,8 +679,9 @@ export default function ContractTerminationDashboard() {
                     fill="#8884d8"
                     paddingAngle={5}
                     dataKey="value"
+                    label={(entry: any) => `${entry.name} — ${entry.value}`}
                   >
-                    {clientTypeData.map((entry, index) => (
+                    {clientTypeData.slice(0, visibleCounts.clientType).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={COLORS[index % COLORS.length]} 
@@ -703,6 +722,7 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('faixaVencimento', data.range, e as any)}
                     cursor="pointer"
                   >
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
                     {expirationData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
@@ -748,9 +768,9 @@ export default function ContractTerminationDashboard() {
           {/* Row 3: Client Type, Fleet by Client, KM Index */}
           <div className="bg-white p-4 rounded shadow border border-slate-200">
             <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Tipo de Cliente</h3>
-            <div className="h-64">
+            <div className="h-64 overflow-y-auto" onScroll={(e) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 40) handleScrollLoad('clientType'); }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={clientTypeData}>
+                <BarChart layout="vertical" data={clientTypeData.slice(0, visibleCounts.clientType)}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -763,7 +783,8 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('tipoCliente', data.name, e as any)}
                     cursor="pointer"
                   >
-                    {clientTypeData.map((entry, index) => (
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
+                    {clientTypeData.slice(0, visibleCounts.clientType).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill="#818cf8" 
@@ -778,9 +799,9 @@ export default function ContractTerminationDashboard() {
 
           <div className="bg-white p-4 rounded shadow border border-slate-200">
             <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Frota por Cliente</h3>
-            <div className="h-64">
+            <div className="h-64 overflow-y-auto" onScroll={(e) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 40) handleScrollLoad('fleetByClient'); }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={fleetByClientData}>
+                <BarChart layout="vertical" data={fleetByClientData.slice(0, visibleCounts.fleetByClient)}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -793,7 +814,8 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('nomeCliente', data.name, e as any)}
                     cursor="pointer"
                   >
-                     {fleetByClientData.map((entry, index) => (
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
+                     {fleetByClientData.slice(0, visibleCounts.fleetByClient).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill="#3b82f6" 
@@ -822,6 +844,7 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('faixaKm', data.range, e as any)}
                     cursor="pointer"
                   >
+                    <LabelList dataKey="value" position="top" formatter={(v: any) => fmtDecimal(v)} />
                     {kmIndexData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
@@ -838,9 +861,9 @@ export default function ContractTerminationDashboard() {
           {/* Row 4: Fleet Group, City */}
           <div className="bg-white p-4 rounded shadow border border-slate-200">
             <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Frota - Grupo de Veículo</h3>
-            <div className="h-64">
+            <div className="h-64 overflow-y-auto" onScroll={(e) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 40) handleScrollLoad('vehicleGroup'); }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={vehicleGroupData}>
+                <BarChart layout="vertical" data={vehicleGroupData.slice(0, visibleCounts.vehicleGroup || 10)}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="group" type="category" width={120} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -853,7 +876,8 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('grupo', data.group, e as any)}
                     cursor="pointer"
                   >
-                    {vehicleGroupData.map((entry, index) => (
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
+                    {vehicleGroupData.slice(0, visibleCounts.vehicleGroup || 10).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill="#0ea5e9" 
@@ -868,9 +892,9 @@ export default function ContractTerminationDashboard() {
 
           <div className="lg:col-span-2 bg-white p-4 rounded shadow border border-slate-200">
             <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Contrato - Cidade de Entrega</h3>
-            <div className="h-64">
+            <div className="h-64 overflow-y-auto" onScroll={(e) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 40) handleScrollLoad('city'); }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={cityData}>
+                <BarChart layout="vertical" data={cityData.slice(0, visibleCounts.city)}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="city" type="category" width={120} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -883,7 +907,8 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('cidade', data.city, e as any)}
                     cursor="pointer"
                   >
-                    {cityData.map((entry, index) => (
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
+                    {cityData.slice(0, visibleCounts.city).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill="#3b82f6" 
@@ -899,9 +924,9 @@ export default function ContractTerminationDashboard() {
           {/* Row 5: Purchase Branch, Financial Balance */}
           <div className="bg-white p-4 rounded shadow border border-slate-200">
             <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Filial de Compra</h3>
-            <div className="h-48">
+            <div className="h-48 overflow-y-auto" onScroll={(e) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 40) handleScrollLoad('branch'); }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={branchData}>
+                <BarChart layout="vertical" data={branchData.slice(0, visibleCounts.branch)}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="branch" type="category" width={100} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -914,7 +939,8 @@ export default function ContractTerminationDashboard() {
                     onClick={(data, _i, e) => handleChartClick('filial', data.branch, e as any)}
                     cursor="pointer"
                   >
-                     {branchData.map((entry, index) => (
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
+                     {branchData.slice(0, visibleCounts.branch).map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill="#0ea5e9" 
