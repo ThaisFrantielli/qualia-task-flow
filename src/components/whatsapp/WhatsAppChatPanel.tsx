@@ -79,11 +79,19 @@ const toFriendlySendError = (rawError: string | null | undefined): string => {
   if (!message) return fallback;
 
   if (/no\s+lid\s+for\s+user/i.test(message)) {
-    return 'Numero de destino invalido ou nao registrado no WhatsApp';
+    return 'Número de destino inválido ou não registrado no WhatsApp';
+  }
+
+  if (/não está registrado no WhatsApp/i.test(message) || /not registered/i.test(message)) {
+    return 'Este número não está registrado no WhatsApp';
   }
 
   if (/circuit\s*breaker\s*open/i.test(message)) {
     return 'Envio temporariamente pausado. Tentando novamente em breve.';
+  }
+
+  if (/instance not connected/i.test(message)) {
+    return 'Instância WhatsApp desconectada. Reconecte antes de enviar.';
   }
 
   return message;
