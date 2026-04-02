@@ -27,6 +27,7 @@ import FleetMethodologyPage from '@/pages/analytics/FleetMethodologyPage';
 import ContractsDashboard from '@/pages/analytics/ContractsDashboard';
 import AnaliseContrato from '@/pages/analytics/AnaliseContrato';
 import ContractTerminationDashboard from '@/pages/analytics/ContractTerminationDashboard';
+import ContractLifecycleDashboard from '@/pages/analytics/ContractLifecycleDashboard';
 // CashFlowProjectionPage removed (unused)
 import PurchasesDashboard from '@/pages/analytics/PurchasesDashboard';
 import FaturamentoDashboard from '@/pages/analytics/FaturamentoDashboard';
@@ -126,8 +127,10 @@ function App() {
                 <Route path="contratos" element={<ContractsDashboard />} />
                 <Route path="analise-contrato" element={<AnaliseContrato />} />
                 <Route path="previsao-encerramento" element={<ContractTerminationDashboard />} />
+                <Route path="abertura-encerramento" element={<ContractLifecycleDashboard />} />
                 {/* Permit access via submenu under Analise Contrato */}
                 <Route path="analise-contrato/previsao-encerramento" element={<ContractTerminationDashboard />} />
+                <Route path="analise-contrato/abertura-encerramento" element={<ContractLifecycleDashboard />} />
                 <Route path="compras" element={<PurchasesDashboard />} />
                 <Route path="faturamento" element={<FaturamentoDashboard />} />
                 <Route path="manutencao" element={<MaintenanceDashboard />} />

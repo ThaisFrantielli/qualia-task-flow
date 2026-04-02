@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Card, Title, Text } from '@tremor/react';
-import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, LabelList } from 'recharts';
 import { fmtCompact } from '@/lib/analytics/formatters';
 
 interface TimeSeriesDataPoint {
@@ -53,6 +53,7 @@ export function TimeSeriesChart({
   className,
 }: TimeSeriesChartProps) {
   const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
+  const labelStep = data.length > 14 ? 2 : 1;
 
   const handleClick = (d: TimeSeriesDataPoint, _: number, e: React.MouseEvent) => {
     if (onClick) onClick(d, e);
@@ -63,6 +64,71 @@ export function TimeSeriesChart({
     const key = String(entry[selectedKey]);
     return selectedSet.has(key) ? adjustColorDarker(baseColor) : baseColor;
   };
+
+  const shouldShowLabel = (index: number) => (
+    labelStep === 1 ||
+    index % labelStep === 0 ||
+    index === data.length - 1
+  );
+
+  const renderLabelWithBackground = (
+    props: any,
+    formatter: (v: number) => string,
+    options: { bg: string; stroke: string; text: string; yOffset: number }
+  ) => {
+    const { x, y, value, index } = props;
+    const idx = Number(index ?? -1);
+    if (idx < 0 || x == null || y == null || value == null) return null;
+    if (!shouldShowLabel(idx)) return null;
+
+    const label = formatter(Number(value || 0));
+    const width = Math.max(34, String(label).length * 6.5 + 10);
+    const height = 16;
+    const rx = Number(x) - width / 2;
+    const ry = Number(y) + options.yOffset;
+
+    return (
+      <g>
+        <rect
+          x={rx}
+          y={ry}
+          width={width}
+          height={height}
+          rx={4}
+          ry={4}
+          fill={options.bg}
+          stroke={options.stroke}
+          strokeWidth={1}
+        />
+        <text
+          x={Number(x)}
+          y={ry + 11.5}
+          textAnchor="middle"
+          fill={options.text}
+          fontSize={10}
+          fontWeight={700}
+        >
+          {label}
+        </text>
+      </g>
+    );
+  };
+
+  const renderPrimaryLabel = (props: any) =>
+    renderLabelWithBackground(props, formatPrimary, {
+      bg: '#eef2ff',
+      stroke: '#c7d2fe',
+      text: '#3730a3',
+      yOffset: -24,
+    });
+
+  const renderSecondaryLabel = (props: any) =>
+    renderLabelWithBackground(props, formatSecondary, {
+      bg: '#fff7ed',
+      stroke: '#fed7aa',
+      text: '#9a3412',
+      yOffset: -26,
+    });
 
   return (
     <Card className={className}>
@@ -97,8 +163,8 @@ export function TimeSeriesChart({
             )}
             <Tooltip 
               formatter={(v: number, n: string) => [
-                n === primaryKey ? formatPrimary(v) : formatSecondary(v),
-                n === primaryKey ? (primaryLabel || primaryKey) : (secondaryLabel || secondaryKey)
+                (n === primaryKey || n === primaryLabel) ? formatPrimary(v) : formatSecondary(v),
+                (n === primaryKey || n === primaryLabel) ? (primaryLabel || primaryKey) : (secondaryLabel || secondaryKey)
               ]}
               labelFormatter={(label) => `Período: ${label}`}
             />
@@ -116,6 +182,7 @@ export function TimeSeriesChart({
                 {data.map((entry, i) => (
                   <Cell key={i} fill={getSelectedColor(entry, primaryColor)} />
                 ))}
+                <LabelList dataKey={primaryKey} content={renderPrimaryLabel} />
               </Bar>
             ) : (
               <Line 
@@ -126,7 +193,9 @@ export function TimeSeriesChart({
                 stroke={primaryColor} 
                 strokeWidth={2} 
                 dot={data.length < 30}
-              />
+              >
+                <LabelList dataKey={primaryKey} content={renderPrimaryLabel} />
+              </Line>
             )}
             
             {secondaryKey && (secondaryType === 'line' ? (
@@ -137,8 +206,11 @@ export function TimeSeriesChart({
                 name={secondaryLabel || secondaryKey}
                 stroke={secondaryColor} 
                 strokeWidth={2} 
-                dot={false}
-              />
+                dot={{ r: 3, strokeWidth: 1.5, fill: '#ffffff' }}
+                activeDot={{ r: 4 }}
+              >
+                <LabelList dataKey={secondaryKey} content={renderSecondaryLabel} />
+              </Line>
             ) : (
               <Bar 
                 yAxisId="right"
@@ -146,7 +218,9 @@ export function TimeSeriesChart({
                 name={secondaryLabel || secondaryKey}
                 fill={secondaryColor}
                 radius={[4, 4, 0, 0]}
-              />
+              >
+                <LabelList dataKey={secondaryKey} content={renderSecondaryLabel} />
+              </Bar>
             ))}
           </ComposedChart>
         </ResponsiveContainer>

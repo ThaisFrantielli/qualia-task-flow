@@ -15,7 +15,6 @@ const ALLOWED_TABLES = [
   // Dimensões
   "dim_clientes",
   "dim_frota", 
-  "dim_veiculos",
   "dim_motoristas",
   "dim_fornecedores",
   "dim_servicos",

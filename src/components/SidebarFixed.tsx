@@ -69,7 +69,8 @@ const baseMenuGroups: MenuGroup[] = [
           icon: FileText,
           permissionKey: 'crm',
           children: [
-            { label: 'Previsão de Encerramento', url: '/analytics/analise-contrato/previsao-encerramento', icon: CalendarIcon, permissionKey: 'crm' }
+            { label: 'Previsão de Encerramento', url: '/analytics/analise-contrato/previsao-encerramento', icon: CalendarIcon, permissionKey: 'crm' },
+            { label: 'Abertura e Encerramento', url: '/analytics/analise-contrato/abertura-encerramento', icon: BarChart3, permissionKey: 'crm' }
           ]
         },
       {

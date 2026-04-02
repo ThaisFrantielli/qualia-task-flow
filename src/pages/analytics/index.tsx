@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Car,
   ArrowRight,
+  BarChart3,
   ShoppingCart,
   DollarSign,
   Wrench,
@@ -104,6 +105,12 @@ export default function AnalyticsIndex() {
                 icon: <FileText className="w-5 h-5" />,
                 title: 'Previsão de Encerramento',
                 desc: 'Forecast de Vencimento, KPIs e Distribuição por Faixa',
+              },
+              {
+                to: '/analytics/abertura-encerramento',
+                icon: <BarChart3 className="w-5 h-5" />,
+                title: 'Abertura e Encerramento',
+                desc: 'Análise temporal de contratos iniciados e encerrados',
               },
               {
                 to: '/analytics/frota-metodologia',
