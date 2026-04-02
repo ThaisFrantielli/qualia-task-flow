@@ -256,6 +256,7 @@ export default function ContractTerminationDashboard() {
   // Load data from API - using dim_contratos_locacao (already JOINed with dim_frota on server)
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
+  const { data: veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
 
   // Filter state (Chart-based)
   const { filters, handleChartClick, clearAllFilters, clearFilter, isValueSelected, getFilterValues } = useChartFilter();
@@ -706,7 +707,21 @@ export default function ContractTerminationDashboard() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filtered]);
-
+  
+  // ─── KM Index ──────────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
+  const kmIndexData = useMemo(() => {
+    const ranges = ['(Em branco)', '0-10mil', '10-20mil', '20-30mil', '30-40mil', '40-50mil',
+      '50-60mil', '60-70mil', '70-80mil', '80-90mil', '90-100mil', '100-120mil', '120mil+'];
+    const map = new Map<string, number>();
+    ranges.forEach(r => map.set(r, 0));
+    for (const c of filtered) {
+      if (c.faixaKm && map.has(c.faixaKm)) {
+        map.set(c.faixaKm, (map.get(c.faixaKm) || 0) + 1);
+      }
+    }
+    return ranges.map(range => ({ range, value: map.get(range) || 0 }));
+  }, [filtered]);
   // ─── Modelos por Categoria (para gráfico 'Veículos por Modelo') ───
   const modelosPorCategoria = useMemo(() => {
     const categoryMap: Record<string, Record<string, number>> = {};
@@ -770,6 +785,41 @@ export default function ContractTerminationDashboard() {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filtered]);
 
+  // ─── Vehicle group ─────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
+  const vehicleGroupData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of filtered) {
+      const g = c.grupo || 'Outros';
+      map.set(g, (map.get(g) || 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([group, value]) => ({ group, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [filtered]);
+
+  // ─── Delivery city ─────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
+  const cityData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of filtered) {
+      let cidade = c.cidade;
+      // Try to extract city name from long address strings
+      if (cidade && cidade.length > 50) {
+        const parts = cidade.split(',');
+        if (parts.length >= 2) cidade = parts[parts.length - 2].trim();
+      }
+      cidade = cidade || '(Em branco)';
+      // Normalize to uppercase for grouping
+      cidade = cidade.toUpperCase().trim();
+      map.set(cidade, (map.get(cidade) || 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([city, value]) => ({ city, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [filtered]);
   // ─── Cidade de Emplacamento (vindo de dim_frota) ─────────────────
   const branchData = useMemo(() => {
     const map = new Map<string, number>();
@@ -782,7 +832,6 @@ export default function ContractTerminationDashboard() {
       .map(([branch, value]) => ({ branch, value }))
       .sort((a, b) => b.value - a.value);
   }, [filtered]);
-
   // ─── Table (paginação clássica) ───────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
