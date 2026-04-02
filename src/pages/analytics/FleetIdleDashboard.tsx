@@ -86,7 +86,7 @@ const getCategory = (status: string) => {
 
 export default function FleetIdleDashboard(): JSX.Element {
   // Batch load primary tables (frota + movimentacoes) to reduce HTTP requests
-  const { results: primaryResults, metadata: primaryMeta, loading: loadingPrimary } = useBIDataBatch([
+  const { results: primaryResults, loading: loadingPrimary } = useBIDataBatch([
     'dim_frota', 'dim_movimentacao_patios', 'dim_movimentacao_veiculos'
   ]);
   // Timeline via Edge Function otimizada
