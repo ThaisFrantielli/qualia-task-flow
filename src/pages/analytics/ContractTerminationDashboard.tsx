@@ -746,6 +746,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── Delivery city ─────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const cityData = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of filtered) {
