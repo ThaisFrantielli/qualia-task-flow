@@ -228,7 +228,7 @@ export default function ContractTerminationDashboard() {
   // Load data from API - using dim_contratos_locacao (already JOINed with dim_frota on server)
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
-  const { data: veiculosData, loading: loadingVeiculos } = useBIData<AnyObject[]>('dim_veiculos');
+  const { data: veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
 
   // Filter state (Chart-based)
   const { filters, handleChartClick, clearAllFilters, clearFilter, isValueSelected, getFilterValues } = useChartFilter();
@@ -660,6 +660,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── KM Index ──────────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const kmIndexData = useMemo(() => {
     const ranges = ['(Em branco)', '0-10mil', '10-20mil', '20-30mil', '30-40mil', '40-50mil',
       '50-60mil', '60-70mil', '70-80mil', '80-90mil', '90-100mil', '100-120mil', '120mil+'];
@@ -731,6 +732,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── Vehicle group ─────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const vehicleGroupData = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of filtered) {
@@ -744,6 +746,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── Delivery city ─────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const cityData = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of filtered) {
@@ -778,6 +781,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── Financial balance by year ─────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const financialBalanceData = useMemo(() => {
     const map = new Map<number, number>();
     for (const c of filtered) {
