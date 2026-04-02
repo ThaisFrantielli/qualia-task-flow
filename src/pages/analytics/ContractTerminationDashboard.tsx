@@ -228,7 +228,7 @@ export default function ContractTerminationDashboard() {
   // Load data from API - using dim_contratos_locacao (already JOINed with dim_frota on server)
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
-  const { data: veiculosData, loading: loadingVeiculos } = useBIData<AnyObject[]>('dim_veiculos');
+  const { data: veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
 
   // Filter state (Chart-based)
   const { filters, handleChartClick, clearAllFilters, clearFilter, isValueSelected, getFilterValues } = useChartFilter();

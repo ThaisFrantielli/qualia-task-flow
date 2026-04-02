@@ -964,7 +964,29 @@ app.post('/send-message', async (req, res) => {
              return res.status(400).json({ error: 'Instance not connected' });
         }
 
-        const formattedNumber = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+        // Resolve WhatsApp ID using getNumberId (handles Brazilian 9th digit)
+        const { primary, variants } = normalizeBrazilianPhone(phoneNumber);
+        const candidates = [primary, ...variants];
+        let resolvedId = null;
+
+        for (const candidate of candidates) {
+            try {
+                const numberId = await client.getNumberId(candidate);
+                if (numberId) {
+                    resolvedId = numberId._serialized;
+                    console.log(`Resolved ${candidate} -> ${resolvedId}`);
+                    break;
+                }
+            } catch (e) {
+                console.warn(`getNumberId failed for ${candidate}:`, e.message);
+            }
+        }
+
+        if (!resolvedId) {
+            return res.status(400).json({ error: `Número ${primary} não está registrado no WhatsApp` });
+        }
+
+        const formattedNumber = resolvedId;
         
         let sentMessage;
         
