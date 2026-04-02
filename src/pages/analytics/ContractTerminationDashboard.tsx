@@ -732,6 +732,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── Vehicle group ─────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const vehicleGroupData = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of filtered) {
