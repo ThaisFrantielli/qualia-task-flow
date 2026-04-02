@@ -660,6 +660,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── KM Index ──────────────────────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const kmIndexData = useMemo(() => {
     const ranges = ['(Em branco)', '0-10mil', '10-20mil', '20-30mil', '30-40mil', '40-50mil',
       '50-60mil', '60-70mil', '70-80mil', '80-90mil', '90-100mil', '100-120mil', '120mil+'];
