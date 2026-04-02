@@ -1525,6 +1525,33 @@ export type Database = {
         }
         Relationships: []
       }
+      motivos_perda_pipeline: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1672,10 +1699,16 @@ export type Database = {
         Row: {
           cliente_id: string | null
           created_at: string | null
+          data_fechamento_prevista: string | null
+          data_fechamento_real: string | null
           descricao: string | null
           estagio_id: string | null
           funil_id: string | null
           id: number
+          motivo_perda: string | null
+          motivo_perda_id: string | null
+          probabilidade_ganho: number | null
+          responsavel_id: string | null
           status: string | null
           titulo: string
           updated_at: string | null
@@ -1685,12 +1718,18 @@ export type Database = {
         Insert: {
           cliente_id?: string | null
           created_at?: string | null
+          data_fechamento_prevista?: string | null
+          data_fechamento_real?: string | null
           descricao?: string | null
           estagio_id?: string | null
           funil_id?: string | null
           id?: number
+          motivo_perda?: string | null
+          motivo_perda_id?: string | null
+          probabilidade_ganho?: number | null
+          responsavel_id?: string | null
           status?: string | null
-          titulo: string
+          titulo?: string
           updated_at?: string | null
           user_id?: string | null
           valor_total?: number | null
@@ -1698,10 +1737,16 @@ export type Database = {
         Update: {
           cliente_id?: string | null
           created_at?: string | null
+          data_fechamento_prevista?: string | null
+          data_fechamento_real?: string | null
           descricao?: string | null
           estagio_id?: string | null
           funil_id?: string | null
           id?: number
+          motivo_perda?: string | null
+          motivo_perda_id?: string | null
+          probabilidade_ganho?: number | null
+          responsavel_id?: string | null
           status?: string | null
           titulo?: string
           updated_at?: string | null
@@ -1728,6 +1773,13 @@ export type Database = {
             columns: ["funil_id"]
             isOneToOne: false
             referencedRelation: "funis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oportunidades_motivo_perda_id_fkey"
+            columns: ["motivo_perda_id"]
+            isOneToOne: false
+            referencedRelation: "motivos_perda_pipeline"
             referencedColumns: ["id"]
           },
           {
@@ -3006,6 +3058,7 @@ export type Database = {
           responded_at: string | null
           sent_at: string | null
           sent_via: string | null
+          ticket_id: string | null
           type: Database["public"]["Enums"]["survey_type"]
         }
         Insert: {
@@ -3028,6 +3081,7 @@ export type Database = {
           responded_at?: string | null
           sent_at?: string | null
           sent_via?: string | null
+          ticket_id?: string | null
           type: Database["public"]["Enums"]["survey_type"]
         }
         Update: {
@@ -3050,6 +3104,7 @@ export type Database = {
           responded_at?: string | null
           sent_at?: string | null
           sent_via?: string | null
+          ticket_id?: string | null
           type?: Database["public"]["Enums"]["survey_type"]
         }
         Relationships: [
@@ -3079,6 +3134,34 @@ export type Database = {
             columns: ["follow_up_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_deleted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets_sla"
             referencedColumns: ["id"]
           },
         ]
@@ -4553,6 +4636,58 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          instance_id: string | null
+          payload: Json | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          payload?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_audit_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_audit_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_audit_log_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_broadcast_recipients: {
         Row: {
           broadcast_id: string | null
@@ -4733,6 +4868,8 @@ export type Database = {
           atendimento_id: number | null
           auto_assigned: boolean | null
           cliente_id: string | null
+          closed_at: string | null
+          closed_reason: string | null
           created_at: string | null
           customer_name: string | null
           customer_phone: string | null
@@ -4753,6 +4890,8 @@ export type Database = {
           atendimento_id?: number | null
           auto_assigned?: boolean | null
           cliente_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string | null
           customer_name?: string | null
           customer_phone?: string | null
@@ -4773,6 +4912,8 @@ export type Database = {
           atendimento_id?: number | null
           auto_assigned?: boolean | null
           cliente_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string | null
           customer_name?: string | null
           customer_phone?: string | null
@@ -5043,19 +5184,26 @@ export type Database = {
           content: string
           conversation_id: string
           created_at: string | null
+          dead_letter: boolean | null
+          error_message: string | null
+          failed_at: string | null
           file_name: string | null
           has_media: boolean | null
           id: string
           instance_id: string | null
+          last_error: string | null
           media_type: string | null
           media_url: string | null
           message_type: string
           metadata: Json | null
+          next_retry_at: string | null
           read_at: string | null
+          retry_count: number | null
           sender_id: string | null
           sender_name: string | null
           sender_phone: string | null
           sender_type: string
+          sent_at: string | null
           status: string | null
           updated_at: string | null
           whatsapp_message_id: string | null
@@ -5064,19 +5212,26 @@ export type Database = {
           content: string
           conversation_id: string
           created_at?: string | null
+          dead_letter?: boolean | null
+          error_message?: string | null
+          failed_at?: string | null
           file_name?: string | null
           has_media?: boolean | null
           id?: string
           instance_id?: string | null
+          last_error?: string | null
           media_type?: string | null
           media_url?: string | null
           message_type?: string
           metadata?: Json | null
+          next_retry_at?: string | null
           read_at?: string | null
+          retry_count?: number | null
           sender_id?: string | null
           sender_name?: string | null
           sender_phone?: string | null
           sender_type: string
+          sent_at?: string | null
           status?: string | null
           updated_at?: string | null
           whatsapp_message_id?: string | null
@@ -5085,19 +5240,26 @@ export type Database = {
           content?: string
           conversation_id?: string
           created_at?: string | null
+          dead_letter?: boolean | null
+          error_message?: string | null
+          failed_at?: string | null
           file_name?: string | null
           has_media?: boolean | null
           id?: string
           instance_id?: string | null
+          last_error?: string | null
           media_type?: string | null
           media_url?: string | null
           message_type?: string
           metadata?: Json | null
+          next_retry_at?: string | null
           read_at?: string | null
+          retry_count?: number | null
           sender_id?: string | null
           sender_name?: string | null
           sender_phone?: string | null
           sender_type?: string
+          sent_at?: string | null
           status?: string | null
           updated_at?: string | null
           whatsapp_message_id?: string | null
@@ -5157,6 +5319,80 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_rate_limit_log: {
+        Row: {
+          created_at: string | null
+          id: string
+          minute_bucket: string
+          send_count: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          minute_bucket: string
+          send_count?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          minute_bucket?: string
+          send_count?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_rate_limit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          category: string
+          content: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+          usage_count: number | null
+          variables: Json | null
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+          usage_count?: number | null
+          variables?: Json | null
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+          usage_count?: number | null
+          variables?: Json | null
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -5700,6 +5936,19 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_forecast_pipeline: {
+        Row: {
+          estagio_nome: string | null
+          estagio_ordem: number | null
+          probabilidade_media: number | null
+          qtd_oportunidades: number | null
+          responsavel_id: string | null
+          responsavel_nome: string | null
+          valor_ponderado: number | null
+          valor_total_bruto: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       auto_assign_conversation: {
@@ -5712,6 +5961,14 @@ export type Database = {
         Returns: boolean
       }
       check_whatsapp_status: { Args: never; Returns: string }
+      close_whatsapp_conversation: {
+        Args: {
+          p_actor: string
+          p_closed_reason: string
+          p_conversation_id: string
+        }
+        Returns: boolean
+      }
       create_user_admin: {
         Args: {
           user_email: string
@@ -5741,6 +5998,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      generate_relational_nps_surveys_monthly: { Args: never; Returns: number }
       generate_ticket_number: { Args: never; Returns: string }
       get_all_subordinates: { Args: { _manager_id: string }; Returns: string[] }
       get_direct_reports: {
@@ -5918,6 +6176,7 @@ export type Database = {
         Returns: Json
       }
       restore_ticket: { Args: { p_ticket_id: string }; Returns: boolean }
+      run_clientes_saneamento: { Args: never; Returns: undefined }
       send_whatsapp_message: {
         Args: { message_text: string; to_number: string }
         Returns: Json
