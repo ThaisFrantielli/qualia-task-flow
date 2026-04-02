@@ -781,6 +781,7 @@ export default function ContractTerminationDashboard() {
   }, [filtered]);
 
   // ─── Financial balance by year ─────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
   const financialBalanceData = useMemo(() => {
     const map = new Map<number, number>();
     for (const c of filtered) {
