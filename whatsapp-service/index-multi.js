@@ -211,6 +211,26 @@ async function markFailedWithRetry(msg, reason) {
     }
 }
 
+// Normalize Brazilian phone numbers – try with and without the 9th digit
+function normalizeBrazilianPhone(phone) {
+    // Strip everything non-digit
+    const digits = phone.replace(/\D/g, '');
+
+    // Brazilian mobile: 55 + 2-digit area code + 9-digit number = 13 digits
+    // Some older contacts are stored without the leading 9 (12 digits)
+    if (digits.startsWith('55') && digits.length === 13) {
+        // Already has the 9th digit – also produce variant without it
+        const withoutNinth = digits.slice(0, 4) + digits.slice(5); // remove the 9 after area code
+        return { primary: digits, variants: [withoutNinth] };
+    }
+    if (digits.startsWith('55') && digits.length === 12) {
+        // Missing the 9th digit – add it
+        const withNinth = digits.slice(0, 4) + '9' + digits.slice(4);
+        return { primary: digits, variants: [withNinth] };
+    }
+    return { primary: digits, variants: [] };
+}
+
 async function processOutgoingMessage(msg) {
     if (!msg || !msg.instance_id) return;
 
@@ -244,25 +264,59 @@ async function processOutgoingMessage(msg) {
 
         if (convError || !conversation) {
             await markFailedWithRetry(msg, 'Conversation not found');
-            registerCircuitFailure(msg.instance_id);
+            // Not an instance-level failure – don't trip circuit breaker
             return;
         }
 
         const phoneNumber = conversation.customer_phone || conversation.whatsapp_number;
         if (!phoneNumber) {
             await markFailedWithRetry(msg, 'Conversation has no phone number');
-            registerCircuitFailure(msg.instance_id);
             return;
         }
 
-        const formattedNumber = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+        // Normalize and resolve the WhatsApp ID using getNumberId
+        const { primary, variants } = normalizeBrazilianPhone(phoneNumber);
+        const candidates = [primary, ...variants];
+        let resolvedId = null;
+
+        for (const candidate of candidates) {
+            try {
+                const numberId = await client.getNumberId(candidate);
+                if (numberId) {
+                    resolvedId = numberId._serialized;
+                    console.log(`Resolved ${candidate} -> ${resolvedId}`);
+                    break;
+                }
+            } catch (e) {
+                console.warn(`getNumberId failed for ${candidate}:`, e.message);
+            }
+        }
+
+        if (!resolvedId) {
+            // Number is not registered on WhatsApp – permanent failure, no retry
+            const errorMsg = `Número ${primary} não está registrado no WhatsApp`;
+            console.error(errorMsg);
+            await supabase
+                .from('whatsapp_messages')
+                .update({
+                    status: 'failed',
+                    dead_letter: true,
+                    last_error: errorMsg,
+                    error_message: errorMsg,
+                    failed_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', msg.id);
+            // Not an instance failure – don't trip circuit breaker
+            return;
+        }
 
         if (msg.media_url) {
             const media = await MessageMedia.fromUrl(msg.media_url);
             if (msg.file_name) media.filename = msg.file_name;
-            await client.sendMessage(formattedNumber, media, { caption: msg.content || '' });
+            await client.sendMessage(resolvedId, media, { caption: msg.content || '' });
         } else {
-            await client.sendMessage(formattedNumber, msg.content || '');
+            await client.sendMessage(resolvedId, msg.content || '');
         }
 
         await supabase
@@ -280,12 +334,21 @@ async function processOutgoingMessage(msg) {
             .eq('id', msg.id);
 
         registerCircuitSuccess(msg.instance_id);
-        console.log(`Message ${msg.id} sent successfully`);
+        console.log(`Message ${msg.id} sent successfully to ${resolvedId}`);
     } catch (error) {
         const reason = error?.message || 'Send failed';
-        console.error(`Failed to send message ${msg.id}:`, error);
+        console.error(`Failed to send message ${msg.id}:`, reason);
+
+        // Only trip circuit breaker for instance-level errors (not per-number)
+        const isInstanceError = reason.includes('not connected') ||
+            reason.includes('Instance not found') ||
+            reason.includes('ECONNREFUSED') ||
+            reason.includes('Protocol error');
+
         await markFailedWithRetry(msg, reason);
-        registerCircuitFailure(msg.instance_id);
+        if (isInstanceError) {
+            registerCircuitFailure(msg.instance_id);
+        }
     }
 }
 
