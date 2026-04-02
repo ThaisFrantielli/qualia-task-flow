@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppConversations';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { Input } from '@/components/ui/input';
@@ -73,6 +73,35 @@ const getFunctionErrorMessage = async (error: any) => {
   }
 };
 
+const toFriendlySendError = (rawError: string | null | undefined): string => {
+  const fallback = 'Falha ao enviar mensagem';
+  const message = String(rawError || '').trim();
+  if (!message) return fallback;
+
+  if (/no\s+lid\s+for\s+user/i.test(message)) {
+    return 'Numero de destino invalido ou nao registrado no WhatsApp';
+  }
+
+  if (/circuit\s*breaker\s*open/i.test(message)) {
+    return 'Envio temporariamente pausado. Tentando novamente em breve.';
+  }
+
+  return message;
+};
+
+const isCircuitBreakerOpenError = (rawError: string | null | undefined) =>
+  /circuit\s*breaker\s*open/i.test(String(rawError || ''));
+
+const getMessageFailureReason = (msg: any): string | null => {
+  const metadataError = msg?.metadata && typeof msg.metadata === 'object'
+    ? (msg.metadata as any).error || (msg.metadata as any).last_error || (msg.metadata as any).error_message
+    : null;
+
+  const raw = msg?.last_error || msg?.error_message || metadataError || null;
+  if (!raw) return null;
+  return toFriendlySendError(String(raw));
+};
+
 const getDeliveryIcon = (status: string | null | undefined) => {
   switch (status) {
     case 'pending':
@@ -105,6 +134,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [customerProfile, setCustomerProfile] = useState<{
@@ -164,6 +194,23 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
     setShowEmojiPicker(false);
   };
 
+  const hasCircuitBreakerOpen = useMemo(() => {
+    const now = Date.now();
+
+    return messages.some((message: any) => {
+      if (message?.sender_type === 'customer') return false;
+
+      const rawReason = message?.last_error || message?.error_message || '';
+      if (!isCircuitBreakerOpenError(rawReason)) return false;
+
+      const marker = message?.failed_at || message?.updated_at || message?.created_at;
+      if (!marker) return true;
+
+      const diffMs = now - new Date(marker).getTime();
+      return Number.isFinite(diffMs) && diffMs >= 0 && diffMs <= 60_000;
+    });
+  }, [messages]);
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !conversation || !instanceId) return;
@@ -222,7 +269,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       });
 
       if (sendError) {
-        throw new Error(await getFunctionErrorMessage(sendError));
+        throw new Error(toFriendlySendError(await getFunctionErrorMessage(sendError)));
       }
 
       toast({
@@ -235,7 +282,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       console.error('Error uploading file:', error);
       toast({
         title: 'Erro ao enviar arquivo',
-        description: error.message || 'Falha ao enviar arquivo',
+        description: toFriendlySendError(error.message || 'Falha ao enviar arquivo'),
         variant: 'destructive'
       });
     } finally {
@@ -371,7 +418,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       });
 
       if (sendError) {
-        throw new Error(await getFunctionErrorMessage(sendError));
+        throw new Error(toFriendlySendError(await getFunctionErrorMessage(sendError)));
       }
 
       toast({
@@ -384,7 +431,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       console.error('Error sending audio:', error);
       toast({
         title: 'Erro ao enviar áudio',
-        description: error.message || 'Falha ao enviar áudio',
+        description: toFriendlySendError(error.message || 'Falha ao enviar áudio'),
         variant: 'destructive'
       });
     } finally {
@@ -433,7 +480,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       });
 
       if (sendError) {
-        throw new Error(await getFunctionErrorMessage(sendError));
+        throw new Error(toFriendlySendError(await getFunctionErrorMessage(sendError)));
       }
 
       setNewMessage('');
@@ -446,11 +493,73 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
       console.error('Error sending message:', error);
       toast({
         title: 'Erro ao enviar',
-        description: error.message || 'Falha ao enviar mensagem',
+        description: toFriendlySendError(error.message || 'Falha ao enviar mensagem'),
         variant: 'destructive'
       });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleRetryMessage = async (msg: any) => {
+    if (!conversation || !instanceId) return;
+
+    if (instanceStatus !== 'connected') {
+      toast({
+        title: 'Instância desconectada',
+        description: 'Conecte a instância para reenviar mensagens.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const phoneNumber = conversation.customer_phone || conversation.whatsapp_number;
+    if (!phoneNumber) {
+      toast({
+        title: 'Número indisponível',
+        description: 'Esta conversa não possui telefone válido para reenvio.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setRetryingMessageId(msg.id);
+    try {
+      const metadata = msg.metadata && typeof msg.metadata === 'object' ? (msg.metadata as any) : null;
+      const mediaUrl = msg.media_url || metadata?.media_url || null;
+      const mediaType = msg.media_type || metadata?.media_type || null;
+      const fileName = msg.file_name || metadata?.file_name || null;
+
+      const { error: sendError } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
+          instance_id: instanceId,
+          phoneNumber,
+          message: msg.content || '',
+          mediaUrl,
+          mediaType,
+          fileName,
+          conversationId: conversation.id,
+          message_id: msg.id,
+        }
+      });
+
+      if (sendError) {
+        throw new Error(toFriendlySendError(await getFunctionErrorMessage(sendError)));
+      }
+
+      toast({
+        title: 'Reenvio iniciado',
+        description: 'A mensagem voltou para a fila de envio.'
+      });
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'Falha no reenvio',
+        description: toFriendlySendError(error?.message),
+        variant: 'destructive'
+      });
+    } finally {
+      setRetryingMessageId(null);
     }
   };
 
@@ -593,6 +702,13 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         </div>
       </div>
 
+      {hasCircuitBreakerOpen && (
+        <div className="px-3 py-2 border-b bg-amber-50 text-amber-800 text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          <span>Envio temporariamente pausado. Tentando novamente em breve.</span>
+        </div>
+      )}
+
       <Sheet open={isProfileOpen} onOpenChange={setIsProfileOpen}>
         <SheetContent side="right" className="w-full sm:w-[420px]">
           <SheetHeader>
@@ -670,6 +786,11 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                 {/* Messages */}
                 <div className="space-y-1">
                   {group.messages.map((msg) => (
+                    (() => {
+                      const msgAny = msg as any;
+                      const failureReason = getMessageFailureReason(msgAny);
+
+                      return (
                     <div
                       key={msg.id}
                       className={cn(
@@ -733,6 +854,24 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                         {msg.content && msg.content.trim() && (
                           <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                         )}
+
+                        {msg.sender_type !== 'customer' && msgAny.status === 'failed' && (
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <p className="text-[11px] text-red-200">
+                              {failureReason || 'Falha no envio'}
+                            </p>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="h-6 px-2 text-[11px]"
+                              onClick={() => handleRetryMessage(msgAny)}
+                              disabled={retryingMessageId === msg.id || instanceStatus !== 'connected'}
+                            >
+                              {retryingMessageId === msg.id ? 'Reenviando...' : 'Reenviar'}
+                            </Button>
+                          </div>
+                        )}
                         
                         <div className="flex items-center justify-end gap-1 mt-1">
                           <span className={cn(
@@ -741,10 +880,12 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                           )}>
                             {formatTime(msg.created_at || '')}
                           </span>
-                          {msg.sender_type !== 'customer' && getDeliveryIcon((msg as any).status)}
+                          {msg.sender_type !== 'customer' && getDeliveryIcon(msgAny.status)}
                         </div>
                       </div>
                     </div>
+                      );
+                    })()
                   ))}
                 </div>
               </div>

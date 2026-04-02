@@ -7,6 +7,20 @@ export type WhatsAppConversation = Database['public']['Tables']['whatsapp_conver
 
 export type WhatsAppMessage = Database['public']['Tables']['whatsapp_messages']['Row'];
 
+function dedupeMessagesById(messages: WhatsAppMessage[]): WhatsAppMessage[] {
+  const map = new Map<string, WhatsAppMessage>();
+  messages.forEach((message) => {
+    if (!message?.id) return;
+    map.set(message.id, message);
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateA - dateB;
+  });
+}
+
 export function useWhatsAppConversations(customerId?: string, instanceId?: string) {
   const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +33,9 @@ export function useWhatsAppConversations(customerId?: string, instanceId?: strin
 
       let query = supabase
         .from('whatsapp_conversations')
-        .select('*');
+        .select('*')
+        .not('customer_phone', 'is', null)
+        .neq('customer_phone', '');
 
       // If customerId is provided, filter by it
       if (customerId) {
@@ -141,7 +157,7 @@ export function useWhatsAppMessages(conversationId?: string) {
       if (error) {
         setError(error.message);
       } else {
-        setMessages(data || []);
+        setMessages(dedupeMessagesById((data || []) as WhatsAppMessage[]));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -170,7 +186,7 @@ export function useWhatsAppMessages(conversationId?: string) {
         },
         (payload) => {
           console.log('New message received:', payload);
-          setMessages(prev => [...prev, payload.new as WhatsAppMessage]);
+          setMessages(prev => dedupeMessagesById([...prev, payload.new as WhatsAppMessage]));
         }
       )
       .on(
@@ -183,11 +199,17 @@ export function useWhatsAppMessages(conversationId?: string) {
         },
         (payload) => {
           console.log('Message updated:', payload);
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === payload.new.id ? { ...payload.new as WhatsAppMessage } : msg
-            )
-          );
+          setMessages(prev => {
+            const updated = payload.new as WhatsAppMessage;
+            const exists = prev.some(msg => msg.id === updated.id);
+            if (!exists) {
+              return dedupeMessagesById([...prev, updated]);
+            }
+
+            return dedupeMessagesById(
+              prev.map(msg => (msg.id === updated.id ? { ...updated } : msg))
+            );
+          });
         }
       )
       .subscribe();

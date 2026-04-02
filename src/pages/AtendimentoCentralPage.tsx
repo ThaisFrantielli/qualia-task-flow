@@ -671,6 +671,7 @@ export default function AtendimentoCentralPage() {
   };
 
   const selectedInstance = instances.find(i => i.id === selectedInstanceId);
+  const selectedInstancePhone = selectedInstance?.phone_number?.trim() || null;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-background">
@@ -757,12 +758,18 @@ export default function AtendimentoCentralPage() {
                   <h2 className="font-semibold text-sm">Meus Atendimentos</h2>
                 </div>
                 {selectedInstance && (
-                  <Badge
-                    variant={selectedInstance.status === 'connected' ? 'default' : 'secondary'}
-                    className={selectedInstance.status === 'connected' ? 'bg-green-500 text-[10px] h-5' : 'text-[10px] h-5'}
-                  >
-                    {selectedInstance.status === 'connected' ? 'Conectado' : 'Desconectado'}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={selectedInstance.status === 'connected' ? 'default' : 'secondary'}
+                      className={selectedInstance.status === 'connected' ? 'bg-green-500 text-[10px] h-5' : 'text-[10px] h-5'}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedInstance.status === 'connected' ? 'bg-white' : 'bg-red-500'}`} />
+                      {selectedInstance.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedInstancePhone ? `Numero: ${selectedInstancePhone}` : 'Numero nao vinculado'}
+                    </span>
+                  </div>
                 )}
               </div>
 

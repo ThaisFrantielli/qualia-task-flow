@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+let templatesEndpointUnavailable = false;
+
 export interface WhatsAppTemplate {
   id: string;
   name: string;
@@ -29,6 +31,10 @@ export function useWhatsAppTemplates(category?: string) {
   return useQuery({
     queryKey: ['whatsapp-templates', category],
     queryFn: async () => {
+      if (templatesEndpointUnavailable) {
+        return [] as WhatsAppTemplate[];
+      }
+
       let query = supabase
         .from('whatsapp_templates')
         .select('*')
@@ -41,9 +47,25 @@ export function useWhatsAppTemplates(category?: string) {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        const isMissingTable =
+          error.code === 'PGRST205' ||
+          error.code === '42P01' ||
+          /whatsapp_templates/i.test(error.message || '');
+
+        if (isMissingTable) {
+          templatesEndpointUnavailable = true;
+          console.warn('[useWhatsAppTemplates] Tabela whatsapp_templates indisponivel. Retornando lista vazia.');
+          return [] as WhatsAppTemplate[];
+        }
+
+        throw error;
+      }
+
       return data as WhatsAppTemplate[];
     },
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }
 
