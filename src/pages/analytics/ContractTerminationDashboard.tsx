@@ -265,11 +265,11 @@ export default function ContractTerminationDashboard() {
   const [filterTipoCliente, setFilterTipoCliente] = useState<string>('Todos');
   const [filterCliente, setFilterCliente] = useState<string>('Todos');
   const [filterFaixa, setFilterFaixa] = useState<string>('Todos');
-  const [filterSituacao, setFilterSituacao] = useState<string>('Todos');
   const currentYearDefault = new Date().getFullYear();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(currentYearDefault, 0, 1), to: new Date(currentYearDefault, 11, 31) });
   const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [showHelp, setShowHelp] = useState<boolean>(false);
 
   const NOW = useMemo(() => new Date(), []);
 
@@ -548,7 +548,6 @@ export default function ContractTerminationDashboard() {
       if (filterTipoCliente !== 'Todos' && c.tipoCliente !== filterTipoCliente) return false;
       if (filterCliente !== 'Todos' && c.nomeCliente !== filterCliente) return false;
       if (filterFaixa !== 'Todos' && c.faixaVencimento !== filterFaixa) return false;
-      if (filterSituacao !== 'Todos' && c.status !== filterSituacao) return false;
 
       // 2. Date Range Filter (Expiration Date)
       if (dateRange?.from || dateRange?.to) {
@@ -581,7 +580,7 @@ export default function ContractTerminationDashboard() {
 
       return true;
     });
-  }, [baseContracts, filterTipoCliente, filterCliente, filterFaixa, filterSituacao, dateRange, filters, NOW]);
+  }, [baseContracts, filterTipoCliente, filterCliente, filterFaixa, dateRange, filters, NOW]);
 
   // ─── Unique clients & types for filters ────────────────────────────
   const uniqueTipos = useMemo(() => {
@@ -592,9 +591,7 @@ export default function ContractTerminationDashboard() {
     return Array.from(new Set(baseContracts.map(c => c.nomeCliente).filter(c => c && c !== 'Sem Cliente'))).sort();
   }, [baseContracts]);
 
-  const uniqueSituacoes = useMemo(() => {
-    return Array.from(new Set(baseContracts.map(c => c.status).filter(Boolean))).sort();
-  }, [baseContracts]);
+  
 
   // ─── KPIs ──────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -1047,29 +1044,13 @@ export default function ContractTerminationDashboard() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-orange-500 uppercase mb-2">Situação Contrato</label>
-            <div className="relative">
-              <select
-                className="w-full p-2 border border-slate-300 rounded text-sm bg-white appearance-none pr-8"
-                value={filterSituacao}
-                onChange={e => { setFilterSituacao(e.target.value); setCurrentPage(1); }}
-              >
-                <option value="Todos">Todos</option>
-                {uniqueSituacoes.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <div className="absolute right-2 top-2.5 pointer-events-none">
-                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-              </div>
-            </div>
-          </div>
+          
 
           <button
             onClick={() => { 
                 setFilterTipoCliente('Todos'); 
                 setFilterCliente('Todos'); 
                 setFilterFaixa('Todos'); 
-                setFilterSituacao('Todos');
                 setDateRange(undefined);
                 clearAllFilters();
                 setCurrentPage(1); 
@@ -1087,10 +1068,40 @@ export default function ContractTerminationDashboard() {
       <div className="flex-1 p-4 overflow-y-auto h-screen">
         {/* Header */}
         <div className="bg-[#2e1065] text-white p-4 rounded-t-lg flex justify-between items-center mb-4 shadow-lg">
-          <h1 className="text-xl font-bold uppercase tracking-wider text-orange-400">Previsão de Encerramento de Contrato</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold uppercase tracking-wider text-orange-400">Previsão de Encerramento de Contrato</h1>
+            <span
+              className="text-sm text-white/90 bg-white/10 rounded-full w-5 h-5 flex items-center justify-center cursor-help"
+              title="Este dashboard mostra uma previsão de encerramento de contratos com base nas datas e movimentações disponíveis. Use os filtros e os gráficos para explorar riscos e prioridades."
+              aria-label="Ajuda: Previsão de Encerramento"
+            >
+              ?
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-light opacity-70">{filtered.length} contratos ativos</span>
             <span className="text-xs font-light opacity-70">Quality</span>
+            <div className="relative">
+              <button
+                onClick={() => setShowHelp(s => !s)}
+                aria-expanded={showHelp}
+                aria-controls="help-popover"
+                className="ml-2 text-white/90 bg-white/10 rounded-full w-6 h-6 flex items-center justify-center text-sm cursor-pointer"
+                title="Ajuda: abrir explicação"
+              >
+                ?
+              </button>
+              {showHelp && (
+                <div id="help-popover" role="dialog" aria-label="Explicação Previsão de Encerramento" className="absolute right-0 mt-2 w-80 bg-white text-slate-800 p-3 rounded shadow-lg z-30">
+                  <div className="text-sm">
+                    Este dashboard mostra uma previsão de encerramento de contratos com base nas datas de término, movimentações e regras internas. Use os filtros e os gráficos para priorizar contratos próximos do vencimento ou com risco.
+                  </div>
+                  <div className="mt-2 text-right">
+                    <button onClick={() => setShowHelp(false)} className="text-xs text-sky-600 hover:underline">Fechar</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

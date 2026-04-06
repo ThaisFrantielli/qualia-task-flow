@@ -396,7 +396,8 @@ export default function ContractLifecycleDashboard() {
         </KPIGrid>
       </AnalyticsSection>
 
-      <AnalyticsSection className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Série temporal em largura total */}
+      <AnalyticsSection className="grid grid-cols-1 gap-6 mb-6">
         <TimeSeriesChart
           data={series.map((row) => ({
             date: row.key,
@@ -416,20 +417,29 @@ export default function ContractLifecycleDashboard() {
           secondaryColor="#16a34a"
           formatPrimary={(v) => fmtInteger(v)}
           formatSecondary={(v) => fmtBRL(v)}
-          height={340}
+          height={420}
         />
+      </AnalyticsSection>
 
-        <DistributionChart
-          data={distribution}
-          title="Distribuição por situação do contrato"
-          subtitle="Composição da visão filtrada"
-          showLegend={true}
-          showPercent={true}
-          innerRadius={55}
-          outerRadius={95}
-          height={340}
-          formatValue={(value) => fmtInteger(value)}
-        />
+      {/* Distribuição por situação: movida para baixo e ajustada (menor, centralizada) */}
+      <AnalyticsSection className="mb-6">
+        <div className="w-full flex justify-center">
+          <div className="w-full md:w-1/3">
+            <Card>
+              <DistributionChart
+                data={distribution}
+                title="Distribuição por situação do contrato"
+                subtitle="Composição da visão filtrada"
+                showLegend={true}
+                showPercent={true}
+                innerRadius={50}
+                outerRadius={80}
+                height={260}
+                formatValue={(value) => fmtInteger(value)}
+              />
+            </Card>
+          </div>
+        </div>
       </AnalyticsSection>
 
       {lifecycleView === 'iniciados' ? (
