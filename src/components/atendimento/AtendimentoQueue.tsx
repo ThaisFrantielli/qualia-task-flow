@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MessageSquare, UserPlus, User, ArrowRightLeft } from 'lucide-react';
+import { MessageSquare, UserPlus, User, ArrowRightLeft, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
 
@@ -111,6 +111,15 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
           {filter === 'unread' && 'Todas as mensagens lidas'}
           {filter === 'mine' && 'Assuma uma conversa para atender'}
         </p>
+        <div className="mt-4">
+          <p className="text-xs text-muted-foreground/80">Quer iniciar um atendimento?</p>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('openNewChatDialog'))}
+            className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-sky-600 text-white text-xs rounded"
+          >
+            Iniciar nova conversa
+          </button>
+        </div>
       </div>
     );
   }
@@ -162,12 +171,20 @@ export const AtendimentoQueue: React.FC<AtendimentoQueueProps> = ({
                   </span>
                 </div>
 
-                <p className={cn(
-                  "text-xs truncate mt-0.5",
-                  hasUnread ? "text-foreground" : "text-muted-foreground"
-                )}>
-                  {renderHighlighted(conv.last_message || 'Sem mensagens')}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className={cn(
+                    "text-xs truncate",
+                    hasUnread ? "text-foreground" : "text-muted-foreground"
+                  )}>
+                    {renderHighlighted(conv.last_message || 'Sem mensagens')}
+                  </p>
+                  {/(falha|failed|erro|não está registrado|nao esta registrado|não está registrado no WhatsApp|not registered)/i.test(String(conv.last_message || '')) && (
+                    <span className="flex items-center gap-1 text-[11px] text-red-600">
+                      <AlertCircle className="h-3 w-3 text-red-500" />
+                      <span className="hidden sm:inline">Falha no envio</span>
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-1.5 mt-1.5">
                   {hasUnread && (

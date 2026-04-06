@@ -141,6 +141,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [localPendingMessages, setLocalPendingMessages] = useState<any[]>([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -161,10 +162,10 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages (include local pending messages)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, localPendingMessages]);
 
   // Get instance status
   useEffect(() => {
@@ -461,13 +462,28 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
 
     setIsSending(true);
     try {
-      // Insert message in DB first
+      // Optimistic UI: add a local pending message immediately
+      const tempId = `local-${Date.now()}`;
+      const tempMsg = {
+        id: tempId,
+        conversation_id: conversation.id,
+        instance_id: instanceId,
+        content: newMessage.trim(),
+        message_type: 'text',
+        sender_type: 'agent',
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+      setLocalPendingMessages(prev => [...prev, tempMsg]);
+      setNewMessage('');
+
+      // Insert message in DB
       const { data: messageData, error: insertError } = await supabase
         .from('whatsapp_messages')
         .insert({
           conversation_id: conversation.id,
           instance_id: instanceId,
-          content: newMessage.trim(),
+          content: tempMsg.content,
           message_type: 'text',
           sender_type: 'agent',
           status: 'pending'
@@ -481,7 +497,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         body: {
           instance_id: instanceId,
           phoneNumber: conversation.customer_phone,
-          message: newMessage.trim(),
+          message: tempMsg.content,
           conversationId: conversation.id,
           message_id: messageData.id,
         }
@@ -491,8 +507,9 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         throw new Error(toFriendlySendError(await getFunctionErrorMessage(sendError)));
       }
 
-      setNewMessage('');
+      // Refresh list and remove local pending placeholder
       refetch();
+      setLocalPendingMessages(prev => prev.filter(m => m.id !== tempId));
       toast({
         title: 'Mensagem enviada',
         description: 'Sua mensagem foi enviada com sucesso!'
@@ -656,9 +673,13 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
     );
   }
 
-  // Group messages by date
+  // Combine backend messages with local optimistic pending messages and group by date
+  const combinedMessages = [...(messages || []), ...localPendingMessages]
+    .slice()
+    .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+
   const groupedMessages: { date: string; messages: typeof messages }[] = [];
-  messages.forEach(msg => {
+  combinedMessages.forEach(msg => {
     const dateKey = formatDateHeader(msg.created_at || '');
     const lastGroup = groupedMessages[groupedMessages.length - 1];
     if (lastGroup && lastGroup.date === dateKey) {
@@ -994,7 +1015,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Input
-                placeholder="Digite uma mensagem..."
+                placeholder={instanceStatus !== 'connected' ? 'Instância desconectada' : 'Digite uma mensagem...'}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={handleKeyPress}

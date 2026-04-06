@@ -123,6 +123,23 @@ export default function AtendimentoCentralPage() {
   const [newChatMessage, setNewChatMessage] = useState('');
   const [isSendingNewChat, setIsSendingNewChat] = useState(false);
 
+  useEffect(() => {
+    function handleOpenNewChat(event: Event) {
+      try {
+        const customEvent = event as CustomEvent<any>;
+        const detail = customEvent?.detail || {};
+        if (detail.phone) setNewChatPhone(String(detail.phone));
+        if (detail.message) setNewChatMessage(String(detail.message));
+      } catch {
+        // ignore
+      }
+      setIsNewChatOpen(true);
+    }
+
+    window.addEventListener('openNewChatDialog', handleOpenNewChat as EventListener);
+    return () => window.removeEventListener('openNewChatDialog', handleOpenNewChat as EventListener);
+  }, []);
+
   // Hooks - default to selected instance; advanced multi-instance filter can override this.
   const effectiveInstanceId =
     selectedInstanceIds.length === 1
@@ -153,6 +170,10 @@ export default function AtendimentoCentralPage() {
 
   const queueConversationsCount = useMemo(() => {
     return conversations.filter(c => (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id).length;
+  }, [conversations]);
+
+  const errorConversationsCount = useMemo(() => {
+    return conversations.filter(c => /(?:falha|failed|erro|não está registrado|nao esta registrado|not registered)/i.test(String(c.last_message || ''))).length;
   }, [conversations]);
 
   useEffect(() => {
@@ -958,6 +979,13 @@ export default function AtendimentoCentralPage() {
                   </div>
 
                   <ScrollArea className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {errorConversationsCount > 0 && (
+                        <Badge variant="destructive" className="h-5 px-2 text-[11px]">
+                          Falhas {errorConversationsCount}
+                        </Badge>
+                      )}
+                    </div>
                     <AtendimentoQueue
                       conversations={filteredConversations}
                       selectedId={selectedConversationId}

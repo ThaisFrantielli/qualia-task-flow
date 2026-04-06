@@ -276,20 +276,32 @@ async function processOutgoingMessage(msg) {
 
         // Normalize and resolve the WhatsApp ID using getNumberId
         const { primary, variants } = normalizeBrazilianPhone(phoneNumber);
-        const candidates = [primary, ...variants];
+        // Candidate order: try original, then variant(s) without/with 9th digit.
+        const candidates = [primary, ...variants].filter(Boolean);
         let resolvedId = null;
+        let acceptedVariant = null;
 
         for (const candidate of candidates) {
-            try {
-                const numberId = await client.getNumberId(candidate);
-                if (numberId) {
-                    resolvedId = numberId._serialized;
-                    console.log(`Resolved ${candidate} -> ${resolvedId}`);
-                    break;
+            // try both with @c.us and plain number to be robust
+            const attempts = [`${candidate}@c.us`, candidate];
+            for (const attempt of attempts) {
+                try {
+                    const numberId = await client.getNumberId(attempt);
+                    if (numberId) {
+                        resolvedId = numberId._serialized;
+                        acceptedVariant = attempt;
+                        console.log(`Resolved ${candidate} (attempt: ${attempt}) -> ${resolvedId}`);
+                        break;
+                    }
+                } catch (e) {
+                    console.warn(`getNumberId failed for ${attempt}:`, e && e.message ? e.message : e);
                 }
-            } catch (e) {
-                console.warn(`getNumberId failed for ${candidate}:`, e.message);
             }
+            if (resolvedId) break;
+        }
+
+        if (acceptedVariant) {
+            console.log(`Phone resolution accepted variant: ${acceptedVariant} (original: ${primary})`);
         }
 
         if (!resolvedId) {

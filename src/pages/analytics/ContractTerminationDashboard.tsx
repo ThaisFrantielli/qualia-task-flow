@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, LabelList, ComposedChart
+  PieChart, Pie, Cell, Line, LabelList, ComposedChart
 } from 'recharts';
 import { ChevronDown, ChevronLeft, ChevronUp, FileSpreadsheet } from 'lucide-react';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
@@ -256,7 +256,7 @@ export default function ContractTerminationDashboard() {
   // Load data from API - using dim_contratos_locacao (already JOINed with dim_frota on server)
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
-  const { data: veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
+  const { data: _veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
 
   // Filter state (Chart-based)
   const { filters, handleChartClick, clearAllFilters, clearFilter, isValueSelected, getFilterValues } = useChartFilter();
@@ -270,6 +270,20 @@ export default function ContractTerminationDashboard() {
   const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  const helpRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleDocClick(e: MouseEvent) {
+      if (!showHelp) return;
+      const el = helpRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setShowHelp(false);
+      }
+    }
+    document.addEventListener('click', handleDocClick);
+    return () => document.removeEventListener('click', handleDocClick);
+  }, [showHelp]);
 
   const NOW = useMemo(() => new Date(), []);
 
@@ -1092,7 +1106,7 @@ export default function ContractTerminationDashboard() {
                 ?
               </button>
               {showHelp && (
-                <div id="help-popover" role="dialog" aria-label="Explicação Previsão de Encerramento" className="absolute right-0 mt-2 w-80 bg-white text-slate-800 p-3 rounded shadow-lg z-30">
+                <div ref={el => (helpRef.current = el)} id="help-popover" role="dialog" aria-label="Explicação Previsão de Encerramento" className="absolute right-0 mt-2 w-80 bg-white text-slate-800 p-3 rounded shadow-lg z-30">
                   <div className="text-sm">
                     Este dashboard mostra uma previsão de encerramento de contratos com base nas datas de término, movimentações e regras internas. Use os filtros e os gráficos para priorizar contratos próximos do vencimento ou com risco.
                   </div>
@@ -1209,7 +1223,11 @@ export default function ContractTerminationDashboard() {
                     radius={[6, 6, 0, 0]}
                     maxBarSize={44}
                     cursor="pointer"
-                    onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
+                    onClick={((...args: any[]) => {
+                      const candidate = args[0] && (args[0].payload ?? args[0]);
+                      const month = candidate?.month ?? candidate;
+                      handleChartClick('mesAno', month);
+                    }) as unknown as any}
                   >
                     <LabelList dataKey="total" content={renderRevenueLabel} />
                   </Bar>
@@ -1223,7 +1241,11 @@ export default function ContractTerminationDashboard() {
                     dot={{ r: 3, strokeWidth: 2, fill: '#fff7ed' }}
                     activeDot={{ r: 4.5 }}
                     cursor="pointer"
-                    onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
+                    onClick={((...args: any[]) => {
+                      const candidate = args[0] && (args[0].payload ?? args[0]);
+                      const month = candidate?.month ?? candidate;
+                      handleChartClick('mesAno', month);
+                    }) as unknown as any}
                   >
                     <LabelList dataKey="contracts" content={renderContractsLabel} />
                   </Line>
