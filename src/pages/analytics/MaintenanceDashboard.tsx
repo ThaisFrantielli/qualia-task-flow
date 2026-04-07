@@ -25,6 +25,7 @@ const TABS: { key: TabKey; label: string; emoji: string }[] = [
 
 function MaintenanceDashboardInner() {
   const [activeTab, setActiveTab] = useState<TabKey>('visao-geral');
+  const [tableMode, setTableMode] = useState(false);
   const { data: manutencaoData, loading } = useBIData<AnyObject[]>('fat_manutencao_unificado');
 
   const filterLists = useMemo(() => {
@@ -81,6 +82,17 @@ function MaintenanceDashboardInner() {
           placasList={filterLists.placas}
         />
 
+        {/* Controls: modo tabela */}
+        <div className="flex items-center justify-end">
+          <button
+            onClick={() => setTableMode(prev => !prev)}
+            title={tableMode ? 'Voltar ao modo gráfico' : 'Ver em modo tabela'}
+            className="text-sm px-3 py-1 rounded-md hover:bg-muted transition-colors"
+          >
+            {tableMode ? 'Voltar ao gráfico' : 'Ver em tabela'}
+          </button>
+        </div>
+
         {/* Tab Navigation */}
         <div className="bg-card border border-border rounded-xl p-1.5 shadow-sm">
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
@@ -105,7 +117,43 @@ function MaintenanceDashboardInner() {
 
         {/* Tab Content */}
         <div className="min-h-[500px]">
-          {renderTab()}
+          {tableMode ? (
+            <div className="bg-card border border-border rounded-xl p-2 overflow-auto">
+              {!Array.isArray(manutencaoData) || manutencaoData.length === 0 ? (
+                <div className="text-sm text-muted-foreground">Nenhum dado disponível.</div>
+              ) : (
+                (() => {
+                  const cols = Object.keys(manutencaoData[0] || {});
+                  return (
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          {cols.map(col => (
+                            <th key={col} className="px-3 py-2 text-left font-medium">
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {manutencaoData.slice(0, 1000).map((row: AnyObject, idx: number) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-transparent' : 'bg-muted/5'}>
+                            {cols.map(col => (
+                              <td key={col} className="px-3 py-1 align-top">
+                                {row[col] === null || row[col] === undefined ? '' : String(row[col])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()
+              )}
+            </div>
+          ) : (
+            renderTab()
+          )}
         </div>
       </div>
     </div>

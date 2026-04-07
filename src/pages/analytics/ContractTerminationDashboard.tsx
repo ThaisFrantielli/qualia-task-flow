@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, LabelList, ComposedChart
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Line, LabelList, ComposedChart
 } from 'recharts';
-import { ChevronDown, ChevronLeft, ChevronUp, FileSpreadsheet } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, FileSpreadsheet, HelpCircle } from 'lucide-react';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import * as XLSX from 'xlsx';
 import { Link } from 'react-router-dom';
@@ -256,10 +256,6 @@ export default function ContractTerminationDashboard() {
   // Load data from API - using dim_contratos_locacao (already JOINed with dim_frota on server)
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
-<<<<<<< HEAD
-=======
-  const { data: veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
->>>>>>> origin/main
 
   // Filter state (Chart-based)
   const { filters, handleChartClick, clearAllFilters, clearFilter, isValueSelected, getFilterValues } = useChartFilter();
@@ -273,8 +269,11 @@ export default function ContractTerminationDashboard() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(currentYearDefault, 0, 1), to: new Date(currentYearDefault, 11, 31) });
   const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [showDashboardHelp, setShowDashboardHelp] = useState(false);
+  const [revenueTableMode, setRevenueTableMode] = useState(false);
 
   const NOW = useMemo(() => new Date(), []);
+
 
   const frotaByPlate = useMemo(() => {
     const map = new Map<string, AnyObject>();
@@ -659,18 +658,7 @@ export default function ContractTerminationDashboard() {
     return withoutEmpty.length ? withoutEmpty : result;
   }, [filtered]);
 
-  // ─── Client type distribution ──────────────────────────────────────
-  const clientTypeData = useMemo(() => {
-    const map = new Map<string, { count: number; value: number }>();
-    for (const c of filtered) {
-      const tipo = c.tipoCliente || 'Não Definido';
-      const prev = map.get(tipo) || { count: 0, value: 0 };
-      map.set(tipo, { count: prev.count + 1, value: prev.value + c.valorLocacao });
-    }
-    return Array.from(map.entries())
-      .map(([name, { count, value }]) => ({ name, value: count, amount: fmtBRL(value) }))
-      .sort((a, b) => b.value - a.value);
-  }, [filtered]);
+  // (Gráfico "Tipo de Cliente" removido conforme solicitado)
 
   // ─── Expiration range ──────────────────────────────────────────────
   const expirationData = useMemo(() => {
@@ -683,6 +671,27 @@ export default function ContractTerminationDashboard() {
       }
     }
     return ranges.map(range => ({ range, value: map.get(range) || 0 }));
+  }, [filtered]);
+
+  // ─── Client type distribution (quantidade, valor, % do total) ──────
+  const clientTypeData = useMemo(() => {
+    const map = new Map<string, { count: number; value: number }>();
+    let totalCount = 0;
+    for (const c of filtered) {
+      const tipo = c.tipoCliente || 'Não Definido';
+      const prev = map.get(tipo) || { count: 0, value: 0 };
+      prev.count += 1;
+      prev.value += Number(c.valorLocacao || 0);
+      map.set(tipo, prev);
+      totalCount += 1;
+    }
+
+    return Array.from(map.entries()).map(([name, { count, value }]) => ({
+      name,
+      value: count,
+      amount: value,
+      percent: totalCount > 0 ? count / totalCount : 0,
+    })).sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   // ─── Fleet age ─────────────────────────────────────────────────────
@@ -710,25 +719,6 @@ export default function ContractTerminationDashboard() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filtered]);
-
-<<<<<<< HEAD
-=======
-  // ─── KM Index ──────────────────────────────────────────────────────
-  // @ts-ignore – reserved for future chart usage
-  const kmIndexData = useMemo(() => {
-    const ranges = ['(Em branco)', '0-10mil', '10-20mil', '20-30mil', '30-40mil', '40-50mil',
-      '50-60mil', '60-70mil', '70-80mil', '80-90mil', '90-100mil', '100-120mil', '120mil+'];
-    const map = new Map<string, number>();
-    ranges.forEach(r => map.set(r, 0));
-    for (const c of filtered) {
-      if (c.faixaKm && map.has(c.faixaKm)) {
-        map.set(c.faixaKm, (map.get(c.faixaKm) || 0) + 1);
-      }
-    }
-    return ranges.map(range => ({ range, value: map.get(range) || 0 }));
-  }, [filtered]);
-
->>>>>>> origin/main
   // ─── Modelos por Categoria (para gráfico 'Veículos por Modelo') ───
   const modelosPorCategoria = useMemo(() => {
     const categoryMap: Record<string, Record<string, number>> = {};
@@ -791,46 +781,6 @@ export default function ContractTerminationDashboard() {
     }
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filtered]);
-
-<<<<<<< HEAD
-=======
-  // ─── Vehicle group ─────────────────────────────────────────────────
-  // @ts-ignore – reserved for future chart usage
-  const vehicleGroupData = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of filtered) {
-      const g = c.grupo || 'Outros';
-      map.set(g, (map.get(g) || 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([group, value]) => ({ group, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [filtered]);
-
-  // ─── Delivery city ─────────────────────────────────────────────────
-  // @ts-ignore – reserved for future chart usage
-  const cityData = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of filtered) {
-      let cidade = c.cidade;
-      // Try to extract city name from long address strings
-      if (cidade && cidade.length > 50) {
-        const parts = cidade.split(',');
-        if (parts.length >= 2) cidade = parts[parts.length - 2].trim();
-      }
-      cidade = cidade || '(Em branco)';
-      // Normalize to uppercase for grouping
-      cidade = cidade.toUpperCase().trim();
-      map.set(cidade, (map.get(cidade) || 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([city, value]) => ({ city, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [filtered]);
-
->>>>>>> origin/main
   // ─── Cidade de Emplacamento (vindo de dim_frota) ─────────────────
   const branchData = useMemo(() => {
     const map = new Map<string, number>();
@@ -844,30 +794,9 @@ export default function ContractTerminationDashboard() {
       .sort((a, b) => b.value - a.value);
   }, [filtered]);
 
-<<<<<<< HEAD
   // ─── Table (paginação clássica) ───────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-=======
-  // ─── Financial balance by year ─────────────────────────────────────
-  // @ts-ignore – reserved for future chart usage
-  const financialBalanceData = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const c of filtered) {
-      if (c.anoVencimento && c.valorCompra > 0) {
-        map.set(c.anoVencimento, (map.get(c.anoVencimento) || 0) + c.valorCompra);
-      }
-    }
-    return Array.from(map.entries())
-      .filter(([year]) => year >= NOW.getFullYear())
-      .map(([year, value]) => ({ year: String(year), value }))
-      .sort((a, b) => Number(b.year) - Number(a.year));
-  }, [filtered, NOW]);
-
-  // ─── Table (infinite scroll) ───────────────────────────────────────
-  const [tableVisibleCount, setTableVisibleCount] = useState(10);
-  const tableSentinelRef = useRef<HTMLDivElement | null>(null);
->>>>>>> origin/main
   const [sortState, setSortState] = useState<{ key: TableSortKey; direction: SortDirection }>({ key: 'diasParaVencimento', direction: 'asc' });
   const sortedForTable = useMemo(() => {
     return [...filtered].sort((a, b) => compareTableValues(a[sortState.key], b[sortState.key], sortState.direction));
@@ -897,23 +826,7 @@ export default function ContractTerminationDashboard() {
       : <ChevronDown className="w-3 h-3" />;
   };
 
-  // Visible counts for charts that may have many categories (infinite-scroll style)
-  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({
-    fleetByClient: 10,
-    vehicleGroup: 10,
-    city: 10,
-    branch: 10,
-    clientType: 20,
-  });
-
-  const handleScrollLoad = (key: string) => {
-    setVisibleCounts(prev => {
-      const current = prev[key] || 0;
-      // Cap growth to avoid runaway rendering
-      if (current >= 1000) return prev;
-      return { ...prev, [key]: current + 10 };
-    });
-  };
+  // Visible counts para painéis (infinite-scroll)
 
   // ─── Export ────────────────────────────────────────────────────────
   const handleExport = () => {
@@ -948,28 +861,48 @@ export default function ContractTerminationDashboard() {
     XLSX.writeFile(wb, 'previsao_encerramento.xlsx');
   };
 
-  const lineLabelStep = revenueByMonth.length > 8 ? 2 : 1;
-  const shouldShowLineLabel = (index: number) => (
-    lineLabelStep === 1 ||
-    index % lineLabelStep === 0 ||
-    index === revenueByMonth.length - 1
-  );
+  const handleExportRevenue = () => {
+    if (!Array.isArray(revenueByMonth)) return;
+    const rows = revenueByMonth.map(r => ({
+      Mes: r.month,
+      'Valor Locacao': r.total,
+      Contratos: r.contracts,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Valor Locacao');
+    XLSX.writeFile(wb, 'valor_locacao_por_mes.xlsx');
+  };
+
+  // exibimos todos os labels (sempre)
+
+  // labelCollisionMeta deixado intencionalmente caso heurísticas adicionais sejam reativadas no futuro
 
   const renderRevenueLabel = (props: any) => {
     const { x, y, width, value } = props;
     if (x == null || y == null || width == null || value == null) return null;
 
+    const label = fmtCompact(Number(value || 0));
+    const approxCharWidth = 7; // aproximação para cálculo de largura do fundo
+    const textWidth = Math.max(40, String(label).length * approxCharWidth);
+    const rectX = Number(x) + Number(width) / 2 - textWidth / 2;
+    const rectY = Number(y) - 12;
+    const rectHeight = 18;
+
     return (
-      <text
-        x={Number(x) + Number(width) / 2}
-        y={Number(y) - 8}
-        textAnchor="middle"
-        fill="#334155"
-        fontSize={11}
-        fontWeight={600}
-      >
-        {fmtCompact(Number(value || 0))}
-      </text>
+      <g>
+        <rect x={rectX} y={rectY} rx={6} width={textWidth} height={rectHeight} fill="#ffffff" stroke="#e6edf3" />
+        <text
+          x={Number(x) + Number(width) / 2}
+          y={rectY + rectHeight - 6}
+          textAnchor="middle"
+          fill="#334155"
+          fontSize={11}
+          fontWeight={600}
+        >
+          {label}
+        </text>
+      </g>
     );
   };
 
@@ -977,26 +910,29 @@ export default function ContractTerminationDashboard() {
     const { x, y, value, index } = props;
     const idx = Number(index ?? -1);
     if (idx < 0 || x == null || y == null || value == null) return null;
-    if (!shouldShowLineLabel(idx)) return null;
 
-    const current = Number(revenueByMonth[idx]?.contracts || 0);
-    const prev = idx > 0 ? Number(revenueByMonth[idx - 1]?.contracts || 0) : current;
-    const next = idx < revenueByMonth.length - 1 ? Number(revenueByMonth[idx + 1]?.contracts || 0) : current;
-    const tooClose = Math.abs(current - prev) < 10 || Math.abs(current - next) < 10;
-
-    if (tooClose && idx % 2 !== 0) return null;
+    const dy = idx % 2 === 0 ? -12 : 14;
+    const label = fmtDecimal(Number(value || 0));
+    const approxCharWidth = 8;
+    const textWidth = Math.max(28, String(label).length * approxCharWidth);
+    const rectX = Number(x) - textWidth / 2;
+    const rectY = Number(y) + dy - 14;
+    const rectHeight = 18;
 
     return (
-      <text
-        x={Number(x)}
-        y={Number(y) - 12}
-        textAnchor="middle"
-        fill="#c2410c"
-        fontSize={11}
-        fontWeight={700}
-      >
-        {fmtDecimal(Number(value || 0))}
-      </text>
+      <g>
+        <rect x={rectX} y={rectY} rx={6} width={textWidth} height={rectHeight} fill="#fff7ed" stroke="#f3d8c1" />
+        <text
+          x={Number(x)}
+          y={rectY + rectHeight - 4}
+          textAnchor="middle"
+          fill="#c2410c"
+          fontSize={11}
+          fontWeight={700}
+        >
+          {label}
+        </text>
+      </g>
     );
   };
 
@@ -1120,7 +1056,16 @@ export default function ContractTerminationDashboard() {
       <div className="flex-1 p-4 overflow-y-auto h-screen">
         {/* Header */}
         <div className="bg-[#2e1065] text-white p-4 rounded-t-lg flex justify-between items-center mb-4 shadow-lg">
-          <h1 className="text-xl font-bold uppercase tracking-wider text-orange-400">Previsão de Encerramento de Contrato</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold uppercase tracking-wider text-orange-400">Previsão de Encerramento de Contrato</h1>
+            <button
+              onClick={() => setShowDashboardHelp(true)}
+              title="Como este dashboard é calculado"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-orange-200 transition-colors hover:bg-white/20 hover:text-orange-100"
+            >
+              <HelpCircle size={14} />
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-light opacity-70">{filtered.length} contratos ativos</span>
             <span className="text-xs font-light opacity-70">Quality</span>
@@ -1180,101 +1125,133 @@ export default function ContractTerminationDashboard() {
                   <span className="inline-block h-[2px] w-4 rounded bg-orange-600" />
                   Contratos
                 </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setRevenueTableMode(prev => !prev)}
+                    className="ml-2 text-xs px-2 py-1 rounded-md bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors"
+                    title={revenueTableMode ? 'Voltar ao gráfico' : 'Ver em tabela'}
+                  >
+                    {revenueTableMode ? 'Voltar ao gráfico' : 'Ver em tabela'}
+                  </button>
+                  <button
+                    onClick={handleExportRevenue}
+                    title="Exportar tabela (Excel)"
+                    className="ml-1 p-1 rounded-md text-slate-500 hover:bg-slate-100 transition-colors"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
             <div className="h-[340px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={revenueByMonth} margin={{ top: 18, right: 28, bottom: 12, left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 11, fill: '#475569' }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 11, fill: '#334155' }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={70}
-                    tickFormatter={(v: number) => fmtCompact(Number(v || 0))}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    allowDecimals={false}
-                    axisLine={false}
-                    tickLine={false}
-                    width={40}
-                    tick={{ fontSize: 11, fill: '#9a3412' }}
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#e2e8f0', fillOpacity: 0.35 }}
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      background: '#ffffff',
-                      fontSize: '12px',
-                    }}
-                    formatter={(value: any, name: any) => {
-                      if (name === 'Contratos') return [fmtDecimal(Number(value || 0)), 'Contratos'];
-                      return [fmtBRL(Number(value || 0)), 'Valor Locacao'];
-                    }}
-                  />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="total"
-                    name="Valor Locacao"
-                    fill="#4f46e5"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={44}
-                    cursor="pointer"
-                    onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
-                  >
-                    <LabelList dataKey="total" content={renderRevenueLabel} />
-                  </Bar>
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="contracts"
-                    name="Contratos"
-                    stroke="#ea580c"
-                    strokeWidth={2.25}
-                    dot={{ r: 3, strokeWidth: 2, fill: '#fff7ed' }}
-                    activeDot={{ r: 4.5 }}
-                    cursor="pointer"
-                    onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
-                  >
-                    <LabelList dataKey="contracts" content={renderContractsLabel} />
-                  </Line>
-                </ComposedChart>
-              </ResponsiveContainer>
+              {revenueTableMode ? (
+                <div className="p-2 overflow-auto bg-white rounded border border-slate-100 h-full">
+                  {!Array.isArray(revenueByMonth) || revenueByMonth.length === 0 ? (
+                    <div className="text-sm text-slate-500">Nenhum dado disponível.</div>
+                  ) : (
+                    <table className="min-w-full text-sm table-auto">
+                      <thead className="text-xs text-slate-600 border-b">
+                        <tr>
+                          <th className="py-1 text-left px-2">Mês</th>
+                          <th className="py-1 text-right px-2">Valor Locação</th>
+                          <th className="py-1 text-right px-2">Contratos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {revenueByMonth.map((r, i) => {
+                          const selected = isValueSelected('mesAno', r.month);
+                          return (
+                            <tr
+                              key={i}
+                              onClick={(e) => {
+                                if (selected) clearFilter('mesAno', r.month);
+                                else handleChartClick('mesAno', r.month, e as unknown as React.MouseEvent);
+                              }}
+                              className={`${i % 2 === 0 ? 'bg-transparent' : 'bg-slate-50'} hover:bg-slate-100 cursor-pointer ${selected ? 'bg-amber-50 ring-1 ring-amber-200' : ''}`}
+                              title={selected ? 'Filtro ativo: clique para remover' : 'Clique para filtrar por este mês'}
+                            >
+                              <td className="px-2 py-1 text-slate-700">{r.month}</td>
+                              <td className="px-2 py-1 text-right font-medium">{fmtBRL(Number(r.total || 0))}</td>
+                              <td className="px-2 py-1 text-right">{fmtDecimal(Number(r.contracts || 0))}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={revenueByMonth} margin={{ top: 60, right: 28, bottom: 12, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: '#475569' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      tick={{ fontSize: 11, fill: '#334155' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={70}
+                      tickFormatter={(v: number) => fmtCompact(Number(v || 0))}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      allowDecimals={false}
+                      axisLine={false}
+                      tickLine={false}
+                      width={40}
+                      tick={{ fontSize: 11, fill: '#9a3412' }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#e2e8f0', fillOpacity: 0.35 }}
+                      contentStyle={{
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        fontSize: '12px',
+                      }}
+                      formatter={(value: any, name: any) => {
+                        if (name === 'Contratos') return [fmtDecimal(Number(value || 0)), 'Contratos'];
+                        return [fmtBRL(Number(value || 0)), 'Valor Locacao'];
+                      }}
+                    />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="total"
+                      name="Valor Locacao"
+                      fill="#4f46e5"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={44}
+                      cursor="pointer"
+                      onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
+                    >
+                      <LabelList dataKey="total" content={renderRevenueLabel} />
+                    </Bar>
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="contracts"
+                      name="Contratos"
+                      stroke="#ea580c"
+                      strokeWidth={2.25}
+                      dot={{ r: 3, strokeWidth: 2, fill: '#fff7ed' }}
+                      activeDot={{ r: 4.5 }}
+                    >
+                      <LabelList dataKey="contracts" content={renderContractsLabel} />
+                    </Line>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded shadow border border-slate-200">
-              <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Quantidade por Tipo de Cliente</h3>
-              <div className="h-72 flex items-center justify-center overflow-visible">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={clientTypeData.slice(0, visibleCounts.clientType)} cx="50%" cy="50%" innerRadius={56} outerRadius={90} fill="#8884d8" paddingAngle={4} dataKey="value" label={(entry: any) => `${entry.name} — ${entry.value}`}>
-                      {clientTypeData.slice(0, visibleCounts.clientType).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} opacity={getFilterValues('tipoCliente').length > 0 ? (isValueSelected('tipoCliente', entry.name) ? 1 : 0.3) : 1} cursor="pointer" onClick={(e) => handleChartClick('tipoCliente', entry.name, e as any)} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      allowEscapeViewBox={{ x: true, y: true }}
-                      formatter={(value: any, _name: any, props: any) => [`${value} — ${props.payload.amount}`, `Quantidade (${props.payload.name})`]}
-                    />
-                    <Legend verticalAlign="middle" align="right" layout="vertical" iconSize={8} wrapperStyle={{ fontSize: '10px' }} onClick={(data: any) => handleChartClick('tipoCliente', data.value, { ctrlKey: true } as unknown as React.MouseEvent)} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
             <div className="bg-white p-4 rounded shadow border border-slate-200">
               <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Contrato - Faixa de Vencimento</h3>
               <div className="h-72">
@@ -1298,6 +1275,49 @@ export default function ContractTerminationDashboard() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded shadow border border-slate-200">
+              <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Tipo de Cliente</h3>
+              <div className="h-72 flex items-center justify-center overflow-visible">
+                {clientTypeData.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Nenhum dado disponível.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={clientTypeData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={48}
+                        outerRadius={90}
+                        paddingAngle={4}
+                        label={(entry: any) => `${entry.name} — ${entry.value}`}
+                        onClick={(e: any) => handleChartClick('tipoCliente', e.name, e as any)}
+                      >
+                        {clientTypeData.map((entry, index) => (
+                          <Cell
+                            key={`cell-ct-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                            opacity={getFilterValues('tipoCliente').length > 0 ? (isValueSelected('tipoCliente', entry.name) ? 1 : 0.4) : 1}
+                            cursor="pointer"
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        allowEscapeViewBox={{ x: true, y: true }}
+                        formatter={(value: any, _name: any, props: any) => {
+                          const amount = props.payload?.amount ?? 0;
+                          const pct = props.payload?.percent ? `${Math.round(props.payload.percent * 100)}%` : `${Math.round(((value || 0) / (clientTypeData.reduce((s, r) => s + r.value, 0) || 1)) * 100)}%`;
+                          return [`${value} — ${fmtBRL(Number(amount || 0))}`, pct];
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -1371,33 +1391,7 @@ export default function ContractTerminationDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded shadow border border-slate-200">
-              <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Tipo de Cliente</h3>
-              <div className="h-64 overflow-y-auto overflow-x-hidden pr-1" onScroll={(e) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop + t.clientHeight >= t.scrollHeight - 40) handleScrollLoad('clientType'); }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={clientTypeData.slice(0, visibleCounts.clientType)} margin={{ left: 6, right: 88, top: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={220} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip allowEscapeViewBox={{ x: true, y: true }} formatter={(value: any) => [fmtDecimal(Number(value || 0)), 'Quantidade']} />
-                    <Bar dataKey="value" fill="#818cf8" radius={[0, 4, 4, 0]} barSize={20} onClick={(data, _i, e) => handleChartClick('tipoCliente', data.name, e as any)} cursor="pointer">
-                      <LabelList dataKey="value" position="right" formatter={(v: any) => fmtDecimal(v)} />
-                      {clientTypeData.slice(0, visibleCounts.clientType).map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill="#818cf8"
-                          opacity={getFilterValues('tipoCliente').length > 0 ? (isValueSelected('tipoCliente', entry.name) ? 1 : 0.4) : 1}
-                          cursor="pointer"
-                          onClick={(e: any) => handleChartClick('tipoCliente', entry.name, e)}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className="bg-white p-4 rounded shadow border border-slate-200">
               <h3 className="text-xs font-bold text-slate-600 uppercase mb-4 border-b pb-2">Frota por Cliente</h3>
               <div className="h-64 overflow-y-auto overflow-x-hidden">
@@ -1624,6 +1618,69 @@ export default function ContractTerminationDashboard() {
             </div>
           </div>
         </div>
+
+        {showDashboardHelp && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+            onClick={() => setShowDashboardHelp(false)}
+          >
+            <div
+              className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 border-b border-blue-100 bg-blue-50 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-blue-900">💡 Como os Dados São Calculados</h2>
+                    <p className="mt-1 text-sm text-blue-700">Entenda os cálculos e a lógica do dashboard de previsão de encerramento.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowDashboardHelp(false)}
+                    className="text-2xl leading-none text-slate-400 hover:text-slate-600"
+                    aria-label="Fechar ajuda"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-5 p-5 text-sm text-slate-700">
+                <div className="rounded border-l-4 border-blue-400 bg-blue-50 p-4">
+                  <h3 className="font-semibold text-slate-900">1. Base e escopo</h3>
+                  <p className="mt-1">O dashboard usa a base <strong>Contratos locação</strong> e complementa dados com <strong>dim_frota</strong> para enriquecer modelo, odômetro, grupo e idade da frota.</p>
+                </div>
+
+                <div className="rounded border-l-4 border-violet-400 bg-violet-50 p-4">
+                  <h3 className="font-semibold text-slate-900">2. Data de referência de encerramento</h3>
+                  <p className="mt-1">A previsão prioriza <strong>Data Fim</strong> do contrato. Quando disponível, também considera data de encerramento. Se faltar data final, o sistema pode estimar uma data com base na duração média do tipo de contrato.</p>
+                </div>
+
+                <div className="rounded border-l-4 border-amber-400 bg-amber-50 p-4">
+                  <h3 className="font-semibold text-slate-900">3. Gráfico Valor Locação</h3>
+                  <ol className="mt-1 list-decimal list-inside space-y-1">
+                    <li><strong>Barras:</strong> soma do valor de locação mensal por mês previsto de encerramento.</li>
+                    <li><strong>Linha:</strong> quantidade de contratos que encerram no mesmo mês.</li>
+                    <li>Os eixos são separados para comparar valor financeiro e volume sem distorção.</li>
+                  </ol>
+                </div>
+
+                <div className="rounded border-l-4 border-emerald-400 bg-emerald-50 p-4">
+                  <h3 className="font-semibold text-slate-900">4. Filtros cruzados</h3>
+                  <p className="mt-1">Cliques nos gráficos ativam filtros cruzados (mês, faixa de vencimento, cliente, grupo, cidade, etc.), atualizando todos os cards e a tabela em conjunto.</p>
+                </div>
+              </div>
+
+              <div className="border-t bg-slate-50 p-4">
+                <button
+                  onClick={() => setShowDashboardHelp(false)}
+                  className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
