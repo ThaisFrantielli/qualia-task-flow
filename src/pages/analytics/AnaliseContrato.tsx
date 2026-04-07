@@ -10,8 +10,19 @@ import {
 import * as XLSX from 'xlsx';
 
 // ── Types ────────────────────────────────────────────────────────
-interface ContratoRow { IdContratoLocacao:string; ContratoComercial:string; PlacaPrincipal:string; IdVeiculoPrincipal:string; NomeCliente:string; SituacaoContratoLocacao:string; SituacaoContratoComercial?:string; DataInicial:string; DataFinal:string|null; }
-interface FrotaRow { IdVeiculo:string; Placa:string; Modelo:string; CategoriaVeiculo:string; KmConfirmado:number; KM:number; KmInformado:number; }
+interface ContratoRow { 
+  IdContratoLocacao:string; ContratoComercial:string; IdContratoComercial?:string|number;
+  PlacaPrincipal:string; IdVeiculoPrincipal:string; NomeCliente:string; 
+  SituacaoContratoLocacao:string; SituacaoContratoComercial?:string; SituacaoContrato?:string;
+  DataInicial:string; DataFinal:string|null; 
+  Modelo?:string; Grupo?:string; GrupoVeiculo?:string; Categoria?:string; CategoriaVeiculo?:string;
+  KmConfirmado?:number; KmInformado?:number;
+}
+interface FrotaRow { 
+  IdVeiculo:string; Placa:string; Modelo?:string; 
+  Categoria?:string; CategoriaVeiculo?:string; Grupo?:string; GrupoVeiculo?:string;
+  KmConfirmado?:number; KM?:number; KmInformado?:number; 
+}
 interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; TipoOcorrencia:string; }
 interface SinistroRow { Placa:string; DataSinistro:string; DataCriacao:string; ValorOrcado:number; IndenizacaoSeguradora:number; ReembolsoTerceiro:number; }
 interface FaturamentoRow { IdNota:string; IdVeiculo:string; Competencia:string; VlrLocacao:number; }
@@ -174,8 +185,8 @@ export default function AnaliseContrato() {
     return baseItems.map(({ c, fr, placa }) => {
       const cAny = c || {} as any;
       const modelo = fr?.Modelo ?? cAny.Modelo ?? ''; 
-      const grupo = fr?.Categoria ?? fr?.CategoriaVeiculo ?? cAny.Categoria ?? cAny.GrupoVeiculo ?? 'LEVE';
-      const kmAtual = parseNum(fr?.KmConfirmado ?? cAny.KmConfirmado ?? fr?.KmInformado ?? cAny.KmInformado ?? fr?.KM ?? 0);
+      const grupo = fr?.Grupo ?? fr?.GrupoVeiculo ?? fr?.Categoria ?? fr?.CategoriaVeiculo ?? cAny.Grupo ?? cAny.GrupoVeiculo ?? cAny.Categoria ?? 'LEVE';
+      const kmAtual = parseNum(fr?.KmConfirmado ?? cAny.KmConfirmado ?? fr?.KM ?? cAny.KM ?? 0);
       const dataInicial = c?.DataInicial || '';
       const idadeEmMeses = monthsDiff(dataInicial);
       const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmAtual / idadeEmMeses) : 0;
