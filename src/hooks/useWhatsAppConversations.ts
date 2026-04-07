@@ -34,8 +34,9 @@ export function useWhatsAppConversations(customerId?: string, instanceId?: strin
       let query = supabase
         .from('whatsapp_conversations')
         .select('*')
-        .not('customer_phone', 'is', null)
-        .neq('customer_phone', '');
+        // Some conversations are identified only by whatsapp_number (e.g. LID resolution flows).
+        // Keep them visible in the queue as long as at least one phone field is present.
+        .or('customer_phone.not.is.null,whatsapp_number.not.is.null');
 
       // If customerId is provided, filter by it
       if (customerId) {

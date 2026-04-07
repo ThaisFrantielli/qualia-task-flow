@@ -73,10 +73,14 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [deleteConversationDialogOpen, setDeleteConversationDialogOpen] = useState(false);
+  const [deleteContactDialogOpen, setDeleteContactDialogOpen] = useState(false);
   const [discardReason, setDiscardReason] = useState('');
   const [discardReasonType, setDiscardReasonType] = useState('');
   const [closeReason, setCloseReason] = useState('');
   const [closeReasonType, setCloseReasonType] = useState('');
+  const [deleteConversationReason, setDeleteConversationReason] = useState('');
+  const [deleteContactReason, setDeleteContactReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
   const [ticketForm, setTicketForm] = useState({
@@ -421,6 +425,136 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
     }
   };
 
+  const handleDeleteConversation = async () => {
+    if (!conversation) return;
+
+    const reason = deleteConversationReason.trim();
+    if (!reason) {
+      toast({
+        title: 'Justificativa obrigatória',
+        description: 'Informe o motivo da exclusão da conversa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await supabase
+        .from('triagem_descartes')
+        .insert({
+          cliente_id: conversation.cliente_id,
+          conversation_id: conversation.id,
+          atendente_id: user?.id,
+          motivo: `Exclusão de conversa: ${reason}`,
+          origem: 'central_atendimento',
+        });
+
+      const { error } = await supabase
+        .from('whatsapp_conversations')
+        .update({
+          status: 'closed',
+          closed_reason: `Excluída: ${reason}`,
+          closed_at: new Date().toISOString(),
+          unread_count: 0,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', conversation.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Conversa excluída',
+        description: 'A conversa foi encerrada e removida da fila ativa.',
+      });
+
+      setDeleteConversationDialogOpen(false);
+      setDeleteConversationReason('');
+      onActionComplete();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir conversa',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteContact = async () => {
+    if (!conversation?.cliente_id) {
+      toast({
+        title: 'Contato sem vínculo',
+        description: 'Esta conversa não está vinculada a um cliente cadastrado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const reason = deleteContactReason.trim();
+    if (!reason) {
+      toast({
+        title: 'Justificativa obrigatória',
+        description: 'Informe o motivo da exclusão do contato.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await supabase
+        .from('triagem_descartes')
+        .insert({
+          cliente_id: conversation.cliente_id,
+          conversation_id: conversation.id,
+          atendente_id: user?.id,
+          motivo: `Exclusão de contato: ${reason}`,
+          origem: 'central_atendimento',
+        });
+
+      const { error: clienteError } = await supabase
+        .from('clientes')
+        .update({
+          situacao: `[DELETADO VIA ATENDIMENTO ${new Date().toISOString()}]`,
+          status_triagem: 'descartado',
+          descartado_motivo: reason,
+          descartado_em: new Date().toISOString(),
+        } as any)
+        .eq('id', conversation.cliente_id);
+
+      if (clienteError) throw clienteError;
+
+      await supabase
+        .from('whatsapp_conversations')
+        .update({
+          status: 'closed',
+          closed_reason: `Contato excluído: ${reason}`,
+          closed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', conversation.id);
+
+      toast({
+        title: 'Contato excluído',
+        description: 'O cliente foi marcado como excluído e a conversa encerrada.',
+      });
+
+      setDeleteContactDialogOpen(false);
+      setDeleteContactReason('');
+      onActionComplete();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir contato',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const isAssignedToMe = conversation?.assigned_agent_id === user?.id;
 
   if (!conversation) {
@@ -562,6 +696,26 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Descartar
+          </Button>
+
+          <Button
+            className="w-full justify-start h-9 text-destructive hover:text-destructive"
+            variant="outline"
+            onClick={() => setDeleteConversationDialogOpen(true)}
+            disabled={isLoading || conversation.status === 'closed'}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Excluir Conversa
+          </Button>
+
+          <Button
+            className="w-full justify-start h-9 text-destructive hover:text-destructive"
+            variant="outline"
+            onClick={() => setDeleteContactDialogOpen(true)}
+            disabled={isLoading || !conversation.cliente_id}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Excluir Contato
           </Button>
         </CardContent>
       </Card>
@@ -918,6 +1072,64 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
         currentAgentId={conversation.assigned_agent_id}
         onTransferComplete={onActionComplete}
       />
+
+      <Dialog open={deleteConversationDialogOpen} onOpenChange={setDeleteConversationDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Conversa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Esta ação remove a conversa da fila ativa e exige justificativa para auditoria.
+            </p>
+            <div>
+              <Label>Justificativa *</Label>
+              <Textarea
+                value={deleteConversationReason}
+                onChange={(e) => setDeleteConversationReason(e.target.value)}
+                placeholder="Ex.: conversa duplicada, teste, solicitação do cliente"
+                rows={3}
+                className="mt-1.5"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteConversationDialogOpen(false)}>Cancelar</Button>
+              <Button variant="destructive" onClick={handleDeleteConversation} disabled={isLoading || !deleteConversationReason.trim()}>
+                Excluir Conversa
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteContactDialogOpen} onOpenChange={setDeleteContactDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Contato</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              O contato será marcado como excluído e a conversa atual será encerrada. Informe a justificativa para auditoria.
+            </p>
+            <div>
+              <Label>Justificativa *</Label>
+              <Textarea
+                value={deleteContactReason}
+                onChange={(e) => setDeleteContactReason(e.target.value)}
+                placeholder="Ex.: cadastro duplicado, solicitação de remoção, lead inválido"
+                rows={3}
+                className="mt-1.5"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteContactDialogOpen(false)}>Cancelar</Button>
+              <Button variant="destructive" onClick={handleDeleteContact} disabled={isLoading || !deleteContactReason.trim()}>
+                Excluir Contato
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

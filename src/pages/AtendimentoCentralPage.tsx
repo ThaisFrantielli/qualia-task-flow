@@ -93,6 +93,7 @@ export default function AtendimentoCentralPage() {
   const [isActionsSheetOpen, setIsActionsSheetOpen] = useState(false);
   const [messageSearchConversationIds, setMessageSearchConversationIds] = useState<string[]>([]);
   const touchStartXRef = useRef<number | null>(null);
+  const lastMineAutoSwitchAtRef = useRef<number>(0);
   const previousUnreadByConversationRef = useRef<Record<string, number>>({});
   const notificationsPrimedRef = useRef(false);
   const notificationScopeRef = useRef<string>('none');
@@ -151,30 +152,71 @@ export default function AtendimentoCentralPage() {
   const { refetch: refetchStats } = useWhatsAppStats(effectiveInstanceId);
   const { agents, loading: agentsLoading } = useWhatsAppAgents();
 
-  // Calculate "my conversations" count
+  const scopedConversationsForCounters = useMemo(() => {
+    let scoped = [...conversations];
+
+    // Keep counters aligned with what the queue can actually display.
+    scoped = scoped.filter((c) =>
+      !isNonDirectJid(c.customer_name) &&
+      !isNonDirectJid(c.customer_phone) &&
+      !isNonDirectJid(c.whatsapp_number)
+    );
+
+    if (statusFilter) {
+      scoped = scoped.filter((c) => c.status === statusFilter);
+    } else {
+      scoped = scoped.filter((c) => c.status !== 'closed');
+    }
+
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const threshold = new Date();
+      if (dateFilter === 'today') {
+        threshold.setHours(0, 0, 0, 0);
+      } else if (dateFilter === '7d') {
+        threshold.setDate(now.getDate() - 7);
+      } else if (dateFilter === '30d') {
+        threshold.setDate(now.getDate() - 30);
+      }
+
+      scoped = scoped.filter((c) => {
+        const messageDate = c.last_message_at || c.updated_at || c.created_at;
+        if (!messageDate) return false;
+        return new Date(messageDate) >= threshold;
+      });
+    }
+
+    if (selectedInstanceIds.length > 0 && selectedInstanceIds.length < instances.length) {
+      scoped = scoped.filter((c) => selectedInstanceIds.includes(c.instance_id || ''));
+    } else if (selectedInstanceId) {
+      scoped = scoped.filter((c) => c.instance_id === selectedInstanceId);
+    }
+
+    return scoped;
+  }, [conversations, statusFilter, dateFilter, selectedInstanceIds, instances.length, selectedInstanceId]);
+
   const myConversationsCount = useMemo(() => {
-    return conversations.filter(c => c.assigned_agent_id === user?.id && c.status !== 'closed').length;
-  }, [conversations, user?.id]);
+    return scopedConversationsForCounters.filter((c) => c.assigned_agent_id === user?.id).length;
+  }, [scopedConversationsForCounters, user?.id]);
 
   const allConversationsCount = useMemo(() => {
-    return conversations.filter((c) => c.status !== 'closed').length;
-  }, [conversations]);
+    return scopedConversationsForCounters.length;
+  }, [scopedConversationsForCounters]);
 
   const unreadConversationsCount = useMemo(() => {
-    return conversations.filter((c) => {
-      if (c.status === 'closed') return false;
+    return scopedConversationsForCounters.filter((c) => {
       const unreadCount = Number(c.unread_count || 0);
       return unreadCount > 0 || c.status === 'waiting';
     }).length;
-  }, [conversations]);
+  }, [scopedConversationsForCounters]);
 
   const queueConversationsCount = useMemo(() => {
-    return conversations.filter(c => (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id).length;
-  }, [conversations]);
+    return scopedConversationsForCounters.filter((c) => (c.status === 'waiting' || c.status === 'active') && !c.assigned_agent_id).length;
+  }, [scopedConversationsForCounters]);
 
   const errorConversationsCount = useMemo(() => {
-    return conversations.filter(c => /(?:falha|failed|erro|não está registrado|nao esta registrado|not registered)/i.test(String(c.last_message || ''))).length;
-  }, [conversations]);
+    return scopedConversationsForCounters.filter((c) => /(?:falha|failed|erro|não está registrado|nao esta registrado|not registered)/i.test(String(c.last_message || ''))).length;
+  }, [scopedConversationsForCounters]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -301,6 +343,7 @@ export default function AtendimentoCentralPage() {
         notificationService.showBrowserNotification('Nova mensagem no WhatsApp', {
           body: `${notificationLabel} enviou mensagem.`,
           tag: `wa-conversation-${conversation.id}`,
+          data: { url: `/atendimento?folder=whatsapp&conversation_id=${conversation.id}` },
         });
 
         if ('serviceWorker' in navigator) {
@@ -311,7 +354,7 @@ export default function AtendimentoCentralPage() {
                 icon: '/favicon.ico',
                 badge: '/favicon.ico',
                 tag: `wa-conversation-${conversation.id}`,
-                data: { url: `/atendimento-central?folder=whatsapp&conversation_id=${conversation.id}` },
+                data: { url: `/atendimento?folder=whatsapp&conversation_id=${conversation.id}` },
               });
             }
           }).catch(() => undefined);
@@ -438,7 +481,7 @@ export default function AtendimentoCentralPage() {
       // Ensure conversation exists before sending so whatsapp-send can queue the message.
       const { data: existingConversation, error: existingConversationError } = await supabase
         .from('whatsapp_conversations')
-        .select('id, customer_phone, whatsapp_number')
+        .select('id, customer_phone, whatsapp_number, status')
         .eq('instance_id', selectedInstanceId)
         .or(`customer_phone.eq.${normalizedPhone},whatsapp_number.eq.${normalizedPhone}`)
         .order('updated_at', { ascending: false })
@@ -474,6 +517,22 @@ export default function AtendimentoCentralPage() {
         conversationId = createdConversation?.id;
       }
 
+      // Ensure conversation is visible in queue: reopen if it was previously closed.
+      if (conversationId) {
+        await supabase
+          .from('whatsapp_conversations')
+          .update({
+            status: 'active',
+            closed_at: null,
+            closed_reason: null,
+            unread_count: 0,
+            last_message: newChatMessage.trim(),
+            last_message_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', conversationId);
+      }
+
       if (!conversationId) {
         throw new Error('Não foi possível identificar a conversa para envio da mensagem');
       }
@@ -496,7 +555,15 @@ export default function AtendimentoCentralPage() {
       setIsNewChatOpen(false);
       setNewChatPhone('');
       setNewChatMessage('');
+      setActiveFolder('whatsapp');
+      setFilter('all');
+      setSearchInput('');
+      setSearchTerm('');
       setSelectedConversationId(conversationId);
+      setPendingAutoOpen({ conversationId });
+      if (window.innerWidth < 1024) {
+        setMobilePanel('chat');
+      }
       refetchConversations();
       refetchStats();
     } catch (err: any) {
@@ -643,6 +710,28 @@ export default function AtendimentoCentralPage() {
       assigned_agent_name: c.assigned_agent_id ? assignedAgentNames[c.assigned_agent_id] || null : null,
     }) as WhatsAppConversation).find(c => c.id === selectedConversationId)
     || null);
+
+  useEffect(() => {
+    if (filter !== 'mine') return;
+    if (filteredConversations.length > 0) return;
+    if (conversations.length === 0) return;
+
+    const now = Date.now();
+    if (now - lastMineAutoSwitchAtRef.current < 10_000) return;
+    lastMineAutoSwitchAtRef.current = now;
+
+    setFilter('all');
+    toast({
+      title: 'Mudamos para Todas',
+      description: 'A visualização Meus ficou vazia. Exibindo todas as conversas para não sumir da tela.',
+    });
+  }, [filter, filteredConversations.length, conversations.length, toast]);
+
+  useEffect(() => {
+    if (selectedConversationId) return;
+    if (filteredConversations.length === 0) return;
+    setSelectedConversationId(filteredConversations[0].id);
+  }, [selectedConversationId, filteredConversations]);
 
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);

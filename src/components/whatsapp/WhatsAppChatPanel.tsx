@@ -144,6 +144,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   const [localPendingMessages, setLocalPendingMessages] = useState<any[]>([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
+  const sendLockRef = useRef(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [customerProfile, setCustomerProfile] = useState<{
@@ -449,6 +450,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
   };
 
   const handleSendMessage = async () => {
+    if (sendLockRef.current) return;
     if (!newMessage.trim() || !conversation) return;
 
     if (instanceStatus !== 'connected') {
@@ -461,6 +463,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
     }
 
     setIsSending(true);
+    sendLockRef.current = true;
     try {
       // Optimistic UI: add a local pending message immediately
       const tempId = `local-${Date.now()}`;
@@ -522,6 +525,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
         variant: 'destructive'
       });
     } finally {
+      sendLockRef.current = false;
       setIsSending(false);
     }
   };
@@ -794,7 +798,7 @@ export const WhatsAppChatPanel: React.FC<WhatsAppChatPanelProps> = ({
           <div className="flex items-center justify-center h-full">
             <div className="animate-pulse text-muted-foreground">Carregando mensagens...</div>
           </div>
-        ) : messages.length === 0 ? (
+        ) : combinedMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <div className="text-center">
               <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-30" />

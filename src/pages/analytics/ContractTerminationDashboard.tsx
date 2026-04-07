@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, Line, LabelList, ComposedChart
+  PieChart, Pie, Cell, LineChart, Line, LabelList, ComposedChart
 } from 'recharts';
 import { ChevronDown, ChevronLeft, ChevronUp, FileSpreadsheet } from 'lucide-react';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
@@ -256,7 +256,10 @@ export default function ContractTerminationDashboard() {
   // Load data from API - using dim_contratos_locacao (already JOINed with dim_frota on server)
   const { data: contractsData, loading: loadingContracts } = useBIData<AnyObject[]>('dim_contratos_locacao');
   const { data: frotaData, loading: loadingFrota } = useBIData<AnyObject[]>('dim_frota');
-  const { data: _veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
+<<<<<<< HEAD
+=======
+  const { data: veiculosData } = useBIData<AnyObject[]>('dim_veiculos');
+>>>>>>> origin/main
 
   // Filter state (Chart-based)
   const { filters, handleChartClick, clearAllFilters, clearFilter, isValueSelected, getFilterValues } = useChartFilter();
@@ -265,25 +268,11 @@ export default function ContractTerminationDashboard() {
   const [filterTipoCliente, setFilterTipoCliente] = useState<string>('Todos');
   const [filterCliente, setFilterCliente] = useState<string>('Todos');
   const [filterFaixa, setFilterFaixa] = useState<string>('Todos');
+  const [filterSituacao, setFilterSituacao] = useState<string>('Todos');
   const currentYearDefault = new Date().getFullYear();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: new Date(currentYearDefault, 0, 1), to: new Date(currentYearDefault, 11, 31) });
   const [odometroView, setOdometroView] = useState<'odometro' | 'idade'>('odometro');
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
-  const [showHelp, setShowHelp] = useState<boolean>(false);
-  const helpRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function handleDocClick(e: MouseEvent) {
-      if (!showHelp) return;
-      const el = helpRef.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        setShowHelp(false);
-      }
-    }
-    document.addEventListener('click', handleDocClick);
-    return () => document.removeEventListener('click', handleDocClick);
-  }, [showHelp]);
 
   const NOW = useMemo(() => new Date(), []);
 
@@ -562,6 +551,7 @@ export default function ContractTerminationDashboard() {
       if (filterTipoCliente !== 'Todos' && c.tipoCliente !== filterTipoCliente) return false;
       if (filterCliente !== 'Todos' && c.nomeCliente !== filterCliente) return false;
       if (filterFaixa !== 'Todos' && c.faixaVencimento !== filterFaixa) return false;
+      if (filterSituacao !== 'Todos' && c.status !== filterSituacao) return false;
 
       // 2. Date Range Filter (Expiration Date)
       if (dateRange?.from || dateRange?.to) {
@@ -594,7 +584,7 @@ export default function ContractTerminationDashboard() {
 
       return true;
     });
-  }, [baseContracts, filterTipoCliente, filterCliente, filterFaixa, dateRange, filters, NOW]);
+  }, [baseContracts, filterTipoCliente, filterCliente, filterFaixa, filterSituacao, dateRange, filters, NOW]);
 
   // ─── Unique clients & types for filters ────────────────────────────
   const uniqueTipos = useMemo(() => {
@@ -605,7 +595,9 @@ export default function ContractTerminationDashboard() {
     return Array.from(new Set(baseContracts.map(c => c.nomeCliente).filter(c => c && c !== 'Sem Cliente'))).sort();
   }, [baseContracts]);
 
-  
+  const uniqueSituacoes = useMemo(() => {
+    return Array.from(new Set(baseContracts.map(c => c.status).filter(Boolean))).sort();
+  }, [baseContracts]);
 
   // ─── KPIs ──────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -718,7 +710,9 @@ export default function ContractTerminationDashboard() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filtered]);
-  
+
+<<<<<<< HEAD
+=======
   // ─── KM Index ──────────────────────────────────────────────────────
   // @ts-ignore – reserved for future chart usage
   const kmIndexData = useMemo(() => {
@@ -733,6 +727,8 @@ export default function ContractTerminationDashboard() {
     }
     return ranges.map(range => ({ range, value: map.get(range) || 0 }));
   }, [filtered]);
+
+>>>>>>> origin/main
   // ─── Modelos por Categoria (para gráfico 'Veículos por Modelo') ───
   const modelosPorCategoria = useMemo(() => {
     const categoryMap: Record<string, Record<string, number>> = {};
@@ -796,6 +792,8 @@ export default function ContractTerminationDashboard() {
     return Object.entries(ranges).map(([name, value]) => ({ name, value }));
   }, [filtered]);
 
+<<<<<<< HEAD
+=======
   // ─── Vehicle group ─────────────────────────────────────────────────
   // @ts-ignore – reserved for future chart usage
   const vehicleGroupData = useMemo(() => {
@@ -831,6 +829,8 @@ export default function ContractTerminationDashboard() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filtered]);
+
+>>>>>>> origin/main
   // ─── Cidade de Emplacamento (vindo de dim_frota) ─────────────────
   const branchData = useMemo(() => {
     const map = new Map<string, number>();
@@ -843,9 +843,31 @@ export default function ContractTerminationDashboard() {
       .map(([branch, value]) => ({ branch, value }))
       .sort((a, b) => b.value - a.value);
   }, [filtered]);
+
+<<<<<<< HEAD
   // ─── Table (paginação clássica) ───────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+=======
+  // ─── Financial balance by year ─────────────────────────────────────
+  // @ts-ignore – reserved for future chart usage
+  const financialBalanceData = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const c of filtered) {
+      if (c.anoVencimento && c.valorCompra > 0) {
+        map.set(c.anoVencimento, (map.get(c.anoVencimento) || 0) + c.valorCompra);
+      }
+    }
+    return Array.from(map.entries())
+      .filter(([year]) => year >= NOW.getFullYear())
+      .map(([year, value]) => ({ year: String(year), value }))
+      .sort((a, b) => Number(b.year) - Number(a.year));
+  }, [filtered, NOW]);
+
+  // ─── Table (infinite scroll) ───────────────────────────────────────
+  const [tableVisibleCount, setTableVisibleCount] = useState(10);
+  const tableSentinelRef = useRef<HTMLDivElement | null>(null);
+>>>>>>> origin/main
   const [sortState, setSortState] = useState<{ key: TableSortKey; direction: SortDirection }>({ key: 'diasParaVencimento', direction: 'asc' });
   const sortedForTable = useMemo(() => {
     return [...filtered].sort((a, b) => compareTableValues(a[sortState.key], b[sortState.key], sortState.direction));
@@ -1058,13 +1080,29 @@ export default function ContractTerminationDashboard() {
             </div>
           </div>
 
-          
+          <div>
+            <label className="block text-xs font-bold text-orange-500 uppercase mb-2">Situação Contrato</label>
+            <div className="relative">
+              <select
+                className="w-full p-2 border border-slate-300 rounded text-sm bg-white appearance-none pr-8"
+                value={filterSituacao}
+                onChange={e => { setFilterSituacao(e.target.value); setCurrentPage(1); }}
+              >
+                <option value="Todos">Todos</option>
+                {uniqueSituacoes.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <div className="absolute right-2 top-2.5 pointer-events-none">
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+              </div>
+            </div>
+          </div>
 
           <button
             onClick={() => { 
                 setFilterTipoCliente('Todos'); 
                 setFilterCliente('Todos'); 
                 setFilterFaixa('Todos'); 
+                setFilterSituacao('Todos');
                 setDateRange(undefined);
                 clearAllFilters();
                 setCurrentPage(1); 
@@ -1082,40 +1120,10 @@ export default function ContractTerminationDashboard() {
       <div className="flex-1 p-4 overflow-y-auto h-screen">
         {/* Header */}
         <div className="bg-[#2e1065] text-white p-4 rounded-t-lg flex justify-between items-center mb-4 shadow-lg">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold uppercase tracking-wider text-orange-400">Previsão de Encerramento de Contrato</h1>
-            <span
-              className="text-sm text-white/90 bg-white/10 rounded-full w-5 h-5 flex items-center justify-center cursor-help"
-              title="Este dashboard mostra uma previsão de encerramento de contratos com base nas datas e movimentações disponíveis. Use os filtros e os gráficos para explorar riscos e prioridades."
-              aria-label="Ajuda: Previsão de Encerramento"
-            >
-              ?
-            </span>
-          </div>
+          <h1 className="text-xl font-bold uppercase tracking-wider text-orange-400">Previsão de Encerramento de Contrato</h1>
           <div className="flex items-center gap-3">
             <span className="text-xs font-light opacity-70">{filtered.length} contratos ativos</span>
             <span className="text-xs font-light opacity-70">Quality</span>
-            <div className="relative">
-              <button
-                onClick={() => setShowHelp(s => !s)}
-                aria-expanded={showHelp}
-                aria-controls="help-popover"
-                className="ml-2 text-white/90 bg-white/10 rounded-full w-6 h-6 flex items-center justify-center text-sm cursor-pointer"
-                title="Ajuda: abrir explicação"
-              >
-                ?
-              </button>
-              {showHelp && (
-                <div ref={el => (helpRef.current = el)} id="help-popover" role="dialog" aria-label="Explicação Previsão de Encerramento" className="absolute right-0 mt-2 w-80 bg-white text-slate-800 p-3 rounded shadow-lg z-30">
-                  <div className="text-sm">
-                    Este dashboard mostra uma previsão de encerramento de contratos com base nas datas de término, movimentações e regras internas. Use os filtros e os gráficos para priorizar contratos próximos do vencimento ou com risco.
-                  </div>
-                  <div className="mt-2 text-right">
-                    <button onClick={() => setShowHelp(false)} className="text-xs text-sky-600 hover:underline">Fechar</button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -1223,11 +1231,7 @@ export default function ContractTerminationDashboard() {
                     radius={[6, 6, 0, 0]}
                     maxBarSize={44}
                     cursor="pointer"
-                    onClick={((...args: any[]) => {
-                      const candidate = args[0] && (args[0].payload ?? args[0]);
-                      const month = candidate?.month ?? candidate;
-                      handleChartClick('mesAno', month);
-                    }) as unknown as any}
+                    onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
                   >
                     <LabelList dataKey="total" content={renderRevenueLabel} />
                   </Bar>
@@ -1241,11 +1245,7 @@ export default function ContractTerminationDashboard() {
                     dot={{ r: 3, strokeWidth: 2, fill: '#fff7ed' }}
                     activeDot={{ r: 4.5 }}
                     cursor="pointer"
-                    onClick={((...args: any[]) => {
-                      const candidate = args[0] && (args[0].payload ?? args[0]);
-                      const month = candidate?.month ?? candidate;
-                      handleChartClick('mesAno', month);
-                    }) as unknown as any}
+                    onClick={(data: any, _index: number, event: any) => handleChartClick('mesAno', data.month, event)}
                   >
                     <LabelList dataKey="contracts" content={renderContractsLabel} />
                   </Line>

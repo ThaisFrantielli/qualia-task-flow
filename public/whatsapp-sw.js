@@ -19,7 +19,7 @@ self.addEventListener('push', (event) => {
       body: payload.body || 'Você recebeu uma nova mensagem no WhatsApp.',
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      data: payload.data || { url: '/atendimento-central?folder=whatsapp' },
+      data: payload.data || { url: '/atendimento?folder=whatsapp' },
       tag: payload.tag || 'whatsapp-notification',
     })
   );
@@ -27,7 +27,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification?.data?.url || '/atendimento-central?folder=whatsapp';
+  const targetUrl = event.notification?.data?.url || '/atendimento?folder=whatsapp';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {

@@ -112,11 +112,24 @@ export const notificationService = {
     if (!('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
-      new Notification(title, {
+      const notification = new Notification(title, {
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         ...options,
       });
+
+      notification.onclick = (event) => {
+        try {
+          event.preventDefault();
+          const targetUrl = (options as any)?.data?.url;
+          if (targetUrl) {
+            window.focus();
+            window.location.href = targetUrl;
+          }
+        } catch {
+          // ignore
+        }
+      };
     }
   },
 

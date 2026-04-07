@@ -28,11 +28,27 @@ const logger = winston.createLogger({
     ]
 });
 
+function safeLogArg(value) {
+    if (value === null || value === undefined) return String(value);
+    if (typeof value === 'object') {
+        try {
+            return JSON.stringify(value, Object.getOwnPropertyNames(value));
+        } catch {
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return '[object]';
+            }
+        }
+    }
+    return String(value);
+}
+
 // Redirect console to logger for structured logs
-console.log = (...args) => logger.info(args.map(a => (typeof a === 'object' ? JSON.stringify(a, Object.getOwnPropertyNames(a)) : String(a))).join(' '));
+console.log = (...args) => logger.info(args.map(safeLogArg).join(' '));
 console.info = console.log;
-console.warn = (...args) => logger.warn(args.map(a => (typeof a === 'object' ? JSON.stringify(a, Object.getOwnPropertyNames(a)) : String(a))).join(' '));
-console.error = (...args) => logger.error(args.map(a => (typeof a === 'object' ? JSON.stringify(a, Object.getOwnPropertyNames(a)) : String(a))).join(' '));
+console.warn = (...args) => logger.warn(args.map(safeLogArg).join(' '));
+console.error = (...args) => logger.error(args.map(safeLogArg).join(' '));
 
 // Serve static assets
 const publicDir = path.join(__dirname, 'public');
@@ -52,6 +68,7 @@ if (!SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const circuitBreakers = new Map();
+const inFlightMessages = new Set();
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_COOLDOWN_MS = 60 * 1000;
 
@@ -231,14 +248,76 @@ function normalizeBrazilianPhone(phone) {
     return { primary: digits, variants: [] };
 }
 
+function extractWhatsAppUser(rawId) {
+    const user = String(rawId || '').split('@')[0] || '';
+    return user.replace(/\D/g, '');
+}
+
+function normalizeWhatsAppSendError(error) {
+    const raw = error?.message || String(error || 'Send failed');
+    const lowered = raw.toLowerCase();
+    if (lowered.includes('markedunread') || lowered.includes('sendseen')) {
+        return 'Falha temporaria no WhatsApp Web ao atualizar status da conversa. Tente reenviar em alguns segundos.';
+    }
+    return raw;
+}
+
 async function processOutgoingMessage(msg) {
-    if (!msg || !msg.instance_id) return;
+    if (!msg || !msg.instance_id || !msg.id) return;
+
+    if (inFlightMessages.has(msg.id)) {
+        return;
+    }
+
+    inFlightMessages.add(msg.id);
+    let claimed = false;
+
+    try {
+        const nowIso = new Date().toISOString();
+        let claimQuery = supabase
+            .from('whatsapp_messages')
+            .update({
+                status: 'sending',
+                updated_at: nowIso
+            })
+            .eq('id', msg.id)
+            .neq('dead_letter', true)
+            .in('status', ['pending', 'failed']);
+
+        if (msg.status === 'failed') {
+            claimQuery = claimQuery.lte('next_retry_at', nowIso);
+        }
+
+        const { data: claimData, error: claimError } = await claimQuery
+            .select('id');
+
+        if (claimError) {
+            console.error(`Failed to claim message ${msg.id} for processing:`, claimError);
+            return;
+        }
+
+        if (!claimData || claimData.length === 0) {
+            return;
+        }
+
+        claimed = true;
+
+    } catch (claimException) {
+        console.error(`Unexpected claim error for message ${msg.id}:`, claimException);
+        return;
+    }
+
+    if (!claimed) {
+        inFlightMessages.delete(msg.id);
+        return;
+    }
 
     if (isCircuitOpen(msg.instance_id)) {
         const state = getCircuitState(msg.instance_id);
         const waitMs = Math.max(0, state.openUntil - Date.now());
         console.warn(`Skipping message ${msg.id} because circuit is open for ${msg.instance_id}. Retry in ${Math.ceil(waitMs / 1000)}s`);
         await markFailedWithRetry(msg, 'Circuit breaker open');
+        inFlightMessages.delete(msg.id);
         return;
     }
 
@@ -323,12 +402,20 @@ async function processOutgoingMessage(msg) {
             return;
         }
 
+        const resolvedUser = extractWhatsAppUser(resolvedId);
+        if (resolvedUser && msg.conversation_id) {
+            await supabase
+                .from('whatsapp_conversations')
+                .update({ whatsapp_number: resolvedUser, updated_at: new Date().toISOString() })
+                .eq('id', msg.conversation_id);
+        }
+
         if (msg.media_url) {
             const media = await MessageMedia.fromUrl(msg.media_url);
             if (msg.file_name) media.filename = msg.file_name;
-            await client.sendMessage(resolvedId, media, { caption: msg.content || '' });
+            await client.sendMessage(resolvedId, media, { caption: msg.content || '', sendSeen: false });
         } else {
-            await client.sendMessage(resolvedId, msg.content || '');
+            await client.sendMessage(resolvedId, msg.content || '', { sendSeen: false });
         }
 
         await supabase
@@ -348,7 +435,7 @@ async function processOutgoingMessage(msg) {
         registerCircuitSuccess(msg.instance_id);
         console.log(`Message ${msg.id} sent successfully to ${resolvedId}`);
     } catch (error) {
-        const reason = error?.message || 'Send failed';
+        const reason = normalizeWhatsAppSendError(error);
         console.error(`Failed to send message ${msg.id}:`, reason);
 
         // Only trip circuit breaker for instance-level errors (not per-number)
@@ -361,6 +448,8 @@ async function processOutgoingMessage(msg) {
         if (isInstanceError) {
             registerCircuitFailure(msg.instance_id);
         }
+    } finally {
+        inFlightMessages.delete(msg.id);
     }
 }
 
@@ -460,6 +549,183 @@ async function updateMessageStatus(messageId, status, errorMessage = null) {
             .eq('id', messageId);
     } catch (error) {
         console.error(`Failed to update message status for ${messageId}:`, error);
+    }
+}
+
+async function persistIncomingMessageFallback(instanceId, message) {
+    try {
+        const fromJid = String(message?.from || '').toLowerCase();
+        if (!fromJid || fromJid.includes('@g.us') || fromJid.includes('@broadcast') || fromJid.includes('status@')) {
+            return;
+        }
+
+        const messageId = message?.id?._serialized;
+        if (!messageId) return;
+
+        const { data: existingMsg } = await supabase
+            .from('whatsapp_messages')
+            .select('id')
+            .eq('whatsapp_message_id', messageId)
+            .limit(1);
+
+        if (existingMsg && existingMsg.length > 0) {
+            return;
+        }
+
+        const phoneDigits = (fromJid.split('@')[0] || '').replace(/\D/g, '');
+        if (!phoneDigits) return;
+
+        const { data: existingConversation, error: existingConvError } = await supabase
+            .from('whatsapp_conversations')
+            .select('id, unread_count')
+            .eq('instance_id', instanceId)
+            .or(`customer_phone.eq.${phoneDigits},whatsapp_number.eq.${phoneDigits}`)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (existingConvError) {
+            console.error('Fallback inbound failed to query conversation:', existingConvError);
+            return;
+        }
+
+        let conversationId = existingConversation?.id;
+        if (!conversationId) {
+            const { data: createdConversation, error: createConvError } = await supabase
+                .from('whatsapp_conversations')
+                .insert({
+                    instance_id: instanceId,
+                    customer_phone: phoneDigits,
+                    whatsapp_number: phoneDigits,
+                    customer_name: phoneDigits,
+                    status: 'active',
+                    unread_count: 1,
+                    last_message: message.body || null,
+                    last_message_at: new Date().toISOString(),
+                })
+                .select('id')
+                .single();
+
+            if (createConvError) {
+                console.error('Fallback inbound failed to create conversation:', createConvError);
+                return;
+            }
+
+            conversationId = createdConversation?.id;
+        } else {
+            await supabase
+                .from('whatsapp_conversations')
+                .update({
+                    status: 'active',
+                    closed_at: null,
+                    closed_reason: null,
+                    last_message: message.body || null,
+                    last_message_at: new Date().toISOString(),
+                    unread_count: Number(existingConversation?.unread_count || 0) + 1,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', conversationId);
+        }
+
+        if (!conversationId) return;
+
+        const { error: insertMsgError } = await supabase
+            .from('whatsapp_messages')
+            .insert({
+                conversation_id: conversationId,
+                instance_id: instanceId,
+                sender_type: 'customer',
+                content: message.body || '',
+                message_type: message.type || 'text',
+                status: 'received',
+                whatsapp_message_id: messageId,
+            });
+
+        if (insertMsgError) {
+            console.error('Fallback inbound failed to insert message:', insertMsgError);
+            return;
+        }
+
+        console.log(`Inbound fallback persisted message ${messageId} for ${phoneDigits}`);
+    } catch (error) {
+        console.error('Inbound fallback crashed:', error);
+    }
+}
+
+async function handleIncomingMessage(instanceId, client, message) {
+    try {
+        if (!message) return;
+        if (message.fromMe) return;
+
+        if (String(message.from || '').includes('@g.us')) {
+            return;
+        }
+
+        try {
+            const instanceNumber = client?.info?.wid?.user;
+            if (instanceNumber && String(message.from).includes(String(instanceNumber))) {
+                return;
+            }
+        } catch (e) {
+            console.error('Error checking instance number for self-skip:', e);
+        }
+
+        const messageId = message?.id?._serialized;
+        if (!messageId) return;
+
+        try {
+            const { data: existing, error: existError } = await supabase
+                .from('whatsapp_messages')
+                .select('id')
+                .eq('whatsapp_message_id', messageId)
+                .limit(1);
+
+            if (existError) {
+                console.error('Error checking existing whatsapp_message_id before forwarding:', existError);
+            } else if (existing && existing.length > 0) {
+                return;
+            }
+        } catch (err) {
+            console.error('Unexpected error during dedup check:', err);
+        }
+
+        console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body || '[media/no-text]'}`);
+
+        try {
+            const headers = {
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json'
+            };
+
+            if (process.env.WHATSAPP_WEBHOOK_SECRET) {
+                headers['x-webhook-secret'] = process.env.WHATSAPP_WEBHOOK_SECRET;
+            }
+
+            await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
+                instance_id: instanceId,
+                from: message.from,
+                body: message.body,
+                timestamp: message.timestamp,
+                type: message.type,
+                messageId,
+            }, { headers });
+
+            console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
+        } catch (error) {
+            if (error && error.response) {
+                try {
+                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`);
+                } catch (e) {
+                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: response status=${error.response.status}`);
+                }
+            } else {
+                console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}:`, error);
+            }
+
+            await persistIncomingMessageFallback(instanceId, message);
+        }
+    } catch (error) {
+        console.error('handleIncomingMessage crashed:', error);
     }
 }
 
@@ -641,74 +907,13 @@ function createWhatsAppClient(instanceId, instanceName = null) {
         }
     });
 
-    // Listen for incoming messages
+    // Listen for incoming messages (message + message_create for broader compatibility)
     client.on('message', async (message) => {
-        console.log(`Message received from ${message.from} on instance ${instanceId}: ${message.body || '[media/no-text]'}`);
+        await handleIncomingMessage(instanceId, client, message);
+    });
 
-        if (message.fromMe) {
-            return;
-        }
-
-        if (String(message.from || '').includes('@g.us')) {
-            return;
-        }
-
-        try {
-            const instanceNumber = client?.info?.wid?.user;
-            if (instanceNumber && String(message.from).includes(String(instanceNumber))) {
-                return;
-            }
-        } catch (e) {
-            console.error('Error checking instance number for self-skip:', e);
-        }
-
-        try {
-            const { data: existing, error: existError } = await supabase
-                .from('whatsapp_messages')
-                .select('id')
-                .eq('whatsapp_message_id', message.id._serialized)
-                .limit(1);
-
-            if (existError) {
-                console.error('Error checking existing whatsapp_message_id before forwarding:', existError);
-            } else if (existing && existing.length > 0) {
-                return;
-            }
-        } catch (err) {
-            console.error('Unexpected error during dedup check:', err);
-        }
-
-        try {
-            const headers = {
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
-                'Content-Type': 'application/json'
-            };
-
-            if (process.env.WHATSAPP_WEBHOOK_SECRET) {
-                headers['x-webhook-secret'] = process.env.WHATSAPP_WEBHOOK_SECRET;
-            }
-
-            await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
-                instance_id: instanceId,
-                from: message.from,
-                body: message.body,
-                timestamp: message.timestamp,
-                type: message.type,
-                messageId: message.id._serialized
-            }, { headers });
-
-            console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
-        } catch (error) {
-            if (error && error.response) {
-                try {
-                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`);
-                } catch (e) {
-                    console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}: response status=${error.response.status}`);
-                }
-            } else {
-                console.error(`Failed to forward message to Supabase webhook for instance ${instanceId}:`, error);
-            }
-        }
+    client.on('message_create', async (message) => {
+        await handleIncomingMessage(instanceId, client, message);
     });
 
     return client;
@@ -978,20 +1183,30 @@ app.post('/send-message', async (req, res) => {
 
         // Resolve WhatsApp ID using getNumberId (handles Brazilian 9th digit)
         const { primary, variants } = normalizeBrazilianPhone(phoneNumber);
-        const candidates = [primary, ...variants];
+        const candidates = [primary, ...variants].filter(Boolean);
         let resolvedId = null;
+        let acceptedVariant = null;
 
         for (const candidate of candidates) {
-            try {
-                const numberId = await client.getNumberId(candidate);
-                if (numberId) {
-                    resolvedId = numberId._serialized;
-                    console.log(`Resolved ${candidate} -> ${resolvedId}`);
-                    break;
+            const attempts = [`${candidate}@c.us`, candidate];
+            for (const attempt of attempts) {
+                try {
+                    const numberId = await client.getNumberId(attempt);
+                    if (numberId) {
+                        resolvedId = numberId._serialized;
+                        acceptedVariant = attempt;
+                        console.log(`Resolved ${candidate} (attempt: ${attempt}) -> ${resolvedId}`);
+                        break;
+                    }
+                } catch (e) {
+                    console.warn(`getNumberId failed for ${attempt}:`, e && e.message ? e.message : e);
                 }
-            } catch (e) {
-                console.warn(`getNumberId failed for ${candidate}:`, e.message);
             }
+            if (resolvedId) break;
+        }
+
+        if (acceptedVariant) {
+            console.log(`Phone resolution accepted variant: ${acceptedVariant} (original: ${primary})`);
         }
 
         if (!resolvedId) {
@@ -999,6 +1214,13 @@ app.post('/send-message', async (req, res) => {
         }
 
         const formattedNumber = resolvedId;
+        const resolvedUser = extractWhatsAppUser(resolvedId);
+        if (resolvedUser && conversation_id) {
+            await supabase
+                .from('whatsapp_conversations')
+                .update({ whatsapp_number: resolvedUser, updated_at: new Date().toISOString() })
+                .eq('id', conversation_id);
+        }
         
         let sentMessage;
         
@@ -1044,23 +1266,24 @@ app.post('/send-message', async (req, res) => {
                     console.log(`Audio loaded, size: ${media.data.length} bytes, mimetype: ${media.mimetype}`);
                     
                     // Send as document with audio type (bypasses WhatsApp Web audio validation)
-                    sentMessage = await client.sendMessage(formattedNumber, media, { 
-                        sendMediaAsDocument: true 
+                    sentMessage = await client.sendMessage(formattedNumber, media, {
+                        sendMediaAsDocument: true,
+                        sendSeen: false
                     });
                     console.log('Audio sent successfully as document');
                 } else {
                     // For other media types, use fromUrl as before
                     media = await MessageMedia.fromUrl(actualMediaUrl);
                     if (actualFileName) media.filename = actualFileName;
-                    sentMessage = await client.sendMessage(formattedNumber, media, { caption: message || '' });
+                    sentMessage = await client.sendMessage(formattedNumber, media, { caption: message || '', sendSeen: false });
                 }
             } catch (mediaError) {
                 console.error('Error sending media, details:', mediaError);
-                throw new Error(`Failed to send media: ${mediaError.message}`);
+                throw new Error(`Failed to send media: ${normalizeWhatsAppSendError(mediaError)}`);
             }
         } else {
             console.log(`Sending text to ${formattedNumber} via instance ${instance_id}`);
-            sentMessage = await client.sendMessage(formattedNumber, message);
+            sentMessage = await client.sendMessage(formattedNumber, message, { sendSeen: false });
         }
         
         // Update message status in database if message_id provided
@@ -1104,7 +1327,7 @@ app.post('/send-message', async (req, res) => {
             }
         }
         
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: normalizeWhatsAppSendError(error) });
     }
 });
 
