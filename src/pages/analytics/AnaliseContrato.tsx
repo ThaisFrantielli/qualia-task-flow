@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Settings2, Download, Loader2, Plus, Trash2, X,
   Route, Wrench, ShieldAlert, BarChart3, DollarSign,
-  Activity, Target, AlertTriangle, Gauge, Printer,
+  Activity, Target, AlertTriangle, Gauge, Printer, Search,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -16,7 +16,7 @@ interface ContratoRow {
   IdContratoLocacao:string; ContratoComercial:string; IdContratoComercial?:string|number;
   PlacaPrincipal:string; IdVeiculoPrincipal:string; NomeCliente:string; 
   SituacaoContratoLocacao:string; SituacaoContratoComercial?:string; SituacaoContrato?:string;
-  TipoContrato?:string; TipoContratoLocacao?:string; Publico?:string;
+  TipoContrato?:string; TipoContratoLocacao?:string; TipoDeContrato?:string; TipoLocacao?:string; Publico?:string;
   DataInicial:string; DataFinal:string|null; 
   Modelo?:string; Grupo?:string; GrupoVeiculo?:string; Categoria?:string; CategoriaVeiculo?:string;
   KmConfirmado?:number; KmInformado?:number;
@@ -26,12 +26,14 @@ interface FrotaRow {
   Categoria?:string; CategoriaVeiculo?:string; Grupo?:string; GrupoVeiculo?:string;
   KmConfirmado?:number; KM?:number; KmInformado?:number; 
 }
-interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; OrdemServicoCriadaEm?:string; DataCriacao?:string; IdOrdemServico?:string; idordemservico?:string; IdOcorrencia?:string|number; TipoOcorrencia?:string; Tipo?:string; TipoManutencao?:string; Situacao?:string; Status?:string; StatusOrdem?:string; SituacaoOcorrencia?:string; StatusOcorrencia?:string; valortotal?:number; valorreembolsavel?:number; CustoTotalOS?:number; custo_total_os?:number; ValorTotalFatItens?:number|string; ValorReembolsavelFatItens?:number|string; }
+interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; OrdemServicoCriadaEm?:string; DataCriacao?:string; IdOrdemServico?:string; idordemservico?:string; IdOcorrencia?:string|number; TipoOcorrencia?:string; Tipo?:string; TipoManutencao?:string; Situacao?:string; Status?:string; StatusOrdem?:string; SituacaoOcorrencia?:string; StatusOcorrencia?:string; SituacaoOrdemServico?:string; valortotal?:number; valorreembolsavel?:number; CustoTotalOS?:number; custo_total_os?:number; ValorTotalFatItens?:number|string; ValorReembolsavelFatItens?:number|string; }
 interface RegrasContratoRow { Contrato:string; NomeRegra:string; ConteudoRegra:string | number | null; NomePolitica?:string | null; ConteudoPolitica?:string | null; Grupo?:string; GrupoVeiculo?:string; Categoria?:string; CategoriaVeiculo?:string; }
 interface SinistroRow { Placa:string; DataSinistro:string; DataCriacao:string; ValorOrcado?:number|string; ValorOrcamento?:number|string; ValorTotal?:number|string; ValorTotalOS?:number|string; ValorNaoReembolsavel?:number|string; ValorNaoReembolsavelOS?:number|string; ValorReembolsavel?:number|string; ValorReembolsavelOS?:number|string; ValorFinaleiroCalculado?:number|string; IndenizacaoSeguradora?:number|string; ReembolsoTerceiro?:number|string; }
 interface FaturamentoRow {
   IdNota:string;
   IdVeiculo?:string;
+  Placa?:string;
+  placa?:string;
   Competencia?:string;
   VlrLocacao?:number|string;
   IdContratoLocacao?:string|number;
@@ -53,10 +55,17 @@ interface FaturamentoItemRow {
   ValorUnitario?:number|string;
   DataAtualizacaoDados?:string;
 }
+interface PrecosLocacaoRow {
+  IdContratoLocacao?:string|number;
+  DataInicial?:string;
+  PrecoUnitario?:number|string;
+  ValorLocacao?:number|string;
+  VlrLocacao?:number|string;
+}
 interface ManualCostRule { id:string; cto:string; grupo:string; custoKm:number; }
 
 interface VehicleRow {
-  idLocacao:string; idComercial:string;
+  idLocacao:string; idComercial:string; idVeiculo:string;
   placa:string; modelo:string; grupo:string; kmAtual:number; indiceKm:string;
   idadeEmMeses:number; rodagemMedia:number; dataInicial:string; vencimentoContrato:string; cliente:string; contrato:string;
   mesesRestantesContrato:number; kmEstimadoFimContrato:number;
@@ -76,9 +85,32 @@ interface VehicleRow {
   custoLiqSin:number; pctReembolsadoSin:number;
   totalManSin:number; pctReembolsadoManSin:number;
   faturamentoTotal:number;
+  faturamentoPrevisto:number;
+  ultimoValorLocacao:number;
+  diferencaFaturamento:number;
+  projecaoFaturamento:number;
   pctManFat:number; pctCustoLiqManFat:number; pctSinFat:number; pctCustoLiqSinFat:number; pctManSinFat:number;
   years: Record<number, { pass:number; man:number; reembMan:number; sin:number; reembSin:number; fat:number; }>;
 }
+
+interface MaintDetailRow {
+  osId: string;
+  date: Date | null;
+  tipo: string;
+  motivo: string;
+  situacao: string;
+  valorTotal: number;
+  valorReembolsavel: number;
+}
+
+interface FaturamentoDetailRow {
+  ano: number;
+  mes: number;
+  valor: number;
+  descricao: string;
+}
+
+type DetailMode = 'manutencao' | 'sinistro' | 'mansin' | 'faturamento';
 
 // ── Helpers ──────────────────────────────────────────────────────
 const parseNum = (v: unknown): number => {
@@ -114,6 +146,15 @@ const normalizeKeyPart = (v: string) => String(v || '').trim().toUpperCase();
 const normalizePlate = (v: unknown) => String(v || '').trim().toUpperCase();
 const canonicalPlate = (v: unknown) => normalizePlate(v).replace(/[^A-Z0-9]/g, '');
 const normalizeMaintenanceOsId = (v: unknown) => String(v ?? '').replace(/\s+/g, '').trim();
+const normalizeDisplayOsId = (v: unknown, fallback?: unknown) => {
+  const raw = normalizeMaintenanceOsId(v || fallback || '').toUpperCase();
+  if (!raw) return '';
+  let core = raw;
+  if (core.startsWith('OS-')) return core;
+  if (core.startsWith('OS')) core = core.slice(2);
+  core = core.replace(/^[-_:/\s]+/, '');
+  return core ? `OS-${core}` : '';
+};
 const makeRuleKey = (cto: string, grupo: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}`;
 const makeBancoRuleKey = (cto: string, grupo: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}::${normalizeKeyPart(regra)}`;
 const makeBancoRuleKeyGeneric = (cto: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(regra)}`;
@@ -406,6 +447,123 @@ const clrPositiveThreshold = (v:number, maxGood:number) => {
 
 interface ColDef { key:string; label:string; fmt:(r:VehicleRow)=>string; cls?:(r:VehicleRow)=>string; align?:'left'|'right'; w?:number; sortGetter?:(r:VehicleRow)=>any; }
 
+function MaintDetailModal(props: {
+  open: boolean;
+  placa: string;
+  rows: MaintDetailRow[] | FaturamentoDetailRow[];
+  mode: DetailMode;
+  onClose: () => void;
+}) {
+  const { open, placa, rows, mode, onClose } = props;
+  if (!open) return null;
+
+  const isFaturamento = mode === 'faturamento';
+  
+  // Adapta cálculos para os dois tipos de dados
+  let total = 0, totalReemb = 0;
+  if (isFaturamento) {
+    total = (rows as FaturamentoDetailRow[]).reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
+    totalReemb = 0; // Faturamento não tem reembolso
+  } else {
+    total = (rows as MaintDetailRow[]).reduce((acc, r) => acc + (Number(r.valorTotal) || 0), 0);
+    totalReemb = (rows as MaintDetailRow[]).reduce((acc, r) => acc + (Number(r.valorReembolsavel) || 0), 0);
+  }
+
+  const modeMeta = isFaturamento
+    ? { title: 'Histórico de Faturamento', subtitle: 'Detalhamento de faturamento por ano e mês', countLabel: 'Registros' }
+    : mode === 'sinistro'
+      ? { title: 'Extrato de Sinistros', subtitle: 'Detalhamento de eventos de sinistro por placa', countLabel: 'Sinistros' }
+      : mode === 'mansin'
+        ? { title: 'Extrato de Manutenção + Sinistro', subtitle: 'Detalhamento consolidado por placa', countLabel: 'Eventos' }
+        : { title: 'Extrato de Manutenções', subtitle: 'Detalhamento de OS por placa', countLabel: 'OS' };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-6xl max-h-[88vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">{modeMeta.title}</h3>
+            <p className="text-xs text-slate-500">{modeMeta.subtitle}</p>
+          </div>
+          <button type="button" onClick={onClose} className="h-8 w-8 rounded-full border border-slate-300 text-slate-500 hover:text-slate-800 hover:border-slate-400 flex items-center justify-center">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-3 border-b border-slate-200 bg-white flex flex-wrap items-center gap-4 text-sm">
+          <div className="text-slate-600">Placa: <span className="font-semibold text-slate-900">{placa || '—'}</span></div>
+          <div className="text-slate-600">{modeMeta.countLabel}: <span className="font-semibold text-slate-900">{rows.length.toLocaleString('pt-BR')}</span></div>
+          <div className="text-slate-600">Total Acumulado: <span className="font-semibold text-slate-900">{fmtBRLZero(total)}</span></div>
+          {!isFaturamento && <div className="text-slate-600">Total Reembolsável: <span className="font-semibold text-slate-900">{fmtBRLZero(totalReemb)}</span> <span className="text-slate-500">({fmtPct(total > 0 ? totalReemb / total : 0)})</span></div>}
+        </div>
+
+        <div className="overflow-auto px-5 py-3" style={{ maxHeight: '64vh' }}>
+          <table className="min-w-full text-xs border-collapse">
+            <thead className="sticky top-0 z-10 bg-slate-100">
+              <tr>
+                {isFaturamento ? (
+                  <>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Ano</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Mês</th>
+                    <th className="text-right px-2 py-2 border-b border-slate-200">Valor</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Descrição</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Nº OS</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Data</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Tipo</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Motivo</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Situação</th>
+                    <th className="text-right px-2 py-2 border-b border-slate-200">Valor Total</th>
+                    <th className="text-right px-2 py-2 border-b border-slate-200">Valor Reembolsável</th>
+                    <th className="text-right px-2 py-2 border-b border-slate-200">% Recup.</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={isFaturamento ? 4 : 8} className="px-2 py-8 text-center text-slate-400">
+                    {isFaturamento ? 'Nenhum faturamento encontrado para esta placa.' : 'Nenhuma OS encontrada para o período/regra aplicada.'}
+                  </td>
+                </tr>
+              )}
+              {isFaturamento ? (
+                (rows as FaturamentoDetailRow[]).map((r, i) => (
+                  <tr key={`fat-${r.ano}-${r.mes}-${i}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40">
+                    <td className="px-2 py-1.5">{r.ano}</td>
+                    <td className="px-2 py-1.5">{String(r.mes).padStart(2, '0')}</td>
+                    <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valor)}</td>
+                    <td className="px-2 py-1.5 text-left text-slate-600">{r.descricao || '—'}</td>
+                  </tr>
+                ))
+              ) : (
+                (rows as MaintDetailRow[]).map((r, i) => {
+                  const pct = r.valorTotal > 0 ? r.valorReembolsavel / r.valorTotal : 0;
+                  return (
+                    <tr key={`${r.osId}-${i}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40">
+                      <td className="px-2 py-1.5">{r.osId || '—'}</td>
+                      <td className="px-2 py-1.5">{r.date ? r.date.toLocaleDateString('pt-BR') : '—'}</td>
+                      <td className="px-2 py-1.5">{r.tipo || '—'}</td>
+                      <td className="px-2 py-1.5">{r.motivo || '—'}</td>
+                      <td className="px-2 py-1.5">{r.situacao || '—'}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valorTotal)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtBRLZero(r.valorReembolsavel)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtPct(pct)}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ID cols shown in every tab
 const ID_COLS: ColDef[] = [
   { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:60, sortGetter: r=>r.cliente },
@@ -475,6 +633,7 @@ export default function AnaliseContrato() {
 
   const [sortKey,  setSortKey]  = useState<string>('cliente');
   const [sortDir,  setSortDir]  = useState<'asc'|'desc'>('asc');
+  const [maintDetailTarget, setMaintDetailTarget] = useState<(Pick<VehicleRow, 'placa'|'dataInicial'|'idLocacao'|'idComercial'|'idVeiculo'|'tipoContrato'> & { mode: DetailMode }) | null>(null);
 
   useEffect(() => { setShowTabHelp(false); }, [activeTab]);
 
@@ -540,6 +699,8 @@ export default function AnaliseContrato() {
   const { data: rawS, loading: lS } = useBIData<SinistroRow[]>('fat_sinistros', { limit: 300000 });
   const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos', { limit: 300000 });
   const { data: rawFatItens, loading: lFatItens } = useBIData<FaturamentoItemRow[]>('fat_faturamento_itens', { limit: 300000 });
+  const { data: rawPrecos, loading: _lPrecos } = useBIData<PrecosLocacaoRow[]>('fat_precos_locacao', { limit: 100000 });
+  const { data: rawContratosFat } = useBIData<ContratoRow[]>('fat_contratoslocacao', { limit: 300000 });
 
   const loadManualRules = async () => {
     setRulesLoading(true);
@@ -689,9 +850,17 @@ export default function AnaliseContrato() {
   }, [rawF]);
 
   const activeContratos = useMemo(() => {
-    return (rawC as ContratoRow[]|null??[])
-      .filter(c => c.PlacaPrincipal || c.ContratoComercial); // Must have at least plate or commercial id
-  }, [rawC]);
+    const fromDim = (rawC as ContratoRow[]|null??[]);
+    const fromFat = (rawContratosFat as ContratoRow[]|null??[]);
+    const all = [...fromDim, ...fromFat];
+    const map = new Map<string, ContratoRow>();
+    for (const c of all) {
+      const key = String(c?.IdContratoLocacao || c?.ContratoComercial || c?.PlacaPrincipal || '').trim();
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, c);
+    }
+    return Array.from(map.values()).filter(c => c.PlacaPrincipal || c.ContratoComercial);
+  }, [rawC, rawContratosFat]);
 
   const clienteByCto = useMemo(() => {
     const map = new Map<string, string>();
@@ -709,6 +878,62 @@ export default function AnaliseContrato() {
     const arrS = rawS as SinistroRow[]|null   ?? [];
     const arrF = rawFat as FaturamentoRow[]|null ?? [];
     const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
+    const arrPrecos = rawPrecos as PrecosLocacaoRow[]|null ?? [];
+
+    // Mapa de preços históricos de locação por contrato de locação
+    const precosHistoricos = new Map<string, Array<{ dataInicial: Date | null; valor: number }>>();
+    for (const p of arrPrecos) {
+      const locacaoKey = String(p.IdContratoLocacao || '').trim().toUpperCase();
+      if (!locacaoKey) continue;
+      const valor = parseNum(p.PrecoUnitario || p.ValorLocacao || p.VlrLocacao || 0);
+      if (valor <= 0) continue;
+      const dataInicial = parseDateFlexible(p.DataInicial || '');
+      if (!precosHistoricos.has(locacaoKey)) precosHistoricos.set(locacaoKey, []);
+      precosHistoricos.get(locacaoKey)!.push({ dataInicial, valor });
+    }
+    // Ordenar por data para garantir ordem histórica
+    for (const arr of precosHistoricos.values()) {
+      arr.sort((a, b) => (a.dataInicial?.getTime() || 0) - (b.dataInicial?.getTime() || 0));
+    }
+
+    const calcularFaturamentoPrevisto = (contrato: ContratoRow | null, _cAny: any, idadeEmMeses: number) => {
+      if (!contrato || !idadeEmMeses || idadeEmMeses <= 0) return 0;
+      const idLocacaoKey = String(contrato?.IdContratoLocacao || '').trim().toUpperCase();
+      if (!idLocacaoKey) return 0;
+      const precos = precosHistoricos.get(idLocacaoKey) || [];
+      if (precos.length === 0) return 0;
+
+      const contractStart = parseDateFlexible(contrato?.DataInicial || '');
+      if (!contractStart) return 0;
+
+      const today = new Date();
+      let previsto = 0;
+      let mesesAcumulados = 0;
+
+      for (let i = 0; i < precos.length && mesesAcumulados < idadeEmMeses; i++) {
+        const precoAtual = precos[i];
+        const proximoPreco = precos[i + 1];
+       
+        const dataIni = precoAtual.dataInicial || contractStart;
+        const dataFim = proximoPreco ? proximoPreco.dataInicial : new Date(today.getFullYear(), today.getMonth() + 1, 0);
+       
+        // Calcular meses entre dataIni e dataFim
+        const mesesValidade = dataFim ? Math.max(0, (dataFim.getFullYear() - dataIni.getFullYear()) * 12 + (dataFim.getMonth() - dataIni.getMonth())) : 1;
+        const mesesEfetivos = Math.min(mesesValidade || 1, Math.max(0, idadeEmMeses - mesesAcumulados));
+       
+        if (mesesEfetivos > 0) {
+          previsto += precoAtual.valor * mesesEfetivos;
+          mesesAcumulados += mesesEfetivos;
+        }
+      }
+
+      return previsto;
+    };
+
+    const ultimoValorLocacao = (idLocacaoKey: string) => {
+      const precos = precosHistoricos.get(idLocacaoKey) || [];
+      return precos.length > 0 ? precos[precos.length - 1].valor : 0;
+    };
 
     type MA = { plate: string; date: Date | null; year: number; osId: string; cost: number; reemb: number };
     const maintByPlate = new Map<string, MA[]>();
@@ -718,7 +943,7 @@ export default function AnaliseContrato() {
       const placa = normalizePlate(rawPlaca);
       const placaKey = canonicalPlate(rawPlaca);
       if (!placa) continue;
-      const rawStatus = (m.Situacao || m.Status || m.StatusOrdem || m.SituacaoOcorrencia || m.StatusOcorrencia || '');
+      const rawStatus = (m.SituacaoOrdemServico || m.Situacao || m.Status || m.StatusOrdem || m.SituacaoOcorrencia || m.StatusOcorrencia || '');
       const status = String(rawStatus).toLowerCase();
       if (status.includes('cancel')) continue;
       const rawDate = m.OrdemServicoCriadaEm || m.DataCriacao || m.DataEntrada || m.DataCriacaoOS || (m as any).DataServico || (m as any).DataAtualizacaoDados || '';
@@ -838,9 +1063,12 @@ export default function AnaliseContrato() {
       );
       const dataInicial = c?.DataInicial || '';
       const tipoContratoRaw = String(
-        c?.TipoContrato
+        c?.TipoDeContrato
+        || c?.TipoContrato
         || c?.TipoContratoLocacao
+        || c?.TipoLocacao
         || c?.Publico
+        || cAny?.TipoDeContrato
         || cAny?.TipoContrato
         || cAny?.tipocontrato
         || cAny?.TipoContratoLocacao
@@ -945,6 +1173,18 @@ export default function AnaliseContrato() {
       const pctCustoLiqSinFat = faturamentoTotal > 0 ? custoLiqSin / faturamentoTotal : 0;
       const pctManSinFat = faturamentoTotal > 0 ? totalManSin / faturamentoTotal : 0;
 
+      const faturamentoPrevisto = calcularFaturamentoPrevisto(c, cAny, idadeEmMeses);
+      const ultimoPreco = ultimoValorLocacao(idLocacaoKey);
+      const isCortesiaContrato = /cortesia/i.test(tipoContratoRaw) || /cortesia/i.test(String(c?.Publico || cAny?.Publico || '')) || /cortesia/i.test(String(c?.TipoContrato || c?.TipoContratoLocacao || cAny?.TipoContrato || cAny?.TipoContratoLocacao || '')) || ultimoPreco <= 0.01;
+      const diferencaFaturamento = faturamentoTotal - faturamentoPrevisto;
+      const mesesRestantes = Math.max(0, Number(mesesRestantesContrato) || 0);
+      const projecaoFaturamento = mesesRestantes > 0 && ultimoPreco > 0 ? ultimoPreco * mesesRestantes : 0;
+      const faturamentoTotalExibido = isCortesiaContrato ? 0 : faturamentoTotal;
+      const faturamentoPrevistoExibido = isCortesiaContrato ? 0 : faturamentoPrevisto;
+      const ultimoPrecoExibido = isCortesiaContrato ? 0 : ultimoPreco;
+      const diferencaFaturamentoExibida = isCortesiaContrato ? 0 : diferencaFaturamento;
+      const projecaoFaturamentoExibida = isCortesiaContrato ? 0 : projecaoFaturamento;
+
       const years: Record<number, any> = {};
       for (let y = 2022; y <= 2030; y++) {
         const yr = mm.get(y);
@@ -961,6 +1201,7 @@ export default function AnaliseContrato() {
       return {
         idLocacao: String(c?.IdContratoLocacao || ''),
         idComercial: String(cAny?.IdContratoComercial || cAny?.ContratoComercial || ''),
+        idVeiculo: String(fr?.IdVeiculo || c?.IdVeiculoPrincipal || ''),
         placa: realPlaca, modelo, grupo, kmAtual, indiceKm: kmLabel(kmAtual), idadeEmMeses, rodagemMedia,
         dataInicial,
         vencimentoContrato: c?.DataFinal ? new Date(c.DataFinal).toLocaleDateString('pt-BR') : '—',
@@ -981,14 +1222,15 @@ export default function AnaliseContrato() {
         totalReembMan, custoLiqMan, pctReembolsadoMan, custoKmLiqMan,
         totalSinistro, totalReembSin, qtdOsManutencao: cntMan, qtdSinistros: totalQtdSinistros, custoLiqSin, pctReembolsadoSin,
         totalManSin, pctReembolsadoManSin,
-        faturamentoTotal,
+        faturamentoTotal: faturamentoTotalExibido,
+        faturamentoPrevisto: faturamentoPrevistoExibido, ultimoValorLocacao: ultimoPrecoExibido, diferencaFaturamento: diferencaFaturamentoExibida, projecaoFaturamento: projecaoFaturamentoExibida,
         pctManFat, pctCustoLiqManFat, pctSinFat, pctCustoLiqSinFat, pctManSinFat,
         years
       };
     });
 
     return result;
-  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, kmDivisor, bancoRegraLookup, manualCostLookup]);
+  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, rawPrecos, kmDivisor, bancoRegraLookup, manualCostLookup]);
 
   const getVencInfo = (v: string) => {
     const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -1132,6 +1374,248 @@ export default function AnaliseContrato() {
       return sortDir==='asc'?cmp:-cmp;
     });
   }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc, sortKey, sortDir]);
+
+  const maintDetailRows = useMemo<MaintDetailRow[]>(() => {
+    if (!maintDetailTarget) return [];
+    const arrM = rawM as ManutencaoRow[]|null ?? [];
+    const arrS = rawS as SinistroRow[]|null ?? [];
+    const targetKey = canonicalPlate(maintDetailTarget.placa || '');
+    if (!targetKey) return [];
+
+    const contractStart = parseDateFlexible(maintDetailTarget.dataInicial || '');
+    const today = new Date();
+    const seen = new Set<string>();
+    const rows: MaintDetailRow[] = [];
+    const includeManutencao = maintDetailTarget.mode === 'manutencao' || maintDetailTarget.mode === 'mansin';
+    const includeSinistro = maintDetailTarget.mode === 'sinistro' || maintDetailTarget.mode === 'mansin';
+
+    if (includeManutencao) {
+      for (const m of arrM) {
+        const plateKey = canonicalPlate(m?.Placa || '');
+        if (!plateKey || plateKey !== targetKey) continue;
+
+        const statusRaw = (m as any)?.SituacaoOrdemServico || (m as any)?.situacaoordemservico || (m as any)?.SituacaoOS || m?.Situacao || m?.Status || m?.StatusOrdem || m?.SituacaoOcorrencia || m?.StatusOcorrencia || '';
+        const status = String(statusRaw || '').toLowerCase();
+        if (status.includes('cancel')) continue;
+
+        const rawDate = (m as any)?.OrdemServicoCriadaEm || (m as any)?.DataCriacao || (m as any)?.DataEntrada || (m as any)?.DataCriacaoOS || (m as any)?.DataServico || (m as any)?.DataAtualizacaoDados || '';
+        const date = parseDateFlexible(rawDate);
+        if (!date) continue;
+        if (contractStart && date < contractStart) continue;
+        if (date > today) continue;
+
+        const rawOs = (m as any)?.IdOrdemServico || (m as any)?.idordemservico || (m as any)?.IdOcorrencia || (m as any)?.numeroos;
+        const osId = normalizeDisplayOsId(rawOs, `${targetKey}-${rawDate}`);
+        const dedupeKey = `M::${osId}::${date.toISOString()}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+
+        rows.push({
+          osId,
+          date,
+          tipo: String((m as any)?.Tipo || (m as any)?.TipoManutencao || (m as any)?.TipoOcorrencia || 'Manutenção').trim(),
+          motivo: String((m as any)?.Motivo || (m as any)?.MotivoOcorrencia || '').trim(),
+          situacao: String((m as any)?.SituacaoOrdemServico || (m as any)?.situacaoordemservico || (m as any)?.SituacaoOS || (m as any)?.Situacao || (m as any)?.StatusOrdem || (m as any)?.Status || (m as any)?.SituacaoOcorrencia || (m as any)?.StatusOcorrencia || '').trim(),
+          valorTotal: parseNum((m as any)?.ValorTotalFatItens || (m as any)?.ValorTotal || (m as any)?.valortotal || (m as any)?.CustoTotalOS || 0),
+          valorReembolsavel: parseNum((m as any)?.ValorReembolsavelFatItens || (m as any)?.ValorReembolsavel || (m as any)?.valorreembolsavel || 0),
+        });
+      }
+    }
+
+    if (includeSinistro) {
+      for (const s of arrS) {
+        const plateKey = canonicalPlate((s as any)?.Placa || '');
+        if (!plateKey || plateKey !== targetKey) continue;
+
+        const statusRaw = (s as any)?.SituacaoOrdemServico || (s as any)?.situacaoordemservico || (s as any)?.Situacao || (s as any)?.Status || '';
+        const status = String(statusRaw || '').toLowerCase();
+        if (status.includes('cancel')) continue;
+
+        const rawDate = (s as any)?.DataSinistro || (s as any)?.DataCriacao || (s as any)?.DataOcorrencia || (s as any)?.DataAtualizacaoDados || '';
+        const date = parseDateFlexible(rawDate);
+        if (!date) continue;
+        if (contractStart && date < contractStart) continue;
+        if (date > today) continue;
+
+        const rawOs = (s as any)?.IdOrdemServico || (s as any)?.idordemservico || (s as any)?.IdOcorrencia || (s as any)?.IdSinistro || (s as any)?.IdEvento || (s as any)?.NumeroOS;
+        const osId = normalizeDisplayOsId(rawOs, `${targetKey}-SIN-${rawDate}`);
+        const dedupeKey = `S::${osId}::${date.toISOString()}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+
+        const valorTotal = parseSinistroCost(s as any);
+        const valorReembolsavel = parseSinistroReembolso(s as any);
+
+        const situacaoCandidates = [
+          (s as any)?.SituacaoOrdemServico,
+          (s as any)?.situacaoordemservico,
+          (s as any)?.SituacaoOS,
+          (s as any)?.SituacaoSinistro,
+          (s as any)?.StatusSinistro,
+          (s as any)?.Situacao,
+          (s as any)?.Status,
+          (s as any)?.StatusOcorrencia,
+          (s as any)?.SituacaoOcorrencia,
+          (s as any)?.StatusOrdem,
+        ].map((v:any)=>String(v||'').trim()).filter(Boolean);
+        const situacaoValue = situacaoCandidates.length ? situacaoCandidates[0] : '—';
+
+        rows.push({
+          osId,
+          date,
+          tipo: 'Sinistro',
+          motivo: String((s as any)?.Motivo || (s as any)?.TipoSinistro || (s as any)?.Descricao || '').trim(),
+          situacao: situacaoValue,
+          valorTotal,
+          valorReembolsavel,
+        });
+      }
+    }
+
+    return rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  }, [maintDetailTarget, rawM, rawS]);
+
+  const fatDetailRows = useMemo<FaturamentoDetailRow[]>(() => {
+    if (!maintDetailTarget || maintDetailTarget.mode !== 'faturamento') return [];
+    if (/cortesia/i.test(String(maintDetailTarget.tipoContrato || ''))) return [];
+
+    const arrF = rawFat as FaturamentoRow[]|null ?? [];
+    const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
+    const arrPrecos = rawPrecos as PrecosLocacaoRow[]|null ?? [];
+
+    const targetPlaca = normalizePlate(maintDetailTarget.placa || '');
+    const targetVeiculo = String(maintDetailTarget.idVeiculo || '').trim().toUpperCase();
+    const targetLocacao = String(maintDetailTarget.idLocacao || '').trim().toUpperCase();
+    const targetComercial = String(maintDetailTarget.idComercial || '').trim().toUpperCase();
+
+    const parseYearMonth = (v: unknown): { ano: number; mes: number } | null => {
+      const raw = String(v || '').trim();
+      if (!raw) return null;
+
+      const mmYyyy = raw.match(/^(\d{2})\/(\d{4})$/);
+      if (mmYyyy) return { ano: Number(mmYyyy[2]), mes: Number(mmYyyy[1]) };
+
+      const yyyyMm = raw.match(/^(\d{4})-(\d{2})$/);
+      if (yyyyMm) return { ano: Number(yyyyMm[1]), mes: Number(yyyyMm[2]) };
+
+      const yyyymm = raw.match(/^(\d{4})(\d{2})$/);
+      if (yyyymm) return { ano: Number(yyyymm[1]), mes: Number(yyyymm[2]) };
+
+      const d = parseDateFlexible(raw);
+      if (!d) return null;
+      return { ano: d.getFullYear(), mes: d.getMonth() + 1 };
+    };
+
+    const matchesTarget = (row: any) => {
+      const rowPlaca = normalizePlate((row.Placa || row.placa || '') as string);
+      const rowVeiculo = String(row.IdVeiculo || '').trim().toUpperCase();
+      const rowLocacao = String(row.IdContratoLocacao || '').trim().toUpperCase();
+      const rowComercial = String(row.IdContratoComercial || row.ContratoComercial || '').trim().toUpperCase();
+
+      if (targetPlaca && rowPlaca && rowPlaca === targetPlaca) return true;
+      if (targetVeiculo && rowVeiculo && rowVeiculo === targetVeiculo) return true;
+      if (targetLocacao && rowLocacao && rowLocacao === targetLocacao) return true;
+      if (targetComercial && rowComercial && rowComercial === targetComercial) return true;
+      return false;
+    };
+
+    const fatMetaByNota = new Map<string, { ano: number; mes: number; descricao: string }>();
+    for (const f of arrF) {
+      if (!matchesTarget(f)) continue;
+
+      const ym = parseYearMonth(f.DataCompetencia || f.Competencia || f.DataEmissao || f.DataCriacao || '');
+      if (!ym || ym.ano < 2022 || ym.ano > 2030 || ym.mes < 1 || ym.mes > 12) continue;
+
+      const nota = String(f.IdNota || '').trim();
+      if (!nota) continue;
+
+      fatMetaByNota.set(nota, {
+        ano: ym.ano,
+        mes: ym.mes,
+        descricao: String(f.Placa || f.placa || '').trim(),
+      });
+    }
+
+    const byMonth = new Map<string, { ano: number; mes: number; valor: number }>();
+    const addMonthlyValue = (ano: number, mes: number, valor: number) => {
+      const key = `${ano}-${String(mes).padStart(2, '0')}`;
+      const prev = byMonth.get(key) || { ano, mes, valor: 0 };
+      prev.valor += valor;
+      byMonth.set(key, prev);
+    };
+
+    for (const f of arrF) {
+      if (!matchesTarget(f)) continue;
+      const nota = String(f.IdNota || '').trim();
+      const meta = fatMetaByNota.get(nota);
+      const ym = meta || parseYearMonth(f.DataCompetencia || f.Competencia || f.DataEmissao || f.DataCriacao || '');
+      if (!ym || ym.ano < 2022 || ym.ano > 2030 || ym.mes < 1 || ym.mes > 12) continue;
+
+      const valor = parseNum(f.VlrLocacao ?? f.ValorLocacao ?? 0);
+      if (!valor) continue;
+      addMonthlyValue(ym.ano, ym.mes, valor);
+    }
+
+    for (const fi of arrFI) {
+      const nota = String(fi.IdNota || '').trim();
+      if (!nota) continue;
+      const meta = fatMetaByNota.get(nota);
+      const rowMatches = matchesTarget(fi);
+      if (!rowMatches && !meta) continue;
+
+      const ym = meta || parseYearMonth((fi as any).DataCompetencia || (fi as any).Competencia || (fi as any).DataAtualizacaoDados || '');
+      if (!ym || ym.ano < 2022 || ym.ano > 2030 || ym.mes < 1 || ym.mes > 12) continue;
+
+      const valor = parseNum(fi.ValorTotal ?? fi.ValorUnitario ?? 0);
+      if (!valor) continue;
+      addMonthlyValue(ym.ano, ym.mes, valor);
+    }
+
+    const descFromPrecoByMonth = new Map<string, string>();
+    if (targetLocacao) {
+      const precosLoc = arrPrecos
+        .filter(p => String(p.IdContratoLocacao || '').trim().toUpperCase() === targetLocacao)
+        .map((p) => ({
+          data: parseDateFlexible(p.DataInicial || ''),
+          valor: parseNum(p.PrecoUnitario || p.ValorLocacao || p.VlrLocacao || 0),
+          descricao: String((p as any).Descricao || (p as any).Observacao || (p as any).MotivoAlteracao || (p as any).Justificativa || '').trim(),
+        }))
+        .filter(p => p.data && p.valor > 0)
+        .sort((a, b) => (a.data!.getTime() - b.data!.getTime()));
+
+      for (let i = 1; i < precosLoc.length; i++) {
+        const curr = precosLoc[i];
+        const prev = precosLoc[i - 1];
+        const ano = curr.data!.getFullYear();
+        const mes = curr.data!.getMonth() + 1;
+        const key = `${ano}-${String(mes).padStart(2, '0')}`;
+        const base = curr.descricao || `Alteração de preço da locação: ${fmtBRLZero(prev.valor)} -> ${fmtBRLZero(curr.valor)}`;
+        descFromPrecoByMonth.set(key, base);
+      }
+    }
+
+    const sorted = Array.from(byMonth.values()).sort((a, b) => {
+      if (a.ano !== b.ano) return a.ano - b.ano;
+      return a.mes - b.mes;
+    });
+
+    const rows: FaturamentoDetailRow[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const cur = sorted[i];
+      const prev = i > 0 ? sorted[i - 1] : null;
+      const monthKey = `${cur.ano}-${String(cur.mes).padStart(2, '0')}`;
+      let descricao = descFromPrecoByMonth.get(monthKey) || '';
+
+      if (!descricao && prev && Math.abs(cur.valor - prev.valor) > 0.01) {
+        descricao = 'Variação de faturamento sem alteração de preço cadastrada';
+      }
+
+      if (!descricao) descricao = 'Faturamento de locação';
+      rows.push({ ano: cur.ano, mes: cur.mes, valor: cur.valor, descricao });
+    }
+
+    return rows.sort((a, b) => (b.ano - a.ano) || (b.mes - a.mes));
+  }, [maintDetailTarget, rawFat, rawFatItens, rawPrecos]);
 
   const getDynYearsForTab = (tab: TabKey) => {
     const minYear = 2022;
@@ -1345,15 +1829,17 @@ export default function AnaliseContrato() {
         { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(0), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
-        { key:'kmEstimadoFimContrato',label:'KM Est. Fim',fmt:r=>r.kmEstimadoFimContrato>0?r.kmEstimadoFimContrato.toLocaleString('pt-BR'):'—', align:'right', w:110, sortGetter: r=>r.kmEstimadoFimContrato },
+        { key:'dataInicial',     label:'Início Contrato', fmt:r=>r.dataInicial ? new Date(r.dataInicial).toLocaleDateString('pt-BR') : '—', align:'left', w:110, sortGetter: r=>r.dataInicial },
         { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
+        { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
         { key:'mesesRestantesContrato',label:'Prazo Rest',fmt:r=>{
             const days = Number.isFinite(r.prazoRestDays) ? r.prazoRestDays : NaN;
             if (!isFinite(days)) return '—';
             if (days < 0) return `${Math.abs(days)} dias`;
             if (days < 90) return `${days} dias`;
             return `${r.mesesRestantesContrato} meses`;
-          }, cls: r=> (Number.isFinite(r.prazoRestDays) && r.prazoRestDays<0) ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:92, sortGetter: r=>r.mesesRestantesContrato }
+          }, cls: r=> (Number.isFinite(r.prazoRestDays) && r.prazoRestDays<0) ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:92, sortGetter: r=>r.mesesRestantesContrato },
+        { key:'kmEstimadoFimContrato',label:'KM Est. Fim',fmt:r=>r.kmEstimadoFimContrato>0?r.kmEstimadoFimContrato.toLocaleString('pt-BR'):'—', align:'right', w:110, sortGetter: r=>r.kmEstimadoFimContrato },
       );
     } else if (tab === 'previsto') {
       cols.push(
@@ -1395,7 +1881,10 @@ export default function AnaliseContrato() {
       cols.push({ key:'pctReembolsadoManSin',label:'% Reemb',     fmt:r=>fmtPct(r.pctReembolsadoManSin), align:'right', w:90, sortGetter: r=>r.pctReembolsadoManSin });
     } else if (tab === 'faturamento') {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`fat_${y}`, label:`Fat ${y}`, fmt:r=>fmtBRL(r.years[y].fat), align:'right', w:120, sortGetter: r=>r.years[y].fat }));
-      cols.push({ key:'faturamentoTotal', label:'Fat Total',      fmt:r=>fmtBRL(r.faturamentoTotal),align:'right', w:130, sortGetter: r=>r.faturamentoTotal });
+      cols.push({ key:'faturamentoTotal', label:'Fat Total (Realizado)',fmt:r=>fmtBRL(r.faturamentoTotal),align:'right', w:150, sortGetter: r=>r.faturamentoTotal });
+      cols.push({ key:'faturamentoPrevisto',label:'Fat Previsto',fmt:r=>fmtBRL(r.faturamentoPrevisto),align:'right', w:130, sortGetter: r=>r.faturamentoPrevisto });
+      cols.push({ key:'diferencaFaturamento',label:'Diferença',fmt:r=>fmtBRL(r.diferencaFaturamento),cls:r=>clrV(r.diferencaFaturamento, true),align:'right', w:120, sortGetter: r=>r.diferencaFaturamento });
+      cols.push({ key:'projecaoFaturamento',label:'Projeção (Ult. Preço)',fmt:r=>fmtBRL(r.projecaoFaturamento),align:'right', w:140, sortGetter: r=>r.projecaoFaturamento });
       cols.push({ key:'pctManFat',        label:'% Man/Fat',      fmt:r=>fmtPct(r.pctManFat),        cls:r=>clrPctThreshold(r.pctManFat, fatPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctManFat });
       cols.push({ key:'pctCustoLiqManFat',label:'% Liq Man/Fat',  fmt:r=>fmtPct(r.pctCustoLiqManFat),cls:r=>clrPctThreshold(r.pctCustoLiqManFat, fatPctAlertThreshold), align:'right', w:100, sortGetter: r=>r.pctCustoLiqManFat });
       cols.push({ key:'pctSinFat',        label:'% Sin/Fat',      fmt:r=>fmtPct(r.pctSinFat),        cls:r=>clrPctThreshold(r.pctSinFat, fatPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctSinFat });
@@ -2380,6 +2869,9 @@ export default function AnaliseContrato() {
                   <th colSpan={tabCols.length} className={`${curTab.hdr} text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide`}>
                     {curTab.label} ({dynYears[0]} - {dynYears[dynYears.length-1]})
                   </th>
+                  <th rowSpan={2} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-l border-white/20" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
+                    Det.
+                  </th>
                 </tr>
                 <tr className="bg-slate-800">
                   {allCols.map((col) => {
@@ -2397,7 +2889,7 @@ export default function AnaliseContrato() {
               </thead>
               <tbody>
                 {displayRows.length===0 && (
-                  <tr><td colSpan={allCols.length} className="text-center py-16 text-slate-400">
+                  <tr><td colSpan={allCols.length + 1} className="text-center py-16 text-slate-400">
                     {heavyLoading
                       ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin"/>Carregando dados detalhados…</span>
                       : 'Nenhum veículo encontrado com os filtros selecionados.'}
@@ -2417,6 +2909,24 @@ export default function AnaliseContrato() {
                         </td>
                       );
                     })}
+                    <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
+                      <button
+                        type="button"
+                        title={activeTab === 'faturamento' ? 'Ver histórico de faturamento' : 'Ver extrato de manutenções'}
+                        onClick={() => setMaintDetailTarget({ 
+                          placa: row.placa, 
+                          dataInicial: row.dataInicial, 
+                          idLocacao: row.idLocacao,
+                          idComercial: row.idComercial,
+                          idVeiculo: row.idVeiculo,
+                          tipoContrato: row.tipoContrato,
+                          mode: activeTab === 'sinistro' ? 'sinistro' : activeTab === 'mansin' ? 'mansin' : activeTab === 'faturamento' ? 'faturamento' : 'manutencao' 
+                        })}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                      >
+                        <Search size={14} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -2448,6 +2958,7 @@ export default function AnaliseContrato() {
                     }
                     return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatted}</td>;
                   })}
+                  <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>—</td>
                 </tr>
               </tfoot>
             </table>
@@ -2459,6 +2970,14 @@ export default function AnaliseContrato() {
             </div>
           )}
         </div>
+
+        <MaintDetailModal
+          open={!!maintDetailTarget}
+          placa={maintDetailTarget?.placa || ''}
+          rows={maintDetailTarget?.mode === 'faturamento' ? fatDetailRows : maintDetailRows}
+          mode={maintDetailTarget?.mode || 'manutencao'}
+          onClose={() => setMaintDetailTarget(null)}
+        />
 
       </div>
     </div>
