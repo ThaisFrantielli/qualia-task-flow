@@ -395,13 +395,14 @@ export default function ContractTerminationDashboard() {
         c.ValorFipe ?? c.ValorFipeAtual ?? c.valorFipeAtual ?? c.ValorFipeNaCompra ?? c.ValorFipeZeroKmAtual ?? c.ValorAtualFIPE ?? c.currentFipe ?? c.valor_fipe
         ?? frotaRow?.ValorFipe ?? frotaRow?.ValorFipeAtual ?? frotaRow?.valorfipeatual ?? frotaRow?.ValorAtualFIPE ?? frotaRow?.valoratualfipe ?? 0
       );
+      // Prioritize values from the fleet row (dim_frota) when available
       const kmConfirmado = pickBestNumeric(
-        c.KmConfirmado, c.kmconfirmado, c.OdometroConfirmado, c.odometroconfirmado,
-        frotaRow?.KmConfirmado, frotaRow?.kmconfirmado, frotaRow?.OdometroConfirmado, frotaRow?.odometroconfirmado, frotaRow?.odometro_confirmado, frotaRow?.km_confirmado, frotaRow?.KM, frotaRow?.km
+        frotaRow?.KmConfirmado, frotaRow?.kmconfirmado, frotaRow?.OdometroConfirmado, frotaRow?.odometroconfirmado, frotaRow?.odometro_confirmado, frotaRow?.km_confirmado, frotaRow?.KM, frotaRow?.km,
+        c.KmConfirmado, c.kmconfirmado, c.OdometroConfirmado, c.odometroconfirmado
       );
       const kmInformado = pickBestNumeric(
-        c.KmInformado, c.kminformado, c.OdometroInformado, c.odometroinformado, c.currentKm,
-        frotaRow?.KmInformado, frotaRow?.kminformado, frotaRow?.OdometroInformado, frotaRow?.odometroinformado, frotaRow?.odometro_informado, frotaRow?.km_informado, frotaRow?.KM, frotaRow?.km
+        frotaRow?.KmInformado, frotaRow?.kminformado, frotaRow?.OdometroInformado, frotaRow?.odometroinformado, frotaRow?.odometro_informado, frotaRow?.km_informado, frotaRow?.KM, frotaRow?.km,
+        c.KmInformado, c.kminformado, c.OdometroInformado, c.odometroinformado, c.currentKm
       );
       const km = kmConfirmado > 0 ? kmConfirmado : kmInformado;
       const pctLocFipe = valorFipe > 0 ? valorLocacao / valorFipe : null;
@@ -811,6 +812,23 @@ export default function ContractTerminationDashboard() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filtered, sortState, pageSize]);
+
+  // Debug: log sample rows to help diagnose missing KM values (dev only)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        // Log a few samples
+        // eslint-disable-next-line no-console
+        console.debug('ContractTerminationDashboard samples', {
+          contractsCount: contracts.length,
+          frotaCount: (Array.isArray(frotaData) ? frotaData.length : 0),
+          tableSliceSample: tableSlice.slice(0, 8).map(r => ({ contrato: r.contratoLocacao, placa: r.placa, kmConfirmado: r.kmConfirmado, kmInformado: r.kmInformado, km: r.km }))
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [contracts, frotaData, tableSlice]);
 
   const toggleTableSort = (key: TableSortKey) => {
     setSortState(prev => prev.key === key

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
@@ -23,7 +23,7 @@ interface FrotaRow {
   Categoria?:string; CategoriaVeiculo?:string; Grupo?:string; GrupoVeiculo?:string;
   KmConfirmado?:number; KM?:number; KmInformado?:number; 
 }
-interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; TipoOcorrencia:string; }
+interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; OrdemServicoCriadaEm?:string; DataCriacao?:string; TipoOcorrencia?:string; Tipo?:string; TipoManutencao?:string; Situacao?:string; Status?:string; StatusOrdem?:string; SituacaoOcorrencia?:string; StatusOcorrencia?:string; }
 interface SinistroRow { Placa:string; DataSinistro:string; DataCriacao:string; ValorOrcado:number; IndenizacaoSeguradora:number; ReembolsoTerceiro:number; }
 interface FaturamentoRow { IdNota:string; IdVeiculo:string; Competencia:string; VlrLocacao:number; }
 
@@ -131,33 +131,37 @@ export default function AnaliseContrato() {
     const manIdx = new Map<string,YA>();
     const passIdx= new Map<string,Record<number,number>>();
     for (const m of arrM) {
-      const placa = m.Placa; if(!placa) continue;
-      const yr = getYear(m.DataEntrada||m.DataCriacaoOS||'');
+      const rawPlaca = m.Placa; if(!rawPlaca) continue;
+      const placa = String(rawPlaca).toUpperCase().trim();
+      const rawStatus = (m.Situacao || m.Status || m.StatusOrdem || m.SituacaoOcorrencia || m.StatusOcorrencia || '');
+      const status = String(rawStatus).toLowerCase();
+      if (status.includes('cancel')) continue;
+      const yr = getYear(m.DataCriacao || m.OrdemServicoCriadaEm || m.DataEntrada || m.DataCriacaoOS || '');
       if(yr<2022 || yr>2030) continue;
-      const tipo=(m.TipoOcorrencia||'').toLowerCase();
-      if(tipo.startsWith('manuten')||tipo.includes('sinistro')) {
+      const tipo = String(m.Tipo || m.TipoOcorrencia || m.TipoManutencao || '').toLowerCase();
+      if (tipo.startsWith('manuten')) {
         if(!passIdx.has(placa)) passIdx.set(placa,{});
-        const p=passIdx.get(placa)!; p[yr]=(p[yr]||0)+1;
-      }
-      if(tipo.startsWith('manuten')) {
+        const p = passIdx.get(placa)!; p[yr] = (p[yr]||0)+1;
+
         if(!manIdx.has(placa)) manIdx.set(placa,{});
-        const mm=manIdx.get(placa)!;
-        if(!mm[yr]) mm[yr]={cost:0,reemb:0,count:0};
-        mm[yr].cost+=parseNum(m.ValorTotal); mm[yr].reemb+=parseNum(m.ValorReembolsavel); mm[yr].count++;
+        const mm = manIdx.get(placa)!;
+        if(!mm[yr]) mm[yr] = {cost:0,reemb:0,count:0};
+        mm[yr].cost += parseNum(m.ValorTotal); mm[yr].reemb += parseNum(m.ValorReembolsavel); mm[yr].count++;
       }
     }
 
     type SA = Record<number,{cost:number;reemb:number}>;
     const sinIdx = new Map<string,SA>();
     for (const s of arrS) {
-      const placa=s.Placa; if(!placa) continue;
+      const rawPlaca = s.Placa; if(!rawPlaca) continue;
+      const placa = String(rawPlaca).toUpperCase().trim();
       const yr=getYear(s.DataSinistro||s.DataCriacao||'');
       if(yr<2022 || yr>2030) continue;
       if(!sinIdx.has(placa)) sinIdx.set(placa,{});
       const sm=sinIdx.get(placa)!;
       if(!sm[yr]) sm[yr]={cost:0,reemb:0};
-      sm[yr].cost+=parseNum(s.ValorOrcado);
-      sm[yr].reemb+=parseNum(s.IndenizacaoSeguradora)+parseNum(s.ReembolsoTerceiro);
+      sm[yr].cost += parseNum(s.ValorOrcado);
+      sm[yr].reemb += parseNum(s.IndenizacaoSeguradora) + parseNum(s.ReembolsoTerceiro);
     }
 
     const fatIdx = new Map<string,Record<number,number>>();
@@ -165,10 +169,11 @@ export default function AnaliseContrato() {
     for (const f of arrF) {
       if(!f.IdNota||notasSeen.has(f.IdNota)) continue; notasSeen.add(f.IdNota);
       const idv=f.IdVeiculo; if(!idv) continue;
+      const idvKey = String(idv).toUpperCase().trim();
       const yr=getYear(f.Competencia||'');
       if(yr<2022 || yr>2030) continue;
-      if(!fatIdx.has(idv)) fatIdx.set(idv,{});
-      const fm=fatIdx.get(idv)!; fm[yr]=(fm[yr]||0)+parseNum(f.VlrLocacao);
+      if(!fatIdx.has(idvKey)) fatIdx.set(idvKey,{});
+      const fm=fatIdx.get(idvKey)!; fm[yr]=(fm[yr]||0)+parseNum(f.VlrLocacao);
     }
 
     const baseItems = activeContratos.map(c => ({
@@ -182,11 +187,16 @@ export default function AnaliseContrato() {
       }
     });
 
-    return baseItems.map(({ c, fr, placa }) => {
-      const cAny = c || {} as any;
+    const result = baseItems.map(({ c, fr, placa }) => {
+      const cAny = (c || {}) as any;
+      const frAny = fr as any;
       const modelo = fr?.Modelo ?? cAny.Modelo ?? ''; 
       const grupo = fr?.Grupo ?? fr?.GrupoVeiculo ?? fr?.Categoria ?? fr?.CategoriaVeiculo ?? cAny.Grupo ?? cAny.GrupoVeiculo ?? cAny.Categoria ?? 'LEVE';
-      const kmAtual = parseNum(fr?.KmConfirmado ?? cAny.KmConfirmado ?? fr?.KM ?? cAny.KM ?? 0);
+      const kmAtual = parseNum(
+        frAny?.KmConfirmado ?? frAny?.kmconfirmado ?? frAny?.OdometroConfirmado ?? frAny?.odometroconfirmado ??
+        cAny.KmConfirmado ?? cAny.kmconfirmado ?? cAny.OdometroConfirmado ?? cAny.odometroconfirmado ??
+        frAny?.KM ?? cAny.KM ?? 0
+      );
       const dataInicial = c?.DataInicial || '';
       const idadeEmMeses = monthsDiff(dataInicial);
       const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmAtual / idadeEmMeses) : 0;
@@ -271,6 +281,8 @@ export default function AnaliseContrato() {
         years
       };
     });
+
+    return result;
   }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, kmDivisor, custoPadrao, custoGeral]);
 
   // Derive cascaded filter options
@@ -288,6 +300,15 @@ export default function AnaliseContrato() {
     sitCTO:   [...new Set(vehicleRows.map(r=>r.sitCTO))].filter(Boolean).sort(),
     sitLoc:   [...new Set(vehicleRows.map(r=>r.sitLoc))].filter(Boolean).sort(),
   }), [vehicleRows, filterCandidates]);
+
+  // Default: when no explicit Situação Locação filter, prefer an 'em andamento' like value
+  useEffect(() => {
+    if (filterSitLoc) return;
+    const candidates = opts.sitLoc || [];
+    const regex = /andament|andando|andamento|locado|ativo|vigente/i;
+    const found = candidates.find(s => regex.test(String(s || '')));
+    if (found) setFilterSitLoc(found);
+  }, [opts.sitLoc, filterSitLoc]);
 
   // Unique groups for settings
   const allGrupos = useMemo(() => [...new Set(vehicleRows.map(r=>r.grupo))].filter(Boolean).sort(), [vehicleRows]);
@@ -312,15 +333,31 @@ export default function AnaliseContrato() {
 
   // Determine dynamic years to display based on filtered rows
   const dynYears = useMemo(() => {
-    let minGroupYear = 2026;
+    // If we're on Passagem tab, only include years that actually have passagem data
+    const minYear = 2022;
+    const maxYear = 2026;
+    if (activeTab === 'passagem') {
+      const yearsSet = new Set<number>();
+      for (const r of displayRows) {
+        if (!r.years) continue;
+        for (let y = minYear; y <= maxYear; y++) {
+          if (Number(r.years[y]?.pass) > 0) yearsSet.add(y);
+        }
+      }
+      const years = Array.from(yearsSet).sort((a, b) => a - b);
+      if (years.length > 0) return years;
+      // fallback to default range if nothing found
+    }
+
+    // Default behavior: infer earliest dataInicial but clamp to reasonable range
+    let minGroupYear = maxYear;
     for (const r of displayRows) {
       const yr = getYear(r.dataInicial);
       if (yr > 0 && yr < minGroupYear) minGroupYear = yr;
     }
-    const cutoff = Math.max(minGroupYear, 2022); // Let's not show before 2022 mostly
-    const maxGroupYear = 2026; // up to 2026
+    const cutoff = Math.max(minGroupYear, minYear);
     const res = [];
-    for (let y = cutoff; y <= maxGroupYear; y++) res.push(y);
+    for (let y = cutoff; y <= maxYear; y++) res.push(y);
     return res;
   }, [displayRows]);
 
@@ -404,6 +441,41 @@ export default function AnaliseContrato() {
   }, [activeTab, dynYears]);
 
   const allCols = useMemo(() => [...ID_COLS, ...tabCols], [tabCols]);
+
+  // Totais das colunas (quando compatível)
+  const colTotals = useMemo(() => {
+    const totals: Record<string, number | null> = {};
+    const isSummableKey = (k: string) => {
+      if (!k) return false;
+      const kk = k.toLowerCase();
+      // don't sum percentages, labels, ids, text columns
+      if (kk.includes('pct') || kk.includes('indice') || kk.includes('vencimento') || kk.includes('contrato') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo') || kk.includes('idade')) return false;
+      // rodagem/media and ideal/difference are not summable
+      if (kk.includes('rodagem') || kk.includes('ideal') || kk.includes('diferenca')) return false;
+      return true;
+    };
+
+    for (const col of allCols) {
+      if (!isSummableKey(col.key)) {
+        totals[col.key] = null;
+        continue;
+      }
+      let sum = 0;
+      let found = false;
+      for (const r of displayRows) {
+        let v: any = undefined;
+        if (col.sortGetter) {
+          try { v = col.sortGetter(r as any); } catch (e) { v = undefined; }
+        } else {
+          v = (r as any)[col.key];
+        }
+        const n = Number(v);
+        if (isFinite(n)) { sum += n; found = true; }
+      }
+      totals[col.key] = found ? sum : null;
+    }
+    return totals;
+  }, [displayRows, allCols]);
 
   const handleSort = (k:string) => { if(k===sortKey) setSortDir(d=>d==='asc'?'desc':'asc'); else{ setSortKey(k); setSortDir('asc'); } };
   const sortIcon   = (k:string) => sortKey===k?(sortDir==='asc'?' ↑':' ↓'):'';
@@ -623,7 +695,7 @@ export default function AnaliseContrato() {
                   </td></tr>
                 )}
                 {displayRows.map((row,i)=>(
-                  <tr key={row.placa}
+                  <tr key={`${row.placa}-${i}`}
                     className={`border-b border-slate-100 hover:bg-indigo-50/60 transition-colors ${i%2===0?'bg-white':'bg-slate-50/40'}`}>
                     {allCols.map(col=>(
                       <td key={col.key}
@@ -635,6 +707,21 @@ export default function AnaliseContrato() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="sticky bottom-0 bg-white z-10 border-t">
+                <tr className="bg-slate-50 font-semibold text-slate-700">
+                  {allCols.map((col, ci) => {
+                    const total = colTotals[col.key];
+                    const style = { minWidth: col.w || 90, width: col.w || 90 } as any;
+                    if (ci === 0) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">Totais</td>;
+                    if (total == null) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">—</td>;
+
+                    const k = col.key.toLowerCase();
+                    const isCurrency = /valor|fat_|faturamento|custo|man_|sin_|reemb|total|vlr|valorlocacao|valorcompra/.test(k);
+                    const formatted = isCurrency ? fmtBRL(total) : Number.isInteger(total) ? fmtNum(total) : fmtNum(Math.round(total * 100) / 100);
+                    return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatted}</td>;
+                  })}
+                </tr>
+              </tfoot>
             </table>
           </div>
           {heavyLoading && (
