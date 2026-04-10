@@ -26,11 +26,108 @@ function normalizeTableName(identifier: string): string {
     .trim();
 }
 
+async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ data: unknown[]; metadata: BIMetadata } | null> {
+  try {
+    const pickFirstOk = async (paths: string[]) => {
+      for (const p of paths) {
+        try {
+          const r = await fetch(p);
+          if (r.ok) return r;
+        } catch {
+          // try next
+        }
+      }
+      return null;
+    };
+
+    const singleResp = await pickFirstOk([
+      `/data/${tableName}.json`,
+      `data/${tableName}.json`,
+      `./data/${tableName}.json`,
+    ]);
+    if (singleResp && singleResp.ok) {
+      const singleData = await singleResp.json();
+      if (Array.isArray(singleData)) {
+        const rows = typeof limit === 'number' ? singleData.slice(0, limit) : singleData;
+        return {
+          data: rows,
+          metadata: {
+            generated_at: new Date().toISOString(),
+            source: 'static-file',
+            table: tableName,
+            record_count: rows.length,
+          },
+        };
+      }
+    }
+
+    const manifestResp = await pickFirstOk([
+      `/data/${tableName}_manifest.json`,
+      `data/${tableName}_manifest.json`,
+      `./data/${tableName}_manifest.json`,
+    ]);
+    if (!manifestResp || !manifestResp.ok) return null;
+
+    const manifest = await manifestResp.json() as {
+      totalParts?: number;
+      total_chunks?: number;
+      baseFileName?: string;
+      totalRecords?: number;
+    };
+
+    const parts = Number(manifest.totalParts || manifest.total_chunks || 0);
+    if (!parts) return null;
+
+    const baseName = String(manifest.baseFileName || tableName);
+    const chunkPromises: Array<Promise<unknown[]>> = [];
+    for (let i = 1; i <= parts; i++) {
+      chunkPromises.push(
+        pickFirstOk([
+          `/data/${baseName}_part${i}of${parts}.json`,
+          `data/${baseName}_part${i}of${parts}.json`,
+          `./data/${baseName}_part${i}of${parts}.json`,
+        ])
+          .then(r => (r && r.ok ? r.json() : []))
+          .then(data => (Array.isArray(data) ? data : []))
+          .catch(() => [])
+      );
+    }
+
+    const chunkArrays = await Promise.all(chunkPromises);
+    const merged = chunkArrays.flat();
+    const rows = typeof limit === 'number' ? merged.slice(0, limit) : merged;
+
+    return {
+      data: rows,
+      metadata: {
+        generated_at: new Date().toISOString(),
+        source: 'static-file',
+        table: tableName,
+        chunked: true,
+        totalParts: parts,
+        totalRecords: Number(manifest.totalRecords || rows.length),
+        record_count: rows.length,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Busca dados da API Serverless (/api/bi-data) que consulta o PostgreSQL na Oracle Cloud.
  */
 async function fetchFromAPI(tableName: string, bustServer = false, limit?: number): Promise<{ data: unknown | null; metadata: BIMetadata | null; success: boolean }> {
   try {
+    if (tableName === 'dim_regras_contrato') {
+      const staticFirst = await tryLoadStaticTable(tableName, limit);
+      if (staticFirst) {
+        return { data: staticFirst.data, metadata: staticFirst.metadata, success: true };
+      }
+      // Evita gerar ruído de 403 nessa tabela enquanto a API remota não estiver atualizada.
+      return { data: null, metadata: null, success: false };
+    }
+
     const bust = bustServer ? `&refresh=${Date.now()}` : '';
     const limitParam = limit ? `&limit=${limit}` : '';
     const url = `${getApiBaseUrl()}/api/bi-data?table=${encodeURIComponent(tableName)}${limitParam}${bust}`;
@@ -49,6 +146,19 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
           // ignore
         }
       }
+
+      const errorMessage = typeof errorBody === 'object' && errorBody !== null && 'error' in errorBody
+        ? String((errorBody as { error?: unknown }).error || '')
+        : '';
+
+      if (resp.status === 403 && /is not allowed/i.test(errorMessage)) {
+        const staticFallback = await tryLoadStaticTable(tableName, limit);
+        if (staticFallback) {
+          console.warn(`[useBIData] API denied table "${tableName}"; using static fallback from /public/data.`);
+          return { data: staticFallback.data, metadata: staticFallback.metadata, success: true };
+        }
+      }
+
       console.error(`[useBIData] API error for "${tableName}":`, errorBody);
       return { data: null, metadata: null, success: false };
     }

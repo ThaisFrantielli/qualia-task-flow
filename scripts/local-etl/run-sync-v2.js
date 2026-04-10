@@ -48,7 +48,8 @@ const pgHeavyConfig = {
 const PRIMARY_TABLES = new Set([
     'dim_frota',
     'dim_contratos_locacao',
-    'dim_contratos_metadata'
+    'dim_contratos_metadata',
+    'dim_regras_contrato'
 ]);
 
 const HEAVY_TABLES = new Set([
@@ -91,6 +92,20 @@ const TABLES = [
                 WHERE p.IdContratoLocacao = cl.IdContratoLocacao
                 ORDER BY p.DataInicial DESC, p.IdPrecoContratoLocacao DESC
             ) ult_preco
+        `
+    },
+    {
+        table: 'dim_regras_contrato',
+        query: `
+            SELECT
+                cc.NumeroDocumento as Contrato,
+                pc.TipoPerfilContrato as NomeRegra,
+                COALESCE(CAST(pc.ValorPerfil AS VARCHAR(MAX)), pc.TextoPerfil) as ConteudoRegra,
+                pol.NomeTipoPoliticaContrato as NomePolitica,
+                pol.TextoPolitica as ConteudoPolitica
+            FROM ContratosComerciais cc WITH (NOLOCK)
+            LEFT JOIN PerfisContrato pc WITH (NOLOCK) ON cc.IdContratoComercial = pc.IdContratoComercial
+            LEFT JOIN PoliticasContrato pol WITH (NOLOCK) ON cc.IdContratoComercial = pol.IdContrato
         `
     },
     { table: 'fat_precos_locacao', query: `SELECT * FROM ContratosLocacaoPrecos WITH (NOLOCK)` },

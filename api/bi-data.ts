@@ -49,6 +49,7 @@ function isHeavyTable(table: string): boolean {
 // Whitelist of allowed tables
 const ALLOWED_TABLES = new Set([
   'dim_frota', 'dim_contratos_locacao', 'dim_movimentacao_patios',
+  'dim_regras_contrato',
   'dim_movimentacao_veiculos', 'historico_situacao_veiculos',
   'hist_vida_veiculo_timeline', 'fat_carro_reserva', 'fat_manutencao_unificado',
   'fat_sinistros', 'fat_multas', 'agg_custos_detalhados',

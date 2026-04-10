@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
+import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Settings2, Download, Loader2,
+  ArrowLeft, Settings2, Download, Loader2, Plus, Trash2, X,
   Route, Wrench, ShieldAlert, BarChart3, DollarSign,
   Activity, Target, AlertTriangle, Gauge,
 } from 'lucide-react';
@@ -24,9 +25,34 @@ interface FrotaRow {
   Categoria?:string; CategoriaVeiculo?:string; Grupo?:string; GrupoVeiculo?:string;
   KmConfirmado?:number; KM?:number; KmInformado?:number; 
 }
-interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; OrdemServicoCriadaEm?:string; DataCriacao?:string; TipoOcorrencia?:string; Tipo?:string; TipoManutencao?:string; Situacao?:string; Status?:string; StatusOrdem?:string; SituacaoOcorrencia?:string; StatusOcorrencia?:string; }
-interface SinistroRow { Placa:string; DataSinistro:string; DataCriacao:string; ValorOrcado:number; IndenizacaoSeguradora:number; ReembolsoTerceiro:number; }
-interface FaturamentoRow { IdNota:string; IdVeiculo:string; Competencia:string; VlrLocacao:number; }
+interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; OrdemServicoCriadaEm?:string; DataCriacao?:string; IdOrdemServico?:string; idordemservico?:string; IdOcorrencia?:string|number; TipoOcorrencia?:string; Tipo?:string; TipoManutencao?:string; Situacao?:string; Status?:string; StatusOrdem?:string; SituacaoOcorrencia?:string; StatusOcorrencia?:string; valortotal?:number; valorreembolsavel?:number; CustoTotalOS?:number; custo_total_os?:number; ValorTotalFatItens?:number|string; ValorReembolsavelFatItens?:number|string; }
+interface RegrasContratoRow { Contrato:string; NomeRegra:string; ConteudoRegra:string | number | null; NomePolitica?:string | null; ConteudoPolitica?:string | null; Grupo?:string; GrupoVeiculo?:string; Categoria?:string; CategoriaVeiculo?:string; }
+interface SinistroRow { Placa:string; DataSinistro:string; DataCriacao:string; ValorOrcado?:number|string; ValorOrcamento?:number|string; ValorFinaleiroCalculado?:number|string; IndenizacaoSeguradora?:number|string; ReembolsoTerceiro?:number|string; }
+interface FaturamentoRow {
+  IdNota:string;
+  IdVeiculo?:string;
+  Competencia?:string;
+  VlrLocacao?:number|string;
+  IdContratoLocacao?:string|number;
+  IdContratoComercial?:string|number;
+  ContratoComercial?:string;
+  DataCompetencia?:string;
+  ValorLocacao?:number|string;
+  DataEmissao?:string;
+  DataCriacao?:string;
+}
+interface FaturamentoItemRow {
+  IdNota?:string|number;
+  IdItemNota?:string|number;
+  IdVeiculo?:string|number;
+  IdContratoLocacao?:string|number;
+  IdContratoComercial?:string|number;
+  ContratoComercial?:string;
+  ValorTotal?:number|string;
+  ValorUnitario?:number|string;
+  DataAtualizacaoDados?:string;
+}
+interface ManualCostRule { id:string; cto:string; grupo:string; custoKm:number; }
 
 interface VehicleRow {
   idLocacao:string; idComercial:string;
@@ -34,6 +60,7 @@ interface VehicleRow {
   idadeEmMeses:number; rodagemMedia:number; dataInicial:string; vencimentoContrato:string; cliente:string; contrato:string;
   mesesRestantesContrato:number; kmEstimadoFimContrato:number;
   sitLoc:string; sitCTO:string;
+  franquiaBanco:number; custoKmManual:number | null;
   passagemTotal:number; passagemIdeal:number; diferencaPassagem:number; pctPassagem:number;
   custoManPrevisto:number; custoManRealizado:number; difManPrevReal:number; pctDifManPrevReal:number; custoManLiquido:number; difCustoManLiq:number; pctDifCustoManLiq:number;
   totalManutencao:number; ticketMedio:number; custoKmMan:number;
@@ -49,8 +76,16 @@ interface VehicleRow {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
-const parseNum = (v: unknown): number => { if (typeof v==='number') return isNaN(v)?0:v; if (!v) return 0; return parseFloat(String(v).replace(/[^\d.,-]/g,'').replace(',','.'))||0; };
+const parseNum = (v: unknown): number => {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  let s = String(v).replace(/\s/g, '').replace('R$', '');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else s = s.replace(',', '.');
+  return parseFloat(s) || 0;
+};
 const fmtBRL = (v:number) => v===0?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
+const fmtBRLZero = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v || 0);
 const fmtKM = (v:number) => v===0?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:3}).format(v);
 const fmtPct = (v:number) => !isFinite(v)||isNaN(v)?'—':`${(v*100).toFixed(1)}%`;
 const fmtNum = (v:number) => v===0?'—':v.toLocaleString('pt-BR');
@@ -58,10 +93,49 @@ const kmLabel = (km:number) => km>=100000?'Acima 100.000':km>=60000?'60.000–10
 const getYear = (d:string) => { if(!d||d.length<4) return 0; const y=parseInt(d.substring(0,4)); return isNaN(y)?0:y; };
 const monthsDiff = (from:string) => { if(!from) return 0; const d=new Date(from); const n=new Date(); return Math.max(0,(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth())); };
 const monthsUntil = (to:string) => { if(!to) return 0; const d=new Date(to); if(isNaN(d.getTime())) return 0; const n=new Date(); return Math.max(0,(d.getFullYear()-n.getFullYear())*12+(d.getMonth()-n.getMonth())); };
+const normalizeKeyPart = (v: string) => String(v || '').trim().toUpperCase();
+const normalizePlate = (v: unknown) => String(v || '').trim().toUpperCase();
+const canonicalPlate = (v: unknown) => normalizePlate(v).replace(/[^A-Z0-9]/g, '');
+const makeRuleKey = (cto: string, grupo: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}`;
+const makeBancoRuleKey = (cto: string, grupo: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}::${normalizeKeyPart(regra)}`;
+const makeBancoRuleKeyGeneric = (cto: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(regra)}`;
+const parseDateFlexible = (v: unknown): Date | null => {
+  const raw = String(v || '').trim();
+  if (!raw) return null;
+  const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyy) {
+    const [, dd, mm, yyyy] = ddmmyyyy;
+    const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const normalizeSitCTO = (c: ContratoRow, cAny: any) => {
+  const candidates = [
+    c?.SituacaoContratoComercial,
+    c?.SituacaoContrato,
+    c?.SituacaoContratoLocacao,
+    cAny?.SituacaoContratoComercial,
+    cAny?.SituacaoContrato,
+    cAny?.SituacaoContratoLocacao,
+    cAny?.situacaocontratocomercial,
+    cAny?.situacaocontrato,
+    cAny?.situacaocontratolocacao,
+  ];
+  const found = candidates.map(v => String(v || '').trim()).find(v => v);
+  return found || 'Sem informacao';
+};
+
+const normalizeSitCTOValue = (v: string) => {
+  const s = String(v || '').trim();
+  return s || 'Sem informacao';
+};
 
 // SearchableSelect: dropdown pesquisavel com multiselecao
-function SearchableSelect(props: { options: string[]; value: string[]; onChange: (v:string[])=>void; placeholder?:string; allLabel?: string }){
-  const { options, value, onChange, placeholder, allLabel = 'Todas' } = props;
+function SearchableSelect(props: { options: string[]; value: string[]; onChange: (v:string[])=>void; placeholder?:string; allLabel?: string; multiple?: boolean }){
+  const { options, value, onChange, placeholder, allLabel = 'Todas', multiple = true } = props;
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement|null>(null);
@@ -75,6 +149,11 @@ function SearchableSelect(props: { options: string[]; value: string[]; onChange:
   const filtered = q ? options.filter(o => String(o||'').toLowerCase().includes(q.toLowerCase())) : options;
 
   const toggle = (opt: string) => {
+    if (!multiple) {
+      onChange([opt]);
+      setOpen(false);
+      return;
+    }
     const exists = value.includes(opt);
     const next = exists ? value.filter(v=>v!==opt) : [...value, opt];
     onChange(next);
@@ -245,6 +324,7 @@ const ID_COLS: ColDef[] = [
   { key:'grupo',       label:'Grupo',        fmt:r=>r.grupo,       align:'left',  w:120, sortGetter: r=>r.grupo },
   { key:'kmAtual',     label:'KM',           fmt:r=>r.kmAtual>0?r.kmAtual.toLocaleString('pt-BR'):'—', align:'right', w:80, sortGetter: r=>r.kmAtual },
   { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtNum(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
+  { key:'kmPrecificado',label:'Km Precificado',fmt:r=>r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual), align:'right', w:110, sortGetter: r=>r.custoKmManual ?? -1 },
 ];
 
 const TABS = [
@@ -261,13 +341,15 @@ type TabKey = typeof TABS[number]['key'];
 export default function AnaliseContrato() {
   const [activeTab, setActiveTab] = useState<TabKey>('passagem');
   const [showTabHelp, setShowTabHelp] = useState(false);
-  const [kmDivisor,  setKmDivisor]  = useState(10000);
-  
-  // Custom group cost settings
-  const [custoPadrao, setCustoPadrao] = useState(180);
-  const [custoGeral, setCustoGeral] = useState<Record<string,number>>({});
-  
-  const [showSettings, setShowSettings] = useState(false);
+  const [kmDivisor] = useState(10000);
+  const [showRulesManager, setShowRulesManager] = useState(false);
+  const [matrizCustos, setMatrizCustos] = useState<ManualCostRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [rulesError, setRulesError] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleFormCto, setRuleFormCto] = useState('');
+  const [ruleFormGrupo, setRuleFormGrupo] = useState('');
+  const [ruleFormCustoKm, setRuleFormCustoKm] = useState('');
   const [filterCliente,setFilterCliente]= useState<string[]>([]);
   const [filterCTO,    setFilterCTO]    = useState<string[]>([]);
   const [filterPlaca,  setFilterPlaca]  = useState<string[]>([]);
@@ -283,16 +365,156 @@ export default function AnaliseContrato() {
 
   const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao');
   const { data: rawF, loading: lF } = useBIData<FrotaRow[]>('dim_frota');
-  const { data: rawM, loading: lM } = useBIData<ManutencaoRow[]>('fat_manutencao_unificado');
-  const { data: rawS, loading: lS } = useBIData<SinistroRow[]>('fat_sinistros');
-  const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos');
+  const { data: rawRules, loading: lRules } = useBIData<RegrasContratoRow[]>('dim_regras_contrato');
+  const { data: rawM, loading: lM } = useBIData<ManutencaoRow[]>('fat_manutencao_unificado', { limit: 300000 });
+  const { data: rawS, loading: lS } = useBIData<SinistroRow[]>('fat_sinistros', { limit: 300000 });
+  const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos', { limit: 300000 });
+  const { data: rawFatItens, loading: lFatItens } = useBIData<FaturamentoItemRow[]>('fat_faturamento_itens', { limit: 300000 });
 
-  const initialLoading = lC || lF;
-  const heavyLoading   = lM || lS || lFat;
+  const loadManualRules = async () => {
+    setRulesLoading(true);
+    setRulesError(null);
+    const { data, error } = await supabase
+      .from('analise_contrato_regras_precificacao')
+      .select('id, contrato, grupo, custo_km')
+      .order('contrato', { ascending: true })
+      .order('grupo', { ascending: true });
+
+    if (error) {
+      setRulesError(error.message || 'Falha ao carregar regras de precificacao.');
+      setRulesLoading(false);
+      return;
+    }
+
+    const mapped = (data || []).map((row: any) => ({
+      id: String(row.id),
+      cto: String(row.contrato || '').trim(),
+      grupo: String(row.grupo || '').trim(),
+      custoKm: parseNum(row.custo_km),
+    }));
+
+    setMatrizCustos(mapped);
+    setRulesLoading(false);
+  };
+
+  useEffect(() => {
+    void loadManualRules();
+  }, []);
+
+  const initialLoading = lC || lF || lRules;
+  const heavyLoading   = lM || lS || lFat || lFatItens;
+
+  const allContratoOptions = useMemo(() => {
+    const contratos = new Set<string>();
+    for (const c of (rawC as ContratoRow[] | null ?? [])) {
+      if (c?.ContratoComercial) contratos.add(String(c.ContratoComercial).trim());
+    }
+    for (const row of (rawF as FrotaRow[] | null ?? [])) {
+      const contrato = String((row as any)?.ContratoComercial || (row as any)?.Contrato || '').trim();
+      if (contrato) contratos.add(contrato);
+    }
+    return Array.from(contratos).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [rawC, rawF]);
+
+  const manualCostLookup = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const rule of matrizCustos) {
+      map.set(makeRuleKey(rule.cto, rule.grupo), rule.custoKm);
+    }
+    return map;
+  }, [matrizCustos]);
+
+  const bancoRegraLookup = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const regra of (rawRules as RegrasContratoRow[] | null ?? [])) {
+      const cto = String(regra?.Contrato || '').trim();
+      const nomeRegra = String(regra?.NomeRegra || '').trim();
+      if (!cto || !nomeRegra) continue;
+      const grupo = String(regra?.Grupo || regra?.GrupoVeiculo || regra?.Categoria || regra?.CategoriaVeiculo || '').trim();
+      const valor = parseNum(regra?.ConteudoRegra);
+      if (grupo) map.set(makeBancoRuleKey(cto, grupo, nomeRegra), valor);
+      map.set(makeBancoRuleKeyGeneric(cto, nomeRegra), valor);
+    }
+    return map;
+  }, [rawRules]);
+
+  const lookupFranquiaBanco = (cto: string, grupo: string) => {
+    const regra = 'A - Franquia Km/mês';
+    const specific = bancoRegraLookup.get(makeBancoRuleKey(cto, grupo, regra));
+    if (specific != null) return specific;
+    const generic = bancoRegraLookup.get(makeBancoRuleKeyGeneric(cto, regra));
+    return generic != null ? generic : 3000;
+  };
+
+  const lookupCustoKmManual = (cto: string, grupo: string) => {
+    const value = manualCostLookup.get(makeRuleKey(cto, grupo));
+    return value != null ? value : null;
+  };
+
+  const upsertManualRule = async () => {
+    const cto = String(ruleFormCto || '').trim();
+    const grupo = String(ruleFormGrupo || '').trim();
+    if (!cto || !grupo) return;
+    const custoKm = parseNum(ruleFormCustoKm);
+
+    setRulesError(null);
+
+    if (editingRuleId) {
+      const { error: updateError } = await supabase
+        .from('analise_contrato_regras_precificacao')
+        .update({ contrato: cto, grupo, custo_km: custoKm })
+        .eq('id', editingRuleId);
+      if (updateError) {
+        setRulesError(updateError.message || 'Falha ao atualizar regra.');
+        return;
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('analise_contrato_regras_precificacao')
+        .insert([{ contrato: cto, grupo, custo_km: custoKm }]);
+      if (insertError) {
+        setRulesError(insertError.message || 'Falha ao salvar regra.');
+        return;
+      }
+    }
+
+    await loadManualRules();
+    setEditingRuleId(null);
+    setRuleFormCto('');
+    setRuleFormGrupo('');
+    setRuleFormCustoKm('');
+  };
+
+  const deleteManualRule = async (id: string) => {
+    setRulesError(null);
+    const { error } = await supabase
+      .from('analise_contrato_regras_precificacao')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      setRulesError(error.message || 'Falha ao excluir regra.');
+      return;
+    }
+
+    await loadManualRules();
+    if (editingRuleId === id) {
+      setEditingRuleId(null);
+      setRuleFormCto('');
+      setRuleFormGrupo('');
+      setRuleFormCustoKm('');
+    }
+  };
 
   const frotaByPlaca = useMemo(() => {
     const m = new Map<string,FrotaRow>();
-    (rawF as FrotaRow[]|null??[]).forEach(r=>{ if(r.Placa) m.set(r.Placa,r); });
+    (rawF as FrotaRow[]|null??[]).forEach(r=>{
+      if(!r.Placa) return;
+      const plate = normalizePlate(r.Placa);
+      const key = canonicalPlate(r.Placa);
+      if (plate) m.set(plate, r);
+      if (key && key !== plate) m.set(key, r);
+    });
     return m;
   }, [rawF]);
 
@@ -305,27 +527,35 @@ export default function AnaliseContrato() {
     const arrM = rawM as ManutencaoRow[]|null ?? [];
     const arrS = rawS as SinistroRow[]|null   ?? [];
     const arrF = rawFat as FaturamentoRow[]|null ?? [];
+    const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
 
-    type YA = Record<number,{cost:number;reemb:number;count:number}>;
-    const manIdx = new Map<string,YA>();
-    const passIdx= new Map<string,Record<number,number>>();
+    type MA = { plate: string; date: Date | null; year: number; osId: string; cost: number; reemb: number };
+    const maintByPlate = new Map<string, MA[]>();
+    const seenMaintenance = new Set<string>();
     for (const m of arrM) {
       const rawPlaca = m.Placa; if(!rawPlaca) continue;
-      const placa = String(rawPlaca).toUpperCase().trim();
+      const placa = normalizePlate(rawPlaca);
+      const placaKey = canonicalPlate(rawPlaca);
+      if (!placa) continue;
       const rawStatus = (m.Situacao || m.Status || m.StatusOrdem || m.SituacaoOcorrencia || m.StatusOcorrencia || '');
       const status = String(rawStatus).toLowerCase();
       if (status.includes('cancel')) continue;
-      const yr = getYear(m.DataCriacao || m.OrdemServicoCriadaEm || m.DataEntrada || m.DataCriacaoOS || '');
+      const rawDate = m.OrdemServicoCriadaEm || m.DataCriacao || m.DataEntrada || m.DataCriacaoOS || (m as any).DataServico || (m as any).DataAtualizacaoDados || '';
+      const date = parseDateFlexible(rawDate);
+      const yr = date ? date.getFullYear() : getYear(rawDate);
       if(yr<2022 || yr>2030) continue;
-      const tipo = String(m.Tipo || m.TipoOcorrencia || m.TipoManutencao || '').toLowerCase();
-      if (tipo.startsWith('manuten')) {
-        if(!passIdx.has(placa)) passIdx.set(placa,{});
-        const p = passIdx.get(placa)!; p[yr] = (p[yr]||0)+1;
-
-        if(!manIdx.has(placa)) manIdx.set(placa,{});
-        const mm = manIdx.get(placa)!;
-        if(!mm[yr]) mm[yr] = {cost:0,reemb:0,count:0};
-        mm[yr].cost += parseNum(m.ValorTotal); mm[yr].reemb += parseNum(m.ValorReembolsavel); mm[yr].count++;
+      const osId = String(m.IdOrdemServico || m.idordemservico || m.IdOcorrencia || `${placa}-${yr}-${rawDate}`).trim();
+      const dedupeKey = `${placaKey || placa}::${osId || rawDate || `${yr}`}`;
+      if (seenMaintenance.has(dedupeKey)) continue;
+      seenMaintenance.add(dedupeKey);
+      const cost = parseNum(m.ValorTotalFatItens || m.ValorTotal || m.valortotal || m.CustoTotalOS || 0);
+      const reemb = parseNum(m.ValorReembolsavelFatItens || m.ValorReembolsavel || m.valorreembolsavel || 0);
+      const rec = { plate: placa, date, year: yr, osId, cost, reemb };
+      const keys = Array.from(new Set([placa, placaKey].filter(Boolean)));
+      for (const k of keys) {
+        const bucket = maintByPlate.get(k) || [];
+        bucket.push(rec);
+        maintByPlate.set(k, bucket);
       }
     }
 
@@ -333,36 +563,80 @@ export default function AnaliseContrato() {
     const sinIdx = new Map<string,SA>();
     for (const s of arrS) {
       const rawPlaca = s.Placa; if(!rawPlaca) continue;
-      const placa = String(rawPlaca).toUpperCase().trim();
+      const placa = normalizePlate(rawPlaca);
+      const placaKey = canonicalPlate(rawPlaca);
       const yr=getYear(s.DataSinistro||s.DataCriacao||'');
       if(yr<2022 || yr>2030) continue;
-      if(!sinIdx.has(placa)) sinIdx.set(placa,{});
+      const keys = Array.from(new Set([placa, placaKey].filter(Boolean)));
+      for (const key of keys) {
+        if(!sinIdx.has(key)) sinIdx.set(key,{});
+      }
       const sm=sinIdx.get(placa)!;
       if(!sm[yr]) sm[yr]={cost:0,reemb:0};
-      sm[yr].cost += parseNum(s.ValorOrcado);
+      sm[yr].cost += parseNum(s.ValorFinaleiroCalculado ?? s.ValorOrcamento ?? s.ValorOrcado ?? 0);
       sm[yr].reemb += parseNum(s.IndenizacaoSeguradora) + parseNum(s.ReembolsoTerceiro);
+      if (placaKey && placaKey !== placa) {
+        const smKey = sinIdx.get(placaKey)!;
+        if(!smKey[yr]) smKey[yr]={cost:0,reemb:0};
+        smKey[yr].cost += parseNum(s.ValorFinaleiroCalculado ?? s.ValorOrcamento ?? s.ValorOrcado ?? 0);
+        smKey[yr].reemb += parseNum(s.IndenizacaoSeguradora) + parseNum(s.ReembolsoTerceiro);
+      }
     }
 
-    const fatIdx = new Map<string,Record<number,number>>();
-    const notasSeen = new Set<string>();
+    const notaYear = new Map<string, number>();
     for (const f of arrF) {
-      if(!f.IdNota||notasSeen.has(f.IdNota)) continue; notasSeen.add(f.IdNota);
-      const idv=f.IdVeiculo; if(!idv) continue;
-      const idvKey = String(idv).toUpperCase().trim();
-      const yr=getYear(f.Competencia||'');
+      const nota = String(f.IdNota || '').trim();
+      if (!nota) continue;
+      const yr = getYear(String(f.DataCompetencia || f.Competencia || f.DataEmissao || f.DataCriacao || ''));
+      if (yr >= 2022 && yr <= 2030) notaYear.set(nota, yr);
+    }
+
+    const fatIdxByVeiculo = new Map<string,Record<number,number>>();
+    const fatIdxByLocacao = new Map<string,Record<number,number>>();
+    const fatIdxByComercial = new Map<string,Record<number,number>>();
+    const itensSeen = new Set<string>();
+    for (const fi of arrFI) {
+      const itemKey = String(fi.IdItemNota || `${fi.IdNota || ''}-${fi.IdVeiculo || ''}-${fi.ValorTotal || fi.ValorUnitario || ''}`).trim();
+      if (!itemKey || itensSeen.has(itemKey)) continue;
+      itensSeen.add(itemKey);
+
+      const nota = String(fi.IdNota || '').trim();
+      const yr = notaYear.get(nota) || getYear(String(fi.DataAtualizacaoDados || ''));
       if(yr<2022 || yr>2030) continue;
-      if(!fatIdx.has(idvKey)) fatIdx.set(idvKey,{});
-      const fm=fatIdx.get(idvKey)!; fm[yr]=(fm[yr]||0)+parseNum(f.VlrLocacao);
+
+      const valor = parseNum(fi.ValorTotal ?? fi.ValorUnitario ?? 0);
+      if (!valor) continue;
+
+      const veiculoKey = String(fi.IdVeiculo || '').trim().toUpperCase();
+      const locacaoKey = String(fi.IdContratoLocacao || '').trim().toUpperCase();
+      const comercialKey = String(fi.IdContratoComercial || fi.ContratoComercial || '').trim().toUpperCase();
+
+      if (veiculoKey) {
+        if(!fatIdxByVeiculo.has(veiculoKey)) fatIdxByVeiculo.set(veiculoKey,{});
+        const fmV=fatIdxByVeiculo.get(veiculoKey)!;
+        fmV[yr]=(fmV[yr]||0)+valor;
+      }
+      if (locacaoKey) {
+        if(!fatIdxByLocacao.has(locacaoKey)) fatIdxByLocacao.set(locacaoKey,{});
+        const fmLoc=fatIdxByLocacao.get(locacaoKey)!;
+        fmLoc[yr]=(fmLoc[yr]||0)+valor;
+      }
+      if (comercialKey) {
+        if(!fatIdxByComercial.has(comercialKey)) fatIdxByComercial.set(comercialKey,{});
+        const fmCom=fatIdxByComercial.get(comercialKey)!;
+        fmCom[yr]=(fmCom[yr]||0)+valor;
+      }
     }
 
     const baseItems = activeContratos.map(c => ({
-      c, fr: frotaByPlaca.get(c.PlacaPrincipal || ''), placa: (c.PlacaPrincipal || '').toUpperCase().trim()
+      c, fr: frotaByPlaca.get(normalizePlate(c.PlacaPrincipal || '')) || frotaByPlaca.get(canonicalPlate(c.PlacaPrincipal || '')), placa: normalizePlate(c.PlacaPrincipal || '')
     }));
 
     const usedPlates = new Set(baseItems.map(x => x.placa).filter(Boolean));
     (rawF as FrotaRow[]|null ?? []).forEach(fr => {
-      if (fr.Placa && !usedPlates.has(fr.Placa.toUpperCase().trim())) {
-        baseItems.push({ c: null as any, fr, placa: fr.Placa.toUpperCase().trim() });
+      const normalizedPlate = normalizePlate(fr.Placa || '');
+      if (normalizedPlate && !usedPlates.has(normalizedPlate)) {
+        baseItems.push({ c: null as any, fr, placa: normalizedPlate });
       }
     });
 
@@ -381,32 +655,64 @@ export default function AnaliseContrato() {
       const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmAtual / idadeEmMeses) : 0;
       const mesesRestantesContrato = monthsUntil(c?.DataFinal || '');
       const kmEstimadoFimContrato = Math.round(kmAtual + (rodagemMedia * mesesRestantesContrato));
+      const contractStart = parseDateFlexible(c?.DataInicial || '');
+      const today = new Date();
 
-      const realPlaca = (c?.PlacaPrincipal || fr?.Placa || placa);
-      const pm = passIdx.get(realPlaca) || {};
+      const realPlaca = normalizePlate(c?.PlacaPrincipal || fr?.Placa || placa || '');
+      const realPlacaKey = canonicalPlate(realPlaca);
+      const mergedMaint = [
+        ...(maintByPlate.get(realPlaca) || []),
+        ...(realPlacaKey && realPlacaKey !== realPlaca ? (maintByPlate.get(realPlacaKey) || []) : []),
+      ];
+      const seenRec = new Set<string>();
+      const maintRecords = mergedMaint.filter(rec => {
+        const recUnique = `${rec.osId}::${rec.date?.toISOString() || ''}`;
+        if (seenRec.has(recUnique)) return false;
+        seenRec.add(recUnique);
+        if (!(canonicalPlate(rec.plate) === realPlacaKey)) return false;
+        if (!rec.date) return false;
+        if (contractStart && rec.date < contractStart) return false;
+        if (rec.date > today) return false;
+        return true;
+      });
+
+      const mm = new Map<number, { cost:number; reemb:number; osIds:Set<string> }>();
+      for (const rec of maintRecords) {
+        if (rec.year < 2022 || rec.year > 2030) continue;
+        if (!mm.has(rec.year)) mm.set(rec.year, { cost:0, reemb:0, osIds:new Set<string>() });
+        const bucket = mm.get(rec.year)!;
+        bucket.cost += rec.cost;
+        bucket.reemb += rec.reemb;
+        bucket.osIds.add(rec.osId);
+      }
+
       let passagemTotal = 0;
-      for (const y in pm) passagemTotal += pm[y];
+      for (const bucket of mm.values()) passagemTotal += bucket.osIds.size;
       const passagemIdeal = kmDivisor > 0 ? kmAtual / kmDivisor : 0;
-      
-      const custoMensal = custoGeral[grupo] ?? custoPadrao;
-      const custoManPrevisto = custoMensal * idadeEmMeses;
 
-      const mm = manIdx.get(realPlaca) || {};
+      const contratoBase = String(c?.ContratoComercial || cAny?.ContratoComercial || cAny?.Contrato || '').trim();
+      const manualCustoKm = lookupCustoKmManual(contratoBase, grupo);
+      const franquiaBanco = lookupFranquiaBanco(contratoBase, grupo);
+      const custoManPrevisto = manualCustoKm == null ? 0 : (franquiaBanco * manualCustoKm) * idadeEmMeses;
+
       let totalManutencao = 0, cntMan = 0, totalReembMan = 0;
-      for (const y in mm) { totalManutencao += mm[y].cost; cntMan += mm[y].count; totalReembMan += mm[y].reemb; }
+      for (const bucket of mm.values()) { totalManutencao += bucket.cost; totalReembMan += bucket.reemb; cntMan += bucket.osIds.size; }
       
       const ticketMedio = cntMan > 0 ? totalManutencao / cntMan : 0;
       const custoKmMan = kmAtual > 0 ? totalManutencao / kmAtual : 0;
       const custoLiqMan = totalManutencao - totalReembMan;
       const custoKmLiqMan = kmAtual > 0 ? custoLiqMan / kmAtual : 0;
 
-      const sm = sinIdx.get(realPlaca) || {};
+      const sm = sinIdx.get(realPlaca) || sinIdx.get(realPlacaKey) || {};
       let totalSinistro = 0, totalReembSin = 0;
       for (const y in sm) { totalSinistro += sm[y].cost; totalReembSin += sm[y].reemb; }
       const custoLiqSin = totalSinistro - totalReembSin;
 
-      const trueIdVeiculo = fr?.IdVeiculo || c?.IdVeiculoPrincipal || '';
-      const fm = fatIdx.get(trueIdVeiculo) || {};
+      const idVeiculoKey = String(fr?.IdVeiculo || c?.IdVeiculoPrincipal || '').trim().toUpperCase();
+      const idLocacaoKey = String(c?.IdContratoLocacao || '').trim().toUpperCase();
+      const idComercialKey = String(cAny?.IdContratoComercial || '').trim().toUpperCase();
+      const contratoComercialKey = String(c?.ContratoComercial || '').trim().toUpperCase();
+      const fm = fatIdxByVeiculo.get(idVeiculoKey) || fatIdxByLocacao.get(idLocacaoKey) || fatIdxByComercial.get(idComercialKey) || fatIdxByComercial.get(contratoComercialKey) || {};
       let faturamentoTotal = 0;
       for (const y in fm) faturamentoTotal += fm[y];
 
@@ -430,10 +736,11 @@ export default function AnaliseContrato() {
 
       const years: Record<number, any> = {};
       for (let y = 2022; y <= 2030; y++) {
+        const yr = mm.get(y);
         years[y] = {
-          pass: pm[y] || 0,
-          man: mm[y]?.cost || 0,
-          reembMan: mm[y]?.reemb || 0,
+          pass: yr?.osIds.size || 0,
+          man: yr?.cost || 0,
+          reembMan: yr?.reemb || 0,
           sin: sm[y]?.cost || 0,
           reembSin: sm[y]?.reemb || 0,
           fat: fm[y] || 0,
@@ -450,8 +757,10 @@ export default function AnaliseContrato() {
         kmEstimadoFimContrato,
         cliente: c?.NomeCliente || (c ? '' : '— Sem CTO / Avulso —'), 
         contrato: c?.ContratoComercial || (c ? '' : '—'),
-        sitCTO: c?.SituacaoContratoComercial || cAny.SituacaoContrato || '', 
+        sitCTO: normalizeSitCTO(c || ({} as ContratoRow), cAny), 
         sitLoc: c?.SituacaoContratoLocacao || '',
+        franquiaBanco,
+        custoKmManual: manualCustoKm,
         passagemTotal, passagemIdeal: Math.round(passagemIdeal * 10) / 10,
         diferencaPassagem: Math.round(diferencaPassagem * 10) / 10, pctPassagem,
         custoManPrevisto, custoManRealizado, difManPrevReal, pctDifManPrevReal, custoManLiquido, difCustoManLiq, pctDifCustoManLiq,
@@ -466,12 +775,7 @@ export default function AnaliseContrato() {
     });
 
     return result;
-  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, kmDivisor, custoPadrao, custoGeral]);
-
-  const normalizeSitCTO = (v: string) => {
-    const s = String(v || '').trim();
-    return s || 'Sem informacao';
-  };
+  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, kmDivisor, bancoRegraLookup, manualCostLookup]);
 
   const getVencInfo = (v: string) => {
     const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -509,7 +813,7 @@ export default function AnaliseContrato() {
     if (ignore !== 'placas' && filterPlaca.length && !filterPlaca.includes(r.placa)) return false;
     if (ignore !== 'grupoModelo' && !matchesGrupoModelo(r, filterGrupoModelo)) return false;
     if (ignore !== 'vencimento' && !matchesVencimento(r, filterVencimento)) return false;
-    if (ignore !== 'sitCTO' && filterSitCTO.length && !filterSitCTO.includes(normalizeSitCTO(r.sitCTO))) return false;
+    if (ignore !== 'sitCTO' && filterSitCTO.length && !filterSitCTO.includes(normalizeSitCTOValue(r.sitCTO))) return false;
     if (ignore !== 'sitLoc' && filterSitLoc.length && !filterSitLoc.includes(r.sitLoc)) return false;
     return true;
   };
@@ -523,7 +827,7 @@ export default function AnaliseContrato() {
       clientes: compute('clientes', r => r.cliente),
       ctos: compute('ctos', r => r.contrato),
       placas: compute('placas', r => r.placa),
-      sitCTO: compute('sitCTO', r => normalizeSitCTO(r.sitCTO)),
+      sitCTO: compute('sitCTO', r => normalizeSitCTOValue(r.sitCTO)),
       sitLoc: compute('sitLoc', r => r.sitLoc),
     };
   }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterSitCTO, filterSitLoc]);
@@ -576,6 +880,31 @@ export default function AnaliseContrato() {
 
   // Unique groups for settings
   const allGrupos = useMemo(() => [...new Set(vehicleRows.map(r=>r.grupo))].filter(Boolean).sort(), [vehicleRows]);
+
+  const gruposByCto = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of vehicleRows) {
+      const cto = String(row.contrato || '').trim();
+      const grupo = String(row.grupo || '').trim();
+      if (!cto || !grupo) continue;
+      if (!map.has(cto)) map.set(cto, new Set<string>());
+      map.get(cto)!.add(grupo);
+    }
+    return map;
+  }, [vehicleRows]);
+
+  const modalGrupoOptions = useMemo(() => {
+    if (!ruleFormCto) return allGrupos;
+    const set = gruposByCto.get(ruleFormCto);
+    if (!set) return [];
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allGrupos, gruposByCto, ruleFormCto]);
+
+  useEffect(() => {
+    if (!ruleFormCto || !ruleFormGrupo) return;
+    if (modalGrupoOptions.includes(ruleFormGrupo)) return;
+    setRuleFormGrupo('');
+  }, [ruleFormCto, ruleFormGrupo, modalGrupoOptions]);
 
   const displayRows = useMemo(() => {
     let rows = vehicleRows.filter(r => rowMatchesFilters(r));
@@ -685,10 +1014,10 @@ export default function AnaliseContrato() {
     } else if (activeTab === 'previsto') {
       cols.push(
         { key:'custoManPrevisto', label:'Previsto',      fmt:r=>fmtBRL(r.custoManPrevisto),   align:'right', w:120, sortGetter: r=>r.custoManPrevisto },
-        { key:'custoManRealizado',label:'Realizado',     fmt:r=>fmtBRL(r.custoManRealizado),  cls:r=>clrV(r.custoManRealizado,true), align:'right', w:120, sortGetter: r=>r.custoManRealizado },
+        { key:'custoManRealizado',label:'Realizado',     fmt:r=>fmtBRLZero(r.custoManRealizado),  cls:r=>clrV(r.custoManRealizado,true), align:'right', w:120, sortGetter: r=>r.custoManRealizado },
         { key:'difManPrevReal',   label:'DIF',           fmt:r=>fmtBRL(r.difManPrevReal),     cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.difManPrevReal },
         { key:'pctDifManPrevReal',label:'%DIF',          fmt:r=>fmtPct(r.pctDifManPrevReal),  cls:r=>clrP(r.pctDifManPrevReal,true), align:'right', w:80, sortGetter: r=>r.pctDifManPrevReal },
-        { key:'custoManLiquido',  label:'Custo Man Líq', fmt:r=>fmtBRL(r.custoManLiquido),    cls:r=>clrV(r.custoManLiquido,true), align:'right', w:120, sortGetter: r=>r.custoManLiquido },
+        { key:'custoManLiquido',  label:'Custo Man Líq', fmt:r=>fmtBRLZero(r.custoManLiquido),    cls:r=>clrV(r.custoManLiquido,true), align:'right', w:120, sortGetter: r=>r.custoManLiquido },
         { key:'difCustoManLiq',   label:'Dif Liq',       fmt:r=>fmtBRL(r.difCustoManLiq),     cls:r=>clrV(r.difCustoManLiq), align:'right', w:120, sortGetter: r=>r.difCustoManLiq },
         { key:'pctDifCustoManLiq',label:'%Dif Liq',      fmt:r=>fmtPct(r.pctDifCustoManLiq),  cls:r=>clrP(r.pctDifCustoManLiq,true), align:'right', w:80, sortGetter: r=>r.pctDifCustoManLiq }
       );
@@ -746,6 +1075,19 @@ export default function AnaliseContrato() {
     });
     return [...idColsAdjusted, ...tabCols];
   }, [tabCols, clienteColWidth]);
+
+  const textEllipsisCols = useMemo(
+    () => new Set(['cliente', 'contrato', 'placa', 'modelo', 'grupo', 'vencimentoContrato']),
+    []
+  );
+
+  const tableMinWidth = useMemo(() => {
+    return allCols.reduce((sum, col) => {
+      const base = col.w || 90;
+      const adjusted = col.align === 'right' ? Math.max(base, 108) : base;
+      return sum + adjusted;
+    }, 0);
+  }, [allCols]);
 
   // Totais das colunas (quando compatível)
   const colTotals = useMemo(() => {
@@ -850,9 +1192,9 @@ export default function AnaliseContrato() {
           </div>
           <div className="flex items-center gap-2">
             {metadata && <DataUpdateBadge metadata={metadata} />}
-            <button onClick={()=>setShowSettings(s=>!s)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${showSettings?'bg-indigo-600 text-white border-indigo-600':'border-slate-300 text-slate-700 hover:bg-slate-100'}`}>
-              <Settings2 className="w-3.5 h-3.5" />Parâmetros
+            <button onClick={()=>setShowRulesManager(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 shadow-sm transition-colors">
+              <Settings2 className="w-3.5 h-3.5" />Configurar Regras por Contrato
             </button>
             <button onClick={exportXLSX}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
@@ -861,41 +1203,126 @@ export default function AnaliseContrato() {
           </div>
         </div>
 
-        {/* ── Settings ── */}
-        {showSettings && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-            <h3 className="text-sm font-semibold text-slate-800">⚙️ Parâmetros de Cálculo</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4 border-b">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-slate-500 font-medium">Divisor KM (Passagem Ideal)</span>
-                <input type="number" value={kmDivisor} onChange={e=>setKmDivisor(+e.target.value)} className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none" />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-slate-500 font-medium">Custo Mensal Padrão (R$)</span>
-                <input type="number" value={custoPadrao} onChange={e=>setCustoPadrao(+e.target.value)} className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none" />
-              </label>
-            </div>
-            
-            <div>
-              <h4 className="text-xs font-semibold text-slate-700 mb-2">Custo Mensal Previsto por Grupo</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                {allGrupos.map(g => (
-                  <label key={g} className="flex flex-col gap-1 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                    <span className="text-[10px] text-slate-500 font-medium truncate" title={g}>{g}</span>
-                    <input type="number" 
-                      placeholder={`Padrão (${custoPadrao})`}
-                      value={custoGeral[g] || ''} 
-                      onChange={e=>{
-                        const v = e.target.value;
-                        setCustoGeral(prev => {
-                          const next = {...prev};
-                          if (v==='') delete next[g]; else next[g] = +v;
-                          return next;
-                        });
-                      }} 
-                      className="border border-slate-300 rounded md:rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-indigo-400 outline-none w-full" />
-                  </label>
-                ))}
+        {showRulesManager && (
+          <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>setShowRulesManager(false)}>
+            <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col" onClick={e=>e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">Gerenciador de Regras Comerciais</h3>
+                  <p className="text-xs text-slate-500">Configuração manual de custo por contrato e grupo.</p>
+                </div>
+                <button type="button" onClick={()=>setShowRulesManager(false)} className="h-9 w-9 rounded-full border border-slate-300 text-slate-500 hover:text-slate-800 hover:border-slate-400 flex items-center justify-center">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5 overflow-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+                  <div className="lg:col-span-4">
+                    <label className="text-xs font-medium text-slate-500 mb-1 block">CTO</label>
+                    <SearchableSelect
+                      options={allContratoOptions}
+                      value={ruleFormCto ? [ruleFormCto] : []}
+                      onChange={v=>{ setRuleFormCto(v[0] || ''); setRuleFormGrupo(''); }}
+                      placeholder="Selecione o CTO"
+                      allLabel="Selecione o CTO"
+                      multiple={false}
+                    />
+                  </div>
+                  <div className="lg:col-span-4">
+                    <label className="text-xs font-medium text-slate-500 mb-1 block">Grupo</label>
+                    <SearchableSelect
+                      options={modalGrupoOptions}
+                      value={ruleFormGrupo ? [ruleFormGrupo] : []}
+                      onChange={v=>setRuleFormGrupo(v[0] || '')}
+                      placeholder="Selecione o grupo"
+                      allLabel="Selecione o grupo"
+                      multiple={false}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-medium text-slate-500 mb-1 block">Custo/KM</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0,08"
+                      value={ruleFormCustoKm}
+                      onChange={e=>setRuleFormCustoKm(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <button
+                      type="button"
+                      onClick={()=>void upsertManualRule()}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm font-medium hover:bg-slate-800 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />{editingRuleId ? 'Atualizar regra' : 'Adicionar regra'}
+                    </button>
+                    {editingRuleId && (
+                      <button
+                        type="button"
+                        onClick={()=>{ setEditingRuleId(null); setRuleFormCto(''); setRuleFormGrupo(''); setRuleFormCustoKm(''); }}
+                        className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white text-slate-700 px-4 py-2 text-xs font-medium hover:bg-slate-50"
+                      >
+                        Cancelar edição
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">Regras ativas</h4>
+                      <p className="text-xs text-slate-500">{matrizCustos.length} regra(s) configurada(s) manualmente.</p>
+                      {rulesLoading && <p className="text-xs text-indigo-600 mt-1">Carregando regras do banco...</p>}
+                      {rulesError && <p className="text-xs text-rose-600 mt-1">{rulesError}</p>}
+                    </div>
+                  </div>
+                  <div className="overflow-auto max-h-[44vh]">
+                    <table className="min-w-full text-sm">
+                      <thead className="sticky top-0 bg-slate-100 text-slate-600">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-semibold">Contrato</th>
+                          <th className="text-left px-4 py-2 font-semibold">Grupo</th>
+                          <th className="text-right px-4 py-2 font-semibold">Custo KM</th>
+                          <th className="text-right px-4 py-2 font-semibold">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...matrizCustos].sort((a, b) => `${a.cto}::${a.grupo}`.localeCompare(`${b.cto}::${b.grupo}`)).map((rule) => (
+                          <tr key={rule.id} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-4 py-2 text-slate-700">{rule.cto}</td>
+                            <td className="px-4 py-2 text-slate-700">{rule.grupo}</td>
+                            <td className="px-4 py-2 text-right text-slate-900 font-medium">{fmtBRL(rule.custoKm)}</td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={()=>{ setEditingRuleId(rule.id); setRuleFormCto(rule.cto); setRuleFormGrupo(rule.grupo); setRuleFormCustoKm(String(rule.custoKm).replace('.', ',')); }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 mr-2"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={()=>void deleteManualRule(rule.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />Excluir
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {matrizCustos.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhuma regra manual cadastrada.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1047,7 +1474,7 @@ export default function AnaliseContrato() {
             <span className="ml-auto text-xs opacity-75">{displayRows.length} linhas</span>
           </div>
           <div className="overflow-auto" style={{maxHeight:'60vh'}}>
-            <table className="border-collapse table-fixed text-xs whitespace-nowrap w-full">
+            <table className="border-collapse table-auto text-xs whitespace-nowrap" style={{ minWidth: tableMinWidth }}>
               <thead className="sticky top-0 z-10 shadow-sm">
                 <tr>
                   {/* ID header group */}
@@ -1060,13 +1487,16 @@ export default function AnaliseContrato() {
                   </th>
                 </tr>
                 <tr className="bg-slate-800">
-                  {allCols.map(col=>(
+                  {allCols.map(col=>{
+                    const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                    return (
                       <th key={col.key} onClick={()=>handleSort(col.key)}
-                      style={{minWidth:col.w||90,width:col.w||90}}
-                      className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} truncate`}>
+                      style={{minWidth:colWidth,width:colWidth}}
+                      className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
                       {col.label}{sortIcon(col.key)}
                     </th>
-                  ))}
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -1080,13 +1510,16 @@ export default function AnaliseContrato() {
                 {displayRows.map((row,i)=>(
                   <tr key={`${row.placa}-${i}`}
                     className={`border-b border-slate-100 hover:bg-indigo-50/60 transition-colors ${i%2===0?'bg-white':'bg-slate-50/40'}`}>
-                    {allCols.map(col=>(
+                    {allCols.map(col=>{
+                      const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                      return (
                       <td key={col.key}
-                        style={{minWidth:col.w||90,width:col.w||90}}
-                        className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} truncate`}> 
+                        style={{minWidth:colWidth,width:colWidth}}
+                        className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}> 
                         {col.fmt(row)}
                       </td>
-                    ))}
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -1094,7 +1527,8 @@ export default function AnaliseContrato() {
                 <tr className="bg-slate-50 font-semibold text-slate-700">
                   {allCols.map((col, ci) => {
                     const total = colTotals[col.key];
-                    const style = { minWidth: col.w || 90, width: col.w || 90 } as any;
+                    const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                    const style = { minWidth: colWidth, width: colWidth } as any;
                     if (ci === 0) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">Totais</td>;
                     if (total == null) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">—</td>;
 

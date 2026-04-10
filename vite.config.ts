@@ -4,6 +4,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import net from 'node:net'
 // Import `lovable-tagger` dynamically below to avoid running it at module-import
 // time (some versions execute file modifications on import which can trigger
 // Vite's watcher and create restart loops). We'll only load it for non-dev builds.
@@ -14,6 +15,23 @@ const __dirname = path.dirname(__filename)
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ mode }) => {
+  const canConnect = (host: string, port: number, timeoutMs = 250): Promise<boolean> =>
+    new Promise((resolve) => {
+      const socket = new net.Socket()
+      let done = false
+      const finish = (ok: boolean) => {
+        if (done) return
+        done = true
+        socket.destroy()
+        resolve(ok)
+      }
+      socket.setTimeout(timeoutMs)
+      socket.once('connect', () => finish(true))
+      socket.once('timeout', () => finish(false))
+      socket.once('error', () => finish(false))
+      socket.connect(port, host)
+    })
+
   const env = loadEnv(mode, process.cwd(), '')
   const devPort = Number(env.VITE_DEV_SERVER_PORT || 8080)
   // Quando rodando sob `vercel dev`, $PORT é injetado pelo CLI e o Vite recebe
@@ -24,6 +42,8 @@ export default defineConfig(async ({ mode }) => {
   const forceWss = String(env.VITE_FORCE_WSS ?? 'false').toLowerCase() === 'true'
   const hmrProtocol = forceWss ? 'wss' : 'ws'
   const hmrClientPort = forceWss ? 443 : devPort
+  const hasLocalApi = await canConnect('127.0.0.1', 3001)
+  const proxyApiTarget = env.VITE_API_TARGET || (hasLocalApi ? 'http://localhost:3001' : 'https://qualityconecta.vercel.app')
 
   // Build plugins list and only import `lovable-tagger` when needed to avoid
   // side-effects during development that can trigger file watch loops.
@@ -111,11 +131,10 @@ export default defineConfig(async ({ mode }) => {
     },
     proxy: {
       '/api': {
-        // Em dev, rode `npm run dev:api` e defina VITE_API_TARGET=http://localhost:3001 no .env.local
-        // Sem VITE_API_TARGET, as requisições vão para produção Vercel.
-        target: env.VITE_API_TARGET || 'https://qualityconecta.vercel.app',
+        // Prioriza API local quando disponivel; se nao houver servidor local, usa Vercel.
+        target: proxyApiTarget,
         changeOrigin: true,
-        secure: !(env.VITE_API_TARGET),
+        secure: !proxyApiTarget.startsWith('http://localhost'),
         ws: false,
         configure: (proxy: any) => {
           proxy.on('error', (err: Error) => {
