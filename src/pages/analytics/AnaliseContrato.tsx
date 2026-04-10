@@ -398,6 +398,10 @@ const clrPctThreshold = (v:number, maxGood:number) => {
   if(!isFinite(v)||isNaN(v)||v===0) return 'text-slate-400';
   return v > maxGood ? 'text-red-600 font-medium' : 'text-emerald-600 font-medium';
 };
+const clrPositiveThreshold = (v:number, maxGood:number) => {
+  if(!isFinite(v)||isNaN(v)||v===0) return 'text-slate-400';
+  return v > maxGood ? 'text-red-600 font-medium' : 'text-emerald-600 font-medium';
+};
 
 interface ColDef { key:string; label:string; fmt:(r:VehicleRow)=>string; cls?:(r:VehicleRow)=>string; align?:'left'|'right'; w?:number; sortGetter?:(r:VehicleRow)=>any; }
 
@@ -445,6 +449,10 @@ export default function AnaliseContrato() {
   const [printLayout, setPrintLayout] = useState<PrintLayout>('full');
   const [exportTabChoice, setExportTabChoice] = useState<TabKey>('passagem');
   const [kmDivisor] = useState(10000);
+  const [passagemDiffAlertThreshold, setPassagemDiffAlertThreshold] = useState<number>(3);
+  const [passagemDiffAlertInput, setPassagemDiffAlertInput] = useState('3');
+  const [passagemPctAlertThreshold, setPassagemPctAlertThreshold] = useState<number>(0.30);
+  const [passagemPctAlertInput, setPassagemPctAlertInput] = useState('30');
   const [fatPctAlertThreshold, setFatPctAlertThreshold] = useState<number>(0.10);
   const [fatPctAlertInput, setFatPctAlertInput] = useState('10');
   const [showRulesManager, setShowRulesManager] = useState(false);
@@ -482,12 +490,46 @@ export default function AnaliseContrato() {
     setFatPctAlertInput(String(Math.round(parsed * 1000) / 10).replace('.', ','));
   }, []);
 
+  useEffect(() => {
+    const diffRaw = localStorage.getItem('analise_contrato_passagem_diff_alert_threshold');
+    if (diffRaw != null) {
+      const parsedDiff = Number(diffRaw);
+      if (isFinite(parsedDiff) && parsedDiff >= 0) {
+        setPassagemDiffAlertThreshold(parsedDiff);
+        setPassagemDiffAlertInput(String(Math.round(parsedDiff * 10) / 10).replace('.', ','));
+      }
+    }
+
+    const pctRaw = localStorage.getItem('analise_contrato_passagem_pct_alert_threshold');
+    if (pctRaw != null) {
+      const parsedPct = Number(pctRaw);
+      if (isFinite(parsedPct) && parsedPct >= 0) {
+        setPassagemPctAlertThreshold(parsedPct);
+        setPassagemPctAlertInput(String(Math.round(parsedPct * 1000) / 10).replace('.', ','));
+      }
+    }
+  }, []);
+
   const saveFatPctAlertThreshold = () => {
     const pct = parseNum(fatPctAlertInput);
     const ratio = Math.max(0, pct / 100);
     setFatPctAlertThreshold(ratio);
     setFatPctAlertInput(String(Math.round(ratio * 1000) / 10).replace('.', ','));
     localStorage.setItem('analise_contrato_fat_pct_alert_threshold', String(ratio));
+  };
+
+  const savePassagemAlertThresholds = () => {
+    const diff = Math.max(0, parseNum(passagemDiffAlertInput));
+    const pct = Math.max(0, parseNum(passagemPctAlertInput) / 100);
+
+    setPassagemDiffAlertThreshold(diff);
+    setPassagemDiffAlertInput(String(Math.round(diff * 10) / 10).replace('.', ','));
+
+    setPassagemPctAlertThreshold(pct);
+    setPassagemPctAlertInput(String(Math.round(pct * 1000) / 10).replace('.', ','));
+
+    localStorage.setItem('analise_contrato_passagem_diff_alert_threshold', String(diff));
+    localStorage.setItem('analise_contrato_passagem_pct_alert_threshold', String(pct));
   };
 
   const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao');
@@ -649,6 +691,17 @@ export default function AnaliseContrato() {
     return (rawC as ContratoRow[]|null??[])
       .filter(c => c.PlacaPrincipal || c.ContratoComercial); // Must have at least plate or commercial id
   }, [rawC]);
+
+  const clienteByCto = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const contrato of activeContratos) {
+      const cto = String(contrato?.ContratoComercial || '').trim();
+      const cliente = String(contrato?.NomeCliente || '').trim();
+      if (!cto || !cliente || map.has(cto)) continue;
+      map.set(cto, cliente);
+    }
+    return map;
+  }, [activeContratos]);
 
   const vehicleRows = useMemo((): VehicleRow[] => {
     const arrM = rawM as ManutencaoRow[]|null ?? [];
@@ -1150,7 +1203,7 @@ export default function AnaliseContrato() {
       totalPassagens += Number(row.passagemTotal) || 0;
       totalPassagemPrevista += Number(row.passagemIdeal) || 0;
       somaRodagemMedia += Number(row.rodagemMedia) || 0;
-      if ((Number(row.diferencaPassagem) || 0) > 0) veiculosCriticos++;
+      if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticos++;
 
       totalPrevisto += Number(row.custoManPrevisto) || 0;
       totalRealizado += Number(row.custoManRealizado) || 0;
@@ -1173,7 +1226,6 @@ export default function AnaliseContrato() {
 
     const totalVeiculos = displayRows.length;
     const mediaPassagens = totalVeiculos > 0 ? totalPassagens / totalVeiculos : 0;
-    const pctCriticos = totalVeiculos > 0 ? veiculosCriticos / totalVeiculos : 0;
     const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
 
     const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
@@ -1234,10 +1286,10 @@ export default function AnaliseContrato() {
     return [
       { label: 'Passagens Realizadas', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
-      { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `${fmtPct(pctCriticos)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
+      { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} ou % > ${fmtPct(passagemPctAlertThreshold)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
       { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
     ];
-  }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold]);
+  }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
 
   const getTabColsForTab = (tab: TabKey, years: number[], includeYearDetail = true) => {
     const cols: ColDef[] = [];
@@ -1246,8 +1298,8 @@ export default function AnaliseContrato() {
       cols.push(
         { key:'passagemTotal',   label:'Total',       fmt:r=>fmtNum(r.passagemTotal), align:'right', w:72, sortGetter: r=>r.passagemTotal },
         { key:'passagemIdeal',   label:'Ideal',       fmt:r=>r.passagemIdeal.toFixed(1), align:'right', w:72, sortGetter: r=>r.passagemIdeal },
-        { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(1), cls:r=>clrV(r.diferencaPassagem, false), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
-        { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrP(r.pctPassagem, false), align:'right', w:90, sortGetter: r=>r.pctPassagem },
+        { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(1), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
+        { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
         { key:'kmEstimadoFimContrato',label:'KM Est. Fim',fmt:r=>r.kmEstimadoFimContrato>0?r.kmEstimadoFimContrato.toLocaleString('pt-BR'):'—', align:'right', w:110, sortGetter: r=>r.kmEstimadoFimContrato },
         { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
@@ -1514,7 +1566,7 @@ export default function AnaliseContrato() {
         totalPassagens += Number(row.passagemTotal) || 0;
         totalPassagemPrevista += Number(row.passagemIdeal) || 0;
         somaRodagemMedia += Number(row.rodagemMedia) || 0;
-        if ((Number(row.diferencaPassagem) || 0) > 0) veiculosCriticos++;
+        if ((Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold) veiculosCriticos++;
 
         totalPrevisto += Number(row.custoManPrevisto) || 0;
         totalRealizado += Number(row.custoManRealizado) || 0;
@@ -1612,7 +1664,7 @@ export default function AnaliseContrato() {
         { label: 'IDADE', fmt: (r: VehicleRow) => fmtNum(r.idadeEmMeses), align: 'num', cls: '' },
         { label: 'PASS. PREVISTA', fmt: (r: VehicleRow) => fmtNominal(r.passagemIdeal), align: 'num', cls: '' },
         { label: 'PASS. REALIZADA', fmt: (r: VehicleRow) => fmtNominal(r.passagemTotal), align: 'num', cls: '' },
-        { label: 'DIF PASSAGEM', fmt: (r: VehicleRow) => fmtNominal(r.diferencaPassagem), align: 'num', cls: (r: VehicleRow) => clrV(r.diferencaPassagem, false) },
+        { label: 'DIF PASSAGEM', fmt: (r: VehicleRow) => fmtNominal(r.diferencaPassagem), align: 'num', cls: (r: VehicleRow) => clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold) },
         { label: 'CUSTO KM', fmt: (r: VehicleRow) => (r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual)), align: 'num', cls: '' },
         { label: 'Custo Man previsto', fmt: (r: VehicleRow) => fmtBRL(r.custoManPrevisto), align: 'num', cls: '' },
         { label: 'Custo Man realizado', fmt: (r: VehicleRow) => fmtBRLZero(r.custoManRealizado), align: 'num', cls: '' },
@@ -1947,6 +1999,47 @@ export default function AnaliseContrato() {
 
               <div className="p-5 space-y-5 overflow-auto">
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
+                  <div className="text-sm font-semibold text-slate-900">Parâmetros de Passagem</div>
+                  <p className="text-xs text-slate-500 mt-0.5">Limites para destacar a diferença da aba passagem. Se a diferença de passagens ou o percentual ultrapassarem o limite, a célula fica vermelha.</p>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Diferença acima de passagens</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={passagemDiffAlertInput}
+                        onChange={(e)=>setPassagemDiffAlertInput(e.target.value)}
+                        placeholder="3"
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Percentual acima de %</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={passagemPctAlertInput}
+                        onChange={(e)=>setPassagemPctAlertInput(e.target.value)}
+                        placeholder="30"
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Atual: <span className="font-semibold text-slate-700">{fmtNum(passagemDiffAlertThreshold)} passagens</span> e <span className="font-semibold text-slate-700">{fmtPct(passagemPctAlertThreshold)}</span>
+                    </div>
+                    <div className="md:col-span-3">
+                      <button
+                        type="button"
+                        onClick={savePassagemAlertThresholds}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 px-4 py-2 text-sm font-medium hover:bg-rose-100"
+                      >
+                        Salvar parâmetros de passagem
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
                   <div className="text-sm font-semibold text-slate-900">Parâmetros de Faturamento</div>
                   <p className="text-xs text-slate-500 mt-0.5">Limite de alerta para os percentuais da aba faturamento. Acima do limite fica vermelho, abaixo ou igual fica verde.</p>
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
@@ -2041,6 +2134,7 @@ export default function AnaliseContrato() {
                     <table className="min-w-full text-sm">
                       <thead className="sticky top-0 bg-slate-100 text-slate-600">
                         <tr>
+                          <th className="text-left px-4 py-2 font-semibold">Cliente</th>
                           <th className="text-left px-4 py-2 font-semibold">Contrato</th>
                           <th className="text-left px-4 py-2 font-semibold">Grupo</th>
                           <th className="text-right px-4 py-2 font-semibold">Custo KM</th>
@@ -2050,6 +2144,7 @@ export default function AnaliseContrato() {
                       <tbody>
                         {[...matrizCustos].sort((a, b) => `${a.cto}::${a.grupo}`.localeCompare(`${b.cto}::${b.grupo}`)).map((rule) => (
                           <tr key={rule.id} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-4 py-2 text-slate-700">{clienteByCto.get(rule.cto) || '—'}</td>
                             <td className="px-4 py-2 text-slate-700">{rule.cto}</td>
                             <td className="px-4 py-2 text-slate-700">{rule.grupo}</td>
                             <td className="px-4 py-2 text-right text-slate-900 font-medium">{fmtBRL(rule.custoKm)}</td>
@@ -2073,7 +2168,7 @@ export default function AnaliseContrato() {
                         ))}
                         {matrizCustos.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhuma regra manual cadastrada.</td>
+                            <td colSpan={5} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhuma regra manual cadastrada.</td>
                           </tr>
                         )}
                       </tbody>
