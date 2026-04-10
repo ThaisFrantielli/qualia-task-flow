@@ -141,7 +141,22 @@ const TABLES = [
                 ISNULL(COALESCE(
                     NULLIF(CAST(os.ValorOrcamento AS FLOAT), 0),
                     (SELECT SUM(CAST(i.ValorTotal AS FLOAT)) FROM ItensOrdemServico i WITH (NOLOCK) WHERE i.IdOcorrencia = os.IdOcorrencia AND i.ValorTotal IS NOT NULL)
-                ), 0) as ValorFinaleiroCalculado
+                ), 0) as ValorFinaleiroCalculado,
+                ISNULL((
+                    SELECT SUM(CAST(os2.ValorTotal AS FLOAT))
+                    FROM OrdensServico os2 WITH (NOLOCK)
+                    WHERE os2.IdOcorrencia = os.IdOcorrencia
+                ), 0) as ValorTotalOS,
+                ISNULL((
+                    SELECT SUM(CAST(os2.ValorNaoReembolsavel AS FLOAT))
+                    FROM OrdensServico os2 WITH (NOLOCK)
+                    WHERE os2.IdOcorrencia = os.IdOcorrencia
+                ), 0) as ValorNaoReembolsavelOS,
+                ISNULL((
+                    SELECT SUM(CAST(os2.ValorReembolsavel AS FLOAT))
+                    FROM OrdensServico os2 WITH (NOLOCK)
+                    WHERE os2.IdOcorrencia = os.IdOcorrencia
+                ), 0) as ValorReembolsavelOS
             FROM OcorrenciasSinistro os WITH (NOLOCK)
         `
     },
