@@ -181,6 +181,22 @@ function getReservaStatusCategoria(raw: AnyObject): ReservaStatusCategoria {
     return 'Ativa';
 }
 
+function getReservaStatusOperacional(raw: AnyObject): string {
+    const rawStatus = sanitizeText(raw?.StatusOcorrencia || raw?.SituacaoOcorrencia || raw?.Status || '').trim();
+    const normalized = rawStatus
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    if (normalized.includes('aguard') && normalized.includes('devol')) return 'Aguardando Devolução';
+    if (normalized.includes('provisor')) return 'Provisório';
+    if (normalized.includes('cancel')) return 'Cancelada';
+    if (normalized.includes('conclu') || normalized.includes('finaliz') || normalized.includes('encerr')) return 'Concluída';
+
+    if (rawStatus) return rawStatus;
+    return getReservaStatusCategoria(raw);
+}
+
 function isReservaAtiva(raw: AnyObject): boolean {
     return !!raw?.DataInicio && getReservaStatusCategoria(raw) === 'Ativa';
 }
@@ -1864,7 +1880,7 @@ export default function FleetDashboard() {
     const reservaUniqueOptions = useMemo(() => ({
         motivos: Array.from(new Set(carroReservaFiltered.map(r => r.Motivo).filter(Boolean))).sort(),
         clientes: Array.from(new Set(carroReservaFiltered.map(r => r.Cliente).filter(Boolean))).sort(),
-        statuses: ['Ativa', 'Concluída', 'Cancelada']
+        statuses: Array.from(new Set(carroReservaFiltered.map(r => getReservaStatusOperacional(r as AnyObject)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     }), [carroReservaFiltered]);
 
     const setReservaFilterValues = (key: string, values: string[]) => {
@@ -1968,8 +1984,8 @@ export default function FleetDashboard() {
             if (clientes.length > 0 && !clientes.includes(r.Cliente)) return false;
             if (statuses.length > 0) {
                 const categoria = (r as AnyObject).StatusCategoria || getReservaStatusCategoria(r as AnyObject);
-                const statusRaw = String(r.StatusOcorrencia || r.SituacaoOcorrencia || '').trim();
-                if (!statuses.includes(categoria) && !statuses.includes(statusRaw)) return false;
+                const statusOperacional = getReservaStatusOperacional(r as AnyObject);
+                if (!statuses.includes(categoria) && !statuses.includes(statusOperacional)) return false;
             }
 
             // Filtro de tipo de veículo (clique no gráfico Tipo Veículo)
@@ -2011,7 +2027,7 @@ export default function FleetDashboard() {
 
         const statusMap: Record<string, number> = {};
         filteredReservas.forEach(r => {
-            const s = (r as AnyObject).StatusCategoria || getReservaStatusCategoria(r as AnyObject);
+            const s = getReservaStatusOperacional(r as AnyObject);
             statusMap[s] = (statusMap[s] || 0) + 1;
         });
         const statusData = Object.entries(statusMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -2255,31 +2271,15 @@ export default function FleetDashboard() {
     // Distribuição por modelo dos veículos de reserva - CORRIGIDO: usando ModeloReserva do fat_carro_reserva.json
     // Filtra automaticamente pelo período do slider
     const reservaModelData = useMemo(() => {
-        if (!reservaDateBounds) return [];
-
-        const { minDate, maxDate } = reservaDateBounds;
-        const totalMs = maxDate.getTime() - minDate.getTime();
-        const dataInicio = new Date(minDate.getTime() + (totalMs * sliderRange.startPercent / 100));
-        const dataFim = new Date(minDate.getTime() + (totalMs * sliderRange.endPercent / 100));
-
         const map: Record<string, number> = {};
 
-        // Filtrar pelo período do slider
-        const dadosFiltrados = carroReservaFiltered.filter(r => {
-            if (!r.DataInicio) return false;
-            const di = new Date(r.DataInicio);
-            const df = r.DataFim ? new Date(r.DataFim) : new Date();
-
-            // Incluir se há sobreposição com o período selecionado
-            return di <= dataFim && df >= dataInicio;
-        });
-
-        dadosFiltrados.forEach(r => {
+        // Usa a base já filtrada para manter consistência com período/temporal e demais filtros.
+        (filteredReservas || []).forEach(r => {
             const m = r.ModeloReserva || 'Não Definido';
             map[m] = (map[m] || 0) + 1;
         });
         return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-    }, [carroReservaFiltered, sliderRange, reservaDateBounds]);
+    }, [filteredReservas]);
 
     // KPIs de Eficiência de Ocupação
     const ocupacaoKPIs = useMemo(() => {
@@ -3808,10 +3808,10 @@ export default function FleetDashboard() {
                                                 )}
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => setSliderRange({ startPercent: 90, endPercent: 100 })} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
-                                                <button onClick={() => { setSliderRange({ startPercent: 75, endPercent: 100 }); setIsCustomReservaDate(false); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 75 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Últimos 3m</button>
-                                                <button onClick={() => { setSliderRange({ startPercent: 50, endPercent: 100 }); setIsCustomReservaDate(false); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 50 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Últimos 6m</button>
-                                                <button onClick={() => { setSliderRange({ startPercent: 0, endPercent: 100 }); setIsCustomReservaDate(false); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 0 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Todo período</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 90, endPercent: 100 }); setIsCustomReservaDate(false); setSelectedTemporalFilter(null); setSelectedDayForDetail(null); }} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700 transition-colors">Último mês</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 75, endPercent: 100 }); setIsCustomReservaDate(false); setSelectedTemporalFilter(null); setSelectedDayForDetail(null); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 75 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Últimos 3m</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 50, endPercent: 100 }); setIsCustomReservaDate(false); setSelectedTemporalFilter(null); setSelectedDayForDetail(null); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 50 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Últimos 6m</button>
+                                                <button onClick={() => { setSliderRange({ startPercent: 0, endPercent: 100 }); setIsCustomReservaDate(false); setSelectedTemporalFilter(null); setSelectedDayForDetail(null); }} className={`px-2 py-1 text-xs rounded transition-colors ${!isCustomReservaDate && sliderRange.startPercent === 0 ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-cyan-100 hover:text-cyan-700'}`}>Todo período</button>
                                                 <button
                                                     onClick={() => setIsCustomReservaDate(!isCustomReservaDate)}
                                                     className={`px-2 py-1 text-xs rounded transition-colors ${isCustomReservaDate ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-indigo-100 hover:text-indigo-700'}`}

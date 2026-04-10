@@ -1056,10 +1056,25 @@ export default function AnaliseContrato() {
       const frAny = fr as any;
       const modelo = fr?.Modelo ?? cAny.Modelo ?? ''; 
       const grupo = fr?.Grupo ?? fr?.GrupoVeiculo ?? fr?.Categoria ?? fr?.CategoriaVeiculo ?? cAny.Grupo ?? cAny.GrupoVeiculo ?? cAny.Categoria ?? 'LEVE';
+      const kmInicialContrato = parseNum(
+        cAny?.OdometroRetirada ?? cAny?.odometroretirada ??
+        cAny?.OdometroInicial ?? cAny?.odometroinicial ??
+        cAny?.KmInicialContrato ?? cAny?.kminicialcontrato ??
+        cAny?.KmInicial ?? cAny?.kminicial ??
+        cAny?.KmInformadoInicial ?? cAny?.kminformadoinicial ??
+        cAny?.KmInformadoRetirada ?? cAny?.kminformadoretirada ??
+        cAny?.KMInicial ?? cAny?.kminicial ??
+        cAny?.KmConfirmadoInicial ?? cAny?.kmconfirmadoinicial ??
+        cAny?.KmConfirmado ?? cAny?.kmconfirmado ??
+        cAny?.KM ?? 0
+      );
       const kmAtual = parseNum(
         frAny?.KmConfirmado ?? frAny?.kmconfirmado ?? frAny?.OdometroConfirmado ?? frAny?.odometroconfirmado ??
-        cAny.KmConfirmado ?? cAny.kmconfirmado ?? cAny.OdometroConfirmado ?? cAny.odometroconfirmado ??
-        frAny?.KM ?? cAny.KM ?? 0
+        frAny?.KmInformado ?? frAny?.kminformado ?? frAny?.OdometroAtual ?? frAny?.odometroatual ??
+        frAny?.KM ??
+        cAny?.KmConfirmado ?? cAny?.kmconfirmado ?? cAny?.OdometroConfirmado ?? cAny?.odometroconfirmado ??
+        cAny?.KmInformado ?? cAny?.kminformado ?? cAny?.OdometroAtual ?? cAny?.odometroatual ??
+        cAny?.KM ?? 0
       );
       const dataInicial = c?.DataInicial || '';
       const tipoContratoRaw = String(
@@ -1083,7 +1098,8 @@ export default function AnaliseContrato() {
       ).trim();
       const tipoContrato = tipoContratoRaw || 'Sem informacao';
       const idadeEmMeses = monthsDiff(dataInicial);
-      const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmAtual / idadeEmMeses) : 0;
+      const kmPercorridoNoContrato = Math.max(0, kmAtual - kmInicialContrato);
+      const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmPercorridoNoContrato / idadeEmMeses) : 0;
       const mesesRestantesContrato = monthsUntil(c?.DataFinal || '');
       const prazoRestDays = daysUntil(c?.DataFinal || '');
       const kmEstimadoFimContrato = Math.round(kmAtual + (rodagemMedia * mesesRestantesContrato));
@@ -1828,7 +1844,7 @@ export default function AnaliseContrato() {
         { key:'passagemIdeal',   label:'Ideal',       fmt:r=>r.passagemIdeal.toFixed(0), align:'right', w:72, sortGetter: r=>r.passagemIdeal },
         { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(0), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
-        { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
+        { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), cls: r=> (Number.isFinite(r.rodagemMedia) && Number.isFinite(r.franquiaBanco) && r.franquiaBanco>0 && r.rodagemMedia > r.franquiaBanco) ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:95, sortGetter: r=>r.rodagemMedia },
         { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
         { key:'dataInicial',     label:'Início Contrato', fmt:r=>r.dataInicial ? new Date(r.dataInicial).toLocaleDateString('pt-BR') : '—', align:'left', w:110, sortGetter: r=>r.dataInicial },
         { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
