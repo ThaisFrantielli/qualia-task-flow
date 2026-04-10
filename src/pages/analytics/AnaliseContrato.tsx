@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import useBIData from '@/hooks/useBIData';
 import { AnalyticsLoading } from '@/components/analytics/AnalyticsLoading';
 import DataUpdateBadge from '@/components/DataUpdateBadge';
@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Settings2, Download, Loader2,
   Route, Wrench, ShieldAlert, BarChart3, DollarSign,
+  Activity, Target, AlertTriangle, Gauge,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -31,6 +32,7 @@ interface VehicleRow {
   idLocacao:string; idComercial:string;
   placa:string; modelo:string; grupo:string; kmAtual:number; indiceKm:string;
   idadeEmMeses:number; rodagemMedia:number; dataInicial:string; vencimentoContrato:string; cliente:string; contrato:string;
+  mesesRestantesContrato:number; kmEstimadoFimContrato:number;
   sitLoc:string; sitCTO:string;
   passagemTotal:number; passagemIdeal:number; diferencaPassagem:number; pctPassagem:number;
   custoManPrevisto:number; custoManRealizado:number; difManPrevReal:number; pctDifManPrevReal:number; custoManLiquido:number; difCustoManLiq:number; pctDifCustoManLiq:number;
@@ -55,6 +57,179 @@ const fmtNum = (v:number) => v===0?'—':v.toLocaleString('pt-BR');
 const kmLabel = (km:number) => km>=100000?'Acima 100.000':km>=60000?'60.000–100.000':km>=30000?'30.000–60.000':'Abaixo 30.000';
 const getYear = (d:string) => { if(!d||d.length<4) return 0; const y=parseInt(d.substring(0,4)); return isNaN(y)?0:y; };
 const monthsDiff = (from:string) => { if(!from) return 0; const d=new Date(from); const n=new Date(); return Math.max(0,(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth())); };
+const monthsUntil = (to:string) => { if(!to) return 0; const d=new Date(to); if(isNaN(d.getTime())) return 0; const n=new Date(); return Math.max(0,(d.getFullYear()-n.getFullYear())*12+(d.getMonth()-n.getMonth())); };
+
+// SearchableSelect: dropdown pesquisavel com multiselecao
+function SearchableSelect(props: { options: string[]; value: string[]; onChange: (v:string[])=>void; placeholder?:string; allLabel?: string }){
+  const { options, value, onChange, placeholder, allLabel = 'Todas' } = props;
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLDivElement|null>(null);
+
+  useEffect(()=>{
+    const onDoc = (e: MouseEvent) => { if(!ref.current) return; if(!ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return ()=>document.removeEventListener('mousedown', onDoc);
+  },[]);
+
+  const filtered = q ? options.filter(o => String(o||'').toLowerCase().includes(q.toLowerCase())) : options;
+
+  const toggle = (opt: string) => {
+    const exists = value.includes(opt);
+    const next = exists ? value.filter(v=>v!==opt) : [...value, opt];
+    onChange(next);
+  };
+
+  const summary = value.length === 0
+    ? (placeholder || allLabel)
+    : value.length === 1
+      ? value[0]
+      : `${value.length} selecionados`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={()=>{ setOpen(s=>!s); setQ(''); }}
+        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm bg-white cursor-pointer flex items-center justify-between gap-2 hover:border-blue-300 transition-colors"
+      >
+        <div className="min-w-0 flex items-center gap-2">
+          {value.length > 0 && <span className="inline-flex items-center justify-center rounded-md bg-blue-100 text-blue-700 text-[11px] font-semibold px-1.5 py-0.5">{value.length}</span>}
+          <span className={`truncate text-sm ${value.length ? 'text-slate-900':'text-slate-500'}`}>{summary}</span>
+        </div>
+        <span className="text-slate-400 text-xs">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-40 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-slate-100">
+            <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Pesquisar..." className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div className="max-h-64 overflow-auto">
+            <button type="button" className="w-full px-2.5 py-2 hover:bg-slate-50 text-sm text-left flex items-center justify-between" onClick={()=>{ onChange([]); setOpen(false); }}>
+              <span>{allLabel}</span>
+              {value.length === 0 && <span className="text-blue-600 text-xs">ativo</span>}
+            </button>
+            {filtered.map((o, idx) => {
+              const selected = value.includes(String(o||''));
+              return (
+                <button type="button" key={idx} className={`w-full px-2.5 py-2 text-sm text-left flex items-center gap-2 hover:bg-slate-50 ${selected ? 'bg-blue-50/60' : ''}`} onClick={()=>toggle(String(o||''))}>
+                  <span className={`inline-flex h-4 w-4 items-center justify-center rounded border ${selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>✓</span>
+                  <span className="truncate">{o}</span>
+                </button>
+              );
+            })}
+            {filtered.length===0 && (<div className="px-2.5 py-3 text-xs text-slate-400">Nenhuma opção</div>)}
+          </div>
+          <div className="px-2.5 py-2 border-t border-slate-100 flex justify-between items-center bg-slate-50/70">
+            <button type="button" onClick={()=>onChange([])} className="text-xs text-slate-500 hover:text-slate-700">Limpar</button>
+            <button type="button" onClick={()=>setOpen(false)} className="text-xs font-medium text-blue-600 hover:text-blue-700">Fechar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface HierNode { key: string; label: string; children?: { key: string; label: string }[]; }
+
+function HierarchicalSelect(props: { nodes: HierNode[]; value: string[]; onChange: (v:string[])=>void; placeholder?: string; allLabel?: string }) {
+  const { nodes, value, onChange, placeholder, allLabel = 'Todos' } = props;
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const ref = useRef<HTMLDivElement|null>(null);
+
+  useEffect(()=>{
+    const onDoc = (e: MouseEvent) => { if(!ref.current) return; if(!ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return ()=>document.removeEventListener('mousedown', onDoc);
+  },[]);
+
+  const summary = value.length === 0 ? (placeholder || allLabel) : value.length === 1 ? value[0] : `${value.length} selecionados`;
+  const lower = q.toLowerCase();
+
+  const filteredNodes = nodes
+    .map(n => {
+      const own = n.label.toLowerCase().includes(lower);
+      const children = (n.children || []).filter(c => c.label.toLowerCase().includes(lower));
+      if (!q) return n;
+      if (own) return { ...n };
+      if (children.length) return { ...n, children };
+      return null;
+    })
+    .filter(Boolean) as HierNode[];
+
+  const toggle = (key: string) => {
+    onChange(value.includes(key) ? value.filter(v => v !== key) : [...value, key]);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={()=>{ setOpen(s=>!s); setQ(''); }}
+        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm bg-white cursor-pointer flex items-center justify-between gap-2 hover:border-blue-300 transition-colors"
+      >
+        <div className="min-w-0 flex items-center gap-2">
+          {value.length > 0 && <span className="inline-flex items-center justify-center rounded-md bg-blue-100 text-blue-700 text-[11px] font-semibold px-1.5 py-0.5">{value.length}</span>}
+          <span className={`truncate text-sm ${value.length ? 'text-slate-900':'text-slate-500'}`}>{summary}</span>
+        </div>
+        <span className="text-slate-400 text-xs">▾</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-40 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-slate-100">
+            <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Pesquisar..." className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div className="max-h-64 overflow-auto">
+            <button type="button" className="w-full px-2.5 py-2 hover:bg-slate-50 text-sm text-left flex items-center justify-between" onClick={()=>{ onChange([]); setOpen(false); }}>
+              <span>{allLabel}</span>
+              {value.length === 0 && <span className="text-blue-600 text-xs">ativo</span>}
+            </button>
+
+            {filteredNodes.map(node => {
+              const hasChildren = !!(node.children && node.children.length);
+              const isExpanded = expanded[node.key] ?? true;
+              const selected = value.includes(node.key);
+              return (
+                <div key={node.key} className="border-t border-slate-100">
+                  <div className={`w-full px-2.5 py-2 text-sm flex items-center gap-2 hover:bg-slate-50 ${selected ? 'bg-blue-50/60' : ''}`}>
+                    {hasChildren && (
+                      <button type="button" className="text-slate-400 w-4" onClick={()=>setExpanded(prev => ({ ...prev, [node.key]: !isExpanded }))}>{isExpanded ? 'v' : '>'}</button>
+                    )}
+                    {!hasChildren && <span className="w-4" />}
+                    <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded border" onClick={()=>toggle(node.key)}>
+                      <span className={`${selected ? 'text-blue-600' : 'text-transparent'}`}>x</span>
+                    </button>
+                    <button type="button" className="truncate text-left flex-1" onClick={()=>toggle(node.key)}>{node.label}</button>
+                  </div>
+                  {hasChildren && isExpanded && (node.children || []).map(ch => {
+                    const childSelected = value.includes(ch.key);
+                    return (
+                      <div key={ch.key} className={`w-full pl-8 pr-2.5 py-2 text-sm flex items-center gap-2 hover:bg-slate-50 ${childSelected ? 'bg-blue-50/60' : ''}`}>
+                        <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded border" onClick={()=>toggle(ch.key)}>
+                          <span className={`${childSelected ? 'text-blue-600' : 'text-transparent'}`}>x</span>
+                        </button>
+                        <button type="button" className="truncate text-left flex-1" onClick={()=>toggle(ch.key)}>{ch.label}</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {filteredNodes.length === 0 && <div className="px-2.5 py-3 text-xs text-slate-400">Nenhuma opção</div>}
+          </div>
+          <div className="px-2.5 py-2 border-t border-slate-100 flex justify-between items-center bg-slate-50/70">
+            <button type="button" onClick={()=>onChange([])} className="text-xs text-slate-500 hover:text-slate-700">Limpar</button>
+            <button type="button" onClick={()=>setOpen(false)} className="text-xs font-medium text-blue-600 hover:text-blue-700">Fechar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const clrV = (v:number,invert=false) => { if(v===0) return 'text-slate-400'; return (invert?v<0:v>0)?'text-red-600 font-medium':'text-emerald-600 font-medium'; };
 const clrP = (v:number,invert=false) => { if(!isFinite(v)||isNaN(v)||v===0) return 'text-slate-400'; return (invert?v<0:v>0)?'text-red-600 font-medium':'text-emerald-600 font-medium'; };
@@ -63,7 +238,7 @@ interface ColDef { key:string; label:string; fmt:(r:VehicleRow)=>string; cls?:(r
 
 // ID cols shown in every tab
 const ID_COLS: ColDef[] = [
-  { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:160, sortGetter: r=>r.cliente },
+  { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:60, sortGetter: r=>r.cliente },
   { key:'contrato',    label:'CTO',          fmt:r=>r.contrato,    align:'left',  w:95, sortGetter: r=>r.contrato },
   { key:'placa',       label:'Placa',        fmt:r=>r.placa,       align:'left',  w:105, sortGetter: r=>r.placa },
   { key:'modelo',      label:'Modelo',       fmt:r=>r.modelo,      align:'left',  w:170, sortGetter: r=>r.modelo },
@@ -85,6 +260,7 @@ type TabKey = typeof TABS[number]['key'];
 // ── Main Component ───────────────────────────────────────────────
 export default function AnaliseContrato() {
   const [activeTab, setActiveTab] = useState<TabKey>('passagem');
+  const [showTabHelp, setShowTabHelp] = useState(false);
   const [kmDivisor,  setKmDivisor]  = useState(10000);
   
   // Custom group cost settings
@@ -92,15 +268,18 @@ export default function AnaliseContrato() {
   const [custoGeral, setCustoGeral] = useState<Record<string,number>>({});
   
   const [showSettings, setShowSettings] = useState(false);
-  const [filterCliente,setFilterCliente]= useState('');
-  const [filterCTO,    setFilterCTO]    = useState('');
-  const [filterPlaca,  setFilterPlaca]  = useState('');
-  const [filterGrupo,  setFilterGrupo]  = useState('');
-  const [filterSitCTO, setFilterSitCTO] = useState('');
-  const [filterSitLoc, setFilterSitLoc] = useState('');
+  const [filterCliente,setFilterCliente]= useState<string[]>([]);
+  const [filterCTO,    setFilterCTO]    = useState<string[]>([]);
+  const [filterPlaca,  setFilterPlaca]  = useState<string[]>([]);
+  const [filterGrupoModelo,  setFilterGrupoModelo]  = useState<string[]>([]);
+  const [filterVencimento, setFilterVencimento] = useState<string[]>([]);
+  const [filterSitCTO, setFilterSitCTO] = useState<string[]>([]);
+  const [filterSitLoc, setFilterSitLoc] = useState<string[]>([]);
 
   const [sortKey,  setSortKey]  = useState<string>('cliente');
   const [sortDir,  setSortDir]  = useState<'asc'|'desc'>('asc');
+
+  useEffect(() => { setShowTabHelp(false); }, [activeTab]);
 
   const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao');
   const { data: rawF, loading: lF } = useBIData<FrotaRow[]>('dim_frota');
@@ -200,6 +379,8 @@ export default function AnaliseContrato() {
       const dataInicial = c?.DataInicial || '';
       const idadeEmMeses = monthsDiff(dataInicial);
       const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmAtual / idadeEmMeses) : 0;
+      const mesesRestantesContrato = monthsUntil(c?.DataFinal || '');
+      const kmEstimadoFimContrato = Math.round(kmAtual + (rodagemMedia * mesesRestantesContrato));
 
       const realPlaca = (c?.PlacaPrincipal || fr?.Placa || placa);
       const pm = passIdx.get(realPlaca) || {};
@@ -265,6 +446,8 @@ export default function AnaliseContrato() {
         placa: realPlaca, modelo, grupo, kmAtual, indiceKm: kmLabel(kmAtual), idadeEmMeses, rodagemMedia,
         dataInicial,
         vencimentoContrato: c?.DataFinal ? new Date(c.DataFinal).toLocaleDateString('pt-BR') : '—',
+        mesesRestantesContrato,
+        kmEstimadoFimContrato,
         cliente: c?.NomeCliente || (c ? '' : '— Sem CTO / Avulso —'), 
         contrato: c?.ContratoComercial || (c ? '' : '—'),
         sitCTO: c?.SituacaoContratoComercial || cAny.SituacaoContrato || '', 
@@ -285,42 +468,117 @@ export default function AnaliseContrato() {
     return result;
   }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, kmDivisor, custoPadrao, custoGeral]);
 
-  // Derive cascaded filter options
-  const filterCandidates = useMemo(() => {
-    let rows = vehicleRows;
-    if (filterCliente) rows = rows.filter(r => r.cliente === filterCliente);
-    return rows;
-  }, [vehicleRows, filterCliente]);
+  const normalizeSitCTO = (v: string) => {
+    const s = String(v || '').trim();
+    return s || 'Sem informacao';
+  };
 
-  const opts = useMemo(() => ({
-    clientes: [...new Set(vehicleRows.map(r=>r.cliente))].filter(Boolean).sort(),
-    ctos:     [...new Set(filterCandidates.map(r=>r.contrato))].filter(Boolean).sort(),
-    placas:   [...new Set(filterCandidates.map(r=>r.placa))].filter(Boolean).sort(),
-    grupos:   [...new Set(filterCandidates.map(r=>r.grupo))].filter(Boolean).sort(),
-    sitCTO:   [...new Set(vehicleRows.map(r=>r.sitCTO))].filter(Boolean).sort(),
-    sitLoc:   [...new Set(vehicleRows.map(r=>r.sitLoc))].filter(Boolean).sort(),
-  }), [vehicleRows, filterCandidates]);
+  const getVencInfo = (v: string) => {
+    const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    const month = m[2];
+    const year = m[3];
+    return {
+      year,
+      month,
+      yearToken: `Y:${year}`,
+      monthToken: `M:${year}-${month}`,
+      monthLabel: `${month}/${year}`,
+    };
+  };
+
+  const matchesGrupoModelo = (r: VehicleRow, selected: string[]) => {
+    if (!selected.length) return true;
+    return selected.some(token => {
+      if (token.startsWith('G:')) return r.grupo === token.slice(2);
+      if (token.startsWith('M:')) return r.modelo === token.slice(2);
+      return false;
+    });
+  };
+
+  const matchesVencimento = (r: VehicleRow, selected: string[]) => {
+    if (!selected.length) return true;
+    const info = getVencInfo(r.vencimentoContrato);
+    if (!info) return false;
+    return selected.some(token => token === info.yearToken || token === info.monthToken);
+  };
+
+  const rowMatchesFilters = (r: VehicleRow, ignore?: string) => {
+    if (ignore !== 'clientes' && filterCliente.length && !filterCliente.includes(r.cliente)) return false;
+    if (ignore !== 'ctos' && filterCTO.length && !filterCTO.includes(r.contrato)) return false;
+    if (ignore !== 'placas' && filterPlaca.length && !filterPlaca.includes(r.placa)) return false;
+    if (ignore !== 'grupoModelo' && !matchesGrupoModelo(r, filterGrupoModelo)) return false;
+    if (ignore !== 'vencimento' && !matchesVencimento(r, filterVencimento)) return false;
+    if (ignore !== 'sitCTO' && filterSitCTO.length && !filterSitCTO.includes(normalizeSitCTO(r.sitCTO))) return false;
+    if (ignore !== 'sitLoc' && filterSitLoc.length && !filterSitLoc.includes(r.sitLoc)) return false;
+    return true;
+  };
+
+  // Cascata para filtros simples
+  const opts = useMemo(() => {
+    const compute = (key: string, picker: (r: VehicleRow) => string) => {
+      return [...new Set(vehicleRows.filter(r => rowMatchesFilters(r, key)).map(picker).filter(Boolean))].sort();
+    };
+    return {
+      clientes: compute('clientes', r => r.cliente),
+      ctos: compute('ctos', r => r.contrato),
+      placas: compute('placas', r => r.placa),
+      sitCTO: compute('sitCTO', r => normalizeSitCTO(r.sitCTO)),
+      sitLoc: compute('sitLoc', r => r.sitLoc),
+    };
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterSitCTO, filterSitLoc]);
+
+  const grupoModeloTree = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const r of vehicleRows) {
+      if (!rowMatchesFilters(r, 'grupoModelo')) continue;
+      const g = String(r.grupo || '').trim();
+      const m = String(r.modelo || '').trim();
+      if (!g) continue;
+      if (!map.has(g)) map.set(g, new Set<string>());
+      if (m) map.get(g)!.add(m);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([g, models]) => ({
+        key: `G:${g}`,
+        label: g,
+        children: Array.from(models).sort((a, b) => a.localeCompare(b)).map(m => ({ key: `M:${m}`, label: m })),
+      }));
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterSitCTO, filterSitLoc]);
+
+  const vencimentoTree = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const r of vehicleRows) {
+      if (!rowMatchesFilters(r, 'vencimento')) continue;
+      const info = getVencInfo(r.vencimentoContrato);
+      if (!info) continue;
+      if (!map.has(info.year)) map.set(info.year, new Set<string>());
+      map.get(info.year)!.add(info.month);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([year, months]) => ({
+        key: `Y:${year}`,
+        label: year,
+        children: Array.from(months).sort((a, b) => Number(a) - Number(b)).map(month => ({ key: `M:${year}-${month}`, label: `${month}/${year}` })),
+      }));
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterSitCTO, filterSitLoc]);
 
   // Default: when no explicit Situação Locação filter, prefer an 'em andamento' like value
   useEffect(() => {
-    if (filterSitLoc) return;
+    if (filterSitLoc && filterSitLoc.length) return;
     const candidates = opts.sitLoc || [];
     const regex = /andament|andando|andamento|locado|ativo|vigente/i;
     const found = candidates.find(s => regex.test(String(s || '')));
-    if (found) setFilterSitLoc(found);
+    if (found) setFilterSitLoc([found]);
   }, [opts.sitLoc, filterSitLoc]);
 
   // Unique groups for settings
   const allGrupos = useMemo(() => [...new Set(vehicleRows.map(r=>r.grupo))].filter(Boolean).sort(), [vehicleRows]);
 
   const displayRows = useMemo(() => {
-    let rows = vehicleRows;
-    if(filterCliente) rows=rows.filter(r=>r.cliente===filterCliente);
-    if(filterCTO)     rows=rows.filter(r=>r.contrato===filterCTO);
-    if(filterPlaca)   rows=rows.filter(r=>r.placa===filterPlaca);
-    if(filterGrupo)   rows=rows.filter(r=>r.grupo===filterGrupo);
-    if(filterSitCTO)  rows=rows.filter(r=>r.sitCTO===filterSitCTO);
-    if(filterSitLoc)  rows=rows.filter(r=>r.sitLoc===filterSitLoc);
+    let rows = vehicleRows.filter(r => rowMatchesFilters(r));
 
     return [...rows].sort((a,b)=>{
       // need to find coldef for sortKey
@@ -329,7 +587,7 @@ export default function AnaliseContrato() {
       const cmp=typeof valA==='number'&&typeof valB==='number'?valA-valB:String(valA).localeCompare(String(valB));
       return sortDir==='asc'?cmp:-cmp;
     });
-  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupo, filterSitCTO, filterSitLoc, sortKey, sortDir]);
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterSitCTO, filterSitLoc, sortKey, sortDir]);
 
   // Determine dynamic years to display based on filtered rows
   const dynYears = useMemo(() => {
@@ -378,6 +636,37 @@ export default function AnaliseContrato() {
     };
   }, [displayRows]);
 
+  const passagemKpis = useMemo(() => {
+    const totalVeiculos = displayRows.length;
+    let totalPassagens = 0;
+    let totalPassagemPrevista = 0;
+    let veiculosCriticos = 0;
+    let somaRodagemMedia = 0;
+
+    for (const row of displayRows) {
+      totalPassagens += Number(row.passagemTotal) || 0;
+      totalPassagemPrevista += Number(row.passagemIdeal) || 0;
+      somaRodagemMedia += Number(row.rodagemMedia) || 0;
+      if ((Number(row.diferencaPassagem) || 0) > 0) veiculosCriticos++;
+    }
+
+    const mediaPassagens = totalVeiculos > 0 ? totalPassagens / totalVeiculos : 0;
+    const mediaPassagemPrevista = totalVeiculos > 0 ? totalPassagemPrevista / totalVeiculos : 0;
+    const pctCriticos = totalVeiculos > 0 ? (veiculosCriticos / totalVeiculos) * 100 : 0;
+    const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
+
+    return {
+      totalPassagens,
+      totalPassagemPrevista,
+      mediaPassagens,
+      mediaPassagemPrevista,
+      veiculosCriticos,
+      pctCriticos,
+      rodagemMedia,
+      totalVeiculos,
+    };
+  }, [displayRows]);
+
   // Build dynamic columns
   const tabCols = useMemo(() => {
     const cols: ColDef[] = [];
@@ -389,7 +678,9 @@ export default function AnaliseContrato() {
         { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(1), cls:r=>clrV(r.diferencaPassagem), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrP(r.pctPassagem), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
-        { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato }
+        { key:'kmEstimadoFimContrato',label:'KM Est. Fim',fmt:r=>r.kmEstimadoFimContrato>0?r.kmEstimadoFimContrato.toLocaleString('pt-BR'):'—', align:'right', w:110, sortGetter: r=>r.kmEstimadoFimContrato },
+        { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
+        { key:'mesesRestantesContrato',label:'Meses Rest.',fmt:r=>String(r.mesesRestantesContrato), align:'right', w:92, sortGetter: r=>r.mesesRestantesContrato }
       );
     } else if (activeTab === 'previsto') {
       cols.push(
@@ -440,7 +731,21 @@ export default function AnaliseContrato() {
     return cols;
   }, [activeTab, dynYears]);
 
-  const allCols = useMemo(() => [...ID_COLS, ...tabCols], [tabCols]);
+  const clienteColWidth = useMemo(() => {
+    const maxChars = displayRows.reduce((m, r) => Math.max(m, String(r.cliente || '').length), 0);
+    const px = Math.min(520, Math.max(220, Math.round(maxChars * 10)));
+    return px;
+  }, [displayRows]);
+
+  const allCols = useMemo(() => {
+    const idColsAdjusted = ID_COLS.map(col => {
+      if (col.key === 'cliente') return { ...col, w: clienteColWidth };
+      if (col.key === 'modelo') return { ...col, w: 520 };
+      if (col.key === 'grupo') return { ...col, w: 260 };
+      return col;
+    });
+    return [...idColsAdjusted, ...tabCols];
+  }, [tabCols, clienteColWidth]);
 
   // Totais das colunas (quando compatível)
   const colTotals = useMemo(() => {
@@ -488,6 +793,36 @@ export default function AnaliseContrato() {
   };
 
   const curTab = TABS.find(t=>t.key===activeTab)!;
+
+  const tabHelp: Record<TabKey, string[]> = {
+    passagem: [
+      'Passagem Total: soma das ocorrências de manutenção por veículo.',
+      'Passagem Prevista: KM atual dividido pelo divisor configurado.',
+      'Críticos: veículos com diferença positiva entre real e previsto.',
+      'Rodagem Média: média mensal baseada em KM atual e idade do veículo.'
+    ],
+    previsto: [
+      'Previsto: custo mensal por grupo x idade do veículo.',
+      'Realizado: soma dos custos de manutenção no período.',
+      'Diferenças e percentuais mostram desvio entre previsto e realizado.'
+    ],
+    manutencao: [
+      'Mostra custos de manutenção, reembolsos e custo líquido.',
+      'Custo/KM considera a quilometragem atual do veículo.'
+    ],
+    sinistro: [
+      'Consolida custos de sinistro e reembolsos (seguradora/terceiro).',
+      'Custo líquido é o total de sinistro menos reembolsos.'
+    ],
+    mansin: [
+      'Agrupa manutenção + sinistro para visão consolidada de risco/custo.',
+      'Percentual de reembolso considera ambos os blocos.'
+    ],
+    faturamento: [
+      'Compara custos vs faturamento por veículo.',
+      'Percentuais mostram pressão de custo sobre a receita.'
+    ],
+  };
 
   if (initialLoading) return <AnalyticsLoading message="Carregando contratos e frota..." />;
 
@@ -568,58 +903,38 @@ export default function AnaliseContrato() {
 
         {/* ── Filters ── */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Cliente</label>
-              <select value={filterCliente} onChange={e=>{setFilterCliente(e.target.value); setFilterCTO(''); setFilterGrupo('');}}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none">
-                <option value="">Todos</option>
-                {opts.clientes.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
+              <SearchableSelect options={opts.clientes} value={filterCliente} onChange={v=>{ setFilterCliente(v); setFilterCTO([]); setFilterGrupoModelo([]); }} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">CTO (Contrato)</label>
-              <select value={filterCTO} onChange={e=>setFilterCTO(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none">
-                <option value="">Todos</option>
-                {opts.ctos.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
+              <SearchableSelect options={opts.ctos} value={filterCTO} onChange={v=>setFilterCTO(v)} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Grupo / Categoria</label>
-              <select value={filterGrupo} onChange={e=>setFilterGrupo(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none">
-                <option value="">Todos</option>
-                {opts.grupos.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Grupo / Modelo</label>
+              <HierarchicalSelect nodes={grupoModeloTree} value={filterGrupoModelo} onChange={v=>setFilterGrupoModelo(v)} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Placa</label>
-              <select value={filterPlaca} onChange={e=>setFilterPlaca(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none">
-                <option value="">Todas</option>
-                {opts.placas.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
+              <SearchableSelect options={opts.placas} value={filterPlaca} onChange={v=>setFilterPlaca(v)} placeholder="Todas" allLabel="Todas" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label>
+              <HierarchicalSelect nodes={vencimentoTree} value={filterVencimento} onChange={v=>setFilterVencimento(v)} placeholder="Todos" allLabel="Todos" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Situação Comercial</label>
-              <select value={filterSitCTO} onChange={e=>setFilterSitCTO(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none">
-                <option value="">Todas</option>
-                {opts.sitCTO.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
+              <SearchableSelect options={opts.sitCTO} value={filterSitCTO} onChange={v=>setFilterSitCTO(v)} placeholder="Todas" allLabel="Todas" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Situação Locação</label>
-              <select value={filterSitLoc} onChange={e=>setFilterSitLoc(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-indigo-400 outline-none">
-                <option value="">Todas</option>
-                {opts.sitLoc.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
+              <SearchableSelect options={opts.sitLoc} value={filterSitLoc} onChange={v=>setFilterSitLoc(v)} placeholder="Todas" allLabel="Todas" />
             </div>
           </div>
-          {(filterCTO||filterCliente||filterPlaca||filterGrupo||filterSitCTO||filterSitLoc) && (
-            <button onClick={()=>{setFilterCTO('');setFilterCliente('');setFilterPlaca('');setFilterGrupo('');setFilterSitCTO('');setFilterSitLoc('');}}
+          {((filterCTO&&filterCTO.length)||(filterCliente&&filterCliente.length)||(filterPlaca&&filterPlaca.length)||(filterGrupoModelo&&filterGrupoModelo.length)||(filterVencimento&&filterVencimento.length)||(filterSitCTO&&filterSitCTO.length)||(filterSitLoc&&filterSitLoc.length)) && (
+            <button onClick={()=>{setFilterCTO([]);setFilterCliente([]);setFilterPlaca([]);setFilterGrupoModelo([]);setFilterVencimento([]);setFilterSitCTO([]);setFilterSitLoc([]);}}
               className="mt-3 inline-block text-xs text-indigo-600 hover:underline">✕ Limpar filtros</button>
           )}
         </div>
@@ -644,7 +959,7 @@ export default function AnaliseContrato() {
         </div>
 
         {/* ── Tabs ── */}
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1 flex-wrap items-center">
           {TABS.map(t=>{
             const Icon=t.icon;
             const isActive=activeTab===t.key;
@@ -655,7 +970,75 @@ export default function AnaliseContrato() {
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={()=>setShowTabHelp(v=>!v)}
+            className="ml-auto h-7 w-7 rounded-full border border-slate-300 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-300 text-xs font-semibold"
+            title="Como os números desta aba são calculados"
+          >
+            ?
+          </button>
         </div>
+
+        {showTabHelp && (
+          <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm -mt-2">
+            <div className="text-xs font-semibold text-slate-700 mb-1">Como esta aba calcula os números</div>
+            <ul className="text-xs text-slate-600 space-y-1">
+              {tabHelp[activeTab].map((item, idx) => <li key={idx}>- {item}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {activeTab === 'passagem' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-500" />
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Passagens Realizadas</span>
+              </div>
+              <div className="text-2xl font-bold text-slate-800">{fmtNum(passagemKpis.totalPassagens)}</div>
+              <div className="text-xs text-slate-400 font-medium">
+                Média de <span className="text-slate-600">{passagemKpis.mediaPassagens.toFixed(1)}</span> por veículo
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Passagem Prevista</span>
+              </div>
+              <div className="text-2xl font-bold text-slate-800">{passagemKpis.totalPassagemPrevista.toFixed(1)}</div>
+              <div className="text-xs text-slate-400 font-medium">
+                Média ideal de <span className="text-slate-600">{passagemKpis.mediaPassagemPrevista.toFixed(1)}</span> por veículo
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium">
+                Ref. cálculo: <span className="text-slate-600">{fmtNum(kmDivisor)} km/p</span>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500" />
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Veículos Críticos</span>
+              </div>
+              <div className="text-2xl font-bold text-rose-600">{fmtNum(passagemKpis.veiculosCriticos)}</div>
+              <div className="text-xs text-slate-400 font-medium">
+                <span className="text-rose-500 font-semibold">{passagemKpis.pctCriticos.toFixed(1)}%</span> da frota listada ({fmtNum(passagemKpis.totalVeiculos)} veíc.)
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-indigo-500" />
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rodagem Média</span>
+              </div>
+              <div className="text-2xl font-bold text-slate-800">
+                {fmtNum(Math.round(passagemKpis.rodagemMedia))} <span className="text-sm text-slate-400 font-normal">km</span>
+              </div>
+              <div className="text-xs text-slate-400 font-medium">Média mensal por veículo</div>
+            </div>
+          </div>
+        )}
 
         {/* ── Table ── */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -664,23 +1047,23 @@ export default function AnaliseContrato() {
             <span className="ml-auto text-xs opacity-75">{displayRows.length} linhas</span>
           </div>
           <div className="overflow-auto" style={{maxHeight:'60vh'}}>
-            <table className="border-collapse text-xs whitespace-nowrap w-full">
+            <table className="border-collapse table-fixed text-xs whitespace-nowrap w-full">
               <thead className="sticky top-0 z-10 shadow-sm">
                 <tr>
                   {/* ID header group */}
-                  <th colSpan={ID_COLS.length} className="bg-slate-700 text-white text-center py-1.5 text-[10px] font-semibold uppercase tracking-wide border-r border-white/20">
+                  <th colSpan={ID_COLS.length} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-r border-white/20">
                     Identificação
                   </th>
                   {/* Tab header group */}
-                  <th colSpan={tabCols.length} className={`${curTab.hdr} text-white text-center py-1.5 text-[10px] font-semibold uppercase tracking-wide`}>
+                  <th colSpan={tabCols.length} className={`${curTab.hdr} text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide`}>
                     {curTab.label} ({dynYears[0]} - {dynYears[dynYears.length-1]})
                   </th>
                 </tr>
                 <tr className="bg-slate-800">
                   {allCols.map(col=>(
-                    <th key={col.key} onClick={()=>handleSort(col.key)}
+                      <th key={col.key} onClick={()=>handleSort(col.key)}
                       style={{minWidth:col.w||90,width:col.w||90}}
-                      className={`px-2 py-1.5 text-[10px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'}`}>
+                      className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} truncate`}>
                       {col.label}{sortIcon(col.key)}
                     </th>
                   ))}
@@ -700,7 +1083,7 @@ export default function AnaliseContrato() {
                     {allCols.map(col=>(
                       <td key={col.key}
                         style={{minWidth:col.w||90,width:col.w||90}}
-                        className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'}`}>
+                        className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} truncate`}> 
                         {col.fmt(row)}
                       </td>
                     ))}
