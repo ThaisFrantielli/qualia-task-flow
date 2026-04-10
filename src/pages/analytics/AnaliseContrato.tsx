@@ -1829,9 +1829,9 @@ export default function AnaliseContrato() {
         { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(0), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
+        { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
         { key:'dataInicial',     label:'Início Contrato', fmt:r=>r.dataInicial ? new Date(r.dataInicial).toLocaleDateString('pt-BR') : '—', align:'left', w:110, sortGetter: r=>r.dataInicial },
         { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
-        { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
         { key:'mesesRestantesContrato',label:'Prazo Rest',fmt:r=>{
             const days = Number.isFinite(r.prazoRestDays) ? r.prazoRestDays : NaN;
             if (!isFinite(days)) return '—';
