@@ -892,6 +892,7 @@ export default function AnaliseContrato() {
       let passagemTotal = 0;
       for (const bucket of mm.values()) passagemTotal += bucket.osIds.size;
       const passagemIdeal = kmDivisor > 0 ? kmAtual / kmDivisor : 0;
+      const passagemIdealExibida = Math.round(passagemIdeal);
 
       const contratoBase = String(c?.ContratoComercial || cAny?.ContratoComercial || cAny?.Contrato || '').trim();
       const manualCustoKm = lookupCustoKmManual(contratoBase, grupo);
@@ -924,7 +925,7 @@ export default function AnaliseContrato() {
       for (const y in fm) faturamentoTotal += fm[y];
 
       const diferencaPassagem = passagemTotal - passagemIdeal;
-      const pctPassagem = passagemIdeal > 0 ? passagemTotal / passagemIdeal - 1 : 0;
+      const pctPassagem = passagemIdealExibida > 0 ? passagemTotal / passagemIdealExibida - 1 : 0;
       const custoManRealizado = totalManutencao;
       const difManPrevReal = custoManPrevisto - custoManRealizado;
       const pctDifManPrevReal = custoManPrevisto > 0 ? custoManRealizado / custoManPrevisto - 1 : 0;
@@ -970,8 +971,8 @@ export default function AnaliseContrato() {
         tipoContrato,
         franquiaBanco,
         custoKmManual: manualCustoKm,
-        passagemTotal, passagemIdeal: Math.round(passagemIdeal * 10) / 10,
-        diferencaPassagem: Math.round(diferencaPassagem * 10) / 10, pctPassagem,
+        passagemTotal, passagemIdeal: passagemIdealExibida,
+        diferencaPassagem: Math.round(diferencaPassagem), pctPassagem,
         custoManPrevisto, custoManRealizado, difManPrevReal, pctDifManPrevReal, custoManLiquido, difCustoManLiq, pctDifCustoManLiq,
         totalManutencao, ticketMedio, custoKmMan,
         totalReembMan, custoLiqMan, pctReembolsadoMan, custoKmLiqMan,
@@ -1337,8 +1338,8 @@ export default function AnaliseContrato() {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`pass_${y}`, label:`Pass ${y}`, fmt:r=>fmtNum(r.years[y].pass), align:'right', w:80, sortGetter: r=>r.years[y].pass }));
       cols.push(
         { key:'passagemTotal',   label:'Total',       fmt:r=>fmtNum(r.passagemTotal), align:'right', w:72, sortGetter: r=>r.passagemTotal },
-        { key:'passagemIdeal',   label:'Ideal',       fmt:r=>r.passagemIdeal.toFixed(1), align:'right', w:72, sortGetter: r=>r.passagemIdeal },
-        { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(1), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
+        { key:'passagemIdeal',   label:'Ideal',       fmt:r=>r.passagemIdeal.toFixed(0), align:'right', w:72, sortGetter: r=>r.passagemIdeal },
+        { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(0), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
         { key:'kmEstimadoFimContrato',label:'KM Est. Fim',fmt:r=>r.kmEstimadoFimContrato>0?r.kmEstimadoFimContrato.toLocaleString('pt-BR'):'—', align:'right', w:110, sortGetter: r=>r.kmEstimadoFimContrato },
@@ -1357,8 +1358,8 @@ export default function AnaliseContrato() {
         { key:'custoManRealizado',label:'Realizado',     fmt:r=>fmtBRLZero(r.custoManRealizado),  cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.custoManRealizado },
         { key:'difManPrevReal',   label:'DIF',           fmt:r=>fmtBRL(r.difManPrevReal),     cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.difManPrevReal },
         { key:'pctDifManPrevReal',label:'%DIF',          fmt:r=>fmtPct(r.pctDifManPrevReal),  cls:r=>clrP(r.pctDifManPrevReal, false), align:'right', w:80, sortGetter: r=>r.pctDifManPrevReal },
-        { key:'custoManLiquido',  label:'Custo Man Líq', fmt:r=>fmtBRLZero(r.custoManLiquido),    cls:r=>clrV(r.custoManLiquido, false), align:'right', w:120, sortGetter: r=>r.custoManLiquido },
-        { key:'difCustoManLiq',   label:'Dif Liq',       fmt:r=>fmtBRL(r.difCustoManLiq),     cls:r=>clrV(r.difCustoManLiq), align:'right', w:120, sortGetter: r=>r.difCustoManLiq },
+        { key:'custoManLiquido',  label:'Custo Man Líq', fmt:r=>fmtBRLZero(r.custoManLiquido), align:'right', w:120, sortGetter: r=>r.custoManLiquido },
+        { key:'difCustoManLiq',   label:'Dif Liq',       fmt:r=>fmtBRL(r.difCustoManLiq),    align:'right', w:120, sortGetter: r=>r.difCustoManLiq },
         { key:'pctDifCustoManLiq',label:'%Dif Liq',      fmt:r=>fmtPct(r.pctDifCustoManLiq),  cls:r=>clrP(r.pctDifCustoManLiq, false), align:'right', w:80, sortGetter: r=>r.pctDifCustoManLiq }
       );
     } else if (tab === 'manutencao') {
@@ -1371,7 +1372,7 @@ export default function AnaliseContrato() {
       cols.push({ key:'totalReembMan',  label:'Total Reemb',  fmt:r=>fmtBRL(r.totalReembMan),  align:'right', w:110, sortGetter: r=>r.totalReembMan });
       
       if (includeYearDetail) years.forEach(y => cols.push({ key:`difReembMan_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].man - r.years[y].reembMan), cls:r=>clrV(r.years[y].man - r.years[y].reembMan, false), align:'right', w:110, sortGetter: r=>r.years[y].man - r.years[y].reembMan }));
-      cols.push({ key:'custoLiqMan',    label:'Custo Líq Man',fmt:r=>fmtBRL(r.custoLiqMan),   cls:r=>clrV(r.custoLiqMan, false), align:'right', w:120, sortGetter: r=>r.custoLiqMan });
+      cols.push({ key:'custoLiqMan',    label:'Custo Líq Man',fmt:r=>fmtBRL(r.custoLiqMan),   align:'right', w:120, sortGetter: r=>r.custoLiqMan });
       cols.push({ key:'pctReembolsadoMan',label:'% Reemb Man',fmt:r=>fmtPct(r.pctReembolsadoMan), align:'right', w:90, sortGetter: r=>r.pctReembolsadoMan });
       cols.push({ key:'custoKmLiqMan',  label:'Custo KM Líq', fmt:r=>fmtKM(r.custoKmLiqMan),  align:'right', w:100, sortGetter: r=>r.custoKmLiqMan });
     } else if (tab === 'sinistro') {
