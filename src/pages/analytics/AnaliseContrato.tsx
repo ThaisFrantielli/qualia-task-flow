@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Settings2, Download, Loader2, Plus, Trash2, X,
   Route, Wrench, ShieldAlert, BarChart3, DollarSign,
-  Activity, Target, AlertTriangle, Gauge,
+  Activity, Target, AlertTriangle, Gauge, Printer,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -68,6 +68,8 @@ interface VehicleRow {
   custoLiqMan:number; pctReembolsadoMan:number; custoKmLiqMan:number;
   totalSinistro:number;
   totalReembSin:number;
+  qtdOsManutencao:number;
+  qtdSinistros:number;
   custoLiqSin:number; pctReembolsadoSin:number;
   totalManSin:number; pctReembolsadoManSin:number;
   faturamentoTotal:number;
@@ -310,8 +312,16 @@ function HierarchicalSelect(props: { nodes: HierNode[]; value: string[]; onChang
   );
 }
 
-const clrV = (v:number,invert=false) => { if(v===0) return 'text-slate-400'; return (invert?v<0:v>0)?'text-red-600 font-medium':'text-emerald-600 font-medium'; };
-const clrP = (v:number,invert=false) => { if(!isFinite(v)||isNaN(v)||v===0) return 'text-slate-400'; return (invert?v<0:v>0)?'text-red-600 font-medium':'text-emerald-600 font-medium'; };
+const clrV = (v:number, positiveIsGood=true) => {
+  if (v === 0) return 'text-slate-400';
+  const isGood = positiveIsGood ? v > 0 : v < 0;
+  return isGood ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium';
+};
+const clrP = (v:number, positiveIsGood=true) => {
+  if(!isFinite(v)||isNaN(v)||v===0) return 'text-slate-400';
+  const isGood = positiveIsGood ? v > 0 : v < 0;
+  return isGood ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium';
+};
 
 interface ColDef { key:string; label:string; fmt:(r:VehicleRow)=>string; cls?:(r:VehicleRow)=>string; align?:'left'|'right'; w?:number; sortGetter?:(r:VehicleRow)=>any; }
 
@@ -559,7 +569,7 @@ export default function AnaliseContrato() {
       }
     }
 
-    type SA = Record<number,{cost:number;reemb:number}>;
+    type SA = Record<number,{cost:number;reemb:number;qty:number}>;
     const sinIdx = new Map<string,SA>();
     for (const s of arrS) {
       const rawPlaca = s.Placa; if(!rawPlaca) continue;
@@ -572,14 +582,16 @@ export default function AnaliseContrato() {
         if(!sinIdx.has(key)) sinIdx.set(key,{});
       }
       const sm=sinIdx.get(placa)!;
-      if(!sm[yr]) sm[yr]={cost:0,reemb:0};
+      if(!sm[yr]) sm[yr]={cost:0,reemb:0,qty:0};
       sm[yr].cost += parseNum(s.ValorFinaleiroCalculado ?? s.ValorOrcamento ?? s.ValorOrcado ?? 0);
       sm[yr].reemb += parseNum(s.IndenizacaoSeguradora) + parseNum(s.ReembolsoTerceiro);
+      sm[yr].qty += 1;
       if (placaKey && placaKey !== placa) {
         const smKey = sinIdx.get(placaKey)!;
-        if(!smKey[yr]) smKey[yr]={cost:0,reemb:0};
+        if(!smKey[yr]) smKey[yr]={cost:0,reemb:0,qty:0};
         smKey[yr].cost += parseNum(s.ValorFinaleiroCalculado ?? s.ValorOrcamento ?? s.ValorOrcado ?? 0);
         smKey[yr].reemb += parseNum(s.IndenizacaoSeguradora) + parseNum(s.ReembolsoTerceiro);
+        smKey[yr].qty += 1;
       }
     }
 
@@ -704,8 +716,12 @@ export default function AnaliseContrato() {
       const custoKmLiqMan = kmAtual > 0 ? custoLiqMan / kmAtual : 0;
 
       const sm = sinIdx.get(realPlaca) || sinIdx.get(realPlacaKey) || {};
-      let totalSinistro = 0, totalReembSin = 0;
-      for (const y in sm) { totalSinistro += sm[y].cost; totalReembSin += sm[y].reemb; }
+      let totalSinistro = 0, totalReembSin = 0, totalQtdSinistros = 0;
+      for (const y in sm) {
+        totalSinistro += sm[y].cost;
+        totalReembSin += sm[y].reemb;
+        totalQtdSinistros += sm[y].qty || 0;
+      }
       const custoLiqSin = totalSinistro - totalReembSin;
 
       const idVeiculoKey = String(fr?.IdVeiculo || c?.IdVeiculoPrincipal || '').trim().toUpperCase();
@@ -766,7 +782,7 @@ export default function AnaliseContrato() {
         custoManPrevisto, custoManRealizado, difManPrevReal, pctDifManPrevReal, custoManLiquido, difCustoManLiq, pctDifCustoManLiq,
         totalManutencao, ticketMedio, custoKmMan,
         totalReembMan, custoLiqMan, pctReembolsadoMan, custoKmLiqMan,
-        totalSinistro, totalReembSin, custoLiqSin, pctReembolsadoSin,
+        totalSinistro, totalReembSin, qtdOsManutencao: cntMan, qtdSinistros: totalQtdSinistros, custoLiqSin, pctReembolsadoSin,
         totalManSin, pctReembolsadoManSin,
         faturamentoTotal,
         pctManFat, pctCustoLiqManFat, pctSinFat, pctCustoLiqSinFat, pctManSinFat,
@@ -918,12 +934,10 @@ export default function AnaliseContrato() {
     });
   }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterSitCTO, filterSitLoc, sortKey, sortDir]);
 
-  // Determine dynamic years to display based on filtered rows
-  const dynYears = useMemo(() => {
-    // If we're on Passagem tab, only include years that actually have passagem data
+  const getDynYearsForTab = (tab: TabKey) => {
     const minYear = 2022;
     const maxYear = 2026;
-    if (activeTab === 'passagem') {
+    if (tab === 'passagem') {
       const yearsSet = new Set<number>();
       for (const r of displayRows) {
         if (!r.years) continue;
@@ -933,10 +947,7 @@ export default function AnaliseContrato() {
       }
       const years = Array.from(yearsSet).sort((a, b) => a - b);
       if (years.length > 0) return years;
-      // fallback to default range if nothing found
     }
-
-    // Default behavior: infer earliest dataInicial but clamp to reasonable range
     let minGroupYear = maxYear;
     for (const r of displayRows) {
       const yr = getYear(r.dataInicial);
@@ -946,7 +957,11 @@ export default function AnaliseContrato() {
     const res = [];
     for (let y = cutoff; y <= maxYear; y++) res.push(y);
     return res;
-  }, [displayRows]);
+
+  };
+
+  // Determine dynamic years to display based on filtered rows
+  const dynYears = useMemo(() => getDynYearsForTab(activeTab), [activeTab, displayRows]);
 
   const kpis = useMemo(() => {
     const vSet = new Set<string>(), lSet = new Set<string>(), cSet = new Set<string>();
@@ -965,116 +980,203 @@ export default function AnaliseContrato() {
     };
   }, [displayRows]);
 
-  const passagemKpis = useMemo(() => {
-    const totalVeiculos = displayRows.length;
+  const tabKpis = useMemo(() => {
     let totalPassagens = 0;
     let totalPassagemPrevista = 0;
     let veiculosCriticos = 0;
     let somaRodagemMedia = 0;
+
+    let totalPrevisto = 0;
+    let totalRealizado = 0;
+    let totalDifPrevReal = 0;
+
+    let totalManutencao = 0;
+    let totalReembMan = 0;
+    let totalCustoLiqMan = 0;
+
+    let totalSinistro = 0;
+    let totalReembSin = 0;
+    let totalCustoLiqSin = 0;
+
+    let totalManSin = 0;
+    let totalReembManSin = 0;
+    let totalEventosManSin = 0;
+
+    let faturamentoTotal = 0;
 
     for (const row of displayRows) {
       totalPassagens += Number(row.passagemTotal) || 0;
       totalPassagemPrevista += Number(row.passagemIdeal) || 0;
       somaRodagemMedia += Number(row.rodagemMedia) || 0;
       if ((Number(row.diferencaPassagem) || 0) > 0) veiculosCriticos++;
+
+      totalPrevisto += Number(row.custoManPrevisto) || 0;
+      totalRealizado += Number(row.custoManRealizado) || 0;
+      totalDifPrevReal += Number(row.difManPrevReal) || 0;
+
+      totalManutencao += Number(row.totalManutencao) || 0;
+      totalReembMan += Number(row.totalReembMan) || 0;
+      totalCustoLiqMan += Number(row.custoLiqMan) || 0;
+
+      totalSinistro += Number(row.totalSinistro) || 0;
+      totalReembSin += Number(row.totalReembSin) || 0;
+      totalCustoLiqSin += Number(row.custoLiqSin) || 0;
+
+      totalManSin += Number(row.totalManSin) || 0;
+      totalReembManSin += (Number(row.totalReembMan) || 0) + (Number(row.totalReembSin) || 0);
+      totalEventosManSin += (Number(row.qtdOsManutencao) || 0) + (Number(row.qtdSinistros) || 0);
+
+      faturamentoTotal += Number(row.faturamentoTotal) || 0;
     }
 
+    const totalVeiculos = displayRows.length;
     const mediaPassagens = totalVeiculos > 0 ? totalPassagens / totalVeiculos : 0;
-    const mediaPassagemPrevista = totalVeiculos > 0 ? totalPassagemPrevista / totalVeiculos : 0;
-    const pctCriticos = totalVeiculos > 0 ? (veiculosCriticos / totalVeiculos) * 100 : 0;
+    const pctCriticos = totalVeiculos > 0 ? veiculosCriticos / totalVeiculos : 0;
     const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
 
-    return {
-      totalPassagens,
-      totalPassagemPrevista,
-      mediaPassagens,
-      mediaPassagemPrevista,
-      veiculosCriticos,
-      pctCriticos,
-      rodagemMedia,
-      totalVeiculos,
-    };
-  }, [displayRows]);
+    const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
+    const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
+    const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
+    const custoLiqTotalManSin = totalManSin - totalReembManSin;
+    const ticketMedioTotal = totalEventosManSin > 0 ? totalManSin / totalEventosManSin : 0;
 
-  // Build dynamic columns
-  const tabCols = useMemo(() => {
+    const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
+    const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
+    const impactoSinistro = faturamentoTotal > 0 ? totalCustoLiqSin / faturamentoTotal : 0;
+
+    if (activeTab === 'previsto') {
+      return [
+        { label: 'Total Previsto', value: fmtBRL(totalPrevisto), sub: 'Soma do custo previsto', icon: Target, color: 'text-amber-600' },
+        { label: 'Total Realizado', value: fmtBRLZero(totalRealizado), sub: 'Soma do custo realizado', icon: Wrench, color: 'text-rose-600' },
+        { label: 'Diferença (DIF)', value: fmtBRL(totalDifPrevReal), sub: 'Previsto - Realizado', icon: BarChart3, color: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-rose-600' },
+        { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), sub: '(Realizado / Previsto) - 1', icon: AlertTriangle, color: pctDesvioPrevReal > 0 ? 'text-rose-600' : 'text-emerald-600' },
+      ];
+    }
+
+    if (activeTab === 'manutencao') {
+      return [
+        { label: 'Custo Bruto', value: fmtBRL(totalManutencao), sub: 'Soma de manutenção', icon: Wrench, color: 'text-rose-600' },
+        { label: 'Total Reembolsado', value: fmtBRL(totalReembMan), sub: 'Recuperado em manutenção', icon: ShieldAlert, color: 'text-emerald-600' },
+        { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), sub: 'Bruto - Reembolsos', icon: DollarSign, color: 'text-indigo-600' },
+        { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), sub: 'Reembolso / Custo Bruto', icon: Activity, color: 'text-blue-600' },
+      ];
+    }
+
+    if (activeTab === 'sinistro') {
+      return [
+        { label: 'Custo Sinistro', value: fmtBRL(totalSinistro), sub: 'Soma de sinistros', icon: ShieldAlert, color: 'text-rose-600' },
+        { label: 'Reembolso Sinistro', value: fmtBRL(totalReembSin), sub: 'Seguradora + terceiro', icon: DollarSign, color: 'text-emerald-600' },
+        { label: 'Custo Líquido Sinistro', value: fmtBRL(totalCustoLiqSin), sub: 'Sinistro - Reembolso', icon: BarChart3, color: 'text-indigo-600' },
+        { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), sub: 'Reembolso / Sinistro', icon: Activity, color: 'text-blue-600' },
+      ];
+    }
+
+    if (activeTab === 'mansin') {
+      return [
+        { label: 'Custo Total (M+S)', value: fmtBRL(totalManSin), sub: 'Manutenção + sinistro', icon: BarChart3, color: 'text-rose-600' },
+        { label: 'Total Reembolsado', value: fmtBRL(totalReembManSin), sub: 'Reembolso man + sinistro', icon: ShieldAlert, color: 'text-emerald-600' },
+        { label: 'Custo Líquido Total', value: fmtBRL(custoLiqTotalManSin), sub: 'Custo total - reembolsos', icon: DollarSign, color: 'text-indigo-600' },
+        { label: 'Ticket Médio Total', value: fmtBRL(ticketMedioTotal), sub: 'Custo total / (OS + sinistros)', icon: Gauge, color: 'text-blue-600' },
+      ];
+    }
+
+    if (activeTab === 'faturamento') {
+      return [
+        { label: 'Faturamento Total', value: fmtBRL(faturamentoTotal), sub: 'Receita consolidada', icon: DollarSign, color: 'text-emerald-600' },
+        { label: 'Margem Manutenção', value: fmtPct(margemManutencao), sub: '1 - (Custo líq. man / fat.)', icon: Target, color: margemManutencao < 0 ? 'text-rose-600' : 'text-indigo-600' },
+        { label: 'Impacto Manutenção', value: fmtPct(impactoManutencao), sub: '% do faturamento em man. líquida', icon: Wrench, color: 'text-amber-600' },
+        { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), sub: '% do faturamento em sinistro líquido', icon: ShieldAlert, color: 'text-rose-600' },
+      ];
+    }
+
+    return [
+      { label: 'Passagens Realizadas', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
+      { label: 'Passagem Prevista', value: fmtNum(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
+      { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `${fmtPct(pctCriticos)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
+      { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
+    ];
+  }, [activeTab, displayRows, kmDivisor]);
+
+  const getTabColsForTab = (tab: TabKey, years: number[]) => {
     const cols: ColDef[] = [];
-    if (activeTab === 'passagem') {
-      dynYears.forEach(y => cols.push({ key:`pass_${y}`, label:`Pass ${y}`, fmt:r=>fmtNum(r.years[y].pass), align:'right', w:80, sortGetter: r=>r.years[y].pass }));
+    if (tab === 'passagem') {
+      years.forEach(y => cols.push({ key:`pass_${y}`, label:`Pass ${y}`, fmt:r=>fmtNum(r.years[y].pass), align:'right', w:80, sortGetter: r=>r.years[y].pass }));
       cols.push(
         { key:'passagemTotal',   label:'Total',       fmt:r=>fmtNum(r.passagemTotal), align:'right', w:72, sortGetter: r=>r.passagemTotal },
         { key:'passagemIdeal',   label:'Ideal',       fmt:r=>r.passagemIdeal.toFixed(1), align:'right', w:72, sortGetter: r=>r.passagemIdeal },
-        { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(1), cls:r=>clrV(r.diferencaPassagem), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
-        { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrP(r.pctPassagem), align:'right', w:90, sortGetter: r=>r.pctPassagem },
+        { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(1), cls:r=>clrV(r.diferencaPassagem, false), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
+        { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrP(r.pctPassagem, false), align:'right', w:90, sortGetter: r=>r.pctPassagem },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), align:'right', w:95, sortGetter: r=>r.rodagemMedia },
         { key:'kmEstimadoFimContrato',label:'KM Est. Fim',fmt:r=>r.kmEstimadoFimContrato>0?r.kmEstimadoFimContrato.toLocaleString('pt-BR'):'—', align:'right', w:110, sortGetter: r=>r.kmEstimadoFimContrato },
         { key:'vencimentoContrato',label:'Vencimento',fmt:r=>r.vencimentoContrato, align:'left', w:100, sortGetter: r=>r.vencimentoContrato },
         { key:'mesesRestantesContrato',label:'Meses Rest.',fmt:r=>String(r.mesesRestantesContrato), align:'right', w:92, sortGetter: r=>r.mesesRestantesContrato }
       );
-    } else if (activeTab === 'previsto') {
+    } else if (tab === 'previsto') {
       cols.push(
         { key:'custoManPrevisto', label:'Previsto',      fmt:r=>fmtBRL(r.custoManPrevisto),   align:'right', w:120, sortGetter: r=>r.custoManPrevisto },
-        { key:'custoManRealizado',label:'Realizado',     fmt:r=>fmtBRLZero(r.custoManRealizado),  cls:r=>clrV(r.custoManRealizado,true), align:'right', w:120, sortGetter: r=>r.custoManRealizado },
+        { key:'custoManRealizado',label:'Realizado',     fmt:r=>fmtBRLZero(r.custoManRealizado),  cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.custoManRealizado },
         { key:'difManPrevReal',   label:'DIF',           fmt:r=>fmtBRL(r.difManPrevReal),     cls:r=>clrV(r.difManPrevReal), align:'right', w:120, sortGetter: r=>r.difManPrevReal },
-        { key:'pctDifManPrevReal',label:'%DIF',          fmt:r=>fmtPct(r.pctDifManPrevReal),  cls:r=>clrP(r.pctDifManPrevReal,true), align:'right', w:80, sortGetter: r=>r.pctDifManPrevReal },
-        { key:'custoManLiquido',  label:'Custo Man Líq', fmt:r=>fmtBRLZero(r.custoManLiquido),    cls:r=>clrV(r.custoManLiquido,true), align:'right', w:120, sortGetter: r=>r.custoManLiquido },
+        { key:'pctDifManPrevReal',label:'%DIF',          fmt:r=>fmtPct(r.pctDifManPrevReal),  cls:r=>clrP(r.pctDifManPrevReal, false), align:'right', w:80, sortGetter: r=>r.pctDifManPrevReal },
+        { key:'custoManLiquido',  label:'Custo Man Líq', fmt:r=>fmtBRLZero(r.custoManLiquido),    cls:r=>clrV(r.custoManLiquido, false), align:'right', w:120, sortGetter: r=>r.custoManLiquido },
         { key:'difCustoManLiq',   label:'Dif Liq',       fmt:r=>fmtBRL(r.difCustoManLiq),     cls:r=>clrV(r.difCustoManLiq), align:'right', w:120, sortGetter: r=>r.difCustoManLiq },
-        { key:'pctDifCustoManLiq',label:'%Dif Liq',      fmt:r=>fmtPct(r.pctDifCustoManLiq),  cls:r=>clrP(r.pctDifCustoManLiq,true), align:'right', w:80, sortGetter: r=>r.pctDifCustoManLiq }
+        { key:'pctDifCustoManLiq',label:'%Dif Liq',      fmt:r=>fmtPct(r.pctDifCustoManLiq),  cls:r=>clrP(r.pctDifCustoManLiq, false), align:'right', w:80, sortGetter: r=>r.pctDifCustoManLiq }
       );
-    } else if (activeTab === 'manutencao') {
-      dynYears.forEach(y => cols.push({ key:`man_${y}`, label:`Man ${y}`, fmt:r=>fmtBRL(r.years[y].man), cls:r=>clrV(r.years[y].man,true), align:'right', w:110, sortGetter: r=>r.years[y].man }));
-      cols.push({ key:'totalManutencao',label:'Total Man', fmt:r=>fmtBRL(r.totalManutencao),cls:r=>clrV(r.totalManutencao,true), align:'right', w:110, sortGetter: r=>r.totalManutencao });
+    } else if (tab === 'manutencao') {
+      years.forEach(y => cols.push({ key:`man_${y}`, label:`Man ${y}`, fmt:r=>fmtBRL(r.years[y].man), cls:r=>clrV(r.years[y].man, false), align:'right', w:110, sortGetter: r=>r.years[y].man }));
+      cols.push({ key:'totalManutencao',label:'Total Man', fmt:r=>fmtBRL(r.totalManutencao),cls:r=>clrV(r.totalManutencao, false), align:'right', w:110, sortGetter: r=>r.totalManutencao });
       cols.push({ key:'ticketMedio',    label:'Ticket Médio', fmt:r=>fmtBRL(r.ticketMedio),    align:'right', w:110, sortGetter: r=>r.ticketMedio });
       cols.push({ key:'custoKmMan',     label:'Custo/KM',     fmt:r=>fmtKM(r.custoKmMan),      align:'right', w:90, sortGetter: r=>r.custoKmMan });
       
-      dynYears.forEach(y => cols.push({ key:`reembMan_${y}`, label:`Reemb Man ${y}`, fmt:r=>fmtBRL(r.years[y].reembMan), align:'right', w:110, sortGetter: r=>r.years[y].reembMan }));
+      years.forEach(y => cols.push({ key:`reembMan_${y}`, label:`Reemb Man ${y}`, fmt:r=>fmtBRL(r.years[y].reembMan), align:'right', w:110, sortGetter: r=>r.years[y].reembMan }));
       cols.push({ key:'totalReembMan',  label:'Total Reemb',  fmt:r=>fmtBRL(r.totalReembMan),  align:'right', w:110, sortGetter: r=>r.totalReembMan });
       
-      dynYears.forEach(y => cols.push({ key:`difReembMan_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].man - r.years[y].reembMan), cls:r=>clrV(r.years[y].man - r.years[y].reembMan,true), align:'right', w:110, sortGetter: r=>r.years[y].man - r.years[y].reembMan }));
-      cols.push({ key:'custoLiqMan',    label:'Custo Líq Man',fmt:r=>fmtBRL(r.custoLiqMan),   cls:r=>clrV(r.custoLiqMan,true), align:'right', w:120, sortGetter: r=>r.custoLiqMan });
+      years.forEach(y => cols.push({ key:`difReembMan_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].man - r.years[y].reembMan), cls:r=>clrV(r.years[y].man - r.years[y].reembMan, false), align:'right', w:110, sortGetter: r=>r.years[y].man - r.years[y].reembMan }));
+      cols.push({ key:'custoLiqMan',    label:'Custo Líq Man',fmt:r=>fmtBRL(r.custoLiqMan),   cls:r=>clrV(r.custoLiqMan, false), align:'right', w:120, sortGetter: r=>r.custoLiqMan });
       cols.push({ key:'pctReembolsadoMan',label:'% Reemb Man',fmt:r=>fmtPct(r.pctReembolsadoMan), align:'right', w:90, sortGetter: r=>r.pctReembolsadoMan });
       cols.push({ key:'custoKmLiqMan',  label:'Custo KM Líq', fmt:r=>fmtKM(r.custoKmLiqMan),  align:'right', w:100, sortGetter: r=>r.custoKmLiqMan });
-    } else if (activeTab === 'sinistro') {
-      dynYears.forEach(y => cols.push({ key:`sin_${y}`, label:`Sin ${y}`, fmt:r=>fmtBRL(r.years[y].sin), cls:r=>clrV(r.years[y].sin,true), align:'right', w:110, sortGetter: r=>r.years[y].sin }));
-      cols.push({ key:'totalSinistro',   label:'Total Sin',     fmt:r=>fmtBRL(r.totalSinistro),   cls:r=>clrV(r.totalSinistro,true), align:'right', w:110, sortGetter: r=>r.totalSinistro });
+    } else if (tab === 'sinistro') {
+      years.forEach(y => cols.push({ key:`sin_${y}`, label:`Sin ${y}`, fmt:r=>fmtBRL(r.years[y].sin), cls:r=>clrV(r.years[y].sin, false), align:'right', w:110, sortGetter: r=>r.years[y].sin }));
+      cols.push({ key:'totalSinistro',   label:'Total Sin',     fmt:r=>fmtBRL(r.totalSinistro),   cls:r=>clrV(r.totalSinistro, false), align:'right', w:110, sortGetter: r=>r.totalSinistro });
       
-      dynYears.forEach(y => cols.push({ key:`reembSin_${y}`, label:`Reemb Sin ${y}`, fmt:r=>fmtBRL(r.years[y].reembSin), align:'right', w:120, sortGetter: r=>r.years[y].reembSin }));
+      years.forEach(y => cols.push({ key:`reembSin_${y}`, label:`Reemb Sin ${y}`, fmt:r=>fmtBRL(r.years[y].reembSin), align:'right', w:120, sortGetter: r=>r.years[y].reembSin }));
       cols.push({ key:'totalReembSin',   label:'Total Reemb Sin',fmt:r=>fmtBRL(r.totalReembSin),  align:'right', w:120, sortGetter: r=>r.totalReembSin });
       
-      dynYears.forEach(y => cols.push({ key:`difReembSin_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].sin - r.years[y].reembSin), cls:r=>clrV(r.years[y].sin - r.years[y].reembSin,true), align:'right', w:110, sortGetter: r=>r.years[y].sin - r.years[y].reembSin }));
-      cols.push({ key:'custoLiqSin',     label:'Custo Líq Sin', fmt:r=>fmtBRL(r.custoLiqSin),    cls:r=>clrV(r.custoLiqSin,true), align:'right', w:120, sortGetter: r=>r.custoLiqSin });
+      years.forEach(y => cols.push({ key:`difReembSin_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].sin - r.years[y].reembSin), cls:r=>clrV(r.years[y].sin - r.years[y].reembSin, false), align:'right', w:110, sortGetter: r=>r.years[y].sin - r.years[y].reembSin }));
+      cols.push({ key:'custoLiqSin',     label:'Custo Líq Sin', fmt:r=>fmtBRL(r.custoLiqSin),    cls:r=>clrV(r.custoLiqSin, false), align:'right', w:120, sortGetter: r=>r.custoLiqSin });
       cols.push({ key:'pctReembolsadoSin',label:'% Reemb Sin',  fmt:r=>fmtPct(r.pctReembolsadoSin), align:'right', w:95, sortGetter: r=>r.pctReembolsadoSin });
-    } else if (activeTab === 'mansin') {
-      dynYears.forEach(y => cols.push({ key:`manSin_${y}`, label:`Man+Sin ${y}`, fmt:r=>fmtBRL(r.years[y].man + r.years[y].sin), cls:r=>clrV(r.years[y].man + r.years[y].sin,true), align:'right', w:120, sortGetter: r=>r.years[y].man + r.years[y].sin }));
-      cols.push({ key:'totalManSin',         label:'Total Man+Sin',fmt:r=>fmtBRL(r.totalManSin),cls:r=>clrV(r.totalManSin,true), align:'right', w:130, sortGetter: r=>r.totalManSin });
+    } else if (tab === 'mansin') {
+      years.forEach(y => cols.push({ key:`manSin_${y}`, label:`Man+Sin ${y}`, fmt:r=>fmtBRL(r.years[y].man + r.years[y].sin), cls:r=>clrV(r.years[y].man + r.years[y].sin, false), align:'right', w:120, sortGetter: r=>r.years[y].man + r.years[y].sin }));
+      cols.push({ key:'totalManSin',         label:'Total Man+Sin',fmt:r=>fmtBRL(r.totalManSin),cls:r=>clrV(r.totalManSin, false), align:'right', w:130, sortGetter: r=>r.totalManSin });
       cols.push({ key:'pctReembolsadoManSin',label:'% Reemb',     fmt:r=>fmtPct(r.pctReembolsadoManSin), align:'right', w:90, sortGetter: r=>r.pctReembolsadoManSin });
-    } else if (activeTab === 'faturamento') {
-      dynYears.forEach(y => cols.push({ key:`fat_${y}`, label:`Fat ${y}`, fmt:r=>fmtBRL(r.years[y].fat), align:'right', w:120, sortGetter: r=>r.years[y].fat }));
+    } else if (tab === 'faturamento') {
+      years.forEach(y => cols.push({ key:`fat_${y}`, label:`Fat ${y}`, fmt:r=>fmtBRL(r.years[y].fat), align:'right', w:120, sortGetter: r=>r.years[y].fat }));
       cols.push({ key:'faturamentoTotal', label:'Fat Total',      fmt:r=>fmtBRL(r.faturamentoTotal),align:'right', w:130, sortGetter: r=>r.faturamentoTotal });
-      cols.push({ key:'pctManFat',        label:'% Man/Fat',      fmt:r=>fmtPct(r.pctManFat),        cls:r=>clrP(r.pctManFat,true), align:'right', w:90, sortGetter: r=>r.pctManFat });
-      cols.push({ key:'pctCustoLiqManFat',label:'% Liq Man/Fat',  fmt:r=>fmtPct(r.pctCustoLiqManFat),cls:r=>clrP(r.pctCustoLiqManFat,true), align:'right', w:100, sortGetter: r=>r.pctCustoLiqManFat });
-      cols.push({ key:'pctSinFat',        label:'% Sin/Fat',      fmt:r=>fmtPct(r.pctSinFat),        cls:r=>clrP(r.pctSinFat,true), align:'right', w:90, sortGetter: r=>r.pctSinFat });
-      cols.push({ key:'pctCustoLiqSinFat',label:'% Liq Sin/Fat',  fmt:r=>fmtPct(r.pctCustoLiqSinFat),cls:r=>clrP(r.pctCustoLiqSinFat,true), align:'right', w:100, sortGetter: r=>r.pctCustoLiqSinFat });
-      cols.push({ key:'pctManSinFat',     label:'% Man+Sin/Fat',  fmt:r=>fmtPct(r.pctManSinFat),     cls:r=>clrP(r.pctManSinFat,true), align:'right', w:105, sortGetter: r=>r.pctManSinFat });
+      cols.push({ key:'pctManFat',        label:'% Man/Fat',      fmt:r=>fmtPct(r.pctManFat),        cls:r=>clrP(r.pctManFat, false), align:'right', w:90, sortGetter: r=>r.pctManFat });
+      cols.push({ key:'pctCustoLiqManFat',label:'% Liq Man/Fat',  fmt:r=>fmtPct(r.pctCustoLiqManFat),cls:r=>clrP(r.pctCustoLiqManFat, false), align:'right', w:100, sortGetter: r=>r.pctCustoLiqManFat });
+      cols.push({ key:'pctSinFat',        label:'% Sin/Fat',      fmt:r=>fmtPct(r.pctSinFat),        cls:r=>clrP(r.pctSinFat, false), align:'right', w:90, sortGetter: r=>r.pctSinFat });
+      cols.push({ key:'pctCustoLiqSinFat',label:'% Liq Sin/Fat',  fmt:r=>fmtPct(r.pctCustoLiqSinFat),cls:r=>clrP(r.pctCustoLiqSinFat, false), align:'right', w:100, sortGetter: r=>r.pctCustoLiqSinFat });
+      cols.push({ key:'pctManSinFat',     label:'% Man+Sin/Fat',  fmt:r=>fmtPct(r.pctManSinFat),     cls:r=>clrP(r.pctManSinFat, false), align:'right', w:105, sortGetter: r=>r.pctManSinFat });
     }
     return cols;
-  }, [activeTab, dynYears]);
+  };
 
-  const clienteColWidth = useMemo(() => {
-    const maxChars = displayRows.reduce((m, r) => Math.max(m, String(r.cliente || '').length), 0);
-    const px = Math.min(520, Math.max(220, Math.round(maxChars * 10)));
-    return px;
-  }, [displayRows]);
+  // Build dynamic columns
+  const tabCols = useMemo(() => getTabColsForTab(activeTab, dynYears), [activeTab, dynYears]);
+
+  const groupColWidth = 120;
+  const clienteColWidth = groupColWidth;
 
   const allCols = useMemo(() => {
     const idColsAdjusted = ID_COLS.map(col => {
       if (col.key === 'cliente') return { ...col, w: clienteColWidth };
-      if (col.key === 'modelo') return { ...col, w: 520 };
-      if (col.key === 'grupo') return { ...col, w: 260 };
+      if (col.key === 'modelo') return { ...col, w: 240 };
+      if (col.key === 'grupo') return { ...col, w: groupColWidth };
       return col;
     });
     return [...idColsAdjusted, ...tabCols];
-  }, [tabCols, clienteColWidth]);
+  }, [tabCols, clienteColWidth, groupColWidth]);
+
+  // leftOffsets removed — sticky columns disabled (user requested)
 
   const textEllipsisCols = useMemo(
     () => new Set(['cliente', 'contrato', 'placa', 'modelo', 'grupo', 'vencimentoContrato']),
@@ -1096,17 +1198,50 @@ export default function AnaliseContrato() {
       if (!k) return false;
       const kk = k.toLowerCase();
       // don't sum percentages, labels, ids, text columns
-      if (kk.includes('pct') || kk.includes('indice') || kk.includes('vencimento') || kk.includes('contrato') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo') || kk.includes('idade')) return false;
+      if (kk.includes('indice') || kk.includes('vencimento') || kk.includes('contrato') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo') || kk.includes('idade')) return false;
       // rodagem/media and ideal/difference are not summable
       if (kk.includes('rodagem') || kk.includes('ideal') || kk.includes('diferenca')) return false;
       return true;
     };
 
     for (const col of allCols) {
+      const kk = String(col.key).toLowerCase();
+      // percentages: compute mean (display as percentage via fmtPct)
+      if (kk.includes('pct')) {
+        let sum = 0;
+        let count = 0;
+        for (const r of displayRows) {
+          let v: any = undefined;
+          if (col.sortGetter) {
+            try { v = col.sortGetter(r as any); } catch (e) { v = undefined; }
+          } else {
+            v = (r as any)[col.key];
+          }
+          const n = Number(v);
+          if (isFinite(n)) { sum += n; count++; }
+        }
+        totals[col.key] = count > 0 ? sum / count : null;
+        continue;
+      }
+
+      // idade (months): compute mean
+      if (kk.includes('idade')) {
+        let sum = 0;
+        let count = 0;
+        for (const r of displayRows) {
+          const v = (r as any)[col.key];
+          const n = Number(v);
+          if (isFinite(n)) { sum += n; count++; }
+        }
+        totals[col.key] = count > 0 ? sum / count : null;
+        continue;
+      }
+
       if (!isSummableKey(col.key)) {
         totals[col.key] = null;
         continue;
       }
+
       let sum = 0;
       let found = false;
       for (const r of displayRows) {
@@ -1132,6 +1267,232 @@ export default function AnaliseContrato() {
     const ws=XLSX.utils.json_to_sheet(data); const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Análise Contrato');
     XLSX.writeFile(wb,`analise_contrato_${activeTab}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
+  const printAllTabsPDF = () => {
+    const escapeHtml = (value: unknown) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const filtersApplied = [
+      filterCliente.length ? `Cliente: ${filterCliente.join(', ')}` : '',
+      filterCTO.length ? `CTO: ${filterCTO.join(', ')}` : '',
+      filterPlaca.length ? `Placa: ${filterPlaca.join(', ')}` : '',
+      filterGrupoModelo.length ? `Grupo/Modelo: ${filterGrupoModelo.join(', ')}` : '',
+      filterVencimento.length ? `Vencimento: ${filterVencimento.join(', ')}` : '',
+      filterSitCTO.length ? `Sit. Comercial: ${filterSitCTO.join(', ')}` : '',
+      filterSitLoc.length ? `Sit. Locação: ${filterSitLoc.join(', ')}` : '',
+    ].filter(Boolean);
+
+    const colorByBgClass: Record<string, string> = {
+      'bg-blue-700': '#1d4ed8',
+      'bg-amber-700': '#b45309',
+      'bg-orange-700': '#c2410c',
+      'bg-red-700': '#b91c1c',
+      'bg-purple-700': '#7e22ce',
+      'bg-teal-700': '#0f766e',
+    };
+
+    const getPrintKpisForTab = (tab: TabKey) => {
+      let totalPassagens = 0;
+      let totalPassagemPrevista = 0;
+      let veiculosCriticos = 0;
+      let somaRodagemMedia = 0;
+      let totalPrevisto = 0;
+      let totalRealizado = 0;
+      let totalDifPrevReal = 0;
+      let totalManutencao = 0;
+      let totalReembMan = 0;
+      let totalCustoLiqMan = 0;
+      let totalSinistro = 0;
+      let totalReembSin = 0;
+      let totalCustoLiqSin = 0;
+      let totalManSin = 0;
+      let totalReembManSin = 0;
+      let totalEventosManSin = 0;
+      let faturamentoTotal = 0;
+
+      for (const row of displayRows) {
+        totalPassagens += Number(row.passagemTotal) || 0;
+        totalPassagemPrevista += Number(row.passagemIdeal) || 0;
+        somaRodagemMedia += Number(row.rodagemMedia) || 0;
+        if ((Number(row.diferencaPassagem) || 0) > 0) veiculosCriticos++;
+
+        totalPrevisto += Number(row.custoManPrevisto) || 0;
+        totalRealizado += Number(row.custoManRealizado) || 0;
+        totalDifPrevReal += Number(row.difManPrevReal) || 0;
+
+        totalManutencao += Number(row.totalManutencao) || 0;
+        totalReembMan += Number(row.totalReembMan) || 0;
+        totalCustoLiqMan += Number(row.custoLiqMan) || 0;
+
+        totalSinistro += Number(row.totalSinistro) || 0;
+        totalReembSin += Number(row.totalReembSin) || 0;
+        totalCustoLiqSin += Number(row.custoLiqSin) || 0;
+
+        totalManSin += Number(row.totalManSin) || 0;
+        totalReembManSin += (Number(row.totalReembMan) || 0) + (Number(row.totalReembSin) || 0);
+        totalEventosManSin += (Number(row.qtdOsManutencao) || 0) + (Number(row.qtdSinistros) || 0);
+
+        faturamentoTotal += Number(row.faturamentoTotal) || 0;
+      }
+
+      const totalVeiculos = displayRows.length;
+      const pctCriticos = totalVeiculos > 0 ? veiculosCriticos / totalVeiculos : 0;
+      const rodagemMedia = totalVeiculos > 0 ? somaRodagemMedia / totalVeiculos : 0;
+      const pctDesvioPrevReal = totalPrevisto > 0 ? (totalRealizado / totalPrevisto) - 1 : 0;
+      const pctRecuperacaoMan = totalManutencao > 0 ? totalReembMan / totalManutencao : 0;
+      const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
+      const custoLiqTotalManSin = totalManSin - totalReembManSin;
+      const ticketMedioTotal = totalEventosManSin > 0 ? totalManSin / totalEventosManSin : 0;
+      const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
+      const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
+      const impactoSinistro = faturamentoTotal > 0 ? totalCustoLiqSin / faturamentoTotal : 0;
+
+      if (tab === 'previsto') {
+        return [
+          { label: 'Previsto', value: fmtBRL(totalPrevisto), cls: 'text-amber-600' },
+          { label: 'Realizado', value: fmtBRLZero(totalRealizado), cls: 'text-red-600' },
+          { label: 'DIF', value: fmtBRL(totalDifPrevReal), cls: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-red-600' },
+          { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), cls: pctDesvioPrevReal > 0 ? 'text-red-600' : 'text-emerald-600' },
+        ];
+      }
+      if (tab === 'manutencao') {
+        return [
+          { label: 'Custo Bruto', value: fmtBRL(totalManutencao), cls: 'text-red-600' },
+          { label: 'Reembolsado', value: fmtBRL(totalReembMan), cls: 'text-emerald-600' },
+          { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), cls: 'text-red-600' },
+          { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), cls: 'text-blue-600' },
+        ];
+      }
+      if (tab === 'sinistro') {
+        return [
+          { label: 'Custo Sinistro', value: fmtBRL(totalSinistro), cls: 'text-red-600' },
+          { label: 'Reemb. Sinistro', value: fmtBRL(totalReembSin), cls: 'text-emerald-600' },
+          { label: 'Custo Líq. Sinistro', value: fmtBRL(totalCustoLiqSin), cls: 'text-red-600' },
+          { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), cls: 'text-blue-600' },
+        ];
+      }
+      if (tab === 'mansin') {
+        return [
+          { label: 'Custo Total', value: fmtBRL(totalManSin), cls: 'text-red-600' },
+          { label: 'Total Reembolsado', value: fmtBRL(totalReembManSin), cls: 'text-emerald-600' },
+          { label: 'Custo Líquido', value: fmtBRL(custoLiqTotalManSin), cls: 'text-red-600' },
+          { label: 'Ticket Médio', value: fmtBRL(ticketMedioTotal), cls: 'text-blue-600' },
+        ];
+      }
+      if (tab === 'faturamento') {
+        return [
+          { label: 'Faturamento', value: fmtBRL(faturamentoTotal), cls: 'text-teal-600' },
+          { label: 'Margem Manutenção', value: fmtPct(margemManutencao), cls: margemManutencao < 0 ? 'text-red-600' : 'text-indigo-600' },
+          { label: 'Impacto Man.', value: fmtPct(impactoManutencao), cls: 'text-amber-600' },
+          { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), cls: 'text-red-600' },
+        ];
+      }
+      return [
+        { label: 'Passagens', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
+        { label: 'Passagem Prevista', value: fmtNum(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
+        { label: 'Críticos', value: `${fmtNum(veiculosCriticos)} (${fmtPct(pctCriticos)})`, cls: 'text-red-600' },
+        { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), cls: 'text-blue-600' },
+      ];
+    };
+
+    const sectionsHtml = TABS.map((tab) => {
+      const years = getDynYearsForTab(tab.key);
+      const cols = [...ID_COLS, ...getTabColsForTab(tab.key, years)];
+      const bannerColor = colorByBgClass[tab.hdr] || '#334155';
+      const header = cols.map((col, idx) => `<th class="${idx < ID_COLS.length ? 'id-col' : 'tab-col'}">${escapeHtml(col.label)}</th>`).join('');
+      const kpis = getPrintKpisForTab(tab.key)
+        .map(k => `<div class="kpi-chip"><span class="kpi-label">${escapeHtml(k.label)}</span><span class="kpi-value ${escapeHtml(k.cls)}">${escapeHtml(k.value)}</span></div>`)
+        .join('');
+      const body = displayRows.map((row) => {
+        const tds = cols.map((col, idx) => {
+          const colClass = col.cls ? col.cls(row) : '';
+          const alignClass = col.align === 'right' ? 'num' : 'txt';
+          const zoneClass = idx < ID_COLS.length ? 'id-col' : 'tab-col';
+          return `<td class="${escapeHtml(`${alignClass} ${zoneClass} ${colClass}`)}">${escapeHtml(col.fmt(row))}</td>`;
+        }).join('');
+        return `<tr>${tds}</tr>`;
+      }).join('');
+      return `
+        <section class="tab-section">
+          <h2 style="background:${bannerColor}">${escapeHtml(tab.label)}</h2>
+          <div class="meta">${escapeHtml(displayRows.length)} linhas filtradas</div>
+          <div class="kpis-grid">${kpis}</div>
+          <table>
+            <thead><tr>${header}</tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </section>
+      `;
+    }).join('');
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const html = `
+      <!doctype html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8" />
+        <title>Análise Contrato - Todas as Abas</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; font-size: 10px; color: #0f172a; margin: 0; background: #f8fafc; }
+          .report-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+          .report-sub { font-size: 11px; color: #475569; margin-bottom: 8px; }
+          .filters { font-size: 9px; color: #334155; margin-bottom: 10px; }
+          .tab-section { page-break-after: always; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; }
+          .tab-section:last-child { page-break-after: auto; }
+          h2 { margin: 0 0 6px 0; font-size: 12px; color: #ffffff; padding: 6px 8px; border-radius: 6px; }
+          .meta { margin-bottom: 6px; color: #64748b; }
+          .kpis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+          .kpi-chip { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; background: #f8fafc; }
+          .kpi-label { display:block; color:#64748b; font-size:8px; text-transform: uppercase; }
+          .kpi-value { display:block; margin-top:2px; font-size:11px; font-weight:700; }
+          table { width: 100%; border-collapse: collapse; table-layout: auto; }
+          thead { display: table-header-group; }
+          tr { page-break-inside: avoid; }
+          th, td { border: 1px solid #cbd5e1; padding: 3px 4px; white-space: nowrap; }
+          th { background: #e2e8f0; font-weight: 700; }
+          th.id-col { background: #1e293b; color: #ffffff; }
+          th.tab-col { background: #334155; color: #ffffff; }
+          .id-col { background: #f8fafc; }
+          .tab-col { background: #ffffff; }
+          .num { text-align: right; }
+          .txt { text-align: left; }
+          .font-medium { font-weight: 700; }
+          .text-emerald-600 { color: #059669; }
+          .text-red-600 { color: #dc2626; }
+          .text-amber-600 { color: #d97706; }
+          .text-orange-600 { color: #ea580c; }
+          .text-indigo-600 { color: #4f46e5; }
+          .text-blue-600 { color: #2563eb; }
+          .text-teal-600 { color: #0d9488; }
+          .text-purple-600 { color: #9333ea; }
+          .text-slate-400 { color: #94a3b8; }
+        </style>
+      </head>
+      <body>
+        <div class="report-title">Análise de Rentabilidade por Contrato</div>
+        <div class="report-sub">Relatório consolidado de todas as abas</div>
+        <div class="filters">${escapeHtml(filtersApplied.length ? `Filtros: ${filtersApplied.join(' | ')}` : 'Filtros: nenhum')}</div>
+        ${sectionsHtml}
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   const curTab = TABS.find(t=>t.key===activeTab)!;
@@ -1199,6 +1560,10 @@ export default function AnaliseContrato() {
             <button onClick={exportXLSX}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
               <Download className="w-3.5 h-3.5" />Exportar XLSX
+            </button>
+            <button onClick={printAllTabsPDF}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors">
+              <Printer className="w-3.5 h-3.5" />Imprimir PDF (todas abas)
             </button>
           </div>
         </div>
@@ -1416,56 +1781,21 @@ export default function AnaliseContrato() {
           </div>
         )}
 
-        {activeTab === 'passagem' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-blue-500" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Passagens Realizadas</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          {tabKpis.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                <div className="flex items-center gap-2">
+                  <Icon className={`w-4 h-4 ${card.color}`} />
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.label}</span>
+                </div>
+                <div className={`text-2xl font-bold ${card.color}`}>{card.value}</div>
+                <div className="text-xs text-slate-400 font-medium">{card.sub}</div>
               </div>
-              <div className="text-2xl font-bold text-slate-800">{fmtNum(passagemKpis.totalPassagens)}</div>
-              <div className="text-xs text-slate-400 font-medium">
-                Média de <span className="text-slate-600">{passagemKpis.mediaPassagens.toFixed(1)}</span> por veículo
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-emerald-500" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Passagem Prevista</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-800">{passagemKpis.totalPassagemPrevista.toFixed(1)}</div>
-              <div className="text-xs text-slate-400 font-medium">
-                Média ideal de <span className="text-slate-600">{passagemKpis.mediaPassagemPrevista.toFixed(1)}</span> por veículo
-              </div>
-              <div className="text-[10px] text-slate-400 font-medium">
-                Ref. cálculo: <span className="text-slate-600">{fmtNum(kmDivisor)} km/p</span>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-500" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Veículos Críticos</span>
-              </div>
-              <div className="text-2xl font-bold text-rose-600">{fmtNum(passagemKpis.veiculosCriticos)}</div>
-              <div className="text-xs text-slate-400 font-medium">
-                <span className="text-rose-500 font-semibold">{passagemKpis.pctCriticos.toFixed(1)}%</span> da frota listada ({fmtNum(passagemKpis.totalVeiculos)} veíc.)
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-              <div className="flex items-center gap-2">
-                <Gauge className="w-4 h-4 text-indigo-500" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rodagem Média</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-800">
-                {fmtNum(Math.round(passagemKpis.rodagemMedia))} <span className="text-sm text-slate-400 font-normal">km</span>
-              </div>
-              <div className="text-xs text-slate-400 font-medium">Média mensal por veículo</div>
-            </div>
-          </div>
-        )}
+            );
+          })}
+        </div>
 
         {/* ── Table ── */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -1487,14 +1817,15 @@ export default function AnaliseContrato() {
                   </th>
                 </tr>
                 <tr className="bg-slate-800">
-                  {allCols.map(col=>{
+                  {allCols.map((col) => {
                     const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                    const thStyle: any = { minWidth: colWidth, width: colWidth, maxWidth: colWidth };
                     return (
                       <th key={col.key} onClick={()=>handleSort(col.key)}
-                      style={{minWidth:colWidth,width:colWidth}}
-                      className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
-                      {col.label}{sortIcon(col.key)}
-                    </th>
+                        style={thStyle}
+                        className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
+                        {col.label}{sortIcon(col.key)}
+                      </th>
                     );
                   })}
                 </tr>
@@ -1510,14 +1841,15 @@ export default function AnaliseContrato() {
                 {displayRows.map((row,i)=>(
                   <tr key={`${row.placa}-${i}`}
                     className={`border-b border-slate-100 hover:bg-indigo-50/60 transition-colors ${i%2===0?'bg-white':'bg-slate-50/40'}`}>
-                    {allCols.map(col=>{
+                    {allCols.map((col) => {
                       const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                      const tdStyle: any = { minWidth: colWidth, width: colWidth, maxWidth: colWidth };
                       return (
-                      <td key={col.key}
-                        style={{minWidth:colWidth,width:colWidth}}
-                        className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}> 
-                        {col.fmt(row)}
-                      </td>
+                        <td key={col.key}
+                          style={tdStyle}
+                          className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
+                          {col.fmt(row)}
+                        </td>
                       );
                     })}
                   </tr>
@@ -1528,13 +1860,27 @@ export default function AnaliseContrato() {
                   {allCols.map((col, ci) => {
                     const total = colTotals[col.key];
                     const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
-                    const style = { minWidth: colWidth, width: colWidth } as any;
+                    const style = { minWidth: colWidth, width: colWidth, maxWidth: colWidth } as any;
                     if (ci === 0) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">Totais</td>;
                     if (total == null) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">—</td>;
 
                     const k = col.key.toLowerCase();
                     const isCurrency = /valor|fat_|faturamento|custo|man_|sin_|reemb|total|vlr|valorlocacao|valorcompra/.test(k);
-                    const formatted = isCurrency ? fmtBRL(total) : Number.isInteger(total) ? fmtNum(total) : fmtNum(Math.round(total * 100) / 100);
+                    const isPct = k.includes('pct');
+                    const isIdade = k.includes('idade');
+                    let formatted = '—';
+                    if (isPct) {
+                      formatted = fmtPct(total as number);
+                    } else if (isIdade) {
+                      // total for idadeEmMeses was computed as average in colTotals
+                      formatted = fmtNum(Math.round((total as number) * 10) / 10);
+                    } else if (isCurrency) {
+                      formatted = fmtBRL(total as number);
+                    } else if (Number.isInteger(total)) {
+                      formatted = fmtNum(total as number);
+                    } else if (typeof total === 'number') {
+                      formatted = fmtNum(Math.round((total as number) * 100) / 100);
+                    }
                     return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatted}</td>;
                   })}
                 </tr>
