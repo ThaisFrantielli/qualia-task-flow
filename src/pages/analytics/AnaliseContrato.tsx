@@ -91,7 +91,7 @@ const parseNum = (v: unknown): number => {
 };
 const fmtBRL = (v:number) => v===0?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
 const fmtBRLZero = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v || 0);
-const fmtKM = (v:number) => v===0?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:3}).format(v);
+const fmtKM2 = (v:number) => v===0?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
 const fmtPct = (v:number) => !isFinite(v)||isNaN(v)?'—':`${(v*100).toFixed(1)}%`;
 const fmtNominal = (v:number) => {
   if (v === 0) return '—';
@@ -113,6 +113,7 @@ const monthsUntil = (to:string) => { if(!to) return 0; const d=new Date(to); if(
 const normalizeKeyPart = (v: string) => String(v || '').trim().toUpperCase();
 const normalizePlate = (v: unknown) => String(v || '').trim().toUpperCase();
 const canonicalPlate = (v: unknown) => normalizePlate(v).replace(/[^A-Z0-9]/g, '');
+const normalizeMaintenanceOsId = (v: unknown) => String(v ?? '').replace(/\s+/g, '').trim();
 const makeRuleKey = (cto: string, grupo: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}`;
 const makeBancoRuleKey = (cto: string, grupo: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}::${normalizeKeyPart(regra)}`;
 const makeBancoRuleKeyGeneric = (cto: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(regra)}`;
@@ -724,7 +725,7 @@ export default function AnaliseContrato() {
       const date = parseDateFlexible(rawDate);
       const yr = date ? date.getFullYear() : getYear(rawDate);
       if(yr<2022 || yr>2030) continue;
-      const osId = String(m.IdOrdemServico || m.idordemservico || m.IdOcorrencia || `${placa}-${yr}-${rawDate}`).trim();
+      const osId = normalizeMaintenanceOsId(m.IdOrdemServico || m.idordemservico || m.IdOcorrencia || `${placa}-${yr}-${rawDate}`);
       const dedupeKey = `${placaKey || placa}::${osId || rawDate || `${yr}`}`;
       if (seenMaintenance.has(dedupeKey)) continue;
       seenMaintenance.add(dedupeKey);
@@ -880,6 +881,7 @@ export default function AnaliseContrato() {
       });
 
       const mm = new Map<number, { cost:number; reemb:number; osIds:Set<string> }>();
+      const maintOsIds = new Set<string>();
       for (const rec of maintRecords) {
         if (rec.year < 2022 || rec.year > 2030) continue;
         if (!mm.has(rec.year)) mm.set(rec.year, { cost:0, reemb:0, osIds:new Set<string>() });
@@ -887,10 +889,10 @@ export default function AnaliseContrato() {
         bucket.cost += rec.cost;
         bucket.reemb += rec.reemb;
         bucket.osIds.add(rec.osId);
+        maintOsIds.add(rec.osId);
       }
 
-      let passagemTotal = 0;
-      for (const bucket of mm.values()) passagemTotal += bucket.osIds.size;
+      const passagemTotal = maintOsIds.size;
       const passagemIdeal = kmDivisor > 0 ? kmAtual / kmDivisor : 0;
       const passagemIdealExibida = Math.round(passagemIdeal);
 
@@ -899,8 +901,9 @@ export default function AnaliseContrato() {
       const franquiaBanco = lookupFranquiaBanco(contratoBase, grupo);
       const custoManPrevisto = manualCustoKm == null ? 0 : (franquiaBanco * manualCustoKm) * idadeEmMeses;
 
-      let totalManutencao = 0, cntMan = 0, totalReembMan = 0;
-      for (const bucket of mm.values()) { totalManutencao += bucket.cost; totalReembMan += bucket.reemb; cntMan += bucket.osIds.size; }
+      let totalManutencao = 0, totalReembMan = 0;
+      for (const bucket of mm.values()) { totalManutencao += bucket.cost; totalReembMan += bucket.reemb; }
+      const cntMan = maintOsIds.size;
       
       const ticketMedio = cntMan > 0 ? totalManutencao / cntMan : 0;
       const custoKmMan = kmAtual > 0 ? totalManutencao / kmAtual : 0;
@@ -1363,10 +1366,11 @@ export default function AnaliseContrato() {
         { key:'pctDifCustoManLiq',label:'%Dif Liq',      fmt:r=>fmtPct(r.pctDifCustoManLiq),  cls:r=>clrP(r.pctDifCustoManLiq, false), align:'right', w:80, sortGetter: r=>r.pctDifCustoManLiq }
       );
     } else if (tab === 'manutencao') {
+      cols.push({ key:'passagemTotal',  label:'Pass. Realizada', fmt:r=>fmtNum(r.passagemTotal), align:'right', w:92, sortGetter: r=>r.passagemTotal });
       if (includeYearDetail) years.forEach(y => cols.push({ key:`man_${y}`, label:`Man ${y}`, fmt:r=>fmtBRL(r.years[y].man), cls:r=>clrV(r.years[y].man, false), align:'right', w:110, sortGetter: r=>r.years[y].man }));
       cols.push({ key:'totalManutencao',label:'Total Man', fmt:r=>fmtBRL(r.totalManutencao),cls:r=>clrV(r.totalManutencao, false), align:'right', w:110, sortGetter: r=>r.totalManutencao });
       cols.push({ key:'ticketMedio',    label:'Ticket Médio', fmt:r=>fmtBRL(r.ticketMedio),    align:'right', w:110, sortGetter: r=>r.ticketMedio });
-      cols.push({ key:'custoKmMan',     label:'Custo/KM',     fmt:r=>fmtKM(r.custoKmMan),      align:'right', w:90, sortGetter: r=>r.custoKmMan });
+      cols.push({ key:'custoKmMan',     label:'Custo/KM',     fmt:r=>fmtKM2(r.custoKmMan),      align:'right', w:90, sortGetter: r=>r.custoKmMan });
       
       if (includeYearDetail) years.forEach(y => cols.push({ key:`reembMan_${y}`, label:`Reemb Man ${y}`, fmt:r=>fmtBRL(r.years[y].reembMan), align:'right', w:110, sortGetter: r=>r.years[y].reembMan }));
       cols.push({ key:'totalReembMan',  label:'Total Reemb',  fmt:r=>fmtBRL(r.totalReembMan),  align:'right', w:110, sortGetter: r=>r.totalReembMan });
@@ -1374,7 +1378,7 @@ export default function AnaliseContrato() {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`difReembMan_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].man - r.years[y].reembMan), cls:r=>clrV(r.years[y].man - r.years[y].reembMan, false), align:'right', w:110, sortGetter: r=>r.years[y].man - r.years[y].reembMan }));
       cols.push({ key:'custoLiqMan',    label:'Custo Líq Man',fmt:r=>fmtBRL(r.custoLiqMan),   align:'right', w:120, sortGetter: r=>r.custoLiqMan });
       cols.push({ key:'pctReembolsadoMan',label:'% Reemb Man',fmt:r=>fmtPct(r.pctReembolsadoMan), align:'right', w:90, sortGetter: r=>r.pctReembolsadoMan });
-      cols.push({ key:'custoKmLiqMan',  label:'Custo KM Líq', fmt:r=>fmtKM(r.custoKmLiqMan),  align:'right', w:100, sortGetter: r=>r.custoKmLiqMan });
+      cols.push({ key:'custoKmLiqMan',  label:'Custo KM Líq', fmt:r=>fmtKM2(r.custoKmLiqMan),  align:'right', w:100, sortGetter: r=>r.custoKmLiqMan });
     } else if (tab === 'sinistro') {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`sin_${y}`, label:`Sin ${y}`, fmt:r=>fmtBRL(r.years[y].sin), cls:r=>clrV(r.years[y].sin, false), align:'right', w:110, sortGetter: r=>r.years[y].sin }));
       cols.push({ key:'totalSinistro',   label:'Total Sin',     fmt:r=>fmtBRL(r.totalSinistro),   cls:r=>clrV(r.totalSinistro, false), align:'right', w:110, sortGetter: r=>r.totalSinistro });
