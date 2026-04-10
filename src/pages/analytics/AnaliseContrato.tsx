@@ -1175,6 +1175,40 @@ export default function AnaliseContrato() {
     };
   }, [displayRows]);
 
+  const getCriticalCaseCountForTab = (tab: TabKey) => {
+    if (tab === 'passagem') {
+      return displayRows.filter(row => (Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold).length;
+    }
+
+    if (tab === 'previsto') {
+      return displayRows.filter(row => (Number(row.difManPrevReal) || 0) < 0 || (Number(row.pctDifManPrevReal) || 0) > 0).length;
+    }
+
+    if (tab === 'manutencao') {
+      return displayRows.filter(row => (Number(row.custoLiqMan) || 0) > 0).length;
+    }
+
+    if (tab === 'sinistro') {
+      return displayRows.filter(row => (Number(row.custoLiqSin) || 0) > 0).length;
+    }
+
+    if (tab === 'mansin') {
+      return displayRows.filter(row => (Number(row.custoLiqMan) || 0) + (Number(row.custoLiqSin) || 0) > 0).length;
+    }
+
+    if (tab === 'faturamento') {
+      return displayRows.filter(row => (
+        (Number(row.pctManFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctCustoLiqManFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctSinFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctCustoLiqSinFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctManSinFat) || 0) > fatPctAlertThreshold
+      )).length;
+    }
+
+    return 0;
+  };
+
   const tabKpis = useMemo(() => {
     let totalPassagens = 0;
     let totalPassagemPrevista = 0;
@@ -1244,6 +1278,7 @@ export default function AnaliseContrato() {
         { label: 'Total Realizado', value: fmtBRLZero(totalRealizado), sub: 'Soma do custo realizado', icon: Wrench, color: 'text-rose-600' },
         { label: 'Diferença (DIF)', value: fmtBRL(totalDifPrevReal), sub: 'Previsto - Realizado', icon: BarChart3, color: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-rose-600' },
         { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), sub: '(Realizado / Previsto) - 1', icon: AlertTriangle, color: pctDesvioPrevReal > 0 ? 'text-rose-600' : 'text-emerald-600' },
+        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Diferença negativa ou desvio acima do previsto', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -1253,6 +1288,7 @@ export default function AnaliseContrato() {
         { label: 'Total Reembolsado', value: fmtBRL(totalReembMan), sub: 'Recuperado em manutenção', icon: ShieldAlert, color: 'text-emerald-600' },
         { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), sub: 'Bruto - Reembolsos', icon: DollarSign, color: 'text-indigo-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), sub: 'Reembolso / Custo Bruto', icon: Activity, color: 'text-blue-600' },
+        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -1262,6 +1298,7 @@ export default function AnaliseContrato() {
         { label: 'Reembolso Sinistro', value: fmtBRLZero(totalReembSin), sub: 'Seguradora + terceiro', icon: DollarSign, color: 'text-emerald-600' },
         { label: 'Custo Líquido Sinistro', value: fmtBRLZero(totalCustoLiqSin), sub: 'Sinistro - Reembolso', icon: BarChart3, color: 'text-indigo-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), sub: 'Reembolso / Sinistro', icon: Activity, color: 'text-blue-600' },
+        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -1271,6 +1308,7 @@ export default function AnaliseContrato() {
         { label: 'Total Reembolsado', value: fmtBRL(totalReembManSin), sub: 'Reembolso man + sinistro', icon: ShieldAlert, color: 'text-emerald-600' },
         { label: 'Custo Líquido Total', value: fmtBRL(custoLiqTotalManSin), sub: 'Custo total - reembolsos', icon: DollarSign, color: 'text-indigo-600' },
         { label: 'Ticket Médio Total', value: fmtBRL(ticketMedioTotal), sub: 'Custo total / (OS + sinistros)', icon: Gauge, color: 'text-blue-600' },
+        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido consolidado acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -1280,6 +1318,7 @@ export default function AnaliseContrato() {
         { label: 'Margem Manutenção', value: fmtPct(margemManutencao), sub: '1 - (Custo líq. man / fat.)', icon: Target, color: margemManutencao < 0 ? 'text-rose-600' : 'text-indigo-600' },
         { label: 'Impacto Manutenção', value: fmtPct(impactoManutencao), sub: '% do faturamento em man. líquida', icon: Wrench, color: impactoManutencao > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
         { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), sub: '% do faturamento em sinistro líquido', icon: ShieldAlert, color: impactoSinistro > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
+        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Indicadores acima do limite configurado', icon: AlertTriangle, color: 'text-red-600' },
       ];
     }
 
@@ -1287,6 +1326,7 @@ export default function AnaliseContrato() {
       { label: 'Passagens Realizadas', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
       { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} ou % > ${fmtPct(passagemPctAlertThreshold)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
+      { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Itens destacados em vermelho na aba atual', icon: ShieldAlert, color: 'text-red-600' },
       { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
     ];
   }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
@@ -1605,6 +1645,7 @@ export default function AnaliseContrato() {
           { label: 'Realizado', value: fmtBRLZero(totalRealizado), cls: 'text-red-600' },
           { label: 'DIF', value: fmtBRL(totalDifPrevReal), cls: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-red-600' },
           { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), cls: pctDesvioPrevReal > 0 ? 'text-red-600' : 'text-emerald-600' },
+          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'manutencao') {
@@ -1613,6 +1654,7 @@ export default function AnaliseContrato() {
           { label: 'Reembolsado', value: fmtBRL(totalReembMan), cls: 'text-emerald-600' },
           { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), cls: 'text-red-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), cls: 'text-blue-600' },
+          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'sinistro') {
@@ -1621,6 +1663,7 @@ export default function AnaliseContrato() {
           { label: 'Reemb. Sinistro', value: fmtBRL(totalReembSin), cls: 'text-emerald-600' },
           { label: 'Custo Líq. Sinistro', value: fmtBRLZero(totalCustoLiqSin), cls: 'text-red-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), cls: 'text-blue-600' },
+          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'mansin') {
@@ -1629,6 +1672,7 @@ export default function AnaliseContrato() {
           { label: 'Total Reembolsado', value: fmtBRL(totalReembManSin), cls: 'text-emerald-600' },
           { label: 'Custo Líquido', value: fmtBRL(custoLiqTotalManSin), cls: 'text-red-600' },
           { label: 'Ticket Médio', value: fmtBRL(ticketMedioTotal), cls: 'text-blue-600' },
+          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'faturamento') {
@@ -1637,14 +1681,26 @@ export default function AnaliseContrato() {
           { label: 'Margem Manutenção', value: fmtPct(margemManutencao), cls: margemManutencao < 0 ? 'text-red-600' : 'text-indigo-600' },
           { label: 'Impacto Man.', value: fmtPct(impactoManutencao), cls: impactoManutencao > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
           { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), cls: impactoSinistro > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
+          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       return [
         { label: 'Passagens', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
         { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
         { label: 'Críticos', value: `${fmtNum(veiculosCriticos)} (${fmtPct(pctCriticos)})`, cls: 'text-red-600' },
+        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), cls: 'text-blue-600' },
       ];
+    };
+
+    const getPrintParametersForTab = (tab: TabKey) => {
+      if (tab === 'passagem') {
+        return `Alerta de diferença: ${fmtNum(passagemDiffAlertThreshold)} passagens | Alerta percentual: ${fmtPct(passagemPctAlertThreshold)}`;
+      }
+      if (tab === 'faturamento') {
+        return `Alerta de faturamento: ${fmtPct(fatPctAlertThreshold)}`;
+      }
+      return 'Sem parâmetros editáveis específicos';
     };
 
     const tabsToPrint = scope === 'all'
@@ -1687,6 +1743,7 @@ export default function AnaliseContrato() {
         <section class="tab-section">
           <h2 style="background:#1f2937">Versão resumida</h2>
           <div class="meta">${escapeHtml(displayRows.length)} linhas filtradas</div>
+          <div class="meta">Parâmetros: ${escapeHtml(getPrintParametersForTab(activeTab))}</div>
           <table>
             <thead><tr>${header}</tr></thead>
             <tbody>${body}</tbody>
@@ -1715,6 +1772,7 @@ export default function AnaliseContrato() {
           <section class="tab-section">
             <h2 style="background:${bannerColor}">${escapeHtml(tab.label)}</h2>
             <div class="meta">${escapeHtml(displayRows.length)} linhas filtradas</div>
+            <div class="meta">Parâmetros: ${escapeHtml(getPrintParametersForTab(tab.key))}</div>
             <div class="kpis-grid">${kpis}</div>
             <table>
               <thead><tr>${header}</tr></thead>
@@ -2272,17 +2330,17 @@ export default function AnaliseContrato() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
           {tabKpis.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-                <div className="flex items-center gap-2">
+              <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative overflow-hidden min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
                   <Icon className={`w-4 h-4 ${card.color}`} />
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.label}</span>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap truncate">{card.label}</span>
                 </div>
-                <div className={`text-2xl font-bold ${card.color}`}>{card.value}</div>
-                <div className="text-xs text-slate-400 font-medium">{card.sub}</div>
+                <div className={`text-xl lg:text-2xl font-bold ${card.color} whitespace-nowrap leading-none`}>{card.value}</div>
+                <div className="text-[11px] text-slate-400 font-medium whitespace-nowrap truncate">{card.sub}</div>
               </div>
             );
           })}

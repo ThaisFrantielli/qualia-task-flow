@@ -35,6 +35,12 @@ function parseDateSafe(v: any): Date {
   }
 }
 
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+function normalizeLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+}
+
 function formatLocalYMDToPtBR(ymd: string | null | undefined): string {
   if (!ymd) return '-';
   const parts = String(ymd).split('-').map((p) => parseInt(p, 10));
@@ -282,6 +288,8 @@ export default function FleetIdleDashboard(): JSX.Element {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  const [detailSortKey, setDetailSortKey] = useState<'Placa' | 'Chassi' | 'Modelo' | 'Status' | 'Patio' | 'DiasNoStatus' | 'DataInicioStatus' | 'UltimaMovimentacao' | 'UsuarioMovimentacao'>('DiasNoStatus');
+  const [detailSortDir, setDetailSortDir] = useState<'asc' | 'desc'>('desc');
   const [periodoSelecionado, setPeriodoSelecionado] = useState<'30d' | '90d' | '180d' | 'custom'>('30d');
   // Estados para período personalizado
   const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
@@ -473,9 +481,10 @@ export default function FleetIdleDashboard(): JSX.Element {
 
         let diasNoStatus = 0;
         if (dataInicioStatus) {
-          const dataInicio = new Date(dataInicioStatus);
+          const dataInicio = normalizeLocalDay(new Date(dataInicioStatus));
+          const dataReferencia = normalizeLocalDay(checkDate);
           // Dias parado deve refletir a data selecionada no gráfico (snapshot), não a data atual.
-          diasNoStatus = Math.floor((checkDate.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+          diasNoStatus = Math.floor((dataReferencia.getTime() - dataInicio.getTime()) / DAY_MS);
         }
 
         const patio = (ultimoMovPatio && ultimoMovPatio.Patio && String(ultimoMovPatio.Patio).trim() !== '')
@@ -514,6 +523,42 @@ export default function FleetIdleDashboard(): JSX.Element {
 
     return improdutivosHoje;
   }, [frota]);
+
+  const sortedCurrentIdleVehicles = useMemo(() => {
+    const rows = [...currentIdleVehicles];
+    rows.sort((a, b) => {
+      const aValue = a[detailSortKey];
+      const bValue = b[detailSortKey];
+
+      let cmp = 0;
+      if (detailSortKey === 'DiasNoStatus') {
+        cmp = Number(aValue || 0) - Number(bValue || 0);
+      } else if (detailSortKey === 'DataInicioStatus' || detailSortKey === 'UltimaMovimentacao') {
+        const aDate = parseDateSafe(aValue);
+        const bDate = parseDateSafe(bValue);
+        cmp = aDate.getTime() - bDate.getTime();
+      } else {
+        cmp = String(aValue || '').localeCompare(String(bValue || ''), 'pt-BR', { sensitivity: 'base' });
+      }
+
+      return detailSortDir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [currentIdleVehicles, detailSortKey, detailSortDir]);
+
+  const toggleDetailSort = (key: typeof detailSortKey) => {
+    if (detailSortKey === key) {
+      setDetailSortDir((dir) => dir === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setDetailSortKey(key);
+    setDetailSortDir(key === 'DiasNoStatus' ? 'desc' : 'asc');
+  };
+
+  const detailSortIcon = (key: typeof detailSortKey) => {
+    if (detailSortKey !== key) return '↕';
+    return detailSortDir === 'asc' ? '↑' : '↓';
+  };
 
   // (sem paginação) manter rolagem; `pageSize` usado apenas para indicar quantos aparecem inicialmente
 
@@ -767,21 +812,34 @@ export default function FleetIdleDashboard(): JSX.Element {
           <div className="overflow-x-auto">
             <div className="max-h-[420px] overflow-y-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
+                <thead className="sticky top-0 z-20 bg-slate-50 text-slate-600 uppercase text-xs">
                   <tr>
-                    <th className="px-6 py-3">Placa</th>
-                    <th className="px-6 py-3">Chassi</th>
-                    <th className="px-6 py-3">Modelo</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3">Pátio</th>
-                    <th className="px-6 py-3 text-right">Dias Parado</th>
-                    <th className="px-6 py-3">Data Início Status</th>
-                    <th className="px-6 py-3">Última Movimentação</th>
-                    <th className="px-6 py-3">Usuário</th>
+                    {[
+                      { key: 'Placa', label: 'Placa', align: 'left' },
+                      { key: 'Chassi', label: 'Chassi', align: 'left' },
+                      { key: 'Modelo', label: 'Modelo', align: 'left' },
+                      { key: 'Status', label: 'Status', align: 'left' },
+                      { key: 'Patio', label: 'Pátio', align: 'left' },
+                      { key: 'DiasNoStatus', label: 'Dias Parado', align: 'right' },
+                      { key: 'DataInicioStatus', label: 'Data Início Status', align: 'left' },
+                      { key: 'UltimaMovimentacao', label: 'Última Movimentação', align: 'left' },
+                      { key: 'UsuarioMovimentacao', label: 'Usuário', align: 'left' },
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        className={`px-6 py-3 ${col.align === 'right' ? 'text-right' : 'text-left'} cursor-pointer select-none hover:bg-slate-100 whitespace-nowrap`}
+                        onClick={() => toggleDetailSort(col.key as typeof detailSortKey)}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {col.label}
+                          <span className="text-[10px] leading-none text-slate-400">{detailSortIcon(col.key as typeof detailSortKey)}</span>
+                        </span>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {vehiclesOnSelectedDate.map((v, idx) => (
+                  {sortedCurrentIdleVehicles.map((v, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
                       <td className="px-6 py-3 font-mono text-xs text-slate-500">{v.Chassi || '-'}</td>

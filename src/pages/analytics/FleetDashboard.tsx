@@ -1,4 +1,5 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
+import useBIData from '@/hooks/useBIData';
 import useBIDataBatch, { getBatchTable } from '@/hooks/useBIDataBatch';
 import { useTimelineData } from '@/hooks/useTimelineData';
 import { Card, Title, Text, Metric, Badge } from '@tremor/react';
@@ -121,6 +122,10 @@ function parseDateOnlyLocal(v: any): Date | null {
     const parsed = new Date(s);
     return isNaN(parsed.getTime()) ? null : parsed;
 }
+
+function normalizeLocalDay(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+}
 function sanitizeText(v: any): string {
     const s = String(v ?? '').trim();
     if (!s) return '';
@@ -241,6 +246,7 @@ export default function FleetDashboard() {
     ], undefined, { enabled: needsTimeline, params: { limit: timelineItensLimit } });
     const { data: _timelineAggregated } = useTimelineData('aggregated', undefined, { enabled: needsTimeline }); // eslint-disable-line @typescript-eslint/no-unused-vars
     const { data: timelineRecent, loading: timelineLoading, error: timelineError, diagnostics: timelineDiagnostics } = useTimelineData('recent', undefined, { enabled: needsTimeline });
+    const { data: historicoSituacaoRaw } = useBIData<AnyObject[]>('historico_situacao_veiculos', { enabled: activeTab === 'patio' });
 
     // Extract individual datasets from batch results
     const frotaData = useMemo(() => getBatchTable<AnyObject>(primaryData, 'dim_frota'), [primaryData]);
@@ -435,9 +441,49 @@ export default function FleetDashboard() {
     }, [carroReserva]);
     const patioMov = useMemo(() => Array.isArray(patioMovData) ? patioMovData : [], [patioMovData]);
     const veiculoMov = useMemo(() => Array.isArray(veiculoMovData) ? veiculoMovData : [], [veiculoMovData]);
+    const historicoSituacao = useMemo(() => Array.isArray(historicoSituacaoRaw) ? historicoSituacaoRaw : [], [historicoSituacaoRaw]);
+    const historicoMap = useMemo(() => {
+        const map = new Map<string, Array<{ status: string; date: Date }>>();
+        historicoSituacao.forEach((row: AnyObject) => {
+            const placa = normalizePlate(row?.Placa || row?.placa || '');
+            if (!placa) return;
+            const status = String(row?.SituacaoVeiculo || row?.situacaoveiculo || row?.Situacao || row?.situacao || '').trim();
+            if (!status) return;
+            const date = parseBIDate(row?.UltimaAtualizacao || row?.ultimaatualizacao || row?.DataEvento || row?.dataevento);
+            if (!date || isNaN(date.getTime())) return;
+            if (!map.has(placa)) map.set(placa, []);
+            map.get(placa)!.push({ status, date });
+        });
+        map.forEach((events) => events.sort((a, b) => a.date.getTime() - b.date.getTime()));
+        return map;
+    }, [historicoSituacao]);
     const contratosLocacao = useMemo(() => Array.isArray(contratosLocacaoData) ? contratosLocacaoData : [], [contratosLocacaoData]);
     const sinistros = useMemo(() => sinistrosData || [], [sinistrosData]);
     const multas = useMemo(() => multasData || [], [multasData]);
+
+    const resolveStatusStartForDate = (placa: string, checkDate: Date, statusAtDate: string | null): Date | null => {
+        if (!placa || !statusAtDate) return null;
+        const targetStatus = normalizeStatus(statusAtDate);
+        if (!targetStatus) return null;
+
+        const events = historicoMap.get(normalizePlate(placa)) || [];
+        if (events.length === 0) return null;
+
+        const statusEvents = events.filter((event) => event.date.getTime() <= checkDate.getTime());
+        if (statusEvents.length === 0) return null;
+
+        const lastIdx = statusEvents.length - 1;
+        const lastStatusNorm = normalizeStatus(statusEvents[lastIdx].status);
+        if (lastStatusNorm !== targetStatus) return null;
+
+        let start = statusEvents[lastIdx].date;
+        for (let i = lastIdx - 1; i >= 0; i--) {
+            const sNorm = normalizeStatus(statusEvents[i].status);
+            if (sNorm !== targetStatus) break;
+            start = statusEvents[i].date;
+        }
+        return start;
+    };
 
     // Mapa de Contratos por Placa (para enriquecer dim_frota)
     const contratosMap = useMemo(() => {
@@ -1679,36 +1725,48 @@ export default function FleetDashboard() {
         // removed inner duplicate - using top-level `getCategory`
 
         // Use filteredData (respects global filters) and only show Improdutiva (exclude 'Terceiro')
+        const checkDate = new Date();
+        checkDate.setHours(23, 59, 59, 999);
         const improdutivos = filteredData.filter(v => getCategory(v.Status) === 'Improdutiva' && ((v.FinalidadeUso || '').toString().toUpperCase() !== 'TERCEIRO'));
         return improdutivos.map(v => {
-            const movPatio = (patioMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
-                const dateA = new Date(a.DataMovimentacao || 0).getTime();
-                const dateB = new Date(b.DataMovimentacao || 0).getTime();
+            const placaAtual = normalizePlate(v.Placa);
+            const movPatio = (patioMov || []).filter((m: any) => {
+                if (normalizePlate(m?.Placa) !== placaAtual) return false;
+                const movDate = parseBIDate(m?.DataMovimentacao);
+                return !!movDate && movDate.getTime() <= checkDate.getTime();
+            }).sort((a: any, b: any) => {
+                const dateA = parseBIDate(a?.DataMovimentacao)?.getTime() || 0;
+                const dateB = parseBIDate(b?.DataMovimentacao)?.getTime() || 0;
                 return dateB - dateA;
             });
             const ultimoMovPatio = movPatio[0];
 
-            const movVeiculo = (veiculoMov || []).filter((m: any) => m.Placa === v.Placa).sort((a: any, b: any) => {
-                const dateA = new Date(a.DataDevolucao || a.DataRetirada || 0).getTime();
-                const dateB = new Date(b.DataDevolucao || b.DataRetirada || 0).getTime();
+            const movVeiculo = (veiculoMov || []).filter((m: any) => {
+                if (normalizePlate(m?.Placa) !== placaAtual) return false;
+                const refDate = parseBIDate(m?.DataDevolucao || m?.DataRetirada);
+                return !!refDate && refDate.getTime() <= checkDate.getTime();
+            }).sort((a: any, b: any) => {
+                const dateA = parseBIDate(a?.DataDevolucao || a?.DataRetirada)?.getTime() || 0;
+                const dateB = parseBIDate(b?.DataDevolucao || b?.DataRetirada)?.getTime() || 0;
                 return dateB - dateA;
             });
             const ultimaLocacao = movVeiculo[0];
 
-            let dataInicioStatus: string | null = null;
-            const dataDevolucao = ultimaLocacao?.DataDevolucao ? new Date(ultimaLocacao.DataDevolucao).getTime() : 0;
-            const dataMovPatio = ultimoMovPatio?.DataMovimentacao ? new Date(ultimoMovPatio.DataMovimentacao).getTime() : 0;
-            if (dataMovPatio > dataDevolucao && dataMovPatio > 0) {
-                dataInicioStatus = ultimoMovPatio.DataMovimentacao;
-            } else if (dataDevolucao > 0) {
-                dataInicioStatus = ultimaLocacao.DataDevolucao;
-            }
+            const ultimaDataPatio = parseBIDate(ultimoMovPatio?.DataMovimentacao);
+            const ultimaDataDevolucao = parseBIDate(ultimaLocacao?.DataDevolucao);
+            const dataMaisRecente = [ultimaDataPatio, ultimaDataDevolucao]
+                .filter((d): d is Date => !!d)
+                .sort((a, b) => b.getTime() - a.getTime())[0] || null;
+
+            const dataInicioStatusHistorico = resolveStatusStartForDate(placaAtual, checkDate, String(v.Status || ''));
+            const dataInicioStatusDate = dataInicioStatusHistorico || dataMaisRecente;
+            const dataInicioStatus = dataInicioStatusDate ? dataInicioStatusDate.toISOString() : null;
 
             let diasNoStatus = 0;
-            if (dataInicioStatus) {
-                const dataInicio = new Date(dataInicioStatus);
-                const hoje = new Date();
-                diasNoStatus = Math.floor((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24));
+            if (dataInicioStatusDate) {
+                const hoje = normalizeLocalDay(new Date());
+                const inicio = normalizeLocalDay(dataInicioStatusDate);
+                diasNoStatus = Math.floor((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
             }
 
             const patio = ultimoMovPatio?.Patio || v.Patio || v.Localizacao || 'Sem pátio';
@@ -1720,11 +1778,11 @@ export default function FleetDashboard() {
                 Patio: patio,
                 DiasNoStatus: Math.max(0, diasNoStatus),
                 DataInicioStatus: dataInicioStatus || null,
-                UltimaMovimentacao: ultimoMovPatio?.DataMovimentacao || ultimaLocacao?.DataDevolucao || '-',
+                UltimaMovimentacao: dataMaisRecente ? dataMaisRecente.toISOString() : '-',
                 UsuarioMovimentacao: ultimoMovPatio?.UsuarioMovimentacao || '-'
             };
         });
-    }, [filteredData, patioMov, veiculoMov]);
+    }, [filteredData, patioMov, veiculoMov, historicoMap]);
 
     // Tabela: estado de ordenação e lista ordenada
     const [sortState, setSortState] = useState<{ col: string | null; dir: 'asc' | 'desc' }>({ col: 'Placa', dir: 'asc' });
