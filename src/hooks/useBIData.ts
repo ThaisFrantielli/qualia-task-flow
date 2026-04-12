@@ -21,9 +21,16 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  * Normaliza o identificador da tabela removendo extensões e sufixos desnecessários.
  */
 function normalizeTableName(identifier: string): string {
-  return identifier
+  const normalized = identifier
     .replace(/\.json$/, '')
     .trim();
+
+  // Compatibilidade retroativa: alguns pontos antigos ainda usam o nome legado.
+  if (normalized.toLowerCase() === 'fat_contratoslocacao') {
+    return 'dim_contratos_locacao';
+  }
+
+  return normalized;
 }
 
 async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ data: unknown[]; metadata: BIMetadata } | null> {

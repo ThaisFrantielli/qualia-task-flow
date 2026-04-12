@@ -62,11 +62,21 @@ interface PrecosLocacaoRow {
   ValorLocacao?:number|string;
   VlrLocacao?:number|string;
 }
+interface MovimentacaoVeiculoRow {
+  IdContratoLocacao?: string|number;
+  ContratoComercial?: string;
+  Placa?: string;
+  DataRetirada?: string;
+  DataDevolucao?: string;
+  DataEncerramento?: string;
+  OdometroRetirada?: number|string;
+  OdometroDevolucao?: number|string;
+}
 interface ManualCostRule { id:string; cto:string; grupo:string; custoKm:number; }
 
 interface VehicleRow {
   idLocacao:string; idComercial:string; idVeiculo:string;
-  placa:string; modelo:string; grupo:string; kmAtual:number; indiceKm:string;
+  placa:string; modelo:string; grupo:string; kmAtual:number; odometroRetirada:number; indiceKm:string;
   idadeEmMeses:number; rodagemMedia:number; dataInicial:string; vencimentoContrato:string; cliente:string; contrato:string;
   mesesRestantesContrato:number; kmEstimadoFimContrato:number;
   prazoRestDays:number;
@@ -571,6 +581,7 @@ const ID_COLS: ColDef[] = [
   { key:'placa',       label:'Placa',        fmt:r=>r.placa,       align:'left',  w:105, sortGetter: r=>r.placa },
   { key:'modelo',      label:'Modelo',       fmt:r=>r.modelo,      align:'left',  w:170, sortGetter: r=>r.modelo },
   { key:'grupo',       label:'Grupo',        fmt:r=>r.grupo,       align:'left',  w:120, sortGetter: r=>r.grupo },
+  { key:'odometroRetirada', label:'Odômetro Retirada', fmt:r=>r.odometroRetirada>0?r.odometroRetirada.toLocaleString('pt-BR'):'—', align:'right', w:120, sortGetter: r=>r.odometroRetirada },
   { key:'kmAtual',     label:'KM',           fmt:r=>r.kmAtual>0?r.kmAtual.toLocaleString('pt-BR'):'—', align:'right', w:80, sortGetter: r=>r.kmAtual },
   { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtNum(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
   { key:'kmPrecificado',label:'Km Precificado',fmt:r=>r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual), align:'right', w:110, sortGetter: r=>r.custoKmManual ?? -1 },
@@ -700,7 +711,7 @@ export default function AnaliseContrato() {
   const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos', { limit: 300000 });
   const { data: rawFatItens, loading: lFatItens } = useBIData<FaturamentoItemRow[]>('fat_faturamento_itens', { limit: 300000 });
   const { data: rawPrecos, loading: _lPrecos } = useBIData<PrecosLocacaoRow[]>('fat_precos_locacao', { limit: 100000 });
-  const { data: rawContratosFat } = useBIData<ContratoRow[]>('fat_contratoslocacao', { limit: 300000 });
+  const { data: rawMovVeic, loading: lMovVeic } = useBIData<MovimentacaoVeiculoRow[]>('dim_movimentacao_veiculos', { limit: 300000 });
 
   const loadManualRules = async () => {
     setRulesLoading(true);
@@ -733,7 +744,7 @@ export default function AnaliseContrato() {
   }, []);
 
   const initialLoading = lC || lF || lRules;
-  const heavyLoading   = lM || lS || lFat || lFatItens;
+  const heavyLoading   = lM || lS || lFat || lFatItens || lMovVeic;
 
   const allContratoOptions = useMemo(() => {
     const contratos = new Set<string>();
@@ -850,9 +861,7 @@ export default function AnaliseContrato() {
   }, [rawF]);
 
   const activeContratos = useMemo(() => {
-    const fromDim = (rawC as ContratoRow[]|null??[]);
-    const fromFat = (rawContratosFat as ContratoRow[]|null??[]);
-    const all = [...fromDim, ...fromFat];
+    const all = (rawC as ContratoRow[]|null??[]);
     const map = new Map<string, ContratoRow>();
     for (const c of all) {
       const key = String(c?.IdContratoLocacao || c?.ContratoComercial || c?.PlacaPrincipal || '').trim();
@@ -860,7 +869,7 @@ export default function AnaliseContrato() {
       if (!map.has(key)) map.set(key, c);
     }
     return Array.from(map.values()).filter(c => c.PlacaPrincipal || c.ContratoComercial);
-  }, [rawC, rawContratosFat]);
+  }, [rawC]);
 
   const clienteByCto = useMemo(() => {
     const map = new Map<string, string>();
@@ -879,6 +888,32 @@ export default function AnaliseContrato() {
     const arrF = rawFat as FaturamentoRow[]|null ?? [];
     const arrFI = rawFatItens as FaturamentoItemRow[]|null ?? [];
     const arrPrecos = rawPrecos as PrecosLocacaoRow[]|null ?? [];
+    const arrMov = rawMovVeic as MovimentacaoVeiculoRow[]|null ?? [];
+
+    const pickBetterMov = (current: MovimentacaoVeiculoRow | undefined, candidate: MovimentacaoVeiculoRow) => {
+      if (!current) return candidate;
+      const curDate = parseDateFlexible(current.DataRetirada || current.DataEncerramento || current.DataDevolucao || '');
+      const nextDate = parseDateFlexible(candidate.DataRetirada || candidate.DataEncerramento || candidate.DataDevolucao || '');
+      if (!curDate && nextDate) return candidate;
+      if (curDate && nextDate && nextDate.getTime() > curDate.getTime()) return candidate;
+      const curOdo = parseNum(current.OdometroRetirada);
+      const nextOdo = parseNum(candidate.OdometroRetirada);
+      if (curOdo <= 0 && nextOdo > 0) return candidate;
+      return current;
+    };
+
+    const movByLocacao = new Map<string, MovimentacaoVeiculoRow>();
+    const movByPlate = new Map<string, MovimentacaoVeiculoRow>();
+    for (const mov of arrMov) {
+      const locacao = String(mov?.IdContratoLocacao || '').trim().toUpperCase();
+      const plate = canonicalPlate(mov?.Placa || '');
+      if (locacao) {
+        movByLocacao.set(locacao, pickBetterMov(movByLocacao.get(locacao), mov));
+      }
+      if (plate) {
+        movByPlate.set(plate, pickBetterMov(movByPlate.get(plate), mov));
+      }
+    }
 
     // Mapa de preços históricos de locação por contrato de locação
     const precosHistoricos = new Map<string, Array<{ dataInicial: Date | null; valor: number }>>();
@@ -1056,7 +1091,11 @@ export default function AnaliseContrato() {
       const frAny = fr as any;
       const modelo = fr?.Modelo ?? cAny.Modelo ?? ''; 
       const grupo = fr?.Grupo ?? fr?.GrupoVeiculo ?? fr?.Categoria ?? fr?.CategoriaVeiculo ?? cAny.Grupo ?? cAny.GrupoVeiculo ?? cAny.Categoria ?? 'LEVE';
+      const contratoLocacaoKey = String(c?.IdContratoLocacao || cAny?.IdContratoLocacao || '').trim().toUpperCase();
+      const placaContratoKey = canonicalPlate(c?.PlacaPrincipal || fr?.Placa || placa || '');
+      const mov = movByLocacao.get(contratoLocacaoKey) || movByPlate.get(placaContratoKey);
       const kmInicialContrato = parseNum(
+        mov?.OdometroRetirada ??
         cAny?.OdometroRetirada ?? cAny?.odometroretirada ??
         cAny?.OdometroInicial ?? cAny?.odometroinicial ??
         cAny?.KmInicialContrato ?? cAny?.kminicialcontrato ??
@@ -1097,9 +1136,22 @@ export default function AnaliseContrato() {
         || ''
       ).trim();
       const tipoContrato = tipoContratoRaw || 'Sem informacao';
+      const dataInicioUso = parseDateFlexible(mov?.DataRetirada || dataInicial);
+      const dataFinalContrato = parseDateFlexible(c?.DataFinal || cAny?.DataFinal || cAny?.DataEncerramento || '');
+      const dataDevolucao = parseDateFlexible(mov?.DataDevolucao || mov?.DataEncerramento || '');
+      const agora = new Date();
+
+      let dataFimUso = dataDevolucao;
+      if (!dataFimUso || dataFimUso > agora) {
+        dataFimUso = dataFinalContrato && dataFinalContrato < agora ? dataFinalContrato : agora;
+      }
+      const diasUso = dataInicioUso && dataFimUso && dataFimUso >= dataInicioUso
+        ? (dataFimUso.getTime() - dataInicioUso.getTime()) / (1000 * 60 * 60 * 24)
+        : 0;
+      const mesesUtilizacao = Math.max(0, diasUso / 30.4375);
       const idadeEmMeses = monthsDiff(dataInicial);
       const kmPercorridoNoContrato = Math.max(0, kmAtual - kmInicialContrato);
-      const rodagemMedia = idadeEmMeses > 0 ? Math.round(kmPercorridoNoContrato / idadeEmMeses) : 0;
+      const rodagemMedia = mesesUtilizacao > 0 ? Math.round(kmPercorridoNoContrato / mesesUtilizacao) : 0;
       const mesesRestantesContrato = monthsUntil(c?.DataFinal || '');
       const prazoRestDays = daysUntil(c?.DataFinal || '');
       const kmEstimadoFimContrato = Math.round(kmAtual + (rodagemMedia * mesesRestantesContrato));
@@ -1218,7 +1270,7 @@ export default function AnaliseContrato() {
         idLocacao: String(c?.IdContratoLocacao || ''),
         idComercial: String(cAny?.IdContratoComercial || cAny?.ContratoComercial || ''),
         idVeiculo: String(fr?.IdVeiculo || c?.IdVeiculoPrincipal || ''),
-        placa: realPlaca, modelo, grupo, kmAtual, indiceKm: kmLabel(kmAtual), idadeEmMeses, rodagemMedia,
+        placa: realPlaca, modelo, grupo, kmAtual, odometroRetirada: kmInicialContrato, indiceKm: kmLabel(kmAtual), idadeEmMeses, rodagemMedia,
         dataInicial,
         vencimentoContrato: c?.DataFinal ? new Date(c.DataFinal).toLocaleDateString('pt-BR') : '—',
         mesesRestantesContrato,
@@ -1246,7 +1298,7 @@ export default function AnaliseContrato() {
     });
 
     return result;
-  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, rawPrecos, kmDivisor, bancoRegraLookup, manualCostLookup]);
+  }, [activeContratos, rawF, frotaByPlaca, rawM, rawS, rawFat, rawFatItens, rawPrecos, rawMovVeic, kmDivisor, bancoRegraLookup, manualCostLookup]);
 
   const getVencInfo = (v: string) => {
     const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -1953,7 +2005,7 @@ export default function AnaliseContrato() {
       if (!k) return false;
       const kk = k.toLowerCase();
       // don't sum percentages, labels, ids, text columns
-      if (kk.includes('indice') || kk.includes('vencimento') || kk.includes('contrato') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo') || kk.includes('idade')) return false;
+      if (kk.includes('indice') || kk.includes('vencimento') || kk.includes('contrato') || kk.includes('cliente') || kk.includes('placa') || kk.includes('modelo') || kk.includes('grupo') || kk.includes('idade') || kk.includes('odometro')) return false;
       // rodagem/media and ideal/difference are not summable
       if (kk.includes('rodagem') || kk.includes('ideal') || kk.includes('diferenca')) return false;
       return true;
@@ -1979,7 +2031,7 @@ export default function AnaliseContrato() {
         continue;
       }
 
-      // idade (months): compute mean
+      // idade (months): compute mean and round to integer (no decimal casas)
       if (kk.includes('idade')) {
         let sum = 0;
         let count = 0;
@@ -1988,7 +2040,7 @@ export default function AnaliseContrato() {
           const n = Number(v);
           if (isFinite(n)) { sum += n; count++; }
         }
-        totals[col.key] = count > 0 ? sum / count : null;
+        totals[col.key] = count > 0 ? Math.round(sum / count) : null;
         continue;
       }
 
