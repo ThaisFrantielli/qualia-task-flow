@@ -16,7 +16,6 @@ import {
   formatDREValue,
   formatCompactValue,
   formatMonthLabel,
-  DRETransaction,
 } from '@/utils/dreUtils';
 import { Progress } from '@/components/ui/progress';
 
@@ -229,17 +228,15 @@ function DREContent() {
         />
 
         {/* Tabs */}
-        <TabGroup>
-          <TabList variant="solid" className="w-fit">
-            <Tab icon={BarChart3}>Visão Geral</Tab>
-            <Tab icon={Table}>Demonstrativo</Tab>
-            <Tab icon={LineChartIcon}>Evolução</Tab>
-            <Tab icon={List}>Detalhamento</Tab>
-          </TabList>
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="w-fit">
+            <TabsTrigger value="overview" className="gap-2"><BarChart3 className="w-4 h-4" /> Visão Geral</TabsTrigger>
+            <TabsTrigger value="statement" className="gap-2"><Table className="w-4 h-4" /> Demonstrativo</TabsTrigger>
+            <TabsTrigger value="evolution" className="gap-2"><LineChartIcon className="w-4 h-4" /> Evolução</TabsTrigger>
+            <TabsTrigger value="detail" className="gap-2"><List className="w-4 h-4" /> Detalhamento</TabsTrigger>
+          </TabsList>
 
-          <TabPanels className="mt-6">
-            {/* TAB 1: Visão Geral */}
-            <TabPanel>
+            <TabsContent value="overview">
               <div className="space-y-6">
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -314,10 +311,9 @@ function DREContent() {
                   </div>
                 </div>
               </div>
-            </TabPanel>
+            </TabsContent>
 
-            {/* TAB 2: Demonstrativo */}
-            <TabPanel>
+            <TabsContent value="statement">
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -355,10 +351,9 @@ function DREContent() {
                   />
                 )}
               </div>
-            </TabPanel>
+            </TabsContent>
 
-            {/* TAB 3: Evolução */}
-            <TabPanel>
+            <TabsContent value="evolution">
               <div className="space-y-6">
                 {/* Waterfall */}
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -417,10 +412,9 @@ function DREContent() {
                   </div>
                 </div>
               </div>
-            </TabPanel>
+            </TabsContent>
 
-            {/* TAB 4: Detalhamento */}
-            <TabPanel>
+            <TabsContent value="detail">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <input
@@ -489,9 +483,8 @@ function DREContent() {
                   </div>
                 )}
               </div>
-            </TabPanel>
-          </TabPanels>
-        </TabGroup>
+            </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
