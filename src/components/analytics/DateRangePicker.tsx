@@ -1,6 +1,6 @@
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { useEffect, useMemo, useState } from 'react';
+import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
@@ -12,11 +12,55 @@ interface DateRangePickerProps {
   value?: DateRange;
   onChange: (range: DateRange | undefined) => void;
   className?: string;
+  numberOfMonths?: number;
+  minDate?: Date;
+  maxDate?: Date;
+  yearStart?: number;
 }
 
-export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
+export function DateRangePicker({
+  value,
+  onChange,
+  className,
+  numberOfMonths = 2,
+  minDate,
+  maxDate,
+  yearStart,
+}: DateRangePickerProps) {
   const [fromInput, setFromInput] = useState('');
   const [toInput, setToInput] = useState('');
+  const today = useMemo(() => new Date(), []);
+
+  const minBoundary = useMemo(() => (minDate ? startOfDay(minDate) : undefined), [minDate]);
+  const maxBoundary = useMemo(() => (maxDate ? endOfDay(maxDate) : undefined), [maxDate]);
+
+  const clampDate = (date: Date, mode: 'start' | 'end'): Date => {
+    let next = new Date(date);
+    next = mode === 'start' ? startOfDay(next) : endOfDay(next);
+    if (minBoundary && next < minBoundary) return new Date(minBoundary);
+    if (maxBoundary && next > maxBoundary) return new Date(maxBoundary);
+    return next;
+  };
+
+  const normalizeRange = (range?: DateRange): DateRange | undefined => {
+    if (!range?.from && !range?.to) return undefined;
+
+    let from = range?.from ? new Date(range.from) : undefined;
+    let to = range?.to ? new Date(range.to) : undefined;
+
+    if (minBoundary || maxBoundary) {
+      from = from ? clampDate(from, 'start') : undefined;
+      to = to ? clampDate(to, 'end') : undefined;
+    }
+
+    if (from && to && from > to) {
+      const tmp = from;
+      from = minBoundary || maxBoundary ? clampDate(to, 'start') : new Date(to);
+      to = minBoundary || maxBoundary ? clampDate(tmp, 'end') : new Date(tmp);
+    }
+
+    return { from, to };
+  };
 
   useEffect(() => {
     if (value?.from) setFromInput(format(value.from, 'yyyy-MM-dd'));
@@ -26,17 +70,39 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
   }, [value]);
 
   function applyTyped() {
-    let from: Date | undefined = fromInput ? new Date(fromInput + 'T00:00:00') : undefined;
-    let to: Date | undefined = toInput ? new Date(toInput + 'T23:59:59') : undefined;
-    if (from && to && from > to) {
-      // swap
-      const tmp = from;
-      from = to;
-      to = tmp;
-    }
-    if (!from && !to) return onChange(undefined);
-    onChange({ from, to });
+    const from = fromInput ? new Date(`${fromInput}T00:00:00`) : undefined;
+    const to = toInput ? new Date(`${toInput}T23:59:59`) : undefined;
+    onChange(normalizeRange({ from, to }));
   }
+
+  const yearPresets = useMemo(() => {
+    if (!yearStart) return [] as Array<{ label: string; getValue: () => DateRange }>;
+
+    const maxYear = (maxDate || today).getFullYear();
+    const minYear = Math.min(yearStart, maxYear);
+    const presets: Array<{ label: string; getValue: () => DateRange }> = [
+      {
+        label: `Desde ${minYear}`,
+        getValue: () => ({
+          from: new Date(minYear, 0, 1, 0, 0, 0),
+          to: maxDate || today,
+        }),
+      },
+    ];
+
+    for (let y = maxYear; y >= minYear; y--) {
+      presets.push({
+        label: `Ano ${y}`,
+        getValue: () => ({
+          from: new Date(y, 0, 1, 0, 0, 0),
+          to: y === maxYear ? (maxDate || today) : new Date(y, 11, 31, 23, 59, 59),
+        }),
+      });
+    }
+
+    return presets;
+  }, [yearStart, maxDate, today]);
+
   const presets = [
     { label: 'Hoje', getValue: () => {
       const today = new Date();
@@ -62,7 +128,11 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
       return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
     }},
     { label: 'Este ano', getValue: () => ({ from: startOfYear(new Date()), to: endOfYear(new Date()) }) },
+    ...yearPresets,
   ];
+
+  const minInputDate = minBoundary ? format(minBoundary, 'yyyy-MM-dd') : undefined;
+  const maxInputDate = maxBoundary ? format(maxBoundary, 'yyyy-MM-dd') : undefined;
 
   return (
     <Popover>
@@ -100,7 +170,7 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
                 variant="ghost"
                 size="sm"
                 className="w-full justify-start text-xs"
-                onClick={() => onChange(preset.getValue())}
+                onClick={() => onChange(normalizeRange(preset.getValue()))}
               >
                 {preset.label}
               </Button>
@@ -123,6 +193,8 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
                   type="date"
                   className="border p-2 rounded text-sm w-full"
                   value={fromInput}
+                  min={minInputDate}
+                  max={maxInputDate}
                   onChange={(e) => setFromInput(e.target.value)}
                   aria-label="Data início"
                 />
@@ -130,6 +202,8 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
                   type="date"
                   className="border p-2 rounded text-sm w-full"
                   value={toInput}
+                  min={minInputDate}
+                  max={maxInputDate}
                   onChange={(e) => setToInput(e.target.value)}
                   aria-label="Data fim"
                 />
@@ -146,8 +220,10 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
               mode="range"
               defaultMonth={value?.from}
               selected={value}
-              onSelect={(range) => onChange(range as DateRange | undefined)}
-              numberOfMonths={2}
+              onSelect={(range) => onChange(normalizeRange(range as DateRange | undefined))}
+              numberOfMonths={numberOfMonths}
+              fromDate={minBoundary}
+              toDate={maxBoundary}
               locale={ptBR}
             />
           </div>

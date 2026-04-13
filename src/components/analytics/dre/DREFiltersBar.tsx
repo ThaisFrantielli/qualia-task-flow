@@ -16,6 +16,8 @@ interface DREFiltersBarProps {
   situacoesContratoList: string[];
 }
 
+const DRE_MIN_DATE = new Date(2022, 0, 1);
+
 export default function DREFiltersBar({
   clientesList,
   contratosComerciais,
@@ -78,6 +80,10 @@ export default function DREFiltersBar({
               value={filters.dateRange}
               onChange={setDateRange}
               className="w-full"
+              numberOfMonths={1}
+              minDate={DRE_MIN_DATE}
+              maxDate={new Date()}
+              yearStart={2022}
             />
           </div>
 

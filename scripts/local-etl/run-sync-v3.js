@@ -119,7 +119,22 @@ const TABLES = [
     { table: 'fat_precos_locacao', query: `SELECT * FROM ContratosLocacaoPrecos WITH (NOLOCK)` },
     { table: 'dim_movimentacao_patios', query: `SELECT * FROM MovimentacaoPatios WITH (NOLOCK)` },
     { table: 'dim_movimentacao_veiculos', query: `SELECT * FROM MovimentacaoVeiculos WITH (NOLOCK)` },
-    { table: 'fat_carro_reserva', query: `SELECT * FROM OcorrenciasVeiculoTemporario WITH (NOLOCK)` },
+    {
+        table: 'fat_carro_reserva',
+        query: `
+            SELECT
+                ovt.*,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(ovt.FornecedorReserva)), ''),
+                    NULLIF(LTRIM(RTRIM(ovt.FornecedorReservaOriginal)), ''),
+                    NULLIF(LTRIM(RTRIM(f.NomeFantasia)), ''),
+                    NULLIF(LTRIM(RTRIM(f.Nome)), '')
+                ) as FornecedorReservaEnriquecido
+            FROM OcorrenciasVeiculoTemporario ovt WITH (NOLOCK)
+            LEFT JOIN Fornecedores f WITH (NOLOCK)
+                ON f.IdFornecedor = ovt.IdFornecedorReserva
+        `
+    },
     { table: 'fat_itens_ordem_servico', query: `SELECT * FROM ItensOrdemServico WITH (NOLOCK)` },
     {
         table: 'fat_manutencao_unificado',

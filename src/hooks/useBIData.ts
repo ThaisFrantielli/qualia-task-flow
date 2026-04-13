@@ -35,6 +35,14 @@ function normalizeTableName(identifier: string): string {
 
 export async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ data: unknown[]; metadata: BIMetadata } | null> {
   try {
+    const parseJsonSafe = async (resp: Response): Promise<unknown | null> => {
+      try {
+        return await resp.json();
+      } catch {
+        return null;
+      }
+    };
+
     const extractRows = (payload: unknown): unknown[] => {
       if (Array.isArray(payload)) return payload;
       if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown[] }).data)) {
@@ -61,19 +69,21 @@ export async function tryLoadStaticTable(tableName: string, limit?: number): Pro
       `./data/${tableName}.json`,
     ]);
     if (singleResp && singleResp.ok) {
-      const singleData = await singleResp.json();
-      const extractedRows = extractRows(singleData);
-      if (extractedRows.length > 0) {
-        const rows = typeof limit === 'number' ? extractedRows.slice(0, limit) : extractedRows;
-        return {
-          data: rows,
-          metadata: {
-            generated_at: new Date().toISOString(),
-            source: 'static-file',
-            table: tableName,
-            record_count: rows.length,
-          },
-        };
+      const singleData = await parseJsonSafe(singleResp);
+      if (singleData) {
+        const extractedRows = extractRows(singleData);
+        if (extractedRows.length > 0) {
+          const rows = typeof limit === 'number' ? extractedRows.slice(0, limit) : extractedRows;
+          return {
+            data: rows,
+            metadata: {
+              generated_at: new Date().toISOString(),
+              source: 'static-file',
+              table: tableName,
+              record_count: rows.length,
+            },
+          };
+        }
       }
     }
 
@@ -84,7 +94,10 @@ export async function tryLoadStaticTable(tableName: string, limit?: number): Pro
     ]);
     if (!manifestResp || !manifestResp.ok) return null;
 
-    const manifest = await manifestResp.json() as {
+    const manifestRaw = await parseJsonSafe(manifestResp);
+    if (!manifestRaw || typeof manifestRaw !== 'object') return null;
+
+    const manifest = manifestRaw as {
       totalParts?: number;
       total_chunks?: number;
       baseFileName?: string;

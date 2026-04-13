@@ -16,6 +16,7 @@ import {
   formatDREValue,
   formatCompactValue,
   formatMonthLabel,
+  getAvailableMonths,
 } from '@/utils/dreUtils';
 import { Progress } from '@/components/ui/progress';
 
@@ -39,10 +40,10 @@ function DREContent() {
   const [detailPage, setDetailPage] = useState(0);
   const DETAIL_PAGE_SIZE = 50;
 
-  // Auto-select last 6 months when data loads
+  // Auto-select all available months (2022+)
   useEffect(() => {
     if (availableMonths.length > 0 && selectedMonths.length === 0) {
-      setSelectedMonths(availableMonths.slice(-6));
+      setSelectedMonths(availableMonths);
     }
   }, [availableMonths, selectedMonths.length]);
 
@@ -72,6 +73,56 @@ function DREContent() {
 
     return filtered;
   }, [transactions, filters]);
+
+  const filteredMonths = useMemo(
+    () => getAvailableMonths(filteredTransactions),
+    [filteredTransactions]
+  );
+
+  const availableMonthsKey = availableMonths.join('|');
+  const filteredMonthsKey = filteredMonths.join('|');
+  const selectedMonthsKey = selectedMonths.join('|');
+
+  // Keep month selection aligned with date filters to avoid empty-looking views.
+  useEffect(() => {
+    if (availableMonths.length === 0) return;
+
+    const hasDateFilter = Boolean(filters.dateRange?.from || filters.dateRange?.to);
+    if (hasDateFilter) {
+      if (filteredMonths.length === 0) {
+        if (selectedMonths.length !== 0) {
+          setSelectedMonths([]);
+        }
+        return;
+      }
+
+      const sanitized = selectedMonths.filter((month) => filteredMonths.includes(month));
+      if (sanitized.length === 0) {
+        if (selectedMonthsKey !== filteredMonthsKey) {
+          setSelectedMonths(filteredMonths);
+        }
+        return;
+      }
+
+      if (sanitized.length !== selectedMonths.length) {
+        setSelectedMonths(sanitized);
+      }
+      return;
+    }
+
+    if (selectedMonths.length === 0) {
+      setSelectedMonths(availableMonths);
+    }
+  }, [
+    availableMonths,
+    filteredMonths,
+    selectedMonths,
+    selectedMonthsKey,
+    availableMonthsKey,
+    filteredMonthsKey,
+    filters.dateRange?.from,
+    filters.dateRange?.to,
+  ]);
 
   // KPIs
   const kpis = useMemo(() => calculateKPIs(filteredTransactions, selectedMonths), [filteredTransactions, selectedMonths]);
