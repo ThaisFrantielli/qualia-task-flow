@@ -17,7 +17,8 @@ function parseNum(v: any): number {
 
 function fmtDate(d: string | Date | null): string {
   if (!d) return '-';
-  const date = typeof d === 'string' ? new Date(d) : d;
+  const date = typeof d === 'string' ? parseDateSafe(d) : d;
+  if (Number.isNaN(date.getTime()) || date.getTime() <= 0) return '-';
   return date.toLocaleDateString('pt-BR');
 }
 
@@ -475,7 +476,7 @@ export default function FleetIdleDashboard(): JSX.Element {
 
         // Data Início Status: início do status atual conforme histórico de situação.
         // Fallback para referência operacional quando o histórico não tiver dados suficientes.
-        let dataInicioStatus = dataInicioStatusHistorico
+        const dataInicioStatus = dataInicioStatusHistorico
           ? dataInicioStatusHistorico.toISOString()
           : (dataMaisRecente ? dataMaisRecente.toISOString() : null);
 
@@ -529,8 +530,8 @@ export default function FleetIdleDashboard(): JSX.Element {
     return improdutivosHoje;
   }, [frota]);
 
-  const sortedCurrentIdleVehicles = useMemo(() => {
-    const rows = [...currentIdleVehicles];
+  const sortedSelectedDateVehicles = useMemo(() => {
+    const rows = [...vehiclesOnSelectedDate];
     rows.sort((a, b) => {
       const aValue = a[detailSortKey];
       const bValue = b[detailSortKey];
@@ -549,7 +550,7 @@ export default function FleetIdleDashboard(): JSX.Element {
       return detailSortDir === 'asc' ? cmp : -cmp;
     });
     return rows;
-  }, [currentIdleVehicles, detailSortKey, detailSortDir]);
+  }, [vehiclesOnSelectedDate, detailSortKey, detailSortDir]);
 
   const toggleDetailSort = (key: typeof detailSortKey) => {
     if (detailSortKey === key) {
@@ -844,7 +845,7 @@ export default function FleetIdleDashboard(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sortedCurrentIdleVehicles.map((v, idx) => (
+                  {sortedSelectedDateVehicles.map((v, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="px-6 py-3 font-medium font-mono">{v.Placa}</td>
                       <td className="px-6 py-3 font-mono text-xs text-slate-500">{v.Chassi || '-'}</td>
