@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Title, Text, TabGroup, TabList, Tab, TabPanels, TabPanel } from '@tremor/react';
-import { DollarSign, TrendingUp, ArrowLeft, Download, BarChart3, Table, LineChart as LineChartIcon, List } from 'lucide-react';
+import { Title, Text } from '@tremor/react';
+import { DollarSign, ArrowLeft, BarChart3, Table, LineChart as LineChartIcon, List } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DREFiltersProvider, useDREFilters } from '@/contexts/DREFiltersContext';
 import useDREData from '@/hooks/useDREData';
 import DREFiltersBar from '@/components/analytics/dre/DREFiltersBar';
