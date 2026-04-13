@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { BIMetadata } from '@/types/analytics';
 import { getApiBaseUrl } from '@/lib/apiBase';
+import { tryLoadStaticTable } from '@/hooks/useBIData';
 
 export interface BatchTableResult {
   data: unknown[];
@@ -35,7 +36,7 @@ const inFlight = new Map<string, Promise<BatchResult>>();
 export default function useBIDataBatch(
   tables: string[],
   fields?: Record<string, string[]>,
-  options?: { enabled?: boolean; staleTime?: number; params?: Record<string, string | number> }
+  options?: { enabled?: boolean; staleTime?: number; params?: Record<string, string | number>; staticFallback?: boolean }
 ): UseBIDataBatchResult {
   const [results, setResults] = useState<BatchResult>({});
   const [metadata, setMetadata] = useState<BIMetadata | null>(null);
@@ -47,6 +48,7 @@ export default function useBIDataBatch(
   const enabled = options?.enabled ?? true;
   const staleTime = options?.staleTime ?? CACHE_TTL;
   const params = options?.params;
+  const staticFallback = options?.staticFallback ?? false;
 
   // Stable key — não muta o array original
   const tablesKey = useMemo(() => [...tables].sort().join(','), [tables.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -80,7 +82,10 @@ export default function useBIDataBatch(
 
     // Serve do cache se ainda válido
     const cached = batchCache.get(key);
-    if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTimeRef.current) {
+    const cachedHasRows = cached
+      ? Object.values(cached.data).some((entry) => Array.isArray(entry?.data) && entry.data.length > 0)
+      : false;
+    if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTimeRef.current && (!staticFallback || cachedHasRows)) {
       if (fetchId === fetchIdRef.current && mountedRef.current) {
         setResults(cached.data);
         setLoading(false);
@@ -104,7 +109,6 @@ export default function useBIDataBatch(
           }
           return resp.json().then((body) => {
             const batchResults: BatchResult = body.results || {};
-            batchCache.set(key, { data: batchResults, timestamp: Date.now() });
             return batchResults;
           });
         }).finally(() => {
@@ -116,12 +120,84 @@ export default function useBIDataBatch(
       const batchResults = await promise;
       if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
 
-      setResults(batchResults);
-      setMetadata({ generated_at: new Date().toISOString(), source: 'live' });
+      let effectiveResults: BatchResult = batchResults;
+      let usedStaticFallback = false;
+
+      if (staticFallback) {
+        const mergedEntries = await Promise.all(
+          tables.map(async (table) => {
+            const current = batchResults[table];
+            const currentHasRows = Array.isArray(current?.data) && current.data.length > 0;
+            if (currentHasRows) return [table, current] as const;
+
+            const staticTable = await tryLoadStaticTable(table, undefined);
+            if (staticTable) {
+              usedStaticFallback = true;
+              return [
+                table,
+                {
+                  data: staticTable.data,
+                  record_count: Number(staticTable.metadata.record_count || staticTable.data.length),
+                  metadata: staticTable.metadata,
+                },
+              ] as const;
+            }
+
+            return [table, current || { data: [], record_count: 0, metadata: null }] as const;
+          })
+        );
+
+        effectiveResults = Object.fromEntries(mergedEntries) as BatchResult;
+      }
+
+      batchCache.set(key, { data: effectiveResults, timestamp: Date.now() });
+      setResults(effectiveResults);
+      setMetadata({ generated_at: new Date().toISOString(), source: usedStaticFallback ? 'static' : 'live' });
       setError(null);
     } catch (err) {
       if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
       const message = err instanceof Error ? err.message : String(err);
+      if (staticFallback) {
+        try {
+          const staticResults = await Promise.all(
+            tables.map(async (table) => {
+              const staticTable = await tryLoadStaticTable(table, undefined);
+              return [table, staticTable] as const;
+            })
+          );
+
+          const staticBatchResults: BatchResult = Object.fromEntries(
+            staticResults.map(([table, staticTable]) => [
+              table,
+              staticTable
+                ? {
+                    data: staticTable.data,
+                    record_count: Number(staticTable.metadata.record_count || staticTable.data.length),
+                    metadata: staticTable.metadata,
+                  }
+                : {
+                    data: [],
+                    record_count: 0,
+                    metadata: null,
+                  },
+            ])
+          ) as BatchResult;
+
+          const hasAnyStaticRows = Object.values(staticBatchResults).some((entry) => Array.isArray(entry?.data) && entry.data.length > 0);
+          if (!hasAnyStaticRows) {
+            throw new Error('Fallback estático sem dados para as tabelas solicitadas');
+          }
+
+          batchCache.set(key, { data: staticBatchResults, timestamp: Date.now() });
+          setResults(staticBatchResults);
+          setMetadata({ generated_at: new Date().toISOString(), source: 'static' });
+          setError(null);
+          return;
+        } catch (fallbackErr) {
+          console.error('[useBIDataBatch] Error:', message, fallbackErr);
+        }
+      }
+
       console.error('[useBIDataBatch] Error:', message);
       setError(message);
     } finally {

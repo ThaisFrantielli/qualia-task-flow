@@ -59,8 +59,8 @@ const baseMenuGroups: MenuGroup[] = [
         ]
       },
       {
-        label: 'Faturamento',
-        url: '/analytics/faturamento',
+        label: 'DRE',
+        url: '/analytics/dre',
         icon: DollarSign,
       },
         {

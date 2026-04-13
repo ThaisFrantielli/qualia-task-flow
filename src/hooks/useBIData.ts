@@ -9,7 +9,7 @@ type BIResult<T = unknown> = {
   error: string | null;
   refetch: () => void;
   lastUpdated: Date | null;
-  source: 'live' | null;
+  source: 'live' | 'static' | null;
 };
 
 // In-memory cache to avoid repeated calls
@@ -33,8 +33,16 @@ function normalizeTableName(identifier: string): string {
   return normalized;
 }
 
-async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ data: unknown[]; metadata: BIMetadata } | null> {
+export async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ data: unknown[]; metadata: BIMetadata } | null> {
   try {
+    const extractRows = (payload: unknown): unknown[] => {
+      if (Array.isArray(payload)) return payload;
+      if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown[] }).data)) {
+        return (payload as { data: unknown[] }).data;
+      }
+      return [];
+    };
+
     const pickFirstOk = async (paths: string[]) => {
       for (const p of paths) {
         try {
@@ -54,8 +62,9 @@ async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ 
     ]);
     if (singleResp && singleResp.ok) {
       const singleData = await singleResp.json();
-      if (Array.isArray(singleData)) {
-        const rows = typeof limit === 'number' ? singleData.slice(0, limit) : singleData;
+      const extractedRows = extractRows(singleData);
+      if (extractedRows.length > 0) {
+        const rows = typeof limit === 'number' ? extractedRows.slice(0, limit) : extractedRows;
         return {
           data: rows,
           metadata: {
@@ -95,7 +104,7 @@ async function tryLoadStaticTable(tableName: string, limit?: number): Promise<{ 
           `./data/${baseName}_part${i}of${parts}.json`,
         ])
           .then(r => (r && r.ok ? r.json() : []))
-          .then(data => (Array.isArray(data) ? data : []))
+          .then(data => extractRows(data))
           .catch(() => [])
       );
     }
@@ -202,19 +211,20 @@ async function fetchFromAPI(tableName: string, bustServer = false, limit?: numbe
 
 export default function useBIData<T = unknown>(
   identifier: string,
-  options?: { staleTime?: number; enabled?: boolean; limit?: number }
+  options?: { staleTime?: number; enabled?: boolean; limit?: number; staticFallback?: boolean }
 ): BIResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [metadata, setMetadata] = useState<BIMetadata | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [source, setSource] = useState<'live' | null>(null);
+  const [source, setSource] = useState<'live' | 'static' | null>(null);
   const fetchIdRef = useRef(0);
 
   const staleTime = options?.staleTime ?? CACHE_TTL;
   const enabled = options?.enabled ?? true;
   const limit = options?.limit;
+  const staticFallback = options?.staticFallback ?? false;
   const tableName = normalizeTableName(identifier);
 
   const load = useCallback(async (forceRefresh = false) => {
@@ -228,7 +238,9 @@ export default function useBIData<T = unknown>(
     // Serve from cache when fresh
     const cacheKey = limit ? `${tableName}_limit${limit}` : tableName;
     const cached = dataCache.get(cacheKey);
-    if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime) {
+    const cachedData = cached?.data as unknown;
+    const cachedHasRows = Array.isArray(cachedData) ? cachedData.length > 0 : cachedData != null;
+    if (!forceRefresh && cached && (Date.now() - cached.timestamp) < staleTime && (!staticFallback || cachedHasRows)) {
       setData(cached.data as T);
       setMetadata(cached.metadata);
       setSource('live');
@@ -236,6 +248,21 @@ export default function useBIData<T = unknown>(
       setLoading(false);
       setError(null);
       return;
+    }
+
+    if (staticFallback) {
+      const staticResult = await tryLoadStaticTable(tableName, limit);
+      if (staticResult) {
+        const now = Date.now();
+        dataCache.set(cacheKey, { data: staticResult.data, metadata: staticResult.metadata, timestamp: now });
+        setData(staticResult.data as T);
+        setMetadata(staticResult.metadata);
+        setSource('static');
+        setLastUpdated(new Date(now));
+        setLoading(false);
+        setError(null);
+        return;
+      }
     }
 
     setLoading(true);
@@ -264,9 +291,24 @@ export default function useBIData<T = unknown>(
       return;
     }
 
+    if (staticFallback) {
+      const staticResult = await tryLoadStaticTable(tableName, limit);
+      if (staticResult) {
+        const now = Date.now();
+        dataCache.set(cacheKey, { data: staticResult.data, metadata: staticResult.metadata, timestamp: now });
+        setData(staticResult.data as T);
+        setMetadata(staticResult.metadata);
+        setSource('static');
+        setLastUpdated(new Date(now));
+        setLoading(false);
+        setError(null);
+        return;
+      }
+    }
+
     setError(`Sem dados disponíveis para '${tableName}'. Verifique a conexão com o servidor.`);
     setLoading(false);
-  }, [tableName, staleTime, enabled, limit]);
+  }, [tableName, staleTime, enabled, limit, staticFallback]);
 
   const refetch = useCallback(() => {
     load(true);

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Title, Text } from '@tremor/react';
 import { DollarSign, ArrowLeft, BarChart3, Table, LineChart as LineChartIcon, List } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -40,11 +40,11 @@ function DREContent() {
   const DETAIL_PAGE_SIZE = 50;
 
   // Auto-select last 6 months when data loads
-  useMemo(() => {
+  useEffect(() => {
     if (availableMonths.length > 0 && selectedMonths.length === 0) {
       setSelectedMonths(availableMonths.slice(-6));
     }
-  }, [availableMonths]);
+  }, [availableMonths, selectedMonths.length]);
 
   // Apply context filters to transactions
   const filteredTransactions = useMemo(() => {
