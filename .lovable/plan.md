@@ -1,88 +1,122 @@
 
 
-# Plano de Ajustes - Timeline do Dashboard de Frota Ativa
+# Plano de Acao: DRE Gerencial Completo
 
-## Problemas Identificados (das screenshots e código)
+## Situacao Atual
 
-### 1. Datas de Multas em formato ISO cru
-Na linha 1968, `fmtDateTimeBR(dataMulta)` recebe a string raw mas `fmtDateTimeBR` espera um `Date`. O valor chega como `"2025-09-25T09:44:00.000+00:00"` e é exibido assim. Precisa passar por `parseDateAny()` antes de formatar.
+### O que ja existe (componentes orfaos -- nunca montados em nenhuma rota)
+- `src/utils/dreUtils.ts` -- logica de hierarquia contabil, KPIs, analise horizontal/vertical
+- `src/hooks/useDREData.ts` -- hook que carrega `fato_financeiro_dre` (187k registros em 19 chunks)
+- `src/contexts/DREFiltersContext.tsx` -- contexto de filtros (DateRange, Cliente, Contrato, Natureza, Situacao)
+- `src/components/analytics/DREPivotTable.tsx` -- tabela pivot hierarquica com expand/collapse
+- `src/components/analytics/DREKPICard.tsx` -- card de KPI com sparkline
+- `src/components/analytics/dre/DREFiltersBar.tsx` -- barra de filtros multi-select
+- `src/components/analytics/MonthFilter.tsx` -- seletor de meses
 
-### 2. Valores zerados em multas (R$ 0,00)
-Multas com valor 0 devem exibir "Valor não informado" em vez de "R$ 0,00" para evitar confusão.
+**Problema**: Nenhuma pagina/rota `DREDashboard` existe. Todos esses componentes estao "soltos" -- nunca foram integrados. O Hub Financeiro no index de Analytics so tem "Faturamento".
 
-### 3. Informações repetidas nos cards de ocorrências
-Os cards de manutenção/sinistro mostram datas duplicadas (ex: DataCriação, DataSinistro, DataAberturaOcorrencia, DataConclusão, DataAgendamento, DataRetirada, DataRetiradaVeiculo). O painel direito repete todas as datas brutas do registro. Solução: filtrar campos redundantes e mostrar apenas Abertura, Conclusão e Retirada no painel lateral.
+### Dados disponiveis
+- `fato_financeiro_dre_part{1..19}of19.json` -- 187.182 registros (fonte principal, via `useBIData`)
+- `agg_dre_mensal.json` -- agregado mensal pre-calculado (Receita/Despesa por competencia, mas com Receita = 0 em todos os meses)
+- `fat_financeiro_universal_YYYY_MM*.json` -- dados financeiros universais mensais
+- `agg_dre_mensal.json` parece ter dados so de Despesa (2024), sem Receita -- possivel problema de ETL
 
-### 4. Ícone de Sinistro igual ao de Manutenção
-Na linha 2100, sinistros com manutenção correspondente usam `iconMan` (Wrench/âmbar). Trocar para ícone diferenciado: usar `ShieldAlert` ou `Car` com cor vermelha/roxa para sinistros.
+### Arquivos remanescentes para limpeza (ndjson LFS nao utilizados)
+- `fato_financeiro_dre_dw.ndjson` (31MB)
+- `fato_financeiro_dre_dw2.ndjson` (238MB)
+- `fato_financeiro_dre_dw_canonical.ndjson` (125MB)
+- `fato_financeiro_dre_fast.ndjson` (100MB)
+- `fato_financeiro_dre_stream.ndjson` (26MB)
+- `fato_financeiro_dre_fast_enriched_sample.ndjson` (2.5KB)
+- `fato_financeiro_dre_fast_manifest.json`
+- `dre_all_discrepancies_*.csv`, `dre_compare_natureza_*.csv`, `dre_top20_discrepancies_*.csv` (CSVs de debug)
+- `mapa_universal_*.ndjson` (3 arquivos, ~160MB total)
+- `public/data/analisar-campos-vazios.cjs`, `analyze-idade.cjs`, `analyze-tipos.cjs`, `count-alerts.cjs` (scripts de debug)
 
-### 5. Valores ausentes nos cards colapsáveis de ocorrências
-O card colapsável de multas (header) não mostra o valor total. O card de sinistros também não mostra valor no header. Incluir soma de valores no badge do header.
+---
 
-### 6. Build error: `primaryMeta` não utilizado no FleetDashboard
-Remover variável não usada na linha 76.
+## Plano de Implementacao
 
-## Implementação
+### Etapa 1: Criar a Pagina DRE Gerencial
 
-### Arquivo: `src/pages/analytics/FleetDashboard.tsx`
-- Linha 76: remover `primaryMeta` ou usar `_primaryMeta`
+**Novo arquivo**: `src/pages/analytics/DREGerencialDashboard.tsx`
 
-### Arquivo: `src/components/analytics/fleet/TimelineTab.tsx`
+Estrutura com 4 abas:
+1. **Visao Geral** -- 5 KPIs (Receita Total, Despesa Total, EBITDA, Lucro Liquido, Margem %) + grafico de evolucao mensal (area chart Receita vs Despesa vs Lucro) + top 5 naturezas por valor
+2. **Demonstrativo** -- Tabela pivot hierarquica (`DREPivotTable`) com analise horizontal e vertical, usando `buildAccountHierarchyByType`
+3. **Evolucao** -- Graficos de tendencia: evolucao mensal por grupo contabil, waterfall chart receita-despesa-lucro
+4. **Detalhamento** -- Tabela paginada de lancamentos com busca por natureza, entidade, valor
 
-**Correção 1 - Datas de multas** (linha ~1968):
+### Etapa 2: Registrar Rota e Navegacao
+
+- `src/App.tsx`: Adicionar rota `/analytics/dre` apontando para `DREGerencialDashboard`
+- `src/pages/analytics/index.tsx`: Adicionar link "DRE Gerencial" no Hub Financeiro, junto ao Faturamento existente
+
+### Etapa 3: Integrar Componentes Existentes
+
+Reutilizar todos os componentes orfaos ja prontos:
+- `DREFiltersProvider` envolvendo a pagina
+- `DREFiltersBar` para filtros globais
+- `DREPivotTable` na aba Demonstrativo
+- `DREKPICard` na aba Visao Geral
+- `MonthFilter` como controle complementar
+
+### Etapa 4: Otimizar Carregamento de Dados
+
+O `useDREData` carrega 187k registros (19 chunks). Melhorias:
+- Adicionar indicador de progresso de carregamento (X de 19 chunks)
+- Filtrar transacoes por `DREFiltersContext` (dateRange, cliente, natureza) em um `useMemo` antes de passar aos componentes
+- Considerar usar `agg_dre_mensal.json` para KPIs iniciais (carregamento instantaneo) enquanto os dados completos carregam
+
+### Etapa 5: Design e UX (Melhores Praticas do Segmento)
+
+Padroes de DRE gerencial do mercado:
+- **Header**: Titulo "DRE Gerencial", seletor de periodo, botao exportar Excel
+- **KPIs**: Cards com sparkline e indicador de tendencia (ja implementado no `DREKPICard`)
+- **Tabela Pivot**: Coluna fixa esquerda (sticky), cores por nivel hierarquico, expand/collapse (ja implementado)
+- **Exportacao**: Botao para exportar DRE completo em XLSX com formatacao
+- **Responsivo**: Layout mobile-first com scroll horizontal na tabela
+
+### Etapa 6: Limpeza de Remanescentes
+
+Deletar arquivos que nao sao mais utilizados por nenhum componente:
+
 ```text
-// Antes:
-{fmtDateTimeBR(dataMulta)}
-// Depois:
-{fmtDateTimeBR(parseDateAny(dataMulta))}
+public/data/fato_financeiro_dre_dw.ndjson
+public/data/fato_financeiro_dre_dw2.ndjson
+public/data/fato_financeiro_dre_dw_canonical.ndjson
+public/data/fato_financeiro_dre_fast.ndjson
+public/data/fato_financeiro_dre_stream.ndjson
+public/data/fato_financeiro_dre_fast_enriched_sample.ndjson
+public/data/fato_financeiro_dre_fast_manifest.json
+public/data/dre_all_discrepancies_2025-10.csv
+public/data/dre_all_discrepancies_2026-01.csv
+public/data/dre_compare_natureza_2025-10.csv
+public/data/dre_compare_natureza_2026-01.csv
+public/data/dre_top20_discrepancies_2025-10.csv
+public/data/dre_top20_discrepancies_2026-01.csv
+public/data/mapa_universal_sources_raw.ndjson
+public/data/mapa_universal_full_with_fontes.ndjson
+public/data/mapa_universal_sample.ndjson
+public/data/analisar-campos-vazios.cjs
+public/data/analyze-idade.cjs
+public/data/analyze-tipos.cjs
+public/data/count-alerts.cjs
 ```
 
-**Correção 2 - Valores zerados em multas** (linha ~1981-1983):
-```text
-// Antes:
-<div className="text-sm font-bold text-red-600">{fmtMoney(valor)}</div>
-// Depois:
-<div className={`text-sm font-bold ${Number(valor) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-  {Number(valor) > 0 ? fmtMoney(valor) : 'Valor não informado'}
-</div>
-```
+### Etapa 7: Fix Build Errors Existentes
 
-**Correção 3 - Valor total no header de multas** (linha ~1942-1943):
-Adicionar soma de valores ao lado do badge de contagem:
-```text
-<span className="font-bold text-sm text-slate-700">MULTAS</span>
-<Badge color="red">{placaMultas.length} Multas</Badge>
-{(() => {
-  const totalValor = placaMultas.reduce((s, m) => s + (Number(m.ValorMulta || m.Valor || 0)), 0);
-  return totalValor > 0 ? <span className="text-red-600 font-bold text-xs">{fmtMoney(totalValor)}</span> : null;
-})()}
-```
+- `FleetIdleDashboard.tsx`: Corrigir tipo do objeto na tabela de detalhes (adicionar campos `Chassi`, `Patio`, `DataInicioStatus`, `UltimaMovimentacao`, `UsuarioMovimentacao` ao tipo)
 
-**Correção 4 - Ícone diferenciado para sinistros** (linha ~2009, ~2100):
-Importar `ShieldAlert` do lucide-react e usar para sinistros em vez de `AlertTriangle`/`Wrench`:
-```text
-// No EVENT_ICONS:
-'SINISTRO': <ShieldAlert size={14} className="text-rose-600" />,
+---
 
-// Na renderização de sinistro com manutenção (linha ~2100):
-// Usar borda roxa em vez de âmbar e ícone ShieldAlert
-<div className="absolute ... border-2 border-rose-300 ...">
-  <ShieldAlert size={14} className="text-rose-600" />
-</div>
-<div className="bg-rose-50/70 rounded-lg p-3 border-2 border-rose-200 ...">
-```
+## Resumo de Arquivos
 
-**Correção 5 - Informações repetidas** (painel de datas no lado direito, linhas ~2416-2425):
-Filtrar campos de data para mostrar apenas os não-nulos e não-duplicados. Remover campos como DataCriacao, DataSinistro individual quando já existe DataAberturaOcorrencia. Consolidar em 3 linhas: Abertura, Conclusão, Retirada.
-
-**Correção 6 - Valor no header de sinistros/ocorrências**:
-Para ocorrências de manutenção, o valor já aparece (linha 2123-2125). Para sinistros standalone, adicionar valor no header colapsável.
-
-## Ordem de Execução
-1. Fix build error (primaryMeta)
-2. Corrigir formatação de datas em multas
-3. Tratar valores zerados
-4. Adicionar totais nos headers colapsáveis
-5. Trocar ícone de sinistro
-6. Limpar informações repetidas nos cards
+| Acao | Arquivo |
+|---|---|
+| Criar | `src/pages/analytics/DREGerencialDashboard.tsx` |
+| Editar | `src/App.tsx` (adicionar rota) |
+| Editar | `src/pages/analytics/index.tsx` (link no hub) |
+| Editar | `src/pages/analytics/FleetIdleDashboard.tsx` (fix build) |
+| Deletar | ~20 arquivos ndjson/csv/cjs remanescentes |
 
