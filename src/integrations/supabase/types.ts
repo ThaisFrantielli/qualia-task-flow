@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      analise_contrato_regras_precificacao: {
+        Row: {
+          atualizado_em: string
+          contrato: string
+          criado_em: string
+          criado_por: string | null
+          custo_km: number
+          grupo: string
+          id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          contrato: string
+          criado_em?: string
+          criado_por?: string | null
+          custo_km?: number
+          grupo: string
+          id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          contrato?: string
+          criado_em?: string
+          criado_por?: string | null
+          custo_km?: number
+          grupo?: string
+          id?: string
+        }
+        Relationships: []
+      }
       analytics_page_tabs: {
         Row: {
           created_at: string | null

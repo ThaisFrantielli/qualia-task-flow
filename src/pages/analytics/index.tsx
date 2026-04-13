@@ -175,6 +175,12 @@ export default function AnalyticsIndex() {
                 title: 'Faturamento',
                 desc: 'KPIs, Evolução Mensal, Ranking de Clientes e Detalhamento de Faturas',
               },
+              {
+                to: '/analytics/dre',
+                icon: <FileText className="w-5 h-5" />,
+                title: 'DRE Gerencial',
+                desc: 'Demonstrativo de Resultados, EBITDA, Margens e Análise Contábil',
+              },
             ]}
           />
 

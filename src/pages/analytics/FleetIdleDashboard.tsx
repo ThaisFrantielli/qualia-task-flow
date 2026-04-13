@@ -515,9 +515,14 @@ export default function FleetIdleDashboard(): JSX.Element {
       .filter(v => getCategory(v.Status) === 'Improdutiva')
       .map((v: any) => ({
         Placa: String(v.Placa || '').trim().toUpperCase() || '-',
+        Chassi: String(v.Chassi || '-'),
         Modelo: String(v.Modelo || '-'),
         Status: String(v.Status || '-'),
-        DiasNoStatus: Math.max(0, parseNum(v.DiasNoStatus))
+        Patio: String(v.Patio || v.PatioAtual || '-'),
+        DiasNoStatus: Math.max(0, parseNum(v.DiasNoStatus)),
+        DataInicioStatus: String(v.DataInicioStatus || '-'),
+        UltimaMovimentacao: String(v.UltimaMovimentacao || '-'),
+        UsuarioMovimentacao: String(v.UsuarioMovimentacao || '-'),
       }))
       .sort((a, b) => b.DiasNoStatus - a.DiasNoStatus);
 
