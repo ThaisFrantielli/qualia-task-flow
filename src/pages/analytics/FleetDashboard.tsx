@@ -3827,6 +3827,7 @@ export default function FleetDashboard() {
                                         const detailData = filteredData.map(r => ({
                                             Placa: r.Placa,
                                             Modelo: r.Modelo,
+                                                    Chassi: r.Chassi || 'N/A',
                                             Status: r.Status,
                                             'Provedor Telemetria': r.ProvedorTelemetria || 'N/A',
                                             'Última Atualização': r.UltimaAtualizacaoTelemetria || 'N/A',
@@ -3856,6 +3857,7 @@ export default function FleetDashboard() {
                                     <tr>
                                         <th className="px-4 py-3">Placa</th>
                                         <th className="px-4 py-3">Modelo</th>
+                                        <th className="px-4 py-3">Chassi</th>
                                         <th className="px-4 py-3">Cliente</th>
                                         <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3">Provedor Telemetria</th>
@@ -3884,6 +3886,7 @@ export default function FleetDashboard() {
                                             <tr key={i} className="hover:bg-slate-50">
                                                 <td className="px-4 py-3 font-medium font-mono text-blue-600">{r.Placa}</td>
                                                 <td className="px-4 py-3 text-slate-700">{r.Modelo}</td>
+                                                    <td className="px-4 py-3 text-slate-700 text-xs">{r.Chassi || '-'}</td>
                                                 <td className="px-4 py-3 text-slate-700 text-xs">{r.NomeCliente}</td>
                                                 <td className="px-4 py-3">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.tipo === 'Produtiva' ? 'bg-emerald-100 text-emerald-700' :
