@@ -114,17 +114,39 @@ const TABLES = [
     {
         table: 'fat_carro_reserva',
         query: `
-            SELECT
-                ovt.*,
-                COALESCE(
-                    NULLIF(LTRIM(RTRIM(ovt.FornecedorReserva)), ''),
-                    NULLIF(LTRIM(RTRIM(ovt.FornecedorReservaOriginal)), ''),
-                    NULLIF(LTRIM(RTRIM(f.NomeFantasia)), ''),
-                    NULLIF(LTRIM(RTRIM(f.Nome)), '')
-                ) as FornecedorReservaEnriquecido
-            FROM OcorrenciasVeiculoTemporario ovt WITH (NOLOCK)
-            LEFT JOIN Fornecedores f WITH (NOLOCK)
-                ON f.IdFornecedor = ovt.IdFornecedorReserva
+            DECLARE @sql NVARCHAR(MAX);
+            IF EXISTS(
+                SELECT 1 FROM sys.columns
+                WHERE object_id = OBJECT_ID('dbo.OcorrenciasVeiculoTemporario')
+                  AND name = 'FornecedorReservaOriginal'
+            )
+                SET @sql = N'
+                    SELECT
+                        ovt.*,
+                        COALESCE(
+                            NULLIF(LTRIM(RTRIM(ovt.FornecedorReserva)), ''''),
+                            NULLIF(LTRIM(RTRIM(ovt.FornecedorReservaOriginal)), ''''),
+                            NULLIF(LTRIM(RTRIM(f.NomeFantasia)), ''''),
+                            NULLIF(LTRIM(RTRIM(f.Nome)), '''')
+                        ) as FornecedorReservaEnriquecido
+                    FROM OcorrenciasVeiculoTemporario ovt WITH (NOLOCK)
+                    LEFT JOIN Fornecedores f WITH (NOLOCK)
+                        ON f.IdFornecedor = ovt.IdFornecedorReserva
+                ';
+            ELSE
+                SET @sql = N'
+                    SELECT
+                        ovt.*,
+                        COALESCE(
+                            NULLIF(LTRIM(RTRIM(ovt.FornecedorReserva)), ''''),
+                            NULLIF(LTRIM(RTRIM(f.NomeFantasia)), ''''),
+                            NULLIF(LTRIM(RTRIM(f.Nome)), '''')
+                        ) as FornecedorReservaEnriquecido
+                    FROM OcorrenciasVeiculoTemporario ovt WITH (NOLOCK)
+                    LEFT JOIN Fornecedores f WITH (NOLOCK)
+                        ON f.IdFornecedor = ovt.IdFornecedorReserva
+                ';
+            EXEC sp_executesql @sql;
         `
     },
     { table: 'fat_itens_ordem_servico', query: `SELECT * FROM ItensOrdemServico WITH (NOLOCK)` },
