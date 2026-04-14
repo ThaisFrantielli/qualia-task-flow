@@ -68,6 +68,7 @@ interface FaturamentoRow {
   custoLiqMan:number; pctReembolsadoMan:number; custoKmLiqMan:number;
   totalSinistro:number;
   totalReembSin:number;
+  valorVeiculoFipe:number;
   qtdOsManutencao:number;
   qtdSinistros:number;
   custoLiqSin:number; pctReembolsadoSin:number;
@@ -131,6 +132,7 @@ interface VehicleRow {
   custoLiqMan:number; pctReembolsadoMan:number; custoKmLiqMan:number;
   totalSinistro:number;
   totalReembSin:number;
+  valorVeiculoFipe:number;
   qtdOsManutencao:number;
   qtdSinistros:number;
   custoLiqSin:number; pctReembolsadoSin:number;
@@ -192,10 +194,12 @@ interface ContractExecutiveSummary {
   riscoFinanceiroCriticos: number;
   totalSinistrosQtd: number;
   baseReembolsoSinistro: number;
+  baseAtivoFipeSinistro: number;
   sinistralidadeReembolso: number;
   sinistralidadeOperacional: number;
   indiceFrequenciaSinistro: number;
   gravidadeMediaSinistro: number;
+  indiceSeveridadeDano: number;
   proximosVencimentos90d: number;
   vencidos: number;
   sitLocTop: Array<{ label: string; count: number }>;
@@ -1371,6 +1375,15 @@ export default function AnaliseContrato() {
       const pctSinFat = faturamentoTotal > 0 ? totalSinistro / faturamentoTotal : 0;
       const pctCustoLiqSinFat = faturamentoTotal > 0 ? custoLiqSin / faturamentoTotal : 0;
       const pctManSinFat = faturamentoTotal > 0 ? totalManSin / faturamentoTotal : 0;
+      const valorVeiculoFipe = parseNum(
+        frAny?.ValorFipeAtual ?? frAny?.valorfipeatual ??
+        frAny?.ValorAtualFIPE ?? frAny?.valoratualfipe ??
+        frAny?.ValorFipe ?? frAny?.valorfipe ??
+        cAny?.ValorFipeAtual ?? cAny?.valorFipeAtual ??
+        cAny?.ValorAtualFIPE ?? cAny?.valoratualfipe ??
+        cAny?.ValorFipe ?? cAny?.valorfipe ??
+        cAny?.currentFipe ?? cAny?.valor_fipe ?? 0
+      );
 
       const faturamentoPrevisto = calcularFaturamentoPrevisto(c, cAny, idadeEmMeses);
       const ultimoPreco = ultimoValorLocacao(idLocacaoKey);
@@ -1420,7 +1433,7 @@ export default function AnaliseContrato() {
         custoManPrevisto, custoManRealizado, difManPrevReal, pctDifManPrevReal, custoManLiquido, difCustoManLiq, pctDifCustoManLiq,
         totalManutencao, ticketMedio, custoKmMan,
         totalReembMan, custoLiqMan, pctReembolsadoMan, custoKmLiqMan,
-        totalSinistro, totalReembSin, qtdOsManutencao: cntMan, qtdSinistros: totalQtdSinistros, custoLiqSin, pctReembolsadoSin,
+        totalSinistro, totalReembSin, valorVeiculoFipe, qtdOsManutencao: cntMan, qtdSinistros: totalQtdSinistros, custoLiqSin, pctReembolsadoSin,
         totalManSin, pctReembolsadoManSin,
         faturamentoTotal: faturamentoTotalExibido,
         faturamentoPrevisto: faturamentoPrevistoExibido, ultimoValorLocacao: ultimoPrecoExibido, diferencaFaturamento: diferencaFaturamentoExibida, projecaoFaturamento: projecaoFaturamentoExibida,
@@ -1633,10 +1646,12 @@ export default function AnaliseContrato() {
         riscoFinanceiroCriticos: 0,
         totalSinistrosQtd: 0,
         baseReembolsoSinistro: 0,
+        baseAtivoFipeSinistro: 0,
         sinistralidadeReembolso: 0,
         sinistralidadeOperacional: 0,
         indiceFrequenciaSinistro: 0,
         gravidadeMediaSinistro: 0,
+        indiceSeveridadeDano: 0,
         proximosVencimentos90d: 0,
         vencidos: 0,
         sitLocTop: [],
@@ -1673,6 +1688,7 @@ export default function AnaliseContrato() {
     const sinistroLiquido = sum(r => r.custoLiqSin);
     const totalSinistrosQtd = sum(r => r.qtdSinistros);
     const baseReembolsoSinistro = sinistroReembolso;
+    const baseAtivoFipeSinistro = sum(r => r.valorVeiculoFipe);
 
     const custoTotalBruto = manutencaoBruta + sinistroBruto;
     const reembolsoTotal = manutencaoReembolso + sinistroReembolso;
@@ -1685,6 +1701,7 @@ export default function AnaliseContrato() {
     const sinistralidadeOperacional = faturamentoTotal > 0 ? sinistroBruto / faturamentoTotal : 0;
     const indiceFrequenciaSinistro = totalVeiculos > 0 ? totalSinistrosQtd / totalVeiculos : 0;
     const gravidadeMediaSinistro = totalSinistrosQtd > 0 ? sinistroBruto / totalSinistrosQtd : 0;
+    const indiceSeveridadeDano = baseAtivoFipeSinistro > 0 ? sinistroBruto / baseAtivoFipeSinistro : NaN;
 
     const passagemCriticos = rows.filter(row => (
       (Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold ||
@@ -1767,10 +1784,12 @@ export default function AnaliseContrato() {
       riscoFinanceiroCriticos,
       totalSinistrosQtd,
       baseReembolsoSinistro,
+      baseAtivoFipeSinistro,
       sinistralidadeReembolso,
       sinistralidadeOperacional,
       indiceFrequenciaSinistro,
       gravidadeMediaSinistro,
+      indiceSeveridadeDano,
       proximosVencimentos90d,
       vencidos,
       sitLocTop: rankValues(rows.map(r => r.sitLoc)),
@@ -2341,6 +2360,7 @@ export default function AnaliseContrato() {
     let totalReembSin = 0;
     let totalCustoLiqSin = 0;
     let totalSinistrosQtd = 0;
+    let totalAtivoFipeSinistro = 0;
 
     let totalManSin = 0;
     let totalReembManSin = 0;
@@ -2366,6 +2386,7 @@ export default function AnaliseContrato() {
       totalReembSin += Number(row.totalReembSin) || 0;
       totalCustoLiqSin += Number(row.custoLiqSin) || 0;
       totalSinistrosQtd += Number(row.qtdSinistros) || 0;
+      totalAtivoFipeSinistro += Number(row.valorVeiculoFipe) || 0;
 
       totalManSin += Number(row.totalManSin) || 0;
       totalReembManSin += (Number(row.totalReembMan) || 0) + (Number(row.totalReembSin) || 0);
@@ -2387,6 +2408,7 @@ export default function AnaliseContrato() {
     const sinistralidadeReembolso = totalReembSin > 0 ? totalSinistro / totalReembSin : NaN;
     const indiceFrequenciaSinistro = totalVeiculos > 0 ? totalSinistrosQtd / totalVeiculos : 0;
     const gravidadeMediaSinistro = totalSinistrosQtd > 0 ? totalSinistro / totalSinistrosQtd : 0;
+    const indiceSeveridadeDano = totalAtivoFipeSinistro > 0 ? totalSinistro / totalAtivoFipeSinistro : NaN;
 
     const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
     const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
@@ -2421,6 +2443,7 @@ export default function AnaliseContrato() {
         { label: 'Sinistralidade Op.', value: fmtPct(sinistralidadeOperacional), sub: '(Custos sinistro / faturamento bruto)', icon: AlertTriangle, color: sinistralidadeOperacional > 0.7 ? 'text-rose-600' : sinistralidadeOperacional > 0.65 ? 'text-amber-600' : 'text-emerald-600' },
         { label: 'Índice de Frequência', value: fmtPct(indiceFrequenciaSinistro), sub: 'Nº sinistros / nº veículos', icon: Gauge, color: 'text-sky-600' },
         { label: 'Gravidade Média', value: fmtBRLZero(gravidadeMediaSinistro), sub: 'Custo total de sinistros / nº sinistros', icon: BarChart3, color: 'text-indigo-600' },
+        { label: 'Índice Severidade Dano', value: isFinite(indiceSeveridadeDano) ? fmtPct(indiceSeveridadeDano) : 'N/D', sub: totalAtivoFipeSinistro > 0 ? 'Custos de sinistro / valor FIPE da frota' : 'Sem base FIPE no dataset', icon: AlertTriangle, color: isFinite(indiceSeveridadeDano) && indiceSeveridadeDano > 0.15 ? 'text-rose-600' : isFinite(indiceSeveridadeDano) && indiceSeveridadeDano > 0.10 ? 'text-amber-600' : 'text-emerald-600' },
         { label: 'Sinistralidade (Reembolso)', value: isFinite(sinistralidadeReembolso) ? fmtPct(sinistralidadeReembolso) : 'N/D', sub: totalReembSin > 0 ? 'Custos de sinistro / reembolso de sinistro' : 'Sem base de reembolso no dataset', icon: ShieldAlert, color: isFinite(sinistralidadeReembolso) && sinistralidadeReembolso > 0.7 ? 'text-rose-600' : isFinite(sinistralidadeReembolso) && sinistralidadeReembolso > 0.65 ? 'text-amber-600' : 'text-emerald-600' },
         { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
@@ -2539,6 +2562,19 @@ export default function AnaliseContrato() {
       }, align:'right', w:150, sortGetter: r=>{
         const reembolso = Number(r.totalReembSin) || 0;
         return reembolso > 0 ? (Number(r.totalSinistro) || 0) / reembolso : -1;
+      } });
+      cols.push({ key:'indiceSeveridadeDano', label:'Severidade Dano', fmt:r=>{
+        const base = Number(r.valorVeiculoFipe) || 0;
+        if (!(base > 0)) return 'N/D';
+        return fmtPct((Number(r.totalSinistro) || 0) / base);
+      }, cls:r=>{
+        const base = Number(r.valorVeiculoFipe) || 0;
+        const val = base > 0 ? (Number(r.totalSinistro) || 0) / base : NaN;
+        if (!isFinite(val) || isNaN(val) || val === 0) return 'text-slate-400';
+        return val > 0.15 ? 'text-red-600 font-medium' : val > 0.10 ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium';
+      }, align:'right', w:130, sortGetter: r=>{
+        const base = Number(r.valorVeiculoFipe) || 0;
+        return base > 0 ? (Number(r.totalSinistro) || 0) / base : -1;
       } });
     } else if (tab === 'mansin') {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`manSin_${y}`, label:`Man+Sin ${y}`, fmt:r=>fmtBRL(r.years[y].man + r.years[y].sin), cls:r=>clrV(r.years[y].man + r.years[y].sin, false), align:'right', w:120, sortGetter: r=>r.years[y].man + r.years[y].sin }));
@@ -3129,7 +3165,8 @@ export default function AnaliseContrato() {
       'Sinistralidade (Reembolso) = (Custo de Sinistro / Reembolso de Sinistro) x 100.',
       'Sinistralidade Operacional = (Custo de Sinistro / Faturamento Bruto) x 100.',
       'Índice de Frequência = (Qtd. de Sinistros / Qtd. de Veículos) x 100.',
-      'Gravidade Média = Custo de Sinistro / Qtd. de Sinistros.'
+      'Gravidade Média = Custo de Sinistro / Qtd. de Sinistros.',
+      'Índice de Severidade do Dano = (Custo de Sinistro / Valor FIPE do Veículo) x 100.'
     ],
     mansin: [
       'Agrupa manutenção + sinistro para visão consolidada de risco/custo.',
@@ -3638,11 +3675,12 @@ export default function AnaliseContrato() {
 
             {resumoContratoData && resumoContratoData.rows.length > 0 && (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
                   {[
                     { label: 'CTO', value: resumoContratoData.contrato, cls: 'text-slate-900' },
                     { label: 'Cliente', value: resumoContratoData.clientePrincipal || '—', cls: 'text-slate-900' },
                     { label: 'Veiculos', value: resumoContratoData.totalVeiculos.toLocaleString('pt-BR'), cls: 'text-indigo-600' },
+                    { label: 'Placas', value: new Set(resumoContratoData.rows.map(r => canonicalPlate(r.placa || '')).filter(Boolean)).size.toLocaleString('pt-BR'), cls: 'text-indigo-700' },
                     { label: 'KM Medio', value: Math.round(resumoContratoData.kmMedio).toLocaleString('pt-BR'), cls: 'text-sky-600' },
                     { label: 'Faturamento', value: fmtBRL(resumoContratoData.faturamentoTotal), cls: 'text-teal-600' },
                     { label: 'Custo Liquido', value: fmtBRLZero(resumoContratoData.custoTotalLiquido), cls: 'text-rose-600' },
@@ -3690,6 +3728,7 @@ export default function AnaliseContrato() {
                       <div>Sinistralidade operacional: <span className={`font-semibold ${resumoContratoData.sinistralidadeOperacional > 0.7 ? 'text-rose-600' : resumoContratoData.sinistralidadeOperacional > 0.65 ? 'text-amber-600' : 'text-emerald-600'}`}>{fmtPct(resumoContratoData.sinistralidadeOperacional)}</span></div>
                       <div>Indice de frequencia: <span className="font-semibold text-slate-900">{fmtPct(resumoContratoData.indiceFrequenciaSinistro)}</span></div>
                       <div>Gravidade media sinistro: <span className="font-semibold text-slate-900">{fmtBRLZero(resumoContratoData.gravidadeMediaSinistro)}</span></div>
+                      <div>Indice severidade dano: <span className={`font-semibold ${isFinite(resumoContratoData.indiceSeveridadeDano) && resumoContratoData.indiceSeveridadeDano > 0.15 ? 'text-rose-600' : isFinite(resumoContratoData.indiceSeveridadeDano) && resumoContratoData.indiceSeveridadeDano > 0.10 ? 'text-amber-600' : 'text-emerald-600'}`}>{isFinite(resumoContratoData.indiceSeveridadeDano) ? fmtPct(resumoContratoData.indiceSeveridadeDano) : 'N/D'}</span></div>
                       <div>Sinistralidade (Reembolso): <span className={`font-semibold ${isFinite(resumoContratoData.sinistralidadeReembolso) && resumoContratoData.sinistralidadeReembolso > 0.7 ? 'text-rose-600' : isFinite(resumoContratoData.sinistralidadeReembolso) && resumoContratoData.sinistralidadeReembolso > 0.65 ? 'text-amber-600' : 'text-emerald-600'}`}>{isFinite(resumoContratoData.sinistralidadeReembolso) ? fmtPct(resumoContratoData.sinistralidadeReembolso) : 'N/D'}</span></div>
                     </div>
                   </div>
@@ -3699,6 +3738,83 @@ export default function AnaliseContrato() {
 
                 <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                   <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide">Detalhamento — Versão Resumida</div>
+                  <div className="px-3 py-3 border-b border-slate-200 bg-slate-50/70">
+                    {(() => {
+                      const rows = resumoContratoData?.rows ?? [];
+                      const sum = (picker: (r: VehicleRow) => number) => rows.reduce((acc, r) => acc + (Number(picker(r)) || 0), 0);
+                      const avg = (picker: (r: VehicleRow) => number) => rows.length > 0 ? sum(picker) / rows.length : 0;
+
+                      const totalPlacas = new Set(rows.map(r => canonicalPlate(r.placa || '')).filter(Boolean)).size;
+                      const totalPassagem = sum(r => r.passagemTotal);
+                      const totalDifPassagem = sum(r => r.diferencaPassagem);
+                      const totalCustoManReal = sum(r => r.custoManRealizado);
+                      const totalReembMan = sum(r => r.totalReembMan);
+                      const totalSinistro = sum(r => r.totalSinistro);
+                      const mediaPctReembSin = avg(r => r.pctReembolsadoSin);
+                      const mediaPctSinFat = avg(r => r.pctSinFat);
+                      const totalDifManPrevReal = sum(r => r.difManPrevReal);
+                      const mediaPctDifManPrevReal = avg(r => r.pctDifManPrevReal);
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Guia de Leitura dos Indicadores</div>
+                            <div className="text-[11px] text-slate-500">Placas consideradas: <span className="font-semibold text-slate-700">{totalPlacas.toLocaleString('pt-BR')}</span></div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+                            <div className="rounded-md border border-slate-200 bg-white p-2">
+                              <div className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">Passagem</div>
+                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
+                                <div>Pass. Real (Σ): <span className="font-semibold text-slate-800">{fmtNum(totalPassagem)}</span></div>
+                                <div>Dif Pass. (Σ): <span className={`font-semibold ${(totalDifPassagem > 0) ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtNominal(totalDifPassagem)}</span></div>
+                                <div className="text-slate-500">Crítico: Dif Pass. &gt; {fmtNum(passagemDiffAlertThreshold)} ou % Pass. &gt; {fmtPct(passagemPctAlertThreshold)}</div>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-slate-200 bg-white p-2">
+                              <div className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Manutenção</div>
+                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
+                                <div>Custo Man Real. (Σ): <span className="font-semibold text-slate-800">{fmtBRLZero(totalCustoManReal)}</span></div>
+                                <div>Reembolso Man. (Σ): <span className="font-semibold text-emerald-700">{fmtBRLZero(totalReembMan)}</span></div>
+                                <div>DIF Prev x Real (Σ): <span className={`font-semibold ${(totalDifManPrevReal < 0) ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtBRL(totalDifManPrevReal)}</span></div>
+                                <div>%dif (média): <span className={`font-semibold ${(mediaPctDifManPrevReal > 0) ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtPct(mediaPctDifManPrevReal)}</span></div>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-slate-200 bg-white p-2">
+                              <div className="text-[11px] font-semibold text-rose-700 uppercase tracking-wide">Sinistro</div>
+                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
+                                <div>Sinistro (Σ): <span className="font-semibold text-slate-800">{fmtBRLZero(totalSinistro)}</span></div>
+                                <div>% Reembolsável (média): <span className="font-semibold text-slate-800">{fmtPct(mediaPctReembSin)}</span></div>
+                                <div>% Fat (média): <span className="font-semibold text-slate-800">{fmtPct(mediaPctSinFat)}</span></div>
+                                <div>Sinistralidade Op.: <span className="font-semibold text-slate-800">{fmtPct(resumoContratoData.sinistralidadeOperacional)}</span></div>
+                                <div>Sinistralidade (Reembolso): <span className="font-semibold text-slate-800">{isFinite(resumoContratoData.sinistralidadeReembolso) ? fmtPct(resumoContratoData.sinistralidadeReembolso) : 'N/D'}</span></div>
+                                <div>Índice Frequência: <span className="font-semibold text-slate-800">{fmtPct(resumoContratoData.indiceFrequenciaSinistro)}</span></div>
+                                <div>Gravidade Média: <span className="font-semibold text-slate-800">{fmtBRLZero(resumoContratoData.gravidadeMediaSinistro)}</span></div>
+                                <div>Severidade Dano: <span className="font-semibold text-slate-800">{isFinite(resumoContratoData.indiceSeveridadeDano) ? fmtPct(resumoContratoData.indiceSeveridadeDano) : 'N/D'}</span></div>
+                              </div>
+                            </div>
+
+                            <div className="rounded-md border border-slate-200 bg-white p-2">
+                              <div className="text-[11px] font-semibold text-sky-700 uppercase tracking-wide">Status e Prazo</div>
+                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
+                                <div>Vencidos: <span className={`font-semibold ${resumoContratoData.vencidos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.vencidos.toLocaleString('pt-BR')}</span></div>
+                                <div>Vencem em 90d: <span className={`font-semibold ${resumoContratoData.proximosVencimentos90d > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{resumoContratoData.proximosVencimentos90d.toLocaleString('pt-BR')}</span></div>
+                                <div>Passagens críticas: <span className={`font-semibold ${resumoContratoData.passagemCriticos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.passagemCriticos.toLocaleString('pt-BR')}</span></div>
+                                <div>Risco financeiro crítico: <span className={`font-semibold ${resumoContratoData.riscoFinanceiroCriticos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.riscoFinanceiroCriticos.toLocaleString('pt-BR')}</span></div>
+                                <div className="text-slate-500">Leitura da tabela: Sit. Locação + Vencimento + Status + Motivo.</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-[11px] text-slate-500">
+                            Σ = soma das linhas | média = média das linhas filtradas | indicadores em vermelho sinalizam desvio/atenção.
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div className="px-3 py-2 border-b border-slate-200 bg-white">
                     {(() => {
                       const rows = resumoContratoData && resumoContratoData.rows ? [...resumoContratoData.rows] : [];
@@ -3947,10 +4063,16 @@ export default function AnaliseContrato() {
                             );
                           });
 
+                          const totalPlacasFiltradas = new Set(
+                            filteredRows
+                              .map(it => canonicalPlate((it.row as VehicleRow).placa || ''))
+                              .filter(Boolean)
+                          ).size;
+
                           // linha de totais
                           rowsElems.push(
                             <tr key="_totals" className="border-t border-slate-200 bg-slate-50 font-semibold">
-                              <td className="px-3 py-2">Totais</td>
+                              <td className="px-3 py-2">Totais (Placas: {totalPlacasFiltradas.toLocaleString('pt-BR')})</td>
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2 text-right text-slate-800">—</td>
                               <td className="px-3 py-2 text-right text-slate-800">{totals.passagemTotal.toLocaleString('pt-BR')}</td>
