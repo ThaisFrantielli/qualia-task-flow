@@ -3918,8 +3918,8 @@ export default function AnaliseContrato() {
                           <th colSpan={1} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Operação</th>
                           <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Passagem</th>
                           <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Custo KM</th>
-                          <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Manutenção</th>
-                          <th colSpan={8} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Sinistro</th>
+                          <th colSpan={5} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Manutenção</th>
+                          <th colSpan={9} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Sinistro</th>
                           <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300">Status e Prazo</th>
                         </tr>
                         <tr className="sticky top-[27px] z-20 bg-slate-100">
@@ -3937,12 +3937,15 @@ export default function AnaliseContrato() {
                           <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('custoKmLiqMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Líq. {resumoDetailSortIcon('custoKmLiqMan')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoManRealizado')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo Man Real. {resumoDetailSortIcon('custoManRealizado')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reemb. Man. {resumoDetailSortIcon('totalReembMan')}</button></th>
-                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reemb Man {resumoDetailSortIcon('pctReembolsadoMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reemb Man {resumoDetailSortIcon('pctReembolsadoMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctManFat')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Man/Fat {resumoDetailSortIcon('pctManFat')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('pctCustoLiqManFat')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Liq Man/Fat {resumoDetailSortIcon('pctCustoLiqManFat')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sinistro {resumoDetailSortIcon('totalSinistro')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembSin')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reemb. Sin. {resumoDetailSortIcon('totalReembSin')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoSin')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reembolsável {resumoDetailSortIcon('pctReembolsadoSin')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctCustoLiqSinFat')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sin Líq %Fat {resumoDetailSortIcon('pctCustoLiqSinFat')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('sinistralidadeOperacional')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sin Op. {resumoDetailSortIcon('sinistralidadeOperacional')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('qtdSinistros')} className="flex items-center gap-1 justify-end hover:text-slate-900">Qtd Sin. {resumoDetailSortIcon('qtdSinistros')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('indiceFrequenciaSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Índ. Freq. {resumoDetailSortIcon('indiceFrequenciaSinistro')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('gravidadeMediaSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Gravidade {resumoDetailSortIcon('gravidadeMediaSinistro')}</button></th>
                           <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('indiceSeveridadeDano')} className="flex items-center gap-1 justify-end hover:text-slate-900">Severidade {resumoDetailSortIcon('indiceSeveridadeDano')}</button></th>
@@ -3997,6 +4000,8 @@ export default function AnaliseContrato() {
                               case 'totalReembSin': return Number(row.totalReembSin) || 0;
                               case 'pctReembolsadoSin': return Number(row.pctReembolsadoSin) || 0;
                               case 'pctCustoLiqSinFat': return Number(row.pctCustoLiqSinFat) || 0;
+                              case 'pctManFat': return Number(row.pctManFat) || 0;
+                              case 'pctCustoLiqManFat': return Number(row.pctCustoLiqManFat) || 0;
                               case 'sinistralidadeOperacional': {
                                 const base = Number(row.faturamentoTotal) || 0;
                                 return base > 0 ? (Number(row.totalSinistro) || 0) / base : -1;
@@ -4014,6 +4019,7 @@ export default function AnaliseContrato() {
                                 const base = Number(row.valorVeiculoFipe) || 0;
                                 return base > 0 ? (Number(row.totalSinistro) || 0) / base : -1;
                               }
+                              case 'qtdSinistros': return Number(row.qtdSinistros) || 0;
                               case 'sitLoc': return item.statusLocacao;
                               case 'vencimentoContrato': return parseDateFlexible(row.vencimentoContrato)?.getTime() || 0;
                               case 'statusResumo': return statusOrder[item.statusInfo.status as HealthStatus] ?? 0;
@@ -4071,6 +4077,7 @@ export default function AnaliseContrato() {
                             acc.custoLiqSin += Number(r.custoLiqSin) || 0;
                             acc.faturamentoTotal += Number(r.faturamentoTotal) || 0;
                             acc.qtdSinistros += Number(r.qtdSinistros) || 0;
+                            acc.custoLiqMan += Number(r.custoLiqMan) || 0;
                             acc.valorVeiculoFipe += Number(r.valorVeiculoFipe) || 0;
                             acc.pctReembolsadoSin += Number(r.pctReembolsadoSin) || 0;
                             acc.idadeEmMeses += Number(r.idadeEmMeses) || 0;
@@ -4091,6 +4098,7 @@ export default function AnaliseContrato() {
                             custoLiqSin: 0,
                             faturamentoTotal: 0,
                             qtdSinistros: 0,
+                            custoLiqMan: 0,
                             valorVeiculoFipe: 0,
                             pctReembolsadoSin: 0,
                             idadeEmMeses: 0,
@@ -4150,12 +4158,15 @@ export default function AnaliseContrato() {
                                 <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtKM2(r.custoKmLiqMan)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.custoManRealizado)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalReembMan)}</td>
-                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtPct(r.pctReembolsadoMan)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtPct(r.pctReembolsadoMan)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtPct(r.pctManFat)}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtPct(r.pctCustoLiqManFat)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalSinistro)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalReembSin)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtPct(r.pctReembolsadoSin)}</td>
                                 <td className={`px-3 py-2 text-right ${sinLiqFatClass}`}>{fmtPct(r.pctCustoLiqSinFat)}</td>
                                 <td className={`px-3 py-2 text-right ${sinOpClass}`}>{isFinite(sinistralidadeOperacional) ? fmtPct(sinistralidadeOperacional) : 'N/D'}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNum(Number(r.qtdSinistros) || 0)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNum(indiceFrequenciaSinistro)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{isFinite(gravidadeMediaSinistro) ? fmtBRLZero(gravidadeMediaSinistro) : 'N/D'}</td>
                                 <td className={`px-3 py-2 text-right border-r border-slate-200 ${severidadeClass}`}>{isFinite(indiceSeveridadeDano) ? fmtPct(indiceSeveridadeDano) : 'N/D'}</td>
@@ -4184,6 +4195,8 @@ export default function AnaliseContrato() {
                           const totalPctReembSin = totals.totalSinistro > 0 ? totals.totalReembSin / totals.totalSinistro : 0;
                           const totalSinLiqPctFat = totals.faturamentoTotal > 0 ? totals.custoLiqSin / totals.faturamentoTotal : NaN;
                           const totalSinistralidadeOperacional = totals.faturamentoTotal > 0 ? totals.totalSinistro / totals.faturamentoTotal : NaN;
+                          const totalPctManFat = totals.faturamentoTotal > 0 ? totals.custoManRealizado / totals.faturamentoTotal : NaN;
+                          const totalPctCustoLiqManFat = totals.faturamentoTotal > 0 ? totals.custoLiqMan / totals.faturamentoTotal : NaN;
                           const totalIndiceFrequenciaSinistro = filteredRows.length > 0 ? totals.qtdSinistros / filteredRows.length : 0;
                           const totalGravidadeMediaSinistro = totals.qtdSinistros > 0 ? totals.totalSinistro / totals.qtdSinistros : NaN;
                           const totalIndiceSeveridadeDano = totals.valorVeiculoFipe > 0 ? totals.totalSinistro / totals.valorVeiculoFipe : NaN;
@@ -4205,12 +4218,15 @@ export default function AnaliseContrato() {
                               <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalCustoKmLiqMedio) ? fmtKM2(totalCustoKmLiqMedio) : '—'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.custoManRealizado)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalReembMan)}</td>
-                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{fmtPct(totalPctReembMan)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalPctReembMan)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalPctManFat) ? fmtPct(totalPctManFat) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalPctCustoLiqManFat) ? fmtPct(totalPctCustoLiqManFat) : '—'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalSinistro)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalReembSin)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalPctReembSin)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalSinLiqPctFat) ? fmtPct(totalSinLiqPctFat) : 'N/D'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalSinistralidadeOperacional) ? fmtPct(totalSinistralidadeOperacional) : 'N/D'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{totals.qtdSinistros.toLocaleString('pt-BR')}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalIndiceFrequenciaSinistro)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalGravidadeMediaSinistro) ? fmtBRLZero(totalGravidadeMediaSinistro) : 'N/D'}</td>
                               <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalIndiceSeveridadeDano) ? fmtPct(totalIndiceSeveridadeDano) : 'N/D'}</td>
