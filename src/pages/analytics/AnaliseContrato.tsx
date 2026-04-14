@@ -3920,14 +3920,13 @@ export default function AnaliseContrato() {
                           <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Custo KM</th>
                           <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Manutenção</th>
                           <th colSpan={8} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Sinistro</th>
-                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Desvio Prev. x Real</th>
                           <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300">Status e Prazo</th>
                         </tr>
                         <tr className="sticky top-[27px] z-20 bg-slate-100">
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('placa')} className="flex items-center gap-1 hover:text-slate-900">Placa {resumoDetailSortIcon('placa')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('grupo')} className="flex items-center gap-1 hover:text-slate-900">Grupo {resumoDetailSortIcon('grupo')}</button></th>
-                          <th className="text-left px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo {resumoDetailSortIcon('modelo')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('idadeEmMeses')} className="flex items-center gap-1 justify-end hover:text-slate-900">Idade {resumoDetailSortIcon('idadeEmMeses')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo {resumoDetailSortIcon('modelo')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('idadeEmMeses')} className="flex items-center gap-1 justify-end hover:text-slate-900">Idade {resumoDetailSortIcon('idadeEmMeses')}</button></th>
                           <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('kmAtual')} className="flex items-center gap-1 justify-end hover:text-slate-900">KM {resumoDetailSortIcon('kmAtual')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('passagemTotal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Pass. Real {resumoDetailSortIcon('passagemTotal')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('passagemIdeal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Pass. Prev. {resumoDetailSortIcon('passagemIdeal')}</button></th>
@@ -3935,7 +3934,7 @@ export default function AnaliseContrato() {
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Man. {resumoDetailSortIcon('custoKmMan')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmManual')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Prev. {resumoDetailSortIcon('custoKmManual')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('difCustoKm')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Custo KM {resumoDetailSortIcon('difCustoKm')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmLiqMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Líq. {resumoDetailSortIcon('custoKmLiqMan')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('custoKmLiqMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Líq. {resumoDetailSortIcon('custoKmLiqMan')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoManRealizado')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo Man Real. {resumoDetailSortIcon('custoManRealizado')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reemb. Man. {resumoDetailSortIcon('totalReembMan')}</button></th>
                           <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reemb Man {resumoDetailSortIcon('pctReembolsadoMan')}</button></th>
@@ -3947,8 +3946,6 @@ export default function AnaliseContrato() {
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('indiceFrequenciaSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Índ. Freq. {resumoDetailSortIcon('indiceFrequenciaSinistro')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('gravidadeMediaSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Gravidade {resumoDetailSortIcon('gravidadeMediaSinistro')}</button></th>
                           <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('indiceSeveridadeDano')} className="flex items-center gap-1 justify-end hover:text-slate-900">Severidade {resumoDetailSortIcon('indiceSeveridadeDano')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('difManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Prev x Real {resumoDetailSortIcon('difManPrevReal')}</button></th>
-                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('pctDifManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Desvio {resumoDetailSortIcon('pctDifManPrevReal')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('sitLoc')} className="flex items-center gap-1 hover:text-slate-900">Sit. Locação {resumoDetailSortIcon('sitLoc')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('vencimentoContrato')} className="flex items-center gap-1 hover:text-slate-900">Vencimento {resumoDetailSortIcon('vencimentoContrato')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('statusResumo')} className="flex items-center gap-1 hover:text-slate-900">Status {resumoDetailSortIcon('statusResumo')}</button></th>
@@ -4017,8 +4014,6 @@ export default function AnaliseContrato() {
                                 const base = Number(row.valorVeiculoFipe) || 0;
                                 return base > 0 ? (Number(row.totalSinistro) || 0) / base : -1;
                               }
-                              case 'difManPrevReal': return Number(row.difManPrevReal) || 0;
-                              case 'pctDifManPrevReal': return Number(row.pctDifManPrevReal) || 0;
                               case 'sitLoc': return item.statusLocacao;
                               case 'vencimentoContrato': return parseDateFlexible(row.vencimentoContrato)?.getTime() || 0;
                               case 'statusResumo': return statusOrder[item.statusInfo.status as HealthStatus] ?? 0;
@@ -4078,8 +4073,6 @@ export default function AnaliseContrato() {
                             acc.qtdSinistros += Number(r.qtdSinistros) || 0;
                             acc.valorVeiculoFipe += Number(r.valorVeiculoFipe) || 0;
                             acc.pctReembolsadoSin += Number(r.pctReembolsadoSin) || 0;
-                            acc.difManPrevReal += Number(r.difManPrevReal) || 0;
-                            acc.pctDifManPrevReal += Number(r.pctDifManPrevReal) || 0;
                             acc.idadeEmMeses += Number(r.idadeEmMeses) || 0;
                             return acc;
                           }, {
@@ -4100,8 +4093,6 @@ export default function AnaliseContrato() {
                             qtdSinistros: 0,
                             valorVeiculoFipe: 0,
                             pctReembolsadoSin: 0,
-                            difManPrevReal: 0,
-                            pctDifManPrevReal: 0,
                             idadeEmMeses: 0,
                           });
 
@@ -4109,7 +4100,6 @@ export default function AnaliseContrato() {
                             const r = item.row as VehicleRow;
                             const status = item.statusInfo.status;
                             const passagemDesvio = (Number(r.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(r.pctPassagem) || 0) > passagemPctAlertThreshold;
-                            const manutencaoDesvio = (Number(r.difManPrevReal) || 0) < 0 || (Number(r.pctDifManPrevReal) || 0) > 0;
                             const difCustoKm = r.custoKmManual == null ? NaN : (Number(r.custoKmMan) || 0) - (Number(r.custoKmManual) || 0);
                             const sinistralidadeOperacional = (Number(r.faturamentoTotal) || 0) > 0 ? (Number(r.totalSinistro) || 0) / (Number(r.faturamentoTotal) || 0) : NaN;
                             const indiceFrequenciaSinistro = Number(r.qtdSinistros) || 0;
@@ -4118,7 +4108,7 @@ export default function AnaliseContrato() {
                             const vencido = Number.isFinite(r.prazoRestDays) && r.prazoRestDays < 0;
                             const vence90d = Number.isFinite(r.prazoRestDays) && r.prazoRestDays >= 0 && r.prazoRestDays <= 90;
                             const placaClass = 'px-3 py-2 font-medium text-slate-800';
-                            const modeloClass = 'px-3 py-2 text-slate-600 border-r border-slate-200';
+                            const modeloClass = 'px-3 py-2 text-slate-600';
                             const grupoClass = 'px-3 py-2 text-slate-600';
                             const statusClass = status === 'Critico' ? 'text-rose-700 font-semibold' : status === 'Atencao' ? 'text-amber-700 font-semibold' : 'text-emerald-700 font-semibold';
                             const numClass = 'text-slate-700';
@@ -4148,9 +4138,9 @@ export default function AnaliseContrato() {
                               <tr key={`${r.placa}-${r.contrato}`} className={`border-t border-slate-100 hover:bg-slate-50`}>
                                 <td className={placaClass}>{r.placa || '—'}</td>
                                 <td className={grupoClass}>{r.grupo || '—'}</td>
-                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtInt(r.idadeEmMeses)}</td>
                                 <td className={modeloClass}>{r.modelo || '—'}</td>
-                                <td className={`px-3 py-2 text-right ${numClass}`}>{r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—'}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtInt(r.idadeEmMeses)}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—'}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemTotal)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemIdeal)}</td>
                                 <td className={`px-3 py-2 text-right border-r border-slate-200 ${passagemDesvio ? desvioClass : numClass}`}>{fmtNominal(r.diferencaPassagem)}</td>
@@ -4169,8 +4159,6 @@ export default function AnaliseContrato() {
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNum(indiceFrequenciaSinistro)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{isFinite(gravidadeMediaSinistro) ? fmtBRLZero(gravidadeMediaSinistro) : 'N/D'}</td>
                                 <td className={`px-3 py-2 text-right border-r border-slate-200 ${severidadeClass}`}>{isFinite(indiceSeveridadeDano) ? fmtPct(indiceSeveridadeDano) : 'N/D'}</td>
-                                <td className={`px-3 py-2 text-right ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtBRL(r.difManPrevReal)}</td>
-                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtPct(r.pctDifManPrevReal)}</td>
                                 <td className="px-3 py-2 whitespace-nowrap text-slate-700">{item.statusLocacao}</td>
                                 <td className={`px-3 py-2 whitespace-nowrap ${vencimentoClass}`}>{item.vencimentoLabel}</td>
                                 <td className={`px-3 py-2 whitespace-nowrap ${statusClass}`}>{item.statusLabel}</td>
@@ -4205,8 +4193,8 @@ export default function AnaliseContrato() {
                             <tr key="_totals" className="border-t border-slate-200 bg-slate-50 font-semibold">
                               <td className="px-3 py-2">Totais (Placas: {totalPlacasFiltradas.toLocaleString('pt-BR')})</td>
                               <td className="px-3 py-2">—</td>
-                              <td className="px-3 py-2 border-r border-slate-200">—</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalIdadeMedia) ? fmtInt(totalIdadeMedia) : '—'}</td>
+                              <td className="px-3 py-2">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalIdadeMedia) ? fmtInt(totalIdadeMedia) : '—'}</td>
                               <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">—</td>
                               <td className="px-3 py-2 text-right text-slate-800">{totals.passagemTotal.toLocaleString('pt-BR')}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{totals.passagemIdeal.toLocaleString('pt-BR')}</td>
@@ -4226,8 +4214,6 @@ export default function AnaliseContrato() {
                               <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalIndiceFrequenciaSinistro)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalGravidadeMediaSinistro) ? fmtBRLZero(totalGravidadeMediaSinistro) : 'N/D'}</td>
                               <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalIndiceSeveridadeDano) ? fmtPct(totalIndiceSeveridadeDano) : 'N/D'}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{fmtBRL(totals.difManPrevReal)}</td>
-                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{(filteredRows.length > 0) ? fmtPct(totals.pctDifManPrevReal / filteredRows.length) : fmtPct(0)}</td>
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2" />
