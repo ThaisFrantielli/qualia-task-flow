@@ -64,7 +64,7 @@ const LoginPage = () => {
 
     // URL completa e explícita para redirecionamento
     const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
-      redirectTo: 'https://qualityconecta.vercel.app/reset-password',
+      redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) {
