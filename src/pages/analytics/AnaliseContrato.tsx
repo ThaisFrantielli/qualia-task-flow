@@ -3738,83 +3738,6 @@ export default function AnaliseContrato() {
 
                 <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                   <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide">Detalhamento — Versão Resumida</div>
-                  <div className="px-3 py-3 border-b border-slate-200 bg-slate-50/70">
-                    {(() => {
-                      const rows = resumoContratoData?.rows ?? [];
-                      const sum = (picker: (r: VehicleRow) => number) => rows.reduce((acc, r) => acc + (Number(picker(r)) || 0), 0);
-                      const avg = (picker: (r: VehicleRow) => number) => rows.length > 0 ? sum(picker) / rows.length : 0;
-
-                      const totalPlacas = new Set(rows.map(r => canonicalPlate(r.placa || '')).filter(Boolean)).size;
-                      const totalPassagem = sum(r => r.passagemTotal);
-                      const totalDifPassagem = sum(r => r.diferencaPassagem);
-                      const totalCustoManReal = sum(r => r.custoManRealizado);
-                      const totalReembMan = sum(r => r.totalReembMan);
-                      const totalSinistro = sum(r => r.totalSinistro);
-                      const mediaPctReembSin = avg(r => r.pctReembolsadoSin);
-                      const mediaPctSinFat = avg(r => r.pctSinFat);
-                      const totalDifManPrevReal = sum(r => r.difManPrevReal);
-                      const mediaPctDifManPrevReal = avg(r => r.pctDifManPrevReal);
-
-                      return (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Guia de Leitura dos Indicadores</div>
-                            <div className="text-[11px] text-slate-500">Placas consideradas: <span className="font-semibold text-slate-700">{totalPlacas.toLocaleString('pt-BR')}</span></div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
-                            <div className="rounded-md border border-slate-200 bg-white p-2">
-                              <div className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">Passagem</div>
-                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
-                                <div>Pass. Real (Σ): <span className="font-semibold text-slate-800">{fmtNum(totalPassagem)}</span></div>
-                                <div>Dif Pass. (Σ): <span className={`font-semibold ${(totalDifPassagem > 0) ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtNominal(totalDifPassagem)}</span></div>
-                                <div className="text-slate-500">Crítico: Dif Pass. &gt; {fmtNum(passagemDiffAlertThreshold)} ou % Pass. &gt; {fmtPct(passagemPctAlertThreshold)}</div>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-slate-200 bg-white p-2">
-                              <div className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Manutenção</div>
-                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
-                                <div>Custo Man Real. (Σ): <span className="font-semibold text-slate-800">{fmtBRLZero(totalCustoManReal)}</span></div>
-                                <div>Reembolso Man. (Σ): <span className="font-semibold text-emerald-700">{fmtBRLZero(totalReembMan)}</span></div>
-                                <div>DIF Prev x Real (Σ): <span className={`font-semibold ${(totalDifManPrevReal < 0) ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtBRL(totalDifManPrevReal)}</span></div>
-                                <div>%dif (média): <span className={`font-semibold ${(mediaPctDifManPrevReal > 0) ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtPct(mediaPctDifManPrevReal)}</span></div>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-slate-200 bg-white p-2">
-                              <div className="text-[11px] font-semibold text-rose-700 uppercase tracking-wide">Sinistro</div>
-                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
-                                <div>Sinistro (Σ): <span className="font-semibold text-slate-800">{fmtBRLZero(totalSinistro)}</span></div>
-                                <div>% Reembolsável (média): <span className="font-semibold text-slate-800">{fmtPct(mediaPctReembSin)}</span></div>
-                                <div>% Fat (média): <span className="font-semibold text-slate-800">{fmtPct(mediaPctSinFat)}</span></div>
-                                <div>Sinistralidade Op.: <span className="font-semibold text-slate-800">{fmtPct(resumoContratoData.sinistralidadeOperacional)}</span></div>
-                                <div>Sinistralidade (Reembolso): <span className="font-semibold text-slate-800">{isFinite(resumoContratoData.sinistralidadeReembolso) ? fmtPct(resumoContratoData.sinistralidadeReembolso) : 'N/D'}</span></div>
-                                <div>Índice Frequência: <span className="font-semibold text-slate-800">{fmtPct(resumoContratoData.indiceFrequenciaSinistro)}</span></div>
-                                <div>Gravidade Média: <span className="font-semibold text-slate-800">{fmtBRLZero(resumoContratoData.gravidadeMediaSinistro)}</span></div>
-                                <div>Severidade Dano: <span className="font-semibold text-slate-800">{isFinite(resumoContratoData.indiceSeveridadeDano) ? fmtPct(resumoContratoData.indiceSeveridadeDano) : 'N/D'}</span></div>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-slate-200 bg-white p-2">
-                              <div className="text-[11px] font-semibold text-sky-700 uppercase tracking-wide">Status e Prazo</div>
-                              <div className="mt-1 space-y-0.5 text-xs text-slate-600">
-                                <div>Vencidos: <span className={`font-semibold ${resumoContratoData.vencidos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.vencidos.toLocaleString('pt-BR')}</span></div>
-                                <div>Vencem em 90d: <span className={`font-semibold ${resumoContratoData.proximosVencimentos90d > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{resumoContratoData.proximosVencimentos90d.toLocaleString('pt-BR')}</span></div>
-                                <div>Passagens críticas: <span className={`font-semibold ${resumoContratoData.passagemCriticos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.passagemCriticos.toLocaleString('pt-BR')}</span></div>
-                                <div>Risco financeiro crítico: <span className={`font-semibold ${resumoContratoData.riscoFinanceiroCriticos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.riscoFinanceiroCriticos.toLocaleString('pt-BR')}</span></div>
-                                <div className="text-slate-500">Leitura da tabela: Sit. Locação + Vencimento + Status + Motivo.</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-[11px] text-slate-500">
-                            Σ = soma das linhas | média = média das linhas filtradas | indicadores em vermelho sinalizam desvio/atenção.
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
                   <div className="px-3 py-2 border-b border-slate-200 bg-white">
                     {(() => {
                       const rows = resumoContratoData && resumoContratoData.rows ? [...resumoContratoData.rows] : [];
@@ -3907,6 +3830,15 @@ export default function AnaliseContrato() {
                   <div className="overflow-auto">
                     <table className="min-w-full text-xs">
                       <thead className="bg-slate-100 text-slate-600">
+                        <tr className="bg-slate-200 text-slate-700 text-[10px] uppercase tracking-wide">
+                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300">Identificação</th>
+                          <th colSpan={1} className="px-3 py-1.5 text-center border-b border-slate-300">Operação</th>
+                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300">Passagem</th>
+                          <th colSpan={5} className="px-3 py-1.5 text-center border-b border-slate-300">Manutenção</th>
+                          <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300">Sinistro</th>
+                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300">Previsto x Real</th>
+                          <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300">Status e Prazo</th>
+                        </tr>
                         <tr>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('placa')} className="flex items-center gap-1 hover:text-slate-900">Placa {resumoDetailSortIcon('placa')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo {resumoDetailSortIcon('modelo')}</button></th>
