@@ -101,6 +101,12 @@ export default function AnalyticsIndex() {
                 desc: 'Contratos de Locação, Estratégias e Projeções',
               },
               {
+                to: '/analytics/analise-contrato',
+                icon: <BarChart3 className="w-5 h-5" />,
+                title: 'Análise de Contrato',
+                desc: 'Resumo executivo por contrato comercial com visão de risco e rentabilidade',
+              },
+              {
                 to: '/analytics/previsao-encerramento',
                 icon: <FileText className="w-5 h-5" />,
                 title: 'Previsão de Encerramento',

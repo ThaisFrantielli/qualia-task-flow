@@ -82,6 +82,7 @@ interface VehicleRow {
   prazoRestDays:number;
   sitLoc:string; sitCTO:string;
   tipoContrato:string;
+  isCortesia:boolean;
   franquiaBanco:number; custoKmManual:number | null;
   passagemTotal:number; passagemIdeal:number; diferencaPassagem:number; pctPassagem:number;
   custoManPrevisto:number; custoManRealizado:number; difManPrevReal:number; pctDifManPrevReal:number; custoManLiquido:number; difCustoManLiq:number; pctDifCustoManLiq:number;
@@ -119,6 +120,76 @@ interface FaturamentoDetailRow {
   valor: number;
   descricao: string;
 }
+
+interface ContractExecutiveSummary {
+  contrato: string;
+  rows: VehicleRow[];
+  isCortesia: boolean;
+  clientes: string[];
+  clientePrincipal: string;
+  grupos: string[];
+  tiposContrato: string[];
+  inicioContrato: Date | null;
+  fimContrato: Date | null;
+  totalVeiculos: number;
+  kmMedio: number;
+  faturamentoTotal: number;
+  faturamentoPrevisto: number;
+  projecaoFaturamento: number;
+  manutencaoBruta: number;
+  manutencaoReembolso: number;
+  manutencaoLiquida: number;
+  sinistroBruto: number;
+  sinistroReembolso: number;
+  sinistroLiquido: number;
+  custoTotalBruto: number;
+  reembolsoTotal: number;
+  custoTotalLiquido: number;
+  pctRecuperacao: number;
+  impactoLiqSobreFat: number;
+  impactoBrutoSobreFat: number;
+  passagemCriticos: number;
+  riscoFinanceiroCriticos: number;
+  proximosVencimentos90d: number;
+  vencidos: number;
+  sitLocTop: Array<{ label: string; count: number }>;
+  sitCTOTop: Array<{ label: string; count: number }>;
+  topOfensores: Array<{ placa: string; modelo: string; custo: number; perc: number; man: number; sin: number }>;
+  recomendacoes: string[];
+  status: 'Saudavel' | 'Atencao' | 'Critico';
+}
+
+type HealthStatus = ContractExecutiveSummary['status'];
+
+interface CtoLocacaoSummary {
+  idLocacao: string;
+  isCortesia: boolean;
+  clientePrincipal: string;
+  totalVeiculos: number;
+  kmMedio: number;
+  faturamentoTotal: number;
+  custoLiquido: number;
+  pctRecuperacao: number;
+  impactoLiqFat: number;
+  sitLocTop: string;
+  status: HealthStatus;
+}
+
+interface CtoResumoListRow {
+  cto: string;
+  isCortesia: boolean;
+  clientePrincipal: string;
+  totalVeiculos: number;
+  kmMedio: number;
+  faturamentoTotal: number;
+  custoLiquido: number;
+  pctRecuperacao: number;
+  impactoLiqFat: number;
+  status: HealthStatus;
+  locacoes: CtoLocacaoSummary[];
+}
+
+type CtoListSortKey = 'cto' | 'cliente' | 'veiculos' | 'kmMedio' | 'faturamento' | 'custoLiquido' | 'pctRecuperacao' | 'impactoLiqFat' | 'status';
 
 type DetailMode = 'manutencao' | 'sinistro' | 'mansin' | 'faturamento';
 
@@ -594,8 +665,11 @@ const TABS = [
   { key:'sinistro',   label:'Sinistro + Reembolso',    icon:ShieldAlert, color:'bg-red-600',    hdr:'bg-red-700' },
   { key:'mansin',     label:'Man + Sinistro',          icon:BarChart3,   color:'bg-purple-600', hdr:'bg-purple-700' },
   { key:'faturamento',label:'Faturamento',             icon:DollarSign,  color:'bg-teal-600',   hdr:'bg-teal-700' },
+  { key:'resumo',     label:'Resumo Contrato',         icon:Search,      color:'bg-slate-700',  hdr:'bg-slate-700' },
+  { key:'listagemCto',label:'Listagem CTO',            icon:BarChart3,   color:'bg-slate-700',  hdr:'bg-slate-700' },
 ] as const;
 type TabKey = typeof TABS[number]['key'];
+const EXPORTABLE_TABS = TABS.filter(tab => tab.key !== 'resumo' && tab.key !== 'listagemCto');
 
 // ── Main Component ───────────────────────────────────────────────
 export default function AnaliseContrato() {
@@ -612,6 +686,8 @@ export default function AnaliseContrato() {
     sinistro: false,
     mansin: false,
     faturamento: false,
+    resumo: false,
+    listagemCto: false,
   });
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>('all');
@@ -644,11 +720,15 @@ export default function AnaliseContrato() {
 
   const [sortKey,  setSortKey]  = useState<string>('cliente');
   const [sortDir,  setSortDir]  = useState<'asc'|'desc'>('asc');
+  const [ctoListSortKey, setCtoListSortKey] = useState<CtoListSortKey>('cto');
+  const [ctoListSortDir, setCtoListSortDir] = useState<'asc'|'desc'>('asc');
+  const [expandedCtos, setExpandedCtos] = useState<Record<string, boolean>>({});
   const [maintDetailTarget, setMaintDetailTarget] = useState<(Pick<VehicleRow, 'placa'|'dataInicial'|'idLocacao'|'idComercial'|'idVeiculo'|'tipoContrato'> & { mode: DetailMode }) | null>(null);
 
   useEffect(() => { setShowTabHelp(false); }, [activeTab]);
 
   useEffect(() => {
+    if (activeTab === 'resumo' || activeTab === 'listagemCto') return;
     setExportTabChoice(activeTab);
   }, [activeTab]);
 
@@ -1281,6 +1361,7 @@ export default function AnaliseContrato() {
         sitCTO: normalizeSitCTO(c || ({} as ContratoRow), cAny), 
         sitLoc: c?.SituacaoContratoLocacao || '',
         tipoContrato,
+        isCortesia: isCortesiaContrato,
         franquiaBanco,
         custoKmManual: manualCustoKm,
         passagemTotal, passagemIdeal: passagemIdealExibida,
@@ -1442,6 +1523,380 @@ export default function AnaliseContrato() {
       return sortDir==='asc'?cmp:-cmp;
     });
   }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc, sortKey, sortDir]);
+
+  const resumoContratoSelecionado = useMemo(() => {
+    const contratosNoFiltro = (filterCTO || []).map(v => String(v || '').trim()).filter(Boolean);
+    if (contratosNoFiltro.length === 1) return contratosNoFiltro[0];
+
+    const contratosVisiveis = Array.from(new Set(displayRows.map(r => String(r.contrato || '').trim()).filter(Boolean)));
+    return contratosVisiveis.length === 1 ? contratosVisiveis[0] : '';
+  }, [filterCTO, displayRows]);
+
+  const resumoContratoData = useMemo<ContractExecutiveSummary | null>(() => {
+    const contrato = String(resumoContratoSelecionado || '').trim();
+    if (!contrato) return null;
+
+    const rows = displayRows.filter(r => String(r.contrato || '').trim() === contrato);
+
+    const rankValues = (values: string[]) => {
+      const map = new Map<string, number>();
+      for (const raw of values) {
+        const label = String(raw || '').trim() || 'Sem informacao';
+        map.set(label, (map.get(label) || 0) + 1);
+      }
+      return Array.from(map.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([label, count]) => ({ label, count }));
+    };
+
+    if (rows.length === 0) {
+      return {
+        contrato,
+        rows,
+        isCortesia: false,
+        clientes: [],
+        clientePrincipal: '',
+        grupos: [],
+        tiposContrato: [],
+        inicioContrato: null,
+        fimContrato: null,
+        totalVeiculos: 0,
+        kmMedio: 0,
+        faturamentoTotal: 0,
+        faturamentoPrevisto: 0,
+        projecaoFaturamento: 0,
+        manutencaoBruta: 0,
+        manutencaoReembolso: 0,
+        manutencaoLiquida: 0,
+        sinistroBruto: 0,
+        sinistroReembolso: 0,
+        sinistroLiquido: 0,
+        custoTotalBruto: 0,
+        reembolsoTotal: 0,
+        custoTotalLiquido: 0,
+        pctRecuperacao: 0,
+        impactoLiqSobreFat: 0,
+        impactoBrutoSobreFat: 0,
+        passagemCriticos: 0,
+        riscoFinanceiroCriticos: 0,
+        proximosVencimentos90d: 0,
+        vencidos: 0,
+        sitLocTop: [],
+        sitCTOTop: [],
+        topOfensores: [],
+        recomendacoes: ['Nenhum veiculo encontrado para este CTO com os dados atuais.'],
+        status: 'Atencao',
+      };
+    }
+
+    const sum = (picker: (row: VehicleRow) => number) => rows.reduce((acc, row) => acc + (Number(picker(row)) || 0), 0);
+    const isCortesia = rows.length > 0 && rows.every(row => row.isCortesia || /cortesia/i.test(String(row.tipoContrato || '')));
+
+    const clientes = Array.from(new Set(rows.map(r => String(r.cliente || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const grupos = Array.from(new Set(rows.map(r => String(r.grupo || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const tiposContrato = Array.from(new Set(rows.map(r => String(r.tipoContrato || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+    const startDates = rows.map(r => parseDateFlexible(r.dataInicial)).filter((d): d is Date => !!d);
+    const endDates = rows.map(r => parseDateFlexible(r.vencimentoContrato)).filter((d): d is Date => !!d);
+    const inicioContrato = startDates.length ? new Date(Math.min(...startDates.map(d => d.getTime()))) : null;
+    const fimContrato = endDates.length ? new Date(Math.max(...endDates.map(d => d.getTime()))) : null;
+
+    const totalVeiculos = rows.length;
+    const kmMedio = totalVeiculos > 0 ? sum(r => r.kmAtual) / totalVeiculos : 0;
+    const faturamentoTotal = sum(r => r.faturamentoTotal);
+    const faturamentoPrevisto = sum(r => r.faturamentoPrevisto);
+    const projecaoFaturamento = sum(r => r.projecaoFaturamento);
+
+    const manutencaoBruta = sum(r => r.totalManutencao);
+    const manutencaoReembolso = sum(r => r.totalReembMan);
+    const manutencaoLiquida = sum(r => r.custoLiqMan);
+    const sinistroBruto = sum(r => r.totalSinistro);
+    const sinistroReembolso = sum(r => r.totalReembSin);
+    const sinistroLiquido = sum(r => r.custoLiqSin);
+
+    const custoTotalBruto = manutencaoBruta + sinistroBruto;
+    const reembolsoTotal = manutencaoReembolso + sinistroReembolso;
+    const custoTotalLiquido = manutencaoLiquida + sinistroLiquido;
+    const pctRecuperacao = custoTotalBruto > 0 ? reembolsoTotal / custoTotalBruto : 0;
+
+    const impactoLiqSobreFat = faturamentoTotal > 0 ? custoTotalLiquido / faturamentoTotal : 0;
+    const impactoBrutoSobreFat = faturamentoTotal > 0 ? custoTotalBruto / faturamentoTotal : 0;
+
+    const passagemCriticos = rows.filter(row => (
+      (Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold ||
+      (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold
+    )).length;
+
+    const riscoFinanceiroCriticos = isCortesia
+      ? 0
+      : rows.filter(row => (
+        (Number(row.pctManFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctCustoLiqManFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctSinFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctCustoLiqSinFat) || 0) > fatPctAlertThreshold ||
+        (Number(row.pctManSinFat) || 0) > fatPctAlertThreshold
+      )).length;
+
+    const proximosVencimentos90d = rows.filter(r => Number.isFinite(r.prazoRestDays) && r.prazoRestDays >= 0 && r.prazoRestDays <= 90).length;
+    const vencidos = rows.filter(r => Number.isFinite(r.prazoRestDays) && r.prazoRestDays < 0).length;
+
+    const totalManSin = sum(r => r.totalManSin);
+    const topOfensores = [...rows]
+      .map(row => ({
+        placa: row.placa,
+        modelo: row.modelo,
+        custo: Number(row.totalManSin) || 0,
+        man: Number(row.totalManutencao) || 0,
+        sin: Number(row.totalSinistro) || 0,
+      }))
+      .sort((a, b) => b.custo - a.custo)
+      .slice(0, 5)
+      .map(item => ({ ...item, perc: totalManSin > 0 ? item.custo / totalManSin : 0 }));
+
+    const recomendacoes: string[] = [];
+    if (isCortesia) recomendacoes.push('Contrato classificado como cortesia: critérios financeiros de faturamento não são aplicados na classificação de status.');
+    if (vencidos > 0) recomendacoes.push(`${vencidos} veiculo(s) com contrato vencido; priorizar tratativa comercial.`);
+    if (proximosVencimentos90d > 0) recomendacoes.push(`${proximosVencimentos90d} veiculo(s) vencem em ate 90 dias; preparar renovacao.`);
+    if (passagemCriticos > 0) recomendacoes.push(`${passagemCriticos} veiculo(s) com desvio de passagem acima do limite configurado.`);
+    if (!isCortesia && riscoFinanceiroCriticos > 0) recomendacoes.push(`${riscoFinanceiroCriticos} veiculo(s) com pressao de custo acima de ${fmtPct(fatPctAlertThreshold)} do faturamento.`);
+    if (!isCortesia && impactoLiqSobreFat > fatPctAlertThreshold) recomendacoes.push(`Impacto liquido consolidado em ${fmtPct(impactoLiqSobreFat)} do faturamento do contrato.`);
+    if (recomendacoes.length === 0) recomendacoes.push('Sem alertas criticos para o contrato nos parametros atuais.');
+
+    let status: ContractExecutiveSummary['status'] = 'Saudavel';
+    const criticRatio = totalVeiculos > 0 ? riscoFinanceiroCriticos / totalVeiculos : 0;
+    if (isCortesia) {
+      if (vencidos > 0) status = 'Critico';
+      else if (proximosVencimentos90d > 0 || passagemCriticos > 0) status = 'Atencao';
+    } else {
+      if (vencidos > 0 || impactoLiqSobreFat > fatPctAlertThreshold || criticRatio >= 0.4) status = 'Critico';
+      else if (proximosVencimentos90d > 0 || passagemCriticos > 0 || riscoFinanceiroCriticos > 0) status = 'Atencao';
+    }
+
+    return {
+      contrato,
+      rows,
+      isCortesia,
+      clientes,
+      clientePrincipal: clientes[0] || '',
+      grupos,
+      tiposContrato,
+      inicioContrato,
+      fimContrato,
+      totalVeiculos,
+      kmMedio,
+      faturamentoTotal,
+      faturamentoPrevisto,
+      projecaoFaturamento,
+      manutencaoBruta,
+      manutencaoReembolso,
+      manutencaoLiquida,
+      sinistroBruto,
+      sinistroReembolso,
+      sinistroLiquido,
+      custoTotalBruto,
+      reembolsoTotal,
+      custoTotalLiquido,
+      pctRecuperacao,
+      impactoLiqSobreFat,
+      impactoBrutoSobreFat,
+      passagemCriticos,
+      riscoFinanceiroCriticos,
+      proximosVencimentos90d,
+      vencidos,
+      sitLocTop: rankValues(rows.map(r => r.sitLoc)),
+      sitCTOTop: rankValues(rows.map(r => r.sitCTO)),
+      topOfensores,
+      recomendacoes,
+      status,
+    };
+  }, [displayRows, resumoContratoSelecionado, passagemDiffAlertThreshold, passagemPctAlertThreshold, fatPctAlertThreshold]);
+
+  const ctoListagemRows = useMemo<CtoResumoListRow[]>(() => {
+    const topLabel = (values: string[]) => {
+      const map = new Map<string, number>();
+      for (const raw of values) {
+        const label = String(raw || '').trim() || 'Sem informacao';
+        map.set(label, (map.get(label) || 0) + 1);
+      }
+      const sorted = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+      return sorted[0]?.[0] || 'Sem informacao';
+    };
+
+    const summarizeRows = (rows: VehicleRow[]) => {
+      const sum = (picker: (row: VehicleRow) => number) => rows.reduce((acc, row) => acc + (Number(picker(row)) || 0), 0);
+      const isCortesia = rows.length > 0 && rows.every(row => row.isCortesia || /cortesia/i.test(String(row.tipoContrato || '')));
+
+      const totalVeiculos = rows.length;
+      const kmMedio = totalVeiculos > 0 ? sum(r => r.kmAtual) / totalVeiculos : 0;
+      const faturamentoTotal = sum(r => r.faturamentoTotal);
+      const manutencaoBruta = sum(r => r.totalManutencao);
+      const manutencaoReembolso = sum(r => r.totalReembMan);
+      const sinistroBruto = sum(r => r.totalSinistro);
+      const sinistroReembolso = sum(r => r.totalReembSin);
+      const custoLiquido = sum(r => r.custoLiqMan + r.custoLiqSin);
+
+      const custoTotalBruto = manutencaoBruta + sinistroBruto;
+      const reembolsoTotal = manutencaoReembolso + sinistroReembolso;
+      const pctRecuperacao = custoTotalBruto > 0 ? reembolsoTotal / custoTotalBruto : 0;
+      const impactoLiqFat = faturamentoTotal > 0 ? custoLiquido / faturamentoTotal : 0;
+
+      const passagemCriticos = rows.filter(row => (
+        (Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold ||
+        (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold
+      )).length;
+
+      const riscoFinanceiroCriticos = isCortesia
+        ? 0
+        : rows.filter(row => (
+          (Number(row.pctManFat) || 0) > fatPctAlertThreshold ||
+          (Number(row.pctCustoLiqManFat) || 0) > fatPctAlertThreshold ||
+          (Number(row.pctSinFat) || 0) > fatPctAlertThreshold ||
+          (Number(row.pctCustoLiqSinFat) || 0) > fatPctAlertThreshold ||
+          (Number(row.pctManSinFat) || 0) > fatPctAlertThreshold
+        )).length;
+
+      const proximosVencimentos90d = rows.filter(r => Number.isFinite(r.prazoRestDays) && r.prazoRestDays >= 0 && r.prazoRestDays <= 90).length;
+      const vencidos = rows.filter(r => Number.isFinite(r.prazoRestDays) && r.prazoRestDays < 0).length;
+
+      const criticRatio = totalVeiculos > 0 ? riscoFinanceiroCriticos / totalVeiculos : 0;
+      let status: HealthStatus = 'Saudavel';
+      if (isCortesia) {
+        if (vencidos > 0) status = 'Critico';
+        else if (proximosVencimentos90d > 0 || passagemCriticos > 0) status = 'Atencao';
+      } else {
+        if (vencidos > 0 || impactoLiqFat > fatPctAlertThreshold || criticRatio >= 0.4) status = 'Critico';
+        else if (proximosVencimentos90d > 0 || passagemCriticos > 0 || riscoFinanceiroCriticos > 0) status = 'Atencao';
+      }
+
+      return {
+        isCortesia,
+        clientePrincipal: topLabel(rows.map(r => String(r.cliente || '').trim())),
+        totalVeiculos,
+        kmMedio,
+        faturamentoTotal,
+        custoLiquido,
+        pctRecuperacao,
+        impactoLiqFat,
+        status,
+      };
+    };
+
+    const groupedByCto = new Map<string, VehicleRow[]>();
+    for (const row of displayRows) {
+      const cto = String(row.contrato || '').trim();
+      if (!cto) continue;
+      if (!groupedByCto.has(cto)) groupedByCto.set(cto, []);
+      groupedByCto.get(cto)!.push(row);
+    }
+
+    const rows = Array.from(groupedByCto.entries()).map(([cto, ctoRows]) => {
+      const ctoSummary = summarizeRows(ctoRows);
+
+      const groupedLocacao = new Map<string, VehicleRow[]>();
+      for (const row of ctoRows) {
+        const idLocacao = String(row.idLocacao || '').trim() || 'Sem contrato de locação';
+        if (!groupedLocacao.has(idLocacao)) groupedLocacao.set(idLocacao, []);
+        groupedLocacao.get(idLocacao)!.push(row);
+      }
+
+      const locacoes: CtoLocacaoSummary[] = Array.from(groupedLocacao.entries())
+        .map(([idLocacao, locRows]) => {
+          const locSummary = summarizeRows(locRows);
+          return {
+            idLocacao,
+            isCortesia: locSummary.isCortesia,
+            clientePrincipal: locSummary.clientePrincipal,
+            totalVeiculos: locSummary.totalVeiculos,
+            kmMedio: locSummary.kmMedio,
+            faturamentoTotal: locSummary.faturamentoTotal,
+            custoLiquido: locSummary.custoLiquido,
+            pctRecuperacao: locSummary.pctRecuperacao,
+            impactoLiqFat: locSummary.impactoLiqFat,
+            sitLocTop: topLabel(locRows.map(r => String(r.sitLoc || '').trim())),
+            status: locSummary.status,
+          };
+        })
+        .sort((a, b) => {
+          if (b.impactoLiqFat !== a.impactoLiqFat) return b.impactoLiqFat - a.impactoLiqFat;
+          return a.idLocacao.localeCompare(b.idLocacao, 'pt-BR');
+        });
+
+      return {
+        cto,
+        isCortesia: ctoSummary.isCortesia,
+        clientePrincipal: ctoSummary.clientePrincipal,
+        totalVeiculos: ctoSummary.totalVeiculos,
+        kmMedio: ctoSummary.kmMedio,
+        faturamentoTotal: ctoSummary.faturamentoTotal,
+        custoLiquido: ctoSummary.custoLiquido,
+        pctRecuperacao: ctoSummary.pctRecuperacao,
+        impactoLiqFat: ctoSummary.impactoLiqFat,
+        status: ctoSummary.status,
+        locacoes,
+      };
+    });
+
+    const statusOrder: Record<HealthStatus, number> = { Saudavel: 0, Atencao: 1, Critico: 2 };
+
+    const getSortValue = (row: CtoResumoListRow, key: CtoListSortKey): string | number => {
+      if (key === 'cto') return row.cto;
+      if (key === 'cliente') return row.clientePrincipal;
+      if (key === 'veiculos') return row.totalVeiculos;
+      if (key === 'kmMedio') return row.kmMedio;
+      if (key === 'faturamento') return row.faturamentoTotal;
+      if (key === 'custoLiquido') return row.custoLiquido;
+      if (key === 'pctRecuperacao') return row.pctRecuperacao;
+      if (key === 'impactoLiqFat') return row.impactoLiqFat;
+      return statusOrder[row.status];
+    };
+
+    return [...rows].sort((a, b) => {
+      const va = getSortValue(a, ctoListSortKey);
+      const vb = getSortValue(b, ctoListSortKey);
+      let cmp = 0;
+      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+      else cmp = String(va).localeCompare(String(vb), 'pt-BR');
+
+      if (cmp === 0) cmp = a.cto.localeCompare(b.cto, 'pt-BR');
+      return ctoListSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [displayRows, ctoListSortKey, ctoListSortDir, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
+
+  useEffect(() => {
+    setExpandedCtos(prev => {
+      const available = new Set(ctoListagemRows.map(row => row.cto));
+      const next: Record<string, boolean> = {};
+      for (const key of Object.keys(prev)) {
+        if (prev[key] && available.has(key)) next[key] = true;
+      }
+      return next;
+    });
+  }, [ctoListagemRows]);
+
+  const handleCtoListSort = (key: CtoListSortKey) => {
+    if (ctoListSortKey === key) {
+      setCtoListSortDir(dir => dir === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setCtoListSortKey(key);
+    setCtoListSortDir('asc');
+  };
+
+  const ctoListSortIcon = (key: CtoListSortKey) => {
+    if (ctoListSortKey !== key) return ' ↕';
+    return ctoListSortDir === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const toggleCtoExpanded = (cto: string) => {
+    setExpandedCtos(prev => ({ ...prev, [cto]: !prev[cto] }));
+  };
+
+  const statusBadgeClass = (status: HealthStatus) => {
+    if (status === 'Critico') return 'border-rose-200 bg-rose-50 text-rose-700';
+    if (status === 'Atencao') return 'border-amber-200 bg-amber-50 text-amber-700';
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  };
 
   const maintDetailRows = useMemo<MaintDetailRow[]>(() => {
     if (!maintDetailTarget) return [];
@@ -1688,6 +2143,7 @@ export default function AnaliseContrato() {
   const getDynYearsForTab = (tab: TabKey) => {
     const minYear = 2022;
     const maxYear = 2026;
+    if (tab === 'resumo' || tab === 'listagemCto') return [];
     if (tab === 'passagem') {
       const yearsSet = new Set<number>();
       for (const r of displayRows) {
@@ -1889,6 +2345,7 @@ export default function AnaliseContrato() {
 
   const getTabColsForTab = (tab: TabKey, years: number[], includeYearDetail = true) => {
     const cols: ColDef[] = [];
+    if (tab === 'resumo' || tab === 'listagemCto') return cols;
     if (tab === 'passagem') {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`pass_${y}`, label:`Pass ${y}`, fmt:r=>fmtNum(r.years[y].pass), align:'right', w:80, sortGetter: r=>r.years[y].pass }));
       cols.push(
@@ -1962,7 +2419,7 @@ export default function AnaliseContrato() {
     return cols;
   };
 
-  const tabHasYearDetail = (tab: TabKey) => tab !== 'previsto';
+  const tabHasYearDetail = (tab: TabKey) => tab !== 'previsto' && tab !== 'resumo' && tab !== 'listagemCto';
 
   // Build dynamic columns
   const tabCols = useMemo(
@@ -2083,8 +2540,8 @@ export default function AnaliseContrato() {
     const wb = XLSX.utils.book_new();
 
     const tabsToExport = scope === 'all'
-      ? TABS
-      : TABS.filter(t => t.key === (selectedTab || activeTab));
+      ? EXPORTABLE_TABS
+      : EXPORTABLE_TABS.filter(t => t.key === (selectedTab || activeTab));
 
     for (const tab of tabsToExport) {
       const years = getDynYearsForTab(tab.key);
@@ -2266,8 +2723,8 @@ export default function AnaliseContrato() {
     };
 
     const tabsToPrint = scope === 'all'
-      ? TABS
-      : TABS.filter(t => t.key === (selectedTab || activeTab));
+      ? EXPORTABLE_TABS
+      : EXPORTABLE_TABS.filter(t => t.key === (selectedTab || activeTab));
 
     let sectionsHtml = '';
     if (layout === 'summary') {
@@ -2348,7 +2805,7 @@ export default function AnaliseContrato() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const selectedTabLabel = TABS.find(t => t.key === (selectedTab || activeTab))?.label || 'Aba';
+    const selectedTabLabel = EXPORTABLE_TABS.find(t => t.key === (selectedTab || activeTab))?.label || 'Aba';
     const scopeLabel = scope === 'all' ? 'todas as abas' : `aba ${selectedTabLabel}`;
     const layoutLabel = layout === 'summary' ? 'versão resumida' : 'versão completa';
 
@@ -2443,6 +2900,22 @@ export default function AnaliseContrato() {
     faturamento: [
       'Compara custos vs faturamento por veículo.',
       'Percentuais mostram pressão de custo sobre a receita.'
+    ],
+    resumo: [
+      'Exibe um resumo executivo consolidado contrato a contrato (CTO).',
+      'Critérios analisados: vencimento de contrato, desvio de passagens, risco financeiro por veículo e impacto líquido sobre faturamento.',
+      'Passagem crítica: Diferença de Passagens acima do limite OU %Passagem acima do limite (parâmetros em Configurar Regras por Contrato).',
+      'Risco financeiro crítico (não cortesia): veículo com qualquer indicador %/Fat acima do limite (% Man/Fat, % Liq Man/Fat, % Sin/Fat, % Liq Sin/Fat, % Man+Sin/Fat).',
+      'Impacto líquido/faturamento: (Custo Líq. Manutenção + Custo Líq. Sinistro) / Faturamento do contrato.',
+      'Status Crítico (não cortesia): possui vencidos OU Impacto Liq/Fat acima do limite OU 40%+ dos veículos em risco financeiro crítico.',
+      'Status Atenção (não cortesia): sem condição crítica, mas com vencimento em até 90 dias, passagens críticas ou risco financeiro crítico > 0.',
+      'Status Saudável: quando nenhuma condição de Atenção/Crítico é acionada.',
+      'Regra de Cortesia: desconsidera critérios financeiros de faturamento; usa apenas vencidos, vencimento em 90 dias e passagens críticas.'
+    ],
+    listagemCto: [
+      'Lista todos os CTOs visíveis pelos filtros superiores com ordenação por coluna.',
+      'Clique no código CTO para expandir os contratos de locação vinculados e seus indicadores.',
+      'A classificação de status usa os mesmos critérios do resumo executivo, aplicados por CTO e também por contrato de locação na expansão.'
     ],
   };
 
@@ -2567,7 +3040,7 @@ export default function AnaliseContrato() {
                         onChange={(e)=>setExportTabChoice(e.target.value as TabKey)}
                         className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
                       >
-                        {TABS.map(tab => (
+                        {EXPORTABLE_TABS.map(tab => (
                           <option key={tab.key} value={tab.key}>{tab.label}</option>
                         ))}
                       </select>
@@ -2892,152 +3365,464 @@ export default function AnaliseContrato() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
-          {tabKpis.map((card) => {
-            const Icon = card.icon;
-            return (
-              <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative overflow-hidden min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Icon className={`w-4 h-4 ${card.color}`} />
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap truncate">{card.label}</span>
-                </div>
-                <div className={`text-xl lg:text-2xl font-bold ${card.color} whitespace-nowrap leading-none`}>{card.value}</div>
-                <div className="text-[11px] text-slate-400 font-medium whitespace-nowrap truncate">{card.sub}</div>
+        {activeTab === 'resumo' && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Resumo Executivo por Contrato Comercial</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Este resumo usa os filtros superiores da página. Para visão contrato a contrato, selecione um único CTO no filtro CTO (Contrato).</p>
               </div>
-            );
-          })}
-        </div>
-
-        {/* ── Table ── */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className={`${curTab.hdr} text-white px-4 py-2 text-sm font-semibold flex items-center gap-2`}>
-            <curTab.icon className="w-4 h-4" />{curTab.label}
-            {tabHasYearDetail(activeTab) && (
-              <button
-                type="button"
-                onClick={() => setShowYearDetailByTab(prev => ({ ...prev, [activeTab]: !prev[activeTab] }))}
-                className="ml-2 inline-flex items-center gap-1 rounded-md border border-white/35 bg-white/10 px-2 py-0.5 text-[11px] font-medium hover:bg-white/20"
-                title={showYearDetailByTab[activeTab] ? 'Recolher colunas anuais' : 'Expandir colunas anuais'}
-              >
-                <span className="text-sm leading-none">{showYearDetailByTab[activeTab] ? '-' : '+'}</span>
-                {showYearDetailByTab[activeTab] ? 'Anos' : 'Anos'}
-              </button>
-            )}
-            <span className="ml-auto text-xs opacity-75">{displayRows.length} linhas</span>
-          </div>
-          <div className="overflow-auto" style={{maxHeight:'60vh'}}>
-            <table className="border-collapse table-auto text-xs whitespace-nowrap" style={{ minWidth: tableMinWidth }}>
-              <thead className="sticky top-0 z-10 shadow-sm">
-                <tr>
-                  {/* ID header group */}
-                  <th colSpan={ID_COLS.length} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-r border-white/20">
-                    Identificação
-                  </th>
-                  {/* Tab header group */}
-                  <th colSpan={tabCols.length} className={`${curTab.hdr} text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide`}>
-                    {curTab.label} ({dynYears[0]} - {dynYears[dynYears.length-1]})
-                  </th>
-                  <th rowSpan={2} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-l border-white/20" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
-                    Det.
-                  </th>
-                </tr>
-                <tr className="bg-slate-800">
-                  {allCols.map((col) => {
-                    const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
-                    const thStyle: any = { minWidth: colWidth, width: colWidth, maxWidth: colWidth };
-                    return (
-                      <th key={col.key} onClick={()=>handleSort(col.key)}
-                        style={thStyle}
-                        className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
-                        {col.label}{sortIcon(col.key)}
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {displayRows.length===0 && (
-                  <tr><td colSpan={allCols.length + 1} className="text-center py-16 text-slate-400">
-                    {heavyLoading
-                      ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin"/>Carregando dados detalhados…</span>
-                      : 'Nenhum veículo encontrado com os filtros selecionados.'}
-                  </td></tr>
-                )}
-                {displayRows.map((row,i)=>(
-                  <tr key={`${row.placa}-${i}`}
-                    className={`border-b border-slate-100 hover:bg-indigo-50/60 transition-colors ${i%2===0?'bg-white':'bg-slate-50/40'}`}>
-                    {allCols.map((col) => {
-                      const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
-                      const tdStyle: any = { minWidth: colWidth, width: colWidth, maxWidth: colWidth };
-                      return (
-                        <td key={col.key}
-                          style={tdStyle}
-                          className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
-                          {col.fmt(row)}
-                        </td>
-                      );
-                    })}
-                    <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
-                      <button
-                        type="button"
-                        title={activeTab === 'faturamento' ? 'Ver histórico de faturamento' : 'Ver extrato de manutenções'}
-                        onClick={() => setMaintDetailTarget({ 
-                          placa: row.placa, 
-                          dataInicial: row.dataInicial, 
-                          idLocacao: row.idLocacao,
-                          idComercial: row.idComercial,
-                          idVeiculo: row.idVeiculo,
-                          tipoContrato: row.tipoContrato,
-                          mode: activeTab === 'sinistro' ? 'sinistro' : activeTab === 'mansin' ? 'mansin' : activeTab === 'faturamento' ? 'faturamento' : 'manutencao' 
-                        })}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                      >
-                        <Search size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="sticky bottom-0 bg-white z-10 border-t">
-                <tr className="bg-slate-50 font-semibold text-slate-700">
-                  {allCols.map((col, ci) => {
-                    const total = colTotals[col.key];
-                    const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
-                    const style = { minWidth: colWidth, width: colWidth, maxWidth: colWidth } as any;
-                    if (ci === 0) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">Totais</td>;
-                    if (total == null) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">—</td>;
-
-                    const k = col.key.toLowerCase();
-                    const isCurrency = /valor|fat_|faturamento|custo|man_|sin_|reemb|total|vlr|valorlocacao|valorcompra/.test(k);
-                    const isPct = k.includes('pct');
-                    const isIdade = k.includes('idade');
-                    let formatted = '—';
-                    if (isPct) {
-                      formatted = fmtPct(total as number);
-                    } else if (isIdade) {
-                      // total for idadeEmMeses was computed as average in colTotals
-                      formatted = fmtNum(Math.round((total as number) * 10) / 10);
-                    } else if (isCurrency) {
-                      formatted = (k.includes('reemb') || k.includes('liq')) ? fmtBRLZero(total as number) : fmtBRL(total as number);
-                    } else if (Number.isInteger(total)) {
-                      formatted = fmtNum(total as number);
-                    } else if (typeof total === 'number') {
-                      formatted = fmtNum(Math.round((total as number) * 100) / 100);
-                    }
-                    return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatted}</td>;
-                  })}
-                  <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>—</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          {heavyLoading && (
-            <div className="px-4 py-2 border-t border-slate-200 text-xs text-amber-600 flex items-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin"/>
-              Manutenção & faturamento ainda carregando — valores parciais podem ser exibidos
+              {resumoContratoData && (
+                <div className="flex items-center gap-2">
+                  {resumoContratoData.isCortesia && (
+                    <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border border-sky-200 bg-sky-50 text-sky-700">
+                      Cortesia
+                    </span>
+                  )}
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${statusBadgeClass(resumoContratoData.status)}`}
+                  >
+                    Status: {resumoContratoData.status === 'Critico' ? 'Critico' : resumoContratoData.status === 'Atencao' ? 'Atencao' : 'Saudavel'}
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {filterCTO.length > 1 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Selecione apenas um CTO no filtro superior para gerar o resumo executivo por contrato.
+              </div>
+            )}
+
+            {!resumoContratoSelecionado && (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                Use o filtro superior CTO (Contrato) para selecionar um único contrato comercial.
+              </div>
+            )}
+
+            {resumoContratoData && resumoContratoData.rows.length > 0 && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                  {[
+                    { label: 'CTO', value: resumoContratoData.contrato, cls: 'text-slate-900' },
+                    { label: 'Cliente', value: resumoContratoData.clientePrincipal || '—', cls: 'text-slate-900' },
+                    { label: 'Veiculos', value: resumoContratoData.totalVeiculos.toLocaleString('pt-BR'), cls: 'text-indigo-600' },
+                    { label: 'KM Medio', value: Math.round(resumoContratoData.kmMedio).toLocaleString('pt-BR'), cls: 'text-sky-600' },
+                    { label: 'Faturamento', value: fmtBRL(resumoContratoData.faturamentoTotal), cls: 'text-teal-600' },
+                    { label: 'Custo Liquido', value: fmtBRLZero(resumoContratoData.custoTotalLiquido), cls: 'text-rose-600' },
+                    { label: '% Recuperacao', value: fmtPct(resumoContratoData.pctRecuperacao), cls: 'text-emerald-600' },
+                    { label: 'Impacto Liq/Fat', value: resumoContratoData.isCortesia ? 'N/A' : fmtPct(resumoContratoData.impactoLiqSobreFat), cls: resumoContratoData.isCortesia ? 'text-slate-500' : (resumoContratoData.impactoLiqSobreFat > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600') },
+                  ].map(card => (
+                    <div key={card.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 min-w-0">
+                      <div className="text-[11px] text-slate-500 uppercase tracking-wide">{card.label}</div>
+                      <div className={`text-sm font-semibold truncate ${card.cls}`} title={card.value}>{card.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  <div className="rounded-lg border border-slate-200 p-3 bg-white">
+                    <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Visao Geral</div>
+                    <div className="mt-2 text-xs text-slate-600 space-y-1">
+                      <div>Vigencia: {resumoContratoData.inicioContrato ? resumoContratoData.inicioContrato.toLocaleDateString('pt-BR') : '—'} ate {resumoContratoData.fimContrato ? resumoContratoData.fimContrato.toLocaleDateString('pt-BR') : '—'}</div>
+                      <div>Tipos de contrato: {resumoContratoData.tiposContrato.slice(0, 3).join(', ') || 'Sem informacao'}</div>
+                      <div>Grupos: {resumoContratoData.grupos.slice(0, 4).join(', ') || 'Sem informacao'}</div>
+                      <div>Situacao comercial: {resumoContratoData.sitCTOTop.map(item => `${item.label} (${item.count})`).join(' | ') || 'Sem informacao'}</div>
+                      <div>Situacao locacao: {resumoContratoData.sitLocTop.map(item => `${item.label} (${item.count})`).join(' | ') || 'Sem informacao'}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 p-3 bg-white">
+                    <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Financeiro</div>
+                    <div className="mt-2 text-xs text-slate-600 space-y-1">
+                      <div>Fat. Realizado: <span className="font-semibold text-slate-900">{fmtBRL(resumoContratoData.faturamentoTotal)}</span></div>
+                      <div>Fat. Previsto: <span className="font-semibold text-slate-900">{fmtBRL(resumoContratoData.faturamentoPrevisto)}</span></div>
+                      <div>Diferenca Fat.: <span className={`font-semibold ${resumoContratoData.faturamentoTotal - resumoContratoData.faturamentoPrevisto >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtBRL(resumoContratoData.faturamentoTotal - resumoContratoData.faturamentoPrevisto)}</span></div>
+                      <div>Projecao (ult. preco): <span className="font-semibold text-slate-900">{fmtBRL(resumoContratoData.projecaoFaturamento)}</span></div>
+                      <div>Impacto bruto/fat.: <span className={`font-semibold ${resumoContratoData.isCortesia ? 'text-slate-500' : (resumoContratoData.impactoBrutoSobreFat > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600')}`}>{resumoContratoData.isCortesia ? 'N/A' : fmtPct(resumoContratoData.impactoBrutoSobreFat)}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 p-3 bg-white">
+                    <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Riscos e Operacao</div>
+                    <div className="mt-2 text-xs text-slate-600 space-y-1">
+                      <div>Passagens criticas: <span className={`font-semibold ${resumoContratoData.passagemCriticos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.passagemCriticos.toLocaleString('pt-BR')}</span></div>
+                      <div>Risco financeiro critico: <span className={`font-semibold ${resumoContratoData.riscoFinanceiroCriticos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.riscoFinanceiroCriticos.toLocaleString('pt-BR')}</span></div>
+                      <div>Vencem em 90 dias: <span className={`font-semibold ${resumoContratoData.proximosVencimentos90d > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{resumoContratoData.proximosVencimentos90d.toLocaleString('pt-BR')}</span></div>
+                      <div>Vencidos: <span className={`font-semibold ${resumoContratoData.vencidos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.vencidos.toLocaleString('pt-BR')}</span></div>
+                      <div>Reembolso total: <span className="font-semibold text-slate-900">{fmtBRL(resumoContratoData.reembolsoTotal)}</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide">Top 5 ofensores do contrato (manutencao + sinistro)</div>
+                  <div className="overflow-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-slate-100 text-slate-600">
+                        <tr>
+                          <th className="text-left px-3 py-2">Placa</th>
+                          <th className="text-left px-3 py-2">Modelo</th>
+                          <th className="text-right px-3 py-2">Manutenção</th>
+                          <th className="text-right px-3 py-2">Sinistro</th>
+                          <th className="text-right px-3 py-2">Total</th>
+                          <th className="text-right px-3 py-2">% Contrato</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resumoContratoData.topOfensores.map(item => (
+                          <tr key={item.placa} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-2 font-medium text-slate-800">{item.placa || '—'}</td>
+                            <td className="px-3 py-2 text-slate-600">{item.modelo || '—'}</td>
+                            <td className="px-3 py-2 text-right text-slate-700">{fmtBRL(item.man)}</td>
+                            <td className="px-3 py-2 text-right text-slate-700">{fmtBRL(item.sin)}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-slate-900">{fmtBRL(item.custo)}</td>
+                            <td className="px-3 py-2 text-right text-slate-600">{fmtPct(item.perc)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                  <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Recomendacoes automaticas</div>
+                  <ul className="space-y-1">
+                    {resumoContratoData.recomendacoes.map((item, idx) => (
+                      <li key={`${idx}-${item}`} className="text-xs text-slate-600">- {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
+
+            {resumoContratoData && resumoContratoSelecionado && resumoContratoData.rows.length === 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                O CTO selecionado existe na base, mas nao retornou veiculos consolidados na analise atual.
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'listagemCto' && (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Listagem de CTOs</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Clique no código do CTO para expandir os contratos de locação vinculados.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next: Record<string, boolean> = {};
+                    for (const row of ctoListagemRows) next[row.cto] = true;
+                    setExpandedCtos(next);
+                  }}
+                  disabled={ctoListagemRows.length === 0}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Expandir todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpandedCtos({})}
+                  disabled={Object.keys(expandedCtos).length === 0}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Recolher todos
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
+              <table className="min-w-full text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('cto')} className="hover:text-slate-900">CTO{ctoListSortIcon('cto')}</button>
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('cliente')} className="hover:text-slate-900">Cliente{ctoListSortIcon('cliente')}</button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('veiculos')} className="hover:text-slate-900">Veículos{ctoListSortIcon('veiculos')}</button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('kmMedio')} className="hover:text-slate-900">KM Médio{ctoListSortIcon('kmMedio')}</button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('faturamento')} className="hover:text-slate-900">Faturamento{ctoListSortIcon('faturamento')}</button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('custoLiquido')} className="hover:text-slate-900">Custo Líquido{ctoListSortIcon('custoLiquido')}</button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('pctRecuperacao')} className="hover:text-slate-900">% Recuperação{ctoListSortIcon('pctRecuperacao')}</button>
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('impactoLiqFat')} className="hover:text-slate-900">Impacto Liq/Fat{ctoListSortIcon('impactoLiqFat')}</button>
+                    </th>
+                    <th className="text-center px-3 py-2 font-semibold">
+                      <button type="button" onClick={() => handleCtoListSort('status')} className="hover:text-slate-900">Status{ctoListSortIcon('status')}</button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ctoListagemRows.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-3 py-12 text-center text-slate-400">
+                        Nenhum CTO encontrado com os filtros superiores aplicados.
+                      </td>
+                    </tr>
+                  )}
+
+                  {ctoListagemRows.flatMap((row, index) => {
+                    const expanded = !!expandedCtos[row.cto];
+                    const mainRow = (
+                      <tr key={`${row.cto}-main`} className={`border-t border-slate-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-slate-50`}>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleCtoExpanded(row.cto)}
+                            className="inline-flex items-center gap-2 text-indigo-700 hover:underline font-semibold"
+                          >
+                            <span className="text-slate-500">{expanded ? '▾' : '▸'}</span>
+                            <span>{row.cto}</span>
+                          </button>
+                          {row.isCortesia && (
+                            <span className="ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border border-sky-200 bg-sky-50 text-sky-700">
+                              Cortesia
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">{row.clientePrincipal || '—'}</td>
+                        <td className="px-3 py-2 text-right text-slate-700">{row.totalVeiculos.toLocaleString('pt-BR')}</td>
+                        <td className="px-3 py-2 text-right text-slate-700">{Math.round(row.kmMedio).toLocaleString('pt-BR')}</td>
+                        <td className="px-3 py-2 text-right text-teal-700 font-semibold">{fmtBRL(row.faturamentoTotal)}</td>
+                        <td className="px-3 py-2 text-right text-rose-700 font-semibold">{fmtBRLZero(row.custoLiquido)}</td>
+                        <td className="px-3 py-2 text-right text-emerald-700">{fmtPct(row.pctRecuperacao)}</td>
+                        <td className={`px-3 py-2 text-right font-medium ${row.isCortesia ? 'text-slate-500' : (row.impactoLiqFat > fatPctAlertThreshold ? 'text-rose-700' : 'text-emerald-700')}`}>{row.isCortesia ? 'N/A' : fmtPct(row.impactoLiqFat)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold border ${statusBadgeClass(row.status)}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+
+                    const detailRow = expanded ? (
+                      <tr key={`${row.cto}-detail`} className="bg-slate-50">
+                        <td colSpan={9} className="px-3 py-3 border-t border-slate-200">
+                          <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                            Contratos de Locação Vinculados ({row.locacoes.length})
+                          </div>
+                          <div className="mt-2 rounded-lg border border-slate-200 overflow-auto bg-white">
+                            <table className="min-w-full text-[11px]">
+                              <thead className="bg-slate-100 text-slate-600">
+                                <tr>
+                                  <th className="text-left px-2 py-1.5">Contrato Locação</th>
+                                  <th className="text-left px-2 py-1.5">Cliente</th>
+                                  <th className="text-right px-2 py-1.5">Veículos</th>
+                                  <th className="text-right px-2 py-1.5">KM Médio</th>
+                                  <th className="text-right px-2 py-1.5">Faturamento</th>
+                                  <th className="text-right px-2 py-1.5">Custo Líquido</th>
+                                  <th className="text-right px-2 py-1.5">% Recuperação</th>
+                                  <th className="text-right px-2 py-1.5">Impacto Liq/Fat</th>
+                                  <th className="text-left px-2 py-1.5">Situação Locação</th>
+                                  <th className="text-center px-2 py-1.5">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {row.locacoes.map(loc => (
+                                  <tr key={`${row.cto}-${loc.idLocacao}`} className="border-t border-slate-100 hover:bg-slate-50">
+                                    <td className="px-2 py-1.5 font-medium text-slate-800">
+                                      {loc.idLocacao}
+                                      {loc.isCortesia && (
+                                        <span className="ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border border-sky-200 bg-sky-50 text-sky-700">
+                                          Cortesia
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-slate-700">{loc.clientePrincipal || '—'}</td>
+                                    <td className="px-2 py-1.5 text-right text-slate-700">{loc.totalVeiculos.toLocaleString('pt-BR')}</td>
+                                    <td className="px-2 py-1.5 text-right text-slate-700">{Math.round(loc.kmMedio).toLocaleString('pt-BR')}</td>
+                                    <td className="px-2 py-1.5 text-right text-teal-700 font-medium">{fmtBRL(loc.faturamentoTotal)}</td>
+                                    <td className="px-2 py-1.5 text-right text-rose-700 font-medium">{fmtBRLZero(loc.custoLiquido)}</td>
+                                    <td className="px-2 py-1.5 text-right text-emerald-700">{fmtPct(loc.pctRecuperacao)}</td>
+                                    <td className={`px-2 py-1.5 text-right font-medium ${loc.isCortesia ? 'text-slate-500' : (loc.impactoLiqFat > fatPctAlertThreshold ? 'text-rose-700' : 'text-emerald-700')}`}>{loc.isCortesia ? 'N/A' : fmtPct(loc.impactoLiqFat)}</td>
+                                    <td className="px-2 py-1.5 text-slate-700">{loc.sitLocTop || 'Sem informacao'}</td>
+                                    <td className="px-2 py-1.5 text-center">
+                                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${statusBadgeClass(loc.status)}`}>
+                                        {loc.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null;
+
+                    return detailRow ? [mainRow, detailRow] : [mainRow];
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab !== 'resumo' && activeTab !== 'listagemCto' && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
+              {tabKpis.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div key={card.label} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2 relative overflow-hidden min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon className={`w-4 h-4 ${card.color}`} />
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap truncate">{card.label}</span>
+                    </div>
+                    <div className={`text-xl lg:text-2xl font-bold ${card.color} whitespace-nowrap leading-none`}>{card.value}</div>
+                    <div className="text-[11px] text-slate-400 font-medium whitespace-nowrap truncate">{card.sub}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Table ── */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className={`${curTab.hdr} text-white px-4 py-2 text-sm font-semibold flex items-center gap-2`}>
+                <curTab.icon className="w-4 h-4" />{curTab.label}
+                {tabHasYearDetail(activeTab) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowYearDetailByTab(prev => ({ ...prev, [activeTab]: !prev[activeTab] }))}
+                    className="ml-2 inline-flex items-center gap-1 rounded-md border border-white/35 bg-white/10 px-2 py-0.5 text-[11px] font-medium hover:bg-white/20"
+                    title={showYearDetailByTab[activeTab] ? 'Recolher colunas anuais' : 'Expandir colunas anuais'}
+                  >
+                    <span className="text-sm leading-none">{showYearDetailByTab[activeTab] ? '-' : '+'}</span>
+                    {showYearDetailByTab[activeTab] ? 'Anos' : 'Anos'}
+                  </button>
+                )}
+                <span className="ml-auto text-xs opacity-75">{displayRows.length} linhas</span>
+              </div>
+              <div className="overflow-auto" style={{maxHeight:'60vh'}}>
+                <table className="border-collapse table-auto text-xs whitespace-nowrap" style={{ minWidth: tableMinWidth }}>
+                  <thead className="sticky top-0 z-10 shadow-sm">
+                    <tr>
+                      {/* ID header group */}
+                      <th colSpan={ID_COLS.length} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-r border-white/20">
+                        Identificação
+                      </th>
+                      {/* Tab header group */}
+                      <th colSpan={tabCols.length} className={`${curTab.hdr} text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide`}>
+                        {curTab.label} ({dynYears[0]} - {dynYears[dynYears.length-1]})
+                      </th>
+                      <th rowSpan={2} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-l border-white/20" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
+                        Det.
+                      </th>
+                    </tr>
+                    <tr className="bg-slate-800">
+                      {allCols.map((col) => {
+                        const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                        const thStyle: any = { minWidth: colWidth, width: colWidth, maxWidth: colWidth };
+                        return (
+                          <th key={col.key} onClick={()=>handleSort(col.key)}
+                            style={thStyle}
+                            className={`px-2 py-1.5 text-[12px] font-semibold text-white/90 cursor-pointer hover:bg-slate-700 border-r border-white/10 select-none ${col.align==='right'?'text-right':'text-left'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
+                            {col.label}{sortIcon(col.key)}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayRows.length===0 && (
+                      <tr><td colSpan={allCols.length + 1} className="text-center py-16 text-slate-400">
+                        {heavyLoading
+                          ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin"/>Carregando dados detalhados…</span>
+                          : 'Nenhum veículo encontrado com os filtros selecionados.'}
+                      </td></tr>
+                    )}
+                    {displayRows.map((row,i)=>(
+                      <tr key={`${row.placa}-${i}`}
+                        className={`border-b border-slate-100 hover:bg-indigo-50/60 transition-colors ${i%2===0?'bg-white':'bg-slate-50/40'}`}>
+                        {allCols.map((col) => {
+                          const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                          const tdStyle: any = { minWidth: colWidth, width: colWidth, maxWidth: colWidth };
+                          return (
+                            <td key={col.key}
+                              style={tdStyle}
+                              className={`px-2 py-1.5 border-r border-slate-100 ${col.align==='right'?'text-right':'text-left'} ${col.cls?col.cls(row):'text-slate-700'} ${textEllipsisCols.has(col.key) ? 'truncate' : ''}`}>
+                              {col.fmt(row)}
+                            </td>
+                          );
+                        })}
+                        <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>
+                          <button
+                            type="button"
+                            title={activeTab === 'faturamento' ? 'Ver histórico de faturamento' : 'Ver extrato de manutenções'}
+                            onClick={() => setMaintDetailTarget({ 
+                              placa: row.placa, 
+                              dataInicial: row.dataInicial, 
+                              idLocacao: row.idLocacao,
+                              idComercial: row.idComercial,
+                              idVeiculo: row.idVeiculo,
+                              tipoContrato: row.tipoContrato,
+                              mode: activeTab === 'sinistro' ? 'sinistro' : activeTab === 'mansin' ? 'mansin' : activeTab === 'faturamento' ? 'faturamento' : 'manutencao' 
+                            })}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          >
+                            <Search size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 bg-white z-10 border-t">
+                    <tr className="bg-slate-50 font-semibold text-slate-700">
+                      {allCols.map((col, ci) => {
+                        const total = colTotals[col.key];
+                        const colWidth = col.align === 'right' ? Math.max(col.w || 90, 108) : (col.w || 90);
+                        const style = { minWidth: colWidth, width: colWidth, maxWidth: colWidth } as any;
+                        if (ci === 0) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">Totais</td>;
+                        if (total == null) return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100">—</td>;
+
+                        const k = col.key.toLowerCase();
+                        const isCurrency = /valor|fat_|faturamento|custo|man_|sin_|reemb|total|vlr|valorlocacao|valorcompra/.test(k);
+                        const isPct = k.includes('pct');
+                        const isIdade = k.includes('idade');
+                        let formatted = '—';
+                        if (isPct) {
+                          formatted = fmtPct(total as number);
+                        } else if (isIdade) {
+                          formatted = fmtNum(Math.round((total as number) * 10) / 10);
+                        } else if (isCurrency) {
+                          formatted = (k.includes('reemb') || k.includes('liq')) ? fmtBRLZero(total as number) : fmtBRL(total as number);
+                        } else if (Number.isInteger(total)) {
+                          formatted = fmtNum(total as number);
+                        } else if (typeof total === 'number') {
+                          formatted = fmtNum(Math.round((total as number) * 100) / 100);
+                        }
+                        return <td key={col.key} style={style} className="px-2 py-1.5 border-r border-slate-100 text-right">{formatted}</td>;
+                      })}
+                      <td className="px-1 py-1.5 border-r border-slate-100 text-center" style={{ minWidth: 44, width: 44, maxWidth: 44 }}>—</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              {heavyLoading && (
+                <div className="px-4 py-2 border-t border-slate-200 text-xs text-amber-600 flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin"/>
+                  Manutenção & faturamento ainda carregando — valores parciais podem ser exibidos
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         <MaintDetailModal
           open={!!maintDetailTarget}
