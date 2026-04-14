@@ -14,45 +14,52 @@ const ResetPasswordPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // Novo estado para controlar a verificação do token
   const [status, setStatus] = useState<'verifying' | 'ready' | 'invalid'>('verifying');
 
   useEffect(() => {
-    // Flag para evitar múltiplas execuções em Strict Mode
-    let subscribed = true;
+    let cancelled = false;
 
+    // Check if we have a recovery token in the URL hash
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const type = hashParams.get('type');
+    const accessToken = hashParams.get('access_token');
+
+    // If the URL has type=recovery with an access token, Supabase will process it
+    // We listen for the PASSWORD_RECOVERY event
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!subscribed) return;
-
-      // Evento que acontece quando o Supabase processa o token de recuperação da URL
-      if (event === 'PASSWORD_RECOVERY') {
-        if (session) {
-          // Token válido, o usuário tem uma sessão temporária para mudar a senha
-          setStatus('ready');
-        } else {
-          // Token inválido ou expirado
-          setStatus('invalid');
-        }
+      if (cancelled) return;
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        setStatus('ready');
       }
     });
 
-    // O useEffect do React Strict Mode pode rodar duas vezes.
-    // O Supabase só dispara o evento PASSWORD_RECOVERY uma vez.
-    // Se o evento não for capturado, verificamos manualmente após um delay.
+    // Also check current session - if user arrived via recovery link,
+    // Supabase auto-processes the token and creates a session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session && (type === 'recovery' || accessToken)) {
+        setStatus('ready');
+      }
+    });
+
+    // Fallback: if after 4 seconds we still don't have a valid session, mark as invalid
     const timer = setTimeout(() => {
-        if (status === 'verifying') {
-            // Se o evento não disparou, é provável que o link esteja inválido ou já foi usado.
-            setStatus('invalid');
-        }
-    }, 2000); // Espera 2 segundos pelo evento
+      if (!cancelled && status === 'verifying') {
+        // One final check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!cancelled) {
+            setStatus(session ? 'ready' : 'invalid');
+          }
+        });
+      }
+    }, 4000);
 
     return () => {
-      subscribed = false;
+      cancelled = true;
       clearTimeout(timer);
       subscription.unsubscribe();
     };
-  }, [status]); // Adicionado 'status' como dependência
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,8 +73,7 @@ const ResetPasswordPage = () => {
     }
 
     setLoading(true);
-    // Como o usuário já tem uma sessão temporária, só precisamos atualizar a senha
-    const { error } = await supabase.auth.updateUser({ password: password });
+    const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
       toast.error('Erro ao redefinir a senha', { description: error.message });
@@ -75,45 +81,41 @@ const ResetPasswordPage = () => {
       toast.success('Senha redefinida com sucesso!', {
         description: 'Você será redirecionado para a página de login.',
       });
-      // Desloga o usuário da sessão temporária antes de navegar
       await supabase.auth.signOut();
       setTimeout(() => navigate('/login'), 2000);
     }
     setLoading(false);
   };
 
-  // --- RENDERIZAÇÃO CONDICIONAL COM BASE NO STATUS ---
-
   if (status === 'verifying') {
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Verificando link de recuperação...</p>
-            </div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Verificando link de recuperação...</p>
         </div>
+      </div>
     );
   }
 
   if (status === 'invalid') {
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <Card className="w-full max-w-md text-center">
-                <CardHeader>
-                    <CardTitle className="text-2xl text-destructive">Link Inválido</CardTitle>
-                    <CardDescription>O link de recuperação de senha é inválido, expirou ou já foi utilizado.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button onClick={() => navigate('/login')}>Voltar para o Login</Button>
-                </CardContent>
-            </Card>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl text-destructive">Link Inválido</CardTitle>
+            <CardDescription>O link de recuperação de senha é inválido, expirou ou já foi utilizado.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/login')}>Voltar para o Login</Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  // Se o status for 'ready', mostra o formulário
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Redefinir sua Senha</CardTitle>
