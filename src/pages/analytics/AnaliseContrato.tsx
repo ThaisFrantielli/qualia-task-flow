@@ -269,6 +269,7 @@ const daysUntil = (to:string) => {
   return diff;
 };
 const fmtNum = (v:number) => v===0?'—':v.toLocaleString('pt-BR');
+const fmtInt = (v:number) => (v === 0 || v == null || !isFinite(Number(v))) ? '—' : String(Math.round(Number(v)).toLocaleString('pt-BR'));
 const kmLabel = (km:number) => km>=100000?'Acima 100.000':km>=60000?'60.000–100.000':km>=30000?'30.000–60.000':'Abaixo 30.000';
 const getYear = (d:string) => { if(!d||d.length<4) return 0; const y=parseInt(d.substring(0,4)); return isNaN(y)?0:y; };
 const monthsDiff = (from:string) => { if(!from) return 0; const d=new Date(from); const n=new Date(); return Math.max(0,(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth())); };
@@ -704,7 +705,7 @@ const ID_COLS: ColDef[] = [
   { key:'grupo',       label:'Grupo',        fmt:r=>r.grupo,       align:'left',  w:120, sortGetter: r=>r.grupo },
   { key:'odometroRetirada', label:'Odômetro Retirada', fmt:r=>r.odometroRetirada>0?r.odometroRetirada.toLocaleString('pt-BR'):'—', align:'right', w:120, sortGetter: r=>r.odometroRetirada },
   { key:'kmAtual',     label:'KM',           fmt:r=>r.kmAtual>0?r.kmAtual.toLocaleString('pt-BR'):'—', align:'right', w:80, sortGetter: r=>r.kmAtual },
-  { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtNum(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
+  { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtInt(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
   { key:'kmPrecificado',label:'Km Precificado',fmt:r=>r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual), align:'right', w:110, sortGetter: r=>r.custoKmManual ?? -1 },
 ];
 
@@ -779,6 +780,7 @@ export default function AnaliseContrato() {
   const [ctoListSortDir, setCtoListSortDir] = useState<'asc'|'desc'>('asc');
   const [expandedCtos, setExpandedCtos] = useState<Record<string, boolean>>({});
   const [maintDetailTarget, setMaintDetailTarget] = useState<(Pick<VehicleRow, 'placa'|'dataInicial'|'idLocacao'|'idComercial'|'idVeiculo'|'tipoContrato'> & { mode: DetailMode }) | null>(null);
+  const resumoDetailTableRef = useRef<HTMLTableElement | null>(null);
 
   useEffect(() => { setShowTabHelp(false); }, [activeTab]);
 
@@ -2782,7 +2784,7 @@ export default function AnaliseContrato() {
       { label: 'MODELO', fmt: (r: VehicleRow) => r.modelo },
       { label: 'KM', fmt: (r: VehicleRow) => (r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—') },
       { label: 'INDICE KM', fmt: (r: VehicleRow) => r.indiceKm },
-      { label: 'IDADE', fmt: (r: VehicleRow) => fmtNum(r.idadeEmMeses) },
+      { label: 'IDADE', fmt: (r: VehicleRow) => fmtInt(r.idadeEmMeses) },
       { label: 'PASS. PREVISTA', fmt: (r: VehicleRow) => fmtNominal(r.passagemIdeal) },
       { label: 'PASS. REALIZADA', fmt: (r: VehicleRow) => fmtNominal(r.passagemTotal) },
       { label: 'DIF PASSAGEM', fmt: (r: VehicleRow) => fmtNominal(r.diferencaPassagem) },
@@ -2837,6 +2839,76 @@ export default function AnaliseContrato() {
     const tabSuffix = scope === 'all' ? 'todas_abas' : (selectedTab || activeTab);
     const layoutSuffix = layout === 'summary' ? 'resumida' : 'completa';
     XLSX.writeFile(wb, `analise_contrato_${tabSuffix}_${layoutSuffix}_${stamp.fileStamp}.xlsx`);
+  };
+
+  const exportResumoDetalhadoExcelComCores = () => {
+    const table = resumoDetailTableRef.current;
+    if (!table) return;
+
+    const clone = table.cloneNode(true) as HTMLTableElement;
+
+    clone.querySelectorAll('button').forEach(btn => {
+      const txt = (btn.textContent || '').replace(/[↑↓↕]/g, '').replace(/\s+/g, ' ').trim();
+      const span = document.createElement('span');
+      span.textContent = txt || ' ';
+      btn.replaceWith(span);
+    });
+
+    const cssProps = [
+      'background-color',
+      'color',
+      'font-weight',
+      'font-size',
+      'font-family',
+      'text-align',
+      'vertical-align',
+      'border-top',
+      'border-right',
+      'border-bottom',
+      'border-left',
+      'padding',
+      'white-space',
+    ];
+
+    const sourceCells = table.querySelectorAll('th,td');
+    const targetCells = clone.querySelectorAll('th,td');
+    const max = Math.min(sourceCells.length, targetCells.length);
+
+    for (let i = 0; i < max; i++) {
+      const source = sourceCells[i] as HTMLElement;
+      const target = targetCells[i] as HTMLElement;
+      const computed = window.getComputedStyle(source);
+      const inlineCss = cssProps.map(prop => `${prop}:${computed.getPropertyValue(prop)};`).join('');
+      target.setAttribute('style', inlineCss);
+    }
+
+    clone.style.borderCollapse = 'collapse';
+    clone.style.width = '100%';
+
+    const stamp = nowStamp();
+    const safeContrato = String(resumoContratoSelecionado || 'resumo')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    const html = [
+      '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">',
+      '<head><meta charset="UTF-8" /></head>',
+      '<body>',
+      `<div style="font-family:Segoe UI, Arial, sans-serif; font-size:12px; margin-bottom:8px; color:#334155;"><strong>Detalhamento - Versao Resumida</strong> | Contrato: ${String(resumoContratoSelecionado || 'Todos')} | Gerado em: ${stamp.dateLabel} ${stamp.timeLabel}</div>`,
+      clone.outerHTML,
+      '</body></html>',
+    ].join('');
+
+    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `detalhamento_resumido_${safeContrato}_${stamp.fileStamp}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const printAllTabsPDF = (scope: ExportScope = 'all', selectedTab?: TabKey, layout: PrintLayout = 'full') => {
@@ -3737,7 +3809,18 @@ export default function AnaliseContrato() {
                 {/* Top 5 ofensores removido conforme solicitado */}
 
                 <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide">Detalhamento — Versão Resumida</div>
+                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide flex items-center justify-between gap-2">
+                    <span>Detalhamento — Versão Resumida</span>
+                    <button
+                      type="button"
+                      onClick={exportResumoDetalhadoExcelComCores}
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-slate-600 hover:bg-slate-100"
+                      title="Exportar a tabela atual em formato Excel com as cores da visualização"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Excel com cores
+                    </button>
+                  </div>
                   <div className="px-3 py-2 border-b border-slate-200 bg-white">
                     {(() => {
                       const rows = resumoContratoData && resumoContratoData.rows ? [...resumoContratoData.rows] : [];
@@ -3827,34 +3910,45 @@ export default function AnaliseContrato() {
                       );
                     })()}
                   </div>
-                  <div className="overflow-auto">
-                    <table className="min-w-full text-xs">
+                  <div className="overflow-auto max-h-[72vh]">
+                    <table ref={resumoDetailTableRef} className="min-w-full text-xs">
                       <thead className="bg-slate-100 text-slate-600">
-                        <tr className="bg-slate-200 text-slate-700 text-[10px] uppercase tracking-wide">
-                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300">Identificação</th>
-                          <th colSpan={1} className="px-3 py-1.5 text-center border-b border-slate-300">Operação</th>
-                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300">Passagem</th>
-                          <th colSpan={5} className="px-3 py-1.5 text-center border-b border-slate-300">Manutenção</th>
-                          <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300">Sinistro</th>
-                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300">Previsto x Real</th>
+                        <tr className="sticky top-0 z-20 bg-slate-200 text-slate-700 text-[10px] uppercase tracking-wide">
+                          <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Identificação</th>
+                          <th colSpan={1} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Operação</th>
+                          <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Passagem</th>
+                          <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Custo KM</th>
+                          <th colSpan={3} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Manutenção</th>
+                          <th colSpan={8} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Sinistro</th>
+                          <th colSpan={2} className="px-3 py-1.5 text-center border-b border-slate-300 border-r border-slate-300">Desvio Prev. x Real</th>
                           <th colSpan={4} className="px-3 py-1.5 text-center border-b border-slate-300">Status e Prazo</th>
                         </tr>
-                        <tr>
+                        <tr className="sticky top-[27px] z-20 bg-slate-100">
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('placa')} className="flex items-center gap-1 hover:text-slate-900">Placa {resumoDetailSortIcon('placa')}</button></th>
-                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo {resumoDetailSortIcon('modelo')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('kmAtual')} className="flex items-center gap-1 justify-end hover:text-slate-900">KM {resumoDetailSortIcon('kmAtual')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('grupo')} className="flex items-center gap-1 hover:text-slate-900">Grupo {resumoDetailSortIcon('grupo')}</button></th>
+                          <th className="text-left px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo {resumoDetailSortIcon('modelo')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('idadeEmMeses')} className="flex items-center gap-1 justify-end hover:text-slate-900">Idade {resumoDetailSortIcon('idadeEmMeses')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('kmAtual')} className="flex items-center gap-1 justify-end hover:text-slate-900">KM {resumoDetailSortIcon('kmAtual')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('passagemTotal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Pass. Real {resumoDetailSortIcon('passagemTotal')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('diferencaPassagem')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Pass. {resumoDetailSortIcon('diferencaPassagem')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmManual')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Prec. {resumoDetailSortIcon('custoKmManual')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('passagemIdeal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Pass. Prev. {resumoDetailSortIcon('passagemIdeal')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('diferencaPassagem')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Pass. {resumoDetailSortIcon('diferencaPassagem')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Man. {resumoDetailSortIcon('custoKmMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmManual')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Prev. {resumoDetailSortIcon('custoKmManual')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('difCustoKm')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Custo KM {resumoDetailSortIcon('difCustoKm')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmLiqMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Líq. {resumoDetailSortIcon('custoKmLiqMan')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoManRealizado')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo Man Real. {resumoDetailSortIcon('custoManRealizado')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reembolso Man. {resumoDetailSortIcon('totalReembMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reemb. Man. {resumoDetailSortIcon('totalReembMan')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reemb Man {resumoDetailSortIcon('pctReembolsadoMan')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sinistro {resumoDetailSortIcon('totalSinistro')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembSin')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reemb. Sin. {resumoDetailSortIcon('totalReembSin')}</button></th>
                           <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoSin')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reembolsável {resumoDetailSortIcon('pctReembolsadoSin')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctSinFat')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Fat {resumoDetailSortIcon('pctSinFat')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('difManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">DIF {resumoDetailSortIcon('difManPrevReal')}</button></th>
-                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctDifManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">%dif {resumoDetailSortIcon('pctDifManPrevReal')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctCustoLiqSinFat')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sin Líq %Fat {resumoDetailSortIcon('pctCustoLiqSinFat')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('sinistralidadeOperacional')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sin Op. {resumoDetailSortIcon('sinistralidadeOperacional')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('indiceFrequenciaSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Índ. Freq. {resumoDetailSortIcon('indiceFrequenciaSinistro')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('gravidadeMediaSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Gravidade {resumoDetailSortIcon('gravidadeMediaSinistro')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('indiceSeveridadeDano')} className="flex items-center gap-1 justify-end hover:text-slate-900">Severidade {resumoDetailSortIcon('indiceSeveridadeDano')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('difManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Prev x Real {resumoDetailSortIcon('difManPrevReal')}</button></th>
+                          <th className="text-right px-3 py-2 border-r border-slate-200"><button type="button" onClick={() => handleResumoDetailSort('pctDifManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Desvio {resumoDetailSortIcon('pctDifManPrevReal')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('sitLoc')} className="flex items-center gap-1 hover:text-slate-900">Sit. Locação {resumoDetailSortIcon('sitLoc')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('vencimentoContrato')} className="flex items-center gap-1 hover:text-slate-900">Vencimento {resumoDetailSortIcon('vencimentoContrato')}</button></th>
                           <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('statusResumo')} className="flex items-center gap-1 hover:text-slate-900">Status {resumoDetailSortIcon('statusResumo')}</button></th>
@@ -3889,17 +3983,40 @@ export default function AnaliseContrato() {
                             switch (key) {
                               case 'placa': return row.placa || '';
                               case 'modelo': return row.modelo || '';
+                              case 'grupo': return row.grupo || '';
                               case 'kmAtual': return Number(row.kmAtual) || 0;
+                              case 'idadeEmMeses': return Number(row.idadeEmMeses) || 0;
                               case 'passagemTotal': return Number(row.passagemTotal) || 0;
+                              case 'passagemIdeal': return Number(row.passagemIdeal) || 0;
                               case 'diferencaPassagem': return Number(row.diferencaPassagem) || 0;
                               case 'custoKmManual': return row.custoKmManual == null ? '' : Number(row.custoKmManual) || 0;
                               case 'custoKmMan': return Number(row.custoKmMan) || 0;
+                              case 'difCustoKm': return row.custoKmManual == null ? -1 : (Number(row.custoKmMan) || 0) - (Number(row.custoKmManual) || 0);
                               case 'custoKmLiqMan': return Number(row.custoKmLiqMan) || 0;
                               case 'totalReembMan': return Number(row.totalReembMan) || 0;
+                              case 'pctReembolsadoMan': return Number(row.pctReembolsadoMan) || 0;
                               case 'custoManRealizado': return Number(row.custoManRealizado) || 0;
                               case 'totalSinistro': return Number(row.totalSinistro) || 0;
+                              case 'totalReembSin': return Number(row.totalReembSin) || 0;
                               case 'pctReembolsadoSin': return Number(row.pctReembolsadoSin) || 0;
-                              case 'pctSinFat': return Number(row.pctSinFat) || 0;
+                              case 'pctCustoLiqSinFat': return Number(row.pctCustoLiqSinFat) || 0;
+                              case 'sinistralidadeOperacional': {
+                                const base = Number(row.faturamentoTotal) || 0;
+                                return base > 0 ? (Number(row.totalSinistro) || 0) / base : -1;
+                              }
+                              case 'sinistralidadeReembolso': {
+                                const base = Number(row.totalReembSin) || 0;
+                                return base > 0 ? (Number(row.totalSinistro) || 0) / base : -1;
+                              }
+                              case 'indiceFrequenciaSinistro': return Number(row.qtdSinistros) || 0;
+                              case 'gravidadeMediaSinistro': {
+                                const qtd = Number(row.qtdSinistros) || 0;
+                                return qtd > 0 ? (Number(row.totalSinistro) || 0) / qtd : -1;
+                              }
+                              case 'indiceSeveridadeDano': {
+                                const base = Number(row.valorVeiculoFipe) || 0;
+                                return base > 0 ? (Number(row.totalSinistro) || 0) / base : -1;
+                              }
                               case 'difManPrevReal': return Number(row.difManPrevReal) || 0;
                               case 'pctDifManPrevReal': return Number(row.pctDifManPrevReal) || 0;
                               case 'sitLoc': return item.statusLocacao;
@@ -3945,48 +4062,115 @@ export default function AnaliseContrato() {
                           const totals = filteredRows.reduce((acc, it) => {
                             const r = it.row as VehicleRow;
                             acc.passagemTotal += Number(r.passagemTotal) || 0;
+                            acc.passagemIdeal += Number(r.passagemIdeal) || 0;
                             acc.diferencaPassagem += Number(r.diferencaPassagem) || 0;
+                            acc.custoKmMan += Number(r.custoKmMan) || 0;
+                            acc.custoKmManual += Number(r.custoKmManual) || 0;
+                            acc.difCustoKm += (r.custoKmManual == null ? 0 : ((Number(r.custoKmMan) || 0) - (Number(r.custoKmManual) || 0)));
+                            acc.custoKmLiqMan += Number(r.custoKmLiqMan) || 0;
                             acc.totalReembMan += Number(r.totalReembMan) || 0;
                             acc.custoManRealizado += Number(r.custoManRealizado) || 0;
+                            acc.pctReembolsadoMan += Number(r.pctReembolsadoMan) || 0;
                             acc.totalSinistro += Number(r.totalSinistro) || 0;
+                            acc.totalReembSin += Number(r.totalReembSin) || 0;
+                            acc.custoLiqSin += Number(r.custoLiqSin) || 0;
+                            acc.faturamentoTotal += Number(r.faturamentoTotal) || 0;
+                            acc.qtdSinistros += Number(r.qtdSinistros) || 0;
+                            acc.valorVeiculoFipe += Number(r.valorVeiculoFipe) || 0;
                             acc.pctReembolsadoSin += Number(r.pctReembolsadoSin) || 0;
-                            acc.pctSinFat += Number(r.pctSinFat) || 0;
                             acc.difManPrevReal += Number(r.difManPrevReal) || 0;
                             acc.pctDifManPrevReal += Number(r.pctDifManPrevReal) || 0;
+                            acc.idadeEmMeses += Number(r.idadeEmMeses) || 0;
                             return acc;
-                          }, { passagemTotal: 0, diferencaPassagem: 0, totalReembMan: 0, custoManRealizado: 0, totalSinistro: 0, pctReembolsadoSin: 0, pctSinFat: 0, difManPrevReal: 0, pctDifManPrevReal: 0 });
+                          }, {
+                            passagemTotal: 0,
+                            passagemIdeal: 0,
+                            diferencaPassagem: 0,
+                            custoKmMan: 0,
+                            custoKmManual: 0,
+                            difCustoKm: 0,
+                            custoKmLiqMan: 0,
+                            totalReembMan: 0,
+                            custoManRealizado: 0,
+                            pctReembolsadoMan: 0,
+                            totalSinistro: 0,
+                            totalReembSin: 0,
+                            custoLiqSin: 0,
+                            faturamentoTotal: 0,
+                            qtdSinistros: 0,
+                            valorVeiculoFipe: 0,
+                            pctReembolsadoSin: 0,
+                            difManPrevReal: 0,
+                            pctDifManPrevReal: 0,
+                            idadeEmMeses: 0,
+                          });
 
                           filteredRows.forEach(item => {
                             const r = item.row as VehicleRow;
                             const status = item.statusInfo.status;
                             const passagemDesvio = (Number(r.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(r.pctPassagem) || 0) > passagemPctAlertThreshold;
                             const manutencaoDesvio = (Number(r.difManPrevReal) || 0) < 0 || (Number(r.pctDifManPrevReal) || 0) > 0;
+                            const difCustoKm = r.custoKmManual == null ? NaN : (Number(r.custoKmMan) || 0) - (Number(r.custoKmManual) || 0);
+                            const sinistralidadeOperacional = (Number(r.faturamentoTotal) || 0) > 0 ? (Number(r.totalSinistro) || 0) / (Number(r.faturamentoTotal) || 0) : NaN;
+                            const indiceFrequenciaSinistro = Number(r.qtdSinistros) || 0;
+                            const gravidadeMediaSinistro = indiceFrequenciaSinistro > 0 ? (Number(r.totalSinistro) || 0) / indiceFrequenciaSinistro : NaN;
+                            const indiceSeveridadeDano = (Number(r.valorVeiculoFipe) || 0) > 0 ? (Number(r.totalSinistro) || 0) / (Number(r.valorVeiculoFipe) || 0) : NaN;
                             const vencido = Number.isFinite(r.prazoRestDays) && r.prazoRestDays < 0;
                             const vence90d = Number.isFinite(r.prazoRestDays) && r.prazoRestDays >= 0 && r.prazoRestDays <= 90;
                             const placaClass = 'px-3 py-2 font-medium text-slate-800';
-                            const modeloClass = 'px-3 py-2 text-slate-600';
+                            const modeloClass = 'px-3 py-2 text-slate-600 border-r border-slate-200';
+                            const grupoClass = 'px-3 py-2 text-slate-600';
                             const statusClass = status === 'Critico' ? 'text-rose-700 font-semibold' : status === 'Atencao' ? 'text-amber-700 font-semibold' : 'text-emerald-700 font-semibold';
                             const numClass = 'text-slate-700';
                             const desvioClass = 'text-rose-600 font-semibold';
-                            const fatClass = (Number(r.pctSinFat) || 0) > fatPctAlertThreshold ? desvioClass : numClass;
+                            const sinLiqFatClass = (Number(r.pctCustoLiqSinFat) || 0) > fatPctAlertThreshold ? desvioClass : numClass;
+                            const sinOpClass = !isFinite(sinistralidadeOperacional) || isNaN(sinistralidadeOperacional)
+                              ? 'text-slate-400'
+                              : sinistralidadeOperacional > 0.7
+                                ? desvioClass
+                                : sinistralidadeOperacional > 0.65
+                                  ? 'text-amber-600 font-semibold'
+                                  : numClass;
+                            const severidadeClass = !isFinite(indiceSeveridadeDano) || isNaN(indiceSeveridadeDano)
+                              ? 'text-slate-400'
+                              : indiceSeveridadeDano > 0.15
+                                ? desvioClass
+                                : indiceSeveridadeDano > 0.10
+                                  ? 'text-amber-600 font-semibold'
+                                  : numClass;
+                            const difCustoKmClass = !isFinite(difCustoKm) || isNaN(difCustoKm)
+                              ? 'text-slate-400'
+                              : difCustoKm > 0
+                                ? desvioClass
+                                : 'text-emerald-600 font-semibold';
                             const vencimentoClass = vencido ? 'text-rose-600 font-semibold' : (vence90d ? 'text-amber-600 font-semibold' : 'text-slate-700');
                             rowsElems.push(
                               <tr key={`${r.placa}-${r.contrato}`} className={`border-t border-slate-100 hover:bg-slate-50`}>
                                 <td className={placaClass}>{r.placa || '—'}</td>
+                                <td className={grupoClass}>{r.grupo || '—'}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtInt(r.idadeEmMeses)}</td>
                                 <td className={modeloClass}>{r.modelo || '—'}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—'}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemTotal)}</td>
-                                <td className={`px-3 py-2 text-right ${passagemDesvio ? desvioClass : numClass}`}>{fmtNominal(r.diferencaPassagem)}</td>
-                                <td className={`px-3 py-2 text-right ${numClass}`}>{r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemIdeal)}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${passagemDesvio ? desvioClass : numClass}`}>{fmtNominal(r.diferencaPassagem)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtKM2(r.custoKmMan)}</td>
-                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtKM2(r.custoKmLiqMan)}</td>
+                                <td className={`px-3 py-2 text-right ${r.custoKmManual == null ? 'text-slate-400' : numClass}`}>{r.custoKmManual == null ? '—' : fmtKM2(r.custoKmManual)}</td>
+                                <td className={`px-3 py-2 text-right ${difCustoKmClass}`}>{isFinite(difCustoKm) ? fmtKM2(difCustoKm) : '—'}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtKM2(r.custoKmLiqMan)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.custoManRealizado)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalReembMan)}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${numClass}`}>{fmtPct(r.pctReembolsadoMan)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalSinistro)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalReembSin)}</td>
                                 <td className={`px-3 py-2 text-right ${numClass}`}>{fmtPct(r.pctReembolsadoSin)}</td>
-                                <td className={`px-3 py-2 text-right ${fatClass}`}>{fmtPct(r.pctSinFat)}</td>
+                                <td className={`px-3 py-2 text-right ${sinLiqFatClass}`}>{fmtPct(r.pctCustoLiqSinFat)}</td>
+                                <td className={`px-3 py-2 text-right ${sinOpClass}`}>{isFinite(sinistralidadeOperacional) ? fmtPct(sinistralidadeOperacional) : 'N/D'}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNum(indiceFrequenciaSinistro)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{isFinite(gravidadeMediaSinistro) ? fmtBRLZero(gravidadeMediaSinistro) : 'N/D'}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${severidadeClass}`}>{isFinite(indiceSeveridadeDano) ? fmtPct(indiceSeveridadeDano) : 'N/D'}</td>
                                 <td className={`px-3 py-2 text-right ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtBRL(r.difManPrevReal)}</td>
-                                <td className={`px-3 py-2 text-right ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtPct(r.pctDifManPrevReal)}</td>
+                                <td className={`px-3 py-2 text-right border-r border-slate-200 ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtPct(r.pctDifManPrevReal)}</td>
                                 <td className="px-3 py-2 whitespace-nowrap text-slate-700">{item.statusLocacao}</td>
                                 <td className={`px-3 py-2 whitespace-nowrap ${vencimentoClass}`}>{item.vencimentoLabel}</td>
                                 <td className={`px-3 py-2 whitespace-nowrap ${statusClass}`}>{item.statusLabel}</td>
@@ -4001,24 +4185,49 @@ export default function AnaliseContrato() {
                               .filter(Boolean)
                           ).size;
 
+                          const manualCount = filteredRows.filter(it => (it.row as VehicleRow).custoKmManual != null).length;
+                          const totalCustoKmManMedio = filteredRows.length > 0 ? totals.custoKmMan / filteredRows.length : NaN;
+                          const totalCustoKmPrevMedio = manualCount > 0 ? totals.custoKmManual / manualCount : NaN;
+                          const totalDifCustoKmMedio = manualCount > 0 ? totals.difCustoKm / manualCount : NaN;
+                          const totalCustoKmLiqMedio = filteredRows.length > 0 ? totals.custoKmLiqMan / filteredRows.length : NaN;
+                          const totalIdadeMedia = filteredRows.length > 0 ? totals.idadeEmMeses / filteredRows.length : NaN;
+
+                          const totalPctReembMan = totals.custoManRealizado > 0 ? totals.totalReembMan / totals.custoManRealizado : 0;
+                          const totalPctReembSin = totals.totalSinistro > 0 ? totals.totalReembSin / totals.totalSinistro : 0;
+                          const totalSinLiqPctFat = totals.faturamentoTotal > 0 ? totals.custoLiqSin / totals.faturamentoTotal : NaN;
+                          const totalSinistralidadeOperacional = totals.faturamentoTotal > 0 ? totals.totalSinistro / totals.faturamentoTotal : NaN;
+                          const totalIndiceFrequenciaSinistro = filteredRows.length > 0 ? totals.qtdSinistros / filteredRows.length : 0;
+                          const totalGravidadeMediaSinistro = totals.qtdSinistros > 0 ? totals.totalSinistro / totals.qtdSinistros : NaN;
+                          const totalIndiceSeveridadeDano = totals.valorVeiculoFipe > 0 ? totals.totalSinistro / totals.valorVeiculoFipe : NaN;
+
                           // linha de totais
                           rowsElems.push(
                             <tr key="_totals" className="border-t border-slate-200 bg-slate-50 font-semibold">
                               <td className="px-3 py-2">Totais (Placas: {totalPlacasFiltradas.toLocaleString('pt-BR')})</td>
-                              <td className="px-3 py-2" />
-                              <td className="px-3 py-2 text-right text-slate-800">—</td>
+                              <td className="px-3 py-2">—</td>
+                              <td className="px-3 py-2 border-r border-slate-200">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalIdadeMedia) ? fmtInt(totalIdadeMedia) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">—</td>
                               <td className="px-3 py-2 text-right text-slate-800">{totals.passagemTotal.toLocaleString('pt-BR')}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{totals.diferencaPassagem.toLocaleString('pt-BR')}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">—</td>
-                              <td className="px-3 py-2 text-right text-slate-800">—</td>
-                              <td className="px-3 py-2 text-right text-slate-800">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{totals.passagemIdeal.toLocaleString('pt-BR')}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{totals.diferencaPassagem.toLocaleString('pt-BR')}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalCustoKmManMedio) ? fmtKM2(totalCustoKmManMedio) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalCustoKmPrevMedio) ? fmtKM2(totalCustoKmPrevMedio) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalDifCustoKmMedio) ? fmtKM2(totalDifCustoKmMedio) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalCustoKmLiqMedio) ? fmtKM2(totalCustoKmLiqMedio) : '—'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.custoManRealizado)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalReembMan)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{fmtPct(totalPctReembMan)}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalSinistro)}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{filteredRows.length > 0 ? fmtPct(totals.pctReembolsadoSin / filteredRows.length) : fmtPct(0)}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{filteredRows.length > 0 ? fmtPct(totals.pctSinFat / filteredRows.length) : fmtPct(0)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalReembSin)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalPctReembSin)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalSinLiqPctFat) ? fmtPct(totalSinLiqPctFat) : 'N/D'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalSinistralidadeOperacional) ? fmtPct(totalSinistralidadeOperacional) : 'N/D'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtPct(totalIndiceFrequenciaSinistro)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{isFinite(totalGravidadeMediaSinistro) ? fmtBRLZero(totalGravidadeMediaSinistro) : 'N/D'}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{isFinite(totalIndiceSeveridadeDano) ? fmtPct(totalIndiceSeveridadeDano) : 'N/D'}</td>
                               <td className="px-3 py-2 text-right text-slate-800">{fmtBRL(totals.difManPrevReal)}</td>
-                              <td className="px-3 py-2 text-right text-slate-800">{(filteredRows.length > 0) ? fmtPct(totals.pctDifManPrevReal / filteredRows.length) : fmtPct(0)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800 border-r border-slate-200">{(filteredRows.length > 0) ? fmtPct(totals.pctDifManPrevReal / filteredRows.length) : fmtPct(0)}</td>
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2" />
                               <td className="px-3 py-2" />
