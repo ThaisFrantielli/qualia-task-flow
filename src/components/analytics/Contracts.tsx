@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 // react-router navigation not required here; viewMode handles embedded projection view
-import CashFlowProjectionPage from '@/pages/analytics/CashFlowProjectionPage';
 import * as XLSX from 'xlsx';
 import { Search, BarChart3, List as ListIcon, Calendar, Truck, MessageSquarePlus, X, Layers, Clock, Activity, Briefcase, Table2, AlertCircle, ArrowUp, ArrowDown, Download, ChevronRight, ChevronDown, DollarSign } from 'lucide-react';
 import { Contract, RenewalStrategy, RenewalStrategyLabel } from '@/types/contracts';
@@ -1511,8 +1510,9 @@ const ContractsComponent: React.FC<ContractsProps> = ({ contracts, onUpdateContr
               <button type="button" onClick={() => clearFilters()} className="text-sm px-3 py-1 rounded border bg-white">Limpar Filtros</button>
             </div>
           </div>
-
-          <CashFlowProjectionPage />
+          <div className="flex items-center justify-center p-12 text-slate-500 bg-slate-50 rounded-lg shadow-inner">
+            <span className="text-sm font-medium">Módulo de Projeção de Fluxo de Caixa indisponível (Em atualização).</span>
+          </div>
         </div>
       )}
 

@@ -437,42 +437,27 @@ const PermissoesSection: React.FC = () => {
 // Componente principal
 const ModulosGruposTab: React.FC = () => {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold">Módulos e Grupos de Acesso</h2>
+        <h2 className="text-2xl font-bold">Controle de Acesso</h2>
         <p className="text-muted-foreground text-sm">
           Gerencie os módulos do sistema, grupos de usuários e suas permissões
         </p>
       </div>
 
-      <Tabs defaultValue="modulos" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto">
-          <TabsTrigger value="modulos" className="flex items-center gap-2">
-            <Package className="w-4 h-4" />
-            Módulos
-          </TabsTrigger>
-          <TabsTrigger value="grupos" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Grupos
-          </TabsTrigger>
-          <TabsTrigger value="permissoes" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Permissões
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="modulos" className="mt-6">
+      <div className="space-y-12">
+        <section>
           <ModulosSection />
-        </TabsContent>
+        </section>
 
-        <TabsContent value="grupos" className="mt-6">
+        <section>
           <GruposSection />
-        </TabsContent>
+        </section>
 
-        <TabsContent value="permissoes" className="mt-6">
+        <section>
           <PermissoesSection />
-        </TabsContent>
-      </Tabs>
+        </section>
+      </div>
     </div>
   );
 };

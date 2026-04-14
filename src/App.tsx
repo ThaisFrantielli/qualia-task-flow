@@ -6,6 +6,7 @@ import { PresenceProvider } from './contexts/PresenceContext';
 import Calendar from '@/pages/Calendar';
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import AnalyticsProtectedRoute from '@/components/analytics/AnalyticsProtectedRoute';
 import LoginPage from '@/pages/Login';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import ForcePasswordChange from '@/pages/ForcePasswordChange';
@@ -122,22 +123,22 @@ function App() {
               <Route path="/broadcasts" element={<Broadcasts />} />
               <Route path="/analytics">
                 <Route index element={<AnalyticsIndex />} />
-                <Route path="frota" element={<FleetDashboard />} />
-                <Route path="frota-idle" element={<FleetIdleDashboard />} />
-                <Route path="frota-metodologia" element={<FleetMethodologyPage />} />
-                <Route path="contratos" element={<ContractsDashboard />} />
-                <Route path="analise-contrato" element={<AnaliseContrato />} />
-                <Route path="previsao-encerramento" element={<ContractTerminationDashboard />} />
-                <Route path="abertura-encerramento" element={<ContractLifecycleDashboard />} />
+                <Route path="frota" element={<AnalyticsProtectedRoute pageKey="frota"><FleetDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="frota-idle" element={<AnalyticsProtectedRoute pageKey="frota-idle"><FleetIdleDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="frota-metodologia" element={<AnalyticsProtectedRoute pageKey="frota-metodologia"><FleetMethodologyPage /></AnalyticsProtectedRoute>} />
+                <Route path="contratos" element={<AnalyticsProtectedRoute pageKey="contratos"><ContractsDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="analise-contrato" element={<AnalyticsProtectedRoute pageKey="analise-contrato"><AnaliseContrato /></AnalyticsProtectedRoute>} />
+                <Route path="previsao-encerramento" element={<AnalyticsProtectedRoute pageKey="previsao-encerramento"><ContractTerminationDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="abertura-encerramento" element={<AnalyticsProtectedRoute pageKey="abertura-encerramento"><ContractLifecycleDashboard /></AnalyticsProtectedRoute>} />
                 {/* Permit access via submenu under Analise Contrato */}
-                <Route path="analise-contrato/previsao-encerramento" element={<ContractTerminationDashboard />} />
-                <Route path="analise-contrato/abertura-encerramento" element={<ContractLifecycleDashboard />} />
-                <Route path="compras" element={<PurchasesDashboard />} />
-                <Route path="faturamento" element={<FaturamentoDashboard />} />
-                <Route path="manutencao" element={<MaintenanceDashboard />} />
-                <Route path="multas" element={<InfractionsDashboard />} />
-                <Route path="sinistros" element={<ClaimsDashboard />} />
-                <Route path="dre" element={<DREGerencialDashboard />} />
+                <Route path="analise-contrato/previsao-encerramento" element={<AnalyticsProtectedRoute pageKey="previsao-encerramento"><ContractTerminationDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="analise-contrato/abertura-encerramento" element={<AnalyticsProtectedRoute pageKey="abertura-encerramento"><ContractLifecycleDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="compras" element={<AnalyticsProtectedRoute pageKey="compras"><PurchasesDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="faturamento" element={<AnalyticsProtectedRoute pageKey="faturamento"><FaturamentoDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="manutencao" element={<AnalyticsProtectedRoute pageKey="manutencao"><MaintenanceDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="multas" element={<AnalyticsProtectedRoute pageKey="multas"><InfractionsDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="sinistros" element={<AnalyticsProtectedRoute pageKey="sinistros"><ClaimsDashboard /></AnalyticsProtectedRoute>} />
+                <Route path="dre" element={<AnalyticsProtectedRoute pageKey="dre"><DREGerencialDashboard /></AnalyticsProtectedRoute>} />
               </Route>
 
               <Route path="/clientes" element={<CustomerHubPage />} />

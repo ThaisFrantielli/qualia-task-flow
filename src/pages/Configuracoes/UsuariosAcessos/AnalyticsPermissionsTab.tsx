@@ -56,7 +56,6 @@ const AnalyticsPermissionsTab: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true);
-    setLoading(true);
     try {
       const [pagesRes, tabsRes, groupsRes, permsRes] = await Promise.all([
         supabase.from('analytics_pages').select('*').order('display_order'),
@@ -149,11 +148,28 @@ const AnalyticsPermissionsTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Permissões do Analytics</h2>
-        <p className="text-muted-foreground text-sm">
-          Configure quais grupos têm acesso a cada página e aba do módulo Analytics
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold">Permissões Analytics</h2>
+          <p className="text-muted-foreground text-sm">
+            Configure quais grupos têm acesso a cada página e aba do módulo Analytics
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-muted p-4 rounded-lg flex flex-col items-center">
+          <span className="text-2xl font-bold">{pages.length}</span>
+          <span className="text-xs uppercase text-muted-foreground">Páginas Totais</span>
+        </div>
+        <div className="bg-muted p-4 rounded-lg flex flex-col items-center">
+          <span className="text-2xl font-bold">{tabs.length}</span>
+          <span className="text-xs uppercase text-muted-foreground">Abas Totais</span>
+        </div>
+        <div className="bg-muted p-4 rounded-lg flex flex-col items-center">
+          <span className="text-2xl font-bold text-primary">{permissions.filter(p => !p.tab_id).length}</span>
+          <span className="text-xs uppercase text-muted-foreground">Páginas Liberadas</span>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -224,58 +240,70 @@ const AnalyticsPermissionsTab: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="by-page" className="mt-6">
-          <div className="grid gap-4">
-            {pages.map(page => {
-              const pageTabs = getPageTabs(page.id);
-              
+          <div className="space-y-8">
+            {['ativos', 'aquisicoes', 'operacional', 'financeiro'].map(hub => {
+              const hubPages = pages.filter(p => p.hub_category === hub);
+              if (hubPages.length === 0) return null;
+
               return (
-                <Card key={page.id}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5 text-primary" />
-                      <CardTitle className="text-lg">{page.name}</CardTitle>
-                      {!page.is_active && (
-                        <Badge variant="secondary">Inativo</Badge>
-                      )}
-                    </div>
-                    {page.description && (
-                      <CardDescription>{page.description}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3">
-                      {groups.map(group => {
-                        const hasPage = hasPagePermission(group.id, page.id);
-                        
-                        return (
-                          <div key={group.id} className="border rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Checkbox
-                                checked={hasPage}
-                                onCheckedChange={() => togglePagePermission(group.id, page.id)}
-                              />
-                              <span className="font-medium">{group.name}</span>
+                <div key={hub}>
+                  <h3 className="text-lg font-semibold capitalize mb-4 text-primary">Hub {hub}</h3>
+                  <div className="grid gap-4">
+                    {hubPages.map(page => {
+                      const pageTabs = getPageTabs(page.id);
+                      
+                      return (
+                        <Card key={page.id}>
+                          <CardHeader className="pb-3 border-b">
+                            <div className="flex items-center gap-2">
+                              <BarChart3 className="w-5 h-5 text-primary" />
+                              <CardTitle className="text-lg">{page.name}</CardTitle>
+                              {!page.is_active && (
+                                <Badge variant="secondary">Inativo</Badge>
+                              )}
                             </div>
-                            
-                            {pageTabs.length > 0 && hasPage && (
-                              <div className="ml-6 grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                                {pageTabs.map(tab => (
-                                  <label key={tab.id} className="flex items-center gap-2 text-sm">
-                                    <Checkbox
-                                      checked={hasTabPermission(group.id, page.id, tab.id)}
-                                      onCheckedChange={() => toggleTabPermission(group.id, page.id, tab.id)}
-                                    />
-                                    {tab.name}
-                                  </label>
-                                ))}
-                              </div>
+                            {page.description && (
+                              <CardDescription>{page.description}</CardDescription>
                             )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
+                          </CardHeader>
+                          <CardContent className="pt-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {groups.map(group => {
+                                const hasPage = hasPagePermission(group.id, page.id);
+                                
+                                return (
+                                  <div key={group.id} className="border rounded-lg p-3 bg-muted/20">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Checkbox
+                                        checked={hasPage}
+                                        onCheckedChange={() => togglePagePermission(group.id, page.id)}
+                                      />
+                                      <span className="font-medium text-sm">{group.name}</span>
+                                    </div>
+                                    
+                                    {pageTabs.length > 0 && hasPage && (
+                                      <div className="ml-6 flex flex-col gap-2 mt-2">
+                                        {pageTabs.map(tab => (
+                                          <label key={tab.id} className="flex items-center gap-2 text-xs">
+                                            <Checkbox
+                                              checked={hasTabPermission(group.id, page.id, tab.id)}
+                                              onCheckedChange={() => toggleTabPermission(group.id, page.id, tab.id)}
+                                            />
+                                            {tab.name}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>
