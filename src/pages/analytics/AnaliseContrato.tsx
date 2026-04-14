@@ -11,39 +11,76 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-// ── Types ────────────────────────────────────────────────────────
-interface ContratoRow { 
-  IdContratoLocacao:string; ContratoComercial:string; IdContratoComercial?:string|number;
-  PlacaPrincipal:string; IdVeiculoPrincipal:string; NomeCliente:string; 
-  SituacaoContratoLocacao:string; SituacaoContratoComercial?:string; SituacaoContrato?:string;
-  TipoContrato?:string; TipoContratoLocacao?:string; TipoDeContrato?:string; TipoLocacao?:string; Publico?:string;
-  DataInicial:string; DataFinal:string|null; 
-  Modelo?:string; Grupo?:string; GrupoVeiculo?:string; Categoria?:string; CategoriaVeiculo?:string;
-  KmConfirmado?:number; KmInformado?:number;
+interface ContratoRow {
+  [key: string]: unknown;
+  IdContratoLocacao?: string | number;
+  ContratoComercial?: string | number;
+  PlacaPrincipal?: string;
+  NomeCliente?: string;
+  DataInicial?: string;
+  DataFinal?: string;
+  TipoDeContrato?: string;
+  TipoContrato?: string;
+  TipoContratoLocacao?: string;
+  TipoLocacao?: string;
+  Publico?: string;
+  SituacaoContratoComercial?: string;
+  SituacaoContrato?: string;
+  SituacaoContratoLocacao?: string;
+  IdVeiculoPrincipal?: string | number;
 }
-interface FrotaRow { 
-  IdVeiculo:string; Placa:string; Modelo?:string; 
-  Categoria?:string; CategoriaVeiculo?:string; Grupo?:string; GrupoVeiculo?:string;
-  KmConfirmado?:number; KM?:number; KmInformado?:number; 
+
+interface FrotaRow {
+  [key: string]: unknown;
+  Placa?: string;
+  placa?: string;
+  IdVeiculo?: string | number;
+  Modelo?: string;
+  Grupo?: string;
+  GrupoVeiculo?: string;
+  Categoria?: string;
+  CategoriaVeiculo?: string;
+  ContratoComercial?: string | number;
+  Contrato?: string | number;
+  KmConfirmado?: number | string;
+  KmInformado?: number | string;
+  KM?: number | string;
+  OdometroConfirmado?: number | string;
+  OdometroAtual?: number | string;
 }
+
 interface ManutencaoRow { Placa:string; ValorTotal:number; ValorReembolsavel:number; DataEntrada:string; DataCriacaoOS:string; OrdemServicoCriadaEm?:string; DataCriacao?:string; IdOrdemServico?:string; idordemservico?:string; IdOcorrencia?:string|number; TipoOcorrencia?:string; Tipo?:string; TipoManutencao?:string; Situacao?:string; Status?:string; StatusOrdem?:string; SituacaoOcorrencia?:string; StatusOcorrencia?:string; SituacaoOrdemServico?:string; valortotal?:number; valorreembolsavel?:number; CustoTotalOS?:number; custo_total_os?:number; ValorTotalFatItens?:number|string; ValorReembolsavelFatItens?:number|string; }
 interface RegrasContratoRow { Contrato:string; NomeRegra:string; ConteudoRegra:string | number | null; NomePolitica?:string | null; ConteudoPolitica?:string | null; Grupo?:string; GrupoVeiculo?:string; Categoria?:string; CategoriaVeiculo?:string; }
 interface SinistroRow { Placa:string; DataSinistro:string; DataCriacao:string; ValorOrcado?:number|string; ValorOrcamento?:number|string; ValorTotal?:number|string; ValorTotalOS?:number|string; ValorNaoReembolsavel?:number|string; ValorNaoReembolsavelOS?:number|string; ValorReembolsavel?:number|string; ValorReembolsavelOS?:number|string; ValorFinaleiroCalculado?:number|string; IndenizacaoSeguradora?:number|string; ReembolsoTerceiro?:number|string; }
 interface FaturamentoRow {
   IdNota:string;
-  IdVeiculo?:string;
-  Placa?:string;
-  placa?:string;
-  Competencia?:string;
-  VlrLocacao?:number|string;
-  IdContratoLocacao?:string|number;
-  IdContratoComercial?:string|number;
-  ContratoComercial?:string;
   DataCompetencia?:string;
-  ValorLocacao?:number|string;
+  Competencia?:string;
   DataEmissao?:string;
   DataCriacao?:string;
+  Placa?:string;
+  placa?:string;
+  VlrLocacao?:number|string;
+  ValorLocacao?:number|string;
+  custoManPrevisto:number; custoManRealizado:number; difManPrevReal:number; pctDifManPrevReal:number; custoManLiquido:number; difCustoManLiq:number; pctDifCustoManLiq:number;
+  totalManutencao:number; ticketMedio:number; custoKmMan:number;
+  totalReembMan:number;
+  custoLiqMan:number; pctReembolsadoMan:number; custoKmLiqMan:number;
+  totalSinistro:number;
+  totalReembSin:number;
+  qtdOsManutencao:number;
+  qtdSinistros:number;
+  custoLiqSin:number; pctReembolsadoSin:number;
+  totalManSin:number; pctReembolsadoManSin:number;
+  faturamentoTotal:number;
+  faturamentoPrevisto:number;
+  ultimoValorLocacao:number;
+  diferencaFaturamento:number;
+  projecaoFaturamento:number;
+  pctManFat:number; pctCustoLiqManFat:number; pctSinFat:number; pctCustoLiqSinFat:number; pctManSinFat:number;
+  years: Record<number, { pass:number; man:number; reembMan:number; sin:number; reembSin:number; fat:number; }>;
 }
+
 interface FaturamentoItemRow {
   IdNota?:string|number;
   IdItemNota?:string|number;
@@ -55,6 +92,7 @@ interface FaturamentoItemRow {
   ValorUnitario?:number|string;
   DataAtualizacaoDados?:string;
 }
+
 interface PrecosLocacaoRow {
   IdContratoLocacao?:string|number;
   DataInicial?:string;
@@ -62,6 +100,7 @@ interface PrecosLocacaoRow {
   ValorLocacao?:number|string;
   VlrLocacao?:number|string;
 }
+
 interface MovimentacaoVeiculoRow {
   IdContratoLocacao?: string|number;
   ContratoComercial?: string;
@@ -72,6 +111,7 @@ interface MovimentacaoVeiculoRow {
   OdometroRetirada?: number|string;
   OdometroDevolucao?: number|string;
 }
+
 interface ManualCostRule { id:string; cto:string; grupo:string; custoKm:number; }
 
 interface VehicleRow {
@@ -150,6 +190,12 @@ interface ContractExecutiveSummary {
   impactoBrutoSobreFat: number;
   passagemCriticos: number;
   riscoFinanceiroCriticos: number;
+  totalSinistrosQtd: number;
+  baseReembolsoSinistro: number;
+  sinistralidadeReembolso: number;
+  sinistralidadeOperacional: number;
+  indiceFrequenciaSinistro: number;
+  gravidadeMediaSinistro: number;
   proximosVencimentos90d: number;
   vencidos: number;
   sitLocTop: Array<{ label: string; count: number }>;
@@ -720,6 +766,11 @@ export default function AnaliseContrato() {
 
   const [sortKey,  setSortKey]  = useState<string>('cliente');
   const [sortDir,  setSortDir]  = useState<'asc'|'desc'>('asc');
+  const [resumoDetailSortKey, setResumoDetailSortKey] = useState<string>('placa');
+  const [resumoDetailSortDir, setResumoDetailSortDir] = useState<'asc'|'desc'>('asc');
+  const [resumoFilters, setResumoFilters] = useState<Record<string, string[]>>({});
+  const [resumoFilterOpenKey, setResumoFilterOpenKey] = useState<string | null>(null);
+  const [resumoSearchTerm, setResumoSearchTerm] = useState('');
   const [ctoListSortKey, setCtoListSortKey] = useState<CtoListSortKey>('cto');
   const [ctoListSortDir, setCtoListSortDir] = useState<'asc'|'desc'>('asc');
   const [expandedCtos, setExpandedCtos] = useState<Record<string, boolean>>({});
@@ -1357,7 +1408,7 @@ export default function AnaliseContrato() {
         prazoRestDays,
         kmEstimadoFimContrato,
         cliente: c?.NomeCliente || (c ? '' : '— Sem CTO / Avulso —'), 
-        contrato: c?.ContratoComercial || (c ? '' : '—'),
+        contrato: String(c?.ContratoComercial || (c ? '' : '—')),
         sitCTO: normalizeSitCTO(c || ({} as ContratoRow), cAny), 
         sitLoc: c?.SituacaoContratoLocacao || '',
         tipoContrato,
@@ -1580,6 +1631,12 @@ export default function AnaliseContrato() {
         impactoBrutoSobreFat: 0,
         passagemCriticos: 0,
         riscoFinanceiroCriticos: 0,
+        totalSinistrosQtd: 0,
+        baseReembolsoSinistro: 0,
+        sinistralidadeReembolso: 0,
+        sinistralidadeOperacional: 0,
+        indiceFrequenciaSinistro: 0,
+        gravidadeMediaSinistro: 0,
         proximosVencimentos90d: 0,
         vencidos: 0,
         sitLocTop: [],
@@ -1614,6 +1671,8 @@ export default function AnaliseContrato() {
     const sinistroBruto = sum(r => r.totalSinistro);
     const sinistroReembolso = sum(r => r.totalReembSin);
     const sinistroLiquido = sum(r => r.custoLiqSin);
+    const totalSinistrosQtd = sum(r => r.qtdSinistros);
+    const baseReembolsoSinistro = sinistroReembolso;
 
     const custoTotalBruto = manutencaoBruta + sinistroBruto;
     const reembolsoTotal = manutencaoReembolso + sinistroReembolso;
@@ -1622,6 +1681,10 @@ export default function AnaliseContrato() {
 
     const impactoLiqSobreFat = faturamentoTotal > 0 ? custoTotalLiquido / faturamentoTotal : 0;
     const impactoBrutoSobreFat = faturamentoTotal > 0 ? custoTotalBruto / faturamentoTotal : 0;
+    const sinistralidadeReembolso = baseReembolsoSinistro > 0 ? sinistroBruto / baseReembolsoSinistro : NaN;
+    const sinistralidadeOperacional = faturamentoTotal > 0 ? sinistroBruto / faturamentoTotal : 0;
+    const indiceFrequenciaSinistro = totalVeiculos > 0 ? totalSinistrosQtd / totalVeiculos : 0;
+    const gravidadeMediaSinistro = totalSinistrosQtd > 0 ? sinistroBruto / totalSinistrosQtd : 0;
 
     const passagemCriticos = rows.filter(row => (
       (Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold ||
@@ -1702,6 +1765,12 @@ export default function AnaliseContrato() {
       impactoBrutoSobreFat,
       passagemCriticos,
       riscoFinanceiroCriticos,
+      totalSinistrosQtd,
+      baseReembolsoSinistro,
+      sinistralidadeReembolso,
+      sinistralidadeOperacional,
+      indiceFrequenciaSinistro,
+      gravidadeMediaSinistro,
       proximosVencimentos90d,
       vencidos,
       sitLocTop: rankValues(rows.map(r => r.sitLoc)),
@@ -1896,6 +1965,39 @@ export default function AnaliseContrato() {
     if (status === 'Critico') return 'border-rose-200 bg-rose-50 text-rose-700';
     if (status === 'Atencao') return 'border-amber-200 bg-amber-50 text-amber-700';
     return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  };
+
+  const getResumoLocacaoStatus = (row: VehicleRow): { status: HealthStatus; motivo: string } => {
+    const isCortesia = row.isCortesia || /cortesia/i.test(String(row.tipoContrato || ''));
+    const vencido = Number.isFinite(row.prazoRestDays) && row.prazoRestDays < 0;
+    const vence90d = Number.isFinite(row.prazoRestDays) && row.prazoRestDays >= 0 && row.prazoRestDays <= 90;
+    const passagemCritica = (Number(row.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(row.pctPassagem) || 0) > passagemPctAlertThreshold;
+
+    const riscoFinanceiro = !isCortesia && (
+      (Number(row.pctManFat) || 0) > fatPctAlertThreshold ||
+      (Number(row.pctCustoLiqManFat) || 0) > fatPctAlertThreshold ||
+      (Number(row.pctSinFat) || 0) > fatPctAlertThreshold ||
+      (Number(row.pctCustoLiqSinFat) || 0) > fatPctAlertThreshold ||
+      (Number(row.pctManSinFat) || 0) > fatPctAlertThreshold
+    );
+
+    let status: HealthStatus = 'Saudavel';
+    if (isCortesia) {
+      if (vencido) status = 'Critico';
+      else if (vence90d || passagemCritica) status = 'Atencao';
+    } else {
+      if (vencido || riscoFinanceiro) status = 'Critico';
+      else if (vence90d || passagemCritica) status = 'Atencao';
+    }
+
+    const motivos: string[] = [];
+    if (vencido) motivos.push('Contrato vencido');
+    if (vence90d) motivos.push('Vence em até 90 dias');
+    if (passagemCritica) motivos.push('Desvio de passagem acima do limite');
+    if (riscoFinanceiro) motivos.push(`Indicadores %/Fat acima de ${fmtPct(fatPctAlertThreshold)}`);
+    if (motivos.length === 0) motivos.push('Dentro dos limites configurados');
+
+    return { status, motivo: motivos.join(' | ') };
   };
 
   const maintDetailRows = useMemo<MaintDetailRow[]>(() => {
@@ -2238,6 +2340,7 @@ export default function AnaliseContrato() {
     let totalSinistro = 0;
     let totalReembSin = 0;
     let totalCustoLiqSin = 0;
+    let totalSinistrosQtd = 0;
 
     let totalManSin = 0;
     let totalReembManSin = 0;
@@ -2262,6 +2365,7 @@ export default function AnaliseContrato() {
       totalSinistro += Number(row.totalSinistro) || 0;
       totalReembSin += Number(row.totalReembSin) || 0;
       totalCustoLiqSin += Number(row.custoLiqSin) || 0;
+      totalSinistrosQtd += Number(row.qtdSinistros) || 0;
 
       totalManSin += Number(row.totalManSin) || 0;
       totalReembManSin += (Number(row.totalReembMan) || 0) + (Number(row.totalReembSin) || 0);
@@ -2279,6 +2383,10 @@ export default function AnaliseContrato() {
     const pctRecuperacaoSin = totalSinistro > 0 ? totalReembSin / totalSinistro : 0;
     const custoLiqTotalManSin = totalManSin - totalReembManSin;
     const ticketMedioTotal = totalEventosManSin > 0 ? totalManSin / totalEventosManSin : 0;
+    const sinistralidadeOperacional = faturamentoTotal > 0 ? totalSinistro / faturamentoTotal : 0;
+    const sinistralidadeReembolso = totalReembSin > 0 ? totalSinistro / totalReembSin : NaN;
+    const indiceFrequenciaSinistro = totalVeiculos > 0 ? totalSinistrosQtd / totalVeiculos : 0;
+    const gravidadeMediaSinistro = totalSinistrosQtd > 0 ? totalSinistro / totalSinistrosQtd : 0;
 
     const margemManutencao = faturamentoTotal > 0 ? 1 - (totalCustoLiqMan / faturamentoTotal) : 0;
     const impactoManutencao = faturamentoTotal > 0 ? totalCustoLiqMan / faturamentoTotal : 0;
@@ -2290,7 +2398,7 @@ export default function AnaliseContrato() {
         { label: 'Total Realizado', value: fmtBRLZero(totalRealizado), sub: 'Soma do custo realizado', icon: Wrench, color: 'text-rose-600' },
         { label: 'Diferença (DIF)', value: fmtBRL(totalDifPrevReal), sub: 'Previsto - Realizado', icon: BarChart3, color: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-rose-600' },
         { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), sub: '(Realizado / Previsto) - 1', icon: AlertTriangle, color: pctDesvioPrevReal > 0 ? 'text-rose-600' : 'text-emerald-600' },
-        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Diferença negativa ou desvio acima do previsto', icon: ShieldAlert, color: 'text-red-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Diferença negativa ou desvio acima do previsto', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -2300,7 +2408,7 @@ export default function AnaliseContrato() {
         { label: 'Total Reembolsado', value: fmtBRL(totalReembMan), sub: 'Recuperado em manutenção', icon: ShieldAlert, color: 'text-emerald-600' },
         { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), sub: 'Bruto - Reembolsos', icon: DollarSign, color: 'text-indigo-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), sub: 'Reembolso / Custo Bruto', icon: Activity, color: 'text-blue-600' },
-        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -2310,7 +2418,11 @@ export default function AnaliseContrato() {
         { label: 'Reembolso Sinistro', value: fmtBRLZero(totalReembSin), sub: 'Seguradora + terceiro', icon: DollarSign, color: 'text-emerald-600' },
         { label: 'Custo Líquido Sinistro', value: fmtBRLZero(totalCustoLiqSin), sub: 'Sinistro - Reembolso', icon: BarChart3, color: 'text-indigo-600' },
         { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), sub: 'Reembolso / Sinistro', icon: Activity, color: 'text-blue-600' },
-        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
+        { label: 'Sinistralidade Op.', value: fmtPct(sinistralidadeOperacional), sub: '(Custos sinistro / faturamento bruto)', icon: AlertTriangle, color: sinistralidadeOperacional > 0.7 ? 'text-rose-600' : sinistralidadeOperacional > 0.65 ? 'text-amber-600' : 'text-emerald-600' },
+        { label: 'Índice de Frequência', value: fmtPct(indiceFrequenciaSinistro), sub: 'Nº sinistros / nº veículos', icon: Gauge, color: 'text-sky-600' },
+        { label: 'Gravidade Média', value: fmtBRLZero(gravidadeMediaSinistro), sub: 'Custo total de sinistros / nº sinistros', icon: BarChart3, color: 'text-indigo-600' },
+        { label: 'Sinistralidade (Reembolso)', value: isFinite(sinistralidadeReembolso) ? fmtPct(sinistralidadeReembolso) : 'N/D', sub: totalReembSin > 0 ? 'Custos de sinistro / reembolso de sinistro' : 'Sem base de reembolso no dataset', icon: ShieldAlert, color: isFinite(sinistralidadeReembolso) && sinistralidadeReembolso > 0.7 ? 'text-rose-600' : isFinite(sinistralidadeReembolso) && sinistralidadeReembolso > 0.65 ? 'text-amber-600' : 'text-emerald-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -2320,7 +2432,7 @@ export default function AnaliseContrato() {
         { label: 'Total Reembolsado', value: fmtBRL(totalReembManSin), sub: 'Reembolso man + sinistro', icon: ShieldAlert, color: 'text-emerald-600' },
         { label: 'Custo Líquido Total', value: fmtBRL(custoLiqTotalManSin), sub: 'Custo total - reembolsos', icon: DollarSign, color: 'text-indigo-600' },
         { label: 'Ticket Médio Total', value: fmtBRL(ticketMedioTotal), sub: 'Custo total / (OS + sinistros)', icon: Gauge, color: 'text-blue-600' },
-        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido consolidado acima de zero', icon: ShieldAlert, color: 'text-red-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Custo líquido consolidado acima de zero', icon: ShieldAlert, color: 'text-red-600' },
       ];
     }
 
@@ -2330,7 +2442,7 @@ export default function AnaliseContrato() {
         { label: 'Margem Manutenção', value: fmtPct(margemManutencao), sub: '1 - (Custo líq. man / fat.)', icon: Target, color: margemManutencao < 0 ? 'text-rose-600' : 'text-indigo-600' },
         { label: 'Impacto Manutenção', value: fmtPct(impactoManutencao), sub: '% do faturamento em man. líquida', icon: Wrench, color: impactoManutencao > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
         { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), sub: '% do faturamento em sinistro líquido', icon: ShieldAlert, color: impactoSinistro > fatPctAlertThreshold ? 'text-rose-600' : 'text-emerald-600' },
-        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Indicadores acima do limite configurado', icon: AlertTriangle, color: 'text-red-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Indicadores acima do limite configurado', icon: AlertTriangle, color: 'text-red-600' },
       ];
     }
 
@@ -2338,7 +2450,7 @@ export default function AnaliseContrato() {
       { label: 'Passagens Realizadas', value: fmtNum(totalPassagens), sub: `Média ${mediaPassagens.toFixed(1)} por veículo`, icon: Activity, color: 'text-blue-600' },
       { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), sub: `Ref. ${fmtNum(kmDivisor)} km/p`, icon: Target, color: 'text-indigo-600' },
       { label: 'Veículos Críticos', value: fmtNum(veiculosCriticos), sub: `Dif. > ${fmtNum(passagemDiffAlertThreshold)} ou % > ${fmtPct(passagemPctAlertThreshold)} da frota filtrada`, icon: AlertTriangle, color: 'text-rose-600' },
-      { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Itens destacados em vermelho na aba atual', icon: ShieldAlert, color: 'text-red-600' },
+      { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(activeTab)), sub: 'Itens destacados em vermelho na aba atual', icon: ShieldAlert, color: 'text-red-600' },
       { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), sub: 'Média mensal por veículo', icon: Gauge, color: 'text-blue-600' },
     ];
   }, [activeTab, displayRows, kmDivisor, fatPctAlertThreshold, passagemDiffAlertThreshold, passagemPctAlertThreshold]);
@@ -2400,6 +2512,34 @@ export default function AnaliseContrato() {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`difReembSin_${y}`, label:`Dif Reemb ${y}`, fmt:r=>fmtBRL(r.years[y].sin - r.years[y].reembSin), cls:r=>clrV(r.years[y].sin - r.years[y].reembSin, false), align:'right', w:110, sortGetter: r=>r.years[y].sin - r.years[y].reembSin }));
       cols.push({ key:'custoLiqSin',     label:'Custo Líq Sin', fmt:r=>fmtBRLZero(r.custoLiqSin), cls:r=>clrV(r.custoLiqSin, false), align:'right', w:120, sortGetter: r=>r.custoLiqSin });
       cols.push({ key:'pctReembolsadoSin',label:'% Reemb Sin',  fmt:r=>fmtPct(r.pctReembolsadoSin), align:'right', w:95, sortGetter: r=>r.pctReembolsadoSin });
+      cols.push({ key:'qtdSinistros',     label:'Qt. Sinistros', fmt:r=>fmtNum(r.qtdSinistros), align:'right', w:95, sortGetter: r=>r.qtdSinistros });
+      cols.push({ key:'gravidadeMediaSin',label:'Gravidade Média', fmt:r=>{
+        const qtd = Number(r.qtdSinistros) || 0;
+        return qtd > 0 ? fmtBRLZero((Number(r.totalSinistro) || 0) / qtd) : '—';
+      }, align:'right', w:125, sortGetter: r=>{
+        const qtd = Number(r.qtdSinistros) || 0;
+        return qtd > 0 ? (Number(r.totalSinistro) || 0) / qtd : 0;
+      } });
+      cols.push({ key:'sinistralidadeOperacional', label:'Sinistralidade Op.', fmt:r=>{
+        const base = Number(r.faturamentoTotal) || 0;
+        const val = base > 0 ? (Number(r.totalSinistro) || 0) / base : 0;
+        return fmtPct(val);
+      }, cls:r=>{
+        const base = Number(r.faturamentoTotal) || 0;
+        const val = base > 0 ? (Number(r.totalSinistro) || 0) / base : 0;
+        return clrPctThreshold(val, 0.70);
+      }, align:'right', w:130, sortGetter: r=>{
+        const base = Number(r.faturamentoTotal) || 0;
+        return base > 0 ? (Number(r.totalSinistro) || 0) / base : 0;
+      } });
+      cols.push({ key:'sinistralidadeReembolso', label:'Sinistralidade (Reembolso)', fmt:r=>{
+        const reembolso = Number(r.totalReembSin) || 0;
+        if (!(reembolso > 0)) return 'N/D';
+        return fmtPct((Number(r.totalSinistro) || 0) / reembolso);
+      }, align:'right', w:150, sortGetter: r=>{
+        const reembolso = Number(r.totalReembSin) || 0;
+        return reembolso > 0 ? (Number(r.totalSinistro) || 0) / reembolso : -1;
+      } });
     } else if (tab === 'mansin') {
       if (includeYearDetail) years.forEach(y => cols.push({ key:`manSin_${y}`, label:`Man+Sin ${y}`, fmt:r=>fmtBRL(r.years[y].man + r.years[y].sin), cls:r=>clrV(r.years[y].man + r.years[y].sin, false), align:'right', w:120, sortGetter: r=>r.years[y].man + r.years[y].sin }));
       cols.push({ key:'totalManSin',         label:'Total Man+Sin',fmt:r=>fmtBRL(r.totalManSin),cls:r=>clrV(r.totalManSin, false), align:'right', w:130, sortGetter: r=>r.totalManSin });
@@ -2525,6 +2665,65 @@ export default function AnaliseContrato() {
 
   const handleSort = (k:string) => { if(k===sortKey) setSortDir(d=>d==='asc'?'desc':'asc'); else{ setSortKey(k); setSortDir('asc'); } };
   const sortIcon   = (k:string) => sortKey===k?(sortDir==='asc'?' ↑':' ↓'):'';
+  const handleResumoDetailSort = (k:string) => {
+    if (k === resumoDetailSortKey) {
+      setResumoDetailSortDir(d => d === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setResumoDetailSortKey(k);
+    setResumoDetailSortDir('asc');
+  };
+  const resumoDetailSortIcon = (k:string) => resumoDetailSortKey===k?(resumoDetailSortDir==='asc'?' ↑':' ↓'):' ↕';
+
+  const getResumoValueForKey = (key: string, item: any) => {
+    const r = item.row as VehicleRow;
+    switch (key) {
+      case 'placa': return String(r.placa || '');
+      case 'modelo': return String(r.modelo || '');
+      case 'sitLoc': return String(item.statusLocacao || '');
+      case 'statusResumo': return String(item.statusLabel || '');
+      case 'vencimentoContrato': {
+        const d = parseDateFlexible(r.vencimentoContrato);
+        return d ? d.toLocaleDateString('pt-BR') : '—';
+      }
+      default: return String((r as any)[key] ?? '');
+    }
+  };
+
+  const toggleResumoFilterValue = (key:string, value:string) => {
+    setResumoFilters(prev => {
+      const cur = new Set(prev[key] || []);
+      if (cur.has(value)) cur.delete(value); else cur.add(value);
+      return { ...prev, [key]: Array.from(cur) };
+    });
+  };
+
+  const resumoFilterLabel: Record<string, string> = {
+    placa: 'Placa',
+    modelo: 'Modelo',
+    kmAtual: 'KM',
+    passagemTotal: 'Pass. Real',
+    diferencaPassagem: 'Dif Pass.',
+    custoKmManual: 'Custo KM Prec.',
+    custoKmMan: 'Custo KM Man.',
+    custoKmLiqMan: 'Custo KM Líq.',
+    totalReembMan: 'Reembolso Man.',
+    custoManRealizado: 'Custo Man Real.',
+    difManPrevReal: 'DIF',
+    pctDifManPrevReal: '%dif',
+    sitLoc: 'Sit. Locação',
+    vencimentoContrato: 'Vencimento',
+    statusResumo: 'Status',
+    motivoStatus: 'Motivo do Status',
+  };
+
+  const resumoFilterKeys = ['placa', 'modelo', 'sitLoc', 'vencimentoContrato', 'statusResumo'];
+
+  const toggleResumoFilterPanel = (key: string) => {
+    setResumoFilterOpenKey(prev => (prev === key ? null : key));
+  };
+
+  const isResumoFilterActive = (key: string) => (resumoFilters[key]?.length || 0) > 0;
 
   const nowStamp = () => {
     const n = new Date();
@@ -2535,25 +2734,56 @@ export default function AnaliseContrato() {
     return { dateLabel, timeLabel, fileStamp };
   };
 
-  const exportXLSX = (scope: ExportScope = 'all', selectedTab?: TabKey) => {
+  const exportXLSX = (scope: ExportScope = 'all', selectedTab?: TabKey, layout: PrintLayout = 'full') => {
     const stamp = nowStamp();
     const wb = XLSX.utils.book_new();
+
+    const summaryCols = [
+      { label: 'CLIENTE', fmt: (r: VehicleRow) => r.cliente },
+      { label: 'CTO', fmt: (r: VehicleRow) => r.contrato },
+      { label: 'PLACA PRINCIPAL', fmt: (r: VehicleRow) => r.placa },
+      { label: 'GRUPO', fmt: (r: VehicleRow) => r.grupo },
+      { label: 'MODELO', fmt: (r: VehicleRow) => r.modelo },
+      { label: 'KM', fmt: (r: VehicleRow) => (r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—') },
+      { label: 'INDICE KM', fmt: (r: VehicleRow) => r.indiceKm },
+      { label: 'IDADE', fmt: (r: VehicleRow) => fmtNum(r.idadeEmMeses) },
+      { label: 'PASS. PREVISTA', fmt: (r: VehicleRow) => fmtNominal(r.passagemIdeal) },
+      { label: 'PASS. REALIZADA', fmt: (r: VehicleRow) => fmtNominal(r.passagemTotal) },
+      { label: 'DIF PASSAGEM', fmt: (r: VehicleRow) => fmtNominal(r.diferencaPassagem) },
+      { label: 'CUSTO KM PRECIFICADO', fmt: (r: VehicleRow) => (r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual)) },
+      { label: 'CUSTO KM MANUT.', fmt: (r: VehicleRow) => fmtKM2(r.custoKmMan) },
+      { label: 'CUSTO KM LIQ. MANUT.', fmt: (r: VehicleRow) => fmtKM2(r.custoKmLiqMan) },
+      { label: 'Custo Man previsto', fmt: (r: VehicleRow) => fmtBRL(r.custoManPrevisto) },
+      { label: 'Custo Man realizado', fmt: (r: VehicleRow) => fmtBRLZero(r.custoManRealizado) },
+      { label: 'Reembolso Manut.', fmt: (r: VehicleRow) => fmtBRLZero(r.totalReembMan) },
+      { label: 'DIF', fmt: (r: VehicleRow) => fmtBRL(r.difManPrevReal) },
+      { label: '%dif', fmt: (r: VehicleRow) => fmtPct(r.pctDifManPrevReal) },
+      { label: 'VENC. DE CONTRATO', fmt: (r: VehicleRow) => r.vencimentoContrato },
+    ];
 
     const tabsToExport = scope === 'all'
       ? EXPORTABLE_TABS
       : EXPORTABLE_TABS.filter(t => t.key === (selectedTab || activeTab));
 
-    for (const tab of tabsToExport) {
-      const years = getDynYearsForTab(tab.key);
-      const cols = [...ID_COLS, ...getTabColsForTab(tab.key, years, true)];
-      const rows = displayRows.map(r => Object.fromEntries(cols.map(c => [c.label, c.fmt(r)])));
+    if (layout === 'summary') {
+      const rows = displayRows.map(r => Object.fromEntries(summaryCols.map(c => [c.label, c.fmt(r)])));
       const ws = XLSX.utils.json_to_sheet(rows);
-      const safeSheetName = tab.label.substring(0, 31);
-      XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+      XLSX.utils.book_append_sheet(wb, ws, 'Resumo');
+    } else {
+      for (const tab of tabsToExport) {
+        const years = getDynYearsForTab(tab.key);
+        const cols = [...ID_COLS, ...getTabColsForTab(tab.key, years, true)];
+        const rows = displayRows.map(r => Object.fromEntries(cols.map(c => [c.label, c.fmt(r)])));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const safeSheetName = tab.label.substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+      }
     }
 
     const metaRows = [{
       'Gerado em': `${stamp.dateLabel} ${stamp.timeLabel}`,
+      'Layout': layout === 'summary' ? 'Versão resumida' : 'Versão completa',
+      'Escopo': scope === 'all' ? 'Todas as abas' : `Aba ${selectedTab || activeTab}`,
       'Filtros': [
         filterCliente.length ? `Cliente: ${filterCliente.join(', ')}` : '',
         filterCTO.length ? `CTO: ${filterCTO.join(', ')}` : '',
@@ -2569,7 +2799,8 @@ export default function AnaliseContrato() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(metaRows), 'Meta');
 
     const tabSuffix = scope === 'all' ? 'todas_abas' : (selectedTab || activeTab);
-    XLSX.writeFile(wb, `analise_contrato_${tabSuffix}_${stamp.fileStamp}.xlsx`);
+    const layoutSuffix = layout === 'summary' ? 'resumida' : 'completa';
+    XLSX.writeFile(wb, `analise_contrato_${tabSuffix}_${layoutSuffix}_${stamp.fileStamp}.xlsx`);
   };
 
   const printAllTabsPDF = (scope: ExportScope = 'all', selectedTab?: TabKey, layout: PrintLayout = 'full') => {
@@ -2664,7 +2895,7 @@ export default function AnaliseContrato() {
           { label: 'Realizado', value: fmtBRLZero(totalRealizado), cls: 'text-red-600' },
           { label: 'DIF', value: fmtBRL(totalDifPrevReal), cls: totalDifPrevReal >= 0 ? 'text-emerald-600' : 'text-red-600' },
           { label: '% Desvio', value: fmtPct(pctDesvioPrevReal), cls: pctDesvioPrevReal > 0 ? 'text-red-600' : 'text-emerald-600' },
-          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+          { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'manutencao') {
@@ -2673,7 +2904,7 @@ export default function AnaliseContrato() {
           { label: 'Reembolsado', value: fmtBRL(totalReembMan), cls: 'text-emerald-600' },
           { label: 'Custo Líquido', value: fmtBRL(totalCustoLiqMan), cls: 'text-red-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoMan), cls: 'text-blue-600' },
-          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+          { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'sinistro') {
@@ -2682,7 +2913,7 @@ export default function AnaliseContrato() {
           { label: 'Reemb. Sinistro', value: fmtBRL(totalReembSin), cls: 'text-emerald-600' },
           { label: 'Custo Líq. Sinistro', value: fmtBRLZero(totalCustoLiqSin), cls: 'text-red-600' },
           { label: '% Recuperação', value: fmtPct(pctRecuperacaoSin), cls: 'text-blue-600' },
-          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+          { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'mansin') {
@@ -2691,7 +2922,7 @@ export default function AnaliseContrato() {
           { label: 'Total Reembolsado', value: fmtBRL(totalReembManSin), cls: 'text-emerald-600' },
           { label: 'Custo Líquido', value: fmtBRL(custoLiqTotalManSin), cls: 'text-red-600' },
           { label: 'Ticket Médio', value: fmtBRL(ticketMedioTotal), cls: 'text-blue-600' },
-          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+          { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       if (tab === 'faturamento') {
@@ -2700,14 +2931,14 @@ export default function AnaliseContrato() {
           { label: 'Margem Manutenção', value: fmtPct(margemManutencao), cls: margemManutencao < 0 ? 'text-red-600' : 'text-indigo-600' },
           { label: 'Impacto Man.', value: fmtPct(impactoManutencao), cls: impactoManutencao > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
           { label: 'Impacto Sinistro', value: fmtPct(impactoSinistro), cls: impactoSinistro > fatPctAlertThreshold ? 'text-red-600' : 'text-emerald-600' },
-          { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+          { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         ];
       }
       return [
         { label: 'Passagens', value: fmtNum(totalPassagens), cls: 'text-blue-600' },
         { label: 'Passagem Prevista', value: fmtNominal(Math.round(totalPassagemPrevista * 10) / 10), cls: 'text-indigo-600' },
         { label: 'Críticos', value: `${fmtNum(veiculosCriticos)} (${fmtPct(pctCriticos)})`, cls: 'text-red-600' },
-        { label: 'Casos Críticos', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
+        { label: 'Casos para Atenção', value: fmtNum(getCriticalCaseCountForTab(tab)), cls: 'text-red-600' },
         { label: 'Rodagem Média', value: fmtNum(Math.round(rodagemMedia)), cls: 'text-blue-600' },
       ];
     };
@@ -2740,9 +2971,12 @@ export default function AnaliseContrato() {
         { label: 'PASS. PREVISTA', fmt: (r: VehicleRow) => fmtNominal(r.passagemIdeal), align: 'num', cls: '' },
         { label: 'PASS. REALIZADA', fmt: (r: VehicleRow) => fmtNominal(r.passagemTotal), align: 'num', cls: '' },
         { label: 'DIF PASSAGEM', fmt: (r: VehicleRow) => fmtNominal(r.diferencaPassagem), align: 'num', cls: (r: VehicleRow) => clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold) },
-        { label: 'CUSTO KM', fmt: (r: VehicleRow) => (r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual)), align: 'num', cls: '' },
+        { label: 'CUSTO KM PRECIFICADO', fmt: (r: VehicleRow) => (r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual)), align: 'num', cls: '' },
+        { label: 'CUSTO KM MANUT.', fmt: (r: VehicleRow) => fmtKM2(r.custoKmMan), align: 'num', cls: '' },
+        { label: 'CUSTO KM LIQ. MANUT.', fmt: (r: VehicleRow) => fmtKM2(r.custoKmLiqMan), align: 'num', cls: '' },
         { label: 'Custo Man previsto', fmt: (r: VehicleRow) => fmtBRL(r.custoManPrevisto), align: 'num', cls: '' },
         { label: 'Custo Man realizado', fmt: (r: VehicleRow) => fmtBRLZero(r.custoManRealizado), align: 'num', cls: '' },
+        { label: 'Reembolso Manut.', fmt: (r: VehicleRow) => fmtBRLZero(r.totalReembMan), align: 'num', cls: '' },
         { label: 'DIF', fmt: (r: VehicleRow) => fmtBRL(r.difManPrevReal), align: 'num', cls: (r: VehicleRow) => clrV(r.difManPrevReal) },
         { label: '%dif', fmt: (r: VehicleRow) => fmtPct(r.pctDifManPrevReal), align: 'num', cls: (r: VehicleRow) => clrP(r.pctDifManPrevReal, false) },
         { label: 'VENC. DE CONTRATO', fmt: (r: VehicleRow) => r.vencimentoContrato, align: 'txt', cls: '' },
@@ -2891,7 +3125,11 @@ export default function AnaliseContrato() {
     ],
     sinistro: [
       'Consolida custos de sinistro e reembolsos (seguradora/terceiro).',
-      'Custo líquido é o total de sinistro menos reembolsos.'
+      'Custo Líquido Sinistro = Custo de Sinistro - Reembolso de Sinistro.',
+      'Sinistralidade (Reembolso) = (Custo de Sinistro / Reembolso de Sinistro) x 100.',
+      'Sinistralidade Operacional = (Custo de Sinistro / Faturamento Bruto) x 100.',
+      'Índice de Frequência = (Qtd. de Sinistros / Qtd. de Veículos) x 100.',
+      'Gravidade Média = Custo de Sinistro / Qtd. de Sinistros.'
     ],
     mansin: [
       'Agrupa manutenção + sinistro para visão consolidada de risco/custo.',
@@ -2922,7 +3160,7 @@ export default function AnaliseContrato() {
   if (initialLoading) return <AnalyticsLoading message="Carregando contratos e frota..." />;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-50 font-sans" style={{ overflowAnchor: 'none' }}>
       <div className="max-w-full px-4 py-5 space-y-4">
 
         {/* ── Header ── */}
@@ -3010,27 +3248,25 @@ export default function AnaliseContrato() {
                     </div>
                   </div>
 
-                  {exportFormat === 'pdf' && (
-                    <div>
-                      <div className="text-xs font-semibold text-slate-600 mb-2">Layout de impressão</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={()=>setPrintLayout('full')}
-                          className={`rounded-lg border px-3 py-2 text-sm font-medium ${printLayout === 'full' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
-                        >
-                          Completa
-                        </button>
-                        <button
-                          type="button"
-                          onClick={()=>setPrintLayout('summary')}
-                          className={`rounded-lg border px-3 py-2 text-sm font-medium ${printLayout === 'summary' ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
-                        >
-                          Versão resumida
-                        </button>
-                      </div>
+                  <div>
+                    <div className="text-xs font-semibold text-slate-600 mb-2">{exportFormat === 'pdf' ? 'Layout de impressão' : 'Layout da planilha'}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={()=>setPrintLayout('full')}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${printLayout === 'full' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        Completa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={()=>setPrintLayout('summary')}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${printLayout === 'summary' ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        Versão resumida
+                      </button>
                     </div>
-                  )}
+                  </div>
 
                   {exportScope === 'single' && (
                     <div>
@@ -3064,7 +3300,7 @@ export default function AnaliseContrato() {
                       onClick={() => {
                         const tab = exportScope === 'single' ? exportTabChoice : undefined;
                         if (exportFormat === 'pdf') printAllTabsPDF(exportScope, tab, printLayout);
-                        else exportXLSX(exportScope, tab);
+                        else exportXLSX(exportScope, tab, printLayout);
                         setShowExportModal(false);
                       }}
                       className="px-3 py-2 text-xs rounded-lg bg-slate-900 text-white hover:bg-slate-800"
@@ -3451,35 +3687,293 @@ export default function AnaliseContrato() {
                       <div>Vencem em 90 dias: <span className={`font-semibold ${resumoContratoData.proximosVencimentos90d > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{resumoContratoData.proximosVencimentos90d.toLocaleString('pt-BR')}</span></div>
                       <div>Vencidos: <span className={`font-semibold ${resumoContratoData.vencidos > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{resumoContratoData.vencidos.toLocaleString('pt-BR')}</span></div>
                       <div>Reembolso total: <span className="font-semibold text-slate-900">{fmtBRL(resumoContratoData.reembolsoTotal)}</span></div>
+                      <div>Sinistralidade operacional: <span className={`font-semibold ${resumoContratoData.sinistralidadeOperacional > 0.7 ? 'text-rose-600' : resumoContratoData.sinistralidadeOperacional > 0.65 ? 'text-amber-600' : 'text-emerald-600'}`}>{fmtPct(resumoContratoData.sinistralidadeOperacional)}</span></div>
+                      <div>Indice de frequencia: <span className="font-semibold text-slate-900">{fmtPct(resumoContratoData.indiceFrequenciaSinistro)}</span></div>
+                      <div>Gravidade media sinistro: <span className="font-semibold text-slate-900">{fmtBRLZero(resumoContratoData.gravidadeMediaSinistro)}</span></div>
+                      <div>Sinistralidade (Reembolso): <span className={`font-semibold ${isFinite(resumoContratoData.sinistralidadeReembolso) && resumoContratoData.sinistralidadeReembolso > 0.7 ? 'text-rose-600' : isFinite(resumoContratoData.sinistralidadeReembolso) && resumoContratoData.sinistralidadeReembolso > 0.65 ? 'text-amber-600' : 'text-emerald-600'}`}>{isFinite(resumoContratoData.sinistralidadeReembolso) ? fmtPct(resumoContratoData.sinistralidadeReembolso) : 'N/D'}</span></div>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 overflow-hidden">
-                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide">Top 5 ofensores do contrato (manutencao + sinistro)</div>
+                {/* Top 5 ofensores removido conforme solicitado */}
+
+                <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wide">Detalhamento — Versão Resumida</div>
+                  <div className="px-3 py-2 border-b border-slate-200 bg-white">
+                    {(() => {
+                      const rows = resumoContratoData && resumoContratoData.rows ? [...resumoContratoData.rows] : [];
+                      const enrichedRows = rows.map(row => {
+                        const statusInfo = getResumoLocacaoStatus(row);
+                        const statusLabel = statusInfo.status === 'Critico'
+                          ? 'Crítico'
+                          : statusInfo.status === 'Atencao'
+                            ? 'Atenção'
+                            : 'Saudável';
+                        const vencDate = parseDateFlexible(row.vencimentoContrato);
+                        return {
+                          row,
+                          statusLocacao: String(row.sitLoc || 'Sem informacao'),
+                          statusInfo,
+                          statusLabel,
+                          vencimentoLabel: vencDate ? vencDate.toLocaleDateString('pt-BR') : '—',
+                        };
+                      });
+
+                      const openKey = resumoFilterOpenKey;
+                      const options = openKey
+                        ? Array.from(new Set(enrichedRows.map(it => getResumoValueForKey(openKey, it)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+                        : [];
+                      const selected = openKey ? (resumoFilters[openKey] || []) : [];
+                      const activeFiltersCount = Object.values(resumoFilters).filter(arr => (arr?.length || 0) > 0).length;
+
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Filtros da tabela</span>
+                            {resumoFilterKeys.map(key => {
+                              const active = isResumoFilterActive(key);
+                              const selectedCount = resumoFilters[key]?.length || 0;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => toggleResumoFilterPanel(key)}
+                                  className={`inline-flex items-center rounded-md border px-2 py-1 text-xs ${active ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'} ${resumoFilterOpenKey === key ? 'ring-1 ring-indigo-300' : ''}`}
+                                >
+                                  {resumoFilterLabel[key] || key}{active ? ` (${selectedCount})` : ''}
+                                </button>
+                              );
+                            })}
+                            <input
+                              type="text"
+                              value={resumoSearchTerm}
+                              onChange={(e) => setResumoSearchTerm(e.target.value)}
+                              placeholder="Pesquisar placa, modelo, status, motivo..."
+                              className="min-w-[250px] flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResumoFilters({});
+                                setResumoFilterOpenKey(null);
+                                setResumoSearchTerm('');
+                              }}
+                              className="ml-auto inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                            >
+                              Limpar filtros{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ''}
+                            </button>
+                          </div>
+
+                          {openKey && (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="text-xs text-slate-700 font-medium">Filtrar por <span className="font-semibold">{resumoFilterLabel[openKey] || openKey}</span></div>
+                                <div className="flex items-center gap-2">
+                                  <button type="button" onClick={() => setResumoFilters(prev => ({ ...prev, [openKey]: options }))} className="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">Selecionar todos</button>
+                                  <button type="button" onClick={() => setResumoFilters(prev => ({ ...prev, [openKey]: [] }))} className="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">Limpar</button>
+                                  <button type="button" onClick={() => setResumoFilterOpenKey(null)} className="text-xs px-2 py-1 border rounded bg-white hover:bg-slate-50">Fechar</button>
+                                </div>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs max-h-32 overflow-auto pr-1">
+                                {options.map(val => (
+                                  <label key={val} className="inline-flex items-center gap-2">
+                                    <input type="checkbox" checked={selected.includes(val)} onChange={() => toggleResumoFilterValue(openKey, val)} />
+                                    <span className="truncate max-w-[180px]">{val || '—'}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div className="overflow-auto">
                     <table className="min-w-full text-xs">
                       <thead className="bg-slate-100 text-slate-600">
                         <tr>
-                          <th className="text-left px-3 py-2">Placa</th>
-                          <th className="text-left px-3 py-2">Modelo</th>
-                          <th className="text-right px-3 py-2">Manutenção</th>
-                          <th className="text-right px-3 py-2">Sinistro</th>
-                          <th className="text-right px-3 py-2">Total</th>
-                          <th className="text-right px-3 py-2">% Contrato</th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('placa')} className="flex items-center gap-1 hover:text-slate-900">Placa {resumoDetailSortIcon('placa')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('modelo')} className="flex items-center gap-1 hover:text-slate-900">Modelo {resumoDetailSortIcon('modelo')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('kmAtual')} className="flex items-center gap-1 justify-end hover:text-slate-900">KM {resumoDetailSortIcon('kmAtual')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('passagemTotal')} className="flex items-center gap-1 justify-end hover:text-slate-900">Pass. Real {resumoDetailSortIcon('passagemTotal')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('diferencaPassagem')} className="flex items-center gap-1 justify-end hover:text-slate-900">Dif Pass. {resumoDetailSortIcon('diferencaPassagem')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmManual')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Prec. {resumoDetailSortIcon('custoKmManual')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Man. {resumoDetailSortIcon('custoKmMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoKmLiqMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo KM Líq. {resumoDetailSortIcon('custoKmLiqMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('custoManRealizado')} className="flex items-center gap-1 justify-end hover:text-slate-900">Custo Man Real. {resumoDetailSortIcon('custoManRealizado')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalReembMan')} className="flex items-center gap-1 justify-end hover:text-slate-900">Reembolso Man. {resumoDetailSortIcon('totalReembMan')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('totalSinistro')} className="flex items-center gap-1 justify-end hover:text-slate-900">Sinistro {resumoDetailSortIcon('totalSinistro')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctReembolsadoSin')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Reembolsável {resumoDetailSortIcon('pctReembolsadoSin')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctSinFat')} className="flex items-center gap-1 justify-end hover:text-slate-900">% Fat {resumoDetailSortIcon('pctSinFat')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('difManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">DIF {resumoDetailSortIcon('difManPrevReal')}</button></th>
+                          <th className="text-right px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('pctDifManPrevReal')} className="flex items-center gap-1 justify-end hover:text-slate-900">%dif {resumoDetailSortIcon('pctDifManPrevReal')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('sitLoc')} className="flex items-center gap-1 hover:text-slate-900">Sit. Locação {resumoDetailSortIcon('sitLoc')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('vencimentoContrato')} className="flex items-center gap-1 hover:text-slate-900">Vencimento {resumoDetailSortIcon('vencimentoContrato')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('statusResumo')} className="flex items-center gap-1 hover:text-slate-900">Status {resumoDetailSortIcon('statusResumo')}</button></th>
+                          <th className="text-left px-3 py-2"><button type="button" onClick={() => handleResumoDetailSort('motivoStatus')} className="flex items-center gap-1 hover:text-slate-900">Motivo do Status {resumoDetailSortIcon('motivoStatus')}</button></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {resumoContratoData.topOfensores.map(item => (
-                          <tr key={item.placa} className="border-t border-slate-100 hover:bg-slate-50">
-                            <td className="px-3 py-2 font-medium text-slate-800">{item.placa || '—'}</td>
-                            <td className="px-3 py-2 text-slate-600">{item.modelo || '—'}</td>
-                            <td className="px-3 py-2 text-right text-slate-700">{fmtBRL(item.man)}</td>
-                            <td className="px-3 py-2 text-right text-slate-700">{fmtBRL(item.sin)}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-slate-900">{fmtBRL(item.custo)}</td>
-                            <td className="px-3 py-2 text-right text-slate-600">{fmtPct(item.perc)}</td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          const rows = resumoContratoData && resumoContratoData.rows ? [...resumoContratoData.rows] : [];
+                          const statusOrder: Record<HealthStatus, number> = { Saudavel: 0, Atencao: 1, Critico: 2 };
+                          const enrichedRows = rows.map(row => {
+                            const statusInfo = getResumoLocacaoStatus(row);
+                            const statusLabel = statusInfo.status === 'Critico'
+                              ? 'Crítico'
+                              : statusInfo.status === 'Atencao'
+                                ? 'Atenção'
+                                : 'Saudável';
+                            const vencDate = parseDateFlexible(row.vencimentoContrato);
+                            return {
+                              row,
+                              statusLocacao: String(row.sitLoc || 'Sem informacao'),
+                              statusInfo,
+                              statusLabel,
+                              vencimentoLabel: vencDate ? vencDate.toLocaleDateString('pt-BR') : '—',
+                            };
+                          });
+
+                          const key = resumoDetailSortKey;
+                          const dir = resumoDetailSortDir === 'asc' ? 1 : -1;
+                          const getter = (item: any) => {
+                            const row = item.row as VehicleRow;
+                            switch (key) {
+                              case 'placa': return row.placa || '';
+                              case 'modelo': return row.modelo || '';
+                              case 'kmAtual': return Number(row.kmAtual) || 0;
+                              case 'passagemTotal': return Number(row.passagemTotal) || 0;
+                              case 'diferencaPassagem': return Number(row.diferencaPassagem) || 0;
+                              case 'custoKmManual': return row.custoKmManual == null ? '' : Number(row.custoKmManual) || 0;
+                              case 'custoKmMan': return Number(row.custoKmMan) || 0;
+                              case 'custoKmLiqMan': return Number(row.custoKmLiqMan) || 0;
+                              case 'totalReembMan': return Number(row.totalReembMan) || 0;
+                              case 'custoManRealizado': return Number(row.custoManRealizado) || 0;
+                              case 'totalSinistro': return Number(row.totalSinistro) || 0;
+                              case 'pctReembolsadoSin': return Number(row.pctReembolsadoSin) || 0;
+                              case 'pctSinFat': return Number(row.pctSinFat) || 0;
+                              case 'difManPrevReal': return Number(row.difManPrevReal) || 0;
+                              case 'pctDifManPrevReal': return Number(row.pctDifManPrevReal) || 0;
+                              case 'sitLoc': return item.statusLocacao;
+                              case 'vencimentoContrato': return parseDateFlexible(row.vencimentoContrato)?.getTime() || 0;
+                              case 'statusResumo': return statusOrder[item.statusInfo.status as HealthStatus] ?? 0;
+                              case 'motivoStatus': return item.statusInfo.motivo;
+                              default: return '';
+                            }
+                          };
+                          enrichedRows.sort((a, b) => {
+                            const va = getter(a);
+                            const vb = getter(b);
+                            if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+                            return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * dir;
+                          });
+
+                          const filteredRows = enrichedRows.filter(item => {
+                            const search = resumoSearchTerm.trim().toLowerCase();
+                            if (search) {
+                              const r = item.row as VehicleRow;
+                              const joined = [
+                                r.placa,
+                                r.modelo,
+                                r.contrato,
+                                item.statusLocacao,
+                                item.vencimentoLabel,
+                                item.statusLabel,
+                                item.statusInfo.motivo,
+                              ].map(v => String(v || '').toLowerCase()).join(' ');
+                              if (!joined.includes(search)) return false;
+                            }
+                            for (const k of Object.keys(resumoFilters || {})) {
+                              const sel = resumoFilters[k];
+                              if (!sel || sel.length === 0) continue;
+                              const val = getResumoValueForKey(k, item);
+                              if (!sel.includes(val)) return false;
+                            }
+                            return true;
+                          });
+
+                          const rowsElems: JSX.Element[] = [];
+                          // calcular totais
+                          const totals = filteredRows.reduce((acc, it) => {
+                            const r = it.row as VehicleRow;
+                            acc.passagemTotal += Number(r.passagemTotal) || 0;
+                            acc.diferencaPassagem += Number(r.diferencaPassagem) || 0;
+                            acc.totalReembMan += Number(r.totalReembMan) || 0;
+                            acc.custoManRealizado += Number(r.custoManRealizado) || 0;
+                            acc.totalSinistro += Number(r.totalSinistro) || 0;
+                            acc.pctReembolsadoSin += Number(r.pctReembolsadoSin) || 0;
+                            acc.pctSinFat += Number(r.pctSinFat) || 0;
+                            acc.difManPrevReal += Number(r.difManPrevReal) || 0;
+                            acc.pctDifManPrevReal += Number(r.pctDifManPrevReal) || 0;
+                            return acc;
+                          }, { passagemTotal: 0, diferencaPassagem: 0, totalReembMan: 0, custoManRealizado: 0, totalSinistro: 0, pctReembolsadoSin: 0, pctSinFat: 0, difManPrevReal: 0, pctDifManPrevReal: 0 });
+
+                          filteredRows.forEach(item => {
+                            const r = item.row as VehicleRow;
+                            const status = item.statusInfo.status;
+                            const passagemDesvio = (Number(r.diferencaPassagem) || 0) > passagemDiffAlertThreshold || (Number(r.pctPassagem) || 0) > passagemPctAlertThreshold;
+                            const manutencaoDesvio = (Number(r.difManPrevReal) || 0) < 0 || (Number(r.pctDifManPrevReal) || 0) > 0;
+                            const vencido = Number.isFinite(r.prazoRestDays) && r.prazoRestDays < 0;
+                            const vence90d = Number.isFinite(r.prazoRestDays) && r.prazoRestDays >= 0 && r.prazoRestDays <= 90;
+                            const placaClass = 'px-3 py-2 font-medium text-slate-800';
+                            const modeloClass = 'px-3 py-2 text-slate-600';
+                            const statusClass = status === 'Critico' ? 'text-rose-700 font-semibold' : status === 'Atencao' ? 'text-amber-700 font-semibold' : 'text-emerald-700 font-semibold';
+                            const numClass = 'text-slate-700';
+                            const desvioClass = 'text-rose-600 font-semibold';
+                            const fatClass = (Number(r.pctSinFat) || 0) > fatPctAlertThreshold ? desvioClass : numClass;
+                            const vencimentoClass = vencido ? 'text-rose-600 font-semibold' : (vence90d ? 'text-amber-600 font-semibold' : 'text-slate-700');
+                            rowsElems.push(
+                              <tr key={`${r.placa}-${r.contrato}`} className={`border-t border-slate-100 hover:bg-slate-50`}>
+                                <td className={placaClass}>{r.placa || '—'}</td>
+                                <td className={modeloClass}>{r.modelo || '—'}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{r.kmAtual > 0 ? r.kmAtual.toLocaleString('pt-BR') : '—'}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtNominal(r.passagemTotal)}</td>
+                                <td className={`px-3 py-2 text-right ${passagemDesvio ? desvioClass : numClass}`}>{fmtNominal(r.diferencaPassagem)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtKM2(r.custoKmMan)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtKM2(r.custoKmLiqMan)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.custoManRealizado)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalReembMan)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtBRLZero(r.totalSinistro)}</td>
+                                <td className={`px-3 py-2 text-right ${numClass}`}>{fmtPct(r.pctReembolsadoSin)}</td>
+                                <td className={`px-3 py-2 text-right ${fatClass}`}>{fmtPct(r.pctSinFat)}</td>
+                                <td className={`px-3 py-2 text-right ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtBRL(r.difManPrevReal)}</td>
+                                <td className={`px-3 py-2 text-right ${manutencaoDesvio ? desvioClass : numClass}`}>{fmtPct(r.pctDifManPrevReal)}</td>
+                                <td className="px-3 py-2 whitespace-nowrap text-slate-700">{item.statusLocacao}</td>
+                                <td className={`px-3 py-2 whitespace-nowrap ${vencimentoClass}`}>{item.vencimentoLabel}</td>
+                                <td className={`px-3 py-2 whitespace-nowrap ${statusClass}`}>{item.statusLabel}</td>
+                                <td className="px-3 py-2 min-w-[280px] text-slate-700">{item.statusInfo.motivo}</td>
+                              </tr>
+                            );
+                          });
+
+                          // linha de totais
+                          rowsElems.push(
+                            <tr key="_totals" className="border-t border-slate-200 bg-slate-50 font-semibold">
+                              <td className="px-3 py-2">Totais</td>
+                              <td className="px-3 py-2" />
+                              <td className="px-3 py-2 text-right text-slate-800">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{totals.passagemTotal.toLocaleString('pt-BR')}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{totals.diferencaPassagem.toLocaleString('pt-BR')}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800">—</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.custoManRealizado)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalReembMan)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtBRLZero(totals.totalSinistro)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{filteredRows.length > 0 ? fmtPct(totals.pctReembolsadoSin / filteredRows.length) : fmtPct(0)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{filteredRows.length > 0 ? fmtPct(totals.pctSinFat / filteredRows.length) : fmtPct(0)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{fmtBRL(totals.difManPrevReal)}</td>
+                              <td className="px-3 py-2 text-right text-slate-800">{(filteredRows.length > 0) ? fmtPct(totals.pctDifManPrevReal / filteredRows.length) : fmtPct(0)}</td>
+                              <td className="px-3 py-2" />
+                              <td className="px-3 py-2" />
+                              <td className="px-3 py-2" />
+                              <td className="px-3 py-2" />
+                            </tr>
+                          );
+
+                          return rowsElems;
+                        })()}
                       </tbody>
                     </table>
                   </div>

@@ -30,6 +30,27 @@ interface PresenceContextType {
 
 const PresenceContext = createContext<PresenceContextType | undefined>(undefined);
 
+const stableEntityKey = (entity?: { type: string; id: string }) => {
+  if (!entity) return '';
+  return `${entity.type}:${entity.id}`;
+};
+
+const presenceSignature = (users: UserPresence[]) => {
+  // Intencionalmente ignora lastActivity para evitar rerender periódico por heartbeat.
+  return users
+    .map((u) => [
+      u.userId,
+      u.fullName || '',
+      u.avatarUrl || '',
+      u.email || '',
+      u.status,
+      u.currentPage || '',
+      stableEntityKey(u.currentEntity),
+    ].join('|'))
+    .sort()
+    .join('||');
+};
+
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const location = useLocation();
@@ -95,7 +116,10 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
           });
         });
 
-        setOnlineUsers(users);
+        setOnlineUsers((prev) => {
+          if (presenceSignature(prev) === presenceSignature(users)) return prev;
+          return users;
+        });
       })
       .on('presence', { event: 'join' }, (_payload) => {
         // Usuário entrou no canal (silenciado)
