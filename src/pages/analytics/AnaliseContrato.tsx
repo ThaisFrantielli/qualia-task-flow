@@ -117,7 +117,7 @@ interface ManualCostRule { id:string; cto:string; grupo:string; custoKm:number; 
 
 interface VehicleRow {
   idLocacao:string; idComercial:string; idVeiculo:string;
-  placa:string; modelo:string; grupo:string; kmAtual:number; odometroRetirada:number; indiceKm:string;
+  placa:string; modelo:string; grupo:string; kmAtual:number; odometroRetirada:number; indiceKm:string; classificacaoOdometro:string;
   idadeEmMeses:number; rodagemMedia:number; dataInicial:string; vencimentoContrato:string; cliente:string; contrato:string;
   mesesRestantesContrato:number; kmEstimadoFimContrato:number;
   prazoRestDays:number;
@@ -271,6 +271,28 @@ const daysUntil = (to:string) => {
 const fmtNum = (v:number) => v===0?'—':v.toLocaleString('pt-BR');
 const fmtInt = (v:number) => (v === 0 || v == null || !isFinite(Number(v))) ? '—' : String(Math.round(Number(v)).toLocaleString('pt-BR'));
 const kmLabel = (km:number) => km>=100000?'Acima 100.000':km>=60000?'60.000–100.000':km>=30000?'30.000–60.000':'Abaixo 30.000';
+const ODOMETRO_BUCKET_SIZE = 10000;
+const ODOMETRO_BUCKET_MAX = 120000;
+const classifyOdometro = (km:number) => {
+  if (!isFinite(km) || km <= 0) return 'Sem odômetro';
+  if (km < ODOMETRO_BUCKET_SIZE) return '< 10.000';
+  if (km >= ODOMETRO_BUCKET_MAX) return `${ODOMETRO_BUCKET_MAX.toLocaleString('pt-BR')}+`;
+  const start = Math.floor(km / ODOMETRO_BUCKET_SIZE) * ODOMETRO_BUCKET_SIZE;
+  const end = start + ODOMETRO_BUCKET_SIZE - 1;
+  return `${start.toLocaleString('pt-BR')} - ${end.toLocaleString('pt-BR')}`;
+};
+const getOdometroBucketOrder = (label:string) => {
+  if (!label) return Number.MAX_SAFE_INTEGER;
+  if (label === 'Sem odômetro') return -1;
+  if (label === '< 10.000') return 0;
+  if (label.endsWith('+')) {
+    const raw = Number(label.replace(/[^\d]/g, ''));
+    return isFinite(raw) ? raw : Number.MAX_SAFE_INTEGER;
+  }
+  const [startRaw] = label.split('-');
+  const start = Number(String(startRaw || '').replace(/[^\d]/g, ''));
+  return isFinite(start) ? start : Number.MAX_SAFE_INTEGER;
+};
 const getYear = (d:string) => { if(!d||d.length<4) return 0; const y=parseInt(d.substring(0,4)); return isNaN(y)?0:y; };
 const monthsDiff = (from:string) => { if(!from) return 0; const d=new Date(from); const n=new Date(); return Math.max(0,(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth())); };
 const monthsUntil = (to:string) => { if(!to) return 0; const d=new Date(to); if(isNaN(d.getTime())) return 0; const n=new Date(); return Math.max(0,(d.getFullYear()-n.getFullYear())*12+(d.getMonth()-n.getMonth())); };
@@ -763,6 +785,7 @@ export default function AnaliseContrato() {
   const [filterCliente,setFilterCliente]= useState<string[]>([]);
   const [filterCTO,    setFilterCTO]    = useState<string[]>([]);
   const [filterPlaca,  setFilterPlaca]  = useState<string[]>([]);
+  const [filterClassificacaoOdometro, setFilterClassificacaoOdometro] = useState<string[]>([]);
   const [filterGrupoModelo,  setFilterGrupoModelo]  = useState<string[]>([]);
   const [filterVencimento, setFilterVencimento] = useState<string[]>([]);
   const [filterTipoContrato, setFilterTipoContrato] = useState<string[]>([]);
@@ -1416,7 +1439,7 @@ export default function AnaliseContrato() {
         idLocacao: String(c?.IdContratoLocacao || ''),
         idComercial: String(cAny?.IdContratoComercial || cAny?.ContratoComercial || ''),
         idVeiculo: String(fr?.IdVeiculo || c?.IdVeiculoPrincipal || ''),
-        placa: realPlaca, modelo, grupo, kmAtual, odometroRetirada: kmInicialContrato, indiceKm: kmLabel(kmAtual), idadeEmMeses, rodagemMedia,
+        placa: realPlaca, modelo, grupo, kmAtual, odometroRetirada: kmInicialContrato, indiceKm: kmLabel(kmAtual), classificacaoOdometro: classifyOdometro(kmAtual), idadeEmMeses, rodagemMedia,
         dataInicial,
         vencimentoContrato: c?.DataFinal ? new Date(c.DataFinal).toLocaleDateString('pt-BR') : '—',
         mesesRestantesContrato,
@@ -1481,6 +1504,7 @@ export default function AnaliseContrato() {
     if (ignore !== 'clientes' && filterCliente.length && !filterCliente.includes(r.cliente)) return false;
     if (ignore !== 'ctos' && filterCTO.length && !filterCTO.includes(r.contrato)) return false;
     if (ignore !== 'placas' && filterPlaca.length && !filterPlaca.includes(r.placa)) return false;
+    if (ignore !== 'classificacaoOdometro' && filterClassificacaoOdometro.length && !filterClassificacaoOdometro.includes(r.classificacaoOdometro)) return false;
     if (ignore !== 'grupoModelo' && !matchesGrupoModelo(r, filterGrupoModelo)) return false;
     if (ignore !== 'vencimento' && !matchesVencimento(r, filterVencimento)) return false;
     if (ignore !== 'tipoContrato' && filterTipoContrato.length && !filterTipoContrato.includes(r.tipoContrato)) return false;
@@ -1494,15 +1518,25 @@ export default function AnaliseContrato() {
     const compute = (key: string, picker: (r: VehicleRow) => string) => {
       return [...new Set(vehicleRows.filter(r => rowMatchesFilters(r, key)).map(picker).filter(Boolean))].sort();
     };
+    const classificacaoOdometro = [...new Set(vehicleRows
+      .filter(r => rowMatchesFilters(r, 'classificacaoOdometro'))
+      .map(r => r.classificacaoOdometro)
+      .filter(Boolean))]
+      .sort((a, b) => {
+        const delta = getOdometroBucketOrder(a) - getOdometroBucketOrder(b);
+        if (delta !== 0) return delta;
+        return a.localeCompare(b, 'pt-BR');
+      });
     return {
       clientes: compute('clientes', r => r.cliente),
       ctos: compute('ctos', r => r.contrato),
       placas: compute('placas', r => r.placa),
+      classificacaoOdometro,
       tipoContrato: compute('tipoContrato', r => r.tipoContrato),
       sitCTO: compute('sitCTO', r => normalizeSitCTOValue(r.sitCTO)),
       sitLoc: compute('sitLoc', r => r.sitLoc),
     };
-  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc]);
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterClassificacaoOdometro, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc]);
 
   const grupoModeloTree = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -1521,7 +1555,7 @@ export default function AnaliseContrato() {
         label: g,
         children: Array.from(models).sort((a, b) => a.localeCompare(b)).map(m => ({ key: `M:${m}`, label: m })),
       }));
-  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc]);
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterClassificacaoOdometro, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc]);
 
   const vencimentoTree = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -1539,7 +1573,7 @@ export default function AnaliseContrato() {
         label: year,
         children: Array.from(months).sort((a, b) => Number(a) - Number(b)).map(month => ({ key: `M:${year}-${month}`, label: `${month}/${year}` })),
       }));
-  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc]);
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterClassificacaoOdometro, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc]);
 
   // Default: when no explicit Situação Locação filter, prefer an 'em andamento' like value
   useEffect(() => {
@@ -1588,7 +1622,7 @@ export default function AnaliseContrato() {
       const cmp=typeof valA==='number'&&typeof valB==='number'?valA-valB:String(valA).localeCompare(String(valB));
       return sortDir==='asc'?cmp:-cmp;
     });
-  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc, sortKey, sortDir]);
+  }, [vehicleRows, filterCliente, filterCTO, filterPlaca, filterClassificacaoOdometro, filterGrupoModelo, filterVencimento, filterTipoContrato, filterSitCTO, filterSitLoc, sortKey, sortDir]);
 
   const resumoContratoSelecionado = useMemo(() => {
     const contratosNoFiltro = (filterCTO || []).map(v => String(v || '').trim()).filter(Boolean);
@@ -2490,6 +2524,7 @@ export default function AnaliseContrato() {
         { key:'passagemIdeal',   label:'Ideal',       fmt:r=>r.passagemIdeal.toFixed(0), align:'right', w:72, sortGetter: r=>r.passagemIdeal },
         { key:'diferencaPassagem',label:'Diferença',  fmt:r=>r.diferencaPassagem.toFixed(0), cls:r=>clrPositiveThreshold(r.diferencaPassagem, passagemDiffAlertThreshold), align:'right', w:80, sortGetter: r=>r.diferencaPassagem },
         { key:'pctPassagem',     label:'% Passagem',  fmt:r=>fmtPct(r.pctPassagem), cls:r=>clrPositiveThreshold(r.pctPassagem, passagemPctAlertThreshold), align:'right', w:90, sortGetter: r=>r.pctPassagem },
+        { key:'classificacaoOdometro', label:'Classificação Odômetro', fmt:r=>r.classificacaoOdometro, align:'left', w:145, sortGetter: r=>getOdometroBucketOrder(r.classificacaoOdometro) },
         { key:'rodagemMedia',    label:'Rod Média/Mês', fmt:r=>fmtNum(r.rodagemMedia), cls: r=> (Number.isFinite(r.rodagemMedia) && Number.isFinite(r.franquiaBanco) && r.franquiaBanco>0 && r.rodagemMedia > r.franquiaBanco) ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:95, sortGetter: r=>r.rodagemMedia },
         { key:'franquiaBanco',    label:'Franquia Contratada', fmt:r=>fmtNum(r.franquiaBanco), align:'right', w:120, sortGetter: r=>r.franquiaBanco },
         { key:'dataInicial',     label:'Início Contrato', fmt:r=>r.dataInicial ? new Date(r.dataInicial).toLocaleDateString('pt-BR') : '—', align:'left', w:110, sortGetter: r=>r.dataInicial },
@@ -2826,6 +2861,7 @@ export default function AnaliseContrato() {
         filterCliente.length ? `Cliente: ${filterCliente.join(', ')}` : '',
         filterCTO.length ? `CTO: ${filterCTO.join(', ')}` : '',
         filterPlaca.length ? `Placa: ${filterPlaca.join(', ')}` : '',
+        filterClassificacaoOdometro.length ? `Class. Odômetro: ${filterClassificacaoOdometro.join(', ')}` : '',
         filterGrupoModelo.length ? `Grupo/Modelo: ${filterGrupoModelo.join(', ')}` : '',
         filterVencimento.length ? `Vencimento: ${filterVencimento.join(', ')}` : '',
         filterTipoContrato.length ? `Tipo Contrato: ${filterTipoContrato.join(', ')}` : '',
@@ -2925,6 +2961,7 @@ export default function AnaliseContrato() {
       filterCliente.length ? `Cliente: ${filterCliente.join(', ')}` : '',
       filterCTO.length ? `CTO: ${filterCTO.join(', ')}` : '',
       filterPlaca.length ? `Placa: ${filterPlaca.join(', ')}` : '',
+      filterClassificacaoOdometro.length ? `Class. Odômetro: ${filterClassificacaoOdometro.join(', ')}` : '',
       filterGrupoModelo.length ? `Grupo/Modelo: ${filterGrupoModelo.join(', ')}` : '',
       filterVencimento.length ? `Vencimento: ${filterVencimento.join(', ')}` : '',
       filterTipoContrato.length ? `Tipo Contrato: ${filterTipoContrato.join(', ')}` : '',
@@ -3620,7 +3657,7 @@ export default function AnaliseContrato() {
 
         {/* ── Filters ── */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3">
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Cliente</label>
               <SearchableSelect options={opts.clientes} value={filterCliente} onChange={v=>{ setFilterCliente(v); setFilterCTO([]); setFilterGrupoModelo([]); }} placeholder="Todos" allLabel="Todos" />
@@ -3636,6 +3673,10 @@ export default function AnaliseContrato() {
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Placa</label>
               <SearchableSelect options={opts.placas} value={filterPlaca} onChange={v=>setFilterPlaca(v)} placeholder="Todas" allLabel="Todas" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Classificação Odômetro</label>
+              <SearchableSelect options={opts.classificacaoOdometro} value={filterClassificacaoOdometro} onChange={v=>setFilterClassificacaoOdometro(v)} placeholder="Todas" allLabel="Todas" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label>
@@ -3654,8 +3695,8 @@ export default function AnaliseContrato() {
               <SearchableSelect options={opts.sitLoc} value={filterSitLoc} onChange={v=>setFilterSitLoc(v)} placeholder="Todas" allLabel="Todas" />
             </div>
           </div>
-          {((filterCTO&&filterCTO.length)||(filterCliente&&filterCliente.length)||(filterPlaca&&filterPlaca.length)||(filterGrupoModelo&&filterGrupoModelo.length)||(filterVencimento&&filterVencimento.length)||(filterTipoContrato&&filterTipoContrato.length)||(filterSitCTO&&filterSitCTO.length)||(filterSitLoc&&filterSitLoc.length)) && (
-            <button onClick={()=>{setFilterCTO([]);setFilterCliente([]);setFilterPlaca([]);setFilterGrupoModelo([]);setFilterVencimento([]);setFilterTipoContrato([]);setFilterSitCTO([]);setFilterSitLoc([]);}}
+          {((filterCTO&&filterCTO.length)||(filterCliente&&filterCliente.length)||(filterPlaca&&filterPlaca.length)||(filterClassificacaoOdometro&&filterClassificacaoOdometro.length)||(filterGrupoModelo&&filterGrupoModelo.length)||(filterVencimento&&filterVencimento.length)||(filterTipoContrato&&filterTipoContrato.length)||(filterSitCTO&&filterSitCTO.length)||(filterSitLoc&&filterSitLoc.length)) && (
+            <button onClick={()=>{setFilterCTO([]);setFilterCliente([]);setFilterPlaca([]);setFilterClassificacaoOdometro([]);setFilterGrupoModelo([]);setFilterVencimento([]);setFilterTipoContrato([]);setFilterSitCTO([]);setFilterSitLoc([]);}}
               className="mt-3 inline-block text-xs text-indigo-600 hover:underline">✕ Limpar filtros</button>
           )}
         </div>
