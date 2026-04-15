@@ -148,12 +148,22 @@ interface VehicleRow {
 
 interface MaintDetailRow {
   osId: string;
+  ocorrencia: string;
   date: Date | null;
   tipo: string;
   motivo: string;
   situacao: string;
   valorTotal: number;
   valorReembolsavel: number;
+}
+
+interface MaintDetailResumoRow {
+  tipo: string;
+  totalOs: number;
+  canceladas: number;
+  valorTotal: number;
+  valorReembolsavel: number;
+  pctRecuperacao: number;
 }
 
 interface FaturamentoDetailRow {
@@ -239,6 +249,10 @@ interface CtoResumoListRow {
   locacoes: CtoLocacaoSummary[];
 }
 
+const ANALISE_CONTRATO_DATA_STALE_TIME = 30 * 60 * 1000;
+const MANUAL_RULES_CACHE_TTL = 30 * 60 * 1000;
+let manualRulesCache: { data: ManualCostRule[]; timestamp: number } | null = null;
+
 type CtoListSortKey = 'cto' | 'cliente' | 'veiculos' | 'kmMedio' | 'faturamento' | 'custoLiquido' | 'pctRecuperacao' | 'impactoLiqFat' | 'status';
 
 type DetailMode = 'manutencao' | 'sinistro' | 'mansin' | 'faturamento';
@@ -308,6 +322,14 @@ const normalizeDisplayOsId = (v: unknown, fallback?: unknown) => {
   if (core.startsWith('OS')) core = core.slice(2);
   core = core.replace(/^[-_:/\s]+/, '');
   return core ? `OS-${core}` : '';
+};
+const normalizeDisplayOccurrence = (v: unknown) => {
+  const raw = String(v ?? '').trim();
+  if (!raw) return '';
+  const normalized = raw.replace(/\s+/g, '').toUpperCase();
+  const match = normalized.match(/QUAL-?([A-Z0-9]+)/i);
+  if (match && match[1]) return `QUAL-${match[1].toUpperCase()}`;
+  return normalized;
 };
 const makeRuleKey = (cto: string, grupo: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}`;
 const makeBancoRuleKey = (cto: string, grupo: string, regra: string) => `${normalizeKeyPart(cto)}::${normalizeKeyPart(grupo)}::${normalizeKeyPart(regra)}`;
@@ -601,17 +623,31 @@ const clrPositiveThreshold = (v:number, maxGood:number) => {
 
 interface ColDef { key:string; label:string; fmt:(r:VehicleRow)=>string; cls?:(r:VehicleRow)=>string; align?:'left'|'right'; w?:number; sortGetter?:(r:VehicleRow)=>any; }
 
+const getIdCols = (kmRedThreshold: number): ColDef[] => [
+  { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:60, sortGetter: r=>r.cliente },
+  { key:'contrato',    label:'CTO',          fmt:r=>r.contrato,    align:'left',  w:95, sortGetter: r=>r.contrato },
+  { key:'placa',       label:'Placa',        fmt:r=>r.placa,       align:'left',  w:105, sortGetter: r=>r.placa },
+  { key:'modelo',      label:'Modelo',       fmt:r=>r.modelo,      align:'left',  w:170, sortGetter: r=>r.modelo },
+  { key:'grupo',       label:'Grupo',        fmt:r=>r.grupo,       align:'left',  w:120, sortGetter: r=>r.grupo },
+  { key:'odometroRetirada', label:'Odômetro Retirada', fmt:r=>r.odometroRetirada>0?r.odometroRetirada.toLocaleString('pt-BR'):'—', align:'right', w:120, sortGetter: r=>r.odometroRetirada },
+  { key:'kmAtual',     label:'KM',           fmt:r=>r.kmAtual>0?r.kmAtual.toLocaleString('pt-BR'):'—', cls:r=>r.kmAtual > kmRedThreshold ? 'text-red-600 font-medium' : 'text-slate-700', align:'right', w:80, sortGetter: r=>r.kmAtual },
+  { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtInt(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
+  { key:'kmPrecificado',label:'Km Precificado',fmt:r=>r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual), align:'right', w:110, sortGetter: r=>r.custoKmManual ?? -1 },
+];
+
 function MaintDetailModal(props: {
   open: boolean;
   placa: string;
   rows: MaintDetailRow[] | FaturamentoDetailRow[];
+  resumoPorTipo?: MaintDetailResumoRow[];
   mode: DetailMode;
   onClose: () => void;
 }) {
-  const { open, placa, rows, mode, onClose } = props;
+  const { open, placa, rows, resumoPorTipo = [], mode, onClose } = props;
   if (!open) return null;
 
   const isFaturamento = mode === 'faturamento';
+  const isManutencao = mode === 'manutencao';
   
   // Adapta cálculos para os dois tipos de dados
   let total = 0, totalReemb = 0;
@@ -651,6 +687,63 @@ function MaintDetailModal(props: {
           {!isFaturamento && <div className="text-slate-600">Total Reembolsável: <span className="font-semibold text-slate-900">{fmtBRLZero(totalReemb)}</span> <span className="text-slate-500">({fmtPct(total > 0 ? totalReemb / total : 0)})</span></div>}
         </div>
 
+        {isManutencao && resumoPorTipo.length > 0 && (
+          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-700">Resumo por tipo</h4>
+                <p className="text-[11px] text-slate-500">Inclui OS canceladas, valor total, reembolsável e recuperação por tipo.</p>
+              </div>
+              <div className="text-xs text-slate-500">{resumoPorTipo.length.toLocaleString('pt-BR')} tipo(s)</div>
+            </div>
+            <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+              <table className="min-w-full text-[11px] border-collapse">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="text-left px-3 py-2 border-b border-slate-200">Tipo</th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200">OS</th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200">Canceladas</th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200">Valor Total</th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200">Valor Reembolsável</th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200">% Recuperação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumoPorTipo.map((item, index) => (
+                    <tr key={`${item.tipo}-${index}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/60">
+                      <td className="px-3 py-2 text-slate-700 font-medium">{item.tipo}</td>
+                      <td className="px-3 py-2 text-right text-slate-700">{item.totalOs.toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-right text-slate-700">{item.canceladas.toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-right text-slate-700">{fmtBRLZero(item.valorTotal)}</td>
+                      <td className="px-3 py-2 text-right text-slate-700">{fmtBRLZero(item.valorReembolsavel)}</td>
+                      <td className="px-3 py-2 text-right text-slate-700">{fmtPct(item.pctRecuperacao)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 text-slate-700">
+                  {(() => {
+                    const totalOs = resumoPorTipo.reduce((acc, item) => acc + item.totalOs, 0);
+                    const totalCanceladas = resumoPorTipo.reduce((acc, item) => acc + item.canceladas, 0);
+                    const totalValor = resumoPorTipo.reduce((acc, item) => acc + item.valorTotal, 0);
+                    const totalReembolsavel = resumoPorTipo.reduce((acc, item) => acc + item.valorReembolsavel, 0);
+                    const pctRecuperacao = totalValor > 0 ? totalReembolsavel / totalValor : 0;
+                    return (
+                      <tr className="font-semibold">
+                        <td className="px-3 py-2 text-slate-800">Total</td>
+                        <td className="px-3 py-2 text-right">{totalOs.toLocaleString('pt-BR')}</td>
+                        <td className="px-3 py-2 text-right">{totalCanceladas.toLocaleString('pt-BR')}</td>
+                        <td className="px-3 py-2 text-right">{fmtBRLZero(totalValor)}</td>
+                        <td className="px-3 py-2 text-right">{fmtBRLZero(totalReembolsavel)}</td>
+                        <td className="px-3 py-2 text-right">{fmtPct(pctRecuperacao)}</td>
+                      </tr>
+                    );
+                  })()}
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-auto px-5 py-3" style={{ maxHeight: '64vh' }}>
           <table className="min-w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-100">
@@ -665,6 +758,7 @@ function MaintDetailModal(props: {
                 ) : (
                   <>
                     <th className="text-left px-2 py-2 border-b border-slate-200">Nº OS</th>
+                    <th className="text-left px-2 py-2 border-b border-slate-200">Ocorrência</th>
                     <th className="text-left px-2 py-2 border-b border-slate-200">Data</th>
                     <th className="text-left px-2 py-2 border-b border-slate-200">Tipo</th>
                     <th className="text-left px-2 py-2 border-b border-slate-200">Motivo</th>
@@ -679,7 +773,7 @@ function MaintDetailModal(props: {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={isFaturamento ? 4 : 8} className="px-2 py-8 text-center text-slate-400">
+                  <td colSpan={isFaturamento ? 4 : 9} className="px-2 py-8 text-center text-slate-400">
                     {isFaturamento ? 'Nenhum faturamento encontrado para esta placa.' : 'Nenhuma OS encontrada para o período/regra aplicada.'}
                   </td>
                 </tr>
@@ -699,6 +793,7 @@ function MaintDetailModal(props: {
                   return (
                     <tr key={`${r.osId}-${i}`} className="border-b border-slate-100 odd:bg-white even:bg-slate-50/40">
                       <td className="px-2 py-1.5">{r.osId || '—'}</td>
+                      <td className="px-2 py-1.5">{r.ocorrencia || '—'}</td>
                       <td className="px-2 py-1.5">{r.date ? r.date.toLocaleDateString('pt-BR') : '—'}</td>
                       <td className="px-2 py-1.5">{r.tipo || '—'}</td>
                       <td className="px-2 py-1.5">{r.motivo || '—'}</td>
@@ -718,19 +813,6 @@ function MaintDetailModal(props: {
   );
 }
 
-// ID cols shown in every tab
-const ID_COLS: ColDef[] = [
-  { key:'cliente',     label:'Cliente',      fmt:r=>r.cliente,     align:'left',  w:60, sortGetter: r=>r.cliente },
-  { key:'contrato',    label:'CTO',          fmt:r=>r.contrato,    align:'left',  w:95, sortGetter: r=>r.contrato },
-  { key:'placa',       label:'Placa',        fmt:r=>r.placa,       align:'left',  w:105, sortGetter: r=>r.placa },
-  { key:'modelo',      label:'Modelo',       fmt:r=>r.modelo,      align:'left',  w:170, sortGetter: r=>r.modelo },
-  { key:'grupo',       label:'Grupo',        fmt:r=>r.grupo,       align:'left',  w:120, sortGetter: r=>r.grupo },
-  { key:'odometroRetirada', label:'Odômetro Retirada', fmt:r=>r.odometroRetirada>0?r.odometroRetirada.toLocaleString('pt-BR'):'—', align:'right', w:120, sortGetter: r=>r.odometroRetirada },
-  { key:'kmAtual',     label:'KM',           fmt:r=>r.kmAtual>0?r.kmAtual.toLocaleString('pt-BR'):'—', align:'right', w:80, sortGetter: r=>r.kmAtual },
-  { key:'idadeEmMeses',label:'Idade (meses)',fmt:r=>fmtInt(r.idadeEmMeses), align:'right', w:80, sortGetter: r=>r.idadeEmMeses },
-  { key:'kmPrecificado',label:'Km Precificado',fmt:r=>r.custoKmManual == null ? '—' : fmtBRL(r.custoKmManual), align:'right', w:110, sortGetter: r=>r.custoKmManual ?? -1 },
-];
-
 const TABS = [
   { key:'passagem',   label:'Passagem',                icon:Route,       color:'bg-blue-600',   hdr:'bg-blue-700' },
   { key:'previsto',   label:'Custo Previsto × Real',   icon:Wrench,      color:'bg-amber-600',  hdr:'bg-amber-700' },
@@ -744,11 +826,79 @@ const TABS = [
 type TabKey = typeof TABS[number]['key'];
 const EXPORTABLE_TABS = TABS.filter(tab => tab.key !== 'resumo' && tab.key !== 'listagemCto');
 
+const ANALISE_CONTRATO_UI_STATE_KEY = 'analise_contrato_ui_state_v1';
+
+type PersistedAnaliseContratoUiState = {
+  filterCliente: string[];
+  filterCTO: string[];
+  filterPlaca: string[];
+  filterClassificacaoOdometro: string[];
+  filterGrupoModelo: string[];
+  filterVencimento: string[];
+  filterTipoContrato: string[];
+  filterSitCTO: string[];
+  filterSitLoc: string[];
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  resumoFilters: Record<string, string[]>;
+  resumoDetailSortKey: string;
+  resumoDetailSortDir: 'asc' | 'desc';
+  ctoListSortKey: string;
+  ctoListSortDir: 'asc' | 'desc';
+  resumoSearchTerm: string;
+};
+
+const sanitizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map(item => String(item || '').trim()).filter(Boolean);
+};
+
+const sanitizeStringArrayMap = (value: unknown): Record<string, string[]> => {
+  if (!value || typeof value !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, raw]) => [key, sanitizeStringArray(raw)])
+  );
+};
+
+const loadPersistedAnaliseContratoUiState = (): PersistedAnaliseContratoUiState | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(ANALISE_CONTRATO_UI_STATE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<PersistedAnaliseContratoUiState>;
+    return {
+      filterCliente: sanitizeStringArray(parsed.filterCliente),
+      filterCTO: sanitizeStringArray(parsed.filterCTO),
+      filterPlaca: sanitizeStringArray(parsed.filterPlaca),
+      filterClassificacaoOdometro: sanitizeStringArray(parsed.filterClassificacaoOdometro),
+      filterGrupoModelo: sanitizeStringArray(parsed.filterGrupoModelo),
+      filterVencimento: sanitizeStringArray(parsed.filterVencimento),
+      filterTipoContrato: sanitizeStringArray(parsed.filterTipoContrato),
+      filterSitCTO: sanitizeStringArray(parsed.filterSitCTO),
+      filterSitLoc: sanitizeStringArray(parsed.filterSitLoc),
+      sortKey: typeof parsed.sortKey === 'string' && parsed.sortKey ? parsed.sortKey : 'cliente',
+      sortDir: parsed.sortDir === 'desc' ? 'desc' : 'asc',
+      resumoFilters: sanitizeStringArrayMap(parsed.resumoFilters),
+      resumoDetailSortKey: typeof parsed.resumoDetailSortKey === 'string' && parsed.resumoDetailSortKey ? parsed.resumoDetailSortKey : 'placa',
+      resumoDetailSortDir: parsed.resumoDetailSortDir === 'desc' ? 'desc' : 'asc',
+      ctoListSortKey: typeof parsed.ctoListSortKey === 'string' && parsed.ctoListSortKey ? parsed.ctoListSortKey : 'cto',
+      ctoListSortDir: parsed.ctoListSortDir === 'desc' ? 'desc' : 'asc',
+      resumoSearchTerm: typeof parsed.resumoSearchTerm === 'string' ? parsed.resumoSearchTerm : '',
+    };
+  } catch {
+    return null;
+  }
+};
+
 // ── Main Component ───────────────────────────────────────────────
 export default function AnaliseContrato() {
   type ExportScope = 'all' | 'single';
   type ExportFormat = 'pdf' | 'xlsx';
   type PrintLayout = 'full' | 'summary';
+
+  const persistedUiStateRef = useRef(loadPersistedAnaliseContratoUiState());
+  const uiStatePersistedRef = useRef(Boolean(persistedUiStateRef.current));
 
   const [activeTab, setActiveTab] = useState<TabKey>('passagem');
   const [showTabHelp, setShowTabHelp] = useState(false);
@@ -768,6 +918,8 @@ export default function AnaliseContrato() {
   const [printLayout, setPrintLayout] = useState<PrintLayout>('full');
   const [exportTabChoice, setExportTabChoice] = useState<TabKey>('passagem');
   const [kmDivisor] = useState(10000);
+  const [kmRedThreshold, setKmRedThreshold] = useState<number>(70000);
+  const [kmRedThresholdInput, setKmRedThresholdInput] = useState('70.000');
   const [passagemDiffAlertThreshold, setPassagemDiffAlertThreshold] = useState<number>(3);
   const [passagemDiffAlertInput, setPassagemDiffAlertInput] = useState('3');
   const [passagemPctAlertThreshold, setPassagemPctAlertThreshold] = useState<number>(0.30);
@@ -782,25 +934,25 @@ export default function AnaliseContrato() {
   const [ruleFormCto, setRuleFormCto] = useState('');
   const [ruleFormGrupo, setRuleFormGrupo] = useState('');
   const [ruleFormCustoKm, setRuleFormCustoKm] = useState('');
-  const [filterCliente,setFilterCliente]= useState<string[]>([]);
-  const [filterCTO,    setFilterCTO]    = useState<string[]>([]);
-  const [filterPlaca,  setFilterPlaca]  = useState<string[]>([]);
-  const [filterClassificacaoOdometro, setFilterClassificacaoOdometro] = useState<string[]>([]);
-  const [filterGrupoModelo,  setFilterGrupoModelo]  = useState<string[]>([]);
-  const [filterVencimento, setFilterVencimento] = useState<string[]>([]);
-  const [filterTipoContrato, setFilterTipoContrato] = useState<string[]>([]);
-  const [filterSitCTO, setFilterSitCTO] = useState<string[]>([]);
-  const [filterSitLoc, setFilterSitLoc] = useState<string[]>([]);
+  const [filterCliente, setFilterCliente] = useState<string[]>(() => persistedUiStateRef.current?.filterCliente ?? []);
+  const [filterCTO, setFilterCTO] = useState<string[]>(() => persistedUiStateRef.current?.filterCTO ?? []);
+  const [filterPlaca, setFilterPlaca] = useState<string[]>(() => persistedUiStateRef.current?.filterPlaca ?? []);
+  const [filterClassificacaoOdometro, setFilterClassificacaoOdometro] = useState<string[]>(() => persistedUiStateRef.current?.filterClassificacaoOdometro ?? []);
+  const [filterGrupoModelo, setFilterGrupoModelo] = useState<string[]>(() => persistedUiStateRef.current?.filterGrupoModelo ?? []);
+  const [filterVencimento, setFilterVencimento] = useState<string[]>(() => persistedUiStateRef.current?.filterVencimento ?? []);
+  const [filterTipoContrato, setFilterTipoContrato] = useState<string[]>(() => persistedUiStateRef.current?.filterTipoContrato ?? []);
+  const [filterSitCTO, setFilterSitCTO] = useState<string[]>(() => persistedUiStateRef.current?.filterSitCTO ?? []);
+  const [filterSitLoc, setFilterSitLoc] = useState<string[]>(() => persistedUiStateRef.current?.filterSitLoc ?? []);
 
-  const [sortKey,  setSortKey]  = useState<string>('cliente');
-  const [sortDir,  setSortDir]  = useState<'asc'|'desc'>('asc');
-  const [resumoDetailSortKey, setResumoDetailSortKey] = useState<string>('placa');
-  const [resumoDetailSortDir, setResumoDetailSortDir] = useState<'asc'|'desc'>('asc');
-  const [resumoFilters, setResumoFilters] = useState<Record<string, string[]>>({});
+  const [sortKey, setSortKey] = useState<string>(() => persistedUiStateRef.current?.sortKey || 'cliente');
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>(() => persistedUiStateRef.current?.sortDir === 'desc' ? 'desc' : 'asc');
+  const [resumoDetailSortKey, setResumoDetailSortKey] = useState<string>(() => persistedUiStateRef.current?.resumoDetailSortKey || 'placa');
+  const [resumoDetailSortDir, setResumoDetailSortDir] = useState<'asc'|'desc'>(() => persistedUiStateRef.current?.resumoDetailSortDir === 'desc' ? 'desc' : 'asc');
+  const [resumoFilters, setResumoFilters] = useState<Record<string, string[]>>(() => persistedUiStateRef.current?.resumoFilters ?? {});
   const [resumoFilterOpenKey, setResumoFilterOpenKey] = useState<string | null>(null);
-  const [resumoSearchTerm, setResumoSearchTerm] = useState('');
-  const [ctoListSortKey, setCtoListSortKey] = useState<CtoListSortKey>('cto');
-  const [ctoListSortDir, setCtoListSortDir] = useState<'asc'|'desc'>('asc');
+  const [resumoSearchTerm, setResumoSearchTerm] = useState(() => persistedUiStateRef.current?.resumoSearchTerm ?? '');
+  const [ctoListSortKey, setCtoListSortKey] = useState<CtoListSortKey>(() => (persistedUiStateRef.current?.ctoListSortKey as CtoListSortKey) || 'cto');
+  const [ctoListSortDir, setCtoListSortDir] = useState<'asc'|'desc'>(() => persistedUiStateRef.current?.ctoListSortDir === 'desc' ? 'desc' : 'asc');
   const [expandedCtos, setExpandedCtos] = useState<Record<string, boolean>>({});
   const [maintDetailTarget, setMaintDetailTarget] = useState<(Pick<VehicleRow, 'placa'|'dataInicial'|'idLocacao'|'idComercial'|'idVeiculo'|'tipoContrato'> & { mode: DetailMode }) | null>(null);
   const resumoDetailTableRef = useRef<HTMLTableElement | null>(null);
@@ -819,6 +971,15 @@ export default function AnaliseContrato() {
     if (!isFinite(parsed) || parsed < 0) return;
     setFatPctAlertThreshold(parsed);
     setFatPctAlertInput(String(Math.round(parsed * 1000) / 10).replace('.', ','));
+  }, []);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('analise_contrato_km_red_threshold');
+    if (raw == null) return;
+    const parsed = parseNum(raw);
+    if (!isFinite(parsed) || parsed < 0) return;
+    setKmRedThreshold(parsed);
+    setKmRedThresholdInput(Math.round(parsed).toLocaleString('pt-BR'));
   }, []);
 
   useEffect(() => {
@@ -849,6 +1010,13 @@ export default function AnaliseContrato() {
     localStorage.setItem('analise_contrato_fat_pct_alert_threshold', String(ratio));
   };
 
+  const saveKmRedThreshold = () => {
+    const threshold = Math.max(0, parseNum(kmRedThresholdInput));
+    setKmRedThreshold(threshold);
+    setKmRedThresholdInput(Math.round(threshold).toLocaleString('pt-BR'));
+    localStorage.setItem('analise_contrato_km_red_threshold', String(threshold));
+  };
+
   const savePassagemAlertThresholds = () => {
     const diff = Math.max(0, parseNum(passagemDiffAlertInput));
     const pct = Math.max(0, parseNum(passagemPctAlertInput) / 100);
@@ -863,17 +1031,24 @@ export default function AnaliseContrato() {
     localStorage.setItem('analise_contrato_passagem_pct_alert_threshold', String(pct));
   };
 
-  const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao');
-  const { data: rawF, loading: lF } = useBIData<FrotaRow[]>('dim_frota');
-  const { data: rawRules, loading: lRules } = useBIData<RegrasContratoRow[]>('dim_regras_contrato');
-  const { data: rawM, loading: lM } = useBIData<ManutencaoRow[]>('fat_manutencao_unificado', { limit: 300000 });
-  const { data: rawS, loading: lS } = useBIData<SinistroRow[]>('fat_sinistros', { limit: 300000 });
-  const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos', { limit: 300000 });
-  const { data: rawFatItens, loading: lFatItens } = useBIData<FaturamentoItemRow[]>('fat_faturamento_itens', { limit: 300000 });
-  const { data: rawPrecos, loading: _lPrecos } = useBIData<PrecosLocacaoRow[]>('fat_precos_locacao', { limit: 100000 });
-  const { data: rawMovVeic, loading: lMovVeic } = useBIData<MovimentacaoVeiculoRow[]>('dim_movimentacao_veiculos', { limit: 300000 });
+  const { data: rawC, loading: lC, metadata } = useBIData<ContratoRow[]>('dim_contratos_locacao', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawF, loading: lF } = useBIData<FrotaRow[]>('dim_frota', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawRules, loading: lRules } = useBIData<RegrasContratoRow[]>('dim_regras_contrato', { staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawM, loading: lM } = useBIData<ManutencaoRow[]>('fat_manutencao_unificado', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawS, loading: lS } = useBIData<SinistroRow[]>('fat_sinistros', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawFat, loading: lFat } = useBIData<FaturamentoRow[]>('fat_faturamentos', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawFatItens, loading: lFatItens } = useBIData<FaturamentoItemRow[]>('fat_faturamento_itens', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawPrecos, loading: _lPrecos } = useBIData<PrecosLocacaoRow[]>('fat_precos_locacao', { limit: 100000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
+  const { data: rawMovVeic, loading: lMovVeic } = useBIData<MovimentacaoVeiculoRow[]>('dim_movimentacao_veiculos', { limit: 300000, staleTime: ANALISE_CONTRATO_DATA_STALE_TIME });
 
-  const loadManualRules = async () => {
+  const loadManualRules = async (forceRefresh = false) => {
+    if (!forceRefresh && manualRulesCache && (Date.now() - manualRulesCache.timestamp) < MANUAL_RULES_CACHE_TTL) {
+      setMatrizCustos(manualRulesCache.data);
+      setRulesLoading(false);
+      setRulesError(null);
+      return;
+    }
+
     setRulesLoading(true);
     setRulesError(null);
     const { data, error } = await supabase
@@ -895,6 +1070,7 @@ export default function AnaliseContrato() {
       custoKm: parseNum(row.custo_km),
     }));
 
+    manualRulesCache = { data: mapped, timestamp: Date.now() };
     setMatrizCustos(mapped);
     setRulesLoading(false);
   };
@@ -902,6 +1078,74 @@ export default function AnaliseContrato() {
   useEffect(() => {
     void loadManualRules();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (!uiStatePersistedRef.current) {
+      const hasCustomState =
+        filterCliente.length > 0 ||
+        filterCTO.length > 0 ||
+        filterPlaca.length > 0 ||
+        filterClassificacaoOdometro.length > 0 ||
+        filterGrupoModelo.length > 0 ||
+        filterVencimento.length > 0 ||
+        filterTipoContrato.length > 0 ||
+        filterSitCTO.length > 0 ||
+        filterSitLoc.length > 0 ||
+        sortKey !== 'cliente' ||
+        sortDir !== 'asc' ||
+        resumoDetailSortKey !== 'placa' ||
+        resumoDetailSortDir !== 'asc' ||
+        Object.keys(resumoFilters).length > 0 ||
+        resumoSearchTerm.length > 0 ||
+        ctoListSortKey !== 'cto' ||
+        ctoListSortDir !== 'asc';
+
+      if (!hasCustomState) return;
+    }
+
+    const nextState: PersistedAnaliseContratoUiState = {
+      filterCliente,
+      filterCTO,
+      filterPlaca,
+      filterClassificacaoOdometro,
+      filterGrupoModelo,
+      filterVencimento,
+      filterTipoContrato,
+      filterSitCTO,
+      filterSitLoc,
+      sortKey,
+      sortDir,
+      resumoFilters,
+      resumoDetailSortKey,
+      resumoDetailSortDir,
+      ctoListSortKey,
+      ctoListSortDir,
+      resumoSearchTerm,
+    };
+
+    window.localStorage.setItem(ANALISE_CONTRATO_UI_STATE_KEY, JSON.stringify(nextState));
+    uiStatePersistedRef.current = true;
+  }, [
+    filterCliente,
+    filterCTO,
+    filterPlaca,
+    filterClassificacaoOdometro,
+    filterGrupoModelo,
+    filterVencimento,
+    filterTipoContrato,
+    filterSitCTO,
+    filterSitLoc,
+    sortKey,
+    sortDir,
+    resumoFilters,
+    resumoDetailSortKey,
+    resumoDetailSortDir,
+    ctoListSortKey,
+    ctoListSortDir,
+    resumoSearchTerm,
+  ]);
 
   const initialLoading = lC || lF || lRules;
   const heavyLoading   = lM || lS || lFat || lFatItens || lMovVeic;
@@ -980,7 +1224,7 @@ export default function AnaliseContrato() {
       }
     }
 
-    await loadManualRules();
+    await loadManualRules(true);
     setEditingRuleId(null);
     setRuleFormCto('');
     setRuleFormGrupo('');
@@ -999,7 +1243,7 @@ export default function AnaliseContrato() {
       return;
     }
 
-    await loadManualRules();
+    await loadManualRules(true);
     if (editingRuleId === id) {
       setEditingRuleId(null);
       setRuleFormCto('');
@@ -1577,6 +1821,7 @@ export default function AnaliseContrato() {
 
   // Default: when no explicit Situação Locação filter, prefer an 'em andamento' like value
   useEffect(() => {
+    if (uiStatePersistedRef.current) return;
     if (filterSitLoc && filterSitLoc.length) return;
     const candidates = opts.sitLoc || [];
     const regex = /andament|andando|andamento|locado|ativo|vigente/i;
@@ -2055,28 +2300,50 @@ export default function AnaliseContrato() {
     return { status, motivo: motivos.join(' | ') };
   };
 
-  const maintDetailRows = useMemo<MaintDetailRow[]>(() => {
-    if (!maintDetailTarget) return [];
+  const maintDetailData = useMemo<{ rows: MaintDetailRow[]; resumoPorTipo: MaintDetailResumoRow[] }>(() => {
+    if (!maintDetailTarget) return { rows: [], resumoPorTipo: [] };
     const arrM = rawM as ManutencaoRow[]|null ?? [];
     const arrS = rawS as SinistroRow[]|null ?? [];
     const targetKey = canonicalPlate(maintDetailTarget.placa || '');
-    if (!targetKey) return [];
+    if (!targetKey) return { rows: [], resumoPorTipo: [] as MaintDetailResumoRow[] };
 
     const contractStart = parseDateFlexible(maintDetailTarget.dataInicial || '');
     const today = new Date();
     const seen = new Set<string>();
     const rows: MaintDetailRow[] = [];
+    const resumoMap = new Map<string, MaintDetailResumoRow>();
     const includeManutencao = maintDetailTarget.mode === 'manutencao' || maintDetailTarget.mode === 'mansin';
     const includeSinistro = maintDetailTarget.mode === 'sinistro' || maintDetailTarget.mode === 'mansin';
+
+    const getResumo = (tipoRaw: unknown) => {
+      const tipo = String(tipoRaw || '').trim() || 'Sem tipo';
+      let resumo = resumoMap.get(tipo);
+      if (!resumo) {
+        resumo = { tipo, totalOs: 0, canceladas: 0, valorTotal: 0, valorReembolsavel: 0, pctRecuperacao: 0 };
+        resumoMap.set(tipo, resumo);
+      }
+      return resumo;
+    };
 
     if (includeManutencao) {
       for (const m of arrM) {
         const plateKey = canonicalPlate(m?.Placa || '');
         if (!plateKey || plateKey !== targetKey) continue;
 
+        const tipo = String((m as any)?.Tipo || (m as any)?.TipoManutencao || (m as any)?.TipoOcorrencia || 'Manutenção').trim() || 'Sem tipo';
         const statusRaw = (m as any)?.SituacaoOrdemServico || (m as any)?.situacaoordemservico || (m as any)?.SituacaoOS || m?.Situacao || m?.Status || m?.StatusOrdem || m?.SituacaoOcorrencia || m?.StatusOcorrencia || '';
         const status = String(statusRaw || '').toLowerCase();
-        if (status.includes('cancel')) continue;
+        const valorTotal = parseNum((m as any)?.ValorTotalFatItens || (m as any)?.ValorTotal || (m as any)?.valortotal || (m as any)?.CustoTotalOS || 0);
+        const valorReembolsavel = parseNum((m as any)?.ValorReembolsavelFatItens || (m as any)?.ValorReembolsavel || (m as any)?.valorreembolsavel || 0);
+        const resumo = getResumo(tipo);
+        resumo.totalOs += 1;
+        resumo.valorTotal += valorTotal;
+        resumo.valorReembolsavel += valorReembolsavel;
+
+        if (status.includes('cancel')) {
+          resumo.canceladas += 1;
+          continue;
+        }
 
         const rawDate = (m as any)?.OrdemServicoCriadaEm || (m as any)?.DataCriacao || (m as any)?.DataEntrada || (m as any)?.DataCriacaoOS || (m as any)?.DataServico || (m as any)?.DataAtualizacaoDados || '';
         const date = parseDateFlexible(rawDate);
@@ -2092,12 +2359,13 @@ export default function AnaliseContrato() {
 
         rows.push({
           osId,
+          ocorrencia: normalizeDisplayOccurrence((m as any)?.IdOcorrencia || (m as any)?.idocorrencia || (m as any)?.Ocorrencia || (m as any)?.NumeroOcorrencia || ''),
           date,
-          tipo: String((m as any)?.Tipo || (m as any)?.TipoManutencao || (m as any)?.TipoOcorrencia || 'Manutenção').trim(),
+          tipo,
           motivo: String((m as any)?.Motivo || (m as any)?.MotivoOcorrencia || '').trim(),
           situacao: String((m as any)?.SituacaoOrdemServico || (m as any)?.situacaoordemservico || (m as any)?.SituacaoOS || (m as any)?.Situacao || (m as any)?.StatusOrdem || (m as any)?.Status || (m as any)?.SituacaoOcorrencia || (m as any)?.StatusOcorrencia || '').trim(),
-          valorTotal: parseNum((m as any)?.ValorTotalFatItens || (m as any)?.ValorTotal || (m as any)?.valortotal || (m as any)?.CustoTotalOS || 0),
-          valorReembolsavel: parseNum((m as any)?.ValorReembolsavelFatItens || (m as any)?.ValorReembolsavel || (m as any)?.valorreembolsavel || 0),
+          valorTotal,
+          valorReembolsavel,
         });
       }
     }
@@ -2142,6 +2410,7 @@ export default function AnaliseContrato() {
 
         rows.push({
           osId,
+          ocorrencia: normalizeDisplayOccurrence((s as any)?.IdOcorrencia || (s as any)?.idocorrencia || (s as any)?.Ocorrencia || (s as any)?.NumeroOcorrencia || ''),
           date,
           tipo: 'Sinistro',
           motivo: String((s as any)?.Motivo || (s as any)?.TipoSinistro || (s as any)?.Descricao || '').trim(),
@@ -2152,7 +2421,17 @@ export default function AnaliseContrato() {
       }
     }
 
-    return rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    const resumoPorTipo = Array.from(resumoMap.values())
+      .map(item => ({
+        ...item,
+        pctRecuperacao: item.valorTotal > 0 ? item.valorReembolsavel / item.valorTotal : 0,
+      }))
+      .sort((a, b) => b.totalOs - a.totalOs || b.valorTotal - a.valorTotal || a.tipo.localeCompare(b.tipo));
+
+    return {
+      rows: rows.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)),
+      resumoPorTipo,
+    };
   }, [maintDetailTarget, rawM, rawS]);
 
   const fatDetailRows = useMemo<FaturamentoDetailRow[]>(() => {
@@ -2642,16 +2921,17 @@ export default function AnaliseContrato() {
 
   const groupColWidth = 120;
   const clienteColWidth = groupColWidth;
+  const idCols = useMemo(() => getIdCols(kmRedThreshold), [kmRedThreshold]);
 
   const allCols = useMemo(() => {
-    const idColsAdjusted = ID_COLS.map(col => {
+    const idColsAdjusted = idCols.map(col => {
       if (col.key === 'cliente') return { ...col, w: clienteColWidth };
       if (col.key === 'modelo') return { ...col, w: 240 };
       if (col.key === 'grupo') return { ...col, w: groupColWidth };
       return col;
     });
     return [...idColsAdjusted, ...tabCols];
-  }, [tabCols, clienteColWidth, groupColWidth]);
+  }, [tabCols, idCols, clienteColWidth, groupColWidth]);
 
   // leftOffsets removed — sticky columns disabled (user requested)
 
@@ -2845,7 +3125,7 @@ export default function AnaliseContrato() {
     } else {
       for (const tab of tabsToExport) {
         const years = getDynYearsForTab(tab.key);
-        const cols = [...ID_COLS, ...getTabColsForTab(tab.key, years, true)];
+        const cols = [...idCols, ...getTabColsForTab(tab.key, years, true)];
         const rows = displayRows.map(r => Object.fromEntries(cols.map(c => [c.label, c.fmt(r)])));
         const ws = XLSX.utils.json_to_sheet(rows);
         const safeSheetName = tab.label.substring(0, 31);
@@ -2862,6 +3142,7 @@ export default function AnaliseContrato() {
         filterCTO.length ? `CTO: ${filterCTO.join(', ')}` : '',
         filterPlaca.length ? `Placa: ${filterPlaca.join(', ')}` : '',
         filterClassificacaoOdometro.length ? `Class. Odômetro: ${filterClassificacaoOdometro.join(', ')}` : '',
+        `KM vermelho acima de: ${Math.round(kmRedThreshold).toLocaleString('pt-BR')}`,
         filterGrupoModelo.length ? `Grupo/Modelo: ${filterGrupoModelo.join(', ')}` : '',
         filterVencimento.length ? `Vencimento: ${filterVencimento.join(', ')}` : '',
         filterTipoContrato.length ? `Tipo Contrato: ${filterTipoContrato.join(', ')}` : '',
@@ -2962,6 +3243,7 @@ export default function AnaliseContrato() {
       filterCTO.length ? `CTO: ${filterCTO.join(', ')}` : '',
       filterPlaca.length ? `Placa: ${filterPlaca.join(', ')}` : '',
       filterClassificacaoOdometro.length ? `Class. Odômetro: ${filterClassificacaoOdometro.join(', ')}` : '',
+      `KM vermelho acima de: ${Math.round(kmRedThreshold).toLocaleString('pt-BR')}`,
       filterGrupoModelo.length ? `Grupo/Modelo: ${filterGrupoModelo.join(', ')}` : '',
       filterVencimento.length ? `Vencimento: ${filterVencimento.join(', ')}` : '',
       filterTipoContrato.length ? `Tipo Contrato: ${filterTipoContrato.join(', ')}` : '',
@@ -3151,9 +3433,9 @@ export default function AnaliseContrato() {
     } else {
       sectionsHtml = tabsToPrint.map((tab) => {
         const years = getDynYearsForTab(tab.key);
-        const cols = [...ID_COLS, ...getTabColsForTab(tab.key, years, true)];
+        const cols = [...idCols, ...getTabColsForTab(tab.key, years, true)];
         const bannerColor = colorByBgClass[tab.hdr] || '#334155';
-        const header = cols.map((col, idx) => `<th class="${idx < ID_COLS.length ? 'id-col' : 'tab-col'}">${escapeHtml(col.label)}</th>`).join('');
+        const header = cols.map((col, idx) => `<th class="${idx < idCols.length ? 'id-col' : 'tab-col'}">${escapeHtml(col.label)}</th>`).join('');
         const kpis = getPrintKpisForTab(tab.key)
           .map(k => `<div class="kpi-chip"><span class="kpi-label">${escapeHtml(k.label)}</span><span class="kpi-value ${escapeHtml(k.cls)}">${escapeHtml(k.value)}</span></div>`)
           .join('');
@@ -3161,7 +3443,7 @@ export default function AnaliseContrato() {
           const tds = cols.map((col, idx) => {
             const colClass = col.cls ? col.cls(row) : '';
             const alignClass = col.align === 'right' ? 'num' : 'txt';
-            const zoneClass = idx < ID_COLS.length ? 'id-col' : 'tab-col';
+            const zoneClass = idx < idCols.length ? 'id-col' : 'tab-col';
             return `<td class="${escapeHtml(`${alignClass} ${zoneClass} ${colClass}`)}">${escapeHtml(col.fmt(row))}</td>`;
           }).join('');
           return `<tr>${tds}</tr>`;
@@ -3473,6 +3755,36 @@ export default function AnaliseContrato() {
               </div>
 
               <div className="p-5 space-y-5 overflow-auto">
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
+                  <div className="text-sm font-semibold text-slate-900">Parâmetro de KM</div>
+                  <p className="text-xs text-slate-500 mt-0.5">KM acima do limite informado fica em vermelho na tabela e nas exportações.</p>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">KM acima de</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={kmRedThresholdInput}
+                        onChange={(e)=>setKmRedThresholdInput(e.target.value)}
+                        placeholder="70.000"
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+                      />
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Atual: <span className="font-semibold text-slate-700">{Math.round(kmRedThreshold).toLocaleString('pt-BR')} km</span>
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={saveKmRedThreshold}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 px-4 py-2 text-sm font-medium hover:bg-rose-100"
+                      >
+                        Salvar parâmetro de KM
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
                   <div className="text-sm font-semibold text-slate-900">Parâmetros de Passagem</div>
                   <p className="text-xs text-slate-500 mt-0.5">Limites para destacar a diferença da aba passagem. Se a diferença de passagens ou o percentual ultrapassarem o limite, a célula fica vermelha.</p>
@@ -4514,7 +4826,7 @@ export default function AnaliseContrato() {
                   <thead className="sticky top-0 z-10 shadow-sm">
                     <tr>
                       {/* ID header group */}
-                      <th colSpan={ID_COLS.length} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-r border-white/20">
+                      <th colSpan={idCols.length} className="bg-slate-700 text-white text-center py-1.5 text-[12px] font-semibold uppercase tracking-wide border-r border-white/20">
                         Identificação
                       </th>
                       {/* Tab header group */}
@@ -4627,7 +4939,8 @@ export default function AnaliseContrato() {
         <MaintDetailModal
           open={!!maintDetailTarget}
           placa={maintDetailTarget?.placa || ''}
-          rows={maintDetailTarget?.mode === 'faturamento' ? fatDetailRows : maintDetailRows}
+          rows={maintDetailTarget?.mode === 'faturamento' ? fatDetailRows : maintDetailData.rows}
+          resumoPorTipo={maintDetailTarget?.mode === 'manutencao' ? maintDetailData.resumoPorTipo : []}
           mode={maintDetailTarget?.mode || 'manutencao'}
           onClose={() => setMaintDetailTarget(null)}
         />
