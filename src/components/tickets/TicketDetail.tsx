@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // ScrollArea replaced by native scroll container for paginated interactions
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { formatDateTimeBR, formatShortDateTimeBR } from "@/lib/dateFormat";
 import { Loader2, Send, User, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
