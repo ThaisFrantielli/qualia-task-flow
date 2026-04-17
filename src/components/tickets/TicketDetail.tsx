@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeBR, formatShortDateTimeBR } from "@/lib/dateFormat";
 import { Loader2, Send, User, ArrowRight, MessageSquare, ListTodo, FileText, Paperclip, CheckSquare, MessageCircle, Pencil, ChevronDown, ChevronUp, Users, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -108,13 +109,13 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const handleFaseChange = async (newFase: string) => {
         if (!user?.id) return;
         // If user clicked to set phase to Concluída, do not immediately finalize.
-        // Instead, open the Encerramento tab so the user can fill the required fields
-        // and then confirm conclusion via the Encerramento save action.
         if (newFase === "Concluída") {
             setActiveTab("encerramento");
             toast.info('Preencha os campos de encerramento e clique em "Salvar Encerramento" para concluir o ticket.');
             return;
         }
+
+        const previousFase = ticket?.fase || "N/A";
 
         try {
             const updates: any = { fase: newFase };
@@ -124,6 +125,13 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 updates.status = "em_analise";
                 updates.data_conclusao = null;
             }
+
+            // Optimistic update: refletir imediatamente no header/badge
+            try {
+                queryClient.setQueryData(["ticket", ticketId], (prev: any) =>
+                    prev ? { ...prev, ...updates } : prev
+                );
+            } catch {}
 
             await updateTicket.mutateAsync({
                 ticketId,
@@ -136,13 +144,24 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                 ticket_id: ticketId,
                 tipo: "mudanca_status",
                 mensagem: `Fase alterada para: ${newFase}`,
-                status_anterior: ticket.fase || "N/A",
+                status_anterior: previousFase,
                 status_novo: newFase,
                 user_id: user.id
             });
 
+            // Garantir cache fresco em todas as views
+            queryClient.invalidateQueries({ queryKey: ["ticket", ticketId] });
+            queryClient.invalidateQueries({ queryKey: ["tickets"] });
+            queryClient.invalidateQueries({ queryKey: ["ticket-historico", ticketId] });
+
             toast.success(`Fase atualizada para: ${newFase}`);
         } catch (error) {
+            // Rollback otimista
+            try {
+                queryClient.setQueryData(["ticket", ticketId], (prev: any) =>
+                    prev ? { ...prev, fase: previousFase } : prev
+                );
+            } catch {}
             toast.error("Erro ao atualizar fase");
         }
     };
@@ -487,7 +506,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                                                     <div className="flex-1 bg-slate-50 p-3 rounded-lg border border-slate-100">
                                                         <div className="flex items-center justify-between mb-1">
                                                             <span className="font-semibold text-sm text-slate-900">{interacao.profiles?.full_name || "Sistema"}</span>
-                                                            <span className="text-xs text-muted-foreground">{format(toDate(interacao.created_at), "dd/MM HH:mm", { locale: ptBR })}</span>
+                                                            <span className="text-xs text-muted-foreground">{formatShortDateTimeBR(interacao.created_at)}</span>
                                                         </div>
                                                         <div className="text-sm text-slate-700">
                                                             {interacao.tipo === "comentario" && <p className="whitespace-pre-wrap">{interacao.mensagem}</p>}
@@ -786,7 +805,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                         <Card>
                             <CardHeader className="pb-2"><CardTitle className="text-sm font-medium uppercase text-muted-foreground">Detalhes Técnicos</CardTitle></CardHeader>
                             <CardContent className="space-y-3 text-sm">
-                                <div><span className="font-semibold block text-xs text-muted-foreground">CRIADO EM</span><p>{format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm")}</p></div>
+                                <div><span className="font-semibold block text-xs text-muted-foreground">CRIADO EM</span><p>{formatDateTimeBR(ticket.created_at)}</p></div>
                                 <div><span className="font-semibold block text-xs text-muted-foreground">ATENDENTE</span><p>{ticket.profiles?.full_name || "Não atribuído"}</p></div>
                                 <div><span className="font-semibold block text-xs text-muted-foreground">SETOR RESPONSÁVEL</span><p>{ticket.departamento || "Não definido"}</p></div>
                                 <div><span className="font-semibold block text-xs text-muted-foreground">MOTIVO</span><p>{ticket.motivo || "Não classificado"}</p></div>

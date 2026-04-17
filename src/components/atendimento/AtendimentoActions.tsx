@@ -98,12 +98,14 @@ export const AtendimentoActions: React.FC<AtendimentoActionsProps> = ({
   const { data: funis } = useFunis();
 
   const motivoOptions = (ticketMotivos && ticketMotivos.length > 0)
-    ? ticketMotivos.filter((m) => m.is_active).map((m) => ({ value: m.id, label: m.label }))
-    : TICKET_MOTIVO_OPTIONS;
+    ? ticketMotivos
+        .filter((m: any) => m.is_active !== false)
+        .map((m: any) => ({ value: m.id, label: m.label }))
+    : [...TICKET_MOTIVO_OPTIONS];
 
   const departamentoOptions = (ticketDepartamentos && ticketDepartamentos.length > 0)
     ? ticketDepartamentos.filter((d) => d.is_active).map((d) => ({ value: d.label, label: d.label }))
-    : TICKET_DEPARTAMENTO_OPTIONS;
+    : [...TICKET_DEPARTAMENTO_OPTIONS];
 
   const activeCustomFields = (ticketCustomFields || []).filter((field) => field.is_active);
 
