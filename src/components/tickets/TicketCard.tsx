@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Database } from "@/types/supabase";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatDateTimeBR } from "@/lib/dateFormat";
 import { User, Clock } from "lucide-react";
 
 type Ticket = Database["public"]["Tables"]["tickets"]["Row"] & {
@@ -68,7 +67,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
                 <div className="flex justify-between items-center text-xs text-muted-foreground">
                     <div className="flex items-center">
                         <Clock className="w-3 h-3 mr-1" />
-                        {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        {formatDateTimeBR(ticket.created_at)}
                     </div>
                     <div className="flex gap-2">
                         {(ticket as any).departamento && (

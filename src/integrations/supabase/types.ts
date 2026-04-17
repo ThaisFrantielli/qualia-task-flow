@@ -4123,6 +4123,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_active: boolean
           label: string
           parent_value: string | null
           sort_order: number | null
@@ -4131,6 +4132,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          is_active?: boolean
           label: string
           parent_value?: string | null
           sort_order?: number | null
@@ -4139,6 +4141,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          is_active?: boolean
           label?: string
           parent_value?: string | null
           sort_order?: number | null
@@ -5009,6 +5012,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_conversations_backup_dedup: {
+        Row: {
+          assigned_agent_id: string | null
+          assigned_at: string | null
+          atendimento_id: number | null
+          auto_assigned: boolean | null
+          backup_at: string | null
+          cliente_id: string | null
+          closed_at: string | null
+          closed_reason: string | null
+          created_at: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string | null
+          instance_id: string | null
+          is_online: boolean | null
+          last_message: string | null
+          last_message_at: string | null
+          status: string | null
+          ticket_id: string | null
+          unread_count: number | null
+          updated_at: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          assigned_agent_id?: string | null
+          assigned_at?: string | null
+          atendimento_id?: number | null
+          auto_assigned?: boolean | null
+          backup_at?: string | null
+          cliente_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string | null
+          instance_id?: string | null
+          is_online?: boolean | null
+          last_message?: string | null
+          last_message_at?: string | null
+          status?: string | null
+          ticket_id?: string | null
+          unread_count?: number | null
+          updated_at?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          assigned_agent_id?: string | null
+          assigned_at?: string | null
+          atendimento_id?: number | null
+          auto_assigned?: boolean | null
+          backup_at?: string | null
+          cliente_id?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string | null
+          instance_id?: string | null
+          is_online?: boolean | null
+          last_message?: string | null
+          last_message_at?: string | null
+          status?: string | null
+          ticket_id?: string | null
+          unread_count?: number | null
+          updated_at?: string | null
+          whatsapp_number?: string | null
+        }
+        Relationships: []
       }
       whatsapp_daily_send_log: {
         Row: {

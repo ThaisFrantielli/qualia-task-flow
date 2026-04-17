@@ -140,33 +140,44 @@ function createWhatsAppClient(instanceId) {
         }
     });
 
-    // Listen for incoming messages
-    client.on('message', async (message) => {
-        console.log(`[${instanceId}] Message from ${message.from}: ${message.body}`);
-
-        // Forward message to Supabase Edge Function
+    // Helper para encaminhar qualquer mensagem ao webhook (recebidas e enviadas)
+    const forwardToWebhook = async (message, fromMe) => {
         try {
             const info = await client.info;
-            const companyNumber = info.wid.user;
-
+            const companyNumber = info?.wid?.user;
             await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
                 instance_id: instanceId,
                 from: message.from,
-                to: companyNumber,
+                to: message.to || (fromMe ? message.to : companyNumber),
                 body: message.body,
                 timestamp: message.timestamp,
                 type: message.type,
-                messageId: message.id._serialized
+                messageId: message.id?._serialized,
+                fromMe: !!fromMe,
             }, {
                 headers: {
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                     'Content-Type': 'application/json'
                 }
             });
-            console.log(`[${instanceId}] ✓ Message forwarded to webhook`);
+            console.log(`[${instanceId}] ✓ Message forwarded (fromMe=${!!fromMe})`);
         } catch (error) {
             console.error(`[${instanceId}] ✗ Failed to forward message:`, error.message);
         }
+    };
+
+    // Mensagens recebidas do cliente
+    client.on('message', async (message) => {
+        console.log(`[${instanceId}] IN  ${message.from}: ${message.body}`);
+        await forwardToWebhook(message, false);
+    });
+
+    // Mensagens enviadas pelo número conectado (bot, agente externo, etc.)
+    // 'message_create' dispara para TODAS as mensagens criadas, inclusive as próprias.
+    client.on('message_create', async (message) => {
+        if (!message.fromMe) return; // 'message' já cobre as recebidas
+        console.log(`[${instanceId}] OUT ${message.to}: ${message.body}`);
+        await forwardToWebhook(message, true);
     });
 
     return client;

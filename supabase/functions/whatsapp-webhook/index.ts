@@ -6,7 +6,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-secret',
+}
+
+// Normaliza qualquer JID/telefone para somente dígitos
+const normalizePhone = (raw: string): string => {
+  const jid = String(raw || '').trim().toLowerCase()
+  const user = jid.split('@')[0] || ''
+  return user.replace(/\D/g, '')
 }
 
 serve(async (req: Request) => {
@@ -26,19 +33,25 @@ serve(async (req: Request) => {
       }
     }
 
-    const { instance_id, from, body, timestamp, messageId } = await req.json()
+    const payload = await req.json()
+    const {
+      instance_id,
+      from,
+      to,
+      body,
+      timestamp,
+      messageId,
+      // Novos campos para suportar mensagens enviadas pelo bot/agente externo
+      fromMe = false,
+      type: messageType = 'text',
+    } = payload
 
-    console.log('=== WhatsApp Webhook Debug ===')
-    console.log('Instance ID:', instance_id)
-    console.log('From:', from)
-    console.log('Body:', body)
-    console.log('Timestamp:', timestamp)
-    console.log('Message ID:', messageId)
+    console.log('=== WhatsApp Webhook ===')
+    console.log({ instance_id, from, to, fromMe, messageId, len: (body || '').length })
 
-    // require instance_id and from, but allow empty body (some WhatsApp events may not include text)
-    if (!instance_id || !from) {
+    if (!instance_id || (!from && !to)) {
       return new Response(
-        JSON.stringify({ error: 'instance_id and from are required' }),
+        JSON.stringify({ error: 'instance_id and from (or to) are required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
@@ -47,14 +60,17 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const fromJid = String(from || '').trim().toLowerCase()
+    // Quando é mensagem do bot/agente (fromMe), o 'from' será o número da empresa.
+    // O telefone do CLIENTE estará em 'to'. Use o destino correto para identificar a conversa.
+    const counterpartyJid = fromMe ? (to || from) : from
+    const counterpartyJidStr = String(counterpartyJid || '').toLowerCase()
 
-    // Ignore group, broadcast and status events to avoid creating noisy conversations.
+    // Ignora grupos, broadcasts, status
     if (
-      !fromJid ||
-      fromJid.includes('@g.us') ||
-      fromJid.includes('@broadcast') ||
-      fromJid.includes('status@')
+      !counterpartyJidStr ||
+      counterpartyJidStr.includes('@g.us') ||
+      counterpartyJidStr.includes('@broadcast') ||
+      counterpartyJidStr.includes('status@')
     ) {
       return new Response(
         JSON.stringify({ success: true, ignored: true, reason: 'non-direct-message' }),
@@ -62,11 +78,8 @@ serve(async (req: Request) => {
       )
     }
 
-    // Extract phone number from WhatsApp JID (e.g., "5561999887766@c.us" -> "5561999887766").
-    const jidUser = fromJid.split('@')[0] || ''
-    const phoneNumber = jidUser.replace(/\D/g, '')
+    const phoneNumber = normalizePhone(counterpartyJidStr)
 
-    // Guardrail: only keep plausible customer phone numbers.
     if (phoneNumber.length < 10 || phoneNumber.length > 15) {
       return new Response(
         JSON.stringify({ success: true, ignored: true, reason: 'invalid-phone' }),
@@ -74,85 +87,130 @@ serve(async (req: Request) => {
       )
     }
 
-    // Find or create conversation for this instance
-    // Try to find conversation by whatsapp_number OR customer_phone for resilience
-    let { data: conversation, error: convError } = await supabase
+    // Dedup por whatsapp_message_id antes de qualquer trabalho extra
+    if (messageId) {
+      const { data: existing } = await supabase
+        .from('whatsapp_messages')
+        .select('id')
+        .eq('whatsapp_message_id', messageId)
+        .maybeSingle()
+      if (existing) {
+        return new Response(
+          JSON.stringify({ success: true, deduped: true, messageId }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
+    }
+
+    // Buscar conversa existente (por whatsapp_number normalizado, dentro da instância)
+    let { data: conversation } = await supabase
       .from('whatsapp_conversations')
       .select('*')
-      .or(`whatsapp_number.eq.${phoneNumber},customer_phone.eq.${phoneNumber}`)
+      .eq('whatsapp_number', phoneNumber)
       .eq('instance_id', instance_id)
       .maybeSingle()
 
-    if (convError || !conversation) {
-      // Create new conversation
+    // Fallback: tenta por customer_phone para conversas legadas
+    if (!conversation) {
+      const { data: legacy } = await supabase
+        .from('whatsapp_conversations')
+        .select('*')
+        .eq('customer_phone', phoneNumber)
+        .eq('instance_id', instance_id)
+        .maybeSingle()
+      if (legacy) conversation = legacy
+    }
+
+    if (!conversation) {
+      // Criar nova conversa
       const { data: newConv, error: createError } = await supabase
         .from('whatsapp_conversations')
         .insert({
-          // Fill both customer_phone and whatsapp_number to satisfy schemas that require whatsapp_number
           customer_phone: phoneNumber,
           whatsapp_number: phoneNumber,
           customer_name: phoneNumber,
-          instance_id: instance_id,
-          status: 'active',
+          instance_id,
+          status: fromMe ? 'active' : 'waiting',
           last_message: body || null,
           last_message_at: new Date().toISOString(),
-          unread_count: 1
+          unread_count: fromMe ? 0 : 1
         })
         .select()
         .maybeSingle()
 
       if (createError) {
-        console.error('Error creating conversation:', createError)
-        throw createError
+        // Possível corrida: tenta resolver buscando de novo
+        const { data: retryConv } = await supabase
+          .from('whatsapp_conversations')
+          .select('*')
+          .eq('whatsapp_number', phoneNumber)
+          .eq('instance_id', instance_id)
+          .maybeSingle()
+        if (!retryConv) {
+          console.error('Error creating conversation:', createError)
+          throw createError
+        }
+        conversation = retryConv
+      } else {
+        conversation = newConv
       }
-
-      conversation = newConv
     } else {
-      // Update existing conversation
+      // Atualizar conversa existente
       await supabase
         .from('whatsapp_conversations')
         .update({
-          // ensure whatsapp_number is set if present
           whatsapp_number: phoneNumber,
           last_message: body || null,
           last_message_at: new Date().toISOString(),
-          unread_count: (conversation.unread_count || 0) + 1,
+          // Só incrementa não-lidos quando vem do cliente
+          unread_count: fromMe
+            ? (conversation.unread_count || 0)
+            : (conversation.unread_count || 0) + 1,
           updated_at: new Date().toISOString()
         })
         .eq('id', conversation.id)
     }
 
-    // Create message
+    // Persistir mensagem (cliente, agente humano ou bot/automação)
+    const sender_type = fromMe ? 'agent' : 'customer'
+    const status = fromMe ? 'sent' : 'received'
+
     const { error: messageError } = await supabase
       .from('whatsapp_messages')
       .insert({
         conversation_id: conversation.id,
-        instance_id: instance_id,
-        sender_type: 'customer',
+        instance_id,
+        sender_type,
         content: body || null,
-        message_type: 'text',
-        status: 'received',
+        message_type: messageType || 'text',
+        status,
         whatsapp_message_id: messageId
       })
 
     if (messageError) {
+      // Se o erro for de unique violation por message_id, considera dedup OK
+      const code = (messageError as any).code
+      if (code === '23505') {
+        return new Response(
+          JSON.stringify({ success: true, deduped: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
       console.error('Error creating message:', messageError)
       throw messageError
     }
 
-    // --- TRIAGE LOGIC START ---
-    // Only process for customer messages
-    if (conversation.customer_phone) {
-      // 1. Check if client exists
-      let { data: client, error: clientError } = await supabase
+    // Triagem: somente para mensagens do CLIENTE
+    if (!fromMe && conversation.customer_phone) {
+      let { data: client } = await supabase
         .from('clientes')
         .select('id, status_triagem')
         .or(`whatsapp_number.eq.${conversation.customer_phone},telefone.eq.${conversation.customer_phone}`)
         .maybeSingle()
 
-      // 2. Check for open tickets (status not in 'resolvido', 'fechado')
       let hasOpenTicket = false
-      let openTicketId = null
+      let hasOpenOpportunity = false
+
       if (client) {
         const { data: tickets } = await supabase
           .from('tickets')
@@ -160,64 +218,34 @@ serve(async (req: Request) => {
           .eq('cliente_id', client.id)
           .not('status', 'in', '(resolvido,fechado)')
           .limit(1)
-
         hasOpenTicket = (tickets?.length || 0) > 0
-        openTicketId = tickets?.[0]?.id || null
-      }
 
-      // 3. Check for open opportunities (status not in 'ganho', 'perdido')
-      let hasOpenOpportunity = false
-      let openOpportunityId = null
-      if (client) {
         const { data: opps } = await supabase
           .from('oportunidades')
           .select('id')
           .eq('cliente_id', client.id)
           .not('status', 'in', '(ganho,perdido)')
           .limit(1)
-
         hasOpenOpportunity = (opps?.length || 0) > 0
-        openOpportunityId = opps?.[0]?.id || null
+
+        if (!conversation.cliente_id) {
+          await supabase
+            .from('whatsapp_conversations')
+            .update({ cliente_id: client.id })
+            .eq('id', conversation.id)
+        }
       }
 
-      console.log(`Triage Check - Client: ${client?.id}, Open Ticket: ${hasOpenTicket}, Open Opp: ${hasOpenOpportunity}`)
-
-      // 4. If client exists, always link conversation to client
-      if (client && !conversation.cliente_id) {
-        await supabase
-          .from('whatsapp_conversations')
-          .update({ cliente_id: client.id })
-          .eq('id', conversation.id)
-        
-        console.log(`Linked conversation ${conversation.id} to client ${client.id}`)
-      }
-
-      // 5. If has open ticket, link conversation to ticket (atendimento_id)
-      if (hasOpenTicket && openTicketId) {
-        // Note: atendimento_id field exists in whatsapp_conversations
-        await supabase
-          .from('whatsapp_conversations')
-          .update({ atendimento_id: null }) // Could link to ticket if needed
-          .eq('id', conversation.id)
-        
-        console.log(`Client ${client?.id} has open ticket ${openTicketId} - message goes to ticket context`)
-      }
-
-      // 6. If no open ticket and no open opportunity, send to triage
       if (!hasOpenTicket && !hasOpenOpportunity) {
         if (client) {
-          // Update existing client to triage if not already there
           if (client.status_triagem !== 'novo' && client.status_triagem !== 'aguardando') {
             await supabase
               .from('clientes')
               .update({ status_triagem: 'aguardando' })
               .eq('id', client.id)
-
-            console.log(`Updated client ${client.id} to triage status`)
           }
         } else {
-          // Create new lead in triage and get the ID
-          const { data: newClient, error: createClientError } = await supabase
+          const { data: newClient } = await supabase
             .from('clientes')
             .insert({
               codigo_cliente: `WA-${Date.now()}`,
@@ -229,46 +257,35 @@ serve(async (req: Request) => {
             .select('id')
             .single()
 
-          if (createClientError) {
-            console.error('Error creating triage lead:', createClientError)
-          } else {
-            console.log(`Created new triage lead ${newClient.id} for ${conversation.customer_phone}`)
-            
-            // Link conversation to the new client
+          if (newClient) {
             await supabase
               .from('whatsapp_conversations')
               .update({ cliente_id: newClient.id })
               .eq('id', conversation.id)
-            
-            console.log(`Linked conversation to new client ${newClient.id}`)
           }
         }
       }
     }
-    // --- TRIAGE LOGIC END ---
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Webhook processed successfully',
         conversation_id: conversation.id,
-        instance_id: instance_id
+        instance_id,
+        sender_type,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('Error processing webhook:', error)
-
     return new Response(
       JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Internal server error'
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })
