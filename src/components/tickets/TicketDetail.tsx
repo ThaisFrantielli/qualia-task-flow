@@ -1,4 +1,5 @@
 import { useTicketDetail, useUpdateTicket, useAddTicketInteracao } from "@/hooks/useTickets";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,7 @@ interface TicketDetailProps {
 
 export function TicketDetail({ ticketId }: TicketDetailProps) {
     const { user } = useAuth();
+    const queryClient = useQueryClient();
     const { data: ticketData, isLoading, refetch } = useTicketDetail(ticketId);
     const ticket = ticketData as any; // Cast to any to support new fields
     const updateTicket = useUpdateTicket();
