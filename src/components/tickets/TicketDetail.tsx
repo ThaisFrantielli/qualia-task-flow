@@ -93,20 +93,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     const interacoesRef = useRef<HTMLDivElement | null>(null);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-    // Normaliza strings de timestamp que podem vir sem fuso (ex: "YYYY-MM-DD HH:MM:SS")
-    const toDate = (val: any) => {
-        if (!val) return new Date();
-        if (val instanceof Date) return val;
-        if (typeof val === 'string') {
-            // ISO-like with T -> let Date parse (keeps offset if present)
-            if (/^\d{4}-\d{2}-\d{2}T/.test(val)) return new Date(val);
-            // Space-separated common Postgres format 'YYYY-MM-DD HH:MM:SS' -> assume UTC
-            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(val)) return new Date(val.replace(' ', 'T') + 'Z');
-            // Fallback
-            return new Date(val);
-        }
-        return new Date(val);
-    };
+    // Date parsing centralizado em src/lib/dateFormat.ts (formatDateTimeBR / formatShortDateTimeBR)
 
     const handleFaseChange = async (newFase: string) => {
         if (!user?.id) return;
