@@ -384,7 +384,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
                         </p>
                         {ticket.created_at && (
                             <p className="text-xs text-muted-foreground">
-                                Criado em: {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                Criado em: {formatDateTimeBR(ticket.created_at)}
                                 {createdByName ? ` • por ${createdByName}` : ''}
                             </p>
                         )}
