@@ -46,7 +46,7 @@ interface WhatsAppInstance {
 export default function FilaTriagem() {
   const { user } = useAuth();
   const presence = usePresenceOptional();
-  const { data: leads, isLoading, refetch, isFetching } = useTriagemLeads();
+  const { data: leads, isLoading, refetch, isFetching, total: totalLeadsServidor } = useTriagemLeads({ limit: 500 }) as any;
   const { data: funis } = useFunis();
   const encaminharComercial = useEncaminharParaComercial();
   const criarTicket = useCriarTicket();
@@ -192,15 +192,17 @@ export default function FilaTriagem() {
     });
   }, [visibleLeads, searchTerm, statusFilter, origemFilter, activeTab, user?.id, selectedInstanceIds, instances.length]);
 
-  // Stats
+  // Stats — total reflete a contagem real do servidor (descontando leads removidos localmente)
   const stats = useMemo(() => {
     if (!visibleLeads) return { total: 0, whatsapp: 0, urgent: 0 };
+    const serverTotal = typeof totalLeadsServidor === 'number' ? totalLeadsServidor : visibleLeads.length;
+    const adjustedTotal = Math.max(0, serverTotal - removedLeadIds.length);
     return {
-      total: visibleLeads.length,
+      total: adjustedTotal,
       whatsapp: visibleLeads.filter(l => l.origem === 'whatsapp_inbound' || l.whatsapp_number).length,
       urgent: visibleLeads.filter(l => (l.conversation?.unread_count || 0) > 0).length
     };
-  }, [visibleLeads]);
+  }, [visibleLeads, totalLeadsServidor, removedLeadIds.length]);
 
   useEffect(() => {
     if (!leads || leads.length === 0) return;
