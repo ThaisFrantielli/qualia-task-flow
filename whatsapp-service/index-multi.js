@@ -725,13 +725,15 @@ async function handleIncomingMessage(instanceId, client, message) {
             await axios.post(`${SUPABASE_URL}/functions/v1/whatsapp-webhook`, {
                 instance_id: instanceId,
                 from: message.from,
+                to: message.to,
+                fromMe,
                 body: message.body,
                 timestamp: message.timestamp,
                 type: message.type,
                 messageId,
-            }, { headers });
+            }, { headers, timeout: 15000 });
 
-            console.log(`Message forwarded to Supabase webhook for instance ${instanceId}`);
+            console.log(`[${instanceId}] ✓ Forwarded to webhook (fromMe=${fromMe})`);
         } catch (error) {
             if (error && error.response) {
                 try {
