@@ -46,7 +46,12 @@ interface WhatsAppInstance {
 export default function FilaTriagem() {
   const { user } = useAuth();
   const presence = usePresenceOptional();
-  const { data: leads, isLoading, refetch, isFetching, total: totalLeadsServidor } = useTriagemLeads({ limit: 500 }) as any;
+  const triagemQuery = useTriagemLeads({ limit: 500 });
+  const leads: TriagemLead[] = (triagemQuery.data as TriagemLead[] | undefined) || [];
+  const isLoading = triagemQuery.isLoading;
+  const refetch = triagemQuery.refetch;
+  const isFetching = triagemQuery.isFetching;
+  const totalLeadsServidor = (triagemQuery as unknown as { total?: number }).total ?? 0;
   const { data: funis } = useFunis();
   const encaminharComercial = useEncaminharParaComercial();
   const criarTicket = useCriarTicket();
