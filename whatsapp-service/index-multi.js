@@ -655,15 +655,31 @@ async function persistIncomingMessageFallback(instanceId, message) {
 async function handleIncomingMessage(instanceId, client, message) {
     try {
         if (!message) return;
-        if (message.fromMe) return;
 
-        if (String(message.from || '').includes('@g.us')) {
+        const fromMe = !!message.fromMe;
+        const fromJid = String(message.from || '').toLowerCase();
+        const toJid = String(message.to || '').toLowerCase();
+
+        // Ignora grupos, broadcasts e status
+        if (
+            fromJid.includes('@g.us') || toJid.includes('@g.us') ||
+            fromJid.includes('@broadcast') || toJid.includes('@broadcast') ||
+            fromJid.includes('status@') || toJid.includes('status@')
+        ) {
             return;
         }
 
+        // Identifica a contraparte (cliente). Para fromMe, é o destinatário.
+        const counterpartyJid = fromMe ? toJid : fromJid;
+        if (!counterpartyJid) return;
+
+        // Self-skip APENAS quando a contraparte for IGUAL ao próprio número da instância
+        // (caso raro de auto-conversa). Comparar dígitos puros, não substring.
         try {
-            const instanceNumber = client?.info?.wid?.user;
-            if (instanceNumber && String(message.from).includes(String(instanceNumber))) {
+            const instanceUser = client?.info?.wid?.user;
+            const counterDigits = counterpartyJid.split('@')[0].replace(/\D/g, '');
+            if (instanceUser && counterDigits === String(instanceUser).replace(/\D/g, '')) {
+                console.log(`[${instanceId}] Skipping self-conversation message`);
                 return;
             }
         } catch (e) {
@@ -671,7 +687,12 @@ async function handleIncomingMessage(instanceId, client, message) {
         }
 
         const messageId = message?.id?._serialized;
-        if (!messageId) return;
+        if (!messageId) {
+            console.log(`[${instanceId}] Message without id, skipping`);
+            return;
+        }
+
+        console.log(`[${instanceId}] ${fromMe ? 'OUT' : 'IN '} from=${fromJid} to=${toJid} msgId=${messageId} body="${(message.body || '').slice(0, 60)}"`);
 
         try {
             const { data: existing, error: existError } = await supabase
